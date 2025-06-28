@@ -91,4 +91,4 @@ fn greet(name: &str) -> String {
 
 ## Adding New Languages
 
-See `ADDING_LANGUAGES.md` for detailed instructions on extending Marco with additional programming languages.
+See `ADDING_CODE_LANGUAGES.md` for detailed instructions on extending Marco with additional programming languages.
