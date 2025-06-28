@@ -1,13 +1,14 @@
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, TextView, Widget};
+use pulldown_cmark::{Parser, Options, html};
 
 #[derive(Clone)]
-pub struct MarkdownPreview {
+pub struct MarkdownCodeView {
     widget: ScrolledWindow,
     text_view: TextView,
 }
 
-impl MarkdownPreview {
+impl MarkdownCodeView {
     pub fn new() -> Self {
         let text_view = TextView::new();
         text_view.set_editable(false);
@@ -29,10 +30,20 @@ impl MarkdownPreview {
     }
 
     pub fn update_content(&self, markdown_text: &str) {
-        // Use your markdown_basic parser for HTML preview
-        let html = crate::syntax_basic::MarkdownParser::new().to_html(markdown_text);
+        // Use pulldown-cmark for HTML code preview to match the HTML view
+        let mut options = Options::empty();
+        options.insert(Options::ENABLE_TABLES);
+        options.insert(Options::ENABLE_FOOTNOTES);
+        options.insert(Options::ENABLE_STRIKETHROUGH);
+        options.insert(Options::ENABLE_TASKLISTS);
+        options.insert(Options::ENABLE_SMART_PUNCTUATION);
+        
+        let parser = Parser::new_ext(markdown_text, options);
+        let mut html_content = String::new();
+        html::push_html(&mut html_content, parser);
+        
         let preview_buffer = self.text_view.buffer();
-        preview_buffer.set_text(&html);
+        preview_buffer.set_text(&html_content);
     }
 
     #[allow(dead_code)]

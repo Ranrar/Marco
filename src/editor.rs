@@ -2,13 +2,14 @@ use gtk4::prelude::*;
 use gtk4::{
     FileChooserAction, FileChooserDialog, HeaderBar, Label, Orientation,
     Paned, ResponseType, ScrolledWindow, Widget, Dialog, Entry, Grid, FileFilter,
-    EventControllerKey, gdk, ComboBoxText,
+    EventControllerKey, gdk, ComboBoxText, Stack,
 };
 use sourceview5::prelude::*;
 use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::preview::MarkdownPreview;
+use crate::view_code::MarkdownCodeView;
+use crate::view_html::MarkdownHtmlView;
 use crate::code_languages::CodeLanguageManager;
 use crate::context_menu::ContextMenu;
 
@@ -16,11 +17,14 @@ use crate::context_menu::ContextMenu;
 pub struct MarkdownEditor {
     widget: Paned,
     source_view: View,
-    preview: MarkdownPreview,
+    view_stack: Stack,
+    html_view: MarkdownHtmlView,
+    code_view: MarkdownCodeView,
     source_buffer: Buffer,
     current_file: Rc<RefCell<Option<std::path::PathBuf>>>,
     footer_callbacks: Rc<RefCell<Vec<Box<dyn Fn(&str, usize, usize, usize, usize)>>>>,
     code_language_manager: Rc<RefCell<CodeLanguageManager>>,
+    theme_manager: Rc<RefCell<Option<crate::theme::ThemeManager>>>,
 }
 
 impl MarkdownEditor {
@@ -61,8 +65,16 @@ impl MarkdownEditor {
             source_buffer.set_style_scheme(Some(&scheme));
         }
 
-        // Create preview
-        let preview = MarkdownPreview::new();
+        // Create views
+        let html_view = MarkdownHtmlView::new();
+        let code_view = MarkdownCodeView::new();
+        
+        // Create a stack to hold both views
+        let view_stack = Stack::new();
+        view_stack.set_vexpand(true);
+        view_stack.add_named(html_view.widget(), Some("html"));
+        view_stack.add_named(code_view.widget(), Some("code"));
+        view_stack.set_visible_child_name("html"); // Default to HTML view
 
         // Create scrolled window for source view
         let source_scroll = ScrolledWindow::new();
@@ -72,7 +84,7 @@ impl MarkdownEditor {
 
         // Add to paned
         paned.set_start_child(Some(&source_scroll));
-        paned.set_end_child(Some(preview.widget()));
+        paned.set_end_child(Some(&view_stack));
 
         // Clamp split position logic
         // We'll clamp the position between min and max (e.g., 200px and total_width-200px)
@@ -99,11 +111,14 @@ impl MarkdownEditor {
         let editor = Self {
             widget: paned,
             source_view,
-            preview,
+            view_stack,
+            html_view,
+            code_view,
             source_buffer,
             current_file,
             footer_callbacks,
             code_language_manager,
+            theme_manager: Rc::new(RefCell::new(None)),
         };
 
         // Connect text change signal
@@ -162,17 +177,17 @@ impl MarkdownEditor {
     }
 
     fn connect_text_changed(&self) {
-        let preview = self.preview.clone();
+        let html_view = self.html_view.clone();
+        let code_view = self.code_view.clone();
         let footer_callbacks = self.footer_callbacks.clone();
+        let update_timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+        
         self.source_buffer.connect_changed(move |buffer| {
             let start = buffer.start_iter();
             let end = buffer.end_iter();
             let text = buffer.text(&start, &end, false);
             
-            // Update preview
-            preview.update_content(&text);
-            
-            // Update footer statistics
+            // Update footer statistics immediately (no delay needed for stats)
             let char_count = text.chars().count();
             let word_count = text.split_whitespace().count();
             
@@ -185,6 +200,27 @@ impl MarkdownEditor {
             for callback in footer_callbacks.borrow().iter() {
                 callback(&text, word_count, char_count, line as usize, column as usize);
             }
+            
+            // Debounce the view updates to prevent constant WebView reloads
+            let html_view_clone = html_view.clone();
+            let code_view_clone = code_view.clone();
+            let text_clone = text.to_string();
+            let timer_ref = update_timer.clone();
+            
+            // Cancel any existing timer
+            if let Some(timer_id) = timer_ref.borrow_mut().take() {
+                timer_id.remove();
+            }
+            
+            // Set a new timer for 800ms delay (longer to reduce updates)
+            let new_timer = glib::timeout_add_local(std::time::Duration::from_millis(800), move || {
+                html_view_clone.update_content(&text_clone);
+                code_view_clone.update_content(&text_clone);
+                *timer_ref.borrow_mut() = None;
+                glib::ControlFlow::Break
+            });
+            
+            *update_timer.borrow_mut() = Some(new_timer);
         });
     }
 
@@ -366,6 +402,7 @@ impl MarkdownEditor {
         self.toggle_format_selection_only("^", "^");
     }
 
+    #[allow(dead_code)]
     pub fn insert_emoji(&self) {
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
@@ -508,16 +545,19 @@ impl MarkdownEditor {
     }
 
     /// Add a new programming language to the manager
+    #[allow(dead_code)]
     pub fn add_programming_language(&self, language: crate::code_languages::CodeLanguage) {
         self.code_language_manager.borrow_mut().add_language(language);
     }
 
     /// Get available programming languages
+    #[allow(dead_code)]
     pub fn get_available_languages(&self) -> Vec<String> {
         self.code_language_manager.borrow().get_language_names()
     }
 
     /// Get language suggestions based on input
+    #[allow(dead_code)]
     pub fn get_language_suggestions(&self, partial: &str) -> Vec<String> {
         self.code_language_manager.borrow().get_language_suggestions(partial)
     }
@@ -997,6 +1037,76 @@ impl MarkdownEditor {
         });
         
         self.source_view.add_controller(controller);
+    }
+
+    /// Switch between HTML and code views
+    pub fn set_view_mode(&self, mode: &str) {
+        self.view_stack.set_visible_child_name(mode);
+    }
+    
+    /// Get the current view mode
+    #[allow(dead_code)]
+    pub fn get_view_mode(&self) -> String {
+        self.view_stack.visible_child_name()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "html".to_string())
+    }
+
+    /// Set the theme manager for both the HTML view and source editor
+    pub fn set_theme_manager(&self, theme_manager: crate::theme::ThemeManager) {
+        // Store the theme manager
+        *self.theme_manager.borrow_mut() = Some(theme_manager.clone());
+        
+        // Apply to HTML view
+        self.html_view.set_theme_manager(theme_manager.clone());
+        
+        // Apply to source editor
+        self.update_source_editor_theme(&theme_manager);
+    }
+
+    /// Update the source editor theme based on the theme manager
+    fn update_source_editor_theme(&self, theme_manager: &crate::theme::ThemeManager) {
+        let style_manager = StyleSchemeManager::default();
+        
+        // Choose appropriate style scheme based on theme
+        let preferred_schemes = match theme_manager.get_effective_theme() {
+            crate::theme::Theme::Light => vec!["Adwaita", "classic", "tango", "kate", "solarized-light"],
+            crate::theme::Theme::Dark => vec!["Adwaita-dark", "oblivion", "cobalt", "monokai", "solarized-dark"],
+            crate::theme::Theme::System => {
+                // For system theme, detect and choose appropriate schemes
+                match crate::theme::ThemeManager::detect_system_theme() {
+                    crate::theme::Theme::Dark => vec!["Adwaita-dark", "oblivion", "cobalt", "monokai", "solarized-dark"],
+                    _ => vec!["Adwaita", "classic", "tango", "kate", "solarized-light"],
+                }
+            }
+        };
+        
+        // Try to find the first available scheme from the preferred list
+        let mut applied_scheme = false;
+        for scheme_name in preferred_schemes {
+            if let Some(scheme) = style_manager.scheme(scheme_name) {
+                self.source_buffer.set_style_scheme(Some(&scheme));
+                applied_scheme = true;
+                break;
+            }
+        }
+        
+        // Ultimate fallback - use default scheme
+        if !applied_scheme {
+            if let Some(scheme) = style_manager.scheme("Adwaita") {
+                self.source_buffer.set_style_scheme(Some(&scheme));
+            }
+        }
+    }
+
+    /// Refresh both the HTML view and source editor (useful after theme changes)
+    pub fn refresh_html_view(&self) {
+        self.html_view.refresh_with_current_content();
+        
+        // Also refresh source editor theme if we have a theme manager
+        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            self.update_source_editor_theme(theme_manager);
+        }
     }
 
 }

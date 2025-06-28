@@ -1,0 +1,353 @@
+/* Universal Markdown CSS with automatic light/dark theme support */
+
+/* CSS Custom Properties (Variables) for theming */
+:root {
+  /* Light theme colors (default) */
+  --text-color: #1a1a1a;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --bg-color: #fff;
+  --bg-secondary: #f9f9f9;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+  --border-color: #ddd;
+  --border-light: #eee;
+  --border-strong: #ccc;
+  --heading-color: #1a1a1a;
+  --strong-color: #1a1a1a;
+  --blockquote-bg: #f9f9f9;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f5f5f5;
+  --table-stripe-bg: #f9f9f9;
+  --link-color: #0066cc;
+  --link-hover: #0052a3;
+}
+
+/* Dark theme colors using CSS media query */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-color: #e1e1e1;
+    --text-secondary: #ccc;
+    --text-muted: #999;
+    --bg-color: #1a1a1a;
+    --bg-secondary: #2a2a2a;
+    --bg-code: #2a2a2a;
+    --bg-pre: #1e1e1e;
+    --border-color: #333;
+    --border-light: #333;
+    --border-strong: #666;
+    --heading-color: #ffffff;
+    --strong-color: #ffffff;
+    --blockquote-bg: #2a2a2a;
+    --blockquote-border: #666;
+    --blockquote-text: #ccc;
+    --table-border: #333;
+    --table-header-bg: #2a2a2a;
+    --table-stripe-bg: #252525;
+    --link-color: #4da6ff;
+    --link-hover: #66b3ff;
+  }
+}
+
+/* Force light theme class override */
+.theme-light {
+  --text-color: #1a1a1a;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --bg-color: #fff;
+  --bg-secondary: #f9f9f9;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+  --border-color: #ddd;
+  --border-light: #eee;
+  --border-strong: #ccc;
+  --heading-color: #1a1a1a;
+  --strong-color: #1a1a1a;
+  --blockquote-bg: #f9f9f9;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f5f5f5;
+  --table-stripe-bg: #f9f9f9;
+  --link-color: #0066cc;
+  --link-hover: #0052a3;
+}
+
+/* Force dark theme class override */
+.theme-dark {
+  --text-color: #e1e1e1;
+  --text-secondary: #ccc;
+  --text-muted: #999;
+  --bg-color: #1a1a1a;
+  --bg-secondary: #2a2a2a;
+  --bg-code: #2a2a2a;
+  --bg-pre: #1e1e1e;
+  --border-color: #333;
+  --border-light: #333;
+  --border-strong: #666;
+  --heading-color: #ffffff;
+  --strong-color: #ffffff;
+  --blockquote-bg: #2a2a2a;
+  --blockquote-border: #666;
+  --blockquote-text: #ccc;
+  --table-border: #333;
+  --table-header-bg: #2a2a2a;
+  --table-stripe-bg: #252525;
+  --link-color: #4da6ff;
+  --link-hover: #66b3ff;
+}
+
+/* Reset and base styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    margin: 2rem;
+    padding: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: bold;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    line-height: 1.25;
+    color: var(--heading-color);
+    transition: color 0.3s ease;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.875rem; }
+
+/* Paragraph */
+p {
+    margin: 1rem 0;
+    color: var(--text-color);
+}
+
+/* Text formatting */
+strong, b {
+    font-weight: bold;
+    color: var(--strong-color);
+}
+
+em, i {
+    font-style: italic;
+    color: var(--text-color);
+}
+
+/* Links */
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+}
+
+/* Inline code */
+code {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    background-color: var(--bg-code);
+    color: var(--text-color);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.95em;
+    transition: background-color 0.3s ease;
+}
+
+/* Code blocks */
+pre {
+    display: block;
+    padding: 1rem;
+    background-color: var(--bg-pre);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+pre code {
+    background-color: transparent;
+    color: var(--text-color);
+    padding: 0;
+    border-radius: 0;
+    border: none;
+}
+
+/* Lists */
+ul, ol {
+    padding-left: 2rem;
+    margin: 0.5rem 0;
+}
+
+li {
+    margin: 0.25rem 0;
+}
+
+/* Task lists */
+ul li.task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+}
+
+input[type="checkbox"] {
+    margin-right: 0.5rem;
+}
+
+/* Blockquote */
+blockquote {
+    border-left: 4px solid var(--blockquote-border);
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    color: var(--blockquote-text);
+    background: var(--blockquote-bg);
+    font-style: italic;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+blockquote p {
+    color: var(--blockquote-text);
+}
+
+/* Horizontal rule */
+hr {
+    border: none;
+    border-top: 2px solid var(--border-light);
+    margin: 2rem 0;
+    transition: border-color 0.3s ease;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+}
+
+th, td {
+    border: 1px solid var(--table-border);
+    padding: 0.75rem;
+    text-align: left;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+th {
+    background-color: var(--table-header-bg);
+    font-weight: bold;
+    color: var(--heading-color);
+}
+
+tr:nth-child(even) {
+    background-color: var(--table-stripe-bg);
+}
+
+/* Strikethrough */
+del, s {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+/* Mark/Highlight */
+mark {
+    background-color: #ffeb3b;
+    color: #000;
+    padding: 0.1em 0.2em;
+    border-radius: 2px;
+}
+
+/* Dark theme override for mark */
+@media (prefers-color-scheme: dark) {
+    mark {
+        background-color: #ffc107;
+        color: #000;
+    }
+}
+
+.theme-dark mark {
+    background-color: #ffc107;
+    color: #000;
+}
+
+/* Footnotes */
+.footnote-ref {
+    font-size: 0.8em;
+    vertical-align: super;
+}
+
+.footnotes {
+    border-top: 1px solid var(--border-light);
+    margin-top: 2rem;
+    padding-top: 1rem;
+    font-size: 0.9em;
+}
+
+/* Definition lists */
+dt {
+    font-weight: bold;
+    margin-top: 1rem;
+}
+
+dd {
+    margin-left: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Keyboard keys */
+kbd {
+    background-color: var(--bg-code);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--border-color);
+    color: var(--text-color);
+    font-family: monospace;
+    font-size: 0.9em;
+    padding: 0.1em 0.3em;
+    vertical-align: baseline;
+}
+
+/* Abbreviations */
+abbr {
+    border-bottom: 1px dotted var(--border-strong);
+    cursor: help;
+    text-decoration: none;
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    
+    a {
+        color: black;
+        text-decoration: underline;
+    }
+    
+    pre, code {
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+    }
+}

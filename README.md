@@ -6,9 +6,11 @@ A feature-rich markdown editor built with Rust and GTK4, supporting multiple lan
 
 ### Core Functionality
 - **Split-pane view** with markdown source on the left and live preview on the right
-- **Syntax highlighting** for markdown with GTK SourceView
-- **Real-time preview** updates as you type
-- **File operations** (New, Open, Save, Save As)
+- **Syntax highlighting** for markdown with GTK SourceView and theme-aware color schemes
+- **Real-time preview** updates as you type with debounced rendering
+- **File operations** (New, Open, Save, Save As) with proper file handling
+- **Theme system** with light/dark mode support, OS detection, and manual switching
+- **Preview modes** with HTML rendering and HTML source code view switching
 
 ### Internationalization (i18n)
 - **Multi-language support** with runtime language switching
@@ -18,21 +20,28 @@ A feature-rich markdown editor built with Rust and GTK4, supporting multiple lan
 - **No restart required** - switch languages instantly via View → Language menu
 
 ### Markdown Editing Tools
-- **Comprehensive toolbar** with formatting buttons
-- **Full menu system** with Insert and Format menus
+- **Comprehensive toolbar** with formatting buttons and active state indicators
+- **Full menu system** with Insert and Format menus plus context menus
 - **Basic syntax support**: Headers (H1-H6), Bold, Italic, Code, Lists, Blockquotes
-- **Extended syntax support**: Strikethrough, Subscript, Superscript, Highlight, Code blocks, Tables, Horizontal rules, Task lists, Footnotes, Definition lists, Emoji
-- **Smart insertions**: Links, Images, Custom tables with dialog
+- **Extended syntax support**: Strikethrough, Subscript, Superscript, Highlight, Code blocks, Tables, Horizontal rules, Task lists, Footnotes, Definition lists
+- **Smart insertions**: Links with dialog, Images with file chooser, Custom tables with row/column selection
 - **Advanced code support**: Fenced code blocks with syntax highlighting for 10+ programming languages
-- **Task list varieties**: Custom number dialog, single open task, single closed task
-- **Live statistics**: Word count, character count, cursor position
+- **Task list varieties**: Basic lists, custom number dialog with preview, single open/closed task options
+- **Interactive dialogs**: Table creation, task list generation, definition list builder, emoji picker
+- **Live statistics**: Word count, character count, cursor position with real-time updates
+- **Format detection**: Cursor-based formatting detection with toolbar state updates
 
 ### User Interface
-- **Modern GTK4 interface** with clean design
-- **Responsive layout** with adjustable split-pane
-- **Tooltip support** for all toolbar buttons (translated)
-- **Status footer** with real-time document statistics
-- **Error handling** with visual feedback
+- **Modern GTK4 interface** with clean design and responsive layout
+- **Light and dark theme support** with OS theme detection and manual switching
+- **Adjustable split-pane** with minimum size constraints and 50/50 default
+- **Comprehensive toolbar** with active state indicators and formatting buttons
+- **Full menu system** with Insert, Format, View, and Help menus
+- **Context menus** with right-click formatting options and nested submenus
+- **Status footer** with real-time document statistics and cursor position
+- **Tooltip support** for all interactive elements (fully translated)
+- **Error handling** with visual feedback and user-friendly messages
+- **Theme integration** for both preview pane and source editor with unified CSS
 
 ## Usage
 
@@ -175,97 +184,177 @@ en:
 
 ## Current Implementation Status
 
-### Completed Features
-- **Core Editor**: Split-pane markdown editing with live preview
-- **Internationalization**: 4 languages (EN, ES, FR, DE) with runtime switching
-- **Basic Markdown**: Headers, bold, italic, lists, blockquotes, links, images
-- **Extended Markdown**: Strikethrough, highlight, subscript, superscript, tables, code blocks
-- **Task Lists**: Custom number dialog, single open/closed tasks
-- **Code Languages**: 10+ programming languages with syntax highlighting
-- **Keyboard Shortcuts**: Comprehensive shortcut system with help dialog
-- **File Operations**: New, open, save, save as with proper file handling
-- **Modular Architecture**: Clean separation of concerns across multiple modules
+### ✅ Completed Features
 
-### Partially Implemented
-- **Format Detection**: `find_format_at_cursor()` function exists but not actively used
-- **Source View**: `source_view` field available but not fully integrated
-- **Extended Syntax**: Functions exist but may need text content (`insert_footnote()`, `insert_definition_list()`, etc.)
+#### Core Functionality
+- [x] **Split-pane editor** with markdown source and live preview
+- [x] **Real-time preview** updates as you type with debounced updates
+- [x] **Syntax highlighting** for markdown with GTK SourceView
+- [x] **File operations** (New, Open, Save, Save As) with proper file handling
+- [x] **Responsive layout** with adjustable split-pane and minimum sizes
+- [x] **Modern GTK4 interface** with clean design
 
-### Not Yet Implemented
-- **Status Bar Formatting**: HTML-style format display with indentation
-- **Context Menus**: Right-click formatting options
-- **Preview Modes**: HTML source view, CSS theme selection
-- **Custom CSS**: User-defined stylesheet loading
-- **Emoji Picker**: Searchable emoji browser
-- **Advanced Editor Features**: Live highlighting, detachable preview
-- **Export Options**: PDF, DOCX, other format exports
+#### Theme System
+- [x] **Light and dark mode support** for both preview and editor
+- [x] **OS theme detection** with automatic system theme following
+- [x] **Manual theme switching** via View → Theme menu (System/Light/Dark)
+- [x] **Unified CSS system** with single file using CSS variables and media queries
+- [x] **Source editor theming** with automatic style scheme switching
+- [x] **Instant theme updates** without restart required
+
+#### Internationalization (i18n)
+- [x] **Multi-language support** with runtime language switching (4 languages)
+- [x] **Complete UI translation** including menus, toolbars, dialogs, and status messages
+- [x] **YAML-based translation system** for easy extensibility
+- [x] **No restart required** for language changes
+
+#### Markdown Editing
+- [x] **Basic syntax support**: Headers (H1-H6), Bold, Italic, Code, Lists, Blockquotes
+- [x] **Extended syntax support**: Strikethrough, Highlight, Subscript, Superscript, Tables, Code blocks
+- [x] **Advanced text formatting**: `insert_highlight()`, `insert_subscript()`, `insert_superscript()`
+- [x] **Smart insertions**: Links with dialog, Images with file chooser
+- [x] **Horizontal rules** and line separators
+- [x] **Footnotes** with syntax highlighting and reference support
+- [x] **Definition lists** with custom number dialog and preview
+
+#### Task Lists
+- [x] **Basic task list insertion** with checkboxes
+- [x] **Custom task dialogs** with specified number of items and live preview
+- [x] **Single task insertion** (open and closed task options)
+- [x] **Task list syntax highlighting** in source editor
+
+#### Code Support
+- [x] **Fenced code blocks** with syntax highlighting
+- [x] **10+ programming languages** with color schemes
+- [x] **Language auto-completion** and suggestions
+- [x] **Code block insertion dialog** with language selection and sample code
+
+#### Tables
+- [x] **Custom table creation dialog** with row/column selection
+- [x] **Input validation** with visual error feedback
+- [x] **Table syntax highlighting** in source editor
+
+#### User Interface
+- [x] **Comprehensive toolbar** with formatting buttons and active state indicators
+- [x] **Full menu system** with Insert, Format, View, and Help menus
+- [x] **Context menus** with right-click formatting options
+- [x] **Tooltip support** for all buttons (fully translated)
+- [x] **Status footer** with real-time statistics (word count, character count, cursor position)
+- [x] **Error handling** with visual feedback and CSS styling
+
+#### Preview Features
+- [x] **HTML preview mode** with live markdown rendering
+- [x] **HTML source code view** for debugging
+- [x] **Preview mode switching** via View → Preview Mode menu
+- [x] **CSS styling** with proper markdown formatting
+
+#### Advanced Features
+- [x] **Emoji picker** with searchable categories and insertion
+- [x] **Keyboard shortcuts** for all major functions (20+ shortcuts)
+- [x] **Format detection** at cursor with toolbar button state updates
+- [x] **Modular architecture** with clean separation of concerns
+
+### 🔶 Partially Implemented
+
+#### Format Detection
+- [x] **Format detection functions** exist (`find_format_at_cursor()`, `is_cursor_in_format()`)
+- [x] **Toolbar state updates** based on cursor position
+- [ ] **Status bar format display** with HTML-style indentation and context
+
+#### Extended Syntax
+- [x] **All insertion functions implemented** (`insert_footnote()`, `insert_definition_list()`, etc.)
+- [x] **Syntax highlighting** for extended features
+- [ ] **Advanced footnote management** with reference numbering and linking
+
+### ❌ Not Yet Implemented
+
+#### Advanced Editor Features
+- [ ] **Live preview highlighting** in source editor as you type
+- [ ] **Detachable preview window** for dual-monitor workflows
+- [ ] **Font customization** (size, family, spacing options)
+- [ ] **Layout options** (vertical split, horizontal split, preview-only modes)
+
+#### CSS and Styling
+- [ ] **Custom CSS loading** and user-defined stylesheets
+- [ ] **Multiple built-in CSS themes** (GitHub, Material, etc.)
+- [ ] **CSS theme selection** in preview settings
+
+#### Export and Integration
+- [ ] **Export formats** (PDF, HTML, DOCX, and other formats)
+- [ ] **Print support** with formatting preservation
+- [ ] **Plugin system** for custom markdown processors
+- [ ] **Git integration** for change tracking
+
+#### Performance and Advanced Features
+- [ ] **Large file optimization** for documents with thousands of lines
+- [ ] **Auto-save** with configurable intervals and recovery
+- [ ] **Enhanced undo/redo** system with branch management
+- [ ] **Search and replace** with regex support and find/replace dialog
+- [ ] **Workspace persistence** (window size, split position, preferences)
+
+#### Accessibility and Polish
+- [ ] **Screen reader support** and full accessibility compliance
+- [ ] **High contrast themes** for visual accessibility
+- [ ] **Zen mode** distraction-free editing
+- [ ] **Status bar format warnings** for malformed markdown syntax
 
 ## Roadmap
 
 ### Planned Features (TODO)
 
-#### Status Bar Enhancements
-- **Format detection at cursor**: Show active formatting in footer (HTML-style with indentation)
-- **Smart format warnings**: Display alerts for malformed markdown syntax
-- **Live format display**: Real-time indication of current text formatting context
-
-#### Advanced Editor Features
-- **Context menus**: Right-click formatting options based on cursor position
+#### Advanced Editor Enhancements
 - **Live preview highlighting**: Show formatting directly in the editor as you type
-- **Format detection function**: `find_format_at_cursor()` implementation for context awareness
-
-#### Preview Window Improvements
-- **Flexible preview modes**: Toggle between HTML preview and HTML source code view
-- **Multiple CSS themes**: Select from built-in styles ("HTML", "GitHub", "Dark", etc.)
-- **Custom CSS support**: Load and apply user-defined stylesheets
-- **Detachable preview**: Open preview in separate window for dual-monitor workflows
-
-#### Enhanced Markdown Features
-- **Improved footnotes**: `insert_footnote()` with reference numbering and linking
-- **Rich definition lists**: `insert_definition_list()` with term/definition pairs
-- **Text highlighting**: `insert_highlight()` with ==highlighted text== syntax
-- **Scientific notation**: Enhanced `insert_subscript()` and `insert_superscript()` functions
-- **Emoji picker**: `insert_emoji()` with searchable emoji browser and categories
-
-#### Task List Enhancements
-- **Custom task dialogs**: Specify number of items with preview **(COMPLETED)**
-- **Quick task insertion**: Single open/closed task options **(COMPLETED)**
-- **Task management**: Edit existing task states, bulk operations
-
-#### Code Block Improvements
-- **Language auto-detection**: Suggest language based on code content
-- **Code formatting**: Auto-indent and syntax validation
-- **Language extensions**: Easy addition of new programming languages
-- **Syntax themes**: Multiple color schemes for code highlighting
-
-#### User Interface Enhancements
-- **Editor themes**: Dark mode, light mode, custom color schemes
-- **Font customization**: Size, family, and spacing options
+- **Font customization**: Size, family, and spacing options with user preferences
 - **Layout options**: Vertical split, horizontal split, preview-only modes
-- **Workspace persistence**: Remember window size, split position, and preferences
-- **Zen mode**: A peacefulness with no distractions
+- **Workspace persistence**: Remember window size, split position, and user preferences
+- **Zen mode**: Distraction-free editing environment
+- **Enhanced undo/redo**: Advanced history with branch management and visual timeline
+
+#### Preview and Styling Improvements
+- **Custom CSS support**: Load and apply user-defined stylesheets with live preview
+- **Multiple built-in themes**: GitHub, Material, Solarized, and other popular styles
+- **CSS theme hot-swapping**: Change preview styles without restart
+- **Detachable preview**: Open preview in separate window for dual-monitor workflows
+- **Print support**: Direct printing with formatting preservation and page setup
+
+#### Advanced Markdown Features
+- **Enhanced footnote management**: Reference numbering, linking, and validation
+- **Status bar format display**: HTML-style format indication with indentation levels
+- **Smart format warnings**: Display alerts for malformed markdown syntax
+- **Live format context**: Real-time indication of current text formatting
+
+#### Search and Navigation
+- **Advanced search and replace**: Full-featured find/replace with regex support
+- **Document outline**: Navigable heading structure in sidebar
+- **Quick navigation**: Jump to headings, links, and other document elements
+- **Global search**: Search across multiple files and documents
 
 #### Export and Integration
-- **Export formats**: PDF, HTML, DOCX, and other popular formats
-- **Print support**: Direct printing with formatting preservation
-- **Plugin system**: Extensions for custom markdown processors
-- **Git integration**: Track changes, commit from editor
+- **Export formats**: PDF, HTML, DOCX, LaTeX, and other popular formats
+- **Batch processing**: Convert multiple files with customizable templates
+- **Plugin system**: Extensions for custom markdown processors and converters
+- **Git integration**: Track changes, commit from editor, diff visualization
+- **Document linking**: Cross-references between multiple markdown files
 
 #### Performance and Reliability
-- **Large file handling**: Optimize for documents with thousands of lines
-- **Auto-save**: Configurable automatic saving with recovery options
-- **Undo/redo system**: Enhanced history with branch management
-- **Search and replace**: Advanced find/replace with regex support
+- **Large file handling**: Optimize for documents with thousands of lines and images
+- **Auto-save**: Configurable automatic saving with recovery options and backup
+- **Memory optimization**: Efficient handling of large documents and multiple files
+- **Background processing**: Non-blocking operations for exports and file operations
 
-#### Accessibility
-- **Screen reader support**: Full accessibility compliance
+#### Accessibility and Usability
+- **Screen reader support**: Full accessibility compliance with ARIA labels
 - **High contrast themes**: Support for visual accessibility needs
 - **Keyboard navigation**: Complete keyboard-only operation support
+- **Voice commands**: Basic voice input for common formatting operations
+- **User onboarding**: Interactive tutorial and help system
 
-#### Cross-platform
-- **Windows**: Full installer with Start Menu integration and desktop shortcut support
-- **MacOS**: DMG installer with drag-and-drop app installation; notarized for security compliance
-- **linux**: Linux: `.deb`, and `.rpm` packages available; supports installation via terminal or software center
+#### Cross-platform and Distribution
+- **Windows**: Full installer with Start Menu integration and desktop shortcuts
+- **MacOS**: DMG installer with drag-and-drop installation and notarization
+- **Linux**: `.deb`, `.rpm`, and `.AppImage` packages with software center support
+- **Portable versions**: Self-contained executables for USB drives
+- **Auto-updates**: Seamless update system with changelog display
 
 ## Contributing
 

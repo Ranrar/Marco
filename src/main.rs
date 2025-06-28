@@ -6,9 +6,11 @@ mod localization;
 mod menu;
 mod toolbar;
 mod footer;
-mod preview;
+mod view_code;
+mod view_html;
 mod emoji;
 mod context_menu;
+mod theme;
 
 use gtk4::prelude::*;
 use gtk4::{
@@ -76,81 +78,6 @@ fn build_ui(app: &Application) {
             color: white;
             font-weight: bold;
             background-image: none;
-        }
-        /* Menu accelerator styling - make shortcuts faded and smaller */
-        menu menuitem accelerator {
-            color: alpha(@theme_fg_color, 0.55);
-            font-size: 0.8em;
-            font-weight: normal;
-            margin-left: 20px;
-        }
-        menu menuitem {
-            padding: 4px 8px;
-        }
-        /* Code block styling */
-        .code-block {
-            background-color: #f6f8fa;
-            color: #24292e;
-            font-family: monospace;
-            font-size: 0.9em;
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid #e1e4e8;
-            margin: 8px 0;
-        }
-        .code-block .keyword {
-            color: #d73a49;
-            font-weight: bold;
-        }
-        .code-block .comment {
-            color: #6a737d;
-            font-style: italic;
-        }
-        .code-block .string {
-            color: #032f62;
-        }
-        .code-block .number {
-            color: #005cc5;
-        }
-        .code-block .function {
-            color: #6f42c1;
-            font-weight: bold;
-        }
-        .code-block .class {
-            color: #e36209;
-            font-weight: bold;
-        }
-        
-        /* Language-specific code blocks */
-        .code-block-javascript, .code-block-js {
-            border-left: 4px solid #f7df1e;
-        }
-        .code-block-python, .code-block-py {
-            border-left: 4px solid #3776ab;
-        }
-        .code-block-rust, .code-block-rs {
-            border-left: 4px solid #ce422b;
-        }
-        .code-block-java {
-            border-left: 4px solid #f89820;
-        }
-        .code-block-typescript, .code-block-ts {
-            border-left: 4px solid #007acc;
-        }
-        .code-block-csharp, .code-block-cs {
-            border-left: 4px solid #239120;
-        }
-        .code-block-cpp, .code-block-c++ {
-            border-left: 4px solid #00599c;
-        }
-        .code-block-c {
-            border-left: 4px solid #a8b9cc;
-        }
-        .code-block-php {
-            border-left: 4px solid #777bb4;
-        }
-        .code-block-go {
-            border-left: 4px solid #00add8;
         }"
     );
     gtk4::style_context_add_provider_for_display(
@@ -162,6 +89,10 @@ fn build_ui(app: &Application) {
     // Create the editor
     let editor = editor::MarkdownEditor::new();
 
+    // Create and set up theme manager
+    let theme_manager = theme::ThemeManager::new();
+    editor.set_theme_manager(theme_manager.clone());
+
     // Set up header bar (without file buttons)
     let header_bar = editor.create_simple_header_bar();
     window.set_titlebar(Some(&header_bar));
@@ -170,7 +101,7 @@ fn build_ui(app: &Application) {
     let main_box = Box::new(Orientation::Vertical, 0);
     
     // Create and add menu bar
-    let menu_bar = menu::create_menu_bar(app, &editor);
+    let menu_bar = menu::create_menu_bar(app, &editor, &theme_manager);
     main_box.append(&menu_bar);
     
     // Create and add toolbar with markdown formatting (no file buttons)
@@ -216,6 +147,7 @@ fn build_ui(app: &Application) {
     let app_clone = app.clone();
     let editor_clone = editor.clone();
     let main_box_clone = main_box.clone();
+    let theme_manager_clone = theme_manager.clone();
     
     // Store current widget references that can be updated
     let current_menu_bar = std::rc::Rc::new(std::cell::RefCell::new(menu_bar.clone()));
@@ -233,7 +165,7 @@ fn build_ui(app: &Application) {
                     main_box_clone.remove(&*old_menu_bar);
                 }
             }
-            let new_menu_bar = menu::create_menu_bar(&app_clone, &editor_clone);
+            let new_menu_bar = menu::create_menu_bar(&app_clone, &editor_clone, &theme_manager_clone);
             main_box_clone.prepend(&new_menu_bar);
             // Update the reference
             if let Ok(mut menu_ref) = current_menu_bar.try_borrow_mut() {

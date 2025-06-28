@@ -2,7 +2,7 @@ use gtk4::prelude::*;
 use gtk4::{PopoverMenuBar, Application, gio, Dialog, Grid, Entry, ResponseType, Box, Orientation, Label, SpinButton, Adjustment};
 use crate::{editor, localization, emoji};
 
-pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor) -> PopoverMenuBar {
+pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) -> PopoverMenuBar {
     // Create the menu model
     let menu_model = gio::Menu::new();
     
@@ -115,8 +115,22 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor) -> Po
     
     menu_model.append_submenu(Some(&localization::tr("menu.format")), &format_menu);
     
-    // View Menu (for language switching)
+    // View Menu (for language switching and view mode)
     let view_menu = gio::Menu::new();
+    
+    // Add view mode submenu
+    let view_mode_menu = gio::Menu::new();
+    view_mode_menu.append(Some("HTML"), Some("app.view_html"));
+    view_mode_menu.append(Some("HTML Code"), Some("app.view_code"));
+    view_menu.append_submenu(Some("Preview Mode"), &view_mode_menu);
+    
+    // Add theme submenu
+    let theme_menu = gio::Menu::new();
+    theme_menu.append(Some("System"), Some("app.theme_system"));
+    theme_menu.append(Some("Light"), Some("app.theme_light"));
+    theme_menu.append(Some("Dark"), Some("app.theme_dark"));
+    view_menu.append_submenu(Some("Theme"), &theme_menu);
+    
     let language_menu = gio::Menu::new();
     for (code, name) in localization::get_available_locales() {
         language_menu.append(Some(name), Some(&format!("app.set_language_{}", code)));
@@ -133,7 +147,7 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor) -> Po
     menu_model.append_submenu(Some(&localization::tr("menu.help")), &help_menu);
     
     // Create actions
-    create_menu_actions(app, editor);
+    create_menu_actions(app, editor, theme_manager);
     
     // Set up keyboard accelerators for menu actions
     setup_menu_accelerators(app);
@@ -142,7 +156,7 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor) -> Po
     PopoverMenuBar::from_model(Some(&menu_model))
 }
 
-pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor) {
+pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) {
     // File actions
     let new_action = gio::ActionEntry::builder("new")
         .activate({
@@ -595,7 +609,63 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor) {
             println!("Language changed to English");
         })
         .build();
+
+    // View switching actions
+    let view_html_action = gio::ActionEntry::builder("view_html")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.set_view_mode("html");
+            }
+        })
+        .build();
+
+    let view_code_action = gio::ActionEntry::builder("view_code")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.set_view_mode("code");
+            }
+        })
+        .build();
     
+    // Theme switching actions
+    let theme_system_action = gio::ActionEntry::builder("theme_system")
+        .activate({
+            let theme_mgr = theme_manager.clone();
+            let editor_clone = editor.clone();
+            move |_app: &Application, _action, _param| {
+                theme_mgr.set_theme(crate::theme::Theme::System);
+                editor_clone.refresh_html_view();
+                println!("Switched to system theme");
+            }
+        })
+        .build();
+        
+    let theme_light_action = gio::ActionEntry::builder("theme_light")
+        .activate({
+            let theme_mgr = theme_manager.clone();
+            let editor_clone = editor.clone();
+            move |_app: &Application, _action, _param| {
+                theme_mgr.set_theme(crate::theme::Theme::Light);
+                editor_clone.refresh_html_view();
+                println!("Switched to light theme");
+            }
+        })
+        .build();
+        
+    let theme_dark_action = gio::ActionEntry::builder("theme_dark")
+        .activate({
+            let theme_mgr = theme_manager.clone();
+            let editor_clone = editor.clone();
+            move |_app: &Application, _action, _param| {
+                theme_mgr.set_theme(crate::theme::Theme::Dark);
+                editor_clone.refresh_html_view();
+                println!("Switched to dark theme");
+            }
+        })
+        .build();
+
     // Extended Syntax Actions
     let insert_task_list_action = gio::ActionEntry::builder("insert_task_list")
         .activate({
@@ -923,6 +993,8 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor) {
         insert_fenced_yaml_action, insert_fenced_markdown_action,
         markdown_guide_action, shortcuts_action, about_action,
         set_language_en_action, set_language_es_action, set_language_fr_action, set_language_de_action,
+        view_html_action, view_code_action,
+        theme_system_action, theme_light_action, theme_dark_action,
     ]);
 }
 
