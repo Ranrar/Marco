@@ -1,18 +1,19 @@
 use gtk4::prelude::*;
 use gtk4::{
     Button, FileChooserAction, FileChooserDialog, HeaderBar, Label, Orientation,
-    Paned, ResponseType, ScrolledWindow, TextView, Widget,
+    Paned, ResponseType, ScrolledWindow, Widget, Dialog, Entry, Grid, FileFilter,
 };
 use sourceview5::prelude::*;
 use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::preview::MarkdownPreview;
 
 #[derive(Clone)]
 pub struct MarkdownEditor {
     widget: Paned,
     source_view: View,
-    preview_view: TextView,
+    preview: MarkdownPreview,
     source_buffer: Buffer,
     current_file: Rc<RefCell<Option<std::path::PathBuf>>>,
     footer_callbacks: Rc<RefCell<Vec<Box<dyn Fn(&str, usize, usize, usize, usize)>>>>,
@@ -56,29 +57,22 @@ impl MarkdownEditor {
             source_buffer.set_style_scheme(Some(&scheme));
         }
 
-        // Create preview view
-        let preview_view = TextView::new();
-        preview_view.set_editable(false);
-        preview_view.set_cursor_visible(false);
+        // Create preview
+        let preview = MarkdownPreview::new();
 
-        // Create scrolled windows
+        // Create scrolled window for source view
         let source_scroll = ScrolledWindow::new();
         source_scroll.set_child(Some(&source_view));
         source_scroll.set_vexpand(true);
         source_scroll.set_size_request(200, -1); // Minimum width of 200px
 
-        let preview_scroll = ScrolledWindow::new();
-        preview_scroll.set_child(Some(&preview_view));
-        preview_scroll.set_vexpand(true);
-        preview_scroll.set_size_request(200, -1); // Minimum width of 200px
-
         // Add to paned
         paned.set_start_child(Some(&source_scroll));
-        paned.set_end_child(Some(&preview_scroll));
+        paned.set_end_child(Some(preview.widget()));
 
         // Clamp split position logic
         // We'll clamp the position between min and max (e.g., 200px and total_width-200px)
-        let paned_clone = paned.clone();
+        let _paned_clone = paned.clone();
         paned.connect_notify(Some("position"), move |paned, _pspec| {
             if let Some(window) = paned.root().and_then(|w| w.downcast::<gtk4::Window>().ok()) {
                 let total_width = window.allocated_width();
@@ -100,7 +94,7 @@ impl MarkdownEditor {
         let editor = Self {
             widget: paned,
             source_view,
-            preview_view,
+            preview,
             source_buffer,
             current_file,
             footer_callbacks,
@@ -161,16 +155,15 @@ impl MarkdownEditor {
     }
 
     fn connect_text_changed(&self) {
-        let preview_view = self.preview_view.clone();
+        let preview = self.preview.clone();
         let footer_callbacks = self.footer_callbacks.clone();
         self.source_buffer.connect_changed(move |buffer| {
             let start = buffer.start_iter();
             let end = buffer.end_iter();
             let text = buffer.text(&start, &end, false);
-            // Use your markdown_basic parser for HTML preview
-            let html = crate::markdown_basic::MarkdownParser::new().to_html(&text);
-            let preview_buffer = preview_view.buffer();
-            preview_buffer.set_text(&html);
+            
+            // Update preview
+            preview.update_content(&text);
             
             // Update footer statistics
             let char_count = text.chars().count();
@@ -415,43 +408,43 @@ impl MarkdownEditor {
 
     pub fn insert_heading(&self, level: u8) {
         let prefix = "#".repeat(level as usize);
-        self.insert_text_at_cursor(&format!("{} ", prefix));
+        self.insert_at_new_line(&format!("{} ", prefix));
     }
 
     pub fn insert_bold(&self) {
-        self.wrap_selection_or_insert("**", "**", "bold text");
+        self.toggle_format_selection_only("**", "**");
     }
 
     pub fn insert_italic(&self) {
-        self.wrap_selection_or_insert("*", "*", "italic text");
+        self.toggle_format_selection_only("*", "*");
     }
 
     pub fn insert_inline_code(&self) {
-        self.wrap_selection_or_insert("`", "`", "code");
+        self.toggle_format_selection_only("`", "`");
     }
 
     pub fn insert_strikethrough(&self) {
-        self.wrap_selection_or_insert("~~", "~~", "strikethrough text");
+        self.toggle_format_selection_only("~~", "~~");
     }
 
     pub fn insert_bullet_list(&self) {
-        self.insert_text_at_cursor("- ");
+        self.insert_at_new_line("- ");
     }
 
     pub fn insert_numbered_list(&self) {
-        self.insert_text_at_cursor("1. ");
+        self.insert_at_new_line("1. ");
     }
 
     pub fn insert_blockquote(&self) {
-        self.insert_text_at_cursor("> ");
+        self.insert_at_new_line("> ");
     }
 
     pub fn insert_link(&self) {
-        self.wrap_selection_or_insert("[", "](url)", "link text");
+        self.show_link_dialog();
     }
 
     pub fn insert_image(&self) {
-        self.wrap_selection_or_insert("![", "](image_url)", "alt text");
+        self.show_image_dialog();
     }
 
     pub fn insert_table(&self) {
@@ -502,26 +495,343 @@ impl MarkdownEditor {
         self.source_buffer.insert(&mut cursor_iter, text);
     }
 
-    fn wrap_selection_or_insert(&self, prefix: &str, suffix: &str, default_text: &str) {
-        let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+    fn toggle_format(&self, prefix: &str, suffix: &str, _default_text: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
         
         if gtk_buffer.has_selection() {
             // Get selection bounds
-            let (start, end) = gtk_buffer.selection_bounds().unwrap();
-            let selected_text = gtk_buffer.text(&start, &end, false);
-            
-            // Replace selection with wrapped text
-            let wrapped_text = format!("{}{}{}", prefix, selected_text, suffix);
-            gtk_buffer.delete(&mut start.clone(), &mut end.clone());
-            self.source_buffer.insert(&mut start.clone(), &wrapped_text);
+            if let Some((start, end)) = gtk_buffer.selection_bounds() {
+                let selected_text = gtk_buffer.text(&start, &end, false);
+                let selected_str = selected_text.as_str();
+                
+                // Create the replacement text
+                let replacement_text = if selected_str.starts_with(prefix) && selected_str.ends_with(suffix) && selected_str.len() > prefix.len() + suffix.len() {
+                    // Remove formatting - extract inner text
+                    selected_str[prefix.len()..selected_str.len() - suffix.len()].to_string()
+                } else {
+                    // Add formatting - wrap the selected text
+                    format!("{}{}{}", prefix, selected_str, suffix)
+                };
+                
+                // Use begin/end user action for atomic operation
+                buffer.begin_user_action();
+                
+                // Get fresh bounds for the operation
+                if let Some((mut start_iter, mut end_iter)) = gtk_buffer.selection_bounds() {
+                    // Replace the selected text with the formatted/unformatted version
+                    buffer.delete(&mut start_iter, &mut end_iter);
+                    
+                    // Get a fresh iterator at the insertion point
+                    let insert_mark = gtk_buffer.get_insert();
+                    let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
+                    buffer.insert(&mut insert_iter, &replacement_text);
+                }
+                
+                buffer.end_user_action();
+            }
         } else {
-            // No selection, insert template
+            // No selection - just insert empty formatting tags
+            let template = format!("{}{}", prefix, suffix);
+            let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+            let cursor_mark = gtk_buffer.get_insert();
+            let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+            
+            buffer.begin_user_action();
+            buffer.insert(&mut cursor_iter, &template);
+            
+            // Move cursor between the tags
+            let new_cursor_mark = gtk_buffer.get_insert();
+            let mut new_cursor_iter = gtk_buffer.iter_at_mark(&new_cursor_mark);
+            new_cursor_iter.backward_chars(suffix.len() as i32);
+            gtk_buffer.place_cursor(&new_cursor_iter);
+            
+            buffer.end_user_action();
+        }
+    }
+
+    #[allow(dead_code)]
+    fn find_format_at_cursor(&self, line_text: &str, cursor_offset: i32, prefix: &str, suffix: &str) -> Option<(i32, i32)> {
+        let cursor_pos = cursor_offset as usize;
+        let line_str = line_text;
+        
+        // Look for formatting that contains the cursor
+        let mut pos = 0;
+        while let Some(start_pos) = line_str[pos..].find(prefix) {
+            let absolute_start = pos + start_pos;
+            let search_from = absolute_start + prefix.len();
+            
+            if let Some(end_pos) = line_str[search_from..].find(suffix) {
+                let absolute_end = search_from + end_pos + suffix.len();
+                
+                // Check if cursor is within this formatting
+                if cursor_pos >= absolute_start && cursor_pos <= absolute_end {
+                    return Some((absolute_start as i32, absolute_end as i32));
+                }
+                
+                pos = absolute_end;
+            } else {
+                break;
+            }
+        }
+        
+        None
+    }
+
+    fn wrap_selection_or_insert(&self, prefix: &str, suffix: &str, default_text: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        
+        if gtk_buffer.has_selection() {
+            // Get selection bounds
+            if let Some((start, end)) = gtk_buffer.selection_bounds() {
+                let selected_text = gtk_buffer.text(&start, &end, false);
+                
+                // Replace selection with wrapped text
+                let wrapped_text = format!("{}{}{}", prefix, selected_text, suffix);
+                
+                buffer.begin_user_action();
+                
+                // Get fresh bounds for the operation
+                if let Some((mut start_iter, mut end_iter)) = gtk_buffer.selection_bounds() {
+                    buffer.delete(&mut start_iter, &mut end_iter);
+                    
+                    // Get a fresh iterator at the insertion point
+                    let insert_mark = gtk_buffer.get_insert();
+                    let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
+                    buffer.insert(&mut insert_iter, &wrapped_text);
+                }
+                
+                buffer.end_user_action();
+            }
+        } else {
+            // No selection, insert template with default text
             let template = format!("{}{}{}", prefix, default_text, suffix);
             self.insert_text_at_cursor(&template);
         }
     }
 
     pub fn insert_horizontal_rule(&self) {
-        self.insert_text_at_cursor("\n---\n");
+        self.insert_at_new_line("---\n");
+    }
+
+    fn insert_at_line_start(&self, text: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        
+        // Get current cursor position
+        let cursor_mark = gtk_buffer.get_insert();
+        let cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+        
+        // Move to start of current line
+        let mut line_start = cursor_iter;
+        line_start.set_line_offset(0);
+        
+        buffer.insert(&mut line_start, text);
+    }
+
+    fn insert_at_new_line(&self, text: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        
+        // Get current cursor position
+        let cursor_mark = gtk_buffer.get_insert();
+        let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+        
+        // Check if we're at the start of a line
+        let line_offset = cursor_iter.line_offset();
+        
+        if line_offset == 0 {
+            // We're at the start of a line, just insert
+            buffer.insert(&mut cursor_iter, text);
+        } else {
+            // We're in the middle of a line, add a newline first
+            buffer.insert(&mut cursor_iter, &format!("\n{}", text));
+        }
+    }
+
+    fn toggle_format_selection_only(&self, prefix: &str, suffix: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        
+        // Only work if text is selected
+        if gtk_buffer.has_selection() {
+            // Get selection bounds
+            if let Some((start, end)) = gtk_buffer.selection_bounds() {
+                let selected_text = gtk_buffer.text(&start, &end, false);
+                let selected_str = selected_text.as_str();
+                
+                // Create the replacement text
+                let replacement_text = if selected_str.starts_with(prefix) && selected_str.ends_with(suffix) && selected_str.len() > prefix.len() + suffix.len() {
+                    // Remove formatting - extract inner text
+                    selected_str[prefix.len()..selected_str.len() - suffix.len()].to_string()
+                } else {
+                    // Add formatting - wrap the selected text
+                    format!("{}{}{}", prefix, selected_str, suffix)
+                };
+                
+                // Use begin/end user action for atomic operation
+                buffer.begin_user_action();
+                
+                // Get fresh bounds for the operation
+                if let Some((mut start_iter, mut end_iter)) = gtk_buffer.selection_bounds() {
+                    // Replace the selected text with the formatted/unformatted version
+                    buffer.delete(&mut start_iter, &mut end_iter);
+                    
+                    // Get a fresh iterator at the insertion point
+                    let insert_mark = gtk_buffer.get_insert();
+                    let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
+                    buffer.insert(&mut insert_iter, &replacement_text);
+                }
+                
+                buffer.end_user_action();
+            }
+        }
+        // If no text is selected, do nothing
+    }
+
+    fn show_link_dialog(&self) {
+        // Create the dialog
+        let dialog = Dialog::with_buttons(
+            Some("Insert Link"),
+            None::<&gtk4::Window>,
+            gtk4::DialogFlags::MODAL,
+            &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+        );
+        
+        // Create the grid layout
+        let grid = Grid::new();
+        grid.set_row_spacing(10);
+        grid.set_column_spacing(10);
+        grid.set_margin_top(20);
+        grid.set_margin_bottom(20);
+        grid.set_margin_start(20);
+        grid.set_margin_end(20);
+        
+        // URL input
+        let url_label = Label::new(Some("URL:"));
+        url_label.set_halign(gtk4::Align::Start);
+        let url_entry = Entry::new();
+        url_entry.set_placeholder_text(Some("https://example.com"));
+        url_entry.set_hexpand(true);
+        
+        // Link text input
+        let text_label = Label::new(Some("Link Text:"));
+        text_label.set_halign(gtk4::Align::Start);
+        let text_entry = Entry::new();
+        text_entry.set_placeholder_text(Some("Link description"));
+        text_entry.set_hexpand(true);
+        
+        // Check if we have selected text to use as default
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        if gtk_buffer.has_selection() {
+            if let Some((start, end)) = gtk_buffer.selection_bounds() {
+                let selected_text = gtk_buffer.text(&start, &end, false);
+                text_entry.set_text(&selected_text);
+            }
+        }
+        
+        // Add to grid
+        grid.attach(&url_label, 0, 0, 1, 1);
+        grid.attach(&url_entry, 1, 0, 1, 1);
+        grid.attach(&text_label, 0, 1, 1, 1);
+        grid.attach(&text_entry, 1, 1, 1, 1);
+        
+        // Add grid to dialog
+        dialog.content_area().append(&grid);
+        
+        // Focus on URL entry
+        url_entry.grab_focus();
+        
+        // Connect response
+        let buffer_clone = self.source_buffer.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                let url = url_entry.text();
+                let text = text_entry.text();
+                
+                if !url.is_empty() {
+                    let link_text = if text.is_empty() { url.clone() } else { text };
+                    let link_markdown = format!("[{}]({})", link_text, url);
+                    
+                    // Insert the link
+                    let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
+                    if gtk_buffer.has_selection() {
+                        // Replace selected text
+                        if let Some((mut start, mut end)) = gtk_buffer.selection_bounds() {
+                            buffer_clone.delete(&mut start, &mut end);
+                            let insert_mark = gtk_buffer.get_insert();
+                            let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
+                            buffer_clone.insert(&mut insert_iter, &link_markdown);
+                        }
+                    } else {
+                        // Insert at cursor
+                        let cursor_mark = gtk_buffer.get_insert();
+                        let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+                        buffer_clone.insert(&mut cursor_iter, &link_markdown);
+                    }
+                }
+            }
+            dialog.close();
+        });
+        
+        dialog.present();
+    }
+
+    fn show_image_dialog(&self) {
+        // Create file chooser dialog
+        let dialog = FileChooserDialog::new(
+            Some("Select Image"),
+            None::<&gtk4::Window>,
+            FileChooserAction::Open,
+            &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
+        );
+        
+        // Add image file filters
+        let filter = FileFilter::new();
+        filter.set_name(Some("Image Files"));
+        filter.add_mime_type("image/*");
+        filter.add_pattern("*.png");
+        filter.add_pattern("*.jpg");
+        filter.add_pattern("*.jpeg");
+        filter.add_pattern("*.gif");
+        filter.add_pattern("*.bmp");
+        filter.add_pattern("*.svg");
+        filter.add_pattern("*.webp");
+        dialog.add_filter(&filter);
+        
+        let all_filter = FileFilter::new();
+        all_filter.set_name(Some("All Files"));
+        all_filter.add_pattern("*");
+        dialog.add_filter(&all_filter);
+        
+        // Connect response
+        let buffer_clone = self.source_buffer.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                if let Some(file) = dialog.file() {
+                    if let Some(path) = file.path() {
+                        let path_str = path.to_string_lossy();
+                        
+                        // Get filename for alt text
+                        let filename = path.file_name()
+                            .and_then(|f| f.to_str())
+                            .unwrap_or("image");
+                        
+                        let image_markdown = format!("![{}]({})", filename, path_str);
+                        
+                        // Insert the image
+                        let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
+                        let cursor_mark = gtk_buffer.get_insert();
+                        let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+                        buffer_clone.insert(&mut cursor_iter, &image_markdown);
+                    }
+                }
+            }
+            dialog.close();
+        });
+        
+        dialog.present();
     }
 }
