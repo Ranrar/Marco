@@ -390,13 +390,11 @@ impl CodeLanguageManager {
                 .code-block-{} {{
                     background-color: {};
                     color: {};
-                    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+                    font-family: monospace;
                     font-size: 0.9em;
-                    line-height: 1.4;
                     padding: 12px;
                     border-radius: 6px;
                     border: 1px solid #e1e4e8;
-                    overflow-x: auto;
                 }}
                 
                 .code-block-{} .keyword {{

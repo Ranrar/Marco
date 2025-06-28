@@ -7,6 +7,8 @@ mod menu;
 mod toolbar;
 mod footer;
 mod preview;
+mod emoji;
+mod context_menu;
 
 use gtk4::prelude::*;
 use gtk4::{
@@ -89,15 +91,12 @@ fn build_ui(app: &Application) {
         .code-block {
             background-color: #f6f8fa;
             color: #24292e;
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-family: monospace;
             font-size: 0.9em;
-            line-height: 1.4;
             padding: 12px;
             border-radius: 6px;
             border: 1px solid #e1e4e8;
             margin: 8px 0;
-            overflow-x: auto;
-            white-space: pre;
         }
         .code-block .keyword {
             color: #d73a49;

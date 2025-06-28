@@ -48,12 +48,16 @@ es:
     task_list_closed: "Tarea cerrada individual"
     footnote: "Nota al pie"
     definition_list: "Lista de definiciones"
+    definition_list_custom: "Número personalizado de pares..."
+    definition_list_single: "Par de definición único"
     highlight: "Destacar"
     subscript: "Subíndice"
     superscript: "Superíndice"
     emoji: "Emoji"
     fenced_code: "Bloque de código delimitado"
     fenced_code_dialog: "Con selección de lenguaje..."
+  emoji:
+    title: "Selector de Emoji"
   # Keyboard shortcuts for menu items
   menu_shortcuts:
     heading1: "Ctrl+1"

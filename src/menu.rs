@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{PopoverMenuBar, Application, gio, Dialog, Grid, Entry, ResponseType, Box, Orientation, Label, SpinButton, Adjustment};
-use crate::{editor, localization};
+use crate::{editor, localization, emoji};
 
 pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor) -> PopoverMenuBar {
     // Create the menu model
@@ -100,7 +100,13 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor) -> Po
     task_list_menu.append(Some(&localization::tr("insert.task_list_closed")), Some("app.insert_task_list_closed"));
     
     format_menu.append_submenu(Some(&localization::tr("insert.task_list")), &task_list_menu);
-    format_menu.append(Some(&localization::tr("insert.definition_list")), Some("app.insert_definition_list"));
+    
+    // Definition list submenu
+    let definition_list_menu = gio::Menu::new();
+    definition_list_menu.append(Some(&localization::tr("insert.definition_list_custom")), Some("app.insert_definition_list_custom"));
+    definition_list_menu.append(Some(&localization::tr("insert.definition_list_single")), Some("app.insert_definition_list_single"));
+    
+    format_menu.append_submenu(Some(&localization::tr("insert.definition_list")), &definition_list_menu);
     
     // Special elements
     format_menu.append(Some(&localization::tr("insert.table")), Some("app.insert_table_dialog"));
@@ -645,6 +651,24 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor) {
         })
         .build();
 
+    let insert_definition_list_custom_action = gio::ActionEntry::builder("insert_definition_list_custom")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_definition_list_custom_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_definition_list_single_action = gio::ActionEntry::builder("insert_definition_list_single")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_single_definition();
+            }
+        })
+        .build();
+
     let insert_highlight_action = gio::ActionEntry::builder("insert_highlight")
         .activate({
             let editor = editor.clone();
@@ -676,7 +700,7 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor) {
         .activate({
             let editor = editor.clone();
             move |_app: &Application, _action, _param| {
-                editor.insert_emoji();
+                emoji::show_emoji_picker_dialog(&editor);
             }
         })
         .build();
@@ -887,6 +911,7 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor) {
         // Extended syntax actions
         insert_task_list_action, insert_task_list_custom_action, insert_task_list_open_action, 
         insert_task_list_closed_action, insert_footnote_action, insert_definition_list_action,
+        insert_definition_list_custom_action, insert_definition_list_single_action,
         insert_highlight_action, insert_subscript_action, insert_superscript_action,
         insert_emoji_action, insert_fenced_code_action,
         // Language-specific fenced code actions
@@ -1124,6 +1149,108 @@ fn show_task_list_custom_dialog(editor: &editor::MarkdownEditor) {
             let count = items_spin.value() as usize;
             if count > 0 {
                 editor_clone.insert_custom_task_list(count);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to create a custom definition list with specified number of items
+fn show_definition_list_custom_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("insert.definition_list_custom")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(400, 250);
+    
+    // Create the grid layout
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    // Number of items label and spin button
+    let items_label = Label::new(Some("Number of definition pairs:"));
+    items_label.set_halign(gtk4::Align::Start);
+    
+    // Create spin button with range 1-20, default 2
+    let adjustment = Adjustment::new(2.0, 1.0, 20.0, 1.0, 5.0, 0.0);
+    let items_spin = SpinButton::new(Some(&adjustment), 1.0, 0);
+    items_spin.set_hexpand(true);
+    
+    // Preview label
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    
+    // Preview text with scrolled window
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_cursor_visible(false);
+    
+    let preview_scroll = gtk4::ScrolledWindow::new();
+    preview_scroll.set_child(Some(&preview_text));
+    preview_scroll.set_size_request(350, 120);
+    preview_scroll.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+    
+    // Update preview when spin button value changes
+    let preview_buffer = preview_text.buffer();
+    let update_preview = {
+        let items_spin = items_spin.clone();
+        let preview_buffer = preview_buffer.clone();
+        move || {
+            let count = items_spin.value() as usize;
+            let mut preview = String::new();
+            for i in 0..count.min(8) { // Show max 8 in preview
+                if i > 0 {
+                    preview.push('\n');
+                }
+                preview.push_str(&format!("Term {}\n: Definition of term {}.\n", i + 1, i + 1));
+            }
+            if count > 8 {
+                preview.push_str(&format!("\n... and {} more definition pairs", count - 8));
+            }
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    // Initial preview update
+    update_preview();
+    
+    // Connect value changed signal
+    items_spin.connect_value_changed({
+        let update_preview = update_preview.clone();
+        move |_| {
+            update_preview();
+        }
+    });
+    
+    // Add to grid
+    grid.attach(&items_label, 0, 0, 1, 1);
+    grid.attach(&items_spin, 1, 0, 1, 1);
+    grid.attach(&preview_label, 0, 1, 2, 1);
+    grid.attach(&preview_scroll, 0, 2, 2, 1);
+    
+    // Add grid to dialog
+    dialog.content_area().append(&grid);
+    
+    // Focus on spin button
+    items_spin.grab_focus();
+    
+    // Connect response
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let count = items_spin.value() as usize;
+            if count > 0 {
+                editor_clone.insert_custom_definition_list(count);
             }
         }
         dialog.close();

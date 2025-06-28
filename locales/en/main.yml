@@ -48,6 +48,8 @@ en:
     task_list_closed: "Single Closed Task"
     footnote: "Footnote"
     definition_list: "Definition List"
+    definition_list_custom: "Custom Number of Pairs..."
+    definition_list_single: "Single Definition Pair"
     highlight: "Highlight"
     subscript: "Subscript"
     superscript: "Superscript"
@@ -101,6 +103,8 @@ en:
       superscript: "Superscript (^text^)"
       emoji: "Emoji (:emoji:)"
       fenced_code: "Fenced Code Block (```lang)"
+  emoji:
+    title: "Emoji Picker"
   help:
     markdown_guide: "Markdown Guide"
     shortcuts: "Keyboard Shortcuts"

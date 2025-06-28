@@ -10,11 +10,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::preview::MarkdownPreview;
 use crate::code_languages::CodeLanguageManager;
+use crate::context_menu::ContextMenu;
 
 #[derive(Clone)]
 pub struct MarkdownEditor {
     widget: Paned,
-    #[allow(dead_code)]
     source_view: View,
     preview: MarkdownPreview,
     source_buffer: Buffer,
@@ -112,6 +112,10 @@ impl MarkdownEditor {
         
         // Set up keyboard shortcuts
         editor.setup_keyboard_shortcuts();
+        
+        // Set up right-click context menu
+        let context_menu = ContextMenu::new(&editor);
+        context_menu.setup_gesture(&editor);
 
         // Ensure 50/50 split on window realize
         let paned = editor.widget.clone();
@@ -127,6 +131,16 @@ impl MarkdownEditor {
 
     pub fn widget(&self) -> &Widget {
         self.widget.upcast_ref()
+    }
+
+    /// Get access to the source view for context menu integration
+    pub fn source_view(&self) -> &View {
+        &self.source_view
+    }
+
+    /// Get access to the source buffer for context menu integration  
+    pub fn source_buffer(&self) -> &Buffer {
+        &self.source_buffer
     }
 
     /// Get access to the source buffer for external cursor tracking
@@ -325,6 +339,21 @@ impl MarkdownEditor {
         self.insert_at_new_line("First Term\n: This is the definition of the first term.\n\nSecond Term\n: This is one definition of the second term.\n: This is another definition of the second term.\n");
     }
 
+    pub fn insert_single_definition(&self) {
+        self.insert_at_new_line("Term\n: Definition of the term.\n");
+    }
+
+    pub fn insert_custom_definition_list(&self, count: usize) {
+        let mut definition_list = String::new();
+        for i in 1..=count {
+            if i > 1 {
+                definition_list.push('\n');
+            }
+            definition_list.push_str(&format!("Term {}\n: Definition of term {}.\n", i, i));
+        }
+        self.insert_at_new_line(&definition_list);
+    }
+
     pub fn insert_highlight(&self) {
         self.toggle_format_selection_only("==", "==");
     }
@@ -345,6 +374,15 @@ impl MarkdownEditor {
         
         // Insert some common emoji shortcodes as examples
         buffer.insert(&mut cursor_iter, ":smile: :heart: :thumbsup:");
+    }
+
+    pub fn insert_emoji_text(&self, emoji: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        let cursor_mark = gtk_buffer.get_insert();
+        let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+        
+        buffer.insert(&mut cursor_iter, emoji);
     }
 
     pub fn insert_fenced_code_block(&self) {
@@ -960,4 +998,5 @@ impl MarkdownEditor {
         
         self.source_view.add_controller(controller);
     }
+
 }

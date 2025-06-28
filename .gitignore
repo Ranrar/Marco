@@ -7,6 +7,8 @@ Cargo.lock
 .idea/
 *.swp
 *.swo
+dev/
+.VSCodeCounter/
 
 # OS
 .DS_Store
