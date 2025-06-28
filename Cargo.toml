@@ -9,6 +9,8 @@ glib = "0.19"
 pulldown-cmark = "0.9"
 gdk4 = "0.8"
 sourceview5 = "0.8"
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9"
 
 [build-dependencies]
 glib-build-tools = "0.19"

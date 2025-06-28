@@ -459,6 +459,36 @@ impl MarkdownEditor {
         self.insert_text_at_cursor(table);
     }
 
+    pub fn insert_custom_table(&self, rows: usize, cols: usize) {
+        let mut table = String::new();
+        table.push('\n');
+        
+        // Create header row
+        table.push('|');
+        for c in 0..cols {
+            table.push_str(&format!(" Header {} |", c + 1));
+        }
+        table.push('\n');
+        
+        // Create separator row
+        table.push('|');
+        for _ in 0..cols {
+            table.push_str("----------|");
+        }
+        table.push('\n');
+        
+        // Create data rows
+        for r in 0..rows {
+            table.push('|');
+            for c in 0..cols {
+                table.push_str(&format!(" Cell {}-{} |", r + 1, c + 1));
+            }
+            table.push('\n');
+        }
+        
+        self.insert_text_at_cursor(&table);
+    }
+
     pub fn insert_code_block(&self) {
         let code_block = "\n```\ncode goes here\n```\n";
         self.insert_text_at_cursor(code_block);
