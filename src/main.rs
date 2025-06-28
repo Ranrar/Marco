@@ -1,5 +1,7 @@
 mod editor;
 mod syntax_basic;
+mod syntax_extended;
+mod code_languages;
 mod localization;
 mod menu;
 mod toolbar;
@@ -56,12 +58,100 @@ fn build_ui(app: &Application) {
         .default_height(600)
         .build();
 
-    // Set up CSS for error styling
+    // Set up CSS for error styling and toolbar button states
     let provider = CssProvider::new();
     provider.load_from_data(
         ".error {
             border: 2px solid #e53e3e;
             background-color: #fed7d7;
+        }
+        button {
+            transition: all 0.3s ease;
+            border-radius: 6px;
+        }
+        button.active-format {
+            background-color: #3b82f6;
+            color: white;
+            font-weight: bold;
+            background-image: none;
+        }
+        /* Menu accelerator styling - make shortcuts faded and smaller */
+        menu menuitem accelerator {
+            color: alpha(@theme_fg_color, 0.55);
+            font-size: 0.8em;
+            font-weight: normal;
+            margin-left: 20px;
+        }
+        menu menuitem {
+            padding: 4px 8px;
+        }
+        /* Code block styling */
+        .code-block {
+            background-color: #f6f8fa;
+            color: #24292e;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.4;
+            padding: 12px;
+            border-radius: 6px;
+            border: 1px solid #e1e4e8;
+            margin: 8px 0;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        .code-block .keyword {
+            color: #d73a49;
+            font-weight: bold;
+        }
+        .code-block .comment {
+            color: #6a737d;
+            font-style: italic;
+        }
+        .code-block .string {
+            color: #032f62;
+        }
+        .code-block .number {
+            color: #005cc5;
+        }
+        .code-block .function {
+            color: #6f42c1;
+            font-weight: bold;
+        }
+        .code-block .class {
+            color: #e36209;
+            font-weight: bold;
+        }
+        
+        /* Language-specific code blocks */
+        .code-block-javascript, .code-block-js {
+            border-left: 4px solid #f7df1e;
+        }
+        .code-block-python, .code-block-py {
+            border-left: 4px solid #3776ab;
+        }
+        .code-block-rust, .code-block-rs {
+            border-left: 4px solid #ce422b;
+        }
+        .code-block-java {
+            border-left: 4px solid #f89820;
+        }
+        .code-block-typescript, .code-block-ts {
+            border-left: 4px solid #007acc;
+        }
+        .code-block-csharp, .code-block-cs {
+            border-left: 4px solid #239120;
+        }
+        .code-block-cpp, .code-block-c++ {
+            border-left: 4px solid #00599c;
+        }
+        .code-block-c {
+            border-left: 4px solid #a8b9cc;
+        }
+        .code-block-php {
+            border-left: 4px solid #777bb4;
+        }
+        .code-block-go {
+            border-left: 4px solid #00add8;
         }"
     );
     gtk4::style_context_add_provider_for_display(
@@ -85,7 +175,7 @@ fn build_ui(app: &Application) {
     main_box.append(&menu_bar);
     
     // Create and add toolbar with markdown formatting (no file buttons)
-    let toolbar = toolbar::create_markdown_toolbar(&editor);
+    let (toolbar, _toolbar_buttons) = toolbar::create_markdown_toolbar(&editor);
     main_box.append(&toolbar);
     
     // Add editor to main box (takes most of the space)
@@ -158,7 +248,7 @@ fn build_ui(app: &Application) {
                     main_box_clone.remove(&*old_toolbar);
                 }
             }
-            let new_toolbar = toolbar::create_markdown_toolbar(&editor_clone);
+            let (new_toolbar, _new_toolbar_buttons) = toolbar::create_markdown_toolbar(&editor_clone);
             // Insert after menu bar (position 1)
             if let Ok(menu_bar_ref) = current_menu_bar.try_borrow() {
                 main_box_clone.insert_child_after(&new_toolbar, Some(&*menu_bar_ref));

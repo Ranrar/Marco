@@ -21,8 +21,10 @@ A feature-rich markdown editor built with Rust and GTK4, supporting multiple lan
 - **Comprehensive toolbar** with formatting buttons
 - **Full menu system** with Insert and Format menus
 - **Basic syntax support**: Headers (H1-H6), Bold, Italic, Code, Lists, Blockquotes
-- **Extended syntax support**: Strikethrough, Code blocks, Tables, Horizontal rules
+- **Extended syntax support**: Strikethrough, Subscript, Superscript, Highlight, Code blocks, Tables, Horizontal rules, Task lists, Footnotes, Definition lists, Emoji
 - **Smart insertions**: Links, Images, Custom tables with dialog
+- **Advanced code support**: Fenced code blocks with syntax highlighting for 10+ programming languages
+- **Task list varieties**: Custom number dialog, single open task, single closed task
 - **Live statistics**: Word count, character count, cursor position
 
 ### User Interface
@@ -31,52 +33,6 @@ A feature-rich markdown editor built with Rust and GTK4, supporting multiple lan
 - **Tooltip support** for all toolbar buttons (translated)
 - **Status footer** with real-time document statistics
 - **Error handling** with visual feedback
-
-## Prerequisites
-
-Before building this application, you need to install Rust and GTK4 development libraries.
-
-### Install Rust
-
-First, install Rust using rustup:
-
-```bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source $HOME/.cargo/env
-```
-
-### Install GTK4 Development Libraries
-
-### Ubuntu/Debian:
-```bash
-sudo apt update
-sudo apt install libgtk-4-dev libgtksourceview-5-dev build-essential
-```
-
-### Fedora:
-```bash
-sudo dnf install gtk4-devel gtksourceview5-devel
-```
-
-### Arch Linux:
-```bash
-sudo pacman -S gtk4 gtksourceview5
-```
-
-## Building and Running
-
-1. Clone or navigate to this directory
-2. Build and run the application:
-
-```bash
-cargo run
-```
-
-Or build for release:
-
-```bash
-cargo build --release
-```
 
 ## Usage
 
@@ -95,11 +51,14 @@ cargo build --release
 Use the toolbar buttons or menu items to insert:
 - **Headers**: H1, H2, H3 buttons or Insert → Headings
 - **Text formatting**: Bold (**text**), Italic (*text*), Inline code (`code`)
-- **Lists**: Bullet lists (•) and numbered lists (1.)
+- **Advanced text**: Strikethrough (~~text~~), Highlight (==text==), Subscript (H~2~O), Superscript (x^2^)
+- **Lists**: Bullet lists (•), numbered lists (1.), and task lists with checkboxes
+- **Task lists**: Custom number dialog, single open task (- [ ]), single closed task (- [x])
 - **Blockquotes**: > quoted text
 - **Links**: [text](url) and ![alt](image.png)
 - **Tables**: Custom table dialog with row/column selection
-- **Code blocks**: ```language fenced code blocks
+- **Code blocks**: ```language fenced code blocks with syntax highlighting
+- **Special elements**: Footnotes[^1], definition lists, emoji 🎉
 - **Horizontal rules**: --- separators
 
 ### Live Preview
@@ -156,14 +115,24 @@ en:
 ### Source Code
 - `src/main.rs` - Application entry point, UI setup, and i18n integration
 - `src/editor.rs` - Main editor widget with split-pane layout and markdown tools
+- `src/menu.rs` - Menu system, actions, and dialog management
+- `src/toolbar.rs` - Toolbar buttons and formatting controls
+- `src/footer.rs` - Status bar with statistics and format detection
+- `src/preview.rs` - Live preview rendering and HTML generation
+- `src/syntax_basic.rs` - Basic markdown syntax highlighting and parsing
+- `src/syntax_extended.rs` - Extended markdown features (tables, tasks, etc.)
+- `src/code_languages.rs` - Programming language definitions and syntax highlighting
 - `src/localization.rs` - Translation system and language management
-- `src/markdown_basic.rs` - Basic markdown parsing and syntax definitions
-- `src/markdown_extended.rs` - Extended markdown features
 
 ### Configuration
 - `Cargo.toml` - Project dependencies and metadata
 - `build.rs` - Build script for GTK resources
 - `locales/` - Translation files for all supported languages
+
+### Documentation
+- `ADDING_LANGUAGES.md` - Guide for extending programming language support
+- `LANGUAGE_REFERENCE.md` - User reference for supported languages
+- `doc/` - Additional documentation and guides
 
 ### Build Output
 - `target/debug/marco` - Debug executable
@@ -189,46 +158,116 @@ en:
 | Open File | Ctrl+O | File → Open |
 | Save | Ctrl+S | File → Save |
 | Save As | Ctrl+Shift+S | File → Save As |
-| Bold Text | Select text + Bold button | Insert → Bold |
-| Italic Text | Select text + Italic button | Insert → Italic |
-| Insert Heading | H1/H2/H3 buttons | Insert → Heading |
-| Insert Link | Link button | Insert → Link |
-| Insert Table | Table dialog | Format → Table |
+| Bold Text | Ctrl+B | Insert → Bold |
+| Italic Text | Ctrl+I | Insert → Italic |
+| Underline Text | Ctrl+U | Insert → Underline |
+| Inline Code | Ctrl+` | Insert → Inline Code |
+| Insert Link | Ctrl+K | Insert → Link |
+| Heading 1 | Ctrl+1 | Insert → Heading 1 |
+| Heading 2 | Ctrl+2 | Insert → Heading 2 |
+| Heading 3 | Ctrl+3 | Insert → Heading 3 |
+| Heading 4 | Ctrl+4 | Insert → Heading 4 |
+| Heading 5 | Ctrl+5 | Insert → Heading 5 |
+| Heading 6 | Ctrl+6 | Insert → Heading 6 |
+| Bullet List | Ctrl+Shift+8 | Insert → Unordered List |
+| Numbered List | Ctrl+Shift+7 | Insert → Ordered List |
+| Blockquote | Ctrl+Shift+. | Insert → Blockquote |
+
+## Current Implementation Status
+
+### Completed Features
+- **Core Editor**: Split-pane markdown editing with live preview
+- **Internationalization**: 4 languages (EN, ES, FR, DE) with runtime switching
+- **Basic Markdown**: Headers, bold, italic, lists, blockquotes, links, images
+- **Extended Markdown**: Strikethrough, highlight, subscript, superscript, tables, code blocks
+- **Task Lists**: Custom number dialog, single open/closed tasks
+- **Code Languages**: 10+ programming languages with syntax highlighting
+- **Keyboard Shortcuts**: Comprehensive shortcut system with help dialog
+- **File Operations**: New, open, save, save as with proper file handling
+- **Modular Architecture**: Clean separation of concerns across multiple modules
+
+### Partially Implemented
+- **Format Detection**: `find_format_at_cursor()` function exists but not actively used
+- **Source View**: `source_view` field available but not fully integrated
+- **Extended Syntax**: Functions exist but may need text content (`insert_footnote()`, `insert_definition_list()`, etc.)
+
+### Not Yet Implemented
+- **Status Bar Formatting**: HTML-style format display with indentation
+- **Context Menus**: Right-click formatting options
+- **Preview Modes**: HTML source view, CSS theme selection
+- **Custom CSS**: User-defined stylesheet loading
+- **Emoji Picker**: Searchable emoji browser
+- **Advanced Editor Features**: Live highlighting, detachable preview
+- **Export Options**: PDF, DOCX, other format exports
+
+## Roadmap
+
+### Planned Features (TODO)
+
+#### Status Bar Enhancements
+- **Format detection at cursor**: Show active formatting in footer (HTML-style with indentation)
+- **Smart format warnings**: Display alerts for malformed markdown syntax
+- **Live format display**: Real-time indication of current text formatting context
+
+#### Advanced Editor Features
+- **Context menus**: Right-click formatting options based on cursor position
+- **Live preview highlighting**: Show formatting directly in the editor as you type
+- **Format detection function**: `find_format_at_cursor()` implementation for context awareness
+
+#### Preview Window Improvements
+- **Flexible preview modes**: Toggle between HTML preview and HTML source code view
+- **Multiple CSS themes**: Select from built-in styles ("HTML", "GitHub", "Dark", etc.)
+- **Custom CSS support**: Load and apply user-defined stylesheets
+- **Detachable preview**: Open preview in separate window for dual-monitor workflows
+
+#### Enhanced Markdown Features
+- **Improved footnotes**: `insert_footnote()` with reference numbering and linking
+- **Rich definition lists**: `insert_definition_list()` with term/definition pairs
+- **Text highlighting**: `insert_highlight()` with ==highlighted text== syntax
+- **Scientific notation**: Enhanced `insert_subscript()` and `insert_superscript()` functions
+- **Emoji picker**: `insert_emoji()` with searchable emoji browser and categories
+
+#### Task List Enhancements
+- **Custom task dialogs**: Specify number of items with preview **(COMPLETED)**
+- **Quick task insertion**: Single open/closed task options **(COMPLETED)**
+- **Task management**: Edit existing task states, bulk operations
+
+#### Code Block Improvements
+- **Language auto-detection**: Suggest language based on code content
+- **Code formatting**: Auto-indent and syntax validation
+- **Language extensions**: Easy addition of new programming languages
+- **Syntax themes**: Multiple color schemes for code highlighting
+
+#### User Interface Enhancements
+- **Editor themes**: Dark mode, light mode, custom color schemes
+- **Font customization**: Size, family, and spacing options
+- **Layout options**: Vertical split, horizontal split, preview-only modes
+- **Workspace persistence**: Remember window size, split position, and preferences
+- **Zen mode**: A peacefulness with no distractions
+
+#### Export and Integration
+- **Export formats**: PDF, HTML, DOCX, and other popular formats
+- **Print support**: Direct printing with formatting preservation
+- **Plugin system**: Extensions for custom markdown processors
+- **Git integration**: Track changes, commit from editor
+
+#### Performance and Reliability
+- **Large file handling**: Optimize for documents with thousands of lines
+- **Auto-save**: Configurable automatic saving with recovery options
+- **Undo/redo system**: Enhanced history with branch management
+- **Search and replace**: Advanced find/replace with regex support
+
+#### Accessibility
+- **Screen reader support**: Full accessibility compliance
+- **High contrast themes**: Support for visual accessibility needs
+- **Keyboard navigation**: Complete keyboard-only operation support
+
+#### Cross-platform
+- **Windows**: Full installer with Start Menu integration and desktop shortcut support
+- **MacOS**: DMG installer with drag-and-drop app installation; notarized for security compliance
+- **linux**: Linux: `.deb`, and `.rpm` packages available; supports installation via terminal or software center
 
 ## Contributing
 
-### Development Setup
-1. Install prerequisites (Rust + GTK4 development libraries)
-2. Clone the repository
-3. Run `cargo build` to compile
-4. Run `cargo run` to start the application
-
-### Adding Features
-- Follow Rust best practices and GTK4 patterns
-- Ensure all new UI text is translatable using `localization::tr()`
-- Add translations to all language files in `locales/`
-- Test with different languages to ensure proper UI layout
-
 ### Translation Contributions
 We welcome translations to additional languages! Please follow the translation format in existing files and submit a pull request.
-
-## License
-
-This project is open source. Please refer to the LICENSE file for details.
-
-## Technical Notes
-
-### GTK4 Integration
-- Uses modern GTK4 widgets and patterns
-- Implements proper widget lifecycle management
-- Follows GTK4 best practices for UI updates and event handling
-
-### Performance
-- Efficient real-time markdown parsing with pulldown-cmark
-- Minimal UI updates using GTK's signal system
-- Low memory footprint with careful widget management
-
-### Architecture
-- Modular design with separated concerns
-- Translation system designed for easy extensibility
-- Clean separation between UI, markdown processing, and file operations

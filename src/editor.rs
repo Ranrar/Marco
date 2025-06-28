@@ -1,22 +1,26 @@
 use gtk4::prelude::*;
 use gtk4::{
-    Button, FileChooserAction, FileChooserDialog, HeaderBar, Label, Orientation,
+    FileChooserAction, FileChooserDialog, HeaderBar, Label, Orientation,
     Paned, ResponseType, ScrolledWindow, Widget, Dialog, Entry, Grid, FileFilter,
+    EventControllerKey, gdk, ComboBoxText,
 };
 use sourceview5::prelude::*;
 use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use crate::preview::MarkdownPreview;
+use crate::code_languages::CodeLanguageManager;
 
 #[derive(Clone)]
 pub struct MarkdownEditor {
     widget: Paned,
+    #[allow(dead_code)]
     source_view: View,
     preview: MarkdownPreview,
     source_buffer: Buffer,
     current_file: Rc<RefCell<Option<std::path::PathBuf>>>,
     footer_callbacks: Rc<RefCell<Vec<Box<dyn Fn(&str, usize, usize, usize, usize)>>>>,
+    code_language_manager: Rc<RefCell<CodeLanguageManager>>,
 }
 
 impl MarkdownEditor {
@@ -90,6 +94,7 @@ impl MarkdownEditor {
         // Set up current_file and footer_callbacks
         let current_file = Rc::new(RefCell::new(None));
         let footer_callbacks = Rc::new(RefCell::new(Vec::new()));
+        let code_language_manager = Rc::new(RefCell::new(CodeLanguageManager::new()));
 
         let editor = Self {
             widget: paned,
@@ -98,11 +103,15 @@ impl MarkdownEditor {
             source_buffer,
             current_file,
             footer_callbacks,
+            code_language_manager,
         };
 
         // Connect text change signal
         editor.connect_text_changed();
         editor.connect_cursor_moved();
+        
+        // Set up keyboard shortcuts
+        editor.setup_keyboard_shortcuts();
 
         // Ensure 50/50 split on window realize
         let paned = editor.widget.clone();
@@ -120,6 +129,11 @@ impl MarkdownEditor {
         self.widget.upcast_ref()
     }
 
+    /// Get access to the source buffer for external cursor tracking
+    pub fn get_source_buffer(&self) -> &Buffer {
+        &self.source_buffer
+    }
+
     pub fn set_split_ratio(&self, total_width: i32) {
         // Set the split position to 50% of the total width
         self.widget.set_position(total_width / 2);
@@ -131,27 +145,6 @@ impl MarkdownEditor {
         F: Fn(&str, usize, usize, usize, usize) + 'static,
     {
         self.footer_callbacks.borrow_mut().push(Box::new(callback));
-    }
-
-    fn update_footer(&self) {
-        let start = self.source_buffer.start_iter();
-        let end = self.source_buffer.end_iter();
-        let text = self.source_buffer.text(&start, &end, false);
-        
-        // Calculate statistics
-        let char_count = text.chars().count();
-        let word_count = text.split_whitespace().count();
-        
-        // Get cursor position - use the GTK TextBuffer's get_insert mark
-        let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
-        let cursor_iter = gtk_buffer.iter_at_mark(&gtk_buffer.get_insert());
-        let line = cursor_iter.line() + 1;
-        let column = cursor_iter.line_offset() + 1;
-        
-        // Call all footer callbacks
-        for callback in self.footer_callbacks.borrow().iter() {
-            callback(&text, word_count, char_count, line as usize, column as usize);
-        }
     }
 
     fn connect_text_changed(&self) {
@@ -203,201 +196,6 @@ impl MarkdownEditor {
                 }
             }
         });
-    }
-
-    pub fn create_header_bar(&self) -> HeaderBar {
-        let header_bar = HeaderBar::new();
-        header_bar.set_title_widget(Some(&Label::new(Some("Marco - Markdown Composer"))));
-
-        // New button
-        let new_button = Button::with_label("New");
-        let source_buffer = self.source_buffer.clone();
-        let current_file = self.current_file.clone();
-        new_button.connect_clicked(move |_| {
-            source_buffer.set_text("");
-            *current_file.borrow_mut() = None;
-        });
-        header_bar.pack_start(&new_button);
-
-        // Open button
-        let open_button = Button::with_label("Open");
-        let source_buffer = self.source_buffer.clone();
-        let current_file = self.current_file.clone();
-        open_button.connect_clicked(move |button| {
-            let dialog = FileChooserDialog::new(
-                Some("Open File"),
-                button.root().and_then(|r| r.downcast::<gtk4::Window>().ok()).as_ref(),
-                FileChooserAction::Open,
-                &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
-            );
-
-            let source_buffer = source_buffer.clone();
-            let current_file = current_file.clone();
-            dialog.connect_response(move |dialog, response| {
-                if response == ResponseType::Accept {
-                    if let Some(file) = dialog.file() {
-                        if let Some(path) = file.path() {
-                            if let Ok(content) = std::fs::read_to_string(&path) {
-                                source_buffer.set_text(&content);
-                                *current_file.borrow_mut() = Some(path);
-                            }
-                        }
-                    }
-                }
-                dialog.close();
-            });
-
-            dialog.present();
-        });
-        header_bar.pack_start(&open_button);
-
-        // Save button
-        let save_button = Button::with_label("Save");
-        let source_buffer = self.source_buffer.clone();
-        let current_file_for_save = self.current_file.clone();
-        save_button.connect_clicked(move |button| {
-            let current_file_borrowed = current_file_for_save.borrow().clone();
-            
-            if let Some(path) = current_file_borrowed {
-                // Save to existing file
-                let start = source_buffer.start_iter();
-                let end = source_buffer.end_iter();
-                let text = source_buffer.text(&start, &end, false);
-                let _ = std::fs::write(&path, text);
-            } else {
-                // Show save dialog
-                let dialog = FileChooserDialog::new(
-                    Some("Save File"),
-                    button.root().and_then(|r| r.downcast::<gtk4::Window>().ok()).as_ref(),
-                    FileChooserAction::Save,
-                    &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
-                );
-
-                let source_buffer = source_buffer.clone();
-                let current_file_for_dialog = current_file_for_save.clone();
-                dialog.connect_response(move |dialog, response| {
-                    if response == ResponseType::Accept {
-                        if let Some(file) = dialog.file() {
-                            if let Some(path) = file.path() {
-                                let start = source_buffer.start_iter();
-                                let end = source_buffer.end_iter();
-                                let text = source_buffer.text(&start, &end, false);
-                                if std::fs::write(&path, text).is_ok() {
-                                    *current_file_for_dialog.borrow_mut() = Some(path);
-                                }
-                            }
-                        }
-                    }
-                    dialog.close();
-                });
-
-                dialog.present();
-            }
-        });
-        header_bar.pack_start(&save_button);
-
-        header_bar
-    }
-
-    pub fn new_file(&self) {
-        self.source_buffer.set_text("");
-        *self.current_file.borrow_mut() = None;
-    }
-
-    pub fn open_file(&self, button: &Button) {
-        let window = button.root().and_then(|r| r.downcast::<gtk4::Window>().ok());
-        self.show_open_dialog(window.as_ref());
-    }
-
-    pub fn open_file_from_menu(&self, window: &gtk4::Window) {
-        self.show_open_dialog(Some(window));
-    }
-
-    pub fn save_file(&self, button: &Button) {
-        let window = button.root().and_then(|r| r.downcast::<gtk4::Window>().ok());
-        self.save_current_file(window.as_ref());
-    }
-
-    pub fn save_file_from_menu(&self, window: &gtk4::Window) {
-        self.save_current_file(Some(window));
-    }
-
-    pub fn save_as_file(&self, button: &Button) {
-        let window = button.root().and_then(|r| r.downcast::<gtk4::Window>().ok());
-        self.show_save_as_dialog(window.as_ref());
-    }
-
-    pub fn save_as_file_from_menu(&self, window: &gtk4::Window) {
-        self.show_save_as_dialog(Some(window));
-    }
-
-    fn show_open_dialog(&self, parent: Option<&gtk4::Window>) {
-        let dialog = FileChooserDialog::new(
-            Some("Open File"),
-            parent,
-            FileChooserAction::Open,
-            &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
-        );
-
-        let source_buffer = self.source_buffer.clone();
-        let current_file = self.current_file.clone();
-        dialog.connect_response(move |dialog, response| {
-            if response == ResponseType::Accept {
-                if let Some(file) = dialog.file() {
-                    if let Some(path) = file.path() {
-                        if let Ok(content) = std::fs::read_to_string(&path) {
-                            source_buffer.set_text(&content);
-                            *current_file.borrow_mut() = Some(path);
-                        }
-                    }
-                }
-            }
-            dialog.close();
-        });
-
-        dialog.present();
-    }
-
-    fn save_current_file(&self, parent: Option<&gtk4::Window>) {
-        if let Some(path) = self.current_file.borrow().clone() {
-            // Save to existing file
-            let start = self.source_buffer.start_iter();
-            let end = self.source_buffer.end_iter();
-            let text = self.source_buffer.text(&start, &end, false);
-            let _ = std::fs::write(&path, text);
-        } else {
-            // No file selected, show save as dialog
-            self.show_save_as_dialog(parent);
-        }
-    }
-
-    fn show_save_as_dialog(&self, parent: Option<&gtk4::Window>) {
-        let dialog = FileChooserDialog::new(
-            Some("Save File"),
-            parent,
-            FileChooserAction::Save,
-            &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
-        );
-
-        let source_buffer = self.source_buffer.clone();
-        let current_file = self.current_file.clone();
-        dialog.connect_response(move |dialog, response| {
-            if response == ResponseType::Accept {
-                if let Some(file) = dialog.file() {
-                    if let Some(path) = file.path() {
-                        let start = source_buffer.start_iter();
-                        let end = source_buffer.end_iter();
-                        let text = source_buffer.text(&start, &end, false);
-                        if std::fs::write(&path, text).is_ok() {
-                            *current_file.borrow_mut() = Some(path);
-                        }
-                    }
-                }
-            }
-            dialog.close();
-        });
-
-        dialog.present();
     }
 
     pub fn create_simple_header_bar(&self) -> HeaderBar {
@@ -487,67 +285,211 @@ impl MarkdownEditor {
         self.insert_text_at_cursor(code_block);
     }
 
+    // Extended Markdown syntax methods based on https://www.markdownguide.org/extended-syntax/
+
+    pub fn insert_task_list(&self) {
+        self.insert_at_new_line("- [ ] Task\n- [x] Completed task\n- [ ] Another task\n");
+    }
+
+    pub fn insert_single_open_task(&self) {
+        self.insert_at_new_line("- [ ] Task\n");
+    }
+
+    pub fn insert_single_closed_task(&self) {
+        self.insert_at_new_line("- [x] Completed task\n");
+    }
+
+    pub fn insert_custom_task_list(&self, count: usize) {
+        let mut task_list = String::new();
+        for i in 0..count {
+            task_list.push_str(&format!("- [ ] Task {}\n", i + 1));
+        }
+        self.insert_at_new_line(&task_list);
+    }
+
+    pub fn insert_footnote(&self) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        let cursor_mark = gtk_buffer.get_insert();
+        let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+        
+        // Insert footnote reference at cursor
+        buffer.insert(&mut cursor_iter, "[^1]");
+        
+        // Add footnote definition at the end
+        let mut end_iter = gtk_buffer.end_iter();
+        buffer.insert(&mut end_iter, "\n\n[^1]: Your footnote here.");
+    }
+
+    pub fn insert_definition_list(&self) {
+        self.insert_at_new_line("First Term\n: This is the definition of the first term.\n\nSecond Term\n: This is one definition of the second term.\n: This is another definition of the second term.\n");
+    }
+
+    pub fn insert_highlight(&self) {
+        self.toggle_format_selection_only("==", "==");
+    }
+
+    pub fn insert_subscript(&self) {
+        self.toggle_format_selection_only("~", "~");
+    }
+
+    pub fn insert_superscript(&self) {
+        self.toggle_format_selection_only("^", "^");
+    }
+
+    pub fn insert_emoji(&self) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        let cursor_mark = gtk_buffer.get_insert();
+        let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+        
+        // Insert some common emoji shortcodes as examples
+        buffer.insert(&mut cursor_iter, ":smile: :heart: :thumbsup:");
+    }
+
+    pub fn insert_fenced_code_block(&self) {
+        self.show_fenced_code_dialog();
+    }
+
+    pub fn insert_fenced_code_with_language(&self, language: &str) {
+        let code_block = format!("```{}\nYour {} code here\n```\n", language, language);
+        self.insert_at_new_line(&code_block);
+    }
+
+    /// Show dialog to select programming language for fenced code block
+    fn show_fenced_code_dialog(&self) {
+        let dialog = Dialog::with_buttons(
+            Some("Insert Fenced Code Block"),
+            None::<&gtk4::Window>,
+            gtk4::DialogFlags::MODAL,
+            &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+        );
+        
+        dialog.set_default_size(400, 200);
+        
+        // Create the grid layout
+        let grid = Grid::new();
+        grid.set_row_spacing(12);
+        grid.set_column_spacing(12);
+        grid.set_margin_top(20);
+        grid.set_margin_bottom(20);
+        grid.set_margin_start(20);
+        grid.set_margin_end(20);
+        
+        // Language selection
+        let lang_label = Label::new(Some("Programming Language:"));
+        lang_label.set_halign(gtk4::Align::Start);
+        
+        let lang_combo = ComboBoxText::new();
+        lang_combo.set_hexpand(true);
+        
+        // Populate with available languages
+        let languages = self.code_language_manager.borrow().get_language_names();
+        for language in &languages {
+            lang_combo.append_text(language);
+        }
+        
+        // Set default to "text" or first language
+        if !languages.is_empty() {
+            lang_combo.set_active(Some(0));
+        }
+        
+        // Add common languages that might not be in the list
+        lang_combo.append_text("text");
+        lang_combo.append_text("bash");
+        lang_combo.append_text("shell");
+        lang_combo.append_text("sql");
+        lang_combo.append_text("json");
+        lang_combo.append_text("xml");
+        lang_combo.append_text("html");
+        lang_combo.append_text("css");
+        lang_combo.append_text("markdown");
+        lang_combo.append_text("yaml");
+        lang_combo.append_text("toml");
+        
+        // Code sample input
+        let code_label = Label::new(Some("Code Sample (optional):"));
+        code_label.set_halign(gtk4::Align::Start);
+        
+        let code_entry = gtk4::TextView::new();
+        code_entry.set_vexpand(true);
+        code_entry.set_hexpand(true);
+        
+        let code_scroll = ScrolledWindow::new();
+        code_scroll.set_child(Some(&code_entry));
+        code_scroll.set_size_request(350, 100);
+        code_scroll.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+        
+        // Add placeholder text
+        let code_buffer = code_entry.buffer();
+        code_buffer.set_text("// Your code here...");
+        
+        // Add to grid
+        grid.attach(&lang_label, 0, 0, 1, 1);
+        grid.attach(&lang_combo, 1, 0, 1, 1);
+        grid.attach(&code_label, 0, 1, 2, 1);
+        grid.attach(&code_scroll, 0, 2, 2, 1);
+        
+        // Add grid to dialog
+        dialog.content_area().append(&grid);
+        
+        // Focus on language combo
+        lang_combo.grab_focus();
+        
+        // Connect response
+        let buffer_clone = self.source_buffer.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                let language = lang_combo.active_text()
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| "text".to_string());
+                
+                let code_buffer = code_entry.buffer();
+                let start = code_buffer.start_iter();
+                let end = code_buffer.end_iter();
+                let code_sample = code_buffer.text(&start, &end, false);
+                
+                let code_content = if code_sample.trim().is_empty() || code_sample.trim() == "// Your code here..." {
+                    format!("Your {} code here", language)
+                } else {
+                    code_sample.to_string()
+                };
+                
+                let fenced_block = format!("```{}\n{}\n```\n", language, code_content);
+                
+                // Insert the fenced code block
+                let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
+                let cursor_mark = gtk_buffer.get_insert();
+                let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+                buffer_clone.insert(&mut cursor_iter, &fenced_block);
+            }
+            dialog.close();
+        });
+        
+        dialog.present();
+    }
+
+    /// Add a new programming language to the manager
+    pub fn add_programming_language(&self, language: crate::code_languages::CodeLanguage) {
+        self.code_language_manager.borrow_mut().add_language(language);
+    }
+
+    /// Get available programming languages
+    pub fn get_available_languages(&self) -> Vec<String> {
+        self.code_language_manager.borrow().get_language_names()
+    }
+
+    /// Get language suggestions based on input
+    pub fn get_language_suggestions(&self, partial: &str) -> Vec<String> {
+        self.code_language_manager.borrow().get_language_suggestions(partial)
+    }
+
     fn insert_text_at_cursor(&self, text: &str) {
         let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
         let cursor_mark = gtk_buffer.get_insert();
         let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
         
         self.source_buffer.insert(&mut cursor_iter, text);
-    }
-
-    fn toggle_format(&self, prefix: &str, suffix: &str, _default_text: &str) {
-        let buffer = &self.source_buffer;
-        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
-        if gtk_buffer.has_selection() {
-            // Get selection bounds
-            if let Some((start, end)) = gtk_buffer.selection_bounds() {
-                let selected_text = gtk_buffer.text(&start, &end, false);
-                let selected_str = selected_text.as_str();
-                
-                // Create the replacement text
-                let replacement_text = if selected_str.starts_with(prefix) && selected_str.ends_with(suffix) && selected_str.len() > prefix.len() + suffix.len() {
-                    // Remove formatting - extract inner text
-                    selected_str[prefix.len()..selected_str.len() - suffix.len()].to_string()
-                } else {
-                    // Add formatting - wrap the selected text
-                    format!("{}{}{}", prefix, selected_str, suffix)
-                };
-                
-                // Use begin/end user action for atomic operation
-                buffer.begin_user_action();
-                
-                // Get fresh bounds for the operation
-                if let Some((mut start_iter, mut end_iter)) = gtk_buffer.selection_bounds() {
-                    // Replace the selected text with the formatted/unformatted version
-                    buffer.delete(&mut start_iter, &mut end_iter);
-                    
-                    // Get a fresh iterator at the insertion point
-                    let insert_mark = gtk_buffer.get_insert();
-                    let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
-                    buffer.insert(&mut insert_iter, &replacement_text);
-                }
-                
-                buffer.end_user_action();
-            }
-        } else {
-            // No selection - just insert empty formatting tags
-            let template = format!("{}{}", prefix, suffix);
-            let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-            let cursor_mark = gtk_buffer.get_insert();
-            let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
-            
-            buffer.begin_user_action();
-            buffer.insert(&mut cursor_iter, &template);
-            
-            // Move cursor between the tags
-            let new_cursor_mark = gtk_buffer.get_insert();
-            let mut new_cursor_iter = gtk_buffer.iter_at_mark(&new_cursor_mark);
-            new_cursor_iter.backward_chars(suffix.len() as i32);
-            gtk_buffer.place_cursor(&new_cursor_iter);
-            
-            buffer.end_user_action();
-        }
     }
 
     #[allow(dead_code)]
@@ -578,56 +520,8 @@ impl MarkdownEditor {
         None
     }
 
-    fn wrap_selection_or_insert(&self, prefix: &str, suffix: &str, default_text: &str) {
-        let buffer = &self.source_buffer;
-        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
-        if gtk_buffer.has_selection() {
-            // Get selection bounds
-            if let Some((start, end)) = gtk_buffer.selection_bounds() {
-                let selected_text = gtk_buffer.text(&start, &end, false);
-                
-                // Replace selection with wrapped text
-                let wrapped_text = format!("{}{}{}", prefix, selected_text, suffix);
-                
-                buffer.begin_user_action();
-                
-                // Get fresh bounds for the operation
-                if let Some((mut start_iter, mut end_iter)) = gtk_buffer.selection_bounds() {
-                    buffer.delete(&mut start_iter, &mut end_iter);
-                    
-                    // Get a fresh iterator at the insertion point
-                    let insert_mark = gtk_buffer.get_insert();
-                    let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
-                    buffer.insert(&mut insert_iter, &wrapped_text);
-                }
-                
-                buffer.end_user_action();
-            }
-        } else {
-            // No selection, insert template with default text
-            let template = format!("{}{}{}", prefix, default_text, suffix);
-            self.insert_text_at_cursor(&template);
-        }
-    }
-
     pub fn insert_horizontal_rule(&self) {
         self.insert_at_new_line("---\n");
-    }
-
-    fn insert_at_line_start(&self, text: &str) {
-        let buffer = &self.source_buffer;
-        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
-        // Get current cursor position
-        let cursor_mark = gtk_buffer.get_insert();
-        let cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
-        
-        // Move to start of current line
-        let mut line_start = cursor_iter;
-        line_start.set_line_offset(0);
-        
-        buffer.insert(&mut line_start, text);
     }
 
     fn insert_at_new_line(&self, text: &str) {
@@ -688,6 +582,55 @@ impl MarkdownEditor {
             }
         }
         // If no text is selected, do nothing
+    }
+
+    /// Check if cursor is within a specific formatting pattern
+    /// Returns true if the cursor position contains the formatting
+    #[allow(dead_code)]
+    pub fn is_cursor_in_format(&self, prefix: &str, suffix: &str) -> bool {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        let cursor_iter = gtk_buffer.iter_at_mark(&gtk_buffer.get_insert());
+        
+        let line_start = gtk_buffer.iter_at_line(cursor_iter.line()).unwrap_or_else(|| cursor_iter);
+        let mut line_end = gtk_buffer.iter_at_line(cursor_iter.line()).unwrap_or_else(|| cursor_iter);
+        
+        if !line_end.ends_line() {
+            line_end.forward_to_line_end();
+        }
+        
+        let line_text = gtk_buffer.text(&line_start, &line_end, false);
+        let cursor_offset = cursor_iter.line_offset();
+        
+        self.find_format_at_cursor(&line_text, cursor_offset, prefix, suffix).is_some()
+    }
+
+    /// Check if cursor is on a heading line and return the heading level
+    #[allow(dead_code)]
+    pub fn get_heading_level_at_cursor(&self) -> Option<usize> {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        let cursor_iter = gtk_buffer.iter_at_mark(&gtk_buffer.get_insert());
+        
+        let line_start = gtk_buffer.iter_at_line(cursor_iter.line()).unwrap_or_else(|| cursor_iter);
+        let mut line_end = gtk_buffer.iter_at_line(cursor_iter.line()).unwrap_or_else(|| cursor_iter);
+        
+        if !line_end.ends_line() {
+            line_end.forward_to_line_end();
+        }
+        
+        let line_text = gtk_buffer.text(&line_start, &line_end, false);
+        let trimmed = line_text.trim();
+        
+        // Check for heading pattern
+        if trimmed.starts_with('#') {
+            let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
+            if hash_count <= 6 && trimmed.len() > hash_count && trimmed.chars().nth(hash_count) == Some(' ') {
+                return Some(hash_count);
+            }
+        }
+        
+        None
     }
 
     fn show_link_dialog(&self) {
@@ -833,5 +776,188 @@ impl MarkdownEditor {
         });
         
         dialog.present();
+    }
+
+    pub fn new_file(&self) {
+        self.source_buffer.set_text("");
+        *self.current_file.borrow_mut() = None;
+    }
+
+    pub fn open_file_from_menu(&self, window: &gtk4::Window) {
+        self.show_open_dialog(Some(window));
+    }
+
+    pub fn save_file_from_menu(&self, window: &gtk4::Window) {
+        self.save_current_file(Some(window));
+    }
+
+    pub fn save_as_file_from_menu(&self, window: &gtk4::Window) {
+        self.show_save_as_dialog(Some(window));
+    }
+
+    fn show_open_dialog(&self, parent: Option<&gtk4::Window>) {
+        let dialog = FileChooserDialog::new(
+            Some("Open File"),
+            parent,
+            FileChooserAction::Open,
+            &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
+        );
+
+        let source_buffer = self.source_buffer.clone();
+        let current_file = self.current_file.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                if let Some(file) = dialog.file() {
+                    if let Some(path) = file.path() {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            source_buffer.set_text(&content);
+                            *current_file.borrow_mut() = Some(path);
+                        }
+                    }
+                }
+            }
+            dialog.close();
+        });
+
+        dialog.present();
+    }
+
+    fn save_current_file(&self, parent: Option<&gtk4::Window>) {
+        if let Some(path) = self.current_file.borrow().clone() {
+            // Save to existing file
+            let start = self.source_buffer.start_iter();
+            let end = self.source_buffer.end_iter();
+            let text = self.source_buffer.text(&start, &end, false);
+            let _ = std::fs::write(&path, text);
+        } else {
+            // No file selected, show save as dialog
+            self.show_save_as_dialog(parent);
+        }
+    }
+
+    fn show_save_as_dialog(&self, parent: Option<&gtk4::Window>) {
+        let dialog = FileChooserDialog::new(
+            Some("Save File"),
+            parent,
+            FileChooserAction::Save,
+            &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+        );
+
+        let source_buffer = self.source_buffer.clone();
+        let current_file = self.current_file.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                if let Some(file) = dialog.file() {
+                    if let Some(path) = file.path() {
+                        let start = source_buffer.start_iter();
+                        let end = source_buffer.end_iter();
+                        let text = source_buffer.text(&start, &end, false);
+                        if std::fs::write(&path, text).is_ok() {
+                            *current_file.borrow_mut() = Some(path);
+                        }
+                    }
+                }
+            }
+            dialog.close();
+        });
+
+        dialog.present();
+    }
+
+    /// Set up keyboard shortcuts for common formatting operations
+    fn setup_keyboard_shortcuts(&self) {
+        let controller = EventControllerKey::new();
+        let editor_clone = self.clone();
+        
+        controller.connect_key_pressed(move |_, keyval, _, state| {
+            // Check for Ctrl modifier
+            if state.contains(gdk::ModifierType::CONTROL_MASK) {
+                match keyval {
+                    gdk::Key::b => {
+                        // Ctrl+B for bold
+                        editor_clone.insert_bold();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::i => {
+                        // Ctrl+I for italic
+                        editor_clone.insert_italic();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::u => {
+                        // Ctrl+U for underline (strikethrough instead)
+                        editor_clone.insert_strikethrough();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::k => {
+                        // Ctrl+K for link
+                        editor_clone.insert_link();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::_1 => {
+                        // Ctrl+1 for heading 1
+                        editor_clone.insert_heading(1);
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::_2 => {
+                        // Ctrl+2 for heading 2
+                        editor_clone.insert_heading(2);
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::_3 => {
+                        // Ctrl+3 for heading 3
+                        editor_clone.insert_heading(3);
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::_4 => {
+                        // Ctrl+4 for heading 4
+                        editor_clone.insert_heading(4);
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::_5 => {
+                        // Ctrl+5 for heading 5
+                        editor_clone.insert_heading(5);
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::_6 => {
+                        // Ctrl+6 for heading 6
+                        editor_clone.insert_heading(6);
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::grave => {
+                        // Ctrl+` for inline code
+                        editor_clone.insert_inline_code();
+                        return glib::Propagation::Stop;
+                    },
+                    _ => {}
+                }
+                
+                // Check for Ctrl+Shift combinations
+                if state.contains(gdk::ModifierType::SHIFT_MASK) {
+                    match keyval {
+                        gdk::Key::period => {
+                            // Ctrl+Shift+. for blockquote
+                            editor_clone.insert_blockquote();
+                            return glib::Propagation::Stop;
+                        },
+                        gdk::Key::_8 => {
+                            // Ctrl+Shift+8 for unordered list
+                            editor_clone.insert_bullet_list();
+                            return glib::Propagation::Stop;
+                        },
+                        gdk::Key::_7 => {
+                            // Ctrl+Shift+7 for ordered list
+                            editor_clone.insert_numbered_list();
+                            return glib::Propagation::Stop;
+                        },
+                        _ => {}
+                    }
+                }
+            }
+            
+            // Pass through unhandled keys
+            glib::Propagation::Proceed
+        });
+        
+        self.source_view.add_controller(controller);
     }
 }

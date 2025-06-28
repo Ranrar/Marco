@@ -13,7 +13,6 @@ pub struct MarkdownParser {
     strikethrough_regex: Regex,
     link_regex: Regex,
     image_regex: Regex,
-    fenced_code_regex: Regex,
     ordered_list_regex: Regex,
 }
 
@@ -30,7 +29,6 @@ impl MarkdownParser {
             strikethrough_regex: Regex::new(r"~~([^~]+)~~").unwrap(),
             link_regex: Regex::new(r"\[([^\]]+)\]\(([^)]+)\)").unwrap(),
             image_regex: Regex::new(r"!\[([^\]]*)\]\(([^)]+)\)").unwrap(),
-            fenced_code_regex: Regex::new(r"^```(\w*)$").unwrap(),
             ordered_list_regex: Regex::new(r"^(\d+)\.\s+(.+)$").unwrap(),
         }
     }
