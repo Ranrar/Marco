@@ -16,7 +16,14 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install GTK dependencies
+      run: |
+        sudo apt update
+        sudo apt install build-essential pkg-config libgtk-4-dev libgtksourceview-5-dev
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --release
     - name: Run tests
       run: cargo test --verbose
