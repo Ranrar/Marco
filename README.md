@@ -64,6 +64,8 @@ Marco uses YAML-based translations in `locales/[language]/main.yml`. To add a ne
 
 Marco features a clean, modern interface with split-pane editing and full multi-language support. The UI updates instantly when switching between English, Spanish, French, and German.
 
+![marco](doc/img/marco.png)
+
 ## Current Status
 
 ### Core Features Complete
