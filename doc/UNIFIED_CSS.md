@@ -68,19 +68,22 @@ Both the source editor and preview update immediately when themes are changed, p
 ### Rust Code Structure
 ```rust
 // Theme manager handles theme detection and switching
-let theme_manager = ThemeManager::new();
+let theme_manager = crate::theme::ThemeManager::new();
 
-// Editor receives theme manager and applies to both views
-editor.set_theme_manager(theme_manager);
+// Settings system manages theme persistence
+crate::settings::SETTINGS.with(|settings| {
+    settings.borrow_mut().set_ui_theme("dark");
+});
 
-// Both HTML preview and source editor update on theme changes
-editor.refresh_html_view(); // Updates both preview and editor
+// Editor automatically applies themes to both views
+editor.apply_theme(theme);
 ```
 
 ### Editor Theme Application
-1. **HTML Preview**: Adds CSS class to body element (`theme-light`, `theme-dark`, or none)
-2. **Source Editor**: Selects appropriate SourceView syntax highlighting scheme
-3. **Fallback Handling**: Graceful degradation if preferred schemes aren't available
+1. **HTML Preview**: Managed by `src/view_html.rs` - adds CSS class to body element (`theme-light`, `theme-dark`, or none)
+2. **Source Editor**: Managed by `src/theme.rs` - selects appropriate SourceView syntax highlighting scheme
+3. **Settings Persistence**: Managed by `src/settings.rs` - saves theme preference and updates menu checkmarks
+4. **Fallback Handling**: Graceful degradation if preferred schemes aren't available
 
 ## Benefits
 

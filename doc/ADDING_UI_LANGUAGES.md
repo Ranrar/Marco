@@ -54,15 +54,22 @@ Edit `src/localization.rs`:
 
 #### B. Add Menu Action for Language
 
-Edit `src/menu.rs` in the `create_menu_actions()` function:
+Edit `src/main.rs` in the `create_menu_actions()` function:
 
 1. **Add language switching action**:
    ```rust
    // Add after existing language actions
    let set_language_it_action = gio::ActionEntry::builder("set_language_it")
-       .activate(|_app: &Application, _action, _param| {
-           localization::set_locale("it");
-           println!("Language changed to Italian");
+       .activate({
+           let editor = editor.clone();
+           move |_app: &Application, _action, _param| {
+               // Update settings and refresh UI
+               crate::settings::SETTINGS.with(|settings| {
+                   settings.borrow_mut().set_language("it");
+               });
+               // Refresh the menu bar to update checkmarks
+               editor.rebuild_menu_bar();
+           }
        })
        .build();
    ```

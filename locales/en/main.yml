@@ -18,6 +18,7 @@ en:
     replace: "Find & Replace..."
     insert: "Insert"
     format: "Format"
+    advanced: "Advanced"
     help: "Help"
     view: "View"
     language: "Language"
@@ -80,7 +81,10 @@ en:
     insert: "Insert"
     cancel: "Cancel"
   toolbar:
+    headings:
+      none: "Normal"
     tooltip:
+      headings: "Select Heading Level"
       heading1: "Heading 1 (# text)"
       heading2: "Heading 2 (## text)"
       heading3: "Heading 3 (### text)"
@@ -103,6 +107,12 @@ en:
       superscript: "Superscript (^text^)"
       emoji: "Emoji (:emoji:)"
       fenced_code: "Fenced Code Block (```lang)"
+  context:
+    lists: "Lists"
+    advanced: "Advanced"
+    tasks: "Tasks"
+    insert: "Insert"
+    definitions: "Definitions"
   emoji:
     title: "Emoji Picker"
   help:
@@ -147,3 +157,28 @@ en:
     characters: "Characters: %{count}"
     position: "Line: %{line}, Col: %{col}"
     ready: "Ready"
+  dialog:
+    unsaved_changes:
+      title: "Unsaved Changes"
+      message: "You have unsaved changes. Do you want to save before closing?"
+      save: "Save"
+      discard: "Don't Save"
+      cancel: "Cancel"
+  advanced:
+    # Advanced Markdown Hacks Menu Section
+    text_styling: "Text Styling"
+    underline: "Underline"
+    center_text: "Center Text"
+    colored_text: "Colored Text"
+    indent_text: "Indent Text"
+    comments_admonitions: "Comments & Admonitions"
+    comment: "Comment"
+    admonition: "Admonition"
+    enhanced_media: "Enhanced Media"
+    image_with_size: "Image with Size"
+    image_with_caption: "Image with Caption"
+    link_with_target: "Link with Target"
+    youtube_video: "YouTube Video"
+    symbols_structure: "Symbols & Structure"
+    html_entity: "HTML Entity"
+    table_of_contents: "Table of Contents"

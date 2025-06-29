@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{PopoverMenuBar, Application, gio, Dialog, Grid, Entry, ResponseType, Box, Orientation, Label, SpinButton, Adjustment};
-use crate::{editor, localization, emoji};
+use crate::{editor, localization, emoji, settings};
 
 pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) -> PopoverMenuBar {
     // Create the menu model
@@ -30,7 +30,17 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme
     
     // Insert Menu (Basic Syntax)
     let insert_menu = gio::Menu::new();
-    insert_menu.append(Some(&localization::tr("insert.heading1")), Some("app.heading1"));
+    
+    // Add Headings submenu to Insert
+    let headings_menu = gio::Menu::new();
+    headings_menu.append(Some(&localization::tr("insert.heading1")), Some("app.heading1"));
+    headings_menu.append(Some(&localization::tr("insert.heading2")), Some("app.heading2"));
+    headings_menu.append(Some(&localization::tr("insert.heading3")), Some("app.heading3"));
+    headings_menu.append(Some(&localization::tr("insert.heading4")), Some("app.heading4"));
+    headings_menu.append(Some(&localization::tr("insert.heading5")), Some("app.heading5"));
+    headings_menu.append(Some(&localization::tr("insert.heading6")), Some("app.heading6"));
+    insert_menu.append_submenu(Some(&localization::tr("insert.headings")), &headings_menu);
+    
     insert_menu.append(Some(&localization::tr("insert.bold")), Some("app.insert_bold"));
     insert_menu.append(Some(&localization::tr("insert.italic")), Some("app.insert_italic"));
     insert_menu.append(Some(&localization::tr("insert.blockquote")), Some("app.insert_blockquote"));
@@ -44,15 +54,6 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme
 
     // Format Menu (Extended Syntax)
     let format_menu = gio::Menu::new();
-    // Add Headings submenu
-    let headings_menu = gio::Menu::new();
-    headings_menu.append(Some(&localization::tr("insert.heading1")), Some("app.heading1"));
-    headings_menu.append(Some(&localization::tr("insert.heading2")), Some("app.heading2"));
-    headings_menu.append(Some(&localization::tr("insert.heading3")), Some("app.heading3"));
-    headings_menu.append(Some(&localization::tr("insert.heading4")), Some("app.heading4"));
-    headings_menu.append(Some(&localization::tr("insert.heading5")), Some("app.heading5"));
-    headings_menu.append(Some(&localization::tr("insert.heading6")), Some("app.heading6"));
-    format_menu.append_submenu(Some(&localization::tr("insert.headings")), &headings_menu);
     
     // Text formatting
     format_menu.append(Some(&localization::tr("insert.strikethrough")), Some("app.strikethrough"));
@@ -65,77 +66,97 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme
     
     // Fenced Code submenu with languages
     let fenced_code_menu = gio::Menu::new();
-    fenced_code_menu.append(Some(&localization::tr("insert.fenced_code_dialog")), Some("app.insert_fenced_code"));
-    fenced_code_menu.append(None, None); // Separator
     
-    // Add top 10 programming languages
-    fenced_code_menu.append(Some("JavaScript"), Some("app.insert_fenced_javascript"));
-    fenced_code_menu.append(Some("Python"), Some("app.insert_fenced_python"));
-    fenced_code_menu.append(Some("Java"), Some("app.insert_fenced_java"));
-    fenced_code_menu.append(Some("TypeScript"), Some("app.insert_fenced_typescript"));
-    fenced_code_menu.append(Some("C#"), Some("app.insert_fenced_csharp"));
-    fenced_code_menu.append(Some("C++"), Some("app.insert_fenced_cpp"));
-    fenced_code_menu.append(Some("C"), Some("app.insert_fenced_c"));
-    fenced_code_menu.append(Some("PHP"), Some("app.insert_fenced_php"));
-    fenced_code_menu.append(Some("Go"), Some("app.insert_fenced_go"));
-    fenced_code_menu.append(Some("Rust"), Some("app.insert_fenced_rust"));
-    fenced_code_menu.append(None, None); // Separator
+    // Create dialog section
+    let dialog_section = gio::Menu::new();
+    dialog_section.append(Some("⚙️ Fenced Code with Options..."), Some("app.insert_fenced_code"));
+    fenced_code_menu.append_section(None, &dialog_section);
     
-    // Common markup/data languages
-    fenced_code_menu.append(Some("HTML"), Some("app.insert_fenced_html"));
-    fenced_code_menu.append(Some("CSS"), Some("app.insert_fenced_css"));
-    fenced_code_menu.append(Some("JSON"), Some("app.insert_fenced_json"));
-    fenced_code_menu.append(Some("XML"), Some("app.insert_fenced_xml"));
-    fenced_code_menu.append(Some("SQL"), Some("app.insert_fenced_sql"));
-    fenced_code_menu.append(Some("Bash"), Some("app.insert_fenced_bash"));
-    fenced_code_menu.append(Some("YAML"), Some("app.insert_fenced_yaml"));
-    fenced_code_menu.append(Some("Markdown"), Some("app.insert_fenced_markdown"));
+    // Create programming languages section
+    let programming_section = gio::Menu::new();
+    programming_section.append(Some("JavaScript"), Some("app.insert_fenced_javascript"));
+    programming_section.append(Some("Python"), Some("app.insert_fenced_python"));
+    programming_section.append(Some("Java"), Some("app.insert_fenced_java"));
+    programming_section.append(Some("TypeScript"), Some("app.insert_fenced_typescript"));
+    programming_section.append(Some("C#"), Some("app.insert_fenced_csharp"));
+    programming_section.append(Some("C++"), Some("app.insert_fenced_cpp"));
+    programming_section.append(Some("C"), Some("app.insert_fenced_c"));
+    programming_section.append(Some("PHP"), Some("app.insert_fenced_php"));
+    programming_section.append(Some("Go"), Some("app.insert_fenced_go"));
+    programming_section.append(Some("Rust"), Some("app.insert_fenced_rust"));
+    fenced_code_menu.append_section(None, &programming_section);
+    
+    // Create markup/data languages section
+    let markup_section = gio::Menu::new();
+    markup_section.append(Some("HTML"), Some("app.insert_fenced_html"));
+    markup_section.append(Some("CSS"), Some("app.insert_fenced_css"));
+    markup_section.append(Some("JSON"), Some("app.insert_fenced_json"));
+    markup_section.append(Some("XML"), Some("app.insert_fenced_xml"));
+    markup_section.append(Some("SQL"), Some("app.insert_fenced_sql"));
+    markup_section.append(Some("Bash"), Some("app.insert_fenced_bash"));
+    markup_section.append(Some("YAML"), Some("app.insert_fenced_yaml"));
+    markup_section.append(Some("Markdown"), Some("app.insert_fenced_markdown"));
+    fenced_code_menu.append_section(None, &markup_section);
     
     format_menu.append_submenu(Some(&localization::tr("insert.fenced_code")), &fenced_code_menu);
     
     // Lists and tasks
     let task_list_menu = gio::Menu::new();
-    task_list_menu.append(Some(&localization::tr("insert.task_list_custom")), Some("app.insert_task_list_custom"));
-    task_list_menu.append(Some(&localization::tr("insert.task_list_open")), Some("app.insert_task_list_open"));
-    task_list_menu.append(Some(&localization::tr("insert.task_list_closed")), Some("app.insert_task_list_closed"));
+    task_list_menu.append(Some("⚙️ Custom Task List..."), Some("app.insert_task_list_custom"));
+    task_list_menu.append(Some("☐ Open Task"), Some("app.insert_task_list_open"));
+    task_list_menu.append(Some("☑️ Closed Task"), Some("app.insert_task_list_closed"));
     
     format_menu.append_submenu(Some(&localization::tr("insert.task_list")), &task_list_menu);
     
     // Definition list submenu
     let definition_list_menu = gio::Menu::new();
-    definition_list_menu.append(Some(&localization::tr("insert.definition_list_custom")), Some("app.insert_definition_list_custom"));
-    definition_list_menu.append(Some(&localization::tr("insert.definition_list_single")), Some("app.insert_definition_list_single"));
+    definition_list_menu.append(Some("⚙️ Custom Definition List..."), Some("app.insert_definition_list_custom"));
+    definition_list_menu.append(Some("📖 Single Definition"), Some("app.insert_definition_list_single"));
     
     format_menu.append_submenu(Some(&localization::tr("insert.definition_list")), &definition_list_menu);
     
     // Special elements
-    format_menu.append(Some(&localization::tr("insert.table")), Some("app.insert_table_dialog"));
-    format_menu.append(Some(&localization::tr("insert.footnote")), Some("app.insert_footnote"));
-    format_menu.append(Some(&localization::tr("insert.emoji")), Some("app.insert_emoji"));
+    format_menu.append(Some("⚙️ Table..."), Some("app.insert_table_dialog"));
+    format_menu.append(Some("📝 Footnote"), Some("app.insert_footnote"));
+    format_menu.append(Some("😀 Emoji"), Some("app.insert_emoji"));
     
     menu_model.append_submenu(Some(&localization::tr("menu.format")), &format_menu);
     
-    // View Menu (for language switching and view mode)
-    let view_menu = gio::Menu::new();
+    // Advanced Menu (Markdown Hacks from markdownguide.org/hacks/)
+    let advanced_menu = gio::Menu::new();
     
-    // Add view mode submenu
-    let view_mode_menu = gio::Menu::new();
-    view_mode_menu.append(Some("HTML"), Some("app.view_html"));
-    view_mode_menu.append(Some("HTML Code"), Some("app.view_code"));
-    view_menu.append_submenu(Some("Preview Mode"), &view_mode_menu);
+    // Text styling hacks
+    let text_styling_menu = gio::Menu::new();
+    text_styling_menu.append(Some("🔤 Underline"), Some("app.insert_underline"));
+    text_styling_menu.append(Some("📐 Center Text"), Some("app.insert_center_text"));
+    text_styling_menu.append(Some("🎨 Colored Text"), Some("app.insert_colored_text"));
+    text_styling_menu.append(Some("📝 Indent Text"), Some("app.insert_indent_text"));
+    advanced_menu.append_submenu(Some(&localization::tr("advanced.text_styling")), &text_styling_menu);
     
-    // Add theme submenu
-    let theme_menu = gio::Menu::new();
-    theme_menu.append(Some("System"), Some("app.theme_system"));
-    theme_menu.append(Some("Light"), Some("app.theme_light"));
-    theme_menu.append(Some("Dark"), Some("app.theme_dark"));
-    view_menu.append_submenu(Some("Theme"), &theme_menu);
+    // Comments and admonitions
+    let comments_menu = gio::Menu::new();
+    comments_menu.append(Some("💬 Comment"), Some("app.insert_comment"));
+    comments_menu.append(Some("⚠️ Admonition"), Some("app.insert_admonition"));
+    advanced_menu.append_submenu(Some(&localization::tr("advanced.comments_admonitions")), &comments_menu);
     
-    let language_menu = gio::Menu::new();
-    for (code, name) in localization::get_available_locales() {
-        language_menu.append(Some(name), Some(&format!("app.set_language_{}", code)));
-    }
-    view_menu.append_submenu(Some(&localization::tr("menu.language")), &language_menu);
+    // Enhanced images and links
+    let media_menu = gio::Menu::new();
+    media_menu.append(Some("🖼️ Image with Size"), Some("app.insert_image_with_size"));
+    media_menu.append(Some("🖼️ Image with Caption"), Some("app.insert_image_with_caption"));
+    media_menu.append(Some("🔗 Link with Target"), Some("app.insert_link_with_target"));
+    media_menu.append(Some("📹 YouTube Video"), Some("app.insert_youtube_video"));
+    advanced_menu.append_submenu(Some(&localization::tr("advanced.enhanced_media")), &media_menu);
+    
+    // Special symbols and entities
+    let symbols_menu = gio::Menu::new();
+    symbols_menu.append(Some("🔣 HTML Entity"), Some("app.insert_html_entity"));
+    symbols_menu.append(Some("📑 Table of Contents"), Some("app.insert_table_of_contents"));
+    advanced_menu.append_submenu(Some(&localization::tr("advanced.symbols_structure")), &symbols_menu);
+    
+    menu_model.append_submenu(Some(&localization::tr("menu.advanced")), &advanced_menu);
+    
+    // View Menu (for language switching, view mode, and CSS themes)
+    let view_menu = create_view_menu(editor, theme_manager);
     menu_model.append_submenu(Some(&localization::tr("menu.view")), &view_menu);
     
     // Help Menu
@@ -201,9 +222,30 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
         .build();
     
     let quit_action = gio::ActionEntry::builder("quit")
-        .activate(|app: &Application, _action, _param| {
-            println!("Quit clicked");
-            app.quit();
+        .activate({
+            let editor = editor.clone();
+            move |app: &Application, _action, _param| {
+                println!("Quit clicked");
+                
+                // Get the main window to use as parent for the dialog
+                let window = app.active_window();
+                let app_clone = app.clone();
+                
+                // Check if there are unsaved changes and show confirmation if needed
+                let should_quit_immediately = editor.show_unsaved_changes_dialog_and_quit(
+                    window.as_ref(), 
+                    move || {
+                        println!("DEBUG: Confirmed quit, calling app.quit()");
+                        app_clone.quit();
+                    }
+                );
+                
+                if should_quit_immediately {
+                    // No unsaved changes, quit immediately
+                    app.quit();
+                }
+                // Otherwise, the quit will happen in the dialog callback
+            }
         })
         .build();
     
@@ -604,9 +646,15 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
     
     // Language switching actions
     let set_language_en_action = gio::ActionEntry::builder("set_language_en")
-        .activate(|_app: &Application, _action, _param| {
-            localization::set_locale("en");
-            println!("Language changed to English");
+        .activate({
+            let editor = editor.clone();
+            let theme_mgr = theme_manager.clone();
+            move |app: &Application, _action, _param| {
+                localization::set_locale("en");
+                settings::update_language("en");
+                rebuild_menu_bar(app, &editor, &theme_mgr);
+                println!("Language changed to English");
+            }
         })
         .build();
 
@@ -614,8 +662,11 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
     let view_html_action = gio::ActionEntry::builder("view_html")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
+            let theme_mgr = theme_manager.clone();
+            move |app: &Application, _action, _param| {
                 editor.set_view_mode("html");
+                settings::update_view_mode("html");
+                rebuild_menu_bar(app, &editor, &theme_mgr);
             }
         })
         .build();
@@ -623,8 +674,11 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
     let view_code_action = gio::ActionEntry::builder("view_code")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
+            let theme_mgr = theme_manager.clone();
+            move |app: &Application, _action, _param| {
                 editor.set_view_mode("code");
+                settings::update_view_mode("code");
+                rebuild_menu_bar(app, &editor, &theme_mgr);
             }
         })
         .build();
@@ -634,9 +688,11 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
         .activate({
             let theme_mgr = theme_manager.clone();
             let editor_clone = editor.clone();
-            move |_app: &Application, _action, _param| {
+            move |app: &Application, _action, _param| {
                 theme_mgr.set_theme(crate::theme::Theme::System);
                 editor_clone.refresh_html_view();
+                settings::update_ui_theme("system");
+                rebuild_menu_bar(app, &editor_clone, &theme_mgr);
                 println!("Switched to system theme");
             }
         })
@@ -646,9 +702,11 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
         .activate({
             let theme_mgr = theme_manager.clone();
             let editor_clone = editor.clone();
-            move |_app: &Application, _action, _param| {
+            move |app: &Application, _action, _param| {
                 theme_mgr.set_theme(crate::theme::Theme::Light);
                 editor_clone.refresh_html_view();
+                settings::update_ui_theme("light");
+                rebuild_menu_bar(app, &editor_clone, &theme_mgr);
                 println!("Switched to light theme");
             }
         })
@@ -658,10 +716,144 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
         .activate({
             let theme_mgr = theme_manager.clone();
             let editor_clone = editor.clone();
-            move |_app: &Application, _action, _param| {
+            move |app: &Application, _action, _param| {
                 theme_mgr.set_theme(crate::theme::Theme::Dark);
                 editor_clone.refresh_html_view();
+                settings::update_ui_theme("dark");
+                rebuild_menu_bar(app, &editor_clone, &theme_mgr);
                 println!("Switched to dark theme");
+            }
+        })
+        .build();
+
+    // CSS Theme switching actions for preview (dynamic from css/ directory)
+    let available_themes = editor::MarkdownEditor::get_available_css_themes();
+    let mut css_theme_actions = Vec::new();
+    
+    for (theme_name, _display_name, sanitized_name) in available_themes {
+        let action_name = format!("css_theme_{}", sanitized_name);
+        let action = gio::ActionEntry::builder(&action_name)
+            .activate({
+                let editor = editor.clone();
+                let theme_mgr = theme_manager.clone();
+                let theme = theme_name.clone();
+                move |app: &Application, _action, _param| {
+                    editor.set_css_theme(&theme);
+                    settings::update_css_theme(&theme);
+                    rebuild_menu_bar(app, &editor, &theme_mgr);
+                    println!("✓ Set CSS theme to {}", theme);
+                }
+            })
+            .build();
+        css_theme_actions.push(action);
+    }
+
+    // Advanced Markdown Syntax Actions (markdownguide.org/hacks/)
+    
+    let insert_underline_action = gio::ActionEntry::builder("insert_underline")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_underline_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_center_text_action = gio::ActionEntry::builder("insert_center_text")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_center_text_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_colored_text_action = gio::ActionEntry::builder("insert_colored_text")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_colored_text_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_indent_text_action = gio::ActionEntry::builder("insert_indent_text")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_indented_text("indented text", 1);
+            }
+        })
+        .build();
+
+    let insert_comment_action = gio::ActionEntry::builder("insert_comment")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_comment_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_admonition_action = gio::ActionEntry::builder("insert_admonition")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_admonition_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_image_with_size_action = gio::ActionEntry::builder("insert_image_with_size")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_image_with_size_dialog(&editor);
+            }
+        })
+        .build();
+
+    let insert_image_with_caption_action = gio::ActionEntry::builder("insert_image_with_caption")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_image_with_caption("image.png", "Alt text", "Image caption");
+            }
+        })
+        .build();
+
+    let insert_link_with_target_action = gio::ActionEntry::builder("insert_link_with_target")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_link_with_target("https://example.com", "Link text", "_blank");
+            }
+        })
+        .build();
+
+    let insert_html_entity_action = gio::ActionEntry::builder("insert_html_entity")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_html_entity("copy");
+            }
+        })
+        .build();
+
+    let insert_table_of_contents_action = gio::ActionEntry::builder("insert_table_of_contents")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_table_of_contents();
+            }
+        })
+        .build();
+
+    let insert_youtube_video_action = gio::ActionEntry::builder("insert_youtube_video")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                show_youtube_video_dialog(&editor);
             }
         })
         .build();
@@ -949,23 +1141,41 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
         .build();
     
     let set_language_es_action = gio::ActionEntry::builder("set_language_es")
-        .activate(|_app: &Application, _action, _param| {
-            localization::set_locale("es");
-            println!("Language changed to Spanish");
+        .activate({
+            let editor = editor.clone();
+            let theme_mgr = theme_manager.clone();
+            move |app: &Application, _action, _param| {
+                localization::set_locale("es");
+                settings::update_language("es");
+                rebuild_menu_bar(app, &editor, &theme_mgr);
+                println!("Language changed to Spanish");
+            }
         })
         .build();
     
     let set_language_fr_action = gio::ActionEntry::builder("set_language_fr")
-        .activate(|_app: &Application, _action, _param| {
-            localization::set_locale("fr");
-            println!("Language changed to French");
+        .activate({
+            let editor = editor.clone();
+            let theme_mgr = theme_manager.clone();
+            move |app: &Application, _action, _param| {
+                localization::set_locale("fr");
+                settings::update_language("fr");
+                rebuild_menu_bar(app, &editor, &theme_mgr);
+                println!("Language changed to French");
+            }
         })
         .build();
     
     let set_language_de_action = gio::ActionEntry::builder("set_language_de")
-        .activate(|_app: &Application, _action, _param| {
-            localization::set_locale("de");
-            println!("Language changed to German");
+        .activate({
+            let editor = editor.clone();
+            let theme_mgr = theme_manager.clone();
+            move |app: &Application, _action, _param| {
+                localization::set_locale("de");
+                settings::update_language("de");
+                rebuild_menu_bar(app, &editor, &theme_mgr);
+                println!("Language changed to German");
+            }
         })
         .build();
     
@@ -991,11 +1201,21 @@ pub fn create_menu_actions(app: &Application, editor: &editor::MarkdownEditor, t
         insert_fenced_html_action, insert_fenced_css_action, insert_fenced_json_action,
         insert_fenced_xml_action, insert_fenced_sql_action, insert_fenced_bash_action,
         insert_fenced_yaml_action, insert_fenced_markdown_action,
+        // Advanced syntax actions
+        insert_underline_action, insert_center_text_action, insert_colored_text_action,
+        insert_indent_text_action, insert_comment_action, insert_admonition_action,
+        insert_image_with_size_action, insert_image_with_caption_action, insert_link_with_target_action,
+        insert_html_entity_action, insert_table_of_contents_action, insert_youtube_video_action,
         markdown_guide_action, shortcuts_action, about_action,
         set_language_en_action, set_language_es_action, set_language_fr_action, set_language_de_action,
         view_html_action, view_code_action,
         theme_system_action, theme_light_action, theme_dark_action,
     ]);
+    
+    // Add dynamic CSS theme actions
+    for action in css_theme_actions {
+        app.add_action_entries([action]);
+    }
 }
 
 /// Show the keyboard shortcuts dialog
@@ -1128,10 +1348,13 @@ fn setup_menu_accelerators(app: &Application) {
     app.set_accels_for_action("app.insert_bullet_list", &["<Control><Shift>8"]);
     app.set_accels_for_action("app.insert_numbered_list", &["<Control><Shift>7"]);
     app.set_accels_for_action("app.insert_blockquote", &["<Control><Shift>period"]);
+    
+    // File shortcuts
+    app.set_accels_for_action("app.quit", &["<Control>q"]);
 }
 
 /// Show dialog to create a custom task list with specified number of items
-fn show_task_list_custom_dialog(editor: &editor::MarkdownEditor) {
+pub fn show_task_list_custom_dialog(editor: &editor::MarkdownEditor) {
     let dialog = Dialog::with_buttons(
         Some(&localization::tr("insert.task_list_custom")),
         None::<&gtk4::Window>,
@@ -1182,7 +1405,7 @@ fn show_task_list_custom_dialog(editor: &editor::MarkdownEditor) {
             let count = items_spin.value() as usize;
             let mut preview = String::new();
             for i in 0..count.min(10) { // Show max 10 in preview
-                preview.push_str(&format!("- [ ] Task {}\n", i + 1));
+                preview.push_str(&format!("[ ] Task {}\n", i + 1));
             }
             if count > 10 {
                 preview.push_str(&format!("... and {} more tasks", count - 10));
@@ -1230,7 +1453,7 @@ fn show_task_list_custom_dialog(editor: &editor::MarkdownEditor) {
 }
 
 /// Show dialog to create a custom definition list with specified number of items
-fn show_definition_list_custom_dialog(editor: &editor::MarkdownEditor) {
+pub fn show_definition_list_custom_dialog(editor: &editor::MarkdownEditor) {
     let dialog = Dialog::with_buttons(
         Some(&localization::tr("insert.definition_list_custom")),
         None::<&gtk4::Window>,
@@ -1329,4 +1552,743 @@ fn show_definition_list_custom_dialog(editor: &editor::MarkdownEditor) {
     });
     
     dialog.present();
+}
+
+/// Show dialog to insert colored text
+pub fn show_colored_text_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.colored_text")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(400, 200);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    // Text input
+    let text_label = Label::new(Some("Text to color:"));
+    text_label.set_halign(gtk4::Align::Start);
+    let text_entry = Entry::new();
+    text_entry.set_placeholder_text(Some("Enter text here"));
+    text_entry.set_hexpand(true);
+    
+    // Color input
+    let color_label = Label::new(Some("Color (hex or name):"));
+    color_label.set_halign(gtk4::Align::Start);
+    let color_entry = Entry::new();
+    color_entry.set_placeholder_text(Some("#ff0000 or red"));
+    color_entry.set_text("#ff0000");
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(350, 60);
+    
+    // Update preview function
+    let update_preview = {
+        let text_entry = text_entry.clone();
+        let color_entry = color_entry.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let text = text_entry.text();
+            let color = color_entry.text();
+            let preview = format!("<span style=\"color: {}\">{}</span>", color, 
+                                if text.is_empty() { "Sample text" } else { &text });
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    // Initial preview
+    update_preview();
+    
+    // Connect change signals
+    text_entry.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    color_entry.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    
+    grid.attach(&text_label, 0, 0, 1, 1);
+    grid.attach(&text_entry, 1, 0, 1, 1);
+    grid.attach(&color_label, 0, 1, 1, 1);
+    grid.attach(&color_entry, 1, 1, 1, 1);
+    grid.attach(&preview_label, 0, 2, 2, 1);
+    grid.attach(&preview_text, 0, 3, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    text_entry.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let text = text_entry.text();
+            let color = color_entry.text();
+            if !text.is_empty() && !color.is_empty() {
+                editor_clone.insert_colored_text(&text, &color);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to insert underlined text
+pub fn show_underline_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.underline")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(350, 150);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    let text_label = Label::new(Some("Text to underline:"));
+    text_label.set_halign(gtk4::Align::Start);
+    let text_entry = Entry::new();
+    text_entry.set_placeholder_text(Some("Enter text here"));
+    text_entry.set_hexpand(true);
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(300, 50);
+    
+    let update_preview = {
+        let text_entry = text_entry.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let text = text_entry.text();
+            let preview = format!("<u>{}</u>", if text.is_empty() { "Sample text" } else { &text });
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    update_preview();
+    text_entry.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    
+    grid.attach(&text_label, 0, 0, 1, 1);
+    grid.attach(&text_entry, 1, 0, 1, 1);
+    grid.attach(&preview_label, 0, 1, 2, 1);
+    grid.attach(&preview_text, 0, 2, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    text_entry.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let text = text_entry.text();
+            if !text.is_empty() {
+                editor_clone.insert_underline(&text);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to center text
+pub fn show_center_text_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.center_text")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(350, 150);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    let text_label = Label::new(Some("Text to center:"));
+    text_label.set_halign(gtk4::Align::Start);
+    let text_entry = Entry::new();
+    text_entry.set_placeholder_text(Some("Enter text here"));
+    text_entry.set_hexpand(true);
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(300, 50);
+    
+    let update_preview = {
+        let text_entry = text_entry.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let text = text_entry.text();
+            let preview = format!("<div align=\"center\">{}</div>", 
+                                if text.is_empty() { "Sample text" } else { &text });
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    update_preview();
+    text_entry.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    
+    grid.attach(&text_label, 0, 0, 1, 1);
+    grid.attach(&text_entry, 1, 0, 1, 1);
+    grid.attach(&preview_label, 0, 1, 2, 1);
+    grid.attach(&preview_text, 0, 2, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    text_entry.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let text = text_entry.text();
+            if !text.is_empty() {
+                editor_clone.insert_center_text(&text);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to insert a comment
+pub fn show_comment_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.comment")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(400, 200);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    let text_label = Label::new(Some("Comment text:"));
+    text_label.set_halign(gtk4::Align::Start);
+    
+    // Use TextView for multi-line comment
+    let text_view = gtk4::TextView::new();
+    text_view.set_size_request(350, 80);
+    let text_buffer = text_view.buffer();
+    text_buffer.set_text("Your comment here...");
+    
+    let scroll = gtk4::ScrolledWindow::new();
+    scroll.set_child(Some(&text_view));
+    scroll.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(350, 50);
+    
+    let update_preview = {
+        let text_buffer = text_buffer.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let text = text_buffer.text(&text_buffer.start_iter(), &text_buffer.end_iter(), false);
+            let preview = format!("<!-- {} -->", text);
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    update_preview();
+    text_buffer.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    
+    grid.attach(&text_label, 0, 0, 2, 1);
+    grid.attach(&scroll, 0, 1, 2, 1);
+    grid.attach(&preview_label, 0, 2, 2, 1);
+    grid.attach(&preview_text, 0, 3, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    text_view.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let text = text_buffer.text(&text_buffer.start_iter(), &text_buffer.end_iter(), false);
+            if !text.trim().is_empty() {
+                editor_clone.insert_comment(&text);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to insert an admonition (GitHub-style callout)
+pub fn show_admonition_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.admonition")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(450, 300);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    // Type selection
+    let type_label = Label::new(Some("Admonition type:"));
+    type_label.set_halign(gtk4::Align::Start);
+    
+    let type_combo = gtk4::ComboBoxText::new();
+    type_combo.append(Some("NOTE"), "Note");
+    type_combo.append(Some("TIP"), "Tip");
+    type_combo.append(Some("IMPORTANT"), "Important");
+    type_combo.append(Some("WARNING"), "Warning");
+    type_combo.append(Some("CAUTION"), "Caution");
+    type_combo.set_active_id(Some("NOTE"));
+    
+    // Content input
+    let content_label = Label::new(Some("Content:"));
+    content_label.set_halign(gtk4::Align::Start);
+    
+    let content_view = gtk4::TextView::new();
+    content_view.set_size_request(400, 100);
+    let content_buffer = content_view.buffer();
+    content_buffer.set_text("Add your content here...");
+    
+    let content_scroll = gtk4::ScrolledWindow::new();
+    content_scroll.set_child(Some(&content_view));
+    content_scroll.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(400, 80);
+    
+    let preview_scroll2 = gtk4::ScrolledWindow::new();
+    preview_scroll2.set_child(Some(&preview_text));
+    preview_scroll2.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+    
+    let update_preview = {
+        let type_combo = type_combo.clone();
+        let content_buffer = content_buffer.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let admonition_type = type_combo.active_id().unwrap_or_default();
+            let content = content_buffer.text(&content_buffer.start_iter(), &content_buffer.end_iter(), false);
+            let preview = format!("> [!{}]\n> {}", admonition_type, 
+                                content.lines().collect::<Vec<_>>().join("\n> "));
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    update_preview();
+    type_combo.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    content_buffer.connect_changed({
+        let update_preview = update_preview.clone();
+        move |_| update_preview()
+    });
+    
+    grid.attach(&type_label, 0, 0, 1, 1);
+    grid.attach(&type_combo, 1, 0, 1, 1);
+    grid.attach(&content_label, 0, 1, 2, 1);
+    grid.attach(&content_scroll, 0, 2, 2, 1);
+    grid.attach(&preview_label, 0, 3, 2, 1);
+    grid.attach(&preview_scroll2, 0, 4, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    content_view.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let admonition_type = type_combo.active_id().unwrap_or_default();
+            let content = content_buffer.text(&content_buffer.start_iter(), &content_buffer.end_iter(), false);
+            if !content.trim().is_empty() {
+                // Use emoji placeholder since the method expects it
+                editor_clone.insert_admonition("", &admonition_type, &content);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to insert image with size
+pub fn show_image_with_size_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.image_with_size")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(450, 250);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    // URL input
+    let url_label = Label::new(Some("Image URL:"));
+    url_label.set_halign(gtk4::Align::Start);
+    let url_entry = Entry::new();
+    url_entry.set_placeholder_text(Some("https://example.com/image.jpg"));
+    url_entry.set_hexpand(true);
+    
+    // Alt text input
+    let alt_label = Label::new(Some("Alt text:"));
+    alt_label.set_halign(gtk4::Align::Start);
+    let alt_entry = Entry::new();
+    alt_entry.set_placeholder_text(Some("Description of the image"));
+    
+    // Width input
+    let width_label = Label::new(Some("Width (px):"));
+    width_label.set_halign(gtk4::Align::Start);
+    let width_adjustment = Adjustment::new(300.0, 1.0, 2000.0, 1.0, 10.0, 0.0);
+    let width_spin = SpinButton::new(Some(&width_adjustment), 1.0, 0);
+    
+    // Height input
+    let height_label = Label::new(Some("Height (px):"));
+    height_label.set_halign(gtk4::Align::Start);
+    let height_adjustment = Adjustment::new(200.0, 1.0, 2000.0, 1.0, 10.0, 0.0);
+    let height_spin = SpinButton::new(Some(&height_adjustment), 1.0, 0);
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(400, 60);
+    
+    let update_preview = {
+        let url_entry = url_entry.clone();
+        let alt_entry = alt_entry.clone();
+        let width_spin = width_spin.clone();
+        let height_spin = height_spin.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let url = url_entry.text();
+            let alt = alt_entry.text();
+            let width = width_spin.value() as i32;
+            let height = height_spin.value() as i32;
+            let preview = format!(
+                "<img src=\"{}\" alt=\"{}\" width=\"{}\" height=\"{}\">",
+                if url.is_empty() { "image-url" } else { &url },
+                if alt.is_empty() { "alt-text" } else { &alt },
+                width, height
+            );
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    // Initial preview and connect signals
+    update_preview();
+    url_entry.connect_changed({let update_preview = update_preview.clone(); move |_| update_preview()});
+    alt_entry.connect_changed({let update_preview = update_preview.clone(); move |_| update_preview()});
+    width_spin.connect_value_changed({let update_preview = update_preview.clone(); move |_| update_preview()});
+    height_spin.connect_value_changed({let update_preview = update_preview.clone(); move |_| update_preview()});
+    
+    grid.attach(&url_label, 0, 0, 1, 1);
+    grid.attach(&url_entry, 1, 0, 1, 1);
+    grid.attach(&alt_label, 0, 1, 1, 1);
+    grid.attach(&alt_entry, 1, 1, 1, 1);
+    grid.attach(&width_label, 0, 2, 1, 1);
+    grid.attach(&width_spin, 1, 2, 1, 1);
+    grid.attach(&height_label, 0, 3, 1, 1);
+    grid.attach(&height_spin, 1, 3, 1, 1);
+    grid.attach(&preview_label, 0, 4, 2, 1);
+    grid.attach(&preview_text, 0, 5, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    url_entry.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let url = url_entry.text();
+            let alt = alt_entry.text();
+            let width = width_spin.value() as i32;
+            let height = height_spin.value() as i32;
+            if !url.is_empty() {
+                editor_clone.insert_image_with_size(&url, &alt, Some(&width.to_string()), Some(&height.to_string()));
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+/// Show dialog to insert YouTube video
+pub fn show_youtube_video_dialog(editor: &editor::MarkdownEditor) {
+    let dialog = Dialog::with_buttons(
+        Some(&localization::tr("advanced.youtube_video")),
+        None::<&gtk4::Window>,
+        gtk4::DialogFlags::MODAL,
+        &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+    );
+    
+    dialog.set_default_size(450, 200);
+    
+    let grid = Grid::new();
+    grid.set_row_spacing(12);
+    grid.set_column_spacing(12);
+    grid.set_margin_top(20);
+    grid.set_margin_bottom(20);
+    grid.set_margin_start(20);
+    grid.set_margin_end(20);
+    
+    // Video ID input
+    let id_label = Label::new(Some("YouTube Video ID:"));
+    id_label.set_halign(gtk4::Align::Start);
+    let id_entry = Entry::new();
+    id_entry.set_placeholder_text(Some("dQw4w9WgXcQ (from URL)"));
+    id_entry.set_hexpand(true);
+    
+    // Title input
+    let title_label = Label::new(Some("Video title (optional):"));
+    title_label.set_halign(gtk4::Align::Start);
+    let title_entry = Entry::new();
+    title_entry.set_placeholder_text(Some("Video title"));
+    
+    // Help text
+    let help_label = Label::new(Some("Extract the video ID from the YouTube URL (e.g., from\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ extract 'dQw4w9WgXcQ')"));
+    help_label.set_halign(gtk4::Align::Start);
+    help_label.add_css_class("caption");
+    
+    // Preview
+    let preview_label = Label::new(Some("Preview:"));
+    preview_label.set_halign(gtk4::Align::Start);
+    let preview_text = gtk4::TextView::new();
+    preview_text.set_editable(false);
+    preview_text.set_size_request(400, 60);
+    
+    let update_preview = {
+        let id_entry = id_entry.clone();
+        let title_entry = title_entry.clone();
+        let preview_buffer = preview_text.buffer();
+        move || {
+            let id = id_entry.text();
+            let title = title_entry.text();
+            let preview = if !id.is_empty() {
+                let display_title = if title.is_empty() { "YouTube Video" } else { &title };
+                format!("[![{}](https://img.youtube.com/vi/{}/0.jpg)](https://www.youtube.com/watch?v={})", 
+                       display_title, id, id)
+            } else {
+                "[![Video Title](https://img.youtube.com/vi/VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=VIDEO_ID)".to_string()
+            };
+            preview_buffer.set_text(&preview);
+        }
+    };
+    
+    update_preview();
+    id_entry.connect_changed({let update_preview = update_preview.clone(); move |_| update_preview()});
+    title_entry.connect_changed({let update_preview = update_preview.clone(); move |_| update_preview()});
+    
+    grid.attach(&id_label, 0, 0, 1, 1);
+    grid.attach(&id_entry, 1, 0, 1, 1);
+    grid.attach(&title_label, 0, 1, 1, 1);
+    grid.attach(&title_entry, 1, 1, 1, 1);
+    grid.attach(&help_label, 0, 2, 2, 1);
+    grid.attach(&preview_label, 0, 3, 2, 1);
+    grid.attach(&preview_text, 0, 4, 2, 1);
+    
+    dialog.content_area().append(&grid);
+    id_entry.grab_focus();
+    
+    let editor_clone = editor.clone();
+    dialog.connect_response(move |dialog, response| {
+        if response == ResponseType::Accept {
+            let id = id_entry.text();
+            let title = title_entry.text();
+            if !id.is_empty() {
+                let display_title = if title.is_empty() { "YouTube Video" } else { &title };
+                editor_clone.insert_youtube_video(&id, display_title);
+            }
+        }
+        dialog.close();
+    });
+    
+    dialog.present();
+}
+
+// Function to create just the View menu (using settings for state)
+pub fn create_view_menu(_editor: &editor::MarkdownEditor, _theme_manager: &crate::theme::ThemeManager) -> gio::Menu {
+    let view_menu = gio::Menu::new();
+    
+    // Get current settings
+    let current_settings = settings::get_current_settings();
+    
+    // Add view mode submenu
+    let view_mode_menu = gio::Menu::new();
+    
+    // Create view mode menu items with checkmarks based on settings
+    let html_label = if current_settings.view_mode == "html" {
+        "HTML\t✓"
+    } else {
+        "HTML"
+    };
+    view_mode_menu.append(Some(html_label), Some("app.view_html"));
+    
+    let code_label = if current_settings.view_mode == "code" {
+        "HTML Code\t✓"
+    } else {
+        "HTML Code"
+    };
+    view_mode_menu.append(Some(code_label), Some("app.view_code"));
+    
+    view_menu.append_submenu(Some("Preview Mode"), &view_mode_menu);
+    
+    // Add CSS theme submenu for preview styling (dynamic from css/ directory)
+    let css_theme_menu = gio::Menu::new();
+    
+    // Get available CSS themes dynamically
+    let available_themes = editor::MarkdownEditor::get_available_css_themes();
+    for (theme_name, display_name, sanitized_name) in available_themes {
+        let _icon = match theme_name.as_str() {
+            "standard" => "✓ ",
+            "github" => "� ",
+            "minimal" => "📄 ",
+            "academic" => "🎓 ",
+            _ => "🎨 ",
+        };
+        
+        // Create menu item with checkmark based on settings
+        let display_label = if current_settings.css_theme == theme_name {
+            format!("{}\t✓", display_name)
+        } else {
+            display_name.clone()
+        };
+        css_theme_menu.append(Some(&display_label), Some(&format!("app.css_theme_{}", sanitized_name)));
+    }
+    
+    view_menu.append_submenu(Some("CSS Style"), &css_theme_menu);
+    
+    // Add theme submenu (for UI theme)
+    let theme_menu = gio::Menu::new();
+    
+    // Create theme menu items with checkmarks based on settings
+    let system_label = if current_settings.ui_theme == "system" {
+        "System\t✓"
+    } else {
+        "System"
+    };
+    theme_menu.append(Some(system_label), Some("app.theme_system"));
+    
+    let light_label = if current_settings.ui_theme == "light" {
+        "Light\t✓"
+    } else {
+        "Light"
+    };
+    theme_menu.append(Some(light_label), Some("app.theme_light"));
+    
+    let dark_label = if current_settings.ui_theme == "dark" {
+        "Dark\t✓"
+    } else {
+        "Dark"
+    };
+    theme_menu.append(Some(dark_label), Some("app.theme_dark"));
+    
+    view_menu.append_submenu(Some("Theme"), &theme_menu);
+    
+    let language_menu = gio::Menu::new();
+    
+    for (code, name) in localization::get_available_locales() {
+        let lang_label = if current_settings.language == code {
+            format!("{}\t✓", name)
+        } else {
+            name.to_string()
+        };
+        language_menu.append(Some(&lang_label), Some(&format!("app.set_language_{}", code)));
+    }
+    view_menu.append_submenu(Some(&localization::tr("menu.language")), &language_menu);
+    
+    view_menu
+}
+
+// Function to rebuild the entire menu bar when settings change
+pub fn rebuild_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) {
+    if let Some(window) = app.active_window() {
+        // Get the main content area (which should be a Box)
+        if let Some(main_box) = window.child().and_then(|c| c.downcast::<gtk4::Box>().ok()) {
+            // Find and remove the existing menu bar (should be the first child)
+            let mut menu_bar_widget: Option<PopoverMenuBar> = None;
+            let mut child = main_box.first_child();
+            while let Some(current_child) = child {
+                if let Ok(menu_bar) = current_child.clone().downcast::<PopoverMenuBar>() {
+                    menu_bar_widget = Some(menu_bar);
+                    break;
+                }
+                child = current_child.next_sibling();
+            }
+            
+            // Remove the old menu bar and create a new one
+            if let Some(old_menu_bar) = menu_bar_widget {
+                main_box.remove(&old_menu_bar);
+                
+                // Create a new menu bar with updated checkmarks
+                let new_menu_bar = create_menu_bar(app, editor, theme_manager);
+                main_box.prepend(&new_menu_bar);
+            }
+        }
+    }
 }

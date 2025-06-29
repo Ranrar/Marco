@@ -1,6 +1,7 @@
 mod editor;
 mod syntax_basic;
 mod syntax_extended;
+mod syntax_extra;
 mod code_languages;
 mod localization;
 mod menu;
@@ -11,6 +12,7 @@ mod view_html;
 mod emoji;
 mod context_menu;
 mod theme;
+mod settings;
 
 use gtk4::prelude::*;
 use gtk4::{
@@ -40,6 +42,76 @@ fn extract_position_from_text(text: &str) -> Option<(u32, u32)> {
     } else {
         None
     }
+}
+
+/// Update footer labels with current counts and translations
+fn update_footer_labels(footer_labels: &footer::FooterLabels, word_count: usize, char_count: usize, line: usize, col: usize) {
+    let word_count_str = word_count.to_string();
+    let char_count_str = char_count.to_string();
+    let line_str = line.to_string();
+    let column_str = col.to_string();
+    
+    let word_args: std::collections::HashMap<&str, &str> = [("count", word_count_str.as_str())].iter().cloned().collect();
+    let char_args: std::collections::HashMap<&str, &str> = [("count", char_count_str.as_str())].iter().cloned().collect();
+    let pos_args: std::collections::HashMap<&str, &str> = [("line", line_str.as_str()), ("col", column_str.as_str())].iter().cloned().collect();
+    
+    footer_labels.word_count.set_text(&localization::tr_with_args("footer.words", &word_args));
+    footer_labels.char_count.set_text(&localization::tr_with_args("footer.characters", &char_args));
+    footer_labels.cursor_pos.set_text(&localization::tr_with_args("footer.position", &pos_args));
+    footer_labels.status.set_text(&localization::tr("footer.ready"));
+}
+
+/// Set up language change detection system
+fn setup_language_change_detection(
+    window: &ApplicationWindow,
+    footer_labels: &footer::FooterLabels,
+    app: &Application,
+    editor: &editor::MarkdownEditor,
+    theme_manager: &theme::ThemeManager,
+) {
+    let window_clone = window.clone();
+    let footer_labels_clone = footer_labels.clone();
+    let app_clone = app.clone();
+    let editor_clone = editor.clone();
+    let theme_manager_clone = theme_manager.clone();
+    
+    // Use a more efficient approach - check every 500ms instead of 100ms
+    glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+        if localization::check_language_changed() {
+            // Update window title
+            window_clone.set_title(Some(&localization::tr("app.title")));
+            
+            // Use our unified menu rebuilding system
+            menu::rebuild_menu_bar(&app_clone, &editor_clone, &theme_manager_clone);
+            
+            // Rebuild toolbar (we should add a similar function for toolbar)
+            rebuild_toolbar(&editor_clone);
+            
+            // Update footer with current values (preserve the numbers, update the format)
+            let word_text = footer_labels_clone.word_count.text().to_string();
+            let char_text = footer_labels_clone.char_count.text().to_string();
+            let pos_text = footer_labels_clone.cursor_pos.text().to_string();
+            
+            // Extract numbers from current text
+            let word_count = extract_number_from_text(&word_text).unwrap_or(0) as usize;
+            let char_count = extract_number_from_text(&char_text).unwrap_or(0) as usize;
+            let (line_u32, col_u32) = extract_position_from_text(&pos_text).unwrap_or((1, 1));
+            let line = line_u32 as usize;
+            let col = col_u32 as usize;
+            
+            // Update footer with new translations
+            update_footer_labels(&footer_labels_clone, word_count, char_count, line, col);
+        }
+        glib::ControlFlow::Continue
+    });
+}
+
+/// Rebuild toolbar with new translations (similar to menu rebuilding)
+fn rebuild_toolbar(_editor: &editor::MarkdownEditor) {
+    // This would need to be implemented similar to rebuild_menu_bar
+    // For now, we'll just refresh the editor's toolbar
+    // TODO: Implement proper toolbar rebuilding
+    eprintln!("TODO: Implement toolbar rebuilding for language changes");
 }
 
 fn main() -> glib::ExitCode {
@@ -93,6 +165,18 @@ fn build_ui(app: &Application) {
     let theme_manager = theme::ThemeManager::new();
     editor.set_theme_manager(theme_manager.clone());
 
+    // Initialize settings from current application state
+    let current_view_mode = editor.get_view_mode();
+    let current_css_theme = editor.get_current_css_theme();
+    let current_ui_theme = match theme_manager.get_current_theme() {
+        theme::Theme::System => "system",
+        theme::Theme::Light => "light",
+        theme::Theme::Dark => "dark",
+    };
+    let current_language = localization::get_current_locale();
+    
+    settings::initialize_settings_from_app(&current_view_mode, &current_css_theme, current_ui_theme, &current_language);
+
     // Set up header bar (without file buttons)
     let header_bar = editor.create_simple_header_bar();
     window.set_titlebar(Some(&header_bar));
@@ -124,100 +208,12 @@ fn build_ui(app: &Application) {
     editor.add_footer_callback({
         let footer_labels = footer_labels.clone();
         move |_text, word_count, char_count, line, column| {
-            let word_count_str = word_count.to_string();
-            let char_count_str = char_count.to_string();
-            let line_str = line.to_string();
-            let column_str = column.to_string();
-            
-            let word_args: std::collections::HashMap<&str, &str> = [("count", word_count_str.as_str())].iter().cloned().collect();
-            let char_args: std::collections::HashMap<&str, &str> = [("count", char_count_str.as_str())].iter().cloned().collect();
-            let pos_args: std::collections::HashMap<&str, &str> = [("line", line_str.as_str()), ("col", column_str.as_str())].iter().cloned().collect();
-            
-            footer_labels.word_count.set_text(&localization::tr_with_args("footer.words", &word_args));
-            footer_labels.char_count.set_text(&localization::tr_with_args("footer.characters", &char_args));
-            footer_labels.cursor_pos.set_text(&localization::tr_with_args("footer.position", &pos_args));
-            footer_labels.status.set_text(&localization::tr("footer.ready"));
+            update_footer_labels(&footer_labels, word_count, char_count, line, column);
         }
     });
 
-    // Set up periodic language change checking using GTK timeout
-    // We'll use Rc<RefCell<>> to store mutable references to the current widgets
-    let window_clone = window.clone();
-    let footer_labels_clone = footer_labels.clone();
-    let app_clone = app.clone();
-    let editor_clone = editor.clone();
-    let main_box_clone = main_box.clone();
-    let theme_manager_clone = theme_manager.clone();
-    
-    // Store current widget references that can be updated
-    let current_menu_bar = std::rc::Rc::new(std::cell::RefCell::new(menu_bar.clone()));
-    let current_toolbar = std::rc::Rc::new(std::cell::RefCell::new(toolbar.clone()));
-    
-    glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-        if localization::check_language_changed() {
-            // Update window title
-            window_clone.set_title(Some(&localization::tr("app.title")));
-            
-            // Replace menu bar with new translations
-            if let Ok(old_menu_bar) = current_menu_bar.try_borrow() {
-                // Only remove if it's actually in the container
-                if old_menu_bar.parent().is_some() {
-                    main_box_clone.remove(&*old_menu_bar);
-                }
-            }
-            let new_menu_bar = menu::create_menu_bar(&app_clone, &editor_clone, &theme_manager_clone);
-            main_box_clone.prepend(&new_menu_bar);
-            // Update the reference
-            if let Ok(mut menu_ref) = current_menu_bar.try_borrow_mut() {
-                *menu_ref = new_menu_bar;
-            }
-            
-            // Replace toolbar with new translations (tooltips)
-            if let Ok(old_toolbar) = current_toolbar.try_borrow() {
-                // Only remove if it's actually in the container
-                if old_toolbar.parent().is_some() {
-                    main_box_clone.remove(&*old_toolbar);
-                }
-            }
-            let (new_toolbar, _new_toolbar_buttons) = toolbar::create_markdown_toolbar(&editor_clone);
-            // Insert after menu bar (position 1)
-            if let Ok(menu_bar_ref) = current_menu_bar.try_borrow() {
-                main_box_clone.insert_child_after(&new_toolbar, Some(&*menu_bar_ref));
-            }
-            // Update the reference
-            if let Ok(mut toolbar_ref) = current_toolbar.try_borrow_mut() {
-                *toolbar_ref = new_toolbar;
-            }
-            
-            // Update footer with current values (preserve the numbers, update the format)
-            let word_text = footer_labels_clone.word_count.text().to_string();
-            let char_text = footer_labels_clone.char_count.text().to_string();
-            let pos_text = footer_labels_clone.cursor_pos.text().to_string();
-            
-            // Extract numbers from current text (simple parsing)
-            let word_count = extract_number_from_text(&word_text).unwrap_or(0);
-            let char_count = extract_number_from_text(&char_text).unwrap_or(0);
-            
-            // For position, it's more complex as it has line:col format
-            let (line, col) = extract_position_from_text(&pos_text).unwrap_or((1, 1));
-            
-            // Update with new translations
-            let word_count_str = word_count.to_string();
-            let char_count_str = char_count.to_string();
-            let line_str = line.to_string();
-            let column_str = col.to_string();
-            
-            let word_args: std::collections::HashMap<&str, &str> = [("count", word_count_str.as_str())].iter().cloned().collect();
-            let char_args: std::collections::HashMap<&str, &str> = [("count", char_count_str.as_str())].iter().cloned().collect();
-            let pos_args: std::collections::HashMap<&str, &str> = [("line", line_str.as_str()), ("col", column_str.as_str())].iter().cloned().collect();
-            
-            footer_labels_clone.word_count.set_text(&localization::tr_with_args("footer.words", &word_args));
-            footer_labels_clone.char_count.set_text(&localization::tr_with_args("footer.characters", &char_args));
-            footer_labels_clone.cursor_pos.set_text(&localization::tr_with_args("footer.position", &pos_args));
-            footer_labels_clone.status.set_text(&localization::tr("footer.ready"));
-        }
-        glib::ControlFlow::Continue
-    });
+    // Set up language change detection using a more efficient approach
+    setup_language_change_detection(&window, &footer_labels, app, &editor, &theme_manager);
 
     // Add main box to window
     window.set_child(Some(&main_box));
@@ -229,6 +225,32 @@ fn build_ui(app: &Application) {
             // Get the default window width and set 50/50 split
             let width = window.default_width();
             editor.set_split_ratio(width);
+        }
+    });
+
+    // Handle window close event to check for unsaved changes
+    window.connect_close_request({
+        let editor = editor.clone();
+        let app = app.clone();
+        move |window| {
+            // Cast ApplicationWindow to Window for the editor method
+            let window_ref = window.upcast_ref::<gtk4::Window>();
+            let app_clone = app.clone();
+            
+            // Check for unsaved changes and prevent closing if needed
+            let should_close_immediately = editor.show_unsaved_changes_dialog_and_quit(
+                Some(window_ref),
+                move || {
+                    println!("DEBUG: Confirmed close, calling app.quit()");
+                    app_clone.quit();
+                }
+            );
+            
+            if should_close_immediately {
+                glib::Propagation::Proceed // Allow closing immediately
+            } else {
+                glib::Propagation::Stop // Prevent closing, will happen in dialog callback
+            }
         }
     });
 

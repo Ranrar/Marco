@@ -18,6 +18,7 @@ de:
     replace: "Suchen und ersetzen..."
     insert: "Einfügen"
     format: "Format"
+    advanced: "Erweitert"
     help: "Hilfe"
     view: "Ansicht"
     language: "Sprache"
@@ -49,7 +50,10 @@ de:
     insert: "Einfügen"
     cancel: "Abbrechen"
   toolbar:
+    headings:
+      none: "Normal"
     tooltip:
+      headings: "Überschriftenebene auswählen"
       heading1: "Überschrift 1 (# Text)"
       heading2: "Überschrift 2 (## Text)"
       heading3: "Überschrift 3 (### Text)"
@@ -71,3 +75,34 @@ de:
     characters: "Zeichen: %{count}"
     position: "Zeile: %{line}, Spalte: %{col}"
     ready: "Bereit"
+  dialog:
+    unsaved_changes:
+      title: "Ungespeicherte Änderungen"
+      message: "Sie haben ungespeicherte Änderungen. Möchten Sie vor dem Schließen speichern?"
+      save: "Speichern"
+      discard: "Nicht speichern"
+      cancel: "Abbrechen"
+  context:
+    lists: "Listen"
+    advanced: "Erweitert"
+    tasks: "Aufgaben"
+    insert: "Einfügen"
+    definitions: "Definitionen"
+  advanced:
+    # Advanced Markdown Hacks Menu Section
+    text_styling: "Textstil"
+    underline: "Unterstreichen"
+    center_text: "Text zentrieren"
+    colored_text: "Farbiger Text"
+    indent_text: "Text einrücken"
+    comments_admonitions: "Kommentare & Hinweise"
+    comment: "Kommentar"
+    admonition: "Hinweis"
+    enhanced_media: "Erweiterte Medien"
+    image_with_size: "Bild mit Größe"
+    image_with_caption: "Bild mit Beschriftung"
+    link_with_target: "Link mit Ziel"
+    youtube_video: "YouTube Video"
+    symbols_structure: "Symbole & Struktur"
+    html_entity: "HTML Entity"
+    table_of_contents: "Inhaltsverzeichnis"

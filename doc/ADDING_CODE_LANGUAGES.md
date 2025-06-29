@@ -64,16 +64,16 @@ self.add_language(CodeLanguage {
 
 ### 2.1 Add Menu Item
 
-In `src/menu.rs`, add your language to the fenced code submenu:
+In `src/menu.rs`, find the fenced code submenu section and add your language:
 
 ```rust
-// In the fenced_code_menu section, add:
+// In the create_menu_bar function, find the fenced_code_menu section:
 fenced_code_menu.append(Some("Swift"), Some("app.insert_fenced_swift"));
 ```
 
 ### 2.2 Create Action Handler
 
-Add an action entry for your language:
+In `src/main.rs`, add an action entry for your language in the `create_menu_actions()` function:
 
 ```rust
 let insert_fenced_swift_action = gio::ActionEntry::builder("insert_fenced_swift")
@@ -88,7 +88,7 @@ let insert_fenced_swift_action = gio::ActionEntry::builder("insert_fenced_swift"
 
 ### 2.3 Register the Action
 
-Add your action to the actions array:
+Add your action to the actions array in `create_menu_actions()`:
 
 ```rust
 app.add_action_entries([
@@ -102,10 +102,10 @@ app.add_action_entries([
 
 ### 3.1 Language-Specific Border Color
 
-In `src/main.rs`, add a unique border color for your language:
+In the CSS files (e.g., `css/standard.css`), add a unique border color for your language:
 
-```rust
-// Add to the CSS section:
+```css
+/* Add to the CSS theme files: */
 .code-block-swift {
     border-left: 4px solid #ff5722; /* Swift orange */
 }

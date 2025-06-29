@@ -16,6 +16,7 @@ pub struct MarkdownHtmlView {
     is_first_load: Rc<RefCell<bool>>,
     saved_scroll_position: Rc<RefCell<f64>>,
     theme_manager: Rc<RefCell<Option<ThemeManager>>>,
+    custom_css: Rc<RefCell<String>>,
 }
 
 impl MarkdownHtmlView {
@@ -41,6 +42,7 @@ impl MarkdownHtmlView {
             is_first_load: Rc::new(RefCell::new(true)),
             saved_scroll_position: Rc::new(RefCell::new(0.0)),
             theme_manager: Rc::new(RefCell::new(None)),
+            custom_css: Rc::new(RefCell::new(String::new())),
         };
 
         // Initialize with a default empty document to show proper background
@@ -83,15 +85,18 @@ impl MarkdownHtmlView {
         // Store the original markdown for theme refresh
         *self.current_markdown.borrow_mut() = markdown_text.to_string();
         
+        // Preprocess markdown to handle custom task lists and ensure compact rendering
+        let processed_markdown = self.preprocess_for_compact_html(markdown_text);
+        
         // Convert markdown to HTML using pulldown-cmark for better feature support
         let mut options = Options::empty();
         options.insert(Options::ENABLE_TABLES);
         options.insert(Options::ENABLE_FOOTNOTES);
         options.insert(Options::ENABLE_STRIKETHROUGH);
-        options.insert(Options::ENABLE_TASKLISTS);
+        options.insert(Options::ENABLE_TASKLISTS); // Keep for GitHub-style task lists
         options.insert(Options::ENABLE_SMART_PUNCTUATION);
         
-        let parser = Parser::new_ext(markdown_text, options);
+        let parser = Parser::new_ext(&processed_markdown, options);
         let mut html_content = String::new();
         html::push_html(&mut html_content, parser);
         
@@ -187,69 +192,174 @@ impl MarkdownHtmlView {
     }
     
     fn load_css_content(&self) -> String {
-        // Use the unified CSS file that supports both light and dark themes
-        let css_file = "css/standard.css";
+        // Check if custom CSS is set
+        let custom_css = self.custom_css.borrow();
+        let mut css_content = if !custom_css.is_empty() {
+            custom_css.clone()
+        } else {
+            // Use the unified CSS file that supports both light and dark themes
+            let css_file = "css/standard.css";
 
-        // Try to load the unified CSS file, fallback to basic styles if not found
-        std::fs::read_to_string(css_file).unwrap_or_else(|_| {
-            // Fallback CSS if file is not found - use dark theme if we can detect it
-            let fallback_bg = if let Some(ref theme_manager) = *self.theme_manager.borrow() {
-                match theme_manager.get_effective_theme() {
-                    crate::theme::Theme::Dark => "#1a1a1a",
-                    _ => "#fff",
-                }
-            } else {
-                "#fff"
-            };
-            let fallback_color = if fallback_bg == "#1a1a1a" { "#e1e1e1" } else { "#24292e" };
-            
-            format!(r#"
+            // Try to load the unified CSS file, fallback to basic styles if not found
+            std::fs::read_to_string(css_file).unwrap_or_else(|_| {
+                // Fallback CSS if file is not found - use dark theme if we can detect it
+                let fallback_bg = if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+                    match theme_manager.get_effective_theme() {
+                        crate::theme::Theme::Dark => "#1a1a1a",
+                        _ => "#fff",
+                    }
+                } else {
+                    "#fff"
+                };
+                let fallback_color = if fallback_bg == "#1a1a1a" { "#e1e1e1" } else { "#24292e" };
+                
+                format!(r#"
 body {{
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.6;
+    line-height: 1.4;
     color: {};
     background-color: {};
-    margin: 2rem;
+    margin: 1rem;
     padding: 0;
 }}
 h1, h2, h3, h4, h5, h6 {{
     font-weight: 600;
-    margin-top: 24px;
-    margin-bottom: 16px;
+    margin-top: 0.8em;
+    margin-bottom: 0.4em;
 }}
-h1 {{ font-size: 2em; }}
-h2 {{ font-size: 1.5em; }}
-h3 {{ font-size: 1.25em; }}
-p {{ margin: 16px 0; }}
+h1 {{ font-size: 1.8em; }}
+h2 {{ font-size: 1.4em; }}
+h3 {{ font-size: 1.2em; }}
+p {{ 
+    margin: 0.5em 0; 
+    line-height: 1.4;
+}}
+ul, ol {{ 
+    margin: 0.5em 0;
+    padding-left: 1.5em;
+}}
+li {{
+    margin: 0.2em 0;
+}}
+table {{
+    border-collapse: collapse;
+    margin: 0.5em 0;
+    width: 100%;
+}}
+th, td {{
+    border: 1px solid {};
+    padding: 0.3em 0.6em;
+    text-align: left;
+}}
+th {{
+    background-color: {};
+    font-weight: 600;
+}}
+blockquote {{
+    border-left: 0.25em solid {};
+    color: {};
+    margin: 0.5em 0;
+    padding: 0 0.8em;
+}}
 code {{
     background-color: {};
     border-radius: 3px;
     font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
     font-size: 85%;
-    padding: 0.2em 0.4em;
+    padding: 0.1em 0.3em;
 }}
 pre {{
     background-color: {};
     border-radius: 6px;
-    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    font-size: 85%;
+    line-height: 1.45;
     overflow: auto;
-    padding: 16px;
+    padding: 0.8em;
 }}
-blockquote {{
-    border-left: 0.25em solid {};
-    color: {};
+pre code {{
+    background-color: transparent;
+    border: 0;
+    font-size: 100%;
     margin: 0;
-    padding: 0 1em;
+    padding: 0;
+    white-space: pre;
+    word-break: normal;
 }}
-ul, ol {{ padding-left: 2em; }}
 "#, 
-                fallback_color, 
-                fallback_bg,
-                if fallback_bg == "#1a1a1a" { "#2a2a2a" } else { "rgba(27, 31, 35, 0.05)" },
-                if fallback_bg == "#1a1a1a" { "#2a2a2a" } else { "#f6f8fa" },
-                if fallback_bg == "#1a1a1a" { "#444" } else { "#dfe2e5" },
-                if fallback_bg == "#1a1a1a" { "#999" } else { "#6a737d" }
-            )
-        })
+                fallback_color, fallback_bg,
+                if fallback_bg == "#1a1a1a" { "#555" } else { "#ddd" }, // table border
+                if fallback_bg == "#1a1a1a" { "#333" } else { "#f6f8fa" }, // table header bg
+                if fallback_bg == "#1a1a1a" { "#555" } else { "#dfe2e5" }, // blockquote border
+                if fallback_bg == "#1a1a1a" { "#8b949e" } else { "#6a737d" }, // blockquote color
+                if fallback_bg == "#1a1a1a" { "#333" } else { "rgba(175,184,193,0.2)" }, // code bg
+                if fallback_bg == "#1a1a1a" { "#2d3748" } else { "#f6f8fa" } // pre bg
+                )
+            })
+        };
+
+        // Add theme override CSS if we have a theme manager
+        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            let theme_override = theme_manager.get_theme_override_css();
+            if !theme_override.is_empty() {
+                css_content.push_str("\n\n");
+                css_content.push_str(&theme_override);
+            }
+        }
+
+        css_content
+    }
+
+    /// Preprocess markdown for compact HTML rendering
+    /// Handles both dash and no-dash task list formats and ensures proper paragraph wrapping:
+    /// - `[ ] Task` → paragraph with checkbox HTML without dash
+    /// - `- [ ] Task` → GitHub-style (handled by pulldown_cmark)
+    /// - `[x] Task` → paragraph with checked checkbox HTML without dash
+    /// - `- [x] Task` → GitHub-style (handled by pulldown_cmark)
+    /// - Ensures standalone text gets proper paragraph treatment
+    fn preprocess_for_compact_html(&self, markdown: &str) -> String {
+        use regex::Regex;
+        
+        // Create regex patterns for task lists without dashes (custom format)
+        let open_task_pattern = Regex::new(r"^(\s*)(\[ \])(.*)$").unwrap();
+        let closed_task_pattern = Regex::new(r"^(\s*)(\[x\])(.*)$").unwrap();
+        
+        let mut result = String::new();
+        
+        for line in markdown.lines() {
+            let processed_line = if let Some(captures) = open_task_pattern.captures(line) {
+                // Convert standalone "[ ] Task" to HTML paragraph with checkbox
+                let task_text = &captures[3];
+                format!("<p><input type=\"checkbox\" disabled> {}</p>", task_text.trim())
+            } else if let Some(captures) = closed_task_pattern.captures(line) {
+                // Convert standalone "[x] Task" to HTML paragraph with checked checkbox
+                let task_text = &captures[3];
+                format!("<p><input type=\"checkbox\" checked disabled> {}</p>", task_text.trim())
+            } else {
+                line.to_string()
+            };
+            
+            result.push_str(&processed_line);
+            result.push('\n');
+        }
+        
+        result
+    }
+    
+    /// Set custom CSS for the preview
+    pub fn set_custom_css(&self, css_content: &str) {
+        *self.custom_css.borrow_mut() = css_content.to_string();
+    }
+    
+    /// Get current custom CSS
+    pub fn get_custom_css(&self) -> String {
+        self.custom_css.borrow().clone()
+    }
+
+    /// Refresh the HTML view (useful when theme changes)
+    pub fn refresh(&self) {
+        let current_content = self.current_content.borrow().clone();
+        if !current_content.is_empty() {
+            self.update_content(&current_content);
+        }
     }
 }

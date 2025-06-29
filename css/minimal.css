@@ -1,0 +1,274 @@
+/* Minimal CSS for Marco Markdown Editor Preview */
+
+/* CSS Custom Properties for theming */
+:root {
+    --bg-color: #fefefe;
+    --text-color: #333;
+    --heading-color: #222;
+    --quote-color: #666;
+    --quote-border: #ccc;
+    --code-bg: #f5f5f5;
+    --pre-bg: #f8f8f8;
+    --pre-border: #e5e5e5;
+    --table-border: #ddd;
+    --table-header-bg: #f9f9f9;
+    --hr-color: #ccc;
+    --link-color: #0066cc;
+    --admonition-bg: #f9f9f9;
+    --admonition-border: #ccc;
+}
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: #1a1a1a;
+        --text-color: #e0e0e0;
+        --heading-color: #f0f0f0;
+        --quote-color: #a0a0a0;
+        --quote-border: #666;
+        --code-bg: #2d2d2d;
+        --pre-bg: #222;
+        --pre-border: #444;
+        --table-border: #555;
+        --table-header-bg: #333;
+        --hr-color: #666;
+        --link-color: #66b3ff;
+        --admonition-bg: #2a2a2a;
+        --admonition-border: #666;
+    }
+}
+
+body {
+    font-family: 'Georgia', 'Times New Roman', serif;
+    font-size: 18px;
+    line-height: 1.7;
+    /* Fallback for browsers that don't support CSS custom properties */
+    color: #333;
+    background-color: #fefefe;
+    /* Use CSS custom properties */
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    max-width: 650px;
+    margin: 0 auto;
+    padding: 1rem;
+}
+
+/* Dark mode fallback for body */
+@media (prefers-color-scheme: dark) {
+    body {
+        color: #e0e0e0;
+        background-color: #1a1a1a;
+    }
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: 'Helvetica Neue', 'Arial', sans-serif;
+    font-weight: 400;
+    margin: 2rem 0 1rem 0;
+    line-height: 1.3;
+    /* Fallback */
+    color: #222;
+    /* CSS custom properties */
+    color: var(--heading-color);
+}
+
+/* Dark mode fallback for headings */
+@media (prefers-color-scheme: dark) {
+    h1, h2, h3, h4, h5, h6 {
+        color: #f0f0f0;
+    }
+}
+
+h1 { font-size: 2.5rem; }
+h2 { font-size: 2rem; }
+h3 { font-size: 1.6rem; }
+h4 { font-size: 1.3rem; }
+h5 { font-size: 1.1rem; }
+h6 { font-size: 1rem; font-weight: 600; }
+
+p {
+    margin: 0 0 1.5rem 0;
+}
+
+blockquote {
+    margin: 1.5rem 0;
+    padding: 0 0 0 1.5rem;
+    /* Fallback */
+    border-left: 2px solid #ccc;
+    color: #666;
+    /* CSS custom properties */
+    border-left: 2px solid var(--quote-border);
+    color: var(--quote-color);
+    font-style: italic;
+}
+
+/* Dark mode fallback for blockquote */
+@media (prefers-color-scheme: dark) {
+    blockquote {
+        border-left: 2px solid #666;
+        color: #a0a0a0;
+    }
+}
+
+ul, ol {
+    margin: 1rem 0;
+    padding-left: 2rem;
+}
+
+li {
+    margin-bottom: 0.5rem;
+}
+
+code {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 0.9rem;
+    /* Fallback */
+    background-color: #f5f5f5;
+    /* CSS custom properties */
+    background-color: var(--code-bg);
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+}
+
+pre {
+    /* Fallback */
+    background-color: #f8f8f8;
+    border: 1px solid #e5e5e5;
+    /* CSS custom properties */
+    background-color: var(--pre-bg);
+    border: 1px solid var(--pre-border);
+    border-radius: 3px;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    overflow: auto;
+    padding: 1rem;
+    margin: 1.5rem 0;
+}
+
+/* Dark mode fallback for code */
+@media (prefers-color-scheme: dark) {
+    code {
+        background-color: #2d2d2d;
+    }
+    
+    pre {
+        background-color: #222;
+        border: 1px solid #444;
+    }
+}
+
+pre code {
+    background-color: transparent;
+    border: 0;
+    padding: 0;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    width: 100%;
+}
+
+table th,
+table td {
+    /* Fallback */
+    border: 1px solid #ddd;
+    /* CSS custom properties */
+    border: 1px solid var(--table-border);
+    padding: 0.5rem 1rem;
+    text-align: left;
+}
+
+table th {
+    /* Fallback */
+    background-color: #f9f9f9;
+    /* CSS custom properties */
+    background-color: var(--table-header-bg);
+    font-weight: 600;
+}
+
+/* Dark mode fallback for tables */
+@media (prefers-color-scheme: dark) {
+    table th,
+    table td {
+        border: 1px solid #555;
+    }
+    
+    table th {
+        background-color: #333;
+    }
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 1.5rem auto;
+}
+
+hr {
+    border: none;
+    /* Fallback */
+    border-top: 1px solid #ccc;
+    /* CSS custom properties */
+    border-top: 1px solid var(--hr-color);
+    margin: 2rem 0;
+}
+
+a {
+    /* Fallback */
+    color: #0066cc;
+    /* CSS custom properties */
+    color: var(--link-color);
+    text-decoration: none;
+}
+
+/* Dark mode fallback */
+@media (prefers-color-scheme: dark) {
+    hr {
+        border-top: 1px solid #666;
+    }
+    
+    a {
+        color: #66b3ff;
+    }
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Task lists */
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item input[type="checkbox"] {
+    margin: 0 0.5rem 0 -1.5rem;
+}
+
+/* Simple admonitions */
+.admonition {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    /* Fallback */
+    border-left: 4px solid #ccc;
+    background-color: #f9f9f9;
+    /* CSS custom properties */
+    border-left: 4px solid var(--admonition-border);
+    background-color: var(--admonition-bg);
+}
+
+/* Dark mode fallback for admonitions */
+@media (prefers-color-scheme: dark) {
+    .admonition {
+        border-left: 4px solid #666;
+        background-color: #2a2a2a;
+    }
+}
+
+.admonition-note { border-left-color: #5bc0de; }
+.admonition-tip { border-left-color: #5cb85c; }
+.admonition-important { border-left-color: #f0ad4e; }
+.admonition-warning { border-left-color: #f0ad4e; }
+.admonition-caution { border-left-color: #d9534f; }

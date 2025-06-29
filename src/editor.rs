@@ -12,6 +12,8 @@ use crate::view_code::MarkdownCodeView;
 use crate::view_html::MarkdownHtmlView;
 use crate::code_languages::CodeLanguageManager;
 use crate::context_menu::ContextMenu;
+use crate::syntax_extra::ExtraMarkdownSyntax;
+use std::collections::HashMap;
 
 #[derive(Clone)]
 pub struct MarkdownEditor {
@@ -25,6 +27,10 @@ pub struct MarkdownEditor {
     footer_callbacks: Rc<RefCell<Vec<Box<dyn Fn(&str, usize, usize, usize, usize)>>>>,
     code_language_manager: Rc<RefCell<CodeLanguageManager>>,
     theme_manager: Rc<RefCell<Option<crate::theme::ThemeManager>>>,
+    is_modified: Rc<RefCell<bool>>,
+    extra_syntax: Rc<RefCell<ExtraMarkdownSyntax>>,
+    tag_table: Rc<RefCell<HashMap<String, gtk4::TextTag>>>,
+    current_css_theme: Rc<RefCell<String>>,
 }
 
 impl MarkdownEditor {
@@ -107,6 +113,9 @@ impl MarkdownEditor {
         let current_file = Rc::new(RefCell::new(None));
         let footer_callbacks = Rc::new(RefCell::new(Vec::new()));
         let code_language_manager = Rc::new(RefCell::new(CodeLanguageManager::new()));
+        let is_modified = Rc::new(RefCell::new(false));
+        let extra_syntax = Rc::new(RefCell::new(ExtraMarkdownSyntax::new()));
+        let tag_table = Rc::new(RefCell::new(HashMap::new()));
 
         let editor = Self {
             widget: paned,
@@ -119,6 +128,10 @@ impl MarkdownEditor {
             footer_callbacks,
             code_language_manager,
             theme_manager: Rc::new(RefCell::new(None)),
+            is_modified,
+            extra_syntax,
+            tag_table,
+            current_css_theme: Rc::new(RefCell::new("standard".to_string())),
         };
 
         // Connect text change signal
@@ -131,6 +144,9 @@ impl MarkdownEditor {
         // Set up right-click context menu
         let context_menu = ContextMenu::new(&editor);
         context_menu.setup_gesture(&editor);
+
+        // Initialize with standard CSS theme
+        editor.set_css_theme("standard");
 
         // Ensure 50/50 split on window realize
         let paned = editor.widget.clone();
@@ -180,12 +196,29 @@ impl MarkdownEditor {
         let html_view = self.html_view.clone();
         let code_view = self.code_view.clone();
         let footer_callbacks = self.footer_callbacks.clone();
+        let is_modified = self.is_modified.clone();
+        let extra_syntax = self.extra_syntax.clone();
+        let tag_table = self.tag_table.clone();
         let update_timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
         
         self.source_buffer.connect_changed(move |buffer| {
+            // Mark document as modified
+            let was_modified = *is_modified.borrow();
+            *is_modified.borrow_mut() = true;
+            if !was_modified {
+                println!("DEBUG: Document marked as modified");
+            }
+            
             let start = buffer.start_iter();
             let end = buffer.end_iter();
             let text = buffer.text(&start, &end, false);
+            
+            // Apply extra syntax highlighting
+            {
+                let extra_syntax_ref = extra_syntax.borrow();
+                let mut tag_table_ref = tag_table.borrow_mut();
+                extra_syntax_ref.apply_extra_syntax_highlighting(buffer, &text, &mut tag_table_ref);
+            }
             
             // Update footer statistics immediately (no delay needed for stats)
             let char_count = text.chars().count();
@@ -338,21 +371,21 @@ impl MarkdownEditor {
     // Extended Markdown syntax methods based on https://www.markdownguide.org/extended-syntax/
 
     pub fn insert_task_list(&self) {
-        self.insert_at_new_line("- [ ] Task\n- [x] Completed task\n- [ ] Another task\n");
+        self.insert_at_new_line("[ ] Task\n[x] Completed task\n[ ] Another task\n");
     }
 
     pub fn insert_single_open_task(&self) {
-        self.insert_at_new_line("- [ ] Task\n");
+        self.insert_at_new_line("[ ] Task\n");
     }
 
     pub fn insert_single_closed_task(&self) {
-        self.insert_at_new_line("- [x] Completed task\n");
+        self.insert_at_new_line("[x] Completed task\n");
     }
 
     pub fn insert_custom_task_list(&self, count: usize) {
         let mut task_list = String::new();
         for i in 0..count {
-            task_list.push_str(&format!("- [ ] Task {}\n", i + 1));
+            task_list.push_str(&format!("[ ] Task {}\n", i + 1));
         }
         self.insert_at_new_line(&task_list);
     }
@@ -562,7 +595,7 @@ impl MarkdownEditor {
         self.code_language_manager.borrow().get_language_suggestions(partial)
     }
 
-    fn insert_text_at_cursor(&self, text: &str) {
+    pub fn insert_text_at_cursor(&self, text: &str) {
         let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
         let cursor_mark = gtk_buffer.get_insert();
         let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
@@ -859,6 +892,7 @@ impl MarkdownEditor {
     pub fn new_file(&self) {
         self.source_buffer.set_text("");
         *self.current_file.borrow_mut() = None;
+        self.mark_as_saved(); // New file is not modified
     }
 
     pub fn open_file_from_menu(&self, window: &gtk4::Window) {
@@ -883,6 +917,7 @@ impl MarkdownEditor {
 
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
+        let is_modified = self.is_modified.clone();
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
@@ -890,6 +925,8 @@ impl MarkdownEditor {
                         if let Ok(content) = std::fs::read_to_string(&path) {
                             source_buffer.set_text(&content);
                             *current_file.borrow_mut() = Some(path);
+                            // Mark as not modified since we just loaded from file
+                            *is_modified.borrow_mut() = false;
                         }
                     }
                 }
@@ -901,15 +938,49 @@ impl MarkdownEditor {
     }
 
     fn save_current_file(&self, parent: Option<&gtk4::Window>) {
+        println!("DEBUG: save_current_file called");
         if let Some(path) = self.current_file.borrow().clone() {
             // Save to existing file
+            println!("DEBUG: Saving to existing file: {:?}", path);
             let start = self.source_buffer.start_iter();
             let end = self.source_buffer.end_iter();
             let text = self.source_buffer.text(&start, &end, false);
-            let _ = std::fs::write(&path, text);
+            if std::fs::write(&path, text).is_ok() {
+                println!("DEBUG: File saved successfully, marking as saved");
+                self.mark_as_saved(); // Mark as saved after successful write
+            } else {
+                println!("DEBUG: Failed to save file");
+            }
         } else {
             // No file selected, show save as dialog
+            println!("DEBUG: No current file, showing save as dialog");
             self.show_save_as_dialog(parent);
+        }
+    }
+
+    /// Save current file with a callback that's only called on successful save
+    fn save_current_file_with_callback<F>(&self, parent: Option<&gtk4::Window>, on_save_complete: F) 
+    where
+        F: Fn() + 'static,
+    {
+        println!("DEBUG: save_current_file_with_callback called");
+        if let Some(path) = self.current_file.borrow().clone() {
+            // Save to existing file
+            println!("DEBUG: Saving to existing file: {:?}", path);
+            let start = self.source_buffer.start_iter();
+            let end = self.source_buffer.end_iter();
+            let text = self.source_buffer.text(&start, &end, false);
+            if std::fs::write(&path, text).is_ok() {
+                println!("DEBUG: File saved successfully, marking as saved and calling callback");
+                self.mark_as_saved(); // Mark as saved after successful write
+                on_save_complete(); // Call the callback only on successful save
+            } else {
+                println!("DEBUG: Failed to save file, not calling callback");
+            }
+        } else {
+            // No file selected, show save as dialog with callback
+            println!("DEBUG: No current file, showing save as dialog with callback");
+            self.show_save_as_dialog_with_callback(parent, on_save_complete);
         }
     }
 
@@ -923,6 +994,7 @@ impl MarkdownEditor {
 
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
+        let is_modified = self.is_modified.clone();
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
@@ -932,9 +1004,55 @@ impl MarkdownEditor {
                         let text = source_buffer.text(&start, &end, false);
                         if std::fs::write(&path, text).is_ok() {
                             *current_file.borrow_mut() = Some(path);
+                            // Mark as saved after successful write
+                            *is_modified.borrow_mut() = false;
                         }
                     }
                 }
+            }
+            dialog.close();
+        });
+
+        dialog.present();
+    }
+
+    /// Show save as dialog with a callback that's only called on successful save
+    fn show_save_as_dialog_with_callback<F>(&self, parent: Option<&gtk4::Window>, on_save_complete: F)
+    where
+        F: Fn() + 'static,
+    {
+        println!("DEBUG: show_save_as_dialog_with_callback called");
+        let dialog = FileChooserDialog::new(
+            Some("Save File"),
+            parent,
+            FileChooserAction::Save,
+            &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+        );
+
+        let source_buffer = self.source_buffer.clone();
+        let current_file = self.current_file.clone();
+        let is_modified = self.is_modified.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                println!("DEBUG: User clicked Save in Save As dialog");
+                if let Some(file) = dialog.file() {
+                    if let Some(path) = file.path() {
+                        let start = source_buffer.start_iter();
+                        let end = source_buffer.end_iter();
+                        let text = source_buffer.text(&start, &end, false);
+                        if std::fs::write(&path, text).is_ok() {
+                            println!("DEBUG: File saved successfully via Save As, calling callback");
+                            *current_file.borrow_mut() = Some(path);
+                            // Mark as saved after successful write
+                            *is_modified.borrow_mut() = false;
+                            on_save_complete(); // Call the callback only on successful save
+                        } else {
+                            println!("DEBUG: Failed to save file via Save As, not calling callback");
+                        }
+                    }
+                }
+            } else {
+                println!("DEBUG: User cancelled Save As dialog, not calling callback");
             }
             dialog.close();
         });
@@ -1109,4 +1227,278 @@ impl MarkdownEditor {
         }
     }
 
+    /// Check if the document has been modified since last save
+    pub fn is_modified(&self) -> bool {
+        *self.is_modified.borrow()
+    }
+    
+    /// Mark the document as saved (not modified)
+    fn mark_as_saved(&self) {
+        println!("DEBUG: Marking document as saved (was modified: {})", self.is_modified());
+        *self.is_modified.borrow_mut() = false;
+    }
+
+    /// Show save confirmation dialog and handle the response asynchronously
+    /// Returns true immediately if no unsaved changes, false if dialog is shown (to prevent immediate quit)
+    pub fn show_unsaved_changes_dialog_and_quit<F>(&self, parent: Option<&gtk4::Window>, on_confirm_quit: F) -> bool
+    where
+        F: Fn() + 'static,
+    {
+        if !self.is_modified() {
+            println!("DEBUG: Document not modified, proceeding immediately");
+            return true; // Not modified, safe to proceed immediately
+        }
+
+        println!("DEBUG: Document is modified, showing unsaved changes dialog");
+
+        // Create confirmation dialog
+        let title = crate::localization::tr("dialog.unsaved_changes.title");
+        let message = crate::localization::tr("dialog.unsaved_changes.message");
+        let cancel_text = crate::localization::tr("dialog.unsaved_changes.cancel");
+        let discard_text = crate::localization::tr("dialog.unsaved_changes.discard");
+        let save_text = crate::localization::tr("dialog.unsaved_changes.save");
+        
+        println!("DEBUG: Dialog strings - Title: '{}', Message: '{}', Cancel: '{}', Discard: '{}', Save: '{}'", 
+                 title, message, cancel_text, discard_text, save_text);
+        
+        let dialog = gtk4::MessageDialog::builder()
+            .transient_for(parent.unwrap_or(&gtk4::Window::new()))
+            .modal(true)
+            .message_type(gtk4::MessageType::Question)
+            .text(&title)
+            .secondary_text(&message)
+            .build();
+
+        dialog.add_button(&cancel_text, ResponseType::Cancel);
+        dialog.add_button(&discard_text, ResponseType::No);
+        dialog.add_button(&save_text, ResponseType::Yes);
+
+        // Set default response to Save
+        dialog.set_default_response(ResponseType::Yes);
+
+        println!("DEBUG: Dialog created with buttons - Cancel: {:?}, Discard: {:?}, Save: {:?}", 
+                 ResponseType::Cancel, ResponseType::No, ResponseType::Yes);
+
+        // Handle dialog response asynchronously
+        let editor_weak = self.clone();
+        let parent_window = parent.map(|w| w.clone());
+        
+        println!("DEBUG: Setting up dialog response callback");
+        
+        // Clone the callback for the save case
+        let on_confirm_quit_for_save = Rc::new(on_confirm_quit);
+        let on_confirm_quit_for_discard = on_confirm_quit_for_save.clone();
+        
+        // Use a flag to ensure the dialog response is only handled once
+        let response_handled = Rc::new(std::cell::RefCell::new(false));
+        let response_handled_clone = response_handled.clone();
+        
+        dialog.connect_response(move |dialog, response| {
+            println!("DEBUG: Dialog response received: {:?}", response);
+            
+            // Check if response was already handled
+            if *response_handled_clone.borrow() {
+                println!("DEBUG: Dialog response already handled, ignoring");
+                return;
+            }
+            
+            match response {
+                ResponseType::Yes => {
+                    // User wants to save before quitting
+                    println!("DEBUG: User clicked Save button");
+                    *response_handled_clone.borrow_mut() = true;
+                    dialog.close();
+                    
+                    // Use the callback-based save method to only quit if save is successful
+                    let quit_callback = on_confirm_quit_for_save.clone();
+                    editor_weak.save_current_file_with_callback(parent_window.as_ref(), move || {
+                        println!("DEBUG: Save completed successfully, calling quit callback");
+                        quit_callback();
+                        println!("DEBUG: on_confirm_quit callback completed");
+                    });
+                }
+                ResponseType::No => {
+                    // User wants to discard changes and quit
+                    println!("DEBUG: User clicked Don't Save button");
+                    *response_handled_clone.borrow_mut() = true;
+                    dialog.close();
+                    println!("DEBUG: Dialog closed, about to call quit callback");
+                    (*on_confirm_quit_for_discard)();
+                    println!("DEBUG: on_confirm_quit callback completed");
+                }
+                ResponseType::Cancel => {
+                    // User explicitly clicked Cancel button
+                    println!("DEBUG: User clicked Cancel button");
+                    *response_handled_clone.borrow_mut() = true;
+                    dialog.close();
+                }
+                ResponseType::DeleteEvent => {
+                    // Dialog was closed by window manager (X button) - treat as cancel
+                    println!("DEBUG: Dialog closed by window manager, treating as cancel");
+                    *response_handled_clone.borrow_mut() = true;
+                    dialog.close();
+                }
+                _ => {
+                    // Other responses - treat as cancel
+                    println!("DEBUG: Other dialog response: {:?}, treating as cancel", response);
+                    *response_handled_clone.borrow_mut() = true;
+                    dialog.close();
+                }
+            }
+        });
+
+        // Show the dialog
+        println!("DEBUG: Presenting dialog to user");
+        dialog.present();
+        
+        // Return false to indicate that quit should not proceed immediately
+        // The actual quit will happen in the dialog response callback
+        println!("DEBUG: Returning false - quit should wait for dialog response");
+        false
+    }
+
+    // Extra Markdown Syntax Methods
+    
+    /// Insert underlined text
+    pub fn insert_underline(&self, text: &str) {
+        crate::syntax_extra::insert_underline(self, text);
+    }
+
+    /// Insert centered text
+    pub fn insert_center_text(&self, text: &str) {
+        crate::syntax_extra::insert_center_text(self, text);
+    }
+
+    /// Insert colored text
+    pub fn insert_colored_text(&self, text: &str, color: &str) {
+        crate::syntax_extra::insert_colored_text(self, text, color);
+    }
+
+    /// Insert a markdown comment
+    pub fn insert_comment(&self, comment: &str) {
+        crate::syntax_extra::insert_comment(self, comment);
+    }
+
+    /// Insert an admonition
+    pub fn insert_admonition(&self, emoji: &str, adm_type: &str, text: &str) {
+        crate::syntax_extra::insert_admonition(self, emoji, adm_type, text);
+    }
+
+    /// Insert image with size
+    pub fn insert_image_with_size(&self, src: &str, alt: &str, width: Option<&str>, height: Option<&str>) {
+        crate::syntax_extra::insert_image_with_size(self, src, alt, width, height);
+    }
+
+    /// Insert image with caption
+    pub fn insert_image_with_caption(&self, src: &str, alt: &str, caption: &str) {
+        crate::syntax_extra::insert_image_with_caption(self, src, alt, caption);
+    }
+
+    /// Insert link with target
+    pub fn insert_link_with_target(&self, url: &str, text: &str, target: &str) {
+        crate::syntax_extra::insert_link_with_target(self, url, text, target);
+    }
+
+    /// Insert HTML entity
+    pub fn insert_html_entity(&self, entity: &str) {
+        crate::syntax_extra::insert_html_entity(self, entity);
+    }
+
+    /// Insert table of contents
+    pub fn insert_table_of_contents(&self) {
+        crate::syntax_extra::insert_table_of_contents(self);
+    }
+
+    /// Insert YouTube video embed
+    pub fn insert_youtube_video(&self, video_id: &str, alt_text: &str) {
+        crate::syntax_extra::insert_youtube_video(self, video_id, alt_text);
+    }
+
+    /// Insert indented text
+    pub fn insert_indented_text(&self, text: &str, indent_level: usize) {
+        crate::syntax_extra::insert_indented_text(self, text, indent_level);
+    }
+
+    /// Get common HTML entities for UI
+    pub fn get_common_html_entities() -> Vec<(&'static str, &'static str, &'static str)> {
+        crate::syntax_extra::get_common_html_entities()
+    }
+
+    /// Get common admonition types for UI
+    pub fn get_common_admonitions() -> Vec<(&'static str, &'static str, &'static str)> {
+        crate::syntax_extra::get_common_admonitions()
+    }
+
+    /// Clear extra syntax tags from buffer
+    pub fn clear_extra_syntax_tags(&self) {
+        let extra_syntax_ref = self.extra_syntax.borrow();
+        let tag_table_ref = self.tag_table.borrow();
+        extra_syntax_ref.clear_extra_tags(&self.source_buffer, &tag_table_ref);
+    }
+
+    /// Set the CSS theme for the preview
+    pub fn set_css_theme(&self, theme_name: &str) {
+        *self.current_css_theme.borrow_mut() = theme_name.to_string();
+        
+        // Load CSS file from the css/ directory
+        let css_path = format!("css/{}.css", theme_name);
+        match std::fs::read_to_string(&css_path) {
+            Ok(css_content) => {
+                self.html_view.set_custom_css(&css_content);
+                self.refresh_html_view();
+            }
+            Err(e) => {
+                eprintln!("Failed to load CSS theme '{}': {}", theme_name, e);
+                // Fallback to standard theme
+                if theme_name != "standard" {
+                    self.set_css_theme("standard");
+                }
+            }
+        }
+    }
+    
+    /// Get the current CSS theme name
+    pub fn get_current_css_theme(&self) -> String {
+        self.current_css_theme.borrow().clone()
+    }
+
+    /// Get available CSS themes by scanning the css/ directory
+    pub fn get_available_css_themes() -> Vec<(String, String, String)> {
+        let mut themes = Vec::new();
+        
+        if let Ok(entries) = std::fs::read_dir("css") {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    if let Some(extension) = path.extension() {
+                        if extension == "css" {
+                            if let Some(filename) = path.file_stem() {
+                                if let Some(theme_name) = filename.to_str() {
+                                    // Create display name (capitalize first letter, replace _ with space)
+                                    let display_name = theme_name
+                                        .replace('_', " ")
+                                        .chars()
+                                        .enumerate()
+                                        .map(|(i, c)| if i == 0 { c.to_uppercase().collect::<String>() } else { c.to_string() })
+                                        .collect::<String>();
+                                    
+                                    // Create sanitized action name (replace spaces and special chars with underscores)
+                                    let sanitized_name = theme_name
+                                        .chars()
+                                        .map(|c| if c.is_alphanumeric() { c } else { '_' })
+                                        .collect::<String>();
+                                    
+                                    themes.push((theme_name.to_string(), display_name, sanitized_name));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Sort themes alphabetically by display name
+        themes.sort_by(|a, b| a.1.cmp(&b.1));
+        themes
+    }
 }

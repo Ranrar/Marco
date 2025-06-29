@@ -1,18 +1,17 @@
 use gtk4::prelude::*;
-use gtk4::{Box, Orientation, Button, Separator};
+use gtk4::{Box, Orientation, Button, Separator, DropDown, StringList};
 use std::rc::Rc;
 use std::cell::RefCell;
 use crate::{editor, localization};
 
 /// Toolbar button references for updating active states
 pub struct ToolbarButtons {
-    pub h1_button: Button,
-    pub h2_button: Button,
-    pub h3_button: Button,
+    pub headings_dropdown: DropDown,
     pub bold_button: Button,
     pub italic_button: Button,
     pub code_button: Button,
     pub strikethrough_button: Button,
+    pub updating_dropdown: std::cell::RefCell<bool>, // Flag to prevent recursive updates
 }
 
 pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefCell<ToolbarButtons>>) {
@@ -23,36 +22,21 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     markdown_toolbar.set_margin_start(10);
     markdown_toolbar.set_margin_end(10);
     
-    // Heading buttons (Basic)
-    let h1_button = Button::with_label("H1");
-    h1_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.heading1")));
-    h1_button.connect_clicked({
-        let editor = editor.clone();
-        move |_| {
-            editor.insert_heading(1);
-        }
-    });
-    markdown_toolbar.append(&h1_button);
+    // Create headings dropdown
+    let headings_list = StringList::new(&[
+        "H1",
+        "H2", 
+        "H3",
+        "H4",
+        "H5",
+        "H6",
+    ]);
     
-    let h2_button = Button::with_label("H2");
-    h2_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.heading2")));
-    h2_button.connect_clicked({
-        let editor = editor.clone();
-        move |_| {
-            editor.insert_heading(2);
-        }
-    });
-    markdown_toolbar.append(&h2_button);
+    let headings_dropdown = DropDown::new(Some(headings_list.upcast::<gtk4::gio::ListModel>()), None::<&gtk4::Expression>);
+    headings_dropdown.set_selected(0); // Default to "H1"
+    headings_dropdown.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.headings")));
     
-    let h3_button = Button::with_label("H3");
-    h3_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.heading3")));
-    h3_button.connect_clicked({
-        let editor = editor.clone();
-        move |_| {
-            editor.insert_heading(3);
-        }
-    });
-    markdown_toolbar.append(&h3_button);
+    markdown_toolbar.append(&headings_dropdown);
     
     // Separator
     let sep1 = Separator::new(Orientation::Vertical);
@@ -101,14 +85,38 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     // Store references to formatting buttons for state tracking
     let toolbar_buttons = Rc::new(RefCell::new(ToolbarButtons {
-        h1_button: h1_button.clone(),
-        h2_button: h2_button.clone(),
-        h3_button: h3_button.clone(),
+        headings_dropdown: headings_dropdown.clone(),
         bold_button: bold_button.clone(),
         italic_button: italic_button.clone(),
         code_button: code_button.clone(),
         strikethrough_button: strikethrough_button.clone(),
+        updating_dropdown: std::cell::RefCell::new(false),
     }));
+    
+    // Set up dropdown callback after toolbar_buttons is created
+    headings_dropdown.connect_selected_notify({
+        let editor = editor.clone();
+        let toolbar_buttons_clone = toolbar_buttons.clone();
+        move |dropdown| {
+            // Check if we're updating the dropdown programmatically to avoid infinite loops
+            if let Ok(toolbar_btns) = toolbar_buttons_clone.try_borrow() {
+                if *toolbar_btns.updating_dropdown.borrow() {
+                    return; // Skip if we're updating programmatically
+                }
+            }
+            
+            let selected = dropdown.selected();
+            match selected {
+                0 => editor.insert_heading(1), // H1
+                1 => editor.insert_heading(2), // H2
+                2 => editor.insert_heading(3), // H3
+                3 => editor.insert_heading(4), // H4
+                4 => editor.insert_heading(5), // H5
+                5 => editor.insert_heading(6), // H6
+                _ => {},
+            }
+        }
+    });
     
     // Connect cursor tracking for visual feedback
     setup_cursor_tracking(editor, toolbar_buttons.clone());
@@ -204,26 +212,22 @@ fn setup_cursor_tracking(editor: &editor::MarkdownEditor, toolbar_buttons: Rc<Re
 fn update_toolbar_states(editor: &editor::MarkdownEditor, toolbar_buttons: &Rc<RefCell<ToolbarButtons>>) {
     let buttons = toolbar_buttons.borrow();
     
-    // Check for heading level at cursor
+    // Set flag to indicate we're updating programmatically
+    *buttons.updating_dropdown.borrow_mut() = true;
+    
+    // Check for heading level at cursor and update dropdown
     if let Some(level) = editor.get_heading_level_at_cursor() {
-        // Clear all heading buttons first
-        buttons.h1_button.remove_css_class("active-format");
-        buttons.h2_button.remove_css_class("active-format");
-        buttons.h3_button.remove_css_class("active-format");
-        
-        // Activate the appropriate heading button
-        match level {
-            1 => buttons.h1_button.add_css_class("active-format"),
-            2 => buttons.h2_button.add_css_class("active-format"),
-            3 => buttons.h3_button.add_css_class("active-format"),
-            _ => {} // H4, H5, H6 not tracked in toolbar
+        // Set dropdown to the appropriate heading level (1-6 maps to indices 0-5)
+        if level >= 1 && level <= 6 {
+            buttons.headings_dropdown.set_selected((level - 1) as u32);
         }
     } else {
-        // No heading, clear all heading buttons
-        buttons.h1_button.remove_css_class("active-format");
-        buttons.h2_button.remove_css_class("active-format");
-        buttons.h3_button.remove_css_class("active-format");
+        // No heading, set dropdown to first item (H1, index 0)
+        buttons.headings_dropdown.set_selected(0);
     }
+    
+    // Clear the flag
+    *buttons.updating_dropdown.borrow_mut() = false;
     
     // Check each formatting type and update button appearance
     if editor.is_cursor_in_format("**", "**") || editor.is_cursor_in_format("__", "__") {

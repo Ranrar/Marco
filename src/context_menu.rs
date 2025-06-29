@@ -35,42 +35,52 @@ impl ContextMenu {
         }
     }
     
-    /// Adds CSS styling to improve submenu hover behavior
+    /// Adds CSS styling to improve submenu hover behavior and fix separators
     fn add_hover_styling() {
         let css_provider = gtk4::CssProvider::new();
         css_provider.load_from_data(
             "
             /* Context menu styling with enhanced hover behavior */
-            .popover.menu button.model {
+            popover.menu button.model {
                 padding: 8px 16px;
                 margin: 1px;
                 border-radius: 4px;
                 transition: background-color 0.1s ease;
             }
             
-            .popover.menu button.model:hover {
+            popover.menu button.model:hover {
                 background-color: alpha(@accent_color, 0.1);
                 transition: background-color 0.05s ease;
             }
             
-            .popover.menu button.model:hover arrow {
+            popover.menu button.model:hover arrow {
                 opacity: 1.0;
             }
             
             /* Submenu arrow styling */
-            .popover.menu button.model arrow {
+            popover.menu button.model arrow {
                 opacity: 0.7;
                 transition: opacity 0.1s ease;
             }
             
             /* Make submenus appear faster on hover */
-            .popover.menu popover {
+            popover.menu popover {
                 animation-duration: 0.1s;
             }
             
             /* Highlight submenu items on hover */
-            .popover.menu popover button.model:hover {
+            popover.menu popover button.model:hover {
                 background-color: alpha(@accent_color, 0.15);
+            }
+            
+            /* Section separators should be thin lines */
+            popover.menu separator {
+                min-height: 1px;
+                background-color: alpha(@borders, 0.3);
+                margin: 4px 8px;
+                border: none;
+                padding: 0;
+                opacity: 1;
             }
             "
         );
@@ -86,22 +96,23 @@ impl ContextMenu {
     fn create_menu_model() -> gio::Menu {
         let menu_model = gio::Menu::new();
         
-        // Clipboard actions
-        menu_model.append(Some(&localization::tr("edit.copy")), Some("context.copy"));
-        menu_model.append(Some(&localization::tr("edit.cut")), Some("context.cut"));
-        menu_model.append(Some(&localization::tr("edit.paste")), Some("context.paste"));
+        // Create clipboard section
+        let clipboard_section = gio::Menu::new();
+        clipboard_section.append(Some(&localization::tr("menu.copy")), Some("context.copy"));
+        clipboard_section.append(Some(&localization::tr("menu.cut")), Some("context.cut"));
+        clipboard_section.append(Some(&localization::tr("menu.paste")), Some("context.paste"));
+        menu_model.append_section(None, &clipboard_section);
         
-        // Separator
-        menu_model.append(None, None);
+        // Create basic formatting section  
+        let formatting_section = gio::Menu::new();
+        formatting_section.append(Some(&localization::tr("insert.bold")), Some("context.bold"));
+        formatting_section.append(Some(&localization::tr("insert.italic")), Some("context.italic"));
+        formatting_section.append(Some(&localization::tr("insert.strikethrough")), Some("context.strikethrough"));
+        formatting_section.append(Some(&localization::tr("insert.inline_code")), Some("context.inline_code"));
+        menu_model.append_section(None, &formatting_section);
         
-        // Basic formatting - most commonly used items
-        menu_model.append(Some(&localization::tr("insert.bold")), Some("context.bold"));
-        menu_model.append(Some(&localization::tr("insert.italic")), Some("context.italic"));
-        menu_model.append(Some(&localization::tr("insert.strikethrough")), Some("context.strikethrough"));
-        menu_model.append(Some(&localization::tr("insert.inline_code")), Some("context.inline_code"));
-        
-        // Separator
-        menu_model.append(None, None);
+        // Create submenus section
+        let submenus_section = gio::Menu::new();
         
         // Headings submenu
         let headings_menu = gio::Menu::new();
@@ -111,31 +122,44 @@ impl ContextMenu {
         headings_menu.append(Some(&localization::tr("insert.heading4")), Some("context.heading4"));
         headings_menu.append(Some(&localization::tr("insert.heading5")), Some("context.heading5"));
         headings_menu.append(Some(&localization::tr("insert.heading6")), Some("context.heading6"));
-        menu_model.append_submenu(Some(&localization::tr("insert.headings")), &headings_menu);
+        submenus_section.append_submenu(Some(&localization::tr("insert.headings")), &headings_menu);
         
         // Lists submenu
         let lists_menu = gio::Menu::new();
         lists_menu.append(Some(&localization::tr("insert.unordered_list")), Some("context.bullet_list"));
         lists_menu.append(Some(&localization::tr("insert.ordered_list")), Some("context.numbered_list"));
         lists_menu.append(Some(&localization::tr("insert.blockquote")), Some("context.blockquote"));
-        menu_model.append_submenu(Some("Lists"), &lists_menu);
+        submenus_section.append_submenu(Some(&localization::tr("context.lists")), &lists_menu);
         
         // Advanced formatting submenu
         let advanced_menu = gio::Menu::new();
+        
+        // Basic advanced formatting
         advanced_menu.append(Some(&localization::tr("insert.highlight")), Some("context.highlight"));
         advanced_menu.append(Some(&localization::tr("insert.subscript")), Some("context.subscript"));
         advanced_menu.append(Some(&localization::tr("insert.superscript")), Some("context.superscript"));
-        advanced_menu.append(None, None); // Separator
+        
+        // Advanced text styling (from markdown hacks)
+        advanced_menu.append(Some(&localization::tr("advanced.underline")), Some("context.underline"));
+        advanced_menu.append(Some(&localization::tr("advanced.center_text")), Some("context.center_text"));
+        advanced_menu.append(Some(&localization::tr("advanced.colored_text")), Some("context.colored_text"));
+        
+        // Code blocks
         advanced_menu.append(Some(&localization::tr("insert.code_block")), Some("context.code_block"));
         advanced_menu.append(Some(&localization::tr("insert.fenced_code")), Some("context.fenced_code"));
-        menu_model.append_submenu(Some("Advanced"), &advanced_menu);
+        
+        // Comments and admonitions
+        advanced_menu.append(Some(&localization::tr("advanced.comment")), Some("context.comment"));
+        advanced_menu.append(Some(&localization::tr("advanced.admonition")), Some("context.admonition"));
+        
+        submenus_section.append_submenu(Some(&localization::tr("context.advanced")), &advanced_menu);
         
         // Task lists submenu
         let tasks_menu = gio::Menu::new();
         tasks_menu.append(Some(&localization::tr("insert.task_list_open")), Some("context.task_open"));
         tasks_menu.append(Some(&localization::tr("insert.task_list_closed")), Some("context.task_closed"));
         tasks_menu.append(Some(&localization::tr("insert.task_list_custom")), Some("context.task_list"));
-        menu_model.append_submenu(Some("Tasks"), &tasks_menu);
+        submenus_section.append_submenu(Some(&localization::tr("context.tasks")), &tasks_menu);
         
         // Insert submenu
         let insert_menu = gio::Menu::new();
@@ -145,13 +169,15 @@ impl ContextMenu {
         insert_menu.append(Some(&localization::tr("insert.horizontal_rule")), Some("context.horizontal_rule"));
         insert_menu.append(Some(&localization::tr("insert.footnote")), Some("context.footnote"));
         insert_menu.append(Some(&localization::tr("insert.emoji")), Some("context.emoji"));
-        menu_model.append_submenu(Some("Insert"), &insert_menu);
+        submenus_section.append_submenu(Some(&localization::tr("context.insert")), &insert_menu);
         
         // Definition lists submenu
         let definition_menu = gio::Menu::new();
         definition_menu.append(Some(&localization::tr("insert.definition_list_single")), Some("context.definition_single"));
         definition_menu.append(Some(&localization::tr("insert.definition_list_custom")), Some("context.definition_list"));
-        menu_model.append_submenu(Some("Definitions"), &definition_menu);
+        submenus_section.append_submenu(Some(&localization::tr("context.definitions")), &definition_menu);
+        
+        menu_model.append_section(None, &submenus_section);
         
         menu_model
     }
@@ -351,83 +377,39 @@ impl ContextMenu {
             }
         });
         
-        // Task actions
-        add_action!("task_open", {
+        // Advanced markdown hack actions
+        add_action!("underline", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                editor.insert_single_open_task();
+                crate::menu::show_underline_dialog(&editor);
             }
         });
         
-        add_action!("task_closed", {
+        add_action!("center_text", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                editor.insert_single_closed_task();
+                crate::menu::show_center_text_dialog(&editor);
             }
         });
         
-        add_action!("task_list", {
+        add_action!("colored_text", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                editor.insert_task_list();
+                crate::menu::show_colored_text_dialog(&editor);
             }
         });
         
-        // Insert actions
-        add_action!("link", {
+        add_action!("comment", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                editor.insert_link();
+                crate::menu::show_comment_dialog(&editor);
             }
         });
         
-        add_action!("image", {
+        add_action!("admonition", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                editor.insert_image();
-            }
-        });
-        
-        add_action!("table", {
-            let editor = editor.clone();
-            move |_group, _action, _param| {
-                editor.insert_table();
-            }
-        });
-        
-        add_action!("horizontal_rule", {
-            let editor = editor.clone();
-            move |_group, _action, _param| {
-                editor.insert_horizontal_rule();
-            }
-        });
-        
-        add_action!("footnote", {
-            let editor = editor.clone();
-            move |_group, _action, _param| {
-                editor.insert_footnote();
-            }
-        });
-        
-        add_action!("emoji", {
-            let editor = editor.clone();
-            move |_group, _action, _param| {
-                crate::emoji::show_emoji_picker_dialog(&editor);
-            }
-        });
-        
-        // Definition list actions
-        add_action!("definition_single", {
-            let editor = editor.clone();
-            move |_group, _action, _param| {
-                editor.insert_single_definition();
-            }
-        });
-        
-        add_action!("definition_list", {
-            let editor = editor.clone();
-            move |_group, _action, _param| {
-                editor.insert_definition_list();
+                crate::menu::show_admonition_dialog(&editor);
             }
         });
         

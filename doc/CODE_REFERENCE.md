@@ -9,10 +9,10 @@
 | Python     | `py`, `python3`     | `.py`     | 🔵 Blue      |
 | Java       | `java`              | `.java`   | 🟠 Orange    |
 | TypeScript | `ts`                | `.ts`     | 🔵 Blue      |
-| C#         | `cs`, `csharp`      | `.cs`     | 🟢 Green     |
+| C#         | `cs`, `csharp`, `c#`| `.cs`     | 🟢 Green     |
+| PHP        | `php`               | `.php`    | � Purple    |
 | C++        | `cpp`, `c++`, `cxx` | `.cpp`    | 🔵 Blue      |
 | C          | `c`                 | `.c`      | ⚪ Gray      |
-| PHP        | `php`               | `.php`    | 🟣 Purple    |
 | Go         | `golang`            | `.go`     | 🔵 Cyan      |
 | Rust       | `rs`                | `.rs`     | 🔴 Red       |
 

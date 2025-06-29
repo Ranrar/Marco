@@ -115,6 +115,154 @@ impl ThemeManager {
             Theme::System => "light-theme", // fallback
         }
     }
+
+    /// Generate CSS that forces the theme regardless of system preference
+    pub fn get_theme_override_css(&self) -> String {
+        match self.get_effective_theme() {
+            Theme::Dark => {
+                // Force dark mode by overriding CSS custom properties
+                r#"
+/* Force dark theme override */
+:root {
+    color-scheme: dark !important;
+}
+
+/* Override all CSS custom properties to force dark mode */
+:root, 
+:root:not([data-theme]),
+:root[data-theme="auto"] {
+    --bg-color: #1a1a1a !important;
+    --text-color: #e0e0e0 !important;
+    --heading-color: #f0f0f0 !important;
+    --quote-color: #a0a0a0 !important;
+    --quote-border: #666 !important;
+    --code-bg: #2d2d2d !important;
+    --pre-bg: #222 !important;
+    --pre-border: #444 !important;
+    --table-border: #555 !important;
+    --table-header-bg: #333 !important;
+    --hr-color: #666 !important;
+    --link-color: #66b3ff !important;
+    --link-hover: #99ccff !important;
+    --admonition-bg: #2a2a2a !important;
+    --admonition-border: #666 !important;
+    
+    /* Academic theme specific overrides */
+    --text-secondary: #8b949e !important;
+    --text-muted: #6e7681 !important;
+    --bg-secondary: #161b22 !important;
+    --bg-code: #161b22 !important;
+    --bg-pre: #161b22 !important;
+    --border-color: #30363d !important;
+    --border-light: #21262d !important;
+    --border-strong: #6e7681 !important;
+    --blockquote-border: #30363d !important;
+    --blockquote-text: #8b949e !important;
+    --blockquote-bg: rgba(110, 118, 129, 0.1) !important;
+    --table-stripe-bg: rgba(110, 118, 129, 0.1) !important;
+    --mark-bg: #ffd33d !important;
+    --mark-color: #24292f !important;
+    --strong-color: #f0f6fc !important;
+    --heading-accent: #555 !important;
+    --h2-border: #555 !important;
+    --h6-color: #aaa !important;
+    --img-border: #555 !important;
+    --caption-color: #aaa !important;
+    --hr-bg: #1a1a1a !important;
+    --footnote-color: #aaa !important;
+    --footnote-border: #555 !important;
+    --note-bg: #1a2a3a !important;
+    --tip-bg: #1a3a2a !important;
+    --important-bg: #3a2a1a !important;
+    --warning-bg: #3a3a1a !important;
+    --caution-bg: #3a1a1a !important;
+}
+
+/* Ensure all elements use dark colors */
+body { 
+    background-color: var(--bg-color) !important; 
+    color: var(--text-color) !important; 
+}
+h1, h2, h3, h4, h5, h6 { 
+    color: var(--heading-color) !important; 
+}
+"#.to_string()
+            }
+            Theme::Light => {
+                // Force light mode by overriding CSS custom properties
+                r#"
+/* Force light theme override */
+:root {
+    color-scheme: light !important;
+}
+
+/* Override all CSS custom properties to force light mode */
+:root,
+:root:not([data-theme]),
+:root[data-theme="auto"] {
+    --bg-color: #ffffff !important;
+    --text-color: #333333 !important;
+    --heading-color: #222222 !important;
+    --quote-color: #666666 !important;
+    --quote-border: #cccccc !important;
+    --code-bg: #f5f5f5 !important;
+    --pre-bg: #f8f8f8 !important;
+    --pre-border: #e5e5e5 !important;
+    --table-border: #dddddd !important;
+    --table-header-bg: #f9f9f9 !important;
+    --hr-color: #cccccc !important;
+    --link-color: #0066cc !important;
+    --link-hover: #0550ae !important;
+    --admonition-bg: #f9f9f9 !important;
+    --admonition-border: #cccccc !important;
+    
+    /* Academic theme specific overrides */
+    --text-secondary: #666 !important;
+    --text-muted: #999 !important;
+    --bg-secondary: #f6f8fa !important;
+    --bg-code: #f6f8fa !important;
+    --bg-pre: #f6f8fa !important;
+    --border-color: #d0d7de !important;
+    --border-light: #d1d9e0 !important;
+    --border-strong: #8c959f !important;
+    --blockquote-border: #d0d7de !important;
+    --blockquote-text: #656d76 !important;
+    --blockquote-bg: rgba(13, 17, 23, 0.05) !important;
+    --table-stripe-bg: rgba(175, 184, 193, 0.2) !important;
+    --mark-bg: #fff8c5 !important;
+    --mark-color: #24292f !important;
+    --strong-color: #1f2328 !important;
+    --heading-accent: #34495e !important;
+    --h2-border: #bdc3c7 !important;
+    --h6-color: #7f8c8d !important;
+    --img-border: #bdc3c7 !important;
+    --caption-color: #7f8c8d !important;
+    --hr-bg: #ffffff !important;
+    --footnote-color: #7f8c8d !important;
+    --footnote-border: #bdc3c7 !important;
+    --note-bg: #ebf3fd !important;
+    --tip-bg: #eafaf1 !important;
+    --important-bg: #fef5e7 !important;
+    --warning-bg: #fef9e7 !important;
+    --caution-bg: #fdedec !important;
+}
+
+/* Ensure all elements use light colors */
+body { 
+    background-color: var(--bg-color) !important; 
+    color: var(--text-color) !important; 
+}
+h1, h2, h3, h4, h5, h6 { 
+    color: var(--heading-color) !important; 
+}
+"#.to_string()
+            }
+            Theme::System => {
+                // No override, let system preference decide
+                String::new()
+            }
+        }
+    }
 }
 
 impl Clone for ThemeManager {

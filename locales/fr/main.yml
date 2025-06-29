@@ -18,6 +18,7 @@ fr:
     replace: "Rechercher et remplacer..."
     insert: "Insérer"
     format: "Format"
+    advanced: "Avancé"
     help: "Aide"
     view: "Affichage"
     language: "Langue"
@@ -49,7 +50,10 @@ fr:
     insert: "Insérer"
     cancel: "Annuler"
   toolbar:
+    headings:
+      none: "Normal"
     tooltip:
+      headings: "Sélectionner le Niveau de Titre"
       heading1: "Titre 1 (# texte)"
       heading2: "Titre 2 (## texte)"
       heading3: "Titre 3 (### texte)"
@@ -71,3 +75,34 @@ fr:
     characters: "Caractères : %{count}"
     position: "Ligne : %{line}, Col : %{col}"
     ready: "Prêt"
+  dialog:
+    unsaved_changes:
+      title: "Modifications non sauvegardées"
+      message: "Vous avez des modifications non sauvegardées. Voulez-vous sauvegarder avant de fermer ?"
+      save: "Sauvegarder"
+      discard: "Ne pas sauvegarder"
+      cancel: "Annuler"
+  context:
+    lists: "Listes"
+    advanced: "Avancé"
+    tasks: "Tâches"
+    insert: "Insérer"
+    definitions: "Définitions"
+  advanced:
+    # Advanced Markdown Hacks Menu Section
+    text_styling: "Style de Texte"
+    underline: "Souligner"
+    center_text: "Centrer le Texte"
+    colored_text: "Texte Coloré"
+    indent_text: "Indenter le Texte"
+    comments_admonitions: "Commentaires et Avertissements"
+    comment: "Commentaire"
+    admonition: "Avertissement"
+    enhanced_media: "Médias Améliorés"
+    image_with_size: "Image avec Taille"
+    image_with_caption: "Image avec Légende"
+    link_with_target: "Lien avec Cible"
+    youtube_video: "Vidéo YouTube"
+    symbols_structure: "Symboles et Structure"
+    html_entity: "Entité HTML"
+    table_of_contents: "Table des Matières"
