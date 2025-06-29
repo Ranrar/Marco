@@ -446,9 +446,24 @@ mod tests {
     fn test_escaping() {
         let parser = MarkdownParser::new();
         
-        let markdown = r"This is \*not italic\* and \**not bold\**.";
-        let html = parser.process_inline_formatting(markdown);
-        assert!(html.contains("*not italic*"));
-        assert!(html.contains("**not bold**"));
+        // Test escaping of italic markers
+        let markdown1 = r"This is \*not italic\*.";
+        let html1 = parser.process_inline_formatting(markdown1);
+        assert!(html1.contains("*not italic*"));
+        
+        // Test escaping of bold markers (both asterisks need to be escaped)
+        let markdown2 = r"This is \*\*not bold\*\*.";
+        let html2 = parser.process_inline_formatting(markdown2);
+        assert!(html2.contains("**not bold**"));
+        
+        // Test escaping of inline code
+        let markdown3 = r"This is \`not code\`.";
+        let html3 = parser.process_inline_formatting(markdown3);
+        assert!(html3.contains("`not code`"));
+        
+        // Test escaping of link brackets
+        let markdown4 = r"This is \[not a link\].";
+        let html4 = parser.process_inline_formatting(markdown4);
+        assert!(html4.contains("[not a link]"));
     }
 }
