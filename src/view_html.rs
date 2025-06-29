@@ -350,12 +350,26 @@ pre code {{
         *self.custom_css.borrow_mut() = css_content.to_string();
     }
     
-    /// Get current custom CSS
+    /// Get current custom CSS content
+    /// 
+    /// Returns the CSS content that was set via `set_custom_css()`, typically
+    /// containing theme-specific styles loaded from CSS files.
+    /// 
+    /// # Returns
+    /// The current custom CSS as a String, or empty string if none is set.
+    #[allow(dead_code)]
     pub fn get_custom_css(&self) -> String {
         self.custom_css.borrow().clone()
     }
 
-    /// Refresh the HTML view (useful when theme changes)
+    /// Refresh the HTML view with current content
+    /// 
+    /// Forces a re-render of the current HTML content, useful when theme changes
+    /// occur or when you need to ensure the view reflects the latest styles.
+    /// 
+    /// Note: For more comprehensive refreshing including markdown reprocessing,
+    /// consider using `refresh_with_current_content()` instead.
+    #[allow(dead_code)]
     pub fn refresh(&self) {
         let current_content = self.current_content.borrow().clone();
         if !current_content.is_empty() {

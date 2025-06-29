@@ -390,32 +390,6 @@ impl ExtraMarkdownSyntax {
             tag_table.insert(name.to_string(), tag);
         }
     }
-
-    /// Clear all extra syntax tags from buffer
-    pub fn clear_extra_tags(&self, buffer: &sourceview5::Buffer, tag_table: &HashMap<String, gtk4::TextTag>) {
-        let start_iter = buffer.start_iter();
-        let end_iter = buffer.end_iter();
-        
-        let extra_tags = [
-            "underline", "center", "comment", "admonition", "image_size", 
-            "link_target", "html_entity", "table_extension", "video_embed", "indent"
-        ];
-        
-        for tag_name in &extra_tags {
-            if let Some(tag) = tag_table.get(*tag_name) {
-                buffer.remove_tag(tag, &start_iter, &end_iter);
-            }
-        }
-        
-        // Also clear color tags
-        for tag_name in tag_table.keys() {
-            if tag_name.starts_with("color_") || tag_name.starts_with("font_color_") {
-                if let Some(tag) = tag_table.get(tag_name) {
-                    buffer.remove_tag(tag, &start_iter, &end_iter);
-                }
-            }
-        }
-    }
 }
 
 /// Helper functions for inserting extra markdown syntax

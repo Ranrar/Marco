@@ -10,6 +10,11 @@ pub enum Theme {
 }
 
 impl Theme {
+    /// Convert theme to string representation for settings/serialization
+    /// 
+    /// Used for converting theme enum values to strings for storage in 
+    /// configuration files and settings persistence.
+    #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             Theme::Light => "light",
@@ -18,6 +23,11 @@ impl Theme {
         }
     }
     
+    /// Convert string to Theme enum for loading from settings
+    /// 
+    /// Used for parsing theme strings from configuration files back
+    /// into Theme enum values. Defaults to System theme for unknown values.
+    #[allow(dead_code)]
     pub fn from_str(s: &str) -> Theme {
         match s {
             "dark" => Theme::Dark,
@@ -100,6 +110,15 @@ impl ThemeManager {
         }
     }
     
+    /// Register a callback for theme change notifications
+    /// 
+    /// Allows components to register functions that will be called whenever
+    /// the theme changes. Useful for updating UI elements that need to 
+    /// respond to theme switches.
+    /// 
+    /// # Arguments
+    /// * `callback` - Function to call when theme changes, receives the new effective theme
+    #[allow(dead_code)]
     pub fn add_theme_change_callback<F>(&self, callback: F)
     where
         F: Fn(Theme) + 'static,
@@ -107,7 +126,16 @@ impl ThemeManager {
         self.callbacks.borrow_mut().push(Box::new(callback));
     }
     
-    /// Get CSS class name for the current theme
+    /// Get CSS class name for the current effective theme
+    /// 
+    /// Returns appropriate CSS class names that can be applied to UI elements
+    /// for consistent theming. Useful for components that need to apply
+    /// theme-specific styling beyond the automatic theme detection.
+    /// 
+    /// # Returns
+    /// * "dark-theme" for dark mode
+    /// * "light-theme" for light mode or system fallback
+    #[allow(dead_code)]
     pub fn get_css_class(&self) -> &'static str {
         match self.get_effective_theme() {
             Theme::Dark => "dark-theme",

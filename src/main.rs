@@ -1,7 +1,7 @@
 mod editor;
 mod syntax_basic;
 mod syntax_extended;
-mod syntax_extra;
+mod syntax_advanced;
 mod code_languages;
 mod localization;
 mod menu;
@@ -85,7 +85,7 @@ fn setup_language_change_detection(
             menu::rebuild_menu_bar(&app_clone, &editor_clone, &theme_manager_clone);
             
             // Rebuild toolbar (we should add a similar function for toolbar)
-            rebuild_toolbar(&editor_clone);
+            rebuild_toolbar(&app_clone, &editor_clone);
             
             // Update footer with current values (preserve the numbers, update the format)
             let word_text = footer_labels_clone.word_count.text().to_string();
@@ -107,11 +107,8 @@ fn setup_language_change_detection(
 }
 
 /// Rebuild toolbar with new translations (similar to menu rebuilding)
-fn rebuild_toolbar(_editor: &editor::MarkdownEditor) {
-    // This would need to be implemented similar to rebuild_menu_bar
-    // For now, we'll just refresh the editor's toolbar
-    // TODO: Implement proper toolbar rebuilding
-    eprintln!("TODO: Implement toolbar rebuilding for language changes");
+fn rebuild_toolbar(app: &Application, editor: &editor::MarkdownEditor) {
+    toolbar::rebuild_toolbar_in_window(app, editor);
 }
 
 fn main() -> glib::ExitCode {
@@ -184,7 +181,7 @@ fn build_ui(app: &Application) {
     // Create main vertical box
     let main_box = Box::new(Orientation::Vertical, 0);
     
-    // Create and add menu bar
+    // Create and add menu bar (positioned between title and toolbar)
     let menu_bar = menu::create_menu_bar(app, &editor, &theme_manager);
     main_box.append(&menu_bar);
     

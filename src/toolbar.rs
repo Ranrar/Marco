@@ -254,3 +254,33 @@ fn update_toolbar_states(editor: &editor::MarkdownEditor, toolbar_buttons: &Rc<R
         buttons.strikethrough_button.remove_css_class("active-format");
     }
 }
+
+/// Rebuild toolbar with updated translations
+pub fn rebuild_toolbar_in_window(app: &gtk4::Application, editor: &editor::MarkdownEditor) {
+    if let Some(window) = app.active_window() {
+        // Find the main box (first child of window)
+        if let Some(main_box) = window.child().and_then(|child| child.downcast::<gtk4::Box>().ok()) {
+            // Find and remove existing toolbar (should be second child after menu bar)
+            let mut child = main_box.first_child();
+            let mut child_index = 0;
+            while let Some(widget) = child {
+                let next_child = widget.next_sibling();
+                if child_index == 1 { // Toolbar is the second child (index 1)
+                    // Check if this is actually a toolbar by looking for buttons
+                    if widget.is::<gtk4::Box>() {
+                        main_box.remove(&widget);
+                        break;
+                    }
+                }
+                child = next_child;
+                child_index += 1;
+            }
+            
+            // Create and insert new toolbar with updated translations
+            let (new_toolbar, _toolbar_buttons) = create_markdown_toolbar(editor);
+            
+            // Insert the new toolbar at position 1 (after menu bar)
+            main_box.insert_child_after(&new_toolbar, main_box.first_child().as_ref());
+        }
+    }
+}

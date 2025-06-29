@@ -12,7 +12,7 @@ use crate::view_code::MarkdownCodeView;
 use crate::view_html::MarkdownHtmlView;
 use crate::code_languages::CodeLanguageManager;
 use crate::context_menu::ContextMenu;
-use crate::syntax_extra::ExtraMarkdownSyntax;
+use crate::syntax_advanced::ExtraMarkdownSyntax;
 use std::collections::HashMap;
 
 #[derive(Clone)]
@@ -31,6 +31,7 @@ pub struct MarkdownEditor {
     extra_syntax: Rc<RefCell<ExtraMarkdownSyntax>>,
     tag_table: Rc<RefCell<HashMap<String, gtk4::TextTag>>>,
     current_css_theme: Rc<RefCell<String>>,
+    context_menu: Rc<RefCell<Option<ContextMenu>>>,
 }
 
 impl MarkdownEditor {
@@ -132,6 +133,7 @@ impl MarkdownEditor {
             extra_syntax,
             tag_table,
             current_css_theme: Rc::new(RefCell::new("standard".to_string())),
+            context_menu: Rc::new(RefCell::new(None)),
         };
 
         // Connect text change signal
@@ -144,6 +146,9 @@ impl MarkdownEditor {
         // Set up right-click context menu
         let context_menu = ContextMenu::new(&editor);
         context_menu.setup_gesture(&editor);
+        
+        // Store the context menu reference for keyboard access
+        *editor.context_menu.borrow_mut() = Some(context_menu);
 
         // Initialize with standard CSS theme
         editor.set_css_theme("standard");
@@ -1069,6 +1074,55 @@ impl MarkdownEditor {
             // Check for Ctrl modifier
             if state.contains(gdk::ModifierType::CONTROL_MASK) {
                 match keyval {
+                    gdk::Key::n => {
+                        // Ctrl+N for new - need to be handled by application action
+                        return glib::Propagation::Proceed;
+                    },
+                    gdk::Key::o => {
+                        // Ctrl+O for open - need to be handled by application action
+                        return glib::Propagation::Proceed;
+                    },
+                    gdk::Key::s => {
+                        // Ctrl+S for save (and Ctrl+Shift+S for save as) - need to be handled by application action
+                        return glib::Propagation::Proceed;
+                    },
+                    gdk::Key::q => {
+                        // Ctrl+Q for quit - need to be handled by application action
+                        return glib::Propagation::Proceed;
+                    },
+                    gdk::Key::z => {
+                        // Ctrl+Z for undo
+                        editor_clone.undo();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::y => {
+                        // Ctrl+Y for redo
+                        editor_clone.redo();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::x => {
+                        // Ctrl+X for cut
+                        editor_clone.cut();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::c => {
+                        // Ctrl+C for copy
+                        editor_clone.copy();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::v => {
+                        // Ctrl+V for paste
+                        editor_clone.paste();
+                        return glib::Propagation::Stop;
+                    },
+                    gdk::Key::f => {
+                        // Ctrl+F for find - need window context, will be handled by menu action
+                        return glib::Propagation::Proceed;
+                    },
+                    gdk::Key::h => {
+                        // Ctrl+H for replace - need window context, will be handled by menu action  
+                        return glib::Propagation::Proceed;
+                    },
                     gdk::Key::b => {
                         // Ctrl+B for bold
                         editor_clone.insert_bold();
@@ -1147,6 +1201,14 @@ impl MarkdownEditor {
                         },
                         _ => {}
                     }
+                }
+            }
+            
+            // Check for Shift+F10 (context menu at cursor)
+            if state.contains(gdk::ModifierType::SHIFT_MASK) && keyval == gdk::Key::F10 {
+                if let Some(ref context_menu) = *editor_clone.context_menu.borrow() {
+                    context_menu.show_at_cursor(&editor_clone);
+                    return glib::Propagation::Stop;
                 }
             }
             
@@ -1361,79 +1423,72 @@ impl MarkdownEditor {
     
     /// Insert underlined text
     pub fn insert_underline(&self, text: &str) {
-        crate::syntax_extra::insert_underline(self, text);
+        crate::syntax_advanced::insert_underline(self, text);
     }
 
     /// Insert centered text
     pub fn insert_center_text(&self, text: &str) {
-        crate::syntax_extra::insert_center_text(self, text);
+        crate::syntax_advanced::insert_center_text(self, text);
     }
 
     /// Insert colored text
     pub fn insert_colored_text(&self, text: &str, color: &str) {
-        crate::syntax_extra::insert_colored_text(self, text, color);
+        crate::syntax_advanced::insert_colored_text(self, text, color);
     }
 
     /// Insert a markdown comment
     pub fn insert_comment(&self, comment: &str) {
-        crate::syntax_extra::insert_comment(self, comment);
+        crate::syntax_advanced::insert_comment(self, comment);
     }
 
     /// Insert an admonition
     pub fn insert_admonition(&self, emoji: &str, adm_type: &str, text: &str) {
-        crate::syntax_extra::insert_admonition(self, emoji, adm_type, text);
+        crate::syntax_advanced::insert_admonition(self, emoji, adm_type, text);
     }
 
     /// Insert image with size
     pub fn insert_image_with_size(&self, src: &str, alt: &str, width: Option<&str>, height: Option<&str>) {
-        crate::syntax_extra::insert_image_with_size(self, src, alt, width, height);
+        crate::syntax_advanced::insert_image_with_size(self, src, alt, width, height);
     }
 
     /// Insert image with caption
     pub fn insert_image_with_caption(&self, src: &str, alt: &str, caption: &str) {
-        crate::syntax_extra::insert_image_with_caption(self, src, alt, caption);
+        crate::syntax_advanced::insert_image_with_caption(self, src, alt, caption);
     }
 
     /// Insert link with target
     pub fn insert_link_with_target(&self, url: &str, text: &str, target: &str) {
-        crate::syntax_extra::insert_link_with_target(self, url, text, target);
+        crate::syntax_advanced::insert_link_with_target(self, url, text, target);
     }
 
     /// Insert HTML entity
     pub fn insert_html_entity(&self, entity: &str) {
-        crate::syntax_extra::insert_html_entity(self, entity);
+        crate::syntax_advanced::insert_html_entity(self, entity);
     }
 
     /// Insert table of contents
     pub fn insert_table_of_contents(&self) {
-        crate::syntax_extra::insert_table_of_contents(self);
+        crate::syntax_advanced::insert_table_of_contents(self);
     }
 
     /// Insert YouTube video embed
     pub fn insert_youtube_video(&self, video_id: &str, alt_text: &str) {
-        crate::syntax_extra::insert_youtube_video(self, video_id, alt_text);
+        crate::syntax_advanced::insert_youtube_video(self, video_id, alt_text);
     }
 
     /// Insert indented text
     pub fn insert_indented_text(&self, text: &str, indent_level: usize) {
-        crate::syntax_extra::insert_indented_text(self, text, indent_level);
+        crate::syntax_advanced::insert_indented_text(self, text, indent_level);
     }
 
     /// Get common HTML entities for UI
     pub fn get_common_html_entities() -> Vec<(&'static str, &'static str, &'static str)> {
-        crate::syntax_extra::get_common_html_entities()
+        crate::syntax_advanced::get_common_html_entities()
     }
 
     /// Get common admonition types for UI
     pub fn get_common_admonitions() -> Vec<(&'static str, &'static str, &'static str)> {
-        crate::syntax_extra::get_common_admonitions()
-    }
-
-    /// Clear extra syntax tags from buffer
-    pub fn clear_extra_syntax_tags(&self) {
-        let extra_syntax_ref = self.extra_syntax.borrow();
-        let tag_table_ref = self.tag_table.borrow();
-        extra_syntax_ref.clear_extra_tags(&self.source_buffer, &tag_table_ref);
+        crate::syntax_advanced::get_common_admonitions()
     }
 
     /// Set the CSS theme for the preview
@@ -1500,5 +1555,342 @@ impl MarkdownEditor {
         // Sort themes alphabetically by display name
         themes.sort_by(|a, b| a.1.cmp(&b.1));
         themes
+    }
+
+    /// Undo the last action in the buffer
+    pub fn undo(&self) {
+        if self.source_buffer.can_undo() {
+            self.source_buffer.undo();
+        }
+    }
+
+    /// Redo the last undone action in the buffer
+    pub fn redo(&self) {
+        if self.source_buffer.can_redo() {
+            self.source_buffer.redo();
+        }
+    }
+
+    /// Cut selected text to clipboard
+    pub fn cut(&self) {
+        if let Some(display) = gdk::Display::default() {
+            let clipboard = display.clipboard();
+            self.source_buffer.cut_clipboard(&clipboard, true);
+        }
+    }
+
+    /// Copy selected text to clipboard
+    pub fn copy(&self) {
+        if let Some(display) = gdk::Display::default() {
+            let clipboard = display.clipboard();
+            self.source_buffer.copy_clipboard(&clipboard);
+        }
+    }
+
+    /// Paste text from clipboard
+    pub fn paste(&self) {
+        if let Some(display) = gdk::Display::default() {
+            let clipboard = display.clipboard();
+            self.source_buffer.paste_clipboard(&clipboard, None, true);
+        }
+    }
+
+    /// Show find dialog
+    pub fn show_find_dialog(&self, window: &gtk4::Window) {
+        let dialog = Dialog::builder()
+            .title("Find")
+            .transient_for(window)
+            .modal(true)
+            .build();
+
+        let content_area = dialog.content_area();
+        let grid = Grid::new();
+        grid.set_margin_top(12);
+        grid.set_margin_bottom(12);
+        grid.set_margin_start(12);
+        grid.set_margin_end(12);
+        grid.set_row_spacing(6);
+        grid.set_column_spacing(6);
+
+        let find_label = Label::new(Some("Find:"));
+        let find_entry = Entry::new();
+        find_entry.set_hexpand(true);
+        
+        // Add case-sensitive checkbox
+        let case_sensitive_check = gtk4::CheckButton::builder()
+            .label("Case sensitive")
+            .build();
+
+        grid.attach(&find_label, 0, 0, 1, 1);
+        grid.attach(&find_entry, 1, 0, 1, 1);
+        grid.attach(&case_sensitive_check, 1, 1, 1, 1);
+
+        content_area.append(&grid);
+
+        dialog.add_button("Cancel", ResponseType::Cancel);
+        let find_next_button = dialog.add_button("Find Next", ResponseType::Ok);
+        find_next_button.set_css_classes(&["suggested-action"]);
+
+        let source_buffer = self.source_buffer.clone();
+        let source_view = self.source_view.clone();
+        
+        // Set focus to the entry
+        find_entry.grab_focus();
+        
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Ok {
+                let entry = dialog
+                    .content_area()
+                    .first_child()
+                    .and_then(|grid| grid.downcast::<Grid>().ok())
+                    .and_then(|grid| grid.child_at(1, 0))
+                    .and_then(|entry| entry.downcast::<Entry>().ok());
+
+                let case_check = dialog
+                    .content_area()
+                    .first_child()
+                    .and_then(|grid| grid.downcast::<Grid>().ok())
+                    .and_then(|grid| grid.child_at(1, 1))
+                    .and_then(|check| check.downcast::<gtk4::CheckButton>().ok());
+
+                if let (Some(entry), Some(case_check)) = (entry, case_check) {
+                    let search_text = entry.text();
+                    if !search_text.is_empty() {
+                        // Perform search from cursor position
+                        let cursor_mark = source_buffer.get_insert();
+                        let cursor_iter = source_buffer.iter_at_mark(&cursor_mark);
+                        let end_iter = source_buffer.end_iter();
+                        let text = source_buffer.text(&cursor_iter, &end_iter, false);
+                        let text_str = text.as_str();
+                        let search_str = search_text.as_str();
+                        
+                        let found_pos = if case_check.is_active() {
+                            text_str.find(search_str)
+                        } else {
+                            text_str.to_lowercase().find(&search_str.to_lowercase())
+                        };
+                        
+                        if let Some(pos) = found_pos {
+                            let mut search_start = cursor_iter;
+                            search_start.forward_chars(pos as i32);
+                            let mut search_end = search_start;
+                            search_end.forward_chars(search_str.len() as i32);
+                            source_buffer.select_range(&search_start, &search_end);
+                            
+                            // Scroll to the found text
+                            let mut scroll_iter = search_start;
+                            source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
+                        } else {
+                            // Not found from cursor, search from beginning
+                            let (start, _) = source_buffer.bounds();
+                            let text = source_buffer.text(&start, &cursor_iter, false);
+                            let text_str = text.as_str();
+                            
+                            let found_pos = if case_check.is_active() {
+                                text_str.find(search_str)
+                            } else {
+                                text_str.to_lowercase().find(&search_str.to_lowercase())
+                            };
+                            
+                            if let Some(pos) = found_pos {
+                                let mut search_start = start;
+                                search_start.forward_chars(pos as i32);
+                                let mut search_end = search_start;
+                                search_end.forward_chars(search_str.len() as i32);
+                                source_buffer.select_range(&search_start, &search_end);
+                                let mut scroll_iter = search_start;
+                                source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
+                            }
+                        }
+                    }
+                }
+            } else {
+                dialog.close();
+            }
+        });
+
+        dialog.present();
+    }
+
+    /// Show find and replace dialog
+    pub fn show_replace_dialog(&self, window: &gtk4::Window) {
+        let dialog = Dialog::builder()
+            .title("Find and Replace")
+            .transient_for(window)
+            .modal(true)
+            .build();
+
+        let content_area = dialog.content_area();
+        let grid = Grid::new();
+        grid.set_margin_top(12);
+        grid.set_margin_bottom(12);
+        grid.set_margin_start(12);
+        grid.set_margin_end(12);
+        grid.set_row_spacing(6);
+        grid.set_column_spacing(6);
+
+        let find_label = Label::new(Some("Find:"));
+        let find_entry = Entry::new();
+        find_entry.set_hexpand(true);
+
+        let replace_label = Label::new(Some("Replace:"));
+        let replace_entry = Entry::new();
+        replace_entry.set_hexpand(true);
+        
+        // Add case-sensitive checkbox
+        let case_sensitive_check = gtk4::CheckButton::builder()
+            .label("Case sensitive")
+            .build();
+
+        grid.attach(&find_label, 0, 0, 1, 1);
+        grid.attach(&find_entry, 1, 0, 1, 1);
+        grid.attach(&replace_label, 0, 1, 1, 1);
+        grid.attach(&replace_entry, 1, 1, 1, 1);
+        grid.attach(&case_sensitive_check, 1, 2, 1, 1);
+
+        content_area.append(&grid);
+
+        dialog.add_button("Cancel", ResponseType::Cancel);
+        dialog.add_button("Replace All", ResponseType::Apply);
+        let replace_button = dialog.add_button("Replace", ResponseType::Ok);
+        replace_button.set_css_classes(&["suggested-action"]);
+
+        // Set focus to the find entry
+        find_entry.grab_focus();
+
+        let source_buffer = self.source_buffer.clone();
+        let source_view = self.source_view.clone();
+        
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Ok || response == ResponseType::Apply {
+                let content_area = dialog.content_area();
+                let grid = content_area
+                    .first_child()
+                    .and_then(|grid| grid.downcast::<Grid>().ok());
+
+                if let Some(grid) = grid {
+                    let find_entry = grid.child_at(1, 0)
+                        .and_then(|entry| entry.downcast::<Entry>().ok());
+                    let replace_entry = grid.child_at(1, 1)
+                        .and_then(|entry| entry.downcast::<Entry>().ok());
+                    let case_check = grid.child_at(1, 2)
+                        .and_then(|check| check.downcast::<gtk4::CheckButton>().ok());
+
+                    if let (Some(find_entry), Some(replace_entry), Some(case_check)) = (find_entry, replace_entry, case_check) {
+                        let find_text = find_entry.text();
+                        let replace_text = replace_entry.text();
+
+                        if !find_text.is_empty() {
+                            let (start, end) = source_buffer.bounds();
+                            let text = source_buffer.text(&start, &end, false);
+                            let text_str = text.as_str();
+                            let find_str = find_text.as_str();
+                            let replace_str = replace_text.as_str();
+                            
+                            if response == ResponseType::Apply {
+                                // Replace all
+                                let new_text = if case_check.is_active() {
+                                    text_str.replace(find_str, replace_str)
+                                } else {
+                                    // Case-insensitive replace all (more complex)
+                                    let find_lower = find_str.to_lowercase();
+                                    let mut result = String::new();
+                                    let mut last_end = 0;
+                                    let text_lower = text_str.to_lowercase();
+                                    
+                                    for m in text_lower.match_indices(&find_lower) {
+                                        let start_pos = m.0;
+                                        result.push_str(&text_str[last_end..start_pos]);
+                                        result.push_str(replace_str);
+                                        last_end = start_pos + find_str.len();
+                                    }
+                                    result.push_str(&text_str[last_end..]);
+                                    result
+                                };
+                                source_buffer.set_text(&new_text);
+                            } else {
+                                // Replace next occurrence from current cursor position
+                                let cursor_mark = source_buffer.get_insert();
+                                let cursor_iter = source_buffer.iter_at_mark(&cursor_mark);
+                                let end_iter = source_buffer.end_iter();
+                                let text_from_cursor = source_buffer.text(&cursor_iter, &end_iter, false);
+                                let text_from_cursor_str = text_from_cursor.as_str();
+                                
+                                let found_pos = if case_check.is_active() {
+                                    text_from_cursor_str.find(find_str)
+                                } else {
+                                    text_from_cursor_str.to_lowercase().find(&find_str.to_lowercase())
+                                };
+                                
+                                if let Some(pos) = found_pos {
+                                    let mut search_start = cursor_iter;
+                                    search_start.forward_chars(pos as i32);
+                                    let mut search_end = search_start;
+                                    search_end.forward_chars(find_str.len() as i32);
+                                    source_buffer.delete(&mut search_start, &mut search_end);
+                                    source_buffer.insert(&mut search_start, replace_str);
+                                    
+                                    // Position cursor after replacement and scroll to it
+                                    let mut new_pos = search_start;
+                                    new_pos.forward_chars(replace_str.len() as i32);
+                                    source_buffer.place_cursor(&new_pos);
+                                    let mut scroll_iter = new_pos;
+                                    source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
+                                } else {
+                                    // Not found from cursor, search from beginning
+                                    let (start, _) = source_buffer.bounds();
+                                    let text_to_cursor = source_buffer.text(&start, &cursor_iter, false);
+                                    let text_to_cursor_str = text_to_cursor.as_str();
+                                    
+                                    let found_pos = if case_check.is_active() {
+                                        text_to_cursor_str.find(find_str)
+                                    } else {
+                                        text_to_cursor_str.to_lowercase().find(&find_str.to_lowercase())
+                                    };
+                                    
+                                    if let Some(pos) = found_pos {
+                                        let mut search_start = start;
+                                        search_start.forward_chars(pos as i32);
+                                        let mut search_end = search_start;
+                                        search_end.forward_chars(find_str.len() as i32);
+                                        source_buffer.delete(&mut search_start, &mut search_end);
+                                        source_buffer.insert(&mut search_start, replace_str);
+                                        
+                                        // Position cursor after replacement and scroll to it
+                                        let mut new_pos = search_start;
+                                        new_pos.forward_chars(replace_str.len() as i32);
+                                        source_buffer.place_cursor(&new_pos);
+                                        let mut scroll_iter = new_pos;
+                                        source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                dialog.close();
+            }
+        });
+
+        dialog.present();
+    }
+
+    /// Check if text is currently selected in the editor
+    pub fn has_text_selection(&self) -> bool {
+        let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+        gtk_buffer.has_selection()
+    }
+
+    /// Get selected text if any text is selected
+    pub fn get_selected_text(&self) -> Option<String> {
+        let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+        if gtk_buffer.has_selection() {
+            if let Some((start, end)) = gtk_buffer.selection_bounds() {
+                let selected_text = gtk_buffer.text(&start, &end, false);
+                return Some(selected_text.to_string());
+            }
+        }
+        None
     }
 }
