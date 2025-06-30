@@ -57,9 +57,6 @@ RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 RUN git clone --depth 1 https://github.com/WebKit/WebKit.git /webkitgtk
 WORKDIR /webkitgtk
 
-# Check ud ønsket version - fx den seneste stabile branch/tags:
-RUN git checkout 2.66.4
-
 # Build WebKitGTK med meson og ninja
 RUN python3 Tools/Scripts/update-webkitgtk-libs.py  # installer webkitgtk dependencies
 RUN meson build --prefix=/usr -Dgtk4=true -Dport=gtk -Dmini-gtk=true
