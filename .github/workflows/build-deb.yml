@@ -8,19 +8,15 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Add GNOME Nightly PPA for WebKitGTK
-        run: |
-          sudo add-apt-repository -y ppa:gnome-3-team/gnome-nightly
-          sudo apt update
-
       - name: Install dependencies including libwebkit2gtk-6.0-dev
         run: |
+          sudo apt update
           sudo apt install -y \
             libgtk-4-dev \
             libsoup-3.0-dev \
