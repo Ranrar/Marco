@@ -1,49 +1,36 @@
-name: Build Debian Package
+name: Build Marco
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  build-deb:
-    name: Build .deb on Ubuntu
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install system dependencies
+      - name: Update apt and search for webkit2gtk packages
         run: |
           sudo apt update
-          sudo apt install -y \
-            libgtk-4-dev \
-            libsoup-3.0-dev \
-            libjavascriptcoregtk-6.0-dev \
-            libwebkit2gtk-6.0-dev \
-            pkg-config \
-            libglib2.0-dev \
-            build-essential
+          echo "Searching for libwebkit2gtk packages:"
+          apt-cache search libwebkit2gtk
 
-      - name: Set up Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - name: Install dependencies with fallback for libwebkit2gtk
+        run: |
+          sudo apt update
+          sudo apt install -y libgtk-4-dev libsoup-3.0-dev libjavascriptcoregtk-6.0-dev pkg-config libglib2.0-dev build-essential || true
+          if ! sudo apt install -y libwebkit2gtk-6.0-dev; then
+            echo "libwebkit2gtk-6.0-dev ikke fundet, prøver fallback til 4.0..."
+            sudo apt install -y libwebkit2gtk-4.0-dev
+          fi
 
-      - name: Build release binary
+      - name: Verify pkg-config paths
+        run: pkg-config --modversion webkit2gtk-4.0 || pkg-config --modversion webkit2gtk-6.0
+
+      - name: Build Rust project (release)
         run: cargo build --release
-
-      - name: Install cargo-deb
-        run: cargo install cargo-deb
-
-      - name: Build .deb package
-        run: cargo deb --no-build
-
-      - name: Upload .deb artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: marco-deb
-          path: target/debian/*.deb
