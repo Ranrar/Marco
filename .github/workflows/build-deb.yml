@@ -22,10 +22,12 @@ jobs:
             libgtk-4-dev \
             libsoup-3.0-dev \
             libjavascriptcoregtk-6.0-dev \
+            libwebkit2gtk-6.0-dev \
             pkg-config \
-            libglib2.0-dev
+            libglib2.0-dev \
+            build-essential
 
-      - name: Set up Rust
+      - name: Set up Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
