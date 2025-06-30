@@ -8,15 +8,22 @@ on:
 
 jobs:
   build-deb:
+    name: Build .deb on Ubuntu
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install system dependencies
         run: |
           sudo apt update
-          sudo apt install -y libgtk-4-dev pkg-config
+          sudo apt install -y \
+            libgtk-4-dev \
+            libsoup-3.0-dev \
+            libjavascriptcoregtk-6.0-dev \
+            pkg-config \
+            libglib2.0-dev
 
       - name: Set up Rust
         uses: actions-rs/toolchain@v1
@@ -24,7 +31,7 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Build app (release)
+      - name: Build release binary
         run: cargo build --release
 
       - name: Install cargo-deb
