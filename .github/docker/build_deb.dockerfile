@@ -54,7 +54,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
 # Clone WebKitGTK 6.x (seneste stable tag, fx 2.60 eller 2.66, opdater efter behov)
-RUN git clone https://gitlab.gnome.org/GNOME/webkitgtk.git /webkitgtk
+RUN git clone --depth 1 https://github.com/WebKit/WebKit.git /webkitgtk
 WORKDIR /webkitgtk
 
 # Check ud ønsket version - fx den seneste stabile branch/tags:
