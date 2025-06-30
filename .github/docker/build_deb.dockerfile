@@ -22,8 +22,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsourceview5-dev \
     libjpeg-dev \
     libpng-dev \
-    libwoff1-dev \
-    libwoff2-dev \
     libharfbuzz-dev \
     libxslt1-dev \
     libicu-dev \
@@ -44,18 +42,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libegl1-mesa-dev \
     libgstreamer1.0-dev \
     libgstreamer-plugins-base1.0-dev \
-    libjpeg-dev \
-    libnotify-dev \
     libxtst-dev \
     libwayland-dev \
-    libwayland-egl-backend-dev \
-    libwebp-dev \
     libxml2-utils \
     python3 \
     python3-pip \
     python3-setuptools \
     python3-cffi \
-    && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/*
 
 # Installer Rust (stable)
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
