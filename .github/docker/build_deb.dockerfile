@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgtk-4-dev \
     libgdk-pixbuf-2.0-dev \
     libpango1.0-dev \
-    libsourceview5-dev \
     libjpeg-dev \
     libpng-dev \
     libharfbuzz-dev \
@@ -28,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libwebp-dev \
     libsecret-1-dev \
     libepoxy-dev \
-    libenchant-dev \
+    libenchant-2-dev \
     libcurl4-openssl-dev \
     libxml2-dev \
     libsqlite3-dev \
