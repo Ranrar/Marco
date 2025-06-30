@@ -15,7 +15,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f .github/docker/Dockerfile -t marco-builder .
+          docker build -f .github/docker/build_deb.dockerfile -t marco-builder .
 
       - name: Run build and collect .deb
         run: |
