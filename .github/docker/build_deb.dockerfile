@@ -1,63 +1,86 @@
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV LANG=C.UTF-8
+ENV LC_ALL=C.UTF-8
+ENV PATH=/root/.cargo/bin:$PATH
 
-# Installer byggeafhængigheder
-RUN apt-get update && apt-get install -y \
-  build-essential \
-  cmake \
-  ninja-build \
-  git \
-  python3 \
-  python3-pip \
-  perl \
-  pkg-config \
-  libgtk-4-dev \
-  libglib2.0-dev \
-  libgdk-pixbuf-2.0-dev \
-  libpango1.0-dev \
-  libsourceview5-dev \
-  ca-certificates \
-  curl \
-  xz-utils \
-  libegl1-mesa-dev \
-  libgles2-mesa-dev \
-  libjpeg-dev \
-  libxslt1-dev \
-  libwoff-dev \
-  libwebp-dev \
-  libharfbuzz-dev \
-  libwoff2-dev \
-  libopus-dev \
-  libsecret-1-dev \
-  libicu-dev \
-  libsqlite3-dev \
-  libxml2-utils \
-  librest-0.7-dev \
-  libjavascriptcoregtk-6.0-dev \
-  libxslt1-dev \
-  wget \
-  && rm -rf /var/lib/apt/lists/*
+# Installer dependencies til WebKitGTK og Rust build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    curl \
+    build-essential \
+    ninja-build \
+    meson \
+    pkg-config \
+    git \
+    ca-certificates \
+    libglib2.0-dev \
+    libgtk-4-dev \
+    libgdk-pixbuf-2.0-dev \
+    libpango1.0-dev \
+    libsourceview5-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libwoff1-dev \
+    libwoff2-dev \
+    libharfbuzz-dev \
+    libxslt1-dev \
+    libicu-dev \
+    libwebp-dev \
+    libsecret-1-dev \
+    libepoxy-dev \
+    libenchant-dev \
+    libcurl4-openssl-dev \
+    libxml2-dev \
+    libsqlite3-dev \
+    libxt-dev \
+    libnotify-dev \
+    libxcomposite-dev \
+    libxdamage-dev \
+    libxrandr-dev \
+    libatk1.0-dev \
+    libatk-bridge2.0-dev \
+    libegl1-mesa-dev \
+    libgstreamer1.0-dev \
+    libgstreamer-plugins-base1.0-dev \
+    libjpeg-dev \
+    libnotify-dev \
+    libxtst-dev \
+    libwayland-dev \
+    libwayland-egl-backend-dev \
+    libwebp-dev \
+    libxml2-utils \
+    python3 \
+    python3-pip \
+    python3-setuptools \
+    python3-cffi \
+    && rm -rf /var/lib/apt/lists/*
 
-# Installer meson og ninja via pip (nyeste versioner)
-RUN pip3 install meson ninja
+# Installer Rust (stable)
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 
-# Download WebKitGTK 6.0 kildekode (justér version efter behov)
-RUN git clone --branch 6.0.7 https://gitlab.gnome.org/GNOME/webkit.git /webkit
+# Clone WebKitGTK 6.x (seneste stable tag, fx 2.60 eller 2.66, opdater efter behov)
+RUN git clone https://gitlab.gnome.org/GNOME/webkitgtk.git /webkitgtk
+WORKDIR /webkitgtk
 
-WORKDIR /webkit
+# Check ud ønsket version - fx den seneste stabile branch/tags:
+RUN git checkout 2.66.4
 
-# Konfigurer build (tilpas om nødvendigt)
-RUN meson _build --prefix=/usr/local --buildtype=release
+# Build WebKitGTK med meson og ninja
+RUN python3 Tools/Scripts/update-webkitgtk-libs.py  # installer webkitgtk dependencies
+RUN meson build --prefix=/usr -Dgtk4=true -Dport=gtk -Dmini-gtk=true
+RUN ninja -C build
+RUN ninja -C build install
 
-# Byg og installer
-RUN ninja -C _build
-RUN ninja -C _build install
+# Sæt library path
+ENV PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
+ENV LD_LIBRARY_PATH=/usr/lib
 
-# Ryd op i build filer for at spare plads (valgfrit)
-RUN rm -rf _build /webkit
+# Byg din Rust-app (kopiér kode ind i containeren)
+WORKDIR /app
+COPY . /app
 
-# Sæt environment variable hvis nødvendigt
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+RUN source $HOME/.cargo/env && cargo build --release
 
-# Herefter kan du bygge din Rust app baseret på dette image
+CMD ["./target/release/marco"]
