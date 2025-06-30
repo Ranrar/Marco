@@ -1,9 +1,8 @@
-name: Build and Package .deb
+name: Build and Package .deb with WebKitGTK 6
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
 
 jobs:
@@ -16,22 +15,18 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -f .github/docker/build_deb.dockerfile -t marco-builder .
+          docker build -f .github/docker/Dockerfile -t marco-builder .
 
-      - name: Build .deb in container
+      - name: Run build and collect .deb
         run: |
           docker run --rm \
-            -v "${{ github.workspace }}:/workspace" \
-            -w /workspace \
+            -v "${{ github.workspace }}:/app" \
+            -w /app \
             marco-builder \
-            bash -c "
-              source \$HOME/.cargo/env &&
-              cargo install cargo-deb &&
-              cargo deb
-            "
+            bash -lc "cp target/debian/*.deb /app"
 
       - name: Upload .deb artifact
         uses: actions/upload-artifact@v4
         with:
           name: marco-deb
-          path: target/debian/*.deb
+          path: "*.deb"
