@@ -24,6 +24,7 @@ pub use dialogs::{
     show_html_entity_dialog,
     show_shortcuts_dialog,
 };
+pub use format::create_table_dialog;
 
 pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) -> PopoverMenuBar {
     // Create the menu model

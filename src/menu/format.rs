@@ -256,7 +256,7 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
     app.add_action_entries(all_actions);
 }
 
-fn create_table_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {
+pub fn create_table_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {
     let dialog = Dialog::with_buttons(
         Some(&localization::tr("table_dialog.title")),
         Some(window),

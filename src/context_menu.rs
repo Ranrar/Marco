@@ -413,6 +413,93 @@ impl ContextMenu {
             }
         });
         
+        // Insert and table actions
+        add_action!("table", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::create_table_dialog(&window, &editor);
+                } else {
+                    // Fallback to simple table if no window found
+                    editor.insert_table();
+                }
+            }
+        });
+        
+        add_action!("link", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_link();
+            }
+        });
+        
+        add_action!("image", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_image();
+            }
+        });
+        
+        add_action!("horizontal_rule", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_horizontal_rule();
+            }
+        });
+        
+        add_action!("footnote", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_footnote();
+            }
+        });
+        
+        add_action!("emoji", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                crate::emoji::show_emoji_picker_dialog(&editor);
+            }
+        });
+        
+        // Task list actions
+        add_action!("task_open", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_single_open_task();
+            }
+        });
+        
+        add_action!("task_closed", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_single_closed_task();
+            }
+        });
+        
+        add_action!("task_list", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                crate::menu::show_task_list_custom_dialog(&editor);
+            }
+        });
+        
+        // Definition list actions
+        add_action!("definition_single", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                editor.insert_single_definition();
+            }
+        });
+        
+        add_action!("definition_list", {
+            let editor = editor.clone();
+            move |_group, _action, _param| {
+                crate::menu::show_definition_list_custom_dialog(&editor);
+            }
+        });
+        
         action_group
     }
     

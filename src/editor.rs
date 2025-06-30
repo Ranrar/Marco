@@ -298,19 +298,19 @@ impl MarkdownEditor {
     }
 
     pub fn insert_bold(&self) {
-        self.toggle_format_selection_only("**", "**");
+        self.toggle_format_selection_only_with_dialog("**", "**", "bold");
     }
 
     pub fn insert_italic(&self) {
-        self.toggle_format_selection_only("*", "*");
+        self.toggle_format_selection_only_with_dialog("*", "*", "italic");
     }
 
     pub fn insert_inline_code(&self) {
-        self.toggle_format_selection_only("`", "`");
+        self.toggle_format_selection_only_with_dialog("`", "`", "inline code");
     }
 
     pub fn insert_strikethrough(&self) {
-        self.toggle_format_selection_only("~~", "~~");
+        self.toggle_format_selection_only_with_dialog("~~", "~~", "strikethrough");
     }
 
     pub fn insert_bullet_list(&self) {
@@ -429,15 +429,15 @@ impl MarkdownEditor {
     }
 
     pub fn insert_highlight(&self) {
-        self.toggle_format_selection_only("==", "==");
+        self.toggle_format_selection_only_with_dialog("==", "==", "highlight");
     }
 
     pub fn insert_subscript(&self) {
-        self.toggle_format_selection_only("~", "~");
+        self.toggle_format_selection_only_with_dialog("~", "~", "subscript");
     }
 
     pub fn insert_superscript(&self) {
-        self.toggle_format_selection_only("^", "^");
+        self.toggle_format_selection_only_with_dialog("^", "^", "superscript");
     }
 
     #[allow(dead_code)]
@@ -660,6 +660,31 @@ impl MarkdownEditor {
         }
     }
 
+    /// Show a dialog notifying the user that text must be selected for the formatting function
+    fn show_text_selection_required_dialog(&self, parent: &gtk4::Window, feature_name: &str) {
+        use gtk4::MessageDialog;
+        
+        let title = "Text Selection Required";
+        let message = format!("Please select text in the editor before applying {} formatting.", feature_name);
+        
+        let dialog = MessageDialog::builder()
+            .transient_for(parent)
+            .modal(true)
+            .message_type(gtk4::MessageType::Info)
+            .text(title)
+            .secondary_text(&message)
+            .build();
+        
+        dialog.add_button("OK", gtk4::ResponseType::Ok);
+        dialog.set_default_response(gtk4::ResponseType::Ok);
+        
+        dialog.connect_response(|dialog, _| {
+            dialog.close();
+        });
+        
+        dialog.present();
+    }
+
     fn toggle_format_selection_only(&self, prefix: &str, suffix: &str) {
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
@@ -671,17 +696,24 @@ impl MarkdownEditor {
                 let selected_text = gtk_buffer.text(&start, &end, false);
                 let selected_str = selected_text.as_str();
                 
-                // Create the replacement text
-                let replacement_text = if selected_str.starts_with(prefix) && selected_str.ends_with(suffix) && selected_str.len() > prefix.len() + suffix.len() {
-                    // Remove formatting - extract inner text
-                    selected_str[prefix.len()..selected_str.len() - suffix.len()].to_string()
+                // Smart detection: check if this specific formatting is present
+                let (replacement_text, new_selection_length) = if self.has_specific_formatting(selected_str, prefix, suffix) {
+                    // Remove this specific formatting
+                    let inner_text = self.remove_specific_formatting(selected_str, prefix, suffix);
+                    let new_length = inner_text.len();
+                    (inner_text, new_length)
                 } else {
-                    // Add formatting - wrap the selected text
-                    format!("{}{}{}", prefix, selected_str, suffix)
+                    // Add this formatting
+                    let formatted_text = format!("{}{}{}", prefix, selected_str, suffix);
+                    let new_length = formatted_text.len();
+                    (formatted_text, new_length)
                 };
                 
                 // Use begin/end user action for atomic operation
                 buffer.begin_user_action();
+                
+                // Store the start position for re-selection
+                let start_offset = start.offset();
                 
                 // Get fresh bounds for the operation
                 if let Some((mut start_iter, mut end_iter)) = gtk_buffer.selection_bounds() {
@@ -692,12 +724,264 @@ impl MarkdownEditor {
                     let insert_mark = gtk_buffer.get_insert();
                     let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
                     buffer.insert(&mut insert_iter, &replacement_text);
+                    
+                    // Restore selection with the new text
+                    let new_start_iter = gtk_buffer.iter_at_offset(start_offset);
+                    let new_end_iter = gtk_buffer.iter_at_offset(start_offset + new_selection_length as i32);
+                    gtk_buffer.select_range(&new_start_iter, &new_end_iter);
                 }
                 
                 buffer.end_user_action();
             }
         }
-        // If no text is selected, do nothing
+        // If no text is selected, do nothing (for backward compatibility)
+    }
+    
+    fn toggle_format_selection_only_with_dialog(&self, prefix: &str, suffix: &str, feature_name: &str) {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        
+        // Only work if text is selected
+        if gtk_buffer.has_selection() {
+            // First, try to expand selection to include formatting if user selected inner text
+            let (start, end, selected_text) = if let Some((expanded_start, expanded_end, expanded_text)) = self.expand_selection_to_include_formatting() {
+                // User selected inner text, but we found surrounding formatting
+                gtk_buffer.select_range(&expanded_start, &expanded_end);
+                (expanded_start, expanded_end, expanded_text)
+            } else {
+                // Use original selection
+                let (start, end) = gtk_buffer.selection_bounds().unwrap();
+                let selected_text = gtk_buffer.text(&start, &end, false).to_string();
+                (start, end, selected_text)
+            };
+            
+            // Smart detection and formatting application
+            let (replacement_text, new_selection_length) = if self.has_specific_formatting(&selected_text, prefix, suffix) {
+                // Remove this specific formatting
+                let inner_text = self.remove_specific_formatting(&selected_text, prefix, suffix);
+                let new_length = inner_text.len();
+                (inner_text, new_length)
+            } else {
+                // Apply smart formatting (handles bold/italic combinations)
+                let formatted_text = self.apply_smart_formatting(&selected_text, prefix, suffix);
+                let new_length = formatted_text.len();
+                (formatted_text, new_length)
+            };
+            
+            // Use begin/end user action for atomic operation
+            buffer.begin_user_action();
+            
+            // Store the start position for re-selection
+            let start_offset = start.offset();
+            
+            // Get fresh bounds for the operation (use the potentially expanded selection)
+            let mut start_iter = gtk_buffer.iter_at_offset(start.offset());
+            let mut end_iter = gtk_buffer.iter_at_offset(end.offset());
+            
+            // Replace the selected text with the formatted/unformatted version
+            buffer.delete(&mut start_iter, &mut end_iter);
+            
+            // Get a fresh iterator at the insertion point
+            let insert_mark = gtk_buffer.get_insert();
+            let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
+            buffer.insert(&mut insert_iter, &replacement_text);
+            
+            // Restore selection with the new text
+            let new_start_iter = gtk_buffer.iter_at_offset(start_offset);
+            let new_end_iter = gtk_buffer.iter_at_offset(start_offset + new_selection_length as i32);
+            gtk_buffer.select_range(&new_start_iter, &new_end_iter);
+            
+            buffer.end_user_action();
+        } else {
+            // Show error dialog if no text is selected
+            if let Some(window) = self.source_view().root()
+                .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                self.show_text_selection_required_dialog(&window, feature_name);
+            }
+        }
+    }
+
+    /// Check if the text has this specific formatting (handles mixed formatting and overlapping patterns)
+    fn has_specific_formatting(&self, text: &str, prefix: &str, suffix: &str) -> bool {
+        // Special handling for combined bold+italic format (***text***)
+        if text.starts_with("***") && text.ends_with("***") && text.len() > 6 {
+            // This text has both bold and italic
+            if (prefix == "**" && suffix == "**") || (prefix == "*" && suffix == "*") {
+                return true; // Both bold and italic formatting are present
+            }
+        }
+        
+        // Method 1: Check if the text is exactly the format (e.g., "**bold**")
+        if text.starts_with(prefix) && text.ends_with(suffix) && text.len() > prefix.len() + suffix.len() {
+            // Special handling for bold vs italic conflict
+            if prefix == "*" && suffix == "*" {
+                // If we're checking for italic (*) but text starts with **, this is bold, not italic
+                if text.starts_with("**") {
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        // Method 2: Check if this specific formatting exists as the outermost layer
+        if text.len() > prefix.len() + suffix.len() {
+            let potential_start = &text[..prefix.len()];
+            let potential_end = &text[text.len() - suffix.len()..];
+            
+            if potential_start == prefix && potential_end == suffix {
+                // Special handling for bold vs italic conflict
+                if prefix == "*" && suffix == "*" {
+                    // If we're checking for italic (*) but text starts with **, this is bold, not italic
+                    if text.starts_with("**") {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        
+        false
+    }
+
+    /// Remove specific formatting while preserving other formatting (handles overlapping patterns)
+    fn remove_specific_formatting(&self, text: &str, prefix: &str, suffix: &str) -> String {
+        // Special handling for combined bold+italic format (***text***)
+        if text.starts_with("***") && text.ends_with("***") && text.len() > 6 {
+            let inner_text = &text[3..text.len() - 3];
+            if prefix == "**" && suffix == "**" {
+                // Removing bold from ***text*** leaves *text* (italic only)
+                return format!("*{}*", inner_text);
+            } else if prefix == "*" && suffix == "*" {
+                // Removing italic from ***text*** leaves **text** (bold only) 
+                return format!("**{}**", inner_text);
+            }
+        }
+        
+        // Method 1: Direct match - just strip the outer layer
+        if text.starts_with(prefix) && text.ends_with(suffix) && text.len() > prefix.len() + suffix.len() {
+            // Special handling for bold vs italic conflict
+            if prefix == "*" && suffix == "*" {
+                // If we're trying to remove italic (*) but text starts with **, this is bold, not italic
+                if text.starts_with("**") {
+                    return text.to_string(); // Don't remove, this isn't italic
+                }
+            }
+            return text[prefix.len()..text.len() - suffix.len()].to_string();
+        }
+        
+        // Method 2: Check for outermost layer removal
+        if text.len() > prefix.len() + suffix.len() {
+            let potential_start = &text[..prefix.len()];
+            let potential_end = &text[text.len() - suffix.len()..];
+            
+            if potential_start == prefix && potential_end == suffix {
+                // Special handling for bold vs italic conflict
+                if prefix == "*" && suffix == "*" {
+                    // If we're trying to remove italic (*) but text starts with **, this is bold, not italic
+                    if text.starts_with("**") {
+                        return text.to_string(); // Don't remove, this isn't italic
+                    }
+                }
+                return text[prefix.len()..text.len() - suffix.len()].to_string();
+            }
+        }
+        
+        // If we can't find the specific formatting, return as-is
+        text.to_string()
+    }
+
+    /// Expand selection to include formatting if user selected the inner text
+    fn expand_selection_to_include_formatting(&self) -> Option<(gtk4::TextIter, gtk4::TextIter, String)> {
+        let buffer = &self.source_buffer;
+        let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+        
+        if !gtk_buffer.has_selection() {
+            return None;
+        }
+        
+        let (start, end) = gtk_buffer.selection_bounds()?;
+        let selected_text = gtk_buffer.text(&start, &end, false).to_string();
+        
+        // Get some context around the selection to check for formatting
+        let mut expanded_start = start;
+        let mut expanded_end = end;
+        
+        // Look backward for potential formatting markers
+        for _ in 0..10 { // Look up to 10 characters back
+            if !expanded_start.backward_char() {
+                break;
+            }
+        }
+        
+        // Look forward for potential formatting markers  
+        for _ in 0..10 { // Look up to 10 characters forward
+            if !expanded_end.forward_char() {
+                break;
+            }
+        }
+        
+        let expanded_text = gtk_buffer.text(&expanded_start, &expanded_end, false).to_string();
+        
+        // Check for formatting patterns around the selection - ORDER MATTERS!
+        // Check longer patterns first to avoid substring conflicts
+        let formatting_patterns = [
+            ("**", "**"), // Bold (check before italic to avoid ** vs * conflict)
+            ("~~", "~~"), // Strikethrough  
+            ("==", "=="), // Highlight
+            ("`", "`"),   // Code
+            ("*", "*"),   // Italic (check after bold)
+            ("~", "~"),   // Subscript
+            ("^", "^"),   // Superscript
+        ];
+        
+        // SPECIAL CASE: Check for combined bold+italic format (***text***) FIRST
+        if let Some(selection_pos) = expanded_text.find(&selected_text) {
+            let before_selection = &expanded_text[..selection_pos];
+            let after_selection = &expanded_text[selection_pos + selected_text.len()..];
+            
+            if before_selection.ends_with("***") && after_selection.starts_with("***") {
+                // This is combined format, expand to include all three asterisks on each side
+                let format_start_pos = selection_pos - 3;
+                let format_end_pos = selection_pos + selected_text.len() + 3;
+                
+                let new_start = gtk_buffer.iter_at_offset(expanded_start.offset() + format_start_pos as i32);
+                let new_end = gtk_buffer.iter_at_offset(expanded_start.offset() + format_end_pos as i32);
+                let formatted_text = gtk_buffer.text(&new_start, &new_end, false).to_string();
+                
+                return Some((new_start, new_end, formatted_text));
+            }
+        }
+        
+        for (prefix, suffix) in &formatting_patterns {
+            // Find where our original selection fits in the expanded text
+            if let Some(selection_pos) = expanded_text.find(&selected_text) {
+                let before_selection = &expanded_text[..selection_pos];
+                let after_selection = &expanded_text[selection_pos + selected_text.len()..];
+                
+                // Check if selection is surrounded by this formatting
+                if before_selection.ends_with(prefix) && after_selection.starts_with(suffix) {
+                    // For overlapping patterns like ** and *, make sure we don't have a longer pattern
+                    if *prefix == "*" && *suffix == "*" {
+                        // Check if this is actually bold formatting (**)
+                        if before_selection.ends_with("**") && after_selection.starts_with("*") {
+                            continue; // Skip, this is actually bold formatting
+                        }
+                    }
+                    
+                    // Calculate the new bounds that include the formatting
+                    let format_start_pos = selection_pos - prefix.len();
+                    let format_end_pos = selection_pos + selected_text.len() + suffix.len();
+                    
+                    let new_start = gtk_buffer.iter_at_offset(expanded_start.offset() + format_start_pos as i32);
+                    let new_end = gtk_buffer.iter_at_offset(expanded_start.offset() + format_end_pos as i32);
+                    let formatted_text = gtk_buffer.text(&new_start, &new_end, false).to_string();
+                    
+                    return Some((new_start, new_end, formatted_text));
+                }
+            }
+        }
+        
+        None
     }
 
     /// Check if cursor is within a specific formatting pattern
@@ -1167,7 +1451,7 @@ impl MarkdownEditor {
                         // Ctrl+5 for heading 5
                         editor_clone.insert_heading(5);
                         return glib::Propagation::Stop;
-                    },
+                    }
                     gdk::Key::_6 => {
                         // Ctrl+6 for heading 6
                         editor_clone.insert_heading(6);
@@ -1876,21 +2160,105 @@ impl MarkdownEditor {
         dialog.present();
     }
 
-    /// Check if text is currently selected in the editor
+    /// Detect existing formatting on text to handle mixed formatting correctly
+    fn detect_existing_formatting(&self, text: &str) -> Vec<(&'static str, &'static str)> {
+        let mut found_formats = Vec::new();
+        
+        // Check for formatting patterns - order matters for overlapping patterns
+        // We check longer patterns first to avoid false positives
+        let patterns = [
+            ("**", "**", "bold"),
+            ("~~", "~~", "strikethrough"),
+            ("==", "==", "highlight"),
+            ("`", "`", "code"),
+            ("*", "*", "italic"),
+            ("~", "~", "subscript"),
+            ("^", "^", "superscript"),
+        ];
+        
+        for (prefix, suffix, _name) in &patterns {
+            // Use the same logic as has_specific_formatting to be consistent
+            if self.has_specific_formatting(text, prefix, suffix) {
+                found_formats.push((*prefix, *suffix));
+            }
+        }
+        
+        found_formats
+    }
+    
+    /// Smart formatting application that handles mixed formatting
+    fn apply_smart_formatting(&self, text: &str, target_prefix: &str, target_suffix: &str) -> String {
+        // Check if we already have this specific formatting - if so, this should be removal, not addition
+        if self.has_specific_formatting(text, target_prefix, target_suffix) {
+            // This should not happen - if we have the formatting, remove_specific_formatting should be called
+            // But as a safety net, remove it here
+            return self.remove_specific_formatting(text, target_prefix, target_suffix);
+        }
+        
+        // Special handling for bold + italic combination
+        if (target_prefix == "*" && self.has_specific_formatting(text, "**", "**")) ||
+           (target_prefix == "**" && self.has_specific_formatting(text, "*", "*")) {
+            // Only apply combined formatting if we don't already have both
+            // Check if we already have the combined format
+            if text.starts_with("***") && text.ends_with("***") && text.len() > 6 {
+                // We already have combined format, this should not happen here
+                // Return as-is to avoid malformed formatting
+                return text.to_string();
+            }
+            
+            // Remove the existing formatting and apply combined bold+italic
+            let inner_text = if self.has_specific_formatting(text, "**", "**") {
+                self.remove_specific_formatting(text, "**", "**")
+            } else {
+                self.remove_specific_formatting(text, "*", "*")
+            };
+            return format!("***{}***", inner_text);
+        }
+        
+        // Detect existing formatting
+        let existing_formats = self.detect_existing_formatting(text);
+        
+        if existing_formats.is_empty() {
+            // No existing formatting, just add the new one
+            format!("{}{}{}", target_prefix, text, target_suffix)
+        } else {
+            // For other combinations, use the layered approach
+            // Remove all existing formatting first, then reapply with the new one
+            let mut inner_text = text.to_string();
+            
+            // Remove existing formatting from outside to inside
+            for (prefix, suffix) in &existing_formats {
+                if inner_text.starts_with(prefix) && inner_text.ends_with(suffix) {
+                    inner_text = inner_text[prefix.len()..inner_text.len() - suffix.len()].to_string();
+                }
+            }
+            
+            // Now build the new formatting with the target at the outermost layer
+            let mut result = inner_text;
+            
+            // Apply existing formats from innermost to outermost (reverse order)
+            for (prefix, suffix) in existing_formats.iter().rev() {
+                result = format!("{}{}{}", prefix, result, suffix);
+            }
+            
+            // Apply the new target formatting as the outermost layer
+            format!("{}{}{}", target_prefix, result, target_suffix)
+        }
+    }
+
+    /// Get the currently selected text, if any
+    pub fn get_selected_text(&self) -> Option<String> {
+        let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+        if let Some((start, end)) = gtk_buffer.selection_bounds() {
+            Some(gtk_buffer.text(&start, &end, false).to_string())
+        } else {
+            None
+        }
+    }
+
+    /// Check if there is text currently selected in the editor
     pub fn has_text_selection(&self) -> bool {
         let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
         gtk_buffer.has_selection()
-    }
-
-    /// Get selected text if any text is selected
-    pub fn get_selected_text(&self) -> Option<String> {
-        let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
-        if gtk_buffer.has_selection() {
-            if let Some((start, end)) = gtk_buffer.selection_bounds() {
-                let selected_text = gtk_buffer.text(&start, &end, false);
-                return Some(selected_text.to_string());
-            }
-        }
-        None
     }
 }
