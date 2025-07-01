@@ -1,4 +1,4 @@
-[![DevSkim](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml) [![Rust](https://github.com/Ranrar/Marco/actions/workflows/rust.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/rust.yml) [![rust-clippy analyze](https://github.com/Ranrar/Marco/actions/workflows/rust-clippy.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/rust-clippy.yml)
+[![DevSkim](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml)  [![rust-clippy analyze](https://github.com/Ranrar/Marco/actions/workflows/rust-clippy.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/rust-clippy.yml)
 # Marco - Markdown Composer
 
 A modern markdown editor built with Rust and GTK4. Features live preview, multiple languages, and advanced markdown support.
