@@ -54,6 +54,7 @@ pub fn add_format_menu(menu_model: &gio::Menu) {
     
     // Lists and tasks
     let task_list_menu = gio::Menu::new();
+    task_list_menu.append(Some("📝 Default Task List"), Some("app.insert_task_list"));
     task_list_menu.append(Some("⚙️ Custom Task List..."), Some("app.insert_task_list_custom"));
     task_list_menu.append(Some("☐ Open Task"), Some("app.insert_task_list_open"));
     task_list_menu.append(Some("☑️ Closed Task"), Some("app.insert_task_list_closed"));
@@ -62,6 +63,7 @@ pub fn add_format_menu(menu_model: &gio::Menu) {
     
     // Definition list submenu
     let definition_list_menu = gio::Menu::new();
+    definition_list_menu.append(Some("📚 Default Definition List"), Some("app.insert_definition_list"));
     definition_list_menu.append(Some("⚙️ Custom Definition List..."), Some("app.insert_definition_list_custom"));
     definition_list_menu.append(Some("📖 Single Definition"), Some("app.insert_definition_list_single"));
     
@@ -156,6 +158,15 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
     }
 
     // Task list actions
+    let insert_task_list_action = gio::ActionEntry::builder("insert_task_list")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_task_list();
+            }
+        })
+        .build();
+
     let insert_task_list_custom_action = gio::ActionEntry::builder("insert_task_list_custom")
         .activate({
             let editor = editor.clone();
@@ -184,6 +195,15 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
         .build();
 
     // Definition list actions
+    let insert_definition_list_action = gio::ActionEntry::builder("insert_definition_list")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                editor.insert_definition_list();
+            }
+        })
+        .build();
+
     let insert_definition_list_custom_action = gio::ActionEntry::builder("insert_definition_list_custom")
         .activate({
             let editor = editor.clone();
@@ -246,8 +266,8 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
     let mut all_actions = vec![
         strikethrough_action, insert_highlight_action, insert_subscript_action,
         insert_superscript_action, code_block_action, insert_fenced_code_action,
-        insert_task_list_custom_action, insert_task_list_open_action, insert_task_list_closed_action,
-        insert_definition_list_custom_action, insert_definition_list_single_action,
+        insert_task_list_action, insert_task_list_custom_action, insert_task_list_open_action, insert_task_list_closed_action,
+        insert_definition_list_action, insert_definition_list_custom_action, insert_definition_list_single_action,
         insert_table_dialog_action, insert_footnote_action, insert_emoji_action,
         insert_html_entity_dialog_action
     ];

@@ -45,6 +45,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     // Text formatting buttons (Basic)
     let bold_button = Button::with_label("𝐁");
     bold_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.bold")));
+    bold_button.set_can_focus(false); // Prevent button from stealing focus
     bold_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -55,6 +56,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let italic_button = Button::with_label("𝐼");
     italic_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.italic")));
+    italic_button.set_can_focus(false); // Prevent button from stealing focus
     italic_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -65,6 +67,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let code_button = Button::with_label("{}");
     code_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.inline_code")));
+    code_button.set_can_focus(false); // Prevent button from stealing focus
     code_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -75,6 +78,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let strikethrough_button = Button::with_label("S̶");
     strikethrough_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.strikethrough")));
+    strikethrough_button.set_can_focus(false); // Prevent button from stealing focus
     strikethrough_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -128,6 +132,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     // List buttons (Basic)
     let bullet_list_button = Button::with_label("•");
     bullet_list_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.unordered_list")));
+    bullet_list_button.set_can_focus(false); // Prevent button from stealing focus
     bullet_list_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -138,6 +143,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let numbered_list_button = Button::with_label("1.");
     numbered_list_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.ordered_list")));
+    numbered_list_button.set_can_focus(false); // Prevent button from stealing focus
     numbered_list_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -148,6 +154,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let quote_button = Button::with_label("❝");
     quote_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.blockquote")));
+    quote_button.set_can_focus(false); // Prevent button from stealing focus
     quote_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -163,6 +170,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     // Insert buttons (Basic)
     let link_button = Button::with_label("🔗");
     link_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.link")));
+    link_button.set_can_focus(false); // Prevent button from stealing focus
     link_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -173,6 +181,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let image_button = Button::with_label("🖼");
     image_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.image")));
+    image_button.set_can_focus(false); // Prevent button from stealing focus
     image_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
@@ -183,6 +192,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     let hr_button = Button::with_label("—");
     hr_button.set_tooltip_text(Some(&localization::tr("toolbar.tooltip.horizontal_rule")));
+    hr_button.set_can_focus(false); // Prevent button from stealing focus
     hr_button.connect_clicked({
         let editor = editor.clone();
         move |_| {
