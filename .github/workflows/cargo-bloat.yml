@@ -1,0 +1,16 @@
+            - name: cargo-bloat
+  # You may pin to the exact commit or the version.
+  # uses: orf/cargo-bloat-action@9fe5b90622b9af5e13f635a94e7a206b706678db
+  uses: orf/cargo-bloat-action@v1
+  with:
+    # Github token to use
+    token: 
+    # Custom arguments to pass to cargo bloat
+    bloat_args: # optional
+    # Custom arguments to pass to cargo tree
+    tree_args: # optional
+    # If set, display per-function bloat instead of per-crate bloat.
+    by_function: # optional
+    # Packages to exclude from running cargo bloat onto.
+    exclude_packages: # optional
+          
