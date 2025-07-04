@@ -40,6 +40,7 @@ impl Theme {
 pub struct ThemeManager {
     current_theme: Rc<RefCell<Theme>>,
     callbacks: Rc<RefCell<Vec<Box<dyn Fn(Theme)>>>>,
+    current_css_theme: Rc<RefCell<String>>,
 }
 
 impl ThemeManager {
@@ -48,6 +49,7 @@ impl ThemeManager {
         Self {
             current_theme: Rc::new(RefCell::new(detected_theme)),
             callbacks: Rc::new(RefCell::new(Vec::new())),
+            current_css_theme: Rc::new(RefCell::new("standard".to_string())),
         }
     }
     
@@ -291,6 +293,80 @@ h1, h2, h3, h4, h5, h6 {
             }
         }
     }
+    
+    /// Set the CSS theme for the preview
+    pub fn set_css_theme(&self, theme_name: &str) -> Result<String, String> {
+        *self.current_css_theme.borrow_mut() = theme_name.to_string();
+        
+        // Load CSS file from the themes/ directory
+        let css_path = format!("themes/{}.css", theme_name);
+        match std::fs::read_to_string(&css_path) {
+            Ok(css_content) => {
+                Ok(css_content)
+            }
+            Err(e) => {
+                eprintln!("Failed to load CSS theme '{}': {}", theme_name, e);
+                // Fallback to standard theme
+                if theme_name != "standard" {
+                    return self.set_css_theme("standard");
+                }
+                Err(format!("Failed to load CSS theme '{}': {}", theme_name, e))
+            }
+        }
+    }
+    
+    /// Get the current CSS theme name
+    pub fn get_current_css_theme(&self) -> String {
+        self.current_css_theme.borrow().clone()
+    }
+
+    /// Get available CSS themes by scanning the themes/ directory
+    pub fn get_available_css_themes() -> Vec<(String, String, String)> {
+        let mut themes = Vec::new();
+        
+        if let Ok(entries) = std::fs::read_dir("themes") {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let path = entry.path();
+                    if let Some(extension) = path.extension() {
+                        if extension == "css" {
+                            if let Some(filename) = path.file_stem() {
+                                let theme_id = filename.to_string_lossy().to_string();
+                                let display_name = theme_id.replace('_', " ")
+                                    .split(' ')
+                                    .map(|word| {
+                                        let mut chars = word.chars();
+                                        match chars.next() {
+                                            None => String::new(),
+                                            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                                        }
+                                    })
+                                    .collect::<Vec<String>>()
+                                    .join(" ");
+                                
+                                // Create a properly sanitized name for action IDs (no spaces, special chars)
+                                let sanitized_name = theme_id.replace(|c: char| !c.is_alphanumeric(), "_");
+                                
+                                themes.push((theme_id, display_name, sanitized_name));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Sort themes alphabetically by display name
+        themes.sort_by(|a, b| a.1.cmp(&b.1));
+        themes
+    }
+    
+    /// Initialize the theme manager with default CSS theme
+    /// This should be called at startup to ensure the CSS is loaded
+    pub fn initialize(&self) -> Result<(), String> {
+        // Load the default CSS theme
+        self.set_css_theme("standard")?;
+        Ok(())
+    }
 }
 
 impl Clone for ThemeManager {
@@ -298,6 +374,7 @@ impl Clone for ThemeManager {
         Self {
             current_theme: self.current_theme.clone(),
             callbacks: Rc::new(RefCell::new(Vec::new())), // New callbacks vector for clone
+            current_css_theme: self.current_css_theme.clone(),
         }
     }
 }

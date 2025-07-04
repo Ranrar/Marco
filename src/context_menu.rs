@@ -1,7 +1,7 @@
 use gtk4::prelude::*;
 use gtk4::{gio, gdk};
 use crate::editor::MarkdownEditor;
-use crate::localization;
+use crate::language;
 
 /// Context menu functionality for the Markdown editor
 pub struct ContextMenu {
@@ -98,17 +98,17 @@ impl ContextMenu {
         
         // Create clipboard section
         let clipboard_section = gio::Menu::new();
-        clipboard_section.append(Some(&localization::tr("menu.copy")), Some("context.copy"));
-        clipboard_section.append(Some(&localization::tr("menu.cut")), Some("context.cut"));
-        clipboard_section.append(Some(&localization::tr("menu.paste")), Some("context.paste"));
+        clipboard_section.append(Some(&language::tr("menu.copy")), Some("context.copy"));
+        clipboard_section.append(Some(&language::tr("menu.cut")), Some("context.cut"));
+        clipboard_section.append(Some(&language::tr("menu.paste")), Some("context.paste"));
         menu_model.append_section(None, &clipboard_section);
         
         // Create basic formatting section  
         let formatting_section = gio::Menu::new();
-        formatting_section.append(Some(&localization::tr("insert.bold")), Some("context.bold"));
-        formatting_section.append(Some(&localization::tr("insert.italic")), Some("context.italic"));
-        formatting_section.append(Some(&localization::tr("insert.strikethrough")), Some("context.strikethrough"));
-        formatting_section.append(Some(&localization::tr("insert.inline_code")), Some("context.inline_code"));
+        formatting_section.append(Some(&language::tr("insert.bold")), Some("context.bold"));
+        formatting_section.append(Some(&language::tr("insert.italic")), Some("context.italic"));
+        formatting_section.append(Some(&language::tr("insert.strikethrough")), Some("context.strikethrough"));
+        formatting_section.append(Some(&language::tr("insert.inline_code")), Some("context.inline_code"));
         menu_model.append_section(None, &formatting_section);
         
         // Create submenus section
@@ -116,66 +116,66 @@ impl ContextMenu {
         
         // Headings submenu
         let headings_menu = gio::Menu::new();
-        headings_menu.append(Some(&localization::tr("insert.heading1")), Some("context.heading1"));
-        headings_menu.append(Some(&localization::tr("insert.heading2")), Some("context.heading2"));
-        headings_menu.append(Some(&localization::tr("insert.heading3")), Some("context.heading3"));
-        headings_menu.append(Some(&localization::tr("insert.heading4")), Some("context.heading4"));
-        headings_menu.append(Some(&localization::tr("insert.heading5")), Some("context.heading5"));
-        headings_menu.append(Some(&localization::tr("insert.heading6")), Some("context.heading6"));
-        submenus_section.append_submenu(Some(&localization::tr("insert.headings")), &headings_menu);
+        headings_menu.append(Some(&language::tr("insert.heading1")), Some("context.heading1"));
+        headings_menu.append(Some(&language::tr("insert.heading2")), Some("context.heading2"));
+        headings_menu.append(Some(&language::tr("insert.heading3")), Some("context.heading3"));
+        headings_menu.append(Some(&language::tr("insert.heading4")), Some("context.heading4"));
+        headings_menu.append(Some(&language::tr("insert.heading5")), Some("context.heading5"));
+        headings_menu.append(Some(&language::tr("insert.heading6")), Some("context.heading6"));
+        submenus_section.append_submenu(Some(&language::tr("insert.headings")), &headings_menu);
         
         // Lists submenu
         let lists_menu = gio::Menu::new();
-        lists_menu.append(Some(&localization::tr("insert.unordered_list")), Some("context.bullet_list"));
-        lists_menu.append(Some(&localization::tr("insert.ordered_list")), Some("context.numbered_list"));
-        lists_menu.append(Some(&localization::tr("insert.blockquote")), Some("context.blockquote"));
-        submenus_section.append_submenu(Some(&localization::tr("context.lists")), &lists_menu);
+        lists_menu.append(Some(&language::tr("insert.unordered_list")), Some("context.bullet_list"));
+        lists_menu.append(Some(&language::tr("insert.ordered_list")), Some("context.numbered_list"));
+        lists_menu.append(Some(&language::tr("insert.blockquote")), Some("context.blockquote"));
+        submenus_section.append_submenu(Some(&language::tr("context.lists")), &lists_menu);
         
         // Advanced formatting submenu
         let advanced_menu = gio::Menu::new();
         
         // Basic advanced formatting
-        advanced_menu.append(Some(&localization::tr("insert.highlight")), Some("context.highlight"));
-        advanced_menu.append(Some(&localization::tr("insert.subscript")), Some("context.subscript"));
-        advanced_menu.append(Some(&localization::tr("insert.superscript")), Some("context.superscript"));
+        advanced_menu.append(Some(&language::tr("insert.highlight")), Some("context.highlight"));
+        advanced_menu.append(Some(&language::tr("insert.subscript")), Some("context.subscript"));
+        advanced_menu.append(Some(&language::tr("insert.superscript")), Some("context.superscript"));
         
         // Advanced text styling (from markdown hacks)
-        advanced_menu.append(Some(&localization::tr("advanced.underline")), Some("context.underline"));
-        advanced_menu.append(Some(&localization::tr("advanced.center_text")), Some("context.center_text"));
-        advanced_menu.append(Some(&localization::tr("advanced.colored_text")), Some("context.colored_text"));
+        advanced_menu.append(Some(&language::tr("advanced.underline")), Some("context.underline"));
+        advanced_menu.append(Some(&language::tr("advanced.center_text")), Some("context.center_text"));
+        advanced_menu.append(Some(&language::tr("advanced.colored_text")), Some("context.colored_text"));
         
         // Code blocks
-        advanced_menu.append(Some(&localization::tr("insert.code_block")), Some("context.code_block"));
-        advanced_menu.append(Some(&localization::tr("insert.fenced_code")), Some("context.fenced_code"));
+        advanced_menu.append(Some(&language::tr("insert.code_block")), Some("context.code_block"));
+        advanced_menu.append(Some(&language::tr("insert.fenced_code")), Some("context.fenced_code"));
         
         // Comments and admonitions
-        advanced_menu.append(Some(&localization::tr("advanced.comment")), Some("context.comment"));
-        advanced_menu.append(Some(&localization::tr("advanced.admonition")), Some("context.admonition"));
+        advanced_menu.append(Some(&language::tr("advanced.comment")), Some("context.comment"));
+        advanced_menu.append(Some(&language::tr("advanced.admonition")), Some("context.admonition"));
         
-        submenus_section.append_submenu(Some(&localization::tr("context.advanced")), &advanced_menu);
+        submenus_section.append_submenu(Some(&language::tr("context.advanced")), &advanced_menu);
         
         // Task lists submenu
         let tasks_menu = gio::Menu::new();
-        tasks_menu.append(Some(&localization::tr("insert.task_list_open")), Some("context.task_open"));
-        tasks_menu.append(Some(&localization::tr("insert.task_list_closed")), Some("context.task_closed"));
-        tasks_menu.append(Some(&localization::tr("insert.task_list_custom")), Some("context.task_list"));
-        submenus_section.append_submenu(Some(&localization::tr("context.tasks")), &tasks_menu);
+        tasks_menu.append(Some(&language::tr("insert.task_list_open")), Some("context.task_open"));
+        tasks_menu.append(Some(&language::tr("insert.task_list_closed")), Some("context.task_closed"));
+        tasks_menu.append(Some(&language::tr("insert.task_list_custom")), Some("context.task_list"));
+        submenus_section.append_submenu(Some(&language::tr("context.tasks")), &tasks_menu);
         
         // Insert submenu
         let insert_menu = gio::Menu::new();
-        insert_menu.append(Some(&localization::tr("insert.link")), Some("context.link"));
-        insert_menu.append(Some(&localization::tr("insert.image")), Some("context.image"));
-        insert_menu.append(Some(&localization::tr("insert.table")), Some("context.table"));
-        insert_menu.append(Some(&localization::tr("insert.horizontal_rule")), Some("context.horizontal_rule"));
-        insert_menu.append(Some(&localization::tr("insert.footnote")), Some("context.footnote"));
-        insert_menu.append(Some(&localization::tr("insert.emoji")), Some("context.emoji"));
-        submenus_section.append_submenu(Some(&localization::tr("context.insert")), &insert_menu);
+        insert_menu.append(Some(&language::tr("insert.link")), Some("context.link"));
+        insert_menu.append(Some(&language::tr("insert.image")), Some("context.image"));
+        insert_menu.append(Some(&language::tr("insert.table")), Some("context.table"));
+        insert_menu.append(Some(&language::tr("insert.horizontal_rule")), Some("context.horizontal_rule"));
+        insert_menu.append(Some(&language::tr("insert.footnote")), Some("context.footnote"));
+        insert_menu.append(Some(&language::tr("insert.emoji")), Some("context.emoji"));
+        submenus_section.append_submenu(Some(&language::tr("context.insert")), &insert_menu);
         
         // Definition lists submenu
         let definition_menu = gio::Menu::new();
-        definition_menu.append(Some(&localization::tr("insert.definition_list_single")), Some("context.definition_single"));
-        definition_menu.append(Some(&localization::tr("insert.definition_list_custom")), Some("context.definition_list"));
-        submenus_section.append_submenu(Some(&localization::tr("context.definitions")), &definition_menu);
+        definition_menu.append(Some(&language::tr("insert.definition_list_single")), Some("context.definition_single"));
+        definition_menu.append(Some(&language::tr("insert.definition_list_custom")), Some("context.definition_list"));
+        submenus_section.append_submenu(Some(&language::tr("context.definitions")), &definition_menu);
         
         menu_model.append_section(None, &submenus_section);
         
@@ -381,35 +381,55 @@ impl ContextMenu {
         add_action!("underline", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_underline_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_underline_dialog(&window, &editor);
+                }
             }
         });
         
         add_action!("center_text", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_center_text_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_center_text_dialog(&window, &editor);
+                }
             }
         });
         
         add_action!("colored_text", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_colored_text_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_colored_text_dialog(&window, &editor);
+                }
             }
         });
         
         add_action!("comment", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_comment_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_comment_dialog(&window, &editor);
+                }
             }
         });
         
         add_action!("admonition", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_admonition_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_admonition_dialog(&window, &editor);
+                }
             }
         });
         
@@ -459,7 +479,7 @@ impl ContextMenu {
         add_action!("emoji", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::emoji::show_emoji_picker_dialog(&editor);
+                crate::editor::emoji::show_emoji_picker_dialog(&editor);
             }
         });
         
@@ -481,7 +501,11 @@ impl ContextMenu {
         add_action!("task_list", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_task_list_custom_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_task_list_custom_dialog(&window, &editor);
+                }
             }
         });
         
@@ -496,7 +520,11 @@ impl ContextMenu {
         add_action!("definition_list", {
             let editor = editor.clone();
             move |_group, _action, _param| {
-                crate::menu::show_definition_list_custom_dialog(&editor);
+                // Get the window from the editor's widget hierarchy
+                if let Some(window) = editor.source_view().root()
+                    .and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+                    crate::menu::show_definition_list_custom_dialog(&window, &editor);
+                }
             }
         });
         

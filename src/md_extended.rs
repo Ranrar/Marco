@@ -84,8 +84,9 @@ impl ExtendedMarkdownSyntax {
             // Subscript: ~text~
             subscript_regex: Regex::new(r"~([^~\s]+)~").unwrap(),
             
-            // Superscript: ^text^
-            superscript_regex: Regex::new(r"\^([^\^\s]+)\^").unwrap(),
+            // Superscript: ^text^ (avoid conflict with footnotes [^1])
+            // Use word boundary or space to ensure we don't match footnotes
+            superscript_regex: Regex::new(r"(^|\s)\^([^\^\s]+)\^").unwrap(),
             
             // Auto URL: http://example.com or https://example.com
             auto_url_regex: Regex::new(r"(?:^|[\s])(https?://[^\s]+)").unwrap(),

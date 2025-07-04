@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{PopoverMenuBar, Application, gio, AboutDialog};
-use crate::{editor, localization};
+use crate::{editor, language};
 
 // Module declarations
 pub mod basic;
@@ -23,6 +23,7 @@ pub use dialogs::{
     show_youtube_video_dialog,
     show_html_entity_dialog,
     show_shortcuts_dialog,
+    show_link_open_new_dialog,
 };
 pub use format::create_table_dialog;
 
@@ -40,11 +41,11 @@ pub fn create_menu_bar(app: &Application, editor: &editor::MarkdownEditor, theme
     
     // Help Menu
     let help_menu = gio::Menu::new();
-    help_menu.append(Some(&localization::tr("help.markdown_guide")), Some("app.markdown_guide"));
-    help_menu.append(Some(&localization::tr("help.shortcuts")), Some("app.shortcuts"));
-    help_menu.append(Some(&localization::tr("help.about")), Some("app.about"));
+    help_menu.append(Some(&language::tr("help.markdown_guide")), Some("app.markdown_guide"));
+    help_menu.append(Some(&language::tr("help.shortcuts")), Some("app.shortcuts"));
+    help_menu.append(Some(&language::tr("help.about")), Some("app.about"));
     
-    menu_model.append_submenu(Some(&localization::tr("menu.help")), &help_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.help")), &help_menu);
     
     // Create actions from all modules
     basic::create_file_actions(app, editor);

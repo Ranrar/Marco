@@ -1,0 +1,251 @@
+/* Code Syntax Highlighting CSS for Marco Markdown Editor */
+
+/* Base code block styling with higher specificity to override theme CSS */
+.code-block,
+div.code-block {
+    margin: 1rem 0 !important;
+    border-radius: 6px !important;
+    border: 1px solid #e1e4e8 !important;
+    overflow-x: auto !important;
+    background-color: #f8f9fa !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+    position: relative !important;
+}
+
+.code-block pre,
+div.code-block pre {
+    margin: 0 !important;
+    padding: 1rem !important;
+    background-color: transparent !important;
+    color: #24292e !important;
+    font-family: 'SFMono-Regular', 'Cascadia Code', 'Consolas', 'Liberation Mono', 'Menlo', monospace !important;
+    font-size: 14px !important;
+    line-height: 1.5 !important;
+    white-space: pre !important;
+    overflow-x: auto !important;
+    tab-size: 4 !important;
+}
+
+.code-block code,
+div.code-block code {
+    background: none !important;
+    padding: 0 !important;
+    border: none !important;
+    font-size: inherit !important;
+    color: inherit !important;
+    font-family: inherit !important;
+}
+
+/* Syntax highlighting colors - Light theme with higher specificity and vibrant colors */
+.code-block .keyword,
+div.code-block .keyword {
+    color: #d73a49 !important;  /* Bright red for keywords */
+    font-weight: 700 !important;
+}
+
+.code-block .comment,
+div.code-block .comment {
+    color: #6a737d !important;  /* Gray for comments */
+    font-style: italic !important;
+}
+
+.code-block .string,
+div.code-block .string {
+    color: #032f62 !important;  /* Dark blue for strings */
+    font-weight: 500 !important;
+}
+
+.code-block .number,
+div.code-block .number {
+    color: #005cc5 !important;  /* Blue for numbers */
+    font-weight: 600 !important;
+}
+
+.code-block .function,
+div.code-block .function {
+    color: #6f42c1 !important;  /* Purple for functions */
+    font-weight: 700 !important;
+}
+
+.code-block .class,
+div.code-block .class {
+    color: #e36209 !important;  /* Orange for classes */
+    font-weight: 700 !important;
+}
+
+/* Language-specific styling */
+.code-block-javascript,
+.code-block-js {
+    border-left: 4px solid #f7df1e !important;
+}
+
+.code-block-python,
+.code-block-py {
+    border-left: 4px solid #3776ab !important;
+}
+
+.code-block-rust,
+.code-block-rs {
+    border-left: 4px solid #ce422b !important;
+}
+
+.code-block-cplus,
+.code-block-cpp {
+    border-left: 4px solid #00599c !important;
+}
+
+.code-block-java {
+    border-left: 4px solid #ed8b00 !important;
+}
+
+.code-block-c {
+    border-left: 4px solid #a8b9cc !important;
+}
+
+.code-block-csharp,
+.code-block-cs {
+    border-left: 4px solid #239120 !important;
+}
+
+.code-block-typescript,
+.code-block-ts {
+    border-left: 4px solid #3178c6 !important;
+}
+
+.code-block-go {
+    border-left: 4px solid #00add8 !important;
+}
+
+.code-block-php {
+    border-left: 4px solid #777bb4 !important;
+}
+
+.code-block-plain {
+    border-left: 4px solid #6a737d !important;
+}
+
+/* Dark theme support with higher specificity */
+@media (prefers-color-scheme: dark) {
+    .code-block,
+    div.code-block {
+        background-color: #0d1117 !important;
+        border-color: #30363d !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+    }
+    
+    .code-block pre,
+    div.code-block pre {
+        color: #e6edf3 !important;
+    }
+    
+    .code-block .keyword,
+    div.code-block .keyword {
+        color: #ff7b72 !important;  /* Bright coral red */
+        font-weight: 700 !important;
+    }
+    
+    .code-block .comment,
+    div.code-block .comment {
+        color: #8b949e !important;  /* Light gray */
+        font-style: italic !important;
+    }
+    
+    .code-block .string,
+    div.code-block .string {
+        color: #a5d6ff !important;  /* Light blue */
+        font-weight: 500 !important;
+    }
+    
+    .code-block .number,
+    div.code-block .number {
+        color: #79c0ff !important;  /* Bright blue */
+        font-weight: 600 !important;
+    }
+    
+    .code-block .function,
+    div.code-block .function {
+        color: #d2a8ff !important;  /* Light purple */
+        font-weight: 700 !important;
+    }
+    
+    .code-block .class,
+    div.code-block .class {
+        color: #ffa657 !important;  /* Bright orange */
+        font-weight: 700 !important;
+    }
+}
+
+/* High contrast theme support */
+@media (prefers-contrast: high) {
+    .code-block .keyword {
+        color: #c41e3a !important;
+        font-weight: 700 !important;
+    }
+    
+    .code-block .comment {
+        color: #5a5a5a !important;
+    }
+    
+    .code-block .string {
+        color: #0f4c75 !important;
+    }
+    
+    .code-block .number {
+        color: #0066cc !important;
+    }
+    
+    .code-block .function {
+        color: #5a2d91 !important;
+    }
+    
+    .code-block .class {
+        color: #cc5500 !important;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .code-block {
+        transition: none !important;
+    }
+}
+
+/* Print styles */
+@media print {
+    .code-block {
+        border: 1px solid #000 !important;
+        background: #fff !important;
+        box-shadow: none !important;
+    }
+    
+    .code-block pre {
+        color: #000 !important;
+    }
+    
+    .code-block .keyword {
+        color: #000 !important;
+        font-weight: bold !important;
+    }
+    
+    .code-block .comment {
+        color: #666 !important;
+    }
+    
+    .code-block .string {
+        color: #000 !important;
+    }
+    
+    .code-block .number {
+        color: #000 !important;
+    }
+    
+    .code-block .function {
+        color: #000 !important;
+        font-weight: bold !important;
+    }
+    
+    .code-block .class {
+        color: #000 !important;
+        font-weight: bold !important;
+    }
+}

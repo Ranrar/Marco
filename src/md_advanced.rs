@@ -2,6 +2,29 @@ use gtk4::prelude::*;
 use regex::Regex;
 use std::collections::HashMap;
 
+/// URL-encode a file path or URL to handle spaces and special characters
+fn url_encode_path(path: &str) -> String {
+    if path.starts_with("http://") || path.starts_with("https://") {
+        // For HTTP URLs, only encode spaces - other characters are likely already encoded
+        path.replace(' ', "%20")
+    } else {
+        // For local file paths, encode spaces and other characters that can cause issues
+        path.chars()
+            .map(|c| match c {
+                ' ' => "%20".to_string(),
+                '(' => "%28".to_string(),
+                ')' => "%29".to_string(),
+                '[' => "%5B".to_string(),
+                ']' => "%5D".to_string(),
+                '{' => "%7B".to_string(),
+                '}' => "%7D".to_string(),
+                c if c.is_ascii_alphanumeric() || ".-_~/:".contains(c) => c.to_string(),
+                c => format!("%{:02X}", c as u8),
+            })
+            .collect()
+    }
+}
+
 /// Extra markdown syntax features and hacks based on https://www.markdownguide.org/hacks/
 /// These are advanced features that extend beyond standard markdown syntax
 pub struct ExtraMarkdownSyntax {
@@ -420,13 +443,16 @@ pub fn insert_comment(editor: &crate::editor::MarkdownEditor, comment: &str) {
 
 /// Insert an admonition
 pub fn insert_admonition(editor: &crate::editor::MarkdownEditor, emoji: &str, adm_type: &str, text: &str) {
-    let admonition = format!("> :{}: **{}:** {}\n", emoji, adm_type, text);
+    // Format with content on new line below emoji and title
+    let admonition = format!("> {} **{}:**\n> {}\n", emoji, adm_type, 
+                           text.lines().collect::<Vec<_>>().join("\n> "));
     editor.insert_text_at_cursor(&admonition);
 }
 
 /// Insert image with size
 pub fn insert_image_with_size(editor: &crate::editor::MarkdownEditor, src: &str, alt: &str, width: Option<&str>, height: Option<&str>) {
-    let mut img_tag = format!(r#"<img src="{}" alt="{}""#, src, alt);
+    let encoded_src = url_encode_path(src);
+    let mut img_tag = format!(r#"<img src="{}" alt="{}""#, encoded_src, alt);
     
     if let Some(w) = width {
         img_tag.push_str(&format!(r#" width="{}""#, w));
@@ -441,9 +467,10 @@ pub fn insert_image_with_size(editor: &crate::editor::MarkdownEditor, src: &str,
 
 /// Insert image with caption
 pub fn insert_image_with_caption(editor: &crate::editor::MarkdownEditor, src: &str, alt: &str, caption: &str) {
+    let encoded_src = url_encode_path(src);
     let img_with_caption = format!(
         "<figure>\n    <img src=\"{}\" alt=\"{}\">\n    <figcaption>{}</figcaption>\n</figure>",
-        src, alt, caption
+        encoded_src, alt, caption
     );
     editor.insert_text_at_cursor(&img_with_caption);
 }
@@ -462,8 +489,83 @@ pub fn insert_html_entity(editor: &crate::editor::MarkdownEditor, entity: &str) 
 
 /// Insert table of contents placeholder
 pub fn insert_table_of_contents(editor: &crate::editor::MarkdownEditor) {
-    let toc = "#### Table of Contents\n\n- [Section 1](#section-1)\n- [Section 2](#section-2)\n- [Section 3](#section-3)\n\n";
-    editor.insert_text_at_cursor(toc);
+    let buffer = &editor.source_buffer;
+    let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
+    
+    // Get the full text content of the document
+    let start_iter = gtk_buffer.start_iter();
+    let end_iter = gtk_buffer.end_iter();
+    let full_text = gtk_buffer.text(&start_iter, &end_iter, false);
+    
+    // Parse headers from the document
+    let headers = parse_headers(&full_text);
+    
+    if headers.is_empty() {
+        // Insert placeholder TOC if no headers found
+        let toc = "#### Table of Contents\n\n*No headers found in document. Add headers using # ## ### etc.*\n\n";
+        editor.insert_text_at_cursor(toc);
+        return;
+    }
+    
+    // Generate TOC with proper nesting and links
+    let mut toc = String::from("#### Table of Contents\n\n");
+    
+    for header in headers {
+        let indent = "  ".repeat((header.level - 1).max(0) as usize);
+        let anchor = generate_anchor_link(&header.text);
+        toc.push_str(&format!("{}* [{}](#{})\n", indent, header.text, anchor));
+    }
+    
+    toc.push('\n');
+    editor.insert_text_at_cursor(&toc);
+}
+
+/// Represents a header in the document
+#[derive(Debug)]
+struct Header {
+    level: u8,
+    text: String,
+}
+
+/// Parse headers from markdown text
+fn parse_headers(text: &str) -> Vec<Header> {
+    use regex::Regex;
+    let header_regex = Regex::new(r"^(#{1,6})\s+(.+)$").unwrap();
+    let mut headers = Vec::new();
+    
+    for line in text.lines() {
+        if let Some(captures) = header_regex.captures(line.trim()) {
+            let level = captures[1].len() as u8;
+            let text = captures[2].trim().to_string();
+            
+            // Include levels 1-4 for TOC (h1, h2, h3, h4)
+            if level <= 4 {
+                headers.push(Header { level, text });
+            }
+        }
+    }
+    
+    headers
+}
+
+/// Generate anchor link from header text (GitHub-style)
+fn generate_anchor_link(text: &str) -> String {
+    text.to_lowercase()
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() {
+                c
+            } else if c.is_whitespace() || c == '-' {
+                '-'
+            } else {
+                // Remove special characters
+                '\0'
+            }
+        })
+        .filter(|&c| c != '\0')
+        .collect::<String>()
+        .trim_matches('-')
+        .replace("--", "-") // Replace multiple dashes with single dash
 }
 
 /// Insert YouTube video embed

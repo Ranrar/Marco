@@ -8,9 +8,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::view_code::MarkdownCodeView;
 use crate::view_html::MarkdownHtmlView;
-use crate::code_languages::CodeLanguageManager;
+use crate::syntect_highlight::CodeLanguageManager;
 use crate::context_menu::ContextMenu;
-use crate::syntax_advanced::ExtraMarkdownSyntax;
+use crate::md_advanced::ExtraMarkdownSyntax;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -29,10 +29,12 @@ pub struct MarkdownEditor {
     pub(crate) is_modified: Rc<RefCell<bool>>,
     pub(crate) extra_syntax: Rc<RefCell<ExtraMarkdownSyntax>>,
     pub(crate) tag_table: Rc<RefCell<HashMap<String, gtk4::TextTag>>>,
-    pub(crate) current_css_theme: Rc<RefCell<String>>,
     pub(crate) context_menu: Rc<RefCell<Option<ContextMenu>>>,
     pub(crate) last_formatting_action: Rc<RefCell<Option<Instant>>>,
     pub(crate) preserve_selection: Rc<RefCell<bool>>,
+    pub(crate) header_bar: HeaderBar,
+    // Track the original content to determine if document is truly modified
+    pub(crate) original_content: Rc<RefCell<String>>,
 }
 
 impl MarkdownEditor {
@@ -119,6 +121,9 @@ impl MarkdownEditor {
         let extra_syntax = Rc::new(RefCell::new(ExtraMarkdownSyntax::new()));
         let tag_table = Rc::new(RefCell::new(HashMap::new()));
 
+        // Create header bar for title management
+        let header_bar = HeaderBar::new();
+
         let editor = Self {
             widget: paned,
             source_view,
@@ -133,10 +138,11 @@ impl MarkdownEditor {
             is_modified,
             extra_syntax,
             tag_table,
-            current_css_theme: Rc::new(RefCell::new("standard".to_string())),
             context_menu: Rc::new(RefCell::new(None)),
             last_formatting_action: Rc::new(RefCell::new(None)),
             preserve_selection: Rc::new(RefCell::new(false)),
+            header_bar,
+            original_content: Rc::new(RefCell::new(String::new())),
         };
 
         // Connect text change signal
@@ -208,18 +214,28 @@ impl MarkdownEditor {
         let extra_syntax = self.extra_syntax.clone();
         let tag_table = self.tag_table.clone();
         let update_timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+        let original_content = self.original_content.clone();
+        
+        // Store clone of editor for window title updates
+        let editor_for_title = self.clone();
         
         self.source_buffer.connect_changed(move |buffer| {
-            // Mark document as modified
-            let was_modified = *is_modified.borrow();
-            *is_modified.borrow_mut() = true;
-            if !was_modified {
-                println!("DEBUG: Document marked as modified");
-            }
-            
             let start = buffer.start_iter();
             let end = buffer.end_iter();
             let text = buffer.text(&start, &end, false);
+            
+            // Smart modification tracking: compare current content with original content
+            let was_modified = *is_modified.borrow();
+            let current_content = text.to_string();
+            let original = original_content.borrow();
+            let is_now_modified = current_content != *original;
+            
+            if was_modified != is_now_modified {
+                *is_modified.borrow_mut() = is_now_modified;
+                println!("DEBUG: Document modification state changed to: {}", is_now_modified);
+                // Update window title when modification state changes
+                editor_for_title.update_window_title();
+            }
             
             // Apply extra syntax highlighting
             {
@@ -289,10 +305,9 @@ impl MarkdownEditor {
         });
     }
 
-    pub fn create_simple_header_bar(&self) -> HeaderBar {
-        let header_bar = HeaderBar::new();
-        header_bar.set_title_widget(Some(&Label::new(Some("Marco - Markdown Composer"))));
-        header_bar
+    pub fn create_simple_header_bar(&self) -> &HeaderBar {
+        // Return reference to the header bar that was created in new()
+        &self.header_bar
     }
 
     /// Get the currently selected text, if any
@@ -320,6 +335,55 @@ impl MarkdownEditor {
     pub(crate) fn mark_as_saved(&self) {
         println!("DEBUG: Marking document as saved (was modified: {})", self.is_modified());
         *self.is_modified.borrow_mut() = false;
+        
+        // Update original content to current content since we're now saved
+        let start = self.source_buffer.start_iter();
+        let end = self.source_buffer.end_iter();
+        let current_text = self.source_buffer.text(&start, &end, false);
+        *self.original_content.borrow_mut() = current_text.to_string();
+        
+        // Update window title when save state changes
+        self.update_window_title();
+    }
+
+    /// Check if the document is empty (0 characters)
+    pub fn is_empty(&self) -> bool {
+        let start = self.source_buffer.start_iter();
+        let end = self.source_buffer.end_iter();
+        let text = self.source_buffer.text(&start, &end, false);
+        text.trim().is_empty()
+    }
+
+    /// Update the window title to reflect current file and modification state
+    pub fn update_window_title(&self) {
+        let base_title = "Marco";
+        let title = if let Some(file_path) = self.current_file.borrow().as_ref() {
+            let filename = file_path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("Untitled");
+            if self.is_modified() {
+                format!("{} - {}*", base_title, filename)
+            } else {
+                format!("{} - {}", base_title, filename)
+            }
+        } else {
+            // New file without a path
+            if self.is_modified() {
+                format!("{} - Untitled*", base_title)
+            } else {
+                format!("{} - Untitled", base_title)
+            }
+        };
+        
+        // Update both window title and header bar title
+        if let Some(widget) = self.widget.root() {
+            if let Ok(window) = widget.downcast::<gtk4::Window>() {
+                window.set_title(Some(&title));
+            }
+        }
+        
+        // Update header bar title widget
+        self.header_bar.set_title_widget(Some(&Label::new(Some(&title))));
     }
 
     pub fn insert_text_at_cursor(&self, text: &str) {

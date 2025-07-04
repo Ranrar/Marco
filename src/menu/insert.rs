@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{Application, gio};
-use crate::{editor, localization};
+use crate::{editor, language};
 
 pub fn add_insert_menu(menu_model: &gio::Menu) {
     // Insert Menu (Basic Syntax)
@@ -8,25 +8,25 @@ pub fn add_insert_menu(menu_model: &gio::Menu) {
     
     // Add Headings submenu to Insert
     let headings_menu = gio::Menu::new();
-    headings_menu.append(Some(&localization::tr("insert.heading1")), Some("app.heading1"));
-    headings_menu.append(Some(&localization::tr("insert.heading2")), Some("app.heading2"));
-    headings_menu.append(Some(&localization::tr("insert.heading3")), Some("app.heading3"));
-    headings_menu.append(Some(&localization::tr("insert.heading4")), Some("app.heading4"));
-    headings_menu.append(Some(&localization::tr("insert.heading5")), Some("app.heading5"));
-    headings_menu.append(Some(&localization::tr("insert.heading6")), Some("app.heading6"));
-    insert_menu.append_submenu(Some(&localization::tr("insert.headings")), &headings_menu);
+    headings_menu.append(Some(&language::tr("insert.heading1")), Some("app.heading1"));
+    headings_menu.append(Some(&language::tr("insert.heading2")), Some("app.heading2"));
+    headings_menu.append(Some(&language::tr("insert.heading3")), Some("app.heading3"));
+    headings_menu.append(Some(&language::tr("insert.heading4")), Some("app.heading4"));
+    headings_menu.append(Some(&language::tr("insert.heading5")), Some("app.heading5"));
+    headings_menu.append(Some(&language::tr("insert.heading6")), Some("app.heading6"));
+    insert_menu.append_submenu(Some(&language::tr("insert.headings")), &headings_menu);
     
-    insert_menu.append(Some(&localization::tr("insert.bold")), Some("app.insert_bold"));
-    insert_menu.append(Some(&localization::tr("insert.italic")), Some("app.insert_italic"));
-    insert_menu.append(Some(&localization::tr("insert.blockquote")), Some("app.insert_blockquote"));
-    insert_menu.append(Some(&localization::tr("insert.ordered_list")), Some("app.insert_numbered_list"));
-    insert_menu.append(Some(&localization::tr("insert.unordered_list")), Some("app.insert_bullet_list"));
-    insert_menu.append(Some(&localization::tr("insert.inline_code")), Some("app.insert_inline_code"));
-    insert_menu.append(Some(&localization::tr("insert.horizontal_rule")), Some("app.insert_hr"));
-    insert_menu.append(Some(&localization::tr("insert.link")), Some("app.insert_link"));
-    insert_menu.append(Some(&localization::tr("insert.image")), Some("app.insert_image"));
+    insert_menu.append(Some(&language::tr("insert.bold")), Some("app.insert_bold"));
+    insert_menu.append(Some(&language::tr("insert.italic")), Some("app.insert_italic"));
+    insert_menu.append(Some(&language::tr("insert.blockquote")), Some("app.insert_blockquote"));
+    insert_menu.append(Some(&language::tr("insert.ordered_list")), Some("app.insert_numbered_list"));
+    insert_menu.append(Some(&language::tr("insert.unordered_list")), Some("app.insert_bullet_list"));
+    insert_menu.append(Some(&language::tr("insert.inline_code")), Some("app.insert_inline_code"));
+    insert_menu.append(Some(&language::tr("insert.horizontal_rule")), Some("app.insert_hr"));
+    insert_menu.append(Some(&language::tr("insert.link")), Some("app.insert_link"));
+    insert_menu.append(Some(&language::tr("insert.image")), Some("app.insert_image"));
     
-    menu_model.append_submenu(Some(&localization::tr("menu.insert")), &insert_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.insert")), &insert_menu);
 }
 
 pub fn create_insert_actions(app: &Application, editor: &editor::MarkdownEditor) {

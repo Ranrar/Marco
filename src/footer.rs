@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{Box, Orientation, Label};
-use crate::localization;
+use crate::language;
 
 #[derive(Clone)]
 pub struct FooterLabels {
@@ -18,7 +18,7 @@ pub fn create_footer() -> (Box, FooterLabels) {
     footer_box.set_margin_end(10);
     
     // Status label (left side)
-    let status_label = Label::new(Some(&localization::tr("footer.ready")));
+    let status_label = Label::new(Some(&language::tr("footer.ready")));
     status_label.set_halign(gtk4::Align::Start);
     footer_box.append(&status_label);
     

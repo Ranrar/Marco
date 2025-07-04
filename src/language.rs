@@ -31,7 +31,7 @@ fn load_translations() {
     let base_path = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
     
     // Load English translations
-    let en_path = base_path.join("locales/en/main.yml");
+    let en_path = base_path.join("language/en/main.yml");
     if let Ok(content) = std::fs::read_to_string(&en_path) {
         if let Ok(data) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
             if let Some(en_data) = data.get("en") {
@@ -49,7 +49,7 @@ fn load_translations() {
     }
     
     // Load Spanish translations  
-    let es_path = base_path.join("locales/es/main.yml");
+    let es_path = base_path.join("language/es/main.yml");
     if let Ok(content) = std::fs::read_to_string(&es_path) {
         if let Ok(data) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
             if let Some(es_data) = data.get("es") {
@@ -67,7 +67,7 @@ fn load_translations() {
     }
     
     // Load French translations
-    let fr_path = base_path.join("locales/fr/main.yml");
+    let fr_path = base_path.join("language/fr/main.yml");
     if let Ok(content) = std::fs::read_to_string(&fr_path) {
         if let Ok(data) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
             if let Some(fr_data) = data.get("fr") {
@@ -85,7 +85,7 @@ fn load_translations() {
     }
     
     // Load German translations
-    let de_path = base_path.join("locales/de/main.yml");
+    let de_path = base_path.join("language/de/main.yml");
     if let Ok(content) = std::fs::read_to_string(&de_path) {
         if let Ok(data) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
             if let Some(de_data) = data.get("de") {

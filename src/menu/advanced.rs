@@ -1,6 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{Application, gio, MessageDialog, MessageType, ResponseType};
-use crate::{editor, localization};
+use crate::{editor, language};
 
 /// Show a dialog notifying the user that text must be selected for the styling function
 fn show_text_selection_required_dialog(parent: &gtk4::Window, feature_name: &str) {
@@ -35,26 +35,26 @@ pub fn add_advanced_menu(menu_model: &gio::Menu) {
     text_styling_menu.append(Some("📐 Center Text"), Some("app.insert_center_text"));
     text_styling_menu.append(Some("🎨 Colored Text"), Some("app.insert_colored_text"));
     text_styling_menu.append(Some("📝 Indent Text"), Some("app.insert_indent_text"));
-    advanced_menu.append_submenu(Some(&localization::tr("advanced.text_styling")), &text_styling_menu);
+    advanced_menu.append_submenu(Some(&language::tr("advanced.text_styling")), &text_styling_menu);
     
     // Comments and admonitions
     let comments_menu = gio::Menu::new();
     comments_menu.append(Some("💬 Comment"), Some("app.insert_comment"));
     comments_menu.append(Some("⚠️ Admonition"), Some("app.insert_admonition"));
-    advanced_menu.append_submenu(Some(&localization::tr("advanced.comments_admonitions")), &comments_menu);
+    advanced_menu.append_submenu(Some(&language::tr("advanced.comments_admonitions")), &comments_menu);
     
     // Enhanced images and links
     let media_menu = gio::Menu::new();
     media_menu.append(Some("🖼️ Image with Size"), Some("app.insert_image_with_size"));
     media_menu.append(Some("🖼️ Image with Caption"), Some("app.insert_image_with_caption"));
-    media_menu.append(Some("🔗 Link with Target"), Some("app.insert_link_with_target"));
+    media_menu.append(Some("🔗 Link Open New"), Some("app.insert_link_open_new"));
     media_menu.append(Some("📹 YouTube Video"), Some("app.insert_youtube_video"));
-    advanced_menu.append_submenu(Some(&localization::tr("advanced.enhanced_media")), &media_menu);
+    advanced_menu.append_submenu(Some(&language::tr("advanced.enhanced_media")), &media_menu);
     
     // Add Table of Contents directly to Advanced menu
     advanced_menu.append(Some("📑 Table of Contents"), Some("app.insert_table_of_contents"));
     
-    menu_model.append_submenu(Some(&localization::tr("menu.advanced")), &advanced_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.advanced")), &advanced_menu);
 }
 
 pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEditor) {
@@ -64,7 +64,9 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
             let editor = editor.clone();
             move |app: &Application, _action, _param| {
                 if editor.has_text_selection() {
-                    super::show_underline_dialog(&editor);
+                    if let Some(window) = app.active_window() {
+                        super::show_underline_dialog(&window, &editor);
+                    }
                 } else {
                     // Show a notification dialog that text must be selected
                     if let Some(window) = app.active_window() {
@@ -80,7 +82,9 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
             let editor = editor.clone();
             move |app: &Application, _action, _param| {
                 if editor.has_text_selection() {
-                    super::show_center_text_dialog(&editor);
+                    if let Some(window) = app.active_window() {
+                        super::show_center_text_dialog(&window, &editor);
+                    }
                 } else {
                     // Show a notification dialog that text must be selected
                     if let Some(window) = app.active_window() {
@@ -96,7 +100,9 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
             let editor = editor.clone();
             move |app: &Application, _action, _param| {
                 if editor.has_text_selection() {
-                    super::show_colored_text_dialog(&editor);
+                    if let Some(window) = app.active_window() {
+                        super::show_colored_text_dialog(&window, &editor);
+                    }
                 } else {
                     // Show a notification dialog that text must be selected
                     if let Some(window) = app.active_window() {
@@ -127,8 +133,10 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
     let insert_comment_action = gio::ActionEntry::builder("insert_comment")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_comment_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_comment_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -136,8 +144,10 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
     let insert_admonition_action = gio::ActionEntry::builder("insert_admonition")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_admonition_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_admonition_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -146,8 +156,10 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
     let insert_image_with_size_action = gio::ActionEntry::builder("insert_image_with_size")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_image_with_size_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_image_with_size_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -155,17 +167,21 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
     let insert_image_with_caption_action = gio::ActionEntry::builder("insert_image_with_caption")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                editor.insert_image_with_caption("image.png", "Alt text", "Image caption");
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    crate::menu::dialogs::advanced::image_with_caption::show_image_with_caption_dialog(&window, &editor);
+                }
             }
         })
         .build();
 
-    let insert_link_with_target_action = gio::ActionEntry::builder("insert_link_with_target")
+    let insert_link_open_new_action = gio::ActionEntry::builder("insert_link_open_new")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                editor.insert_link_with_target("https://example.com", "Link text", "_blank");
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_link_open_new_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -173,8 +189,10 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
     let insert_youtube_video_action = gio::ActionEntry::builder("insert_youtube_video")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_youtube_video_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_youtube_video_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -192,7 +210,7 @@ pub fn create_advanced_actions(app: &Application, editor: &editor::MarkdownEdito
     app.add_action_entries([
         insert_underline_action, insert_center_text_action, insert_colored_text_action,
         insert_indent_text_action, insert_comment_action, insert_admonition_action,
-        insert_image_with_size_action, insert_image_with_caption_action, insert_link_with_target_action,
+        insert_image_with_size_action, insert_image_with_caption_action, insert_link_open_new_action,
         insert_youtube_video_action, insert_table_of_contents_action
     ]);
 }

@@ -1,6 +1,7 @@
 use gtk4::prelude::*;
 use gtk4::{Application, gio, Dialog, Grid, Entry, ResponseType, Box, Orientation, Label};
-use crate::{editor, localization, emoji};
+use crate::{editor, language};
+use crate::editor::emoji;
 use std::rc::Rc;
 
 pub fn add_format_menu(menu_model: &gio::Menu) {
@@ -8,49 +9,14 @@ pub fn add_format_menu(menu_model: &gio::Menu) {
     let format_menu = gio::Menu::new();
     
     // Text formatting
-    format_menu.append(Some(&localization::tr("insert.strikethrough")), Some("app.strikethrough"));
-    format_menu.append(Some(&localization::tr("insert.highlight")), Some("app.insert_highlight"));
-    format_menu.append(Some(&localization::tr("insert.subscript")), Some("app.insert_subscript"));
-    format_menu.append(Some(&localization::tr("insert.superscript")), Some("app.insert_superscript"));
+    format_menu.append(Some(&language::tr("insert.strikethrough")), Some("app.strikethrough"));
+    format_menu.append(Some(&language::tr("insert.highlight")), Some("app.insert_highlight"));
+    format_menu.append(Some(&language::tr("insert.subscript")), Some("app.insert_subscript"));
+    format_menu.append(Some(&language::tr("insert.superscript")), Some("app.insert_superscript"));
     
     // Code
-    format_menu.append(Some(&localization::tr("insert.code_block")), Some("app.code_block"));
-    
-    // Fenced Code submenu with languages
-    let fenced_code_menu = gio::Menu::new();
-    
-    // Create dialog section
-    let dialog_section = gio::Menu::new();
-    dialog_section.append(Some("⚙️ Fenced Code with Options..."), Some("app.insert_fenced_code"));
-    fenced_code_menu.append_section(None, &dialog_section);
-    
-    // Create programming languages section
-    let programming_section = gio::Menu::new();
-    programming_section.append(Some("JavaScript"), Some("app.insert_fenced_javascript"));
-    programming_section.append(Some("Python"), Some("app.insert_fenced_python"));
-    programming_section.append(Some("Java"), Some("app.insert_fenced_java"));
-    programming_section.append(Some("TypeScript"), Some("app.insert_fenced_typescript"));
-    programming_section.append(Some("C#"), Some("app.insert_fenced_csharp"));
-    programming_section.append(Some("C++"), Some("app.insert_fenced_cpp"));
-    programming_section.append(Some("C"), Some("app.insert_fenced_c"));
-    programming_section.append(Some("PHP"), Some("app.insert_fenced_php"));
-    programming_section.append(Some("Go"), Some("app.insert_fenced_go"));
-    programming_section.append(Some("Rust"), Some("app.insert_fenced_rust"));
-    fenced_code_menu.append_section(None, &programming_section);
-    
-    // Create markup/data languages section
-    let markup_section = gio::Menu::new();
-    markup_section.append(Some("HTML"), Some("app.insert_fenced_html"));
-    markup_section.append(Some("CSS"), Some("app.insert_fenced_css"));
-    markup_section.append(Some("JSON"), Some("app.insert_fenced_json"));
-    markup_section.append(Some("XML"), Some("app.insert_fenced_xml"));
-    markup_section.append(Some("SQL"), Some("app.insert_fenced_sql"));
-    markup_section.append(Some("Bash"), Some("app.insert_fenced_bash"));
-    markup_section.append(Some("YAML"), Some("app.insert_fenced_yaml"));
-    markup_section.append(Some("Markdown"), Some("app.insert_fenced_markdown"));
-    fenced_code_menu.append_section(None, &markup_section);
-    
-    format_menu.append_submenu(Some(&localization::tr("insert.fenced_code")), &fenced_code_menu);
+    format_menu.append(Some(&language::tr("insert.code_block")), Some("app.code_block"));
+    format_menu.append(Some("Fenced code block..."), Some("app.insert_fenced_code"));
     
     // Lists and tasks
     let task_list_menu = gio::Menu::new();
@@ -59,7 +25,7 @@ pub fn add_format_menu(menu_model: &gio::Menu) {
     task_list_menu.append(Some("☐ Open Task"), Some("app.insert_task_list_open"));
     task_list_menu.append(Some("☑️ Closed Task"), Some("app.insert_task_list_closed"));
     
-    format_menu.append_submenu(Some(&localization::tr("insert.task_list")), &task_list_menu);
+    format_menu.append_submenu(Some(&language::tr("insert.task_list")), &task_list_menu);
     
     // Definition list submenu
     let definition_list_menu = gio::Menu::new();
@@ -67,7 +33,7 @@ pub fn add_format_menu(menu_model: &gio::Menu) {
     definition_list_menu.append(Some("⚙️ Custom Definition List..."), Some("app.insert_definition_list_custom"));
     definition_list_menu.append(Some("📖 Single Definition"), Some("app.insert_definition_list_single"));
     
-    format_menu.append_submenu(Some(&localization::tr("insert.definition_list")), &definition_list_menu);
+    format_menu.append_submenu(Some(&language::tr("insert.definition_list")), &definition_list_menu);
     
     // Special elements
     format_menu.append(Some("⚙️ Table..."), Some("app.insert_table_dialog"));
@@ -75,7 +41,7 @@ pub fn add_format_menu(menu_model: &gio::Menu) {
     format_menu.append(Some("😀 Emoji"), Some("app.insert_emoji"));
     format_menu.append(Some("&amp; HTML Entities..."), Some("app.insert_html_entity_dialog"));
     
-    menu_model.append_submenu(Some(&localization::tr("menu.format")), &format_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.format")), &format_menu);
 }
 
 pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor) {
@@ -135,28 +101,6 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
         })
         .build();
 
-    // Language-specific fenced code actions
-    let languages = [
-        "javascript", "python", "java", "typescript", "csharp", "cpp", "c",
-        "php", "go", "rust", "html", "css", "json", "xml", "sql", "bash",
-        "yaml", "markdown"
-    ];
-
-    let mut language_actions = Vec::new();
-    for lang in languages {
-        let action_name = format!("insert_fenced_{}", lang);
-        let action = gio::ActionEntry::builder(&action_name)
-            .activate({
-                let editor = editor.clone();
-                let lang = lang.to_string();
-                move |_app: &Application, _action, _param| {
-                    editor.insert_fenced_code_with_language(&lang);
-                }
-            })
-            .build();
-        language_actions.push(action);
-    }
-
     // Task list actions
     let insert_task_list_action = gio::ActionEntry::builder("insert_task_list")
         .activate({
@@ -170,8 +114,10 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
     let insert_task_list_custom_action = gio::ActionEntry::builder("insert_task_list_custom")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_task_list_custom_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_task_list_custom_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -207,8 +153,10 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
     let insert_definition_list_custom_action = gio::ActionEntry::builder("insert_definition_list_custom")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_definition_list_custom_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_definition_list_custom_dialog(&window, &editor);
+                }
             }
         })
         .build();
@@ -256,14 +204,16 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
     let insert_html_entity_dialog_action = gio::ActionEntry::builder("insert_html_entity_dialog")
         .activate({
             let editor = editor.clone();
-            move |_app: &Application, _action, _param| {
-                super::show_html_entity_dialog(&editor);
+            move |app: &Application, _action, _param| {
+                if let Some(window) = app.active_window() {
+                    super::show_html_entity_dialog(&window, &editor);
+                }
             }
         })
         .build();
 
     // Add all actions to the application
-    let mut all_actions = vec![
+    let all_actions = vec![
         strikethrough_action, insert_highlight_action, insert_subscript_action,
         insert_superscript_action, code_block_action, insert_fenced_code_action,
         insert_task_list_action, insert_task_list_custom_action, insert_task_list_open_action, insert_task_list_closed_action,
@@ -272,17 +222,16 @@ pub fn create_format_actions(app: &Application, editor: &editor::MarkdownEditor)
         insert_html_entity_dialog_action
     ];
     
-    all_actions.extend(language_actions);
     app.add_action_entries(all_actions);
 }
 
 pub fn create_table_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {
     let dialog = Dialog::with_buttons(
-        Some(&localization::tr("table_dialog.title")),
+        Some(&language::tr("table_dialog.title")),
         Some(window),
         gtk4::DialogFlags::MODAL,
-        &[(&localization::tr("table_dialog.insert"), ResponseType::Accept), 
-          (&localization::tr("table_dialog.cancel"), ResponseType::Cancel)],
+        &[(&language::tr("table_dialog.insert"), ResponseType::Accept), 
+          (&language::tr("table_dialog.cancel"), ResponseType::Cancel)],
     );
     let content_area = dialog.content_area();
     
@@ -294,7 +243,7 @@ pub fn create_table_dialog(window: &gtk4::Window, editor: &editor::MarkdownEdito
     main_container.set_margin_end(12);
 
     // Add title label
-    let title_label = Label::new(Some(&localization::tr("table_dialog.description")));
+    let title_label = Label::new(Some(&language::tr("table_dialog.description")));
     title_label.set_halign(gtk4::Align::Start);
     main_container.append(&title_label);
 
@@ -305,7 +254,7 @@ pub fn create_table_dialog(window: &gtk4::Window, editor: &editor::MarkdownEdito
     input_grid.set_margin_top(12);
 
     // Rows input
-    let rows_label = Label::new(Some(&localization::tr("table_dialog.rows")));
+    let rows_label = Label::new(Some(&language::tr("table_dialog.rows")));
     rows_label.set_halign(gtk4::Align::End);
     input_grid.attach(&rows_label, 0, 0, 1, 1);
     
@@ -317,7 +266,7 @@ pub fn create_table_dialog(window: &gtk4::Window, editor: &editor::MarkdownEdito
     input_grid.attach(&rows_entry, 1, 0, 1, 1);
 
     // Columns input
-    let cols_label = Label::new(Some(&localization::tr("table_dialog.columns")));
+    let cols_label = Label::new(Some(&language::tr("table_dialog.columns")));
     cols_label.set_halign(gtk4::Align::End);
     input_grid.attach(&cols_label, 0, 1, 1, 1);
     

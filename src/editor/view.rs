@@ -75,67 +75,32 @@ impl MarkdownEditor {
 
     /// Set the CSS theme for the preview
     pub fn set_css_theme(&self, theme_name: &str) {
-        *self.current_css_theme.borrow_mut() = theme_name.to_string();
-        
-        // Load CSS file from the css/ directory
-        let css_path = format!("css/{}.css", theme_name);
-        match std::fs::read_to_string(&css_path) {
-            Ok(css_content) => {
-                self.html_view.set_custom_css(&css_content);
-                self.refresh_html_view();
-            }
-            Err(e) => {
-                eprintln!("Failed to load CSS theme '{}': {}", theme_name, e);
-                // Fallback to standard theme
-                if theme_name != "standard" {
-                    self.set_css_theme("standard");
+        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            match theme_manager.set_css_theme(theme_name) {
+                Ok(css_content) => {
+                    self.html_view.set_custom_css(&css_content);
+                    self.refresh_html_view();
+                }
+                Err(e) => {
+                    eprintln!("Failed to set CSS theme: {}", e);
                 }
             }
+        } else {
+            eprintln!("Theme manager not initialized");
         }
     }
     
     /// Get the current CSS theme name
     pub fn get_current_css_theme(&self) -> String {
-        self.current_css_theme.borrow().clone()
+        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            theme_manager.get_current_css_theme()
+        } else {
+            "standard".to_string()
+        }
     }
 
-    /// Get available CSS themes by scanning the css/ directory
+    /// Get available CSS themes by scanning the themes/ directory
     pub fn get_available_css_themes() -> Vec<(String, String, String)> {
-        let mut themes = Vec::new();
-        
-        if let Ok(entries) = std::fs::read_dir("css") {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    if let Some(extension) = path.extension() {
-                        if extension == "css" {
-                            if let Some(filename) = path.file_stem() {
-                                let theme_id = filename.to_string_lossy().to_string();
-                                let display_name = theme_id.replace('_', " ")
-                                    .split(' ')
-                                    .map(|word| {
-                                        let mut chars = word.chars();
-                                        match chars.next() {
-                                            None => String::new(),
-                                            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-                                        }
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join(" ");
-                                
-                                // Create a properly sanitized name for action IDs (no spaces, special chars)
-                                let sanitized_name = theme_id.replace(|c: char| !c.is_alphanumeric(), "_");
-                                
-                                themes.push((theme_id, display_name, sanitized_name));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // Sort themes alphabetically by display name
-        themes.sort_by(|a, b| a.1.cmp(&b.1));
-        themes
+        crate::theme::ThemeManager::get_available_css_themes()
     }
 }

@@ -1,92 +1,262 @@
 use gtk4::prelude::*;
 use gtk4::{
-    Dialog, Entry, Grid, Label, ResponseType, ComboBoxText, FileChooserAction, 
-    FileChooserDialog, FileFilter,
+    Dialog, Entry, Grid, Label, ResponseType, FileChooserAction, 
+    FileChooserDialog, FileFilter, SearchEntry, ListBox, ListBoxRow, ScrolledWindow,
 };
 use crate::editor::core::MarkdownEditor;
 
+/// URL-encode a file path or URL to handle spaces and special characters
+fn url_encode_path(path: &str) -> String {
+    if path.starts_with("http://") || path.starts_with("https://") {
+        // For HTTP URLs, only encode spaces - other characters are likely already encoded
+        path.replace(' ', "%20")
+    } else {
+        // For local file paths, encode spaces and other characters that can cause issues
+        path.chars()
+            .map(|c| match c {
+                ' ' => "%20".to_string(),
+                '(' => "%28".to_string(),
+                ')' => "%29".to_string(),
+                '[' => "%5B".to_string(),
+                ']' => "%5D".to_string(),
+                '{' => "%7B".to_string(),
+                '}' => "%7D".to_string(),
+                c if c.is_ascii_alphanumeric() || ".-_~/:".contains(c) => c.to_string(),
+                c => format!("%{:02X}", c as u8),
+            })
+            .collect()
+    }
+}
+
 impl MarkdownEditor {
-    /// Show dialog to select programming language for fenced code block
+    /// Show dialog to select programming language for fenced code block with smart search
     pub(crate) fn show_fenced_code_dialog(&self) {
-        // Create the dialog
+        // Get the window from the source view's root
+        let window = if let Some(widget) = self.source_view.root() {
+            if let Ok(window) = widget.downcast::<gtk4::Window>() {
+                Some(window)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Create the dialog with proper parent window
         let dialog = Dialog::with_buttons(
             Some("Insert Fenced Code Block"),
-            None::<&gtk4::Window>,
-            gtk4::DialogFlags::MODAL,
+            window.as_ref(),
+            gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
             &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
         );
         
-        // Create the grid layout
-        let grid = Grid::new();
-        grid.set_row_spacing(10);
-        grid.set_column_spacing(10);
-        grid.set_margin_top(20);
-        grid.set_margin_bottom(20);
-        grid.set_margin_start(20);
-        grid.set_margin_end(20);
+        // Create the main container
+        let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
+        main_box.set_margin_top(20);
+        main_box.set_margin_bottom(20);
+        main_box.set_margin_start(20);
+        main_box.set_margin_end(20);
         
-        // Language selection
-        let language_label = Label::new(Some("Language:"));
-        language_label.set_halign(gtk4::Align::Start);
-        let language_combo = ComboBoxText::new();
-        language_combo.set_hexpand(true);
+        // Title label
+        let title_label = Label::new(Some("Choose a programming language:"));
+        title_label.set_halign(gtk4::Align::Start);
+        title_label.add_css_class("heading");
+        main_box.append(&title_label);
         
-        // Add common languages
-        language_combo.append_text("(none)");
+        // Search entry
+        let search_entry = SearchEntry::new();
+        search_entry.set_placeholder_text(Some("Type to search languages (e.g., rust, javascript, python...)"));
+        search_entry.set_hexpand(true);
+        main_box.append(&search_entry);
         
-        // Get available languages from the manager
-        let languages = self.code_language_manager.borrow().get_language_names();
-        for lang in languages {
-            language_combo.append_text(&lang);
-        }
+        // Scrolled window for the language list
+        let scrolled_window = ScrolledWindow::new();
+        scrolled_window.set_policy(gtk4::PolicyType::Never, gtk4::PolicyType::Automatic);
+        scrolled_window.set_min_content_height(200);
+        scrolled_window.set_max_content_height(300);
         
-        language_combo.set_active(Some(0)); // Select "(none)" by default
+        // List box for displaying filtered languages
+        let list_box = ListBox::new();
+        list_box.set_selection_mode(gtk4::SelectionMode::Single);
+        list_box.add_css_class("rich-list");
+        scrolled_window.set_child(Some(&list_box));
+        main_box.append(&scrolled_window);
         
-        // Add to grid
-        grid.attach(&language_label, 0, 0, 1, 1);
-        grid.attach(&language_combo, 1, 0, 1, 1);
+        // Get all available languages from syntect
+        let code_manager = self.code_language_manager.borrow().clone();
         
-        // Add grid to dialog
-        dialog.content_area().append(&grid);
+        // Selected language storage
+        let selected_language = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
         
-        // Focus on language combo
-        language_combo.grab_focus();
+        // Function to populate the list
+        let populate_list = {
+            let list_box = list_box.clone();
+            let selected_language = selected_language.clone();
+            
+            move |filter: &str| {
+                // Clear existing items
+                while let Some(child) = list_box.first_child() {
+                    list_box.remove(&child);
+                }
+                
+                // Add "(none)" option
+                let none_row = ListBoxRow::new();
+                let none_label = Label::new(Some("(none) - Plain text"));
+                none_label.set_halign(gtk4::Align::Start);
+                none_label.set_margin_top(8);
+                none_label.set_margin_bottom(8);
+                none_label.set_margin_start(12);
+                none_label.set_margin_end(12);
+                none_row.set_child(Some(&none_label));
+                none_row.set_activatable(true);
+                list_box.append(&none_row);
+                
+                // Use smart language suggestions from syntect_highlight
+                let matching_languages = code_manager.get_smart_language_suggestions(filter);
+                
+                // Limit to 20 results for performance
+                for lang in matching_languages.iter().take(20) {
+                    let row = ListBoxRow::new();
+                    let label = Label::new(Some(lang));
+                    label.set_halign(gtk4::Align::Start);
+                    label.set_margin_top(8);
+                    label.set_margin_bottom(8);
+                    label.set_margin_start(12);
+                    label.set_margin_end(12);
+                    row.set_child(Some(&label));
+                    row.set_activatable(true);
+                    list_box.append(&row);
+                }
+                
+                // Auto-select first item if filter matches exactly
+                if !filter.is_empty() && !matching_languages.is_empty() {
+                    if let Some(first_lang) = matching_languages.get(0) {
+                        if first_lang.to_lowercase() == filter.to_lowercase() {
+                            if let Some(row) = list_box.row_at_index(1) { // Skip "(none)" row
+                                list_box.select_row(Some(&row));
+                                *selected_language.borrow_mut() = first_lang.clone();
+                            }
+                        }
+                    }
+                }
+            }
+        };
         
-        // Connect response
+        // Initial population
+        populate_list("");
+        
+        // Search functionality
+        let search_populate = populate_list.clone();
+        search_entry.connect_search_changed(move |entry| {
+            let text = entry.text();
+            search_populate(&text);
+        });
+        
+        // List box selection
+        let selection_language = selected_language.clone();
+        list_box.connect_row_selected(move |_list_box, row| {
+            if let Some(row) = row {
+                if let Some(child) = row.child() {
+                    if let Ok(label) = child.downcast::<Label>() {
+                        let text = label.text();
+                        let lang = if text.starts_with("(none)") {
+                            String::new()
+                        } else {
+                            text.to_string()
+                        };
+                        *selection_language.borrow_mut() = lang;
+                    }
+                }
+            }
+        });
+        
+        // Double-click to insert
+        let dialog_close = dialog.clone();
         let buffer_clone = self.source_buffer.clone();
-        dialog.connect_response(move |dialog, response| {
-            if response == ResponseType::Accept {
-                if let Some(selected_text) = language_combo.active_text() {
-                    let language = if selected_text == "(none)" {
+        list_box.connect_row_activated(move |_list_box, row| {
+            if let Some(child) = row.child() {
+                if let Ok(label) = child.downcast::<Label>() {
+                    let text = label.text();
+                    let language = if text.starts_with("(none)") {
                         String::new()
                     } else {
-                        selected_text.to_string()
+                        text.to_string()
                     };
                     
                     let code_block = if language.is_empty() {
                         "\n```\ncode goes here\n```\n".to_string()
                     } else {
-                        format!("\n```{}\ncode goes here\n```\n", language)
+                        format!("\n```{}\ncode goes here\n```\n", language.to_lowercase())
                     };
                     
                     let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
                     let cursor_mark = gtk_buffer.get_insert();
                     let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
                     buffer_clone.insert(&mut cursor_iter, &code_block);
+                    
+                    dialog_close.close();
                 }
+            }
+        });
+        
+        // Add content to dialog
+        dialog.content_area().append(&main_box);
+        
+        // Set default button
+        if let Some(insert_button) = dialog.widget_for_response(ResponseType::Accept) {
+            insert_button.add_css_class("suggested-action");
+        }
+        
+        // Focus on search entry
+        search_entry.grab_focus();
+        
+        // Connect response
+        let final_buffer_clone = self.source_buffer.clone();
+        let final_selected_language = selected_language.clone();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                let language = final_selected_language.borrow().clone();
+                
+                let code_block = if language.is_empty() {
+                    "\n```\ncode goes here\n```\n".to_string()
+                } else {
+                    format!("\n```{}\ncode goes here\n```\n", language.to_lowercase())
+                };
+                
+                let gtk_buffer = final_buffer_clone.upcast_ref::<gtk4::TextBuffer>();
+                let cursor_mark = gtk_buffer.get_insert();
+                let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
+                final_buffer_clone.insert(&mut cursor_iter, &code_block);
             }
             dialog.close();
         });
         
         dialog.present();
+        
+        // Focus editor after dialog is shown
+        let editor_clone = self.clone();
+        dialog.connect_close(move |_| {
+            editor_clone.focus_editor_and_position_cursor();
+        });
     }
 
     pub(crate) fn show_link_dialog(&self) {
-        // Create the dialog
+        // Get the window from the source view's root
+        let window = if let Some(widget) = self.source_view.root() {
+            if let Ok(window) = widget.downcast::<gtk4::Window>() {
+                Some(window)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Create the dialog with proper parent window for modal behavior
         let dialog = Dialog::with_buttons(
             Some("Insert Link"),
-            None::<&gtk4::Window>,
-            gtk4::DialogFlags::MODAL,
+            window.as_ref(),
+            gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
             &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
         );
         
@@ -174,13 +344,30 @@ impl MarkdownEditor {
         });
         
         dialog.present();
+        
+        // Focus editor after dialog is shown
+        let editor_clone = self.clone();
+        dialog.connect_close(move |_| {
+            editor_clone.focus_editor_and_position_cursor();
+        });
     }
 
     pub(crate) fn show_image_dialog(&self) {
-        // Create file chooser dialog
+        // Get the window from the source view's root
+        let window = if let Some(widget) = self.source_view.root() {
+            if let Ok(window) = widget.downcast::<gtk4::Window>() {
+                Some(window)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Create file chooser dialog with proper parent window
         let dialog = FileChooserDialog::new(
             Some("Select Image"),
-            None::<&gtk4::Window>,
+            window.as_ref(),
             FileChooserAction::Open,
             &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
         );
@@ -214,7 +401,10 @@ impl MarkdownEditor {
                             .and_then(|name| name.to_str())
                             .unwrap_or("image");
                         
-                        let image_markdown = format!("![{}]({})", filename, path_str);
+                        // URL-encode the path to handle spaces and special characters
+                        let encoded_path = url_encode_path(&path_str);
+                        
+                        let image_markdown = format!("![{}]({})", filename, encoded_path);
                         
                         // Insert at cursor
                         let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
@@ -228,6 +418,12 @@ impl MarkdownEditor {
         });
         
         dialog.present();
+        
+        // Focus editor after dialog is shown
+        let editor_clone = self.clone();
+        dialog.connect_close(move |_| {
+            editor_clone.focus_editor_and_position_cursor();
+        });
     }
 
     pub fn show_find_dialog(&self, window: &gtk4::Window) {
@@ -546,14 +742,20 @@ impl MarkdownEditor {
             return true; // Not modified, safe to proceed immediately
         }
 
-        println!("DEBUG: Document is modified, showing unsaved changes dialog");
+        // Check if document is effectively empty (even if it was modified) - if so, don't show save dialog
+        if self.is_empty() {
+            println!("DEBUG: Document is empty after edits, proceeding immediately without save prompt");
+            return true; // Empty document, safe to proceed immediately
+        }
+
+        println!("DEBUG: Document is modified and not empty, showing unsaved changes dialog");
 
         // Create confirmation dialog
-        let title = crate::localization::tr("dialog.unsaved_changes.title");
-        let message = crate::localization::tr("dialog.unsaved_changes.message");
-        let cancel_text = crate::localization::tr("dialog.unsaved_changes.cancel");
-        let discard_text = crate::localization::tr("dialog.unsaved_changes.discard");
-        let save_text = crate::localization::tr("dialog.unsaved_changes.save");
+        let title = crate::language::tr("dialog.unsaved_changes.title");
+        let message = crate::language::tr("dialog.unsaved_changes.message");
+        let cancel_text = crate::language::tr("dialog.unsaved_changes.cancel");
+        let discard_text = crate::language::tr("dialog.unsaved_changes.discard");
+        let save_text = crate::language::tr("dialog.unsaved_changes.save");
         
         println!("DEBUG: Dialog strings - Title: '{}', Message: '{}', Cancel: '{}', Discard: '{}', Save: '{}'", 
                  title, message, cancel_text, discard_text, save_text);

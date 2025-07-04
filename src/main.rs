@@ -1,15 +1,14 @@
-mod editor;
-mod syntax_basic;
-mod syntax_extended;
-mod syntax_advanced;
-mod code_languages;
-mod localization;
+pub mod editor;
+mod md_basic;
+mod md_extended;
+mod md_advanced;
+mod syntect_highlight;
+pub mod language;
 mod menu;
 mod toolbar;
 mod footer;
 mod view_code;
 mod view_html;
-mod emoji;
 mod context_menu;
 mod theme;
 mod settings;
@@ -55,10 +54,10 @@ fn update_footer_labels(footer_labels: &footer::FooterLabels, word_count: usize,
     let char_args: std::collections::HashMap<&str, &str> = [("count", char_count_str.as_str())].iter().cloned().collect();
     let pos_args: std::collections::HashMap<&str, &str> = [("line", line_str.as_str()), ("col", column_str.as_str())].iter().cloned().collect();
     
-    footer_labels.word_count.set_text(&localization::tr_with_args("footer.words", &word_args));
-    footer_labels.char_count.set_text(&localization::tr_with_args("footer.characters", &char_args));
-    footer_labels.cursor_pos.set_text(&localization::tr_with_args("footer.position", &pos_args));
-    footer_labels.status.set_text(&localization::tr("footer.ready"));
+    footer_labels.word_count.set_text(&language::tr_with_args("footer.words", &word_args));
+    footer_labels.char_count.set_text(&language::tr_with_args("footer.characters", &char_args));
+    footer_labels.cursor_pos.set_text(&language::tr_with_args("footer.position", &pos_args));
+    footer_labels.status.set_text(&language::tr("footer.ready"));
 }
 
 /// Set up language change detection system
@@ -69,7 +68,7 @@ fn setup_language_change_detection(
     editor: &editor::MarkdownEditor,
     theme_manager: &theme::ThemeManager,
 ) {
-    let window_clone = window.clone();
+    let _window_clone = window.clone();
     let footer_labels_clone = footer_labels.clone();
     let app_clone = app.clone();
     let editor_clone = editor.clone();
@@ -77,9 +76,9 @@ fn setup_language_change_detection(
     
     // Use a more efficient approach - check every 500ms instead of 100ms
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
-        if localization::check_language_changed() {
-            // Update window title
-            window_clone.set_title(Some(&localization::tr("app.title")));
+        if language::check_language_changed() {
+            // Update window title using editor's dynamic title update
+            editor_clone.update_window_title();
             
             // Use our unified menu rebuilding system
             menu::rebuild_menu_bar(&app_clone, &editor_clone, &theme_manager_clone);
@@ -113,7 +112,7 @@ fn rebuild_toolbar(app: &Application, editor: &editor::MarkdownEditor) {
 
 fn main() -> glib::ExitCode {
     // Initialize localization
-    localization::init_localization();
+    language::init_localization();
     
     let app = Application::builder().application_id(APP_ID).build();
 
@@ -126,7 +125,7 @@ fn build_ui(app: &Application) {
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)
-        .title(&localization::tr("app.title"))
+        .title("Marco") // Initial title, will be updated by editor.update_window_title()
         .default_width(800)
         .default_height(600)
         .build();
@@ -160,6 +159,12 @@ fn build_ui(app: &Application) {
 
     // Create and set up theme manager
     let theme_manager = theme::ThemeManager::new();
+    
+    // Initialize theme manager with default CSS
+    if let Err(e) = theme_manager.initialize() {
+        eprintln!("Warning: Failed to initialize theme manager: {}", e);
+    }
+    
     editor.set_theme_manager(theme_manager.clone());
 
     // Initialize settings from current application state
@@ -170,13 +175,16 @@ fn build_ui(app: &Application) {
         theme::Theme::Light => "light",
         theme::Theme::Dark => "dark",
     };
-    let current_language = localization::get_current_locale();
+    let current_language = language::get_current_locale();
     
     settings::initialize_settings_from_app(&current_view_mode, &current_css_theme, current_ui_theme, &current_language);
 
     // Set up header bar (without file buttons)
     let header_bar = editor.create_simple_header_bar();
-    window.set_titlebar(Some(&header_bar));
+    window.set_titlebar(Some(header_bar));
+    
+    // Set initial window title
+    editor.update_window_title();
 
     // Create main vertical box
     let main_box = Box::new(Orientation::Vertical, 0);

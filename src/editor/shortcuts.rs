@@ -91,6 +91,11 @@ impl MarkdownEditor {
                         editor_clone.insert_inline_code();
                         return glib::Propagation::Stop;
                     },
+                    gdk::Key::period => {
+                        // Ctrl+. for emoji picker
+                        crate::editor::emoji::show_emoji_picker_shortcut(&editor_clone);
+                        return glib::Propagation::Stop;
+                    },
                     _ => {}
                 }
                 

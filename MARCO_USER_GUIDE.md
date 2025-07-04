@@ -23,6 +23,12 @@ When you first open Marco, you'll see:
 - A status bar showing document statistics
 - Side-by-side or single-pane view options
 
+### Latest Features
+Marco now includes several advanced features:
+- **Smart Code Block Dialog** - Search through 100+ programming languages with aliases
+- **Enhanced Theme System** - Automatic light/dark mode detection with 4 built-in CSS themes
+- **Professional Dialogs** - Modal interfaces with real-time validation and preview
+
 ## Interface Overview
 
 ### Main Components
@@ -88,6 +94,29 @@ Access recently opened documents through File → Recent Files for quick editing
   - Replace individual instances or all occurrences
   - Smart replacement preserves formatting context
 
+### Dialog Interface
+
+Marco uses **modal dialogs** for advanced features that require user input. These dialogs provide a professional, consistent experience:
+
+#### Dialog Behavior
+- **Modal Windows**: All dialogs open as modal overlays attached to the main window
+- **Focus Management**: You must interact with the dialog before returning to the editor
+- **Consistent Design**: All dialogs feature the same header style with a simple X close button
+- **Input Validation**: Real-time validation with clear error messages and user feedback
+- **Preview Support**: Many dialogs include live preview of your changes
+
+#### Types of Dialogs
+- **Content Input**: Link insertion, image properties, code language selection
+- **Text Styling**: Color selection, HTML formatting options, text alignment
+- **Advanced Media**: Enhanced image options, YouTube embedding, custom links
+- **System Information**: Keyboard shortcuts, about information, emoji picker
+
+#### Tips for Dialog Use
+- Use **Tab** to navigate between input fields
+- Press **Enter** to confirm changes (equivalent to clicking OK)
+- Press **Escape** to cancel and close the dialog
+- All changes are previewed before being applied to your document
+
 ## Markdown Formatting
 
 ### Headings
@@ -116,13 +145,23 @@ Create headings using the toolbar dropdown or keyboard shortcuts:
 
 ### Code Blocks
 - **Inline Code**: Use backticks `` `code` ``
-- **Code Blocks**: Use triple backticks with optional language:
+- **Fenced Code Blocks**: Use the smart search dialog or type manually
   ```markdown
   ```python
   def hello():
       print("Hello, World!")
   ```
   ```
+
+#### Smart Language Selection
+Marco now features an advanced language picker for fenced code blocks:
+- **Access**: Format → Fenced code block... (`Ctrl+Shift+C`)
+- **Smart Search**: Type to search among 100+ supported programming languages
+- **Alias Support**: Use shortcuts like "js" for JavaScript, "py" for Python
+- **Popular Languages**: Shows commonly used languages first
+- **Real-time Filtering**: Instant results as you type
+
+**Supported Languages Include**: Rust, JavaScript, TypeScript, Python, Java, C++, C#, Go, PHP, Ruby, HTML, CSS, SQL, Bash, and many more!
 
 ### Blockquotes
 - Use toolbar button or start line with `> `
@@ -146,7 +185,8 @@ Access through Advanced menu when text is selected:
 
 #### Colored Text
 - Select text → Advanced → Text Styling → Colored Text
-- Opens color picker dialog
+- Opens modal color picker dialog attached to the main window
+- Provides live preview of color changes
 - Applies HTML color styling
 
 #### Indent Text
@@ -178,8 +218,12 @@ Customize the appearance:
 
 ### CSS Themes
 Apply different styling to your preview:
-- Multiple built-in CSS themes
-- Affects how your Markdown renders in preview mode
+- **Standard**: Clean, professional styling
+- **Academic**: Academic paper formatting with serif fonts
+- **GitHub**: GitHub-style rendering
+- **Minimal**: Clean, distraction-free appearance
+- Themes affect how your Markdown renders in preview mode
+- Automatic theme integration with light/dark mode detection
 
 ## Settings & Preferences
 
@@ -224,7 +268,12 @@ Access preferences through View → Preferences:
 - `Ctrl+I` - Italic
 - `Ctrl+K` - Insert Link
 - `Ctrl+` ` - Inline Code
-- `Ctrl+Shift+C` - Code Block
+- `Ctrl+Shift+C` - Fenced Code Block (opens smart language picker)
+
+### Lists and Structure
+- `Ctrl+L` - Bullet List
+- `Ctrl+Shift+L` - Numbered List
+- `Ctrl+Q` - Blockquote
 
 ### Headings
 - `Ctrl+1` through `Ctrl+6` - Insert heading levels
@@ -252,12 +301,17 @@ Access preferences through View → Preferences:
 2. **HTML mixing** - You can use HTML tags within Markdown for advanced formatting
 3. **Theme switching** to match your working environment
 4. **Language switching** for international collaboration
+5. **Smart code search** - Use aliases like "js", "py", "rs" in the fenced code dialog
+6. **100+ programming languages** supported with syntax highlighting
 
 ### Troubleshooting
 - **Unsaved changes warning**: Marco will prompt you before closing unsaved documents
 - **Text selection required**: Some advanced features require text selection first
 - **Syntax highlighting**: Automatic highlighting helps identify formatting issues
 - **Preview updates**: Split view shows changes in real-time
+- **White preview background**: If preview appears white, try switching CSS themes in View menu
+- **Code language not found**: Use the smart search in fenced code dialog - try aliases like "js", "py", "rs"
+- **Theme not loading**: Restart application if theme changes don't apply immediately
 
 ## Getting Help
 

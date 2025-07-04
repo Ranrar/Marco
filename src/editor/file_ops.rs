@@ -6,7 +6,12 @@ impl MarkdownEditor {
     pub fn new_file(&self) {
         self.source_buffer.set_text("");
         *self.current_file.borrow_mut() = None;
-        self.mark_as_saved(); // New file is not modified
+        // Reset original content to empty string for new file
+        *self.original_content.borrow_mut() = String::new();
+        self.mark_as_saved(); // New file is not modified (also updates window title)
+        
+        // Update base path for image resolution
+        self.html_view.set_base_path(None);
     }
 
     pub fn open_file_from_menu(&self, window: &gtk4::Window) {
@@ -32,6 +37,9 @@ impl MarkdownEditor {
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
         let is_modified = self.is_modified.clone();
+        let original_content = self.original_content.clone();
+        let editor_for_title = self.clone();
+        
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
@@ -39,9 +47,15 @@ impl MarkdownEditor {
                         match std::fs::read_to_string(&path) {
                             Ok(content) => {
                                 source_buffer.set_text(&content);
-                                *current_file.borrow_mut() = Some(path);
+                                *current_file.borrow_mut() = Some(path.clone());
                                 *is_modified.borrow_mut() = false; // Mark as saved after opening
+                                // Set original content to the loaded content
+                                *original_content.borrow_mut() = content;
                                 println!("DEBUG: File opened and marked as saved");
+                                // Update window title after opening file
+                                editor_for_title.update_window_title();
+                                // Update base path for image resolution
+                                editor_for_title.html_view.set_base_path(Some(path));
                             }
                             Err(e) => {
                                 eprintln!("Failed to open file: {}", e);
@@ -114,6 +128,8 @@ impl MarkdownEditor {
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
         let is_modified = self.is_modified.clone();
+        let editor_for_title = self.clone();
+        
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
@@ -124,9 +140,13 @@ impl MarkdownEditor {
                         
                         match std::fs::write(&path, text) {
                             Ok(_) => {
-                                *current_file.borrow_mut() = Some(path);
+                                *current_file.borrow_mut() = Some(path.clone());
                                 *is_modified.borrow_mut() = false; // Mark as saved after successful write
                                 println!("DEBUG: File saved as and marked as saved");
+                                // Update window title after saving file
+                                editor_for_title.update_window_title();
+                                // Update base path for image resolution
+                                editor_for_title.html_view.set_base_path(Some(path));
                             }
                             Err(e) => {
                                 eprintln!("Failed to save file: {}", e);
@@ -157,6 +177,8 @@ impl MarkdownEditor {
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
         let is_modified = self.is_modified.clone();
+        let editor_for_title = self.clone();
+        
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 println!("DEBUG: User clicked Save in Save As dialog");
@@ -169,8 +191,12 @@ impl MarkdownEditor {
                         match std::fs::write(&path, text) {
                             Ok(_) => {
                                 println!("DEBUG: File saved successfully, marking as saved and calling callback");
-                                *current_file.borrow_mut() = Some(path);
+                                *current_file.borrow_mut() = Some(path.clone());
                                 *is_modified.borrow_mut() = false; // Mark as saved after successful write
+                                // Update window title after saving file
+                                editor_for_title.update_window_title();
+                                // Update base path for image resolution
+                                editor_for_title.html_view.set_base_path(Some(path));
                                 on_save_complete(); // Call the callback only on successful save
                             }
                             Err(e) => {

@@ -7,5 +7,6 @@ pub mod view;
 pub mod shortcuts;
 pub mod syntax;
 pub mod context_menu;
+pub mod emoji;
 
 pub use core::MarkdownEditor;

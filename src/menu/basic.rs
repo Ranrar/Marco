@@ -1,29 +1,29 @@
 use gtk4::prelude::*;
 use gtk4::{Application, gio};
-use crate::{editor, localization};
+use crate::{editor, language};
 
 pub fn add_file_menu(menu_model: &gio::Menu) {
     let file_menu = gio::Menu::new();
-    file_menu.append(Some(&localization::tr("menu.new")), Some("app.new"));
-    file_menu.append(Some(&localization::tr("menu.open")), Some("app.open"));
-    file_menu.append(Some(&localization::tr("menu.save")), Some("app.save"));
-    file_menu.append(Some(&localization::tr("menu.save_as")), Some("app.save_as"));
-    file_menu.append(Some(&localization::tr("menu.quit")), Some("app.quit"));
+    file_menu.append(Some(&language::tr("menu.new")), Some("app.new"));
+    file_menu.append(Some(&language::tr("menu.open")), Some("app.open"));
+    file_menu.append(Some(&language::tr("menu.save")), Some("app.save"));
+    file_menu.append(Some(&language::tr("menu.save_as")), Some("app.save_as"));
+    file_menu.append(Some(&language::tr("menu.quit")), Some("app.quit"));
     
-    menu_model.append_submenu(Some(&localization::tr("menu.file")), &file_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.file")), &file_menu);
 }
 
 pub fn add_edit_menu(menu_model: &gio::Menu) {
     let edit_menu = gio::Menu::new();
-    edit_menu.append(Some(&localization::tr("menu.undo")), Some("app.undo"));
-    edit_menu.append(Some(&localization::tr("menu.redo")), Some("app.redo"));
-    edit_menu.append(Some(&localization::tr("menu.cut")), Some("app.cut"));
-    edit_menu.append(Some(&localization::tr("menu.copy")), Some("app.copy"));
-    edit_menu.append(Some(&localization::tr("menu.paste")), Some("app.paste"));
-    edit_menu.append(Some(&localization::tr("menu.find")), Some("app.find"));
-    edit_menu.append(Some(&localization::tr("menu.replace")), Some("app.replace"));
+    edit_menu.append(Some(&language::tr("menu.undo")), Some("app.undo"));
+    edit_menu.append(Some(&language::tr("menu.redo")), Some("app.redo"));
+    edit_menu.append(Some(&language::tr("menu.cut")), Some("app.cut"));
+    edit_menu.append(Some(&language::tr("menu.copy")), Some("app.copy"));
+    edit_menu.append(Some(&language::tr("menu.paste")), Some("app.paste"));
+    edit_menu.append(Some(&language::tr("menu.find")), Some("app.find"));
+    edit_menu.append(Some(&language::tr("menu.replace")), Some("app.replace"));
     
-    menu_model.append_submenu(Some(&localization::tr("menu.edit")), &edit_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.edit")), &edit_menu);
 }
 
 pub fn create_file_actions(app: &Application, editor: &editor::MarkdownEditor) {

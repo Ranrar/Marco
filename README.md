@@ -28,7 +28,8 @@ A modern markdown editor built with Rust and GTK4. Features live preview, multip
 ### Tables and Task Lists
 - **Interactive Table Dialog** - Create tables with visual row/column selection
 - **Task Lists** - Basic checkboxes, custom dialogs, single task insertion
-- **Code Blocks** - 10+ programming languages with syntax highlighting
+- **Smart Code Blocks** - 100+ programming languages with intelligent search
+- **Advanced Syntax Highlighting** - Powered by syntect library for high-quality code rendering
 
 ## Dependencies
 
@@ -37,29 +38,56 @@ A modern markdown editor built with Rust and GTK4. Features live preview, multip
 - `sourceview5` - GTK SourceView for syntax highlighting
 - `pulldown-cmark` - Fast CommonMark-compliant markdown parser
 - `glib` - GLib bindings for GTK integration
+- `syntect` - High-quality syntax highlighting for 100+ programming languages
 
 ### Additional Dependencies
 - `serde` and `serde_json` - Serialization framework for settings and configuration
 - `serde_yaml` - YAML support for translation files
 - `lazy_static` - Global state management for settings system
 - `regex` - Pattern matching for advanced syntax highlighting and markdown processing
+- `webkit6` - WebKit integration for HTML preview rendering
+
+## Recent Improvements
+
+### Smart Code Block Dialog (Latest)
+- **100+ Programming Languages** - Upgraded from regex-based to syntect-powered highlighting
+- **Intelligent Search** - Smart autocomplete with alias support (js → JavaScript, py → Python)
+- **GTK4 SearchEntry** - Modern search interface with real-time filtering
+- **Popular Languages First** - Shows commonly used languages when search is empty
+- **Professional UI** - Modal dialog with proper keyboard navigation
+
+### Enhanced Theme System
+- **Automatic CSS Loading** - Fixed white preview background issue
+- **Theme Integration** - Proper light/dark mode detection and CSS injection
+- **4 Built-in Themes** - Standard, Academic, GitHub, and Minimal styling
+- **Robust Fallbacks** - Graceful handling of missing theme files
+
+### Improved Architecture
+- **Modular Design** - Clean separation between editor, themes, and syntax highlighting
+- **Better Error Handling** - Comprehensive validation and user feedback
+- **Performance Optimized** - Efficient CSS caching and theme switching
 
 ## Translation System
 
-Marco uses YAML-based translations in `locales/[language]/main.yml`. To add a new language:
-1. Create `locales/[code]/main.yml` 
+Marco uses YAML-based translations in `language/[language]/main.yml`. To add a new language:
+1. Create `language/[code]/main.yml` 
 2. Copy and translate `en/main.yml`
-3. Add language to `src/localization.rs` and `src/main.rs`
+3. Add language to `src/language.rs` and menu system
+
+**Current Languages**: English (en), German (de), Spanish (es), French (fr)
 
 ## Project Structure
 
 ### Key Files
 - `src/main.rs` - Application entry point and UI setup
-- `src/editor.rs` - Main editor widget with split-pane layout
-- `src/menu.rs` - Menu system and actions
+- `src/editor/` - Main editor module with split-pane layout and dialogs
+- `src/menu/` - Menu system and actions
+- `src/syntect_highlight.rs` - Advanced syntax highlighting with 100+ languages
+- `src/theme.rs` - Theme management and CSS loading system
 - `src/settings.rs` - Persistent settings with JSON storage
-- `locales/` - Translation files for all supported languages
-- `css/` - Built-in CSS themes
+- `src/view_html.rs` - HTML preview rendering with theme integration
+- `language/` - Translation files for all supported languages (YAML format)
+- `themes/` - Built-in CSS themes (Standard, Academic, GitHub, Minimal)
 
 ## Screenshots
 
@@ -73,8 +101,11 @@ Marco features a clean, modern interface with split-pane editing and full multi-
 - **Split-pane editor** with live preview and syntax highlighting
 - **Multi-language support** (4 languages) with instant switching
 - **Advanced markdown** including GitHub-style admonitions, tables, task lists
-- **CSS themes** with 4 built-in styles plus custom CSS support
+- **Smart code blocks** with intelligent language search supporting 100+ programming languages
+- **CSS themes** with 4 built-in styles (Standard, Academic, GitHub, Minimal) plus custom CSS support
+- **Modern theme system** with automatic light/dark mode detection and CSS integration
 - **Settings persistence** with visual menu checkmarks for current selections
+- **Professional dialogs** with modal interfaces and real-time validation
 - **Comprehensive UI** with toolbar, context menus, and keyboard shortcuts
 
 ### Partially Complete

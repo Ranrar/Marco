@@ -1,10 +1,10 @@
 use gtk4::prelude::*;
 use gtk4::{Application, gio};
-use crate::{editor, localization, settings};
+use crate::{editor, language, settings};
 
 pub fn add_view_menu(menu_model: &gio::Menu, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) {
     let view_menu = create_view_menu(editor, theme_manager);
-    menu_model.append_submenu(Some(&localization::tr("menu.view")), &view_menu);
+    menu_model.append_submenu(Some(&language::tr("menu.view")), &view_menu);
 }
 
 pub fn create_view_menu(_editor: &editor::MarkdownEditor, _theme_manager: &crate::theme::ThemeManager) -> gio::Menu {
@@ -87,7 +87,7 @@ pub fn create_view_menu(_editor: &editor::MarkdownEditor, _theme_manager: &crate
     
     let language_menu = gio::Menu::new();
     
-    for (code, name) in localization::get_available_locales() {
+    for (code, name) in language::get_available_locales() {
         let lang_label = if current_settings.language == code {
             format!("{}\t✓", name)
         } else {
@@ -95,7 +95,7 @@ pub fn create_view_menu(_editor: &editor::MarkdownEditor, _theme_manager: &crate
         };
         language_menu.append(Some(&lang_label), Some(&format!("app.set_language_{}", code)));
     }
-    view_menu.append_submenu(Some(&localization::tr("menu.language")), &language_menu);
+    view_menu.append_submenu(Some(&language::tr("menu.language")), &language_menu);
     
     view_menu
 }
@@ -192,7 +192,7 @@ pub fn create_view_actions(app: &Application, editor: &editor::MarkdownEditor, t
     }
 
     // Language switching actions
-    let available_locales = localization::get_available_locales();
+    let available_locales = language::get_available_locales();
     let mut language_actions = Vec::new();
     
     for (code, _name) in available_locales {
@@ -203,7 +203,7 @@ pub fn create_view_actions(app: &Application, editor: &editor::MarkdownEditor, t
                 let theme_mgr = theme_manager.clone();
                 let lang_code = code;
                 move |app: &Application, _action, _param| {
-                    localization::set_locale(&lang_code);
+                    language::set_locale(&lang_code);
                     settings::update_language(&lang_code);
                     super::rebuild_menu_bar(app, &editor, &theme_mgr);
                     println!("Language changed to {}", lang_code);
