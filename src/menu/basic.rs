@@ -20,6 +20,7 @@ pub fn add_edit_menu(menu_model: &gio::Menu) {
     edit_menu.append(Some(&language::tr("menu.cut")), Some("app.cut"));
     edit_menu.append(Some(&language::tr("menu.copy")), Some("app.copy"));
     edit_menu.append(Some(&language::tr("menu.paste")), Some("app.paste"));
+    edit_menu.append(Some(&language::tr("menu.select_all")), Some("app.select_all"));
     edit_menu.append(Some(&language::tr("menu.find")), Some("app.find"));
     edit_menu.append(Some(&language::tr("menu.replace")), Some("app.replace"));
     
@@ -163,8 +164,7 @@ pub fn create_edit_actions(app: &Application, editor: &editor::MarkdownEditor) {
             }
         })
         .build();
-    
-    let replace_action = gio::ActionEntry::builder("replace")
+     let replace_action = gio::ActionEntry::builder("replace")
         .activate({
             let editor = editor.clone();
             move |app: &Application, _action, _param| {
@@ -175,7 +175,20 @@ pub fn create_edit_actions(app: &Application, editor: &editor::MarkdownEditor) {
         })
         .build();
     
-    app.add_action_entries([undo_action, redo_action, cut_action, copy_action, paste_action, find_action, replace_action]);
+    let select_all_action = gio::ActionEntry::builder("select_all")
+        .activate({
+            let editor = editor.clone();
+            move |_app: &Application, _action, _param| {
+                let source_buffer = editor.source_buffer();
+                let gtk_buffer = source_buffer.upcast_ref::<gtk4::TextBuffer>();
+                let start_iter = gtk_buffer.start_iter();
+                let end_iter = gtk_buffer.end_iter();
+                gtk_buffer.select_range(&start_iter, &end_iter);
+            }
+        })
+        .build();
+
+    app.add_action_entries([undo_action, redo_action, cut_action, copy_action, paste_action, find_action, replace_action, select_all_action]);
     
     // Set keyboard accelerators for Edit menu actions
     app.set_accels_for_action("app.undo", &["<Ctrl>z"]);
@@ -183,6 +196,7 @@ pub fn create_edit_actions(app: &Application, editor: &editor::MarkdownEditor) {
     app.set_accels_for_action("app.cut", &["<Ctrl>x"]);
     app.set_accels_for_action("app.copy", &["<Ctrl>c"]);
     app.set_accels_for_action("app.paste", &["<Ctrl>v"]);
+    app.set_accels_for_action("app.select_all", &["<Ctrl>a"]);
     app.set_accels_for_action("app.find", &["<Ctrl>f"]);
     app.set_accels_for_action("app.replace", &["<Ctrl>h"]);
 }

@@ -77,17 +77,9 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
 
     main_container.append(&input_grid);
 
-    // Preview section
-    let preview_label = Label::new(Some("Preview:"));
-    preview_label.set_halign(gtk4::Align::Start);
-    preview_label.set_margin_top(12);
-    main_container.append(&preview_label);
-    
-    let preview_text = preview::create_preview_text_view();
-    preview_text.set_size_request(350, 60);
-    preview_text.set_margin_top(8);
-    
-    main_container.append(&preview_text);
+    // Preview section using unified theme
+    let (preview_box, preview_text) = crate::menu::dialogs::common::create_preview_area("Preview");
+    main_container.append(&preview_box);
     content_area.append(&main_container);
     
     // Update preview function

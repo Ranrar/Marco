@@ -22,6 +22,12 @@ de:
     help: "Hilfe"
     view: "Ansicht"
     language: "Sprache"
+    settings: "Einstellungen..."
+    delete: "Löschen"
+    select_all: "Alles auswählen"
+    preview_html: "HTML-Vorschau"
+    preview_code: "Code-Vorschau"
+    change_preview_mode: "Vorschaumodus ändern"
   insert:
     heading1: "Überschrift 1"
     heading2: "Überschrift 2"

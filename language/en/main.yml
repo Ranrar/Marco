@@ -22,6 +22,12 @@ en:
     help: "Help"
     view: "View"
     language: "Language"
+    settings: "Settings..."
+    delete: "Delete"
+    select_all: "Select All"
+    preview_html: "HTML Preview"
+    preview_code: "Code Preview"
+    change_preview_mode: "Change Preview Mode"
   insert:
     heading1: "Heading 1"
     heading2: "Heading 2"

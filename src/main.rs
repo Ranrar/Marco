@@ -1,18 +1,14 @@
 pub mod editor;
-mod md_basic;
-mod md_extended;
-mod md_advanced;
-mod syntect_highlight;
+mod markdown;
 pub mod language;
 mod menu;
 mod toolbar;
 mod footer;
-mod view_code;
-mod view_html;
-mod context_menu;
+pub mod view;
 mod theme;
 mod settings;
 
+use clap::{Arg, Command};
 use gtk4::prelude::*;
 use gtk4::{
     glib, Application, ApplicationWindow, Box, Orientation, CssProvider, gdk,
@@ -111,23 +107,98 @@ fn rebuild_toolbar(app: &Application, editor: &editor::MarkdownEditor) {
 }
 
 fn main() -> glib::ExitCode {
+    // Initialize settings system early
+    if let Err(e) = settings::core::initialize_settings() {
+        eprintln!("Warning: Failed to initialize settings: {}", e);
+    }
+    
+    // Parse command line arguments before GTK processing
+    let args: Vec<String> = std::env::args().collect();
+    
+    // Parse command line arguments manually to avoid conflicts with GTK
+    let matches = Command::new("marco")
+        .version("0.1.0")
+        .author("Kim Skov Rasmussen")
+        .about("Marco - Markdown Composer")
+        .arg(
+            Arg::new("debug")
+                .short('d')
+                .long("debug")
+                .help("Enable debug mode with verbose output")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("file")
+                .help("Optional markdown file to open")
+                .value_name("FILE")
+                .index(1),
+        )
+        .try_get_matches_from(&args);
+
+    let (debug_mode, file_to_open) = match matches {
+        Ok(matches) => {
+            let debug_mode = matches.get_flag("debug");
+            let file_to_open = matches.get_one::<String>("file").map(|s| s.as_str());
+            
+            if debug_mode {
+                println!("Debug mode enabled");
+                std::env::set_var("RUST_LOG", "debug");
+                
+                // Enable additional debug output
+                println!("Marco - Debug Mode");
+                println!("Version: 0.1.0");
+                println!("GTK4 Version: {}", gtk4::major_version());
+                println!("Build Profile: {}", if cfg!(debug_assertions) { "Debug" } else { "Release" });
+            }
+
+            (debug_mode, file_to_open.map(|s| s.to_string()))
+        }
+        Err(_) => {
+            // If parsing fails, run without debug mode
+            (false, None)
+        }
+    };
+    
     // Initialize localization
     language::init_localization();
     
-    let app = Application::builder().application_id(APP_ID).build();
+    // Filter out our custom arguments before passing to GTK
+    let filtered_args: Vec<String> = args.into_iter()
+        .filter(|arg| !arg.starts_with("--debug") && !arg.starts_with("-d"))
+        .collect();
+    
+    // Override command line args for GTK
+    let app = Application::builder()
+        .application_id(APP_ID)
+        .build();
 
-    app.connect_activate(build_ui);
+    // Pass the file to open to the UI builder
+    app.connect_activate({
+        let file_to_open = file_to_open.clone();
+        move |app| build_ui(app, file_to_open.as_deref(), debug_mode)
+    });
 
-    app.run()
+    app.run_with_args(&filtered_args)
 }
 
-fn build_ui(app: &Application) {
+fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
+    if debug_mode {
+        println!("Building UI with debug mode enabled");
+        if let Some(file) = file_to_open {
+            println!("File to open: {}", file);
+        }
+    }
+    
+    // Get window size from settings
+    let prefs = settings::get_app_preferences();
+    let (default_width, default_height) = prefs.get_window_size();
+    
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)
         .title("Marco") // Initial title, will be updated by editor.update_window_title()
-        .default_width(800)
-        .default_height(600)
+        .default_width(default_width)
+        .default_height(default_height)
         .build();
 
     // Set up CSS for error styling and toolbar button states
@@ -167,20 +238,32 @@ fn build_ui(app: &Application) {
     
     editor.set_theme_manager(theme_manager.clone());
 
-    // Initialize settings from current application state
-    let current_view_mode = editor.get_view_mode();
-    let current_css_theme = editor.get_current_css_theme();
-    let current_ui_theme = match theme_manager.get_current_theme() {
-        theme::Theme::System => "system",
-        theme::Theme::Light => "light",
-        theme::Theme::Dark => "dark",
-    };
-    let current_language = language::get_current_locale();
+    // Apply settings CSS
+    settings::ui::apply_settings_css();
     
-    settings::initialize_settings_from_app(&current_view_mode, &current_css_theme, current_ui_theme, &current_language);
+    // Load preferences and apply them
+    
+    // Restore window geometry
+    if let Err(e) = settings::preferences::restore_window_geometry(&window) {
+        eprintln!("Warning: Failed to restore window geometry: {}", e);
+    }
+    
+    // Load and apply application state from settings
+    if let Err(e) = settings::preferences::load_app_state_from_settings(&editor, &theme_manager) {
+        eprintln!("Warning: Failed to load application state: {}", e);
+    }
+    
+    // Connect to settings changes
+    if let Err(e) = settings::preferences::connect_settings_changes(&editor, &theme_manager) {
+        eprintln!("Warning: Failed to connect settings changes: {}", e);
+    }
 
     // Set up header bar (without file buttons)
     let header_bar = editor.create_simple_header_bar();
+    
+    // Add settings button to header bar
+    settings::ui::add_settings_button_to_header_bar(header_bar, &window, &editor, &theme_manager);
+    
     window.set_titlebar(Some(header_bar));
     
     // Set initial window title
@@ -236,8 +319,19 @@ fn build_ui(app: &Application) {
     // Handle window close event to check for unsaved changes
     window.connect_close_request({
         let editor = editor.clone();
+        let theme_manager = theme_manager.clone();
         let app = app.clone();
         move |window| {
+            // Save window geometry
+            if let Err(e) = settings::preferences::save_window_geometry(window) {
+                eprintln!("Warning: Failed to save window geometry: {}", e);
+            }
+            
+            // Save application state (view mode, themes, language, etc.)
+            if let Err(e) = settings::preferences::save_app_state_to_settings(&editor, &theme_manager) {
+                eprintln!("Warning: Failed to save application state: {}", e);
+            }
+            
             // Cast ApplicationWindow to Window for the editor method
             let window_ref = window.upcast_ref::<gtk4::Window>();
             let app_clone = app.clone();
@@ -261,4 +355,20 @@ fn build_ui(app: &Application) {
 
     // Present the window
     window.present();
+    
+    // Open the file if provided via command line
+    if let Some(file_path) = file_to_open {
+        if debug_mode {
+            println!("Opening file: {}", file_path);
+        }
+        
+        // Use the editor's file operations to open the file
+        if let Err(e) = editor.load_file_from_path(file_path) {
+            if debug_mode {
+                eprintln!("Error opening file '{}': {}", file_path, e);
+            }
+        } else if debug_mode {
+            println!("Successfully opened file: {}", file_path);
+        }
+    }
 }

@@ -6,11 +6,11 @@ use sourceview5::prelude::*;
 use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::view_code::MarkdownCodeView;
-use crate::view_html::MarkdownHtmlView;
-use crate::syntect_highlight::CodeLanguageManager;
-use crate::context_menu::ContextMenu;
-use crate::md_advanced::ExtraMarkdownSyntax;
+use crate::view::{MarkdownCodeView, MarkdownHtmlView};
+use crate::markdown::syntect::CodeLanguageManager;
+use crate::editor::context_menu::ContextMenu;
+use crate::markdown::advanced::ExtraMarkdownSyntax;
+use crate::markdown::syntax::MarkdownSyntaxChecker;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -35,6 +35,9 @@ pub struct MarkdownEditor {
     pub(crate) header_bar: HeaderBar,
     // Track the original content to determine if document is truly modified
     pub(crate) original_content: Rc<RefCell<String>>,
+    // Markdown syntax checker for warnings
+    pub(crate) syntax_checker: Rc<RefCell<MarkdownSyntaxChecker>>,
+    pub(crate) warnings_enabled: Rc<RefCell<bool>>,
 }
 
 impl MarkdownEditor {
@@ -124,6 +127,9 @@ impl MarkdownEditor {
         // Create header bar for title management
         let header_bar = HeaderBar::new();
 
+        // Initialize syntax checker for markdown warnings
+        let syntax_checker = MarkdownSyntaxChecker::new_with_defaults();
+        
         let editor = Self {
             widget: paned,
             source_view,
@@ -143,7 +149,15 @@ impl MarkdownEditor {
             preserve_selection: Rc::new(RefCell::new(false)),
             header_bar,
             original_content: Rc::new(RefCell::new(String::new())),
+            syntax_checker: Rc::new(RefCell::new(syntax_checker)),
+            warnings_enabled: Rc::new(RefCell::new(true)), // Enable warnings by default
         };
+
+        // Set buffer reference for syntax checker
+        {
+            let gtk_buffer = editor.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+            editor.syntax_checker.borrow_mut().set_buffer(gtk_buffer);
+        }
 
         // Connect text change signal
         editor.connect_text_changed();
@@ -158,6 +172,10 @@ impl MarkdownEditor {
         
         // Store the context menu reference for keyboard access
         *editor.context_menu.borrow_mut() = Some(context_menu);
+        
+        // Set up preview context menus for both HTML and Code views
+        editor.html_view.setup_context_menu(&editor);
+        editor.code_view.setup_context_menu(&editor);
 
         // Initialize with standard CSS theme
         editor.set_css_theme("standard");
@@ -215,6 +233,8 @@ impl MarkdownEditor {
         let tag_table = self.tag_table.clone();
         let update_timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
         let original_content = self.original_content.clone();
+        let syntax_checker = self.syntax_checker.clone();
+        let warnings_enabled = self.warnings_enabled.clone();
         
         // Store clone of editor for window title updates
         let editor_for_title = self.clone();
@@ -242,6 +262,17 @@ impl MarkdownEditor {
                 let extra_syntax_ref = extra_syntax.borrow();
                 let mut tag_table_ref = tag_table.borrow_mut();
                 extra_syntax_ref.apply_extra_syntax_highlighting(buffer, &text, &mut tag_table_ref);
+            }
+            
+            // Apply markdown warnings if enabled
+            if *warnings_enabled.borrow() {
+                let warnings = syntax_checker.borrow_mut().lint(&text);
+                if !warnings.is_empty() {
+                    println!("DEBUG: Found {} markdown warnings", warnings.len());
+                    for warning in &warnings {
+                        println!("  - {}", warning);
+                    }
+                }
             }
             
             // Update footer statistics immediately (no delay needed for stats)
@@ -420,5 +451,78 @@ impl MarkdownEditor {
         }
         
         None
+    }
+    
+    /// Enable or disable function highlighting
+    pub fn set_function_highlighting(&self, enabled: bool) {
+        // Store the setting for use in syntax highlighting
+        // This would need to be implemented in the syntax highlighting system
+        if enabled {
+            println!("Function highlighting enabled");
+        } else {
+            println!("Function highlighting disabled");
+        }
+    }
+    
+    /// Enable or disable markdown warnings
+    pub fn set_markdown_warnings(&self, enabled: bool) {
+        *self.warnings_enabled.borrow_mut() = enabled;
+        
+        if enabled {
+            println!("Markdown warnings enabled");
+            
+            // Re-check current content when enabling warnings
+            let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+            let start = gtk_buffer.start_iter();
+            let end = gtk_buffer.end_iter();
+            let text = gtk_buffer.text(&start, &end, false).to_string();
+            
+            let warnings = self.syntax_checker.borrow_mut().lint(&text);
+            if !warnings.is_empty() {
+                println!("Found {} markdown warnings after enabling:", warnings.len());
+                for warning in &warnings {
+                    println!("  - {}", warning);
+                }
+            }
+        } else {
+            println!("Markdown warnings disabled");
+            
+            // Clear existing warnings when disabling
+            self.syntax_checker.borrow_mut().clear_warnings();
+        }
+    }
+    
+    /// Set layout reversed (preview on left, editor on right)
+    pub fn set_layout_reversed(&self, reversed: bool) {
+        // Get the current children
+        let source_scroll = self.widget.start_child();
+        let view_stack = self.widget.end_child();
+        
+        if let (Some(source_child), Some(view_child)) = (source_scroll, view_stack) {
+            // Remove both children first
+            self.widget.set_start_child(None::<&gtk4::Widget>);
+            self.widget.set_end_child(None::<&gtk4::Widget>);
+            
+            if reversed {
+                // Editor right, preview on left
+                self.widget.set_start_child(Some(&view_child));
+                self.widget.set_end_child(Some(&source_child));
+                println!("Layout reversed: editor right, preview left");
+            } else {
+                // Editor on left, preview on right (default)
+                self.widget.set_start_child(Some(&source_child));
+                self.widget.set_end_child(Some(&view_child));
+                println!("Layout reversed: editor left, preview right");
+            }
+        } else {
+            eprintln!("Warning: Could not get paned children for layout reversal");
+        }
+    }
+    
+    /// Create a weak reference to this editor
+    pub fn downgrade(&self) -> std::rc::Weak<RefCell<MarkdownEditor>> {
+        // This is a placeholder - the actual implementation would depend on how the editor is stored
+        // For now, we'll use a different approach in the preferences module
+        std::rc::Weak::new()
     }
 }

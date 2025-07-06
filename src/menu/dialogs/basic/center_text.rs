@@ -14,10 +14,11 @@ pub fn show_center_text_dialog(window: &gtk4::Window, editor: &editor::MarkdownE
         &[(&language::tr("table_dialog.insert"), ResponseType::Accept), 
           (&language::tr("table_dialog.cancel"), ResponseType::Cancel)],
     );
+    
     let content_area = dialog.content_area();
     
     // Create main container
-    let main_container = create_content_box(Orientation::Vertical, 12);
+    let main_container = gtk4::Box::new(Orientation::Vertical, 12);
     main_container.set_margin_top(12);
     main_container.set_margin_bottom(12);
     main_container.set_margin_start(12);
@@ -35,7 +36,7 @@ pub fn show_center_text_dialog(window: &gtk4::Window, editor: &editor::MarkdownE
     input_grid.set_margin_top(12);
 
     // Text input
-    let text_entry = builders::create_labeled_entry(
+    let text_entry = create_labeled_entry(
         &input_grid,
         0,
         "Text to center:",

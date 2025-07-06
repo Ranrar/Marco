@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="marco">
+  <schema id="com.example.Marco" path="/com/example/Marco/">
+    <!-- Function highlighting toggle -->
+    <key name="function-highlighting" type="b">
+      <default>true</default>
+      <summary>Enable function highlighting</summary>
+      <description>Whether to highlight function names in code blocks</description>
+    </key>
+    
+    <!-- Markdown format warnings -->
+    <key name="markdown-warnings" type="b">
+      <default>true</default>
+      <summary>Enable markdown format warnings</summary>
+      <description>Whether to show warnings for markdown formatting issues</description>
+    </key>
+    
+    <!-- UI theme -->
+    <key name="ui-theme" type="s">
+      <choices>
+        <choice value='system'/>
+        <choice value='light'/>
+        <choice value='dark'/>
+      </choices>
+      <default>'system'</default>
+      <summary>UI theme</summary>
+      <description>The UI theme to use: system follows desktop theme, light forces light theme, dark forces dark theme</description>
+    </key>
+    
+    <!-- CSS theme -->
+    <key name="css-theme" type="s">
+      <choices>
+        <choice value='standard'/>
+        <choice value='github'/>
+        <choice value='minimal'/>
+        <choice value='academic'/>
+      </choices>
+      <default>'standard'</default>
+      <summary>CSS theme</summary>
+      <description>The CSS theme to use for rendering markdown content</description>
+    </key>
+    
+    <!-- Custom CSS file -->
+    <key name="custom-css-file" type="s">
+      <default>''</default>
+      <summary>Custom CSS file path</summary>
+      <description>Path to a custom CSS file to use for styling markdown content. Leave empty to use the selected theme.</description>
+    </key>
+    
+    <!-- Layout mode -->
+    <key name="layout-mode" type="s">
+      <choices>
+        <choice value='editor-left'/>
+        <choice value='editor-right'/>
+      </choices>
+      <default>'editor-left'</default>
+      <summary>Layout mode</summary>
+      <description>The layout mode for the application: editor-left places the editor on the left with preview on the right, editor-right places the editor on the right with preview on the left</description>
+    </key>
+    
+    <!-- Window dimensions -->
+    <key name="window-width" type="i">
+      <range min="400" max="5000"/>
+      <default>1200</default>
+      <summary>Window width</summary>
+      <description>The width of the main window in pixels</description>
+    </key>
+    
+    <key name="window-height" type="i">
+      <range min="300" max="3000"/>
+      <default>800</default>
+      <summary>Window height</summary>
+      <description>The height of the main window in pixels</description>
+    </key>
+    
+    <!-- Window position -->
+    <key name="window-x" type="i">
+      <range min="-10000" max="10000"/>
+      <default>0</default>
+      <summary>Window X position</summary>
+      <description>The X position of the main window on screen</description>
+    </key>
+    
+    <key name="window-y" type="i">
+      <range min="-10000" max="10000"/>
+      <default>0</default>
+      <summary>Window Y position</summary>
+      <description>The Y position of the main window on screen</description>
+    </key>
+    
+    <!-- Window maximized state -->
+    <key name="window-maximized" type="b">
+      <default>false</default>
+      <summary>Window maximized</summary>
+      <description>Whether the main window should start maximized</description>
+    </key>
+    
+    <!-- Language -->
+    <key name="language" type="s">
+      <choices>
+        <choice value='en'/>
+        <choice value='de'/>
+        <choice value='es'/>
+        <choice value='fr'/>
+      </choices>
+      <default>'en'</default>
+      <summary>Language</summary>
+      <description>The language to use for the user interface</description>
+    </key>
+    
+    <!-- View mode -->
+    <key name="view-mode" type="s">
+      <choices>
+        <choice value='html'/>
+        <choice value='code'/>
+        <choice value='split'/>
+      </choices>
+      <default>'html'</default>
+      <summary>View mode</summary>
+      <description>The view mode to use: html shows rendered preview, code shows raw markdown, split shows both side by side</description>
+    </key>
+  </schema>
+</schemalist>

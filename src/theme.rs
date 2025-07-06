@@ -367,13 +367,20 @@ h1, h2, h3, h4, h5, h6 {
         self.set_css_theme("standard")?;
         Ok(())
     }
+    
+    /// Create a weak reference to this theme manager
+    pub fn downgrade(&self) -> std::rc::Weak<RefCell<ThemeManager>> {
+        // This is a placeholder - the actual implementation would depend on how the theme manager is stored
+        // For now, we'll use a different approach in the preferences module
+        std::rc::Weak::new()
+    }
 }
 
 impl Clone for ThemeManager {
     fn clone(&self) -> Self {
         Self {
             current_theme: self.current_theme.clone(),
-            callbacks: Rc::new(RefCell::new(Vec::new())), // New callbacks vector for clone
+            callbacks: self.callbacks.clone(), // Share the same callbacks vector
             current_css_theme: self.current_css_theme.clone(),
         }
     }

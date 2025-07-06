@@ -17,6 +17,18 @@ regex = "1.10"
 webkit6 = "0.4.0"
 lazy_static = "1.4"
 syntect = { version = "5.2", default-features = false, features = ["default-fancy", "html", "parsing"] }
+clap = { version = "4.5", features = ["derive"] }
+gio = "0.20"
 
 [build-dependencies]
 glib-build-tools = "0.20"
+
+[profile.dev]
+opt-level = 0
+debug = true
+debug-assertions = true
+overflow-checks = true
+
+[profile.release]
+debug = true
+opt-level = 3

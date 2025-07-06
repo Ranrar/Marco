@@ -16,7 +16,7 @@ impl MarkdownEditor {
             .unwrap_or_else(|| "html".to_string())
     }
 
-    /// Set the theme manager for both the HTML view and source editor
+    /// Set the theme manager for both views and source editor
     pub fn set_theme_manager(&self, theme_manager: crate::theme::ThemeManager) {
         // Store the theme manager
         *self.theme_manager.borrow_mut() = Some(theme_manager.clone());
@@ -24,8 +24,57 @@ impl MarkdownEditor {
         // Apply to HTML view
         self.html_view.set_theme_manager(theme_manager.clone());
         
+        // Apply to Code view
+        self.code_view.set_theme_manager(theme_manager.clone());
+        
         // Apply to source editor
         self.update_source_editor_theme(&theme_manager);
+        
+        // Register callback to update editor when theme changes
+        let editor_weak = self.html_view.clone();
+        let code_view_weak = self.code_view.clone();
+        let theme_manager_weak = theme_manager.clone();
+        let source_buffer_weak = self.source_buffer.clone();
+        
+        theme_manager.add_theme_change_callback(move |_new_theme| {
+            println!("DEBUG: Theme change callback triggered in editor");
+            
+            // Update HTML view
+            editor_weak.set_theme_manager(theme_manager_weak.clone());
+            
+            // Update Code view
+            code_view_weak.set_theme_manager(theme_manager_weak.clone());
+            
+            // Update source editor theme
+            let style_manager = sourceview5::StyleSchemeManager::default();
+            let preferred_schemes = match theme_manager_weak.get_effective_theme() {
+                crate::theme::Theme::Light => vec!["Adwaita", "classic", "tango", "kate", "solarized-light"],
+                crate::theme::Theme::Dark => vec!["Adwaita-dark", "oblivion", "cobalt", "monokai", "solarized-dark"],
+                crate::theme::Theme::System => {
+                    match crate::theme::ThemeManager::detect_system_theme() {
+                        crate::theme::Theme::Dark => vec!["Adwaita-dark", "oblivion", "cobalt", "monokai", "solarized-dark"],
+                        _ => vec!["Adwaita", "classic", "tango", "kate", "solarized-light"],
+                    }
+                }
+            };
+            
+            let mut applied_scheme = false;
+            for scheme_name in preferred_schemes {
+                if let Some(scheme) = style_manager.scheme(scheme_name) {
+                    source_buffer_weak.set_style_scheme(Some(&scheme));
+                    applied_scheme = true;
+                    break;
+                }
+            }
+            
+            if !applied_scheme {
+                if let Some(scheme) = style_manager.scheme("Adwaita") {
+                    source_buffer_weak.set_style_scheme(Some(&scheme));
+                }
+            }
+            
+            println!("DEBUG: Editor theme change callback completed");
+        });
     }
 
     /// Update the source editor theme based on the theme manager
@@ -75,11 +124,15 @@ impl MarkdownEditor {
 
     /// Set the CSS theme for the preview
     pub fn set_css_theme(&self, theme_name: &str) {
+        println!("DEBUG: Editor set_css_theme called with theme: {}", theme_name);
         if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            println!("DEBUG: Theme manager is available, setting CSS theme");
             match theme_manager.set_css_theme(theme_name) {
                 Ok(css_content) => {
+                    println!("DEBUG: CSS theme loaded successfully, applying to HTML view");
                     self.html_view.set_custom_css(&css_content);
                     self.refresh_html_view();
+                    println!("DEBUG: CSS theme applied and view refreshed");
                 }
                 Err(e) => {
                     eprintln!("Failed to set CSS theme: {}", e);

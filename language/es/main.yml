@@ -22,6 +22,12 @@ es:
     help: "Ayuda"
     view: "Ver"
     language: "Idioma"
+    settings: "Configuración..."
+    delete: "Eliminar"
+    select_all: "Seleccionar todo"
+    preview_html: "Vista previa HTML"
+    preview_code: "Vista previa de código"
+    change_preview_mode: "Cambiar modo de vista previa"
   insert:
     heading1: "Encabezado 1"
     heading2: "Encabezado 2"

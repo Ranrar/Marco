@@ -119,6 +119,32 @@ impl MarkdownEditor {
                 }
             }
             
+            // Check for function keys (F4, F5, F6)
+            match keyval {
+                gdk::Key::F4 => {
+                    // F4: Toggle between current view modes (context menu would show options)
+                    if let Some(ref context_menu) = *editor_clone.context_menu.borrow() {
+                        context_menu.show_at_cursor(&editor_clone);
+                        return glib::Propagation::Stop;
+                    }
+                },
+                gdk::Key::F5 => {
+                    // F5: Switch to HTML preview
+                    editor_clone.set_view_mode("html");
+                    let prefs = crate::settings::get_app_preferences();
+                    prefs.set_view_mode("html");
+                    return glib::Propagation::Stop;
+                },
+                gdk::Key::F6 => {
+                    // F6: Switch to Code preview
+                    editor_clone.set_view_mode("code");
+                    let prefs = crate::settings::get_app_preferences();
+                    prefs.set_view_mode("code");
+                    return glib::Propagation::Stop;
+                },
+                _ => {}
+            }
+            
             // Check for Shift+F10 (context menu at cursor)
             if state.contains(gdk::ModifierType::SHIFT_MASK) && keyval == gdk::Key::F10 {
                 if let Some(ref context_menu) = *editor_clone.context_menu.borrow() {

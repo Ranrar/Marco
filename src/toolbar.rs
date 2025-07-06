@@ -44,6 +44,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     
     // Text formatting buttons (Basic)
     let bold_button = Button::with_label("𝐁");
+    bold_button.set_size_request(32, 32);
     bold_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.bold")));
     bold_button.connect_clicked({
         let editor = editor.clone();
@@ -63,7 +64,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
     });
     markdown_toolbar.append(&italic_button);
     
-    let code_button = Button::with_label("{}");
+    let code_button = Button::with_label("{ }");
     code_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.inline_code")));
     code_button.connect_clicked({
         let editor = editor.clone();

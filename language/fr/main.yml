@@ -22,6 +22,12 @@ fr:
     help: "Aide"
     view: "Affichage"
     language: "Langue"
+    settings: "Paramètres..."
+    delete: "Supprimer"
+    select_all: "Tout sélectionner"
+    preview_html: "Aperçu HTML"
+    preview_code: "Aperçu du code"
+    change_preview_mode: "Changer le mode d'aperçu"
   insert:
     heading1: "Titre 1"
     heading2: "Titre 2"

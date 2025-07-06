@@ -18,14 +18,13 @@ pub fn show_admonition_dialog(window: &gtk4::Window, editor: &editor::MarkdownEd
     dialog.set_default_size(500, 400);
     
     let main_box = gtk4::Box::new(Orientation::Vertical, 12);
-    main_box.set_margin_top(20);
-    main_box.set_margin_bottom(20);
-    main_box.set_margin_start(20);
-    main_box.set_margin_end(20);
+    main_box.set_margin_top(12);
+    main_box.set_margin_bottom(12);
+    main_box.set_margin_start(12);
+    main_box.set_margin_end(12);
     
     // Mode toggle buttons at the top
     let mode_box = gtk4::Box::new(Orientation::Horizontal, 0);
-    mode_box.add_css_class("linked");
     
     let standard_toggle = ToggleButton::with_label("Standard");
     let customize_toggle = ToggleButton::with_label("Customize");

@@ -1,5 +1,5 @@
 # Rust
-/target/
+target/
 Cargo.lock
 
 # IDE
@@ -9,6 +9,7 @@ Cargo.lock
 *.swo
 dev/
 .VSCodeCounter/
+test/
 
 # OS
 .DS_Store
@@ -16,4 +17,5 @@ Thumbs.db
 
 # Build artifacts
 *.gresource
+*.compiled
 Ejer baunehøj.png

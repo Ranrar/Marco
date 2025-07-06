@@ -11,7 +11,7 @@ use std::hash::Hasher;
 use std::collections::hash_map::DefaultHasher;
 use regex::Regex;
 use crate::theme::ThemeManager;
-use crate::syntect_highlight::CodeLanguageManager;
+use crate::markdown::syntect::CodeLanguageManager;
 
 /// Cached compiled regexes for performance
 struct CachedRegexes {
@@ -106,6 +106,12 @@ impl MarkdownHtmlView {
         view.initialize_empty_document();
         
         view
+    }
+    
+    /// Sets up the preview context menu for the HTML view
+    pub fn setup_context_menu(&self, editor: &crate::editor::MarkdownEditor) {
+        let preview_menu = crate::view::context_menu::PreviewContextMenu::new();
+        preview_menu.setup_gesture_for_widget(&self.webview, editor);
     }
 
     pub fn widget(&self) -> &Widget {
@@ -464,10 +470,11 @@ code {{
             return cached_css.clone();
         }
         
-        let css_content = match std::fs::read_to_string("src/code.css") {
+        let css_content = match std::fs::read_to_string("src/assets/syntect.css") {
             Ok(css) => css,
-            Err(_) => {
-                self.generate_syntax_highlighting_css()
+            Err(e) => {
+                eprintln!("Warning: Failed to load syntect.css: {}", e);
+                String::new() // Return empty string instead of fallback CSS
             }
         };
         
@@ -607,84 +614,5 @@ code {{
                 escaped_code
             )
         }
-    }
-
-    fn generate_syntax_highlighting_css(&self) -> String {
-        r#"
-/* Fallback syntax highlighting CSS */
-.code-block {
-    margin: 1rem 0 !important;
-    border-radius: 6px !important;
-    border: 1px solid #e1e4e8 !important;
-    overflow-x: auto !important;
-    background-color: #f8f9fa !important;
-}
-
-.code-block pre {
-    margin: 0 !important;
-    padding: 1rem !important;
-    background-color: transparent !important;
-    color: #24292e !important;
-    font-family: 'SFMono-Regular', 'Consolas', 'Liberation Mono', 'Menlo', monospace !important;
-    font-size: 14px !important;
-    line-height: 1.5 !important;
-    white-space: pre !important;
-    overflow-x: auto !important;
-}
-
-.code-block code {
-    background: none !important;
-    padding: 0 !important;
-    border: none !important;
-    font-size: inherit !important;
-    color: inherit !important;
-}
-
-.code-block .keyword {
-    color: #d73a49 !important;
-    font-weight: 600 !important;
-}
-
-.code-block .comment {
-    color: #6a737d !important;
-    font-style: italic !important;
-}
-
-.code-block .string {
-    color: #032f62 !important;
-}
-
-.code-block .number {
-    color: #005cc5 !important;
-}
-
-.code-block .function {
-    color: #6f42c1 !important;
-    font-weight: 600 !important;
-}
-
-.code-block .class {
-    color: #e36209 !important;
-    font-weight: 600 !important;
-}
-
-@media (prefers-color-scheme: dark) {
-    .code-block {
-        background-color: #0d1117 !important;
-        border-color: #30363d !important;
-    }
-    
-    .code-block pre {
-        color: #e6edf3 !important;
-    }
-    
-    .code-block .keyword { color: #ff7b72 !important; }
-    .code-block .comment { color: #8b949e !important; }
-    .code-block .string { color: #a5d6ff !important; }
-    .code-block .number { color: #79c0ff !important; }
-    .code-block .function { color: #d2a8ff !important; }
-    .code-block .class { color: #ffa657 !important; }
-}
-        "#.to_string()
     }
 }

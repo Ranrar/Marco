@@ -127,7 +127,7 @@ fn setup_menu_accelerators(app: &Application) {
     
     // Edit menu accelerators
     app.set_accels_for_action("app.undo", &["<Ctrl>z"]);
-    app.set_accels_for_action("app.redo", &["<Ctrl><Shift>z"]);
+    app.set_accels_for_action("app.redo", &["<Ctrl>y"]);
     app.set_accels_for_action("app.cut", &["<Ctrl>x"]);
     app.set_accels_for_action("app.copy", &["<Ctrl>c"]);
     app.set_accels_for_action("app.paste", &["<Ctrl>v"]);
@@ -259,7 +259,7 @@ Welcome to Marco! This is a powerful Markdown editor with the following features
 
 ### Text Editing
 - **Undo**: Ctrl+Z
-- **Redo**: Ctrl+Shift+Z
+- **Redo**: Ctrl+Y
 - **Cut**: Ctrl+X
 - **Copy**: Ctrl+C
 - **Paste**: Ctrl+V

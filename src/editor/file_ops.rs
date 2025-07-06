@@ -214,4 +214,35 @@ impl MarkdownEditor {
 
         dialog.present();
     }
+
+    /// Load a file from a given path (for command-line usage)
+    pub fn load_file_from_path(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let path = std::path::Path::new(file_path);
+        
+        if !path.exists() {
+            return Err(format!("File does not exist: {}", file_path).into());
+        }
+        
+        let content = std::fs::read_to_string(path)?;
+        
+        // Set the content in the source buffer
+        self.source_buffer.set_text(&content);
+        
+        // Update the current file
+        *self.current_file.borrow_mut() = Some(path.to_path_buf());
+        
+        // Mark as saved (since we just loaded it)
+        *self.is_modified.borrow_mut() = false;
+        
+        // Set original content to the loaded content
+        *self.original_content.borrow_mut() = content;
+        
+        // Update window title
+        self.update_window_title();
+        
+        // Update base path for image resolution
+        self.html_view.set_base_path(Some(path.to_path_buf()));
+        
+        Ok(())
+    }
 }
