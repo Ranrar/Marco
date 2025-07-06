@@ -8,5 +8,6 @@ pub mod shortcuts;
 pub mod syntax;
 pub mod context_menu;
 pub mod emoji;
+pub mod check_type;
 
 pub use core::MarkdownEditor;

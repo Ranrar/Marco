@@ -10,7 +10,7 @@ use crate::view::{MarkdownCodeView, MarkdownHtmlView};
 use crate::markdown::syntect::CodeLanguageManager;
 use crate::editor::context_menu::ContextMenu;
 use crate::markdown::advanced::ExtraMarkdownSyntax;
-use crate::markdown::syntax::MarkdownSyntaxChecker;
+use crate::editor::check_type::MarkdownSyntaxChecker;
 use std::collections::HashMap;
 use std::time::Instant;
 
