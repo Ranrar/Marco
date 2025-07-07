@@ -473,3 +473,15 @@ ul li ul li a[href^="#"]:hover {
     color: var(--toc-link-hover-color);
     opacity: 1;
 }
+
+/* Editor SourceView styling for plain text mode */
+GtkSourceView {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Text widget styling for plain text mode */
+.text-editor text {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}

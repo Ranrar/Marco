@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="marco">
-  <schema id="com.example.Marco" path="/com/example/Marco/">
+  <schema id="org.marco.editor" path="/org/marco/editor/">
     <!-- Function highlighting toggle -->
     <key name="function-highlighting" type="b">
       <default>true</default>
       <summary>Enable function highlighting</summary>
       <description>Whether to highlight function names in code blocks</description>
+    </key>
+    
+    <!-- Color syntax highlighting toggle -->
+    <key name="syntax-color-enabled" type="b">
+      <default>true</default>
+      <summary>Enable/disable color syntax highlighting</summary>
+      <description>Whether to enable syntax color highlighting in the markdown editor using syntect themes</description>
     </key>
     
     <!-- Markdown format warnings -->

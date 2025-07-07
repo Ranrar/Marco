@@ -13,6 +13,7 @@ use crate::settings::ui::{create_settings_section_header, create_settings_row, g
 struct SettingsChangeTracker {
     // Current values in the dialog (not yet saved)
     function_highlighting: bool,
+    editor_color_syntax: bool,
     markdown_warnings: bool,
     ui_theme: String,
     css_theme: String,
@@ -28,6 +29,7 @@ impl SettingsChangeTracker {
         let layout_mode = prefs.get_layout_mode();
         Self {
             function_highlighting: prefs.get_function_highlighting(),
+            editor_color_syntax: prefs.get_editor_color_syntax(),
             markdown_warnings: prefs.get_markdown_warnings(),
             ui_theme: prefs.get_ui_theme(),
             css_theme: prefs.get_css_theme(),
@@ -40,6 +42,7 @@ impl SettingsChangeTracker {
     
     fn has_changes(&self, original: &OriginalSettings) -> bool {
         self.function_highlighting != original.function_highlighting ||
+        self.editor_color_syntax != original.editor_color_syntax ||
         self.markdown_warnings != original.markdown_warnings ||
         self.ui_theme != original.ui_theme ||
         self.css_theme != original.css_theme ||
@@ -61,6 +64,7 @@ impl SettingsChangeTracker {
         let old_view_mode = prefs.get_view_mode();
         let old_layout_mode = prefs.get_layout_mode();
         let old_function_highlighting = prefs.get_function_highlighting();
+        let old_editor_color_syntax = prefs.get_editor_color_syntax();
         let old_markdown_warnings = prefs.get_markdown_warnings();
         
         println!("DEBUG: Old values - UI theme: {}, CSS theme: {}", old_ui_theme, old_css_theme);
@@ -68,6 +72,7 @@ impl SettingsChangeTracker {
         
         // Apply all changes to settings
         prefs.set_function_highlighting(self.function_highlighting);
+        prefs.set_editor_color_syntax(self.editor_color_syntax);
         prefs.set_markdown_warnings(self.markdown_warnings);
         prefs.set_ui_theme(&self.ui_theme);
         prefs.set_css_theme(&self.css_theme);
@@ -107,6 +112,10 @@ impl SettingsChangeTracker {
             println!("DEBUG: Function highlighting changed, applying change");
             editor.set_function_highlighting(self.function_highlighting);
         }
+        if old_editor_color_syntax != self.editor_color_syntax {
+            println!("DEBUG: Editor color syntax changed, applying change");
+            editor.set_editor_color_syntax(self.editor_color_syntax);
+        }
         if old_markdown_warnings != self.markdown_warnings {
             println!("DEBUG: Markdown warnings changed, applying change");
             editor.set_markdown_warnings(self.markdown_warnings);
@@ -120,6 +129,7 @@ impl SettingsChangeTracker {
 #[derive(Debug, Clone)]
 struct OriginalSettings {
     function_highlighting: bool,
+    editor_color_syntax: bool,
     markdown_warnings: bool,
     ui_theme: String,
     css_theme: String,
@@ -134,6 +144,7 @@ impl OriginalSettings {
         let prefs = get_app_preferences();
         Self {
             function_highlighting: prefs.get_function_highlighting(),
+            editor_color_syntax: prefs.get_editor_color_syntax(),
             markdown_warnings: prefs.get_markdown_warnings(),
             ui_theme: prefs.get_ui_theme(),
             css_theme: prefs.get_css_theme(),
@@ -147,6 +158,7 @@ impl OriginalSettings {
     fn restore(&self) {
         let prefs = get_app_preferences();
         prefs.set_function_highlighting(self.function_highlighting);
+        prefs.set_editor_color_syntax(self.editor_color_syntax);
         prefs.set_markdown_warnings(self.markdown_warnings);
         prefs.set_ui_theme(&self.ui_theme);
         prefs.set_css_theme(&self.css_theme);
@@ -506,6 +518,39 @@ fn create_editor_settings_page(notebook: &Notebook, change_tracker: &Rc<RefCell<
         Some("Highlights function-related text when hovering over functions")
     );
     page_box.append(&function_row);
+    
+    // Syntax color section
+    let syntax_color_section = create_settings_section_header(
+        "Syntax Color",
+        Some("Enable syntax highlighting in the markdown editor")
+    );
+    page_box.append(&syntax_color_section);
+    
+    let syntax_color_switch = Switch::new();
+    
+    // Set initial value from change tracker
+    syntax_color_switch.set_active(change_tracker.borrow().editor_color_syntax);
+    
+    // Connect change tracking
+    syntax_color_switch.connect_active_notify({
+        let change_tracker = change_tracker.clone();
+        let save_button = save_button.clone();
+        let original_settings = original_settings.clone();
+        move |switch| {
+            // Update the change tracker with new value
+            change_tracker.borrow_mut().editor_color_syntax = switch.is_active();
+            
+            // Check if there are changes and enable/disable save button
+            save_button.set_sensitive(change_tracker.borrow().has_changes(&original_settings));
+        }
+    });
+    
+    let syntax_color_row = create_settings_row(
+        "Enable syntax color",
+        &syntax_color_switch,
+        Some("Apply syntax highlighting colors to markdown text in the editor")
+    );
+    page_box.append(&syntax_color_row);
     
     // Markdown warnings section
     let markdown_section = create_settings_section_header(

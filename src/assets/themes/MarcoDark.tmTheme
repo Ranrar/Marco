@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0">
+<dict>
+    <key>name</key>
+    <string>MarcoDark</string>
+    <key>author</key>
+    <string>Kim Skov Rasmussen</string>
+    <key>settings</key>
+    <array>
+        <!-- Background & Default Text -->
+        <dict>
+            <key>settings</key>
+            <dict>
+                <key>background</key>
+                <string>#0D0D0D</string>
+                <key>foreground</key>
+                <string>#E6E6E6</string>
+                <key>caret</key>
+                <string>#E6E6E6</string>
+                <key>selection</key>
+                <string>#264F78</string>
+                <key>lineHighlight</key>
+                <string>#1A1A1A</string>
+            </dict>
+        </dict>
+        
+        <!-- Comments -->
+        <dict>
+            <key>name</key>
+            <string>Comment</string>
+            <key>scope</key>
+            <string>comment, comment.line, comment.block, comment.documentation</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#00FF9F</string>
+                <key>fontStyle</key>
+                <string>italic</string>
+            </dict>
+        </dict>
+        
+        <!-- Keywords -->
+        <dict>
+            <key>name</key>
+            <string>Keyword</string>
+            <key>scope</key>
+            <string>keyword, keyword.control, keyword.operator, keyword.declaration, keyword.other, keyword.operator.assignment, keyword.operator.arithmetic, keyword.operator.logical, keyword.operator.bitwise, keyword.operator.comparison, storage.type</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#FF4081</string>
+                <key>fontStyle</key>
+                <string>bold</string>
+            </dict>
+        </dict>
+        
+        <!-- Strings -->
+        <dict>
+            <key>name</key>
+            <string>String</string>
+            <key>scope</key>
+            <string>string, string.quoted.single, string.quoted.double, string.quoted.triple, string.interpolated, string.unquoted, string.regexp</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#00C8FF</string>
+            </dict>
+        </dict>
+        
+        <!-- Function Names -->
+        <dict>
+            <key>name</key>
+            <string>Function</string>
+            <key>scope</key>
+            <string>entity.name.function, meta.function-call, support.function, meta.function</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#FFA500</string>
+                <key>fontStyle</key>
+                <string>bold</string>
+            </dict>
+        </dict>
+        
+        <!-- Numbers & Constants -->
+        <dict>
+            <key>name</key>
+            <string>Constant</string>
+            <key>scope</key>
+            <string>constant, constant.numeric, constant.language, constant.character, constant.other</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#BF00FF</string>
+            </dict>
+        </dict>
+        
+        <!-- Classes & Types -->
+        <dict>
+            <key>name</key>
+            <string>Type & Class</string>
+            <key>scope</key>
+            <string>entity.name.type, entity.name.class, storage.type, meta.class, meta.struct, support.type</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#FFCC00</string>
+            </dict>
+        </dict>
+        
+        <!-- Variables -->
+        <dict>
+            <key>name</key>
+            <string>Variable</string>
+            <key>scope</key>
+            <string>variable, variable.parameter, variable.language, variable.function, variable.other</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#00FFEE</string>
+            </dict>
+        </dict>
+        
+        <!-- Punctuation & Brackets -->
+        <dict>
+            <key>name</key>
+            <string>Punctuation</string>
+            <key>scope</key>
+            <string>punctuation, punctuation.definition, punctuation.section, punctuation.separator, punctuation.terminator, punctuation.definition.string, punctuation.definition.parameters, punctuation.definition.comment</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#666666</string>
+            </dict>
+        </dict>
+        
+        <!-- Markup (Markdown, HTML, etc.) -->
+        <dict>
+            <key>name</key>
+            <string>Markup</string>
+            <key>scope</key>
+            <string>markup.heading, markup.bold, markup.italic, markup.underline, markup.list, markup.quote, markup.inline.raw, markup.code</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#FFCC00</string>
+            </dict>
+        </dict>
+        
+        <!-- Entity & Meta -->
+        <dict>
+            <key>name</key>
+            <string>Entity & Meta</string>
+            <key>scope</key>
+            <string>entity.name, meta, meta.annotation</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#00FFEE</string>
+            </dict>
+        </dict>
+        
+        <!-- Diagnostics (Errors) -->
+        <dict>
+            <key>name</key>
+            <string>Diagnostics</string>
+            <key>scope</key>
+            <string>invalid, invalid.illegal, invalid.deprecated, warning</string>
+            <key>settings</key>
+            <dict>
+                <key>foreground</key>
+                <string>#FFFFFF</string>
+                <key>background</key>
+                <string>#FF0033</string>
+            </dict>
+        </dict>
+    </array>
+</dict>
+</plist>

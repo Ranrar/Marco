@@ -3,7 +3,7 @@ use std::process::Command;
 
 fn main() {
     // Compile GSettings schema
-    println!("cargo:rerun-if-changed=Marco.gschema.xml");
+    println!("cargo:rerun-if-changed=org.marco.editor.gschema.xml");
     
     let output = Command::new("glib-compile-schemas")
         .arg(".")

@@ -20,6 +20,9 @@ pub fn apply_settings_to_app(
     };
     theme_manager.set_theme(theme);
     
+    // Update editor theme to match UI theme
+    editor.update_editor_theme();
+    
     // Apply CSS theme
     let css_theme = prefs.get_css_theme();
     editor.set_css_theme(&css_theme);
@@ -43,6 +46,11 @@ pub fn apply_settings_to_app(
     // Apply function highlighting
     let function_highlighting = prefs.get_function_highlighting();
     editor.set_function_highlighting(function_highlighting);
+    
+    // Apply editor color syntax highlighting
+    let editor_color_syntax = prefs.get_editor_color_syntax();
+    eprintln!("============ DEBUG: Loading editor_color_syntax setting: {} ============", editor_color_syntax);
+    editor.set_editor_color_syntax(editor_color_syntax);
     
     // Apply markdown warnings
     let markdown_warnings = prefs.get_markdown_warnings();

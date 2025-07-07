@@ -1,5 +1,5 @@
 use syntect::parsing::SyntaxSet;
-use syntect::highlighting::{ThemeSet};
+use syntect::highlighting::{ThemeSet, Theme};
 use syntect::html::highlighted_html_for_string;
 
 /// Modern syntax highlighter using syntect library
@@ -9,13 +9,47 @@ pub struct SyntectHighlighter {
     current_theme: String,
 }
 
+use std::fs;
+
 impl SyntectHighlighter {
+    /// Load all .tmTheme files from a folder and return as Vec<(name, Theme)>
+    fn load_custom_themes_from_folder(folder: &str) -> Vec<(String, Theme)> {
+        let mut result = Vec::new();
+        if let Ok(entries) = fs::read_dir(folder) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    if ext == "tmTheme" {
+                        if let Ok(theme) = ThemeSet::get_theme(&path) {
+                            if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
+                                result.push((name.to_string(), theme));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        result
+    }
     /// Create a new highlighter with default syntax definitions and themes
     pub fn new() -> Self {
+        let syntax_set = SyntaxSet::load_defaults_newlines();
+        // Try to load all themes from src/assets/themes using ThemeSet::load_from_folder
+        let theme_set = ThemeSet::load_from_folder("src/assets/themes").unwrap_or_else(|_| ThemeSet::load_defaults());
+
+        // Prefer MarcoDark/MarcoLight as defaults if available
+        let default_theme = if theme_set.themes.contains_key("MarcoDark") {
+            "MarcoDark"
+        } else if theme_set.themes.contains_key("MarcoLight") {
+            "MarcoLight"
+        } else {
+            "base16-ocean.dark"
+        };
+
         Self {
-            syntax_set: SyntaxSet::load_defaults_newlines(),
-            theme_set: ThemeSet::load_defaults(),
-            current_theme: "base16-ocean.dark".to_string(),
+            syntax_set,
+            theme_set,
+            current_theme: default_theme.to_string(),
         }
     }
 
@@ -78,31 +112,43 @@ impl SyntectHighlighter {
             })
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
-        // Get the theme
-        let theme = &self.theme_set.themes[&self.current_theme];
+        // Get the theme safely, prefer custom Marco themes, then built-ins
+        let theme = self.theme_set.themes.get(&self.current_theme)
+            .or_else(|| self.theme_set.themes.get("MarcoDark"))
+            .or_else(|| self.theme_set.themes.get("MarcoLight"))
+            .or_else(|| self.theme_set.themes.get("base16-ocean.dark"))
+            .or_else(|| self.theme_set.themes.get("InspiredGitHub"))
+            .or_else(|| self.theme_set.themes.values().next());
 
-        // Generate highlighted HTML
-        match highlighted_html_for_string(code, &self.syntax_set, syntax, theme) {
-            Ok(html) => {
-                // Wrap in a div with language-specific class for additional styling
-                let language_class = language
-                    .to_lowercase()
-                    .replace("+", "plus")
-                    .replace("#", "sharp");
-                
-                format!(
-                    r#"<div class="code-block code-block-{}">{}</div>"#,
-                    language_class,
-                    html
-                )
+        if let Some(theme) = theme {
+            // Generate highlighted HTML
+            match highlighted_html_for_string(code, &self.syntax_set, syntax, theme) {
+                Ok(html) => {
+                    // Wrap in a div with language-specific class for additional styling
+                    let language_class = language
+                        .to_lowercase()
+                        .replace("+", "plus")
+                        .replace("#", "sharp");
+                    format!(
+                        r#"<div class="code-block code-block-{}">{}</div>"#,
+                        language_class,
+                        html
+                    )
+                }
+                Err(_) => {
+                    // Fallback for errors
+                    format!(
+                        r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
+                        Self::html_escape(code)
+                    )
+                }
             }
-            Err(_) => {
-                // Fallback for errors
-                format!(
-                    r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
-                    Self::html_escape(code)
-                )
-            }
+        } else {
+            // No theme found at all, fallback to plain
+            format!(
+                r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
+                Self::html_escape(code)
+            )
         }
     }
 
@@ -325,12 +371,13 @@ impl SyntectHighlighter {
 
     /// Apply syntax highlighting with custom theme colors that integrate with Marco's theme system
     pub fn highlight_code_with_theme_integration(&self, code: &str, language: &str, is_dark_theme: bool) -> String {
-        // For now, choose appropriate syntect theme based on Marco's theme
+        // Choose MarcoDark for dark mode, MarcoLight for light mode, with fallback
         let original_theme = self.current_theme.clone();
-        
+
         let theme_name = if is_dark_theme {
-            // Use dark themes for dark mode
-            if self.theme_set.themes.contains_key("base16-ocean.dark") {
+            if self.theme_set.themes.contains_key("MarcoDark") {
+                "MarcoDark"
+            } else if self.theme_set.themes.contains_key("base16-ocean.dark") {
                 "base16-ocean.dark"
             } else if self.theme_set.themes.contains_key("Monokai") {
                 "Monokai"
@@ -338,8 +385,9 @@ impl SyntectHighlighter {
                 &original_theme
             }
         } else {
-            // Use light themes for light mode
-            if self.theme_set.themes.contains_key("InspiredGitHub") {
+            if self.theme_set.themes.contains_key("MarcoLight") {
+                "MarcoLight"
+            } else if self.theme_set.themes.contains_key("InspiredGitHub") {
                 "InspiredGitHub"
             } else if self.theme_set.themes.contains_key("base16-ocean.light") {
                 "base16-ocean.light"

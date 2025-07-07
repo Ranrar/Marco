@@ -440,3 +440,35 @@ ul li ul li a[href^="#"]:hover {
     color: var(--toc-link-hover-color);
     opacity: 1;
 }
+
+/* Editor styling for plain text mode (when syntax highlighting is off) */
+.editor-theme-light {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.editor-theme-dark {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* SourceView editor styling that respects theme */
+textview {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 10px;
+}
+
+textview text {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Selection colors that work with both themes */
+textview text selection {
+    background-color: var(--link-color);
+    color: var(--bg-color);
+}

@@ -103,6 +103,9 @@ impl ExtraMarkdownSyntax {
         text: &str, 
         tag_table: &mut HashMap<String, gtk4::TextTag>
     ) {
+        println!("DEBUG: apply_extra_syntax_highlighting called with text length: {}", text.len());
+        let mut total_extra_tags = 0;
+        
         self.highlight_underline(buffer, text, tag_table);
         self.highlight_center_text(buffer, text, tag_table);
         self.highlight_colored_text(buffer, text, tag_table);
@@ -115,11 +118,20 @@ impl ExtraMarkdownSyntax {
         self.highlight_table_extensions(buffer, text, tag_table);
         self.highlight_video_embeds(buffer, text, tag_table);
         self.highlight_indentation(buffer, text, tag_table);
+        
+        // Count total extra tags created
+        for tag_name in tag_table.keys() {
+            if !tag_name.starts_with("syntect_") {
+                total_extra_tags += 1;
+            }
+        }
+        
+        println!("DEBUG: Applied {} extra markdown tags to buffer", total_extra_tags);
     }
 
     /// Highlight underlined text using <ins> tags
     fn highlight_underline(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "underline", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "underline", |tag| {
             tag.set_underline(pango::Underline::Single);
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.2, 0.4, 0.8, 1.0))); // Blue underline
         });
@@ -133,7 +145,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight centered text using <center> tags
     fn highlight_center_text(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "center", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "center", |tag| {
             tag.set_justification(gtk4::Justification::Center);
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.3, 0.6, 0.3, 1.0))); // Green
         });
@@ -147,46 +159,20 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight colored text using style attributes
     fn highlight_colored_text(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        // Handle <p style="color:..."> tags
-        for captures in self.color_regex.captures_iter(text) {
-            if let Some(mat) = captures.get(0) {
-                let color_name = &captures[1];
-                let tag_name = format!("color_{}", color_name);
-                
-                self.ensure_tag_exists(tag_table, &tag_name, |tag| {
-                    if let Some(rgba) = self.parse_color(color_name) {
-                        tag.set_foreground_rgba(Some(&rgba));
-                    }
-                });
-
-                let start_iter = buffer.iter_at_offset(mat.start() as i32);
-                let end_iter = buffer.iter_at_offset(mat.end() as i32);
-                buffer.apply_tag(&tag_table[&tag_name], &start_iter, &end_iter);
-            }
-        }
-
-        // Handle <font color="..."> tags (deprecated but still used)
-        for captures in self.font_color_regex.captures_iter(text) {
-            if let Some(mat) = captures.get(0) {
-                let color_name = &captures[1];
-                let tag_name = format!("font_color_{}", color_name);
-                
-                self.ensure_tag_exists(tag_table, &tag_name, |tag| {
-                    if let Some(rgba) = self.parse_color(color_name) {
-                        tag.set_foreground_rgba(Some(&rgba));
-                    }
-                });
-
-                let start_iter = buffer.iter_at_offset(mat.start() as i32);
-                let end_iter = buffer.iter_at_offset(mat.end() as i32);
-                buffer.apply_tag(&tag_table[&tag_name], &start_iter, &end_iter);
-            }
-        }
+        // Delegate to the implementation in syntax.rs color module
+        // This ensures that all color-related logic is in the editor module
+        crate::editor::syntax::color::highlight_colored_text(
+            buffer,
+            text,
+            tag_table,
+            &self.color_regex,
+            &self.font_color_regex
+        );
     }
 
     /// Highlight markdown comments
     fn highlight_comments(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "comment", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "comment", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.5, 0.5, 0.5, 0.7))); // Gray, semi-transparent
             tag.set_style(pango::Style::Italic);
         });
@@ -202,7 +188,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight admonitions (> :emoji: **Type:** text)
     fn highlight_admonitions(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "admonition", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "admonition", |tag| {
             tag.set_background_rgba(Some(&gdk4::RGBA::new(0.95, 0.95, 0.8, 1.0))); // Light yellow background
             tag.set_left_margin(20);
             tag.set_right_margin(20);
@@ -230,7 +216,7 @@ impl ExtraMarkdownSyntax {
 
         for (adm_type, color) in &admonition_types {
             let tag_name = format!("github_admonition_{}", adm_type.to_lowercase());
-            self.ensure_tag_exists(tag_table, &tag_name, |tag| {
+            crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
                 tag.set_background_rgba(Some(color));
                 tag.set_left_margin(10);
                 tag.set_right_margin(10);
@@ -239,7 +225,7 @@ impl ExtraMarkdownSyntax {
         }
 
         // Default tag for unknown admonition types
-        self.ensure_tag_exists(tag_table, "github_admonition_default", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "github_admonition_default", |tag| {
             tag.set_background_rgba(Some(&gdk4::RGBA::new(0.9, 0.9, 0.9, 0.3))); // Light gray
             tag.set_left_margin(10);
             tag.set_right_margin(10);
@@ -267,7 +253,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight extended image syntax
     fn highlight_image_extensions(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "image_size", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "image_size", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.8, 0.4, 0.8, 1.0))); // Purple
             tag.set_weight(700); // Bold weight
         });
@@ -289,7 +275,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight extended link syntax
     fn highlight_link_extensions(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "link_target", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "link_target", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.0, 0.4, 0.8, 1.0))); // Blue
             tag.set_underline(pango::Underline::Single);
         });
@@ -303,7 +289,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight HTML entities
     fn highlight_html_entities(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "html_entity", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "html_entity", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.6, 0.3, 0.8, 1.0))); // Purple
             tag.set_family(Some("monospace"));
         });
@@ -317,7 +303,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight table extensions
     fn highlight_table_extensions(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "table_extension", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "table_extension", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.8, 0.6, 0.2, 1.0))); // Orange
             tag.set_family(Some("monospace"));
         });
@@ -339,7 +325,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight video embeds
     fn highlight_video_embeds(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "video_embed", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "video_embed", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.8, 0.2, 0.2, 1.0))); // Red
             tag.set_weight(700); // Bold weight
         });
@@ -353,7 +339,7 @@ impl ExtraMarkdownSyntax {
 
     /// Highlight indentation using &nbsp;
     fn highlight_indentation(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
-        self.ensure_tag_exists(tag_table, "indent", |tag| {
+        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, "indent", |tag| {
             tag.set_background_rgba(Some(&gdk4::RGBA::new(0.9, 0.9, 1.0, 0.5))); // Light blue background
         });
 
@@ -366,53 +352,7 @@ impl ExtraMarkdownSyntax {
         }
     }
 
-    /// Parse color names and hex codes to RGBA
-    fn parse_color(&self, color: &str) -> Option<gdk4::RGBA> {
-        match color.to_lowercase().as_str() {
-            "red" => Some(gdk4::RGBA::new(1.0, 0.0, 0.0, 1.0)),
-            "green" => Some(gdk4::RGBA::new(0.0, 1.0, 0.0, 1.0)),
-            "blue" => Some(gdk4::RGBA::new(0.0, 0.0, 1.0, 1.0)),
-            "yellow" => Some(gdk4::RGBA::new(1.0, 1.0, 0.0, 1.0)),
-            "orange" => Some(gdk4::RGBA::new(1.0, 0.5, 0.0, 1.0)),
-            "purple" => Some(gdk4::RGBA::new(0.5, 0.0, 0.5, 1.0)),
-            "pink" => Some(gdk4::RGBA::new(1.0, 0.0, 0.5, 1.0)),
-            "cyan" => Some(gdk4::RGBA::new(0.0, 1.0, 1.0, 1.0)),
-            "black" => Some(gdk4::RGBA::new(0.0, 0.0, 0.0, 1.0)),
-            "white" => Some(gdk4::RGBA::new(1.0, 1.0, 1.0, 1.0)),
-            "gray" | "grey" => Some(gdk4::RGBA::new(0.5, 0.5, 0.5, 1.0)),
-            hex if hex.starts_with('#') => {
-                // Parse hex color
-                if hex.len() == 7 {
-                    if let (Ok(r), Ok(g), Ok(b)) = (
-                        u8::from_str_radix(&hex[1..3], 16),
-                        u8::from_str_radix(&hex[3..5], 16),
-                        u8::from_str_radix(&hex[5..7], 16),
-                    ) {
-                        return Some(gdk4::RGBA::new(
-                            r as f32 / 255.0,
-                            g as f32 / 255.0,
-                            b as f32 / 255.0,
-                            1.0,
-                        ));
-                    }
-                }
-                None
-            }
-            _ => None,
-        }
-    }
-
-    /// Ensure a tag exists in the tag table
-    fn ensure_tag_exists<F>(&self, tag_table: &mut HashMap<String, gtk4::TextTag>, name: &str, configure: F)
-    where
-        F: FnOnce(&gtk4::TextTag),
-    {
-        if !tag_table.contains_key(name) {
-            let tag = gtk4::TextTag::new(Some(name));
-            configure(&tag);
-            tag_table.insert(name.to_string(), tag);
-        }
-    }
+    // Color-related methods have been moved to src/editor/syntax.rs::color module
 }
 
 /// Helper functions for inserting extra markdown syntax
@@ -628,11 +568,10 @@ mod tests {
 
     #[test]
     fn test_color_parsing() {
-        let syntax = ExtraMarkdownSyntax::new();
-        
-        assert!(syntax.parse_color("red").is_some());
-        assert!(syntax.parse_color("#FF0000").is_some());
-        assert!(syntax.parse_color("invalid").is_none());
+        // Use the color parsing function from the syntax module
+        assert!(crate::editor::syntax::color::parse_color("red").is_some());
+        assert!(crate::editor::syntax::color::parse_color("#FF0000").is_some());
+        assert!(crate::editor::syntax::color::parse_color("invalid").is_none());
     }
 
     #[test]

@@ -9,7 +9,7 @@ pub struct AppPreferences {
 impl AppPreferences {
     /// Create a new AppPreferences instance
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let settings = Settings::new("com.example.Marco");
+        let settings = Settings::new("org.marco.editor");
         Ok(Self { settings })
     }
     
@@ -20,6 +20,15 @@ impl AppPreferences {
     
     pub fn set_function_highlighting(&self, enabled: bool) {
         let _ = self.settings.set_boolean("function-highlighting", enabled);
+    }
+    
+    /// Editor color syntax highlighting toggle
+    pub fn get_editor_color_syntax(&self) -> bool {
+        self.settings.boolean("syntax-color-enabled")
+    }
+    
+    pub fn set_editor_color_syntax(&self, enabled: bool) {
+        let _ = self.settings.set_boolean("syntax-color-enabled", enabled);
     }
     
     /// Markdown format detection
@@ -169,6 +178,7 @@ impl AppPreferences {
     pub fn reset_to_defaults(&self) {
         // Reset all keys to their default values
         let _ = self.settings.reset("function-highlighting");
+        let _ = self.settings.reset("syntax-color-enabled");
         let _ = self.settings.reset("markdown-warnings");
         let _ = self.settings.reset("ui-theme");
         let _ = self.settings.reset("css-theme");

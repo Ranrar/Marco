@@ -225,6 +225,80 @@ fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
 
+    // Apply context menu styling globally for popover menus
+    // (re-use the preview context menu CSS for all popover menus)
+    let context_menu_css = "
+        /* PopoverMenu (GMenuModel) styling */
+        popover.menu button.model {
+            padding: 8px 16px;
+            margin: 1px;
+            border-radius: 4px;
+            transition: background-color 0.1s ease;
+            font-family: -gtk-system-font;
+            font-size: 0.9em;
+            min-width: 200px;
+        }
+        popover.menu button.model:hover {
+            background-color: alpha(@accent_color, 0.1);
+            transition: background-color 0.05s ease;
+        }
+        popover.menu button.model:disabled {
+            opacity: 0.5;
+            color: alpha(@theme_fg_color, 0.5);
+        }
+        popover.menu separator {
+            min-height: 1px;
+            background-color: alpha(@borders, 0.3);
+            margin: 4px 8px;
+            border: none;
+            padding: 0;
+            opacity: 1;
+        }
+        popover.menu button.model label {
+            color: @theme_fg_color;
+        }
+        popover.menu button.model .accelerator {
+            color: alpha(@theme_fg_color, 0.7);
+            font-size: 0.85em;
+            margin-left: 16px;
+        }
+
+        /* Custom ListBox-based popover menu styling */
+        list, listbox {
+            background: transparent;
+            border: none;
+            padding: 4px 0;
+        }
+        list row.menuitem {
+            padding: 8px 16px;
+            margin: 1px 0;
+            border-radius: 4px;
+            font-family: -gtk-system-font;
+            font-size: 0.95em;
+            min-width: 200px;
+            background: transparent;
+            transition: background-color 0.1s ease;
+        }
+        list row.menuitem:hover, list row.menuitem:selected {
+            background-color: alpha(@accent_color, 0.1);
+            transition: background-color 0.05s ease;
+        }
+        list row.menuitem label {
+            color: @theme_fg_color;
+        }
+        list row.menuitem:disabled label {
+            opacity: 0.5;
+            color: alpha(@theme_fg_color, 0.5);
+        }
+    ";
+    let context_menu_provider = CssProvider::new();
+    context_menu_provider.load_from_data(context_menu_css);
+    gtk4::style_context_add_provider_for_display(
+        &gdk::Display::default().expect("Could not connect to a display."),
+        &context_menu_provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION + 1,
+    );
+
     // Create the editor
     let editor = editor::MarkdownEditor::new();
 

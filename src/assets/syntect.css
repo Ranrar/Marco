@@ -5,9 +5,9 @@
 div.code-block {
     margin: 1rem 0 !important;
     border-radius: 6px !important;
-    border: 1px solid #e1e4e8 !important;
+    /* border: 1px solid #e1e4e8 !important; */
     overflow-x: auto !important;
-    background-color: #f8f9fa !important;
+    /* background-color: #f8f9fa !important; */
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
     position: relative !important;
 }
@@ -17,8 +17,8 @@ div.code-block pre {
     margin: 0 !important;
     padding: 1rem !important;
     background-color: transparent !important;
-    color: #24292e !important;
-    font-family: 'SFMono-Regular', 'Cascadia Code', 'Consolas', 'Liberation Mono', 'Menlo', monospace !important;
+    /* color: #24292e !important; */
+    /* font-family: 'SFMono-Regular', 'Cascadia Code', 'Consolas', 'Liberation Mono', 'Menlo', monospace !important; */
     font-size: 14px !important;
     line-height: 1.5 !important;
     white-space: pre !important;
@@ -32,46 +32,48 @@ div.code-block code {
     padding: 0 !important;
     border: none !important;
     font-size: inherit !important;
-    color: inherit !important;
-    font-family: inherit !important;
+    /* color: inherit !important; */
+    /* font-family: inherit !important; */
 }
 
 /* Syntax highlighting colors - Light theme with higher specificity and vibrant colors */
+/*
 .code-block .keyword,
 div.code-block .keyword {
-    color: #d73a49 !important;  /* Bright red for keywords */
+    color: #d73a49 !important;  
     font-weight: 700 !important;
 }
 
 .code-block .comment,
 div.code-block .comment {
-    color: #6a737d !important;  /* Gray for comments */
+    color: #6a737d !important;  
     font-style: italic !important;
 }
 
 .code-block .string,
 div.code-block .string {
-    color: #032f62 !important;  /* Dark blue for strings */
+    color: #032f62 !important;  
     font-weight: 500 !important;
 }
 
 .code-block .number,
 div.code-block .number {
-    color: #005cc5 !important;  /* Blue for numbers */
+    color: #005cc5 !important;  
     font-weight: 600 !important;
 }
 
 .code-block .function,
 div.code-block .function {
-    color: #6f42c1 !important;  /* Purple for functions */
+    color: #6f42c1 !important;  
     font-weight: 700 !important;
 }
 
 .code-block .class,
 div.code-block .class {
-    color: #e36209 !important;  /* Orange for classes */
+    color: #e36209 !important;  
     font-weight: 700 !important;
 }
+*/
 
 /* Language-specific styling */
 .code-block-javascript,

@@ -19,6 +19,7 @@ lazy_static = "1.4"
 syntect = { version = "5.2", default-features = false, features = ["default-fancy", "html", "parsing"] }
 clap = { version = "4.5", features = ["derive"] }
 gio = "0.20"
+rayon = "1.8"
 
 [build-dependencies]
 glib-build-tools = "0.20"
