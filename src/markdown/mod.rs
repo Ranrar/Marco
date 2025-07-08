@@ -1,4 +1,4 @@
 pub mod basic;
 pub mod extended;
 pub mod advanced;
-pub mod syntect;
+pub mod colorize_code_blocks;

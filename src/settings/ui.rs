@@ -57,7 +57,7 @@ pub fn add_settings_button_to_header_bar(
                 let theme_manager = theme_manager.clone();
                 gear_btn.connect_clicked(move |_| {
                     let window = parent_window.upcast_ref::<Window>();
-                    crate::settings::dialog::show_settings_dialog(window, &editor, &theme_manager);
+                    crate::settings::dialogs::show_settings_dialog(window, &editor, &theme_manager);
                 });
             }
 
@@ -128,7 +128,7 @@ pub fn add_settings_button_to_header_bar(
                     // TODO: Actually trigger the corresponding app action
                     if action == "app.settings" {
                         let window = parent_window.upcast_ref::<Window>();
-                        crate::settings::dialog::show_settings_dialog(window, &editor, &theme_manager);
+                        crate::settings::show_settings_dialog(window, &editor, &theme_manager);
                     }
                 });
                 listbox.append(&row);

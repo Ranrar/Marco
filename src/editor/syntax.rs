@@ -124,7 +124,7 @@ pub mod color {
     }
 
     /// Apply syntect-based syntax highlighting to markdown text
-    pub fn apply_syntect_highlighting(
+    pub fn apply_syntax_coloring(
         buffer: &sourceview5::Buffer,
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
@@ -265,7 +265,7 @@ impl MarkdownEditor {
         tag_table: &mut HashMap<String, gtk4::TextTag>,
         theme_name: &str,
     ) {
-        crate::editor::syntax::color::apply_syntect_highlighting(
+        crate::editor::syntax::color::apply_syntax_coloring(
             buffer,
             text,
             tag_table,

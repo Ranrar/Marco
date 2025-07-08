@@ -1,3 +1,138 @@
+/// Tracks current values and changes in the settings dialog
+#[derive(Debug, Clone)]
+pub struct SettingsChangeTracker {
+    // Current values in the dialog (not yet saved)
+    pub function_highlighting: bool,
+    pub editor_color_syntax: bool,
+    pub markdown_warnings: bool,
+    pub ui_theme: String,
+    pub css_theme: String,
+    pub layout_mode: String,
+    pub view_mode: String,
+    pub language: String,
+    pub custom_css_file: String,
+}
+
+impl SettingsChangeTracker {
+    pub fn load_current() -> Self {
+        let prefs = get_app_preferences();
+        let layout_mode = prefs.get_layout_mode();
+        Self {
+            function_highlighting: prefs.get_function_highlighting(),
+            editor_color_syntax: prefs.get_editor_color_syntax(),
+            markdown_warnings: prefs.get_markdown_warnings(),
+            ui_theme: prefs.get_ui_theme(),
+            css_theme: prefs.get_css_theme(),
+            layout_mode,
+            view_mode: prefs.get_view_mode(),
+            language: prefs.get_language(),
+            custom_css_file: prefs.get_custom_css_file(),
+        }
+    }
+
+    pub fn has_changes(&self, original: &OriginalSettings) -> bool {
+        self.function_highlighting != original.function_highlighting ||
+        self.editor_color_syntax != original.editor_color_syntax ||
+        self.markdown_warnings != original.markdown_warnings ||
+        self.ui_theme != original.ui_theme ||
+        self.css_theme != original.css_theme ||
+        self.layout_mode != original.layout_mode ||
+        self.view_mode != original.view_mode ||
+        self.language != original.language ||
+        self.custom_css_file != original.custom_css_file
+    }
+
+    pub fn apply_changes(&self, editor: &crate::editor::MarkdownEditor, _theme_manager: &crate::theme::ThemeManager) {
+        let prefs = get_app_preferences();
+
+        // Store current values for comparison
+        let _old_ui_theme = prefs.get_ui_theme();
+        let _old_css_theme = prefs.get_css_theme();
+        let _old_language = prefs.get_language();
+        let old_view_mode = prefs.get_view_mode();
+        let old_layout_mode = prefs.get_layout_mode();
+        let old_function_highlighting = prefs.get_function_highlighting();
+        let old_editor_color_syntax = prefs.get_editor_color_syntax();
+        let old_markdown_warnings = prefs.get_markdown_warnings();
+
+        // Apply all changes to settings
+        prefs.set_function_syntax_coloring(self.function_highlighting);
+        prefs.set_editor_color_syntax(self.editor_color_syntax);
+        prefs.set_markdown_warnings(self.markdown_warnings);
+        prefs.set_ui_theme(&self.ui_theme);
+        prefs.set_css_theme(&self.css_theme);
+        prefs.set_layout_mode(&self.layout_mode);
+        prefs.set_view_mode(&self.view_mode);
+        prefs.set_language(&self.language);
+        prefs.set_custom_css_file(&self.custom_css_file);
+
+        // TODO: Apply UI theme, CSS theme, and language changes immediately if needed
+        // (implement apply_ui_theme_change, apply_css_theme_change, apply_language_change if required)
+        if old_view_mode != self.view_mode {
+            editor.set_view_mode(&self.view_mode);
+        }
+        if old_layout_mode != self.layout_mode {
+            if self.layout_mode == "editor-right" {
+                editor.set_layout_reversed(true);   // Preview left, editor right
+            } else {
+                editor.set_layout_reversed(false);  // Editor left, preview right (default)
+            }
+        }
+        if old_function_highlighting != self.function_highlighting {
+            editor.set_function_colloring(self.function_highlighting);
+        }
+        if old_editor_color_syntax != self.editor_color_syntax {
+            editor.set_editor_color_syntax(self.editor_color_syntax);
+        }
+        if old_markdown_warnings != self.markdown_warnings {
+            editor.set_markdown_warnings(self.markdown_warnings);
+        }
+    }
+}
+
+/// Stores original values to allow reverting changes
+#[derive(Debug, Clone)]
+pub struct OriginalSettings {
+    pub function_highlighting: bool,
+    pub editor_color_syntax: bool,
+    pub markdown_warnings: bool,
+    pub ui_theme: String,
+    pub css_theme: String,
+    pub layout_mode: String,
+    pub view_mode: String,
+    pub language: String,
+    pub custom_css_file: String,
+}
+
+impl OriginalSettings {
+    pub fn load_current() -> Self {
+        let prefs = get_app_preferences();
+        Self {
+            function_highlighting: prefs.get_function_highlighting(),
+            editor_color_syntax: prefs.get_editor_color_syntax(),
+            markdown_warnings: prefs.get_markdown_warnings(),
+            ui_theme: prefs.get_ui_theme(),
+            css_theme: prefs.get_css_theme(),
+            layout_mode: prefs.get_layout_mode(),
+            view_mode: prefs.get_view_mode(),
+            language: prefs.get_language(),
+            custom_css_file: prefs.get_custom_css_file(),
+        }
+    }
+
+    pub fn restore(&self) {
+        let prefs = get_app_preferences();
+        prefs.set_function_syntax_coloring(self.function_highlighting);
+        prefs.set_editor_color_syntax(self.editor_color_syntax);
+        prefs.set_markdown_warnings(self.markdown_warnings);
+        prefs.set_ui_theme(&self.ui_theme);
+        prefs.set_css_theme(&self.css_theme);
+        prefs.set_layout_mode(&self.layout_mode);
+        prefs.set_view_mode(&self.view_mode);
+        prefs.set_language(&self.language);
+        prefs.set_custom_css_file(&self.custom_css_file);
+    }
+}
 use gio::prelude::*;
 use gio::Settings;
 
@@ -18,7 +153,7 @@ impl AppPreferences {
         self.settings.boolean("function-highlighting")
     }
     
-    pub fn set_function_highlighting(&self, enabled: bool) {
+    pub fn set_function_syntax_coloring(&self, enabled: bool) {
         let _ = self.settings.set_boolean("function-highlighting", enabled);
     }
     

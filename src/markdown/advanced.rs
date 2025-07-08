@@ -97,7 +97,7 @@ impl ExtraMarkdownSyntax {
     }
 
     /// Apply extra syntax highlighting to a text buffer
-    pub fn apply_extra_syntax_highlighting(
+    pub fn apply_extra_syntax_coloring(
         &self, 
         buffer: &sourceview5::Buffer, 
         text: &str, 

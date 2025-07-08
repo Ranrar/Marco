@@ -1,7 +1,7 @@
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, TextView, Widget, TextBuffer, TextTagTable};
 use pulldown_cmark::{Parser, Options, html, Event, Tag, CodeBlockKind};
-use crate::markdown::syntect::CodeLanguageManager;
+use crate::markdown::colorize_code_blocks::CodeLanguageManager;
 use crate::theme::ThemeManager;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -78,7 +78,7 @@ impl MarkdownCodeView {
         
         // Apply syntax highlighting directly to the HTML content using the HTML language
         // No need to escape again as the HTML is already properly escaped
-        let highlighted_html = self.language_manager.highlight_code(&formatted_html, "html");
+        let highlighted_html = self.language_manager.colorize_code(&formatted_html, "html");
         
         // Set the HTML content in the text view
         let preview_buffer = self.text_view.buffer();
@@ -172,13 +172,13 @@ impl MarkdownCodeView {
             let escaped_code = self.html_escape(code);
             
             // Use syntax highlighting on the escaped HTML
-            let highlighted = self.language_manager.highlight_code(&escaped_code, "html");
+            let highlighted = self.language_manager.colorize_code(&escaped_code, "html");
             
             // Wrap in a code editor style container
             format!(r#"<div class="html-code-editor code-block-html">{}</div>"#, highlighted)
         } else {
             // Standard syntax highlighting for other languages
-            self.language_manager.highlight_code(code, language)
+            self.language_manager.colorize_code(code, language)
         }
     }
 

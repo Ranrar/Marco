@@ -8,19 +8,19 @@ use std::cell::RefCell;
 
 /// Represents a Markdown syntax warning with location and type
 #[derive(Debug, Clone, PartialEq)]
-pub struct MarkdownWarning {
+pub struct SpellError {
     pub line: usize,
     pub column: usize,
     pub start_offset: usize,
     pub end_offset: usize,
-    pub warning_type: WarningType,
+    pub warning_type: SpellType,
     pub message: String,
     pub suggestion: Option<String>,
 }
 
 /// Types of Markdown syntax warnings
 #[derive(Debug, Clone, PartialEq)]
-pub enum WarningType {
+pub enum SpellType {
     UncloseTag,
     ImproperNesting,
     BrokenLink,
@@ -40,31 +40,31 @@ pub enum WarningType {
     InvalidEscapeSequence,
 }
 
-impl std::fmt::Display for WarningType {
+impl std::fmt::Display for SpellType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            WarningType::UncloseTag => write!(f, "Unclosed tag"),
-            WarningType::ImproperNesting => write!(f, "Improper nesting"),
-            WarningType::BrokenLink => write!(f, "Broken link"),
-            WarningType::BrokenImage => write!(f, "Broken image"),
-            WarningType::ImproperHeading => write!(f, "Improper heading"),
-            WarningType::RawHtml => write!(f, "Raw HTML"),
-            WarningType::UnclosedCodeBlock => write!(f, "Unclosed code block"),
-            WarningType::MalformedTable => write!(f, "Malformed table"),
-            WarningType::EmptyLink => write!(f, "Empty link"),
-            WarningType::InvalidReference => write!(f, "Invalid reference"),
-            WarningType::InconsistentListMarkers => write!(f, "Inconsistent list markers"),
-            WarningType::MissingAltText => write!(f, "Missing alt text"),
-            WarningType::UnclosedEmphasis => write!(f, "Unclosed emphasis"),
-            WarningType::InvalidTaskList => write!(f, "Invalid task list"),
-            WarningType::MalformedFootnote => write!(f, "Malformed footnote"),
-            WarningType::UnclosedBlockquote => write!(f, "Unclosed blockquote"),
-            WarningType::InvalidEscapeSequence => write!(f, "Invalid escape sequence"),
+            SpellType::UncloseTag => write!(f, "Unclosed tag"),
+            SpellType::ImproperNesting => write!(f, "Improper nesting"),
+            SpellType::BrokenLink => write!(f, "Broken link"),
+            SpellType::BrokenImage => write!(f, "Broken image"),
+            SpellType::ImproperHeading => write!(f, "Improper heading"),
+            SpellType::RawHtml => write!(f, "Raw HTML"),
+            SpellType::UnclosedCodeBlock => write!(f, "Unclosed code block"),
+            SpellType::MalformedTable => write!(f, "Malformed table"),
+            SpellType::EmptyLink => write!(f, "Empty link"),
+            SpellType::InvalidReference => write!(f, "Invalid reference"),
+            SpellType::InconsistentListMarkers => write!(f, "Inconsistent list markers"),
+            SpellType::MissingAltText => write!(f, "Missing alt text"),
+            SpellType::UnclosedEmphasis => write!(f, "Unclosed emphasis"),
+            SpellType::InvalidTaskList => write!(f, "Invalid task list"),
+            SpellType::MalformedFootnote => write!(f, "Malformed footnote"),
+            SpellType::UnclosedBlockquote => write!(f, "Unclosed blockquote"),
+            SpellType::InvalidEscapeSequence => write!(f, "Invalid escape sequence"),
         }
     }
 }
 
-impl std::fmt::Display for MarkdownWarning {
+impl std::fmt::Display for SpellError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -80,7 +80,7 @@ impl std::fmt::Display for MarkdownWarning {
 
 /// Configuration for Markdown syntax checking
 #[derive(Debug, Clone)]
-pub struct MarkdownLintConfig {
+pub struct SpellLintConfig {
     pub check_unclosed_tags: bool,
     pub check_improper_nesting: bool,
     pub check_broken_links: bool,
@@ -100,7 +100,7 @@ pub struct MarkdownLintConfig {
     pub check_invalid_escape_sequences: bool,
 }
 
-impl Default for MarkdownLintConfig {
+impl Default for SpellLintConfig {
     fn default() -> Self {
         Self {
             check_unclosed_tags: true,
@@ -125,9 +125,9 @@ impl Default for MarkdownLintConfig {
 }
 
 /// Main Markdown syntax checker with GTK4 integration
-pub struct MarkdownSyntaxChecker {
-    config: MarkdownLintConfig,
-    warnings: Vec<MarkdownWarning>,
+pub struct SpellSyntaxChecker {
+    config: SpellLintConfig,
+    warnings: Vec<SpellError>,
     warning_tags: HashMap<String, TextTag>,
     buffer: Option<gtk4::TextBuffer>,
     
@@ -145,9 +145,9 @@ pub struct MarkdownSyntaxChecker {
     escape_regex: Regex,
 }
 
-impl MarkdownSyntaxChecker {
-    pub fn new(config: MarkdownLintConfig) -> Self {
-        let warning_tags = Self::create_warning_tags();
+impl SpellSyntaxChecker {
+    pub fn new(config: SpellLintConfig) -> Self {
+        let warning_tags = Self::create_error_tags();
         
         Self {
             config,
@@ -171,11 +171,11 @@ impl MarkdownSyntaxChecker {
     }
 
     pub fn new_with_defaults() -> Self {
-        Self::new(MarkdownLintConfig::default())
+        Self::new(SpellLintConfig::default())
     }
 
     /// Create GTK TextTags for different warning types
-    fn create_warning_tags() -> HashMap<String, TextTag> {
+    fn create_error_tags() -> HashMap<String, TextTag> {
         let mut tags = HashMap::new();
         // Create tag for syntax warnings with wavy red underline
         let warning_tag = TextTag::new(Some("markdown-warning"));
@@ -205,7 +205,7 @@ impl MarkdownSyntaxChecker {
     }
 
     /// Create GTK TextTags for a specific buffer to avoid conflicts
-    fn create_warning_tags_for_buffer(buffer: &gtk4::TextBuffer) -> HashMap<String, TextTag> {
+    fn create_error_tags_for_buffer(buffer: &gtk4::TextBuffer) -> HashMap<String, TextTag> {
         let mut tags = HashMap::new();
         let tag_table = buffer.tag_table();
         
@@ -233,29 +233,29 @@ impl MarkdownSyntaxChecker {
         };
         tags.insert("broken-link".to_string(), broken_link_tag);
 
-        // Create or reuse tag for HTML warnings
-        let html_warning_tag = if let Some(existing_tag) = tag_table.lookup("html-warning") {
+        // Create or reuse tag for HTML errors
+        let html_warning_tag = if let Some(existing_tag) = tag_table.lookup("html-error") {
             existing_tag
         } else {
-            let tag = TextTag::new(Some("html-warning"));
+            let tag = TextTag::new(Some("html-error"));
             tag.set_property("underline", gtk4::pango::Underline::Single);
             tag.set_property("underline-rgba", &gdk4::RGBA::new(0.8, 0.8, 0.0, 1.0));
             tag_table.add(&tag);
             tag
         };
-        tags.insert("html-warning".to_string(), html_warning_tag);
+        tags.insert("html-error".to_string(), html_warning_tag);
 
         // Create or reuse tag for structure issues (blue underline)
-        let structure_tag = if let Some(existing_tag) = tag_table.lookup("structure-warning") {
+        let structure_tag = if let Some(existing_tag) = tag_table.lookup("structure-error") {
             existing_tag
         } else {
-            let tag = TextTag::new(Some("structure-warning"));
+            let tag = TextTag::new(Some("structure-error"));
             tag.set_property("underline", gtk4::pango::Underline::Single);
             tag.set_property("underline-rgba", &gdk4::RGBA::new(0.2, 0.4, 1.0, 1.0));
             tag_table.add(&tag);
             tag
         };
-        tags.insert("structure-warning".to_string(), structure_tag);
+        tags.insert("structure-error".to_string(), structure_tag);
 
         tags
     }
@@ -265,11 +265,11 @@ impl MarkdownSyntaxChecker {
         self.buffer = Some(buffer.clone());
         
         // Create fresh tags for this buffer to avoid conflicts
-        self.warning_tags = Self::create_warning_tags_for_buffer(buffer);
+        self.warning_tags = Self::create_error_tags_for_buffer(buffer);
     }
 
     /// Lint markdown content and return warnings
-    pub fn lint(&mut self, content: &str) -> Vec<MarkdownWarning> {
+    pub fn lint(&mut self, content: &str) -> Vec<SpellError> {
         self.warnings.clear();
         
         // First pass: use pulldown-cmark for AST-based checking
@@ -283,7 +283,7 @@ impl MarkdownSyntaxChecker {
         
         // Apply visual warnings to the buffer if available
         if let Some(buffer) = &self.buffer {
-            self.apply_visual_warnings(buffer, content);
+            self.apply_visual_errors(buffer, content);
         }
         
         self.warnings.clone()
@@ -306,12 +306,12 @@ impl MarkdownSyntaxChecker {
                         if std::mem::discriminant(&start_tag) != std::mem::discriminant(&tag) {
                             // Mismatched tags
                             let (line, col) = self.offset_to_line_col(start_offset, &line_offsets);
-                            self.warnings.push(MarkdownWarning {
+                            self.warnings.push(SpellError {
                                 line,
                                 column: col,
                                 start_offset,
                                 end_offset: current_offset,
-                                warning_type: WarningType::ImproperNesting,
+                                warning_type: SpellType::ImproperNesting,
                                 message: format!("Mismatched tag: expected {:?}, found {:?}", start_tag, tag),
                                 suggestion: Some("Check tag nesting".to_string()),
                             });
@@ -327,12 +327,12 @@ impl MarkdownSyntaxChecker {
                 Event::Html(html) => {
                     if self.config.check_raw_html {
                         let (line, col) = self.offset_to_line_col(current_offset, &line_offsets);
-                        self.warnings.push(MarkdownWarning {
+                        self.warnings.push(SpellError {
                             line,
                             column: col,
                             start_offset: current_offset,
                             end_offset: current_offset + html.len(),
-                            warning_type: WarningType::RawHtml,
+                            warning_type: SpellType::RawHtml,
                             message: format!("Raw HTML found: {}", html.trim()),
                             suggestion: Some("Consider using Markdown syntax instead".to_string()),
                         });
@@ -347,12 +347,12 @@ impl MarkdownSyntaxChecker {
         if !event_stack.is_empty() {
             for (tag, start_offset) in event_stack {
                 let (line, col) = self.offset_to_line_col(start_offset, &line_offsets);
-                self.warnings.push(MarkdownWarning {
+                self.warnings.push(SpellError {
                     line,
                     column: col,
                     start_offset,
                     end_offset: start_offset,
-                    warning_type: WarningType::UncloseTag,
+                    warning_type: SpellType::UncloseTag,
                     message: format!("Unclosed tag: {:?}", tag),
                     suggestion: Some("Close the tag properly".to_string()),
                 });
@@ -435,12 +435,12 @@ impl MarkdownSyntaxChecker {
             let start_offset = line_start_offset + caps.get(1).unwrap().start();
             let end_offset = line_start_offset + caps.get(1).unwrap().end();
             
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: line_num,
                 column,
                 start_offset,
                 end_offset,
-                warning_type: WarningType::ImproperHeading,
+                warning_type: SpellType::ImproperHeading,
                 message: format!("Heading should have a space after `{}`", hashes),
                 suggestion: Some(format!("Change to `{} `", hashes)),
             });
@@ -468,24 +468,24 @@ impl MarkdownSyntaxChecker {
         }
         
         if bold_count % 2 != 0 {
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: line_num,
                 column: 1,
                 start_offset: line_start_offset,
                 end_offset: line_start_offset + line.len(),
-                warning_type: WarningType::UnclosedEmphasis,
+                warning_type: SpellType::UnclosedEmphasis,
                 message: "Unclosed bold marker (**)".to_string(),
                 suggestion: Some("Ensure bold markers are properly paired".to_string()),
             });
         }
         
         if italic_count % 2 != 0 {
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: line_num,
                 column: 1,
                 start_offset: line_start_offset,
                 end_offset: line_start_offset + line.len(),
-                warning_type: WarningType::UnclosedEmphasis,
+                warning_type: SpellType::UnclosedEmphasis,
                 message: "Unclosed italic marker (* or _)".to_string(),
                 suggestion: Some("Ensure italic markers are properly paired".to_string()),
             });
@@ -504,12 +504,12 @@ impl MarkdownSyntaxChecker {
             
             // Check for empty links
             if self.config.check_empty_links && url.trim().is_empty() {
-                self.warnings.push(MarkdownWarning {
+                self.warnings.push(SpellError {
                     line: line_num,
                     column: full_match.start() + 1,
                     start_offset,
                     end_offset,
-                    warning_type: WarningType::EmptyLink,
+                    warning_type: SpellType::EmptyLink,
                     message: "Link with empty URL".to_string(),
                     suggestion: Some("Provide a valid URL or remove the link".to_string()),
                 });
@@ -522,12 +522,12 @@ impl MarkdownSyntaxChecker {
             let start_offset = line_start_offset + mat.start();
             let end_offset = line_start_offset + mat.end();
             
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: line_num,
                 column: mat.start() + 1,
                 start_offset,
                 end_offset,
-                warning_type: WarningType::BrokenLink,
+                warning_type: SpellType::BrokenLink,
                 message: "Incomplete link syntax".to_string(),
                 suggestion: Some("Ensure link has format [text](url)".to_string()),
             });
@@ -546,12 +546,12 @@ impl MarkdownSyntaxChecker {
             
             // Check for missing alt text
             if self.config.check_missing_alt_text && alt_text.trim().is_empty() {
-                self.warnings.push(MarkdownWarning {
+                self.warnings.push(SpellError {
                     line: line_num,
                     column: full_match.start() + 1,
                     start_offset,
                     end_offset,
-                    warning_type: WarningType::MissingAltText,
+                    warning_type: SpellType::MissingAltText,
                     message: "Image missing alt text".to_string(),
                     suggestion: Some("Add descriptive alt text for accessibility".to_string()),
                 });
@@ -568,12 +568,12 @@ impl MarkdownSyntaxChecker {
             let start_offset = line_start_offset + caps.get(0).unwrap().start();
             let end_offset = line_start_offset + caps.get(0).unwrap().end();
             
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: line_num,
                 column: caps.get(0).unwrap().start() + 1,
                 start_offset,
                 end_offset,
-                warning_type: WarningType::InvalidTaskList,
+                warning_type: SpellType::InvalidTaskList,
                 message: format!("Invalid task list checkbox: [{}]", checkbox),
                 suggestion: Some("Use [ ] for unchecked or [x] for checked".to_string()),
             });
@@ -597,12 +597,12 @@ impl MarkdownSyntaxChecker {
             
             // Only warn about empty IDs in footnote references, not definitions
             if !is_definition && footnote_id.trim().is_empty() {
-                self.warnings.push(MarkdownWarning {
+                self.warnings.push(SpellError {
                     line: line_num,
                     column: caps.get(0).unwrap().start() + 1,
                     start_offset,
                     end_offset,
-                    warning_type: WarningType::MalformedFootnote,
+                    warning_type: SpellType::MalformedFootnote,
                     message: "Footnote reference with empty ID".to_string(),
                     suggestion: Some("Provide a valid footnote ID".to_string()),
                 });
@@ -616,12 +616,12 @@ impl MarkdownSyntaxChecker {
             let start_offset = line_start_offset + mat.start();
             let end_offset = line_start_offset + mat.end();
             
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: line_num,
                 column: mat.start() + 1,
                 start_offset,
                 end_offset,
-                warning_type: WarningType::RawHtml,
+                warning_type: SpellType::RawHtml,
                 message: format!("Raw HTML tag found: {}", mat.as_str()),
                 suggestion: Some("Consider using Markdown syntax instead".to_string()),
             });
@@ -651,12 +651,12 @@ impl MarkdownSyntaxChecker {
         }
         
         if in_code_block {
-            self.warnings.push(MarkdownWarning {
+            self.warnings.push(SpellError {
                 line: code_block_start,
                 column: 1,
                 start_offset: code_block_start_offset,
                 end_offset: code_block_start_offset + 3, // Length of "```"
-                warning_type: WarningType::UnclosedCodeBlock,
+                warning_type: SpellType::UnclosedCodeBlock,
                 message: "Unclosed code block".to_string(),
                 suggestion: Some("Add closing ``` to end the code block".to_string()),
             });
@@ -679,12 +679,12 @@ impl MarkdownSyntaxChecker {
                     in_table = true;
                     expected_columns = current_columns;
                 } else if current_columns != expected_columns {
-                    self.warnings.push(MarkdownWarning {
+                    self.warnings.push(SpellError {
                         line: line_num,
                         column: 1,
                         start_offset: current_offset,
                         end_offset: current_offset + line.len(),
-                        warning_type: WarningType::MalformedTable,
+                        warning_type: SpellType::MalformedTable,
                         message: format!("Table row has {} columns, expected {}", current_columns, expected_columns),
                         suggestion: Some("Ensure all table rows have the same number of columns".to_string()),
                     });
@@ -731,12 +731,12 @@ impl MarkdownSyntaxChecker {
                     let match_start = caps.get(0).unwrap().start();
                     let match_end = caps.get(0).unwrap().end();
                     
-                    self.warnings.push(MarkdownWarning {
+                    self.warnings.push(SpellError {
                         line: line_num,
                         column: match_start + 1,
                         start_offset: current_offset + match_start,
                         end_offset: current_offset + match_end,
-                        warning_type: WarningType::InvalidReference,
+                        warning_type: SpellType::InvalidReference,
                         message: format!("Reference '{}' not found", ref_name),
                         suggestion: Some("Define the reference or use a direct link".to_string()),
                     });
@@ -773,12 +773,12 @@ impl MarkdownSyntaxChecker {
                             let marker_start = caps.get(2).unwrap().start();
                             let marker_end = caps.get(2).unwrap().end();
                             
-                            self.warnings.push(MarkdownWarning {
+                            self.warnings.push(SpellError {
                                 line: line_num,
                                 column: marker_start + 1,
                                 start_offset: current_offset + marker_start,
                                 end_offset: current_offset + marker_end,
-                                warning_type: WarningType::InconsistentListMarkers,
+                                warning_type: SpellType::InconsistentListMarkers,
                                 message: format!("Inconsistent list marker '{}', expected '{}'", current_marker, expected_marker),
                                 suggestion: Some("Use consistent list markers throughout the list".to_string()),
                             });
@@ -797,7 +797,7 @@ impl MarkdownSyntaxChecker {
     }
 
     /// Apply visual warnings to the text buffer
-    fn apply_visual_warnings(&self, buffer: &gtk4::TextBuffer, _content: &str) {
+    fn apply_visual_errors(&self, buffer: &gtk4::TextBuffer, _content: &str) {
         // Clear existing warning tags - only remove tags that belong to this buffer
         let start_iter = buffer.start_iter();
         let end_iter = buffer.end_iter();
@@ -823,17 +823,17 @@ impl MarkdownSyntaxChecker {
             let end_iter = buffer.iter_at_offset(warning.end_offset as i32);
 
             let tag_name = match warning.warning_type {
-                WarningType::BrokenLink | WarningType::BrokenImage | WarningType::EmptyLink => "broken-link",
-                WarningType::RawHtml => "html-warning",
+                SpellType::BrokenLink | SpellType::BrokenImage | SpellType::EmptyLink => "broken-link",
+                SpellType::RawHtml => "html-warning",
                 // Structure issues get blue underline
-                WarningType::UncloseTag
-                | WarningType::ImproperNesting
-                | WarningType::UnclosedCodeBlock
-                | WarningType::MalformedTable
-                | WarningType::InvalidReference
-                | WarningType::InconsistentListMarkers
-                | WarningType::MalformedFootnote
-                | WarningType::UnclosedBlockquote => "structure-warning",
+                SpellType::UncloseTag
+                | SpellType::ImproperNesting
+                | SpellType::UnclosedCodeBlock
+                | SpellType::MalformedTable
+                | SpellType::InvalidReference
+                | SpellType::InconsistentListMarkers
+                | SpellType::MalformedFootnote
+                | SpellType::UnclosedBlockquote => "structure-warning",
                 _ => "warning",
             };
 
@@ -870,7 +870,7 @@ impl MarkdownSyntaxChecker {
     }
 
     /// Get all warnings
-    pub fn get_warnings(&self) -> &[MarkdownWarning] {
+    pub fn get_warnings(&self) -> &[SpellError] {
         &self.warnings
     }
 
@@ -884,16 +884,16 @@ impl MarkdownSyntaxChecker {
             let tag_table = buffer.tag_table();
             
             // Only remove tags that actually exist in this buffer's tag table
-            if let Some(tag) = tag_table.lookup("markdown-warning") {
+            if let Some(tag) = tag_table.lookup("markdown-error") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
             }
             if let Some(tag) = tag_table.lookup("broken-link") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
             }
-            if let Some(tag) = tag_table.lookup("html-warning") {
+            if let Some(tag) = tag_table.lookup("html-error") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
             }
-            if let Some(tag) = tag_table.lookup("structure-warning") {
+            if let Some(tag) = tag_table.lookup("structure-error") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
             }
         }
@@ -910,13 +910,13 @@ impl MarkdownSyntaxChecker {
 }
 
 /// Convenience function to create a syntax checker with default config
-pub fn create_syntax_checker() -> MarkdownSyntaxChecker {
-    MarkdownSyntaxChecker::new_with_defaults()
+pub fn create_syntax_checker() -> SpellSyntaxChecker {
+    SpellSyntaxChecker::new_with_defaults()
 }
 
 /// Convenience function to create a syntax checker with custom config
-pub fn create_syntax_checker_with_config(config: MarkdownLintConfig) -> MarkdownSyntaxChecker {
-    MarkdownSyntaxChecker::new(config)
+pub fn create_syntax_checker_with_config(config: SpellLintConfig) -> SpellSyntaxChecker {
+    SpellSyntaxChecker::new(config)
 }
 
 #[cfg(test)]
@@ -925,47 +925,47 @@ mod tests {
 
     #[test]
     fn test_improper_heading() {
-        let mut checker = MarkdownSyntaxChecker::new_with_defaults();
+        let mut checker = SpellSyntaxChecker::new_with_defaults();
         let warnings = checker.lint("##No space after hash");
         assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, WarningType::ImproperHeading);
+        assert_eq!(warnings[0].warning_type, SpellType::ImproperHeading);
     }
 
     #[test]
     fn test_unclosed_emphasis() {
-        let mut checker = MarkdownSyntaxChecker::new_with_defaults();
+        let mut checker = SpellSyntaxChecker::new_with_defaults();
         let warnings = checker.lint("This is **bold without closing");
         assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, WarningType::UnclosedEmphasis);
+        assert_eq!(warnings[0].warning_type, SpellType::UnclosedEmphasis);
     }
 
     #[test]
     fn test_empty_link() {
-        let mut checker = MarkdownSyntaxChecker::new_with_defaults();
+        let mut checker = SpellSyntaxChecker::new_with_defaults();
         let warnings = checker.lint("This is an [empty link]()");
         assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, WarningType::EmptyLink);
+        assert_eq!(warnings[0].warning_type, SpellType::EmptyLink);
     }
 
     #[test]
     fn test_missing_alt_text() {
-        let mut checker = MarkdownSyntaxChecker::new_with_defaults();
+        let mut checker = SpellSyntaxChecker::new_with_defaults();
         let warnings = checker.lint("This is an image ![](image.png)");
         assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, WarningType::MissingAltText);
+        assert_eq!(warnings[0].warning_type, SpellType::MissingAltText);
     }
 
     #[test]
     fn test_unclosed_code_block() {
-        let mut checker = MarkdownSyntaxChecker::new_with_defaults();
+        let mut checker = SpellSyntaxChecker::new_with_defaults();
         let warnings = checker.lint("```rust\nfn main() {}\n// Missing closing ```");
         assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, WarningType::UnclosedCodeBlock);
+        assert_eq!(warnings[0].warning_type, SpellType::UnclosedCodeBlock);
     }
 
     #[test]
     fn test_valid_markdown() {
-        let mut checker = MarkdownSyntaxChecker::new_with_defaults();
+        let mut checker = SpellSyntaxChecker::new_with_defaults();
         let warnings = checker.lint("# Heading\n\nThis is **bold** and *italic* text.\n\n[Link](https://example.com)");
         assert_eq!(warnings.len(), 0);
     }

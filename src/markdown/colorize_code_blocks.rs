@@ -369,8 +369,8 @@ impl SyntectHighlighter {
         })
     }
 
-    /// Apply syntax highlighting with custom theme colors that integrate with Marco's theme system
-    pub fn highlight_code_with_theme_integration(&self, code: &str, language: &str, is_dark_theme: bool) -> String {
+    /// Apply syntax colorize code with custom theme colors that integrate with Marco's theme system
+    pub fn colorize_code_with_theme_integration(&self, code: &str, language: &str, is_dark_theme: bool) -> String {
         // Choose MarcoDark for dark mode, MarcoLight for light mode, with fallback
         let original_theme = self.current_theme.clone();
 
@@ -466,8 +466,8 @@ impl CodeLanguageManager {
         None
     }
 
-    /// Highlight code with syntax highlighting
-    pub fn highlight_code(&self, code: &str, language: &str) -> String {
+    /// Highlight code with syntax colorize code
+    pub fn colorize_code(&self, code: &str, language: &str) -> String {
         self.highlighter.highlight_code(code, language)
     }
 
@@ -636,7 +636,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_syntect_highlighter() {
+    fn test_syntect_colorize_code() {
         let highlighter = SyntectHighlighter::new();
         
         let rust_code = r#"fn main() {
@@ -678,9 +678,9 @@ mod tests {
         assert!(manager.get_language("javascript").is_some());
         assert!(manager.get_language("nonexistent").is_none());
         
-        // Test highlighting
+        // Test colorize code
         let code = "fn main() { println!('Hello'); }";
-        let highlighted = manager.highlight_code(code, "rust");
+        let highlighted = manager.colorize_code(code, "rust");
         assert!(!highlighted.is_empty());
         assert!(highlighted.contains("span"));
         

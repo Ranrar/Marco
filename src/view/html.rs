@@ -11,7 +11,7 @@ use std::hash::Hasher;
 use std::collections::hash_map::DefaultHasher;
 use regex::Regex;
 use crate::theme::ThemeManager;
-use crate::markdown::syntect::CodeLanguageManager;
+use crate::markdown::colorize_code_blocks::CodeLanguageManager;
 
 /// Cached compiled regexes for performance
 struct CachedRegexes {
@@ -606,7 +606,7 @@ code {{
         let code_lang_manager = self.code_language_manager.borrow();
         
         if !language.is_empty() && code_lang_manager.get_language(language).is_some() {
-            code_lang_manager.highlight_code(code, language)
+            code_lang_manager.colorize_code(code, language)
         } else {
             let escaped_code = CodeLanguageManager::html_escape(code);
             format!(

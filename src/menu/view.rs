@@ -81,7 +81,7 @@ pub fn create_view_actions(app: &Application, editor: &editor::MarkdownEditor, t
             move |_app: &Application, _action, _param| {
                 println!("DEBUG: Settings menu action triggered");
                 if let Some(window) = app.active_window() {
-                    crate::settings::dialog::show_settings_dialog(&window, &editor, &theme_manager);
+                    crate::settings::show_settings_dialog(&window, &editor, &theme_manager);
                 } else {
                     println!("DEBUG: No active window found for settings dialog");
                 }

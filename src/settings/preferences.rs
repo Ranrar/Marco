@@ -45,7 +45,7 @@ pub fn apply_settings_to_app(
     
     // Apply function highlighting
     let function_highlighting = prefs.get_function_highlighting();
-    editor.set_function_highlighting(function_highlighting);
+    editor.set_function_colloring(function_highlighting);
     
     // Apply editor color syntax highlighting
     let editor_color_syntax = prefs.get_editor_color_syntax();
