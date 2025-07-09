@@ -1,0 +1,791 @@
+/* Astro Markdown CSS - Space-inspired theme with gradient elements */
+
+/* CSS Custom Properties (Variables) for theming */
+:root {
+  /* Light theme colors (cosmic light mode) */
+  --text-color: #2d3748;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --bg-color: #ffffff;
+  --bg-secondary: #f7fafc;
+  --bg-code: #edf2f7;
+  --bg-pre: #f7fafc;
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  --border-strong: #cbd5e0;
+  --heading-color: #a855f7;
+  --strong-color: #2d3748;
+  --blockquote-bg: #f7fafc;
+  --blockquote-border: #a855f7;
+  --blockquote-text: #4a5568;
+  --table-border: #e2e8f0;
+  --table-header-bg: #f7fafc;
+  --table-stripe-bg: #f1f5f9;
+  --link-color: #a855f7;
+  --link-hover: #9333ea;
+  
+  /* Accent colors from design manual */
+  --primary-accent: #a855f7;
+  --secondary-accent: #ec4899;
+  --info-green: #10b981;
+  --warning-yellow: #f59e0b;
+  --neutral-text: #cccccc;
+  
+  /* TOC-specific variables */
+  --toc-header-color: #a855f7;
+  --toc-header-border: #e2e8f0;
+  --toc-link-color: #2d3748;
+  --toc-link-hover-bg: #f7fafc;
+  --toc-link-hover-color: #a855f7;
+  --toc-link-active-bg: #e0e7ff;
+  --toc-link-active-color: #7c3aed;
+  --toc-bg: #ffffff;
+  --toc-border: #e2e8f0;
+  --toc-shadow: rgba(168, 85, 247, 0.1);
+}
+
+/* Dark theme colors using CSS media query (deep space mode) */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-color: #f5f5f5;
+    --text-secondary: #cccccc;
+    --text-muted: #a0aec0;
+    --bg-color: #0a0a0a;
+    --bg-secondary: #1a1a1a;
+    --bg-code: #1a1a1a;
+    --bg-pre: #111111;
+    --border-color: #2d3748;
+    --border-light: #2d3748;
+    --border-strong: #4a5568;
+    --heading-color: #a855f7;
+    --strong-color: #f5f5f5;
+    --blockquote-bg: #1a1a1a;
+    --blockquote-border: #a855f7;
+    --blockquote-text: #cccccc;
+    --table-border: #2d3748;
+    --table-header-bg: #1a1a1a;
+    --table-stripe-bg: #171717;
+    --link-color: #a855f7;
+    --link-hover: #c084fc;
+    
+    /* TOC-specific variables for dark theme */
+    --toc-header-color: #a855f7;
+    --toc-header-border: #2d3748;
+    --toc-link-color: #f5f5f5;
+    --toc-link-hover-bg: #1a1a1a;
+    --toc-link-hover-color: #a855f7;
+    --toc-link-active-bg: #2d1b69;
+    --toc-link-active-color: #c084fc;
+    --toc-bg: #111111;
+    --toc-border: #2d3748;
+    --toc-shadow: rgba(168, 85, 247, 0.3);
+  }
+}
+
+/* Force light theme class override */
+.theme-light {
+  --text-color: #2d3748;
+  --text-secondary: #4a5568;
+  --text-muted: #718096;
+  --bg-color: #ffffff;
+  --bg-secondary: #f7fafc;
+  --bg-code: #edf2f7;
+  --bg-pre: #f7fafc;
+  --border-color: #e2e8f0;
+  --border-light: #f1f5f9;
+  --border-strong: #cbd5e0;
+  --heading-color: #a855f7;
+  --strong-color: #2d3748;
+  --blockquote-bg: #f7fafc;
+  --blockquote-border: #a855f7;
+  --blockquote-text: #4a5568;
+  --table-border: #e2e8f0;
+  --table-header-bg: #f7fafc;
+  --table-stripe-bg: #f1f5f9;
+  --link-color: #a855f7;
+  --link-hover: #9333ea;
+  
+  /* TOC-specific variables */
+  --toc-header-color: #a855f7;
+  --toc-header-border: #e2e8f0;
+  --toc-link-color: #2d3748;
+  --toc-link-hover-bg: #f7fafc;
+  --toc-link-hover-color: #a855f7;
+  --toc-link-active-bg: #e0e7ff;
+  --toc-link-active-color: #7c3aed;
+  --toc-bg: #ffffff;
+  --toc-border: #e2e8f0;
+  --toc-shadow: rgba(168, 85, 247, 0.1);
+}
+
+/* Force dark theme class override */
+.theme-dark {
+  --text-color: #f5f5f5;
+  --text-secondary: #cccccc;
+  --text-muted: #a0aec0;
+  --bg-color: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --bg-code: #1a1a1a;
+  --bg-pre: #111111;
+  --border-color: #2d3748;
+  --border-light: #2d3748;
+  --border-strong: #4a5568;
+  --heading-color: #a855f7;
+  --strong-color: #f5f5f5;
+  --blockquote-bg: #1a1a1a;
+  --blockquote-border: #a855f7;
+  --blockquote-text: #cccccc;
+  --table-border: #2d3748;
+  --table-header-bg: #1a1a1a;
+  --table-stripe-bg: #171717;
+  --link-color: #a855f7;
+  --link-hover: #c084fc;
+  
+  /* TOC-specific variables for dark theme */
+  --toc-header-color: #a855f7;
+  --toc-header-border: #2d3748;
+  --toc-link-color: #f5f5f5;
+  --toc-link-hover-bg: #1a1a1a;
+  --toc-link-hover-color: #a855f7;
+  --toc-link-active-bg: #2d1b69;
+  --toc-link-active-color: #c084fc;
+  --toc-bg: #111111;
+  --toc-border: #2d3748;
+  --toc-shadow: rgba(168, 85, 247, 0.3);
+}
+
+/* Reset and base styles with Inter font */
+body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    margin: 2rem;
+    padding: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Headings with gradient text effect */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 900;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    line-height: 1.25;
+    background: linear-gradient(45deg, var(--heading-color), var(--secondary-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transition: background 0.3s ease;
+    position: relative;
+}
+
+/* Fallback for browsers that don't support background-clip */
+@supports not (-webkit-background-clip: text) {
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--heading-color);
+        -webkit-text-fill-color: unset;
+        background: unset;
+        -webkit-background-clip: unset;
+        background-clip: unset;
+    }
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.875rem; }
+
+/* Paragraph */
+p {
+    margin: 1rem 0;
+    color: var(--text-color);
+}
+
+/* Text formatting */
+strong, b {
+    font-weight: bold;
+    color: var(--strong-color);
+}
+
+em, i {
+    font-style: italic;
+    color: var(--text-color);
+}
+
+/* Links with astro accent colors */
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color 0.3s ease, text-shadow 0.3s ease;
+    position: relative;
+}
+
+a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+    text-shadow: 0 0 8px rgba(168, 85, 247, 0.3);
+}
+
+/* Inline code with Monaco font */
+code {
+    font-family: 'Monaco', 'Consolas', 'SF Mono', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    background-color: var(--bg-code);
+    color: var(--info-green);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.95em;
+    transition: background-color 0.3s ease;
+    /* Hide scrollbars while maintaining scrolling functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer and Edge */
+}
+
+/* Hide scrollbars for inline code in WebKit browsers */
+code::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+}
+
+/* Code blocks */
+pre {
+    display: block;
+    padding: 1rem;
+    background-color: var(--bg-pre);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow-x: auto;
+    font-family: 'Monaco', 'Consolas', 'SF Mono', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+    position: relative;
+    /* Hide scrollbars while maintaining scrolling functionality */
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer and Edge */
+}
+
+/* Hide scrollbars for code blocks in WebKit browsers */
+pre::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+}
+
+/* Astro glow effect for code blocks */
+pre::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, var(--primary-accent), var(--secondary-accent), var(--info-green));
+    border-radius: 8px;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    z-index: -1;
+}
+
+pre:hover::before {
+    opacity: 0.1;
+}
+
+pre code {
+    background-color: transparent;
+    color: var(--text-color);
+    padding: 0;
+    border-radius: 0;
+    border: none;
+}
+
+/* Lists */
+ul, ol {
+    padding-left: 2rem;
+    margin: 0.5rem 0;
+}
+
+li {
+    margin: 0.25rem 0;
+}
+
+/* Task lists */
+ul li.task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+}
+
+input[type="checkbox"] {
+    margin-right: 0.5rem;
+    accent-color: var(--primary-accent);
+}
+
+/* Blockquote with astro styling */
+blockquote {
+    border-left: 4px solid var(--blockquote-border);
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    color: var(--blockquote-text);
+    background: var(--blockquote-bg);
+    font-style: italic;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+    position: relative;
+    border-radius: 0 6px 6px 0;
+    overflow: hidden;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* Internet Explorer and Edge */
+}
+
+blockquote::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, and Opera */
+}
+
+blockquote::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, var(--primary-accent), var(--secondary-accent));
+    border-radius: 2px;
+}
+
+blockquote p {
+    color: var(--blockquote-text);
+}
+
+/* Horizontal rule with gradient */
+hr {
+    border: none;
+    height: 2px;
+    background: linear-gradient(to right, transparent, var(--primary-accent), var(--secondary-accent), transparent);
+    margin: 2rem 0;
+    border-radius: 1px;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+img:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 25px rgba(168, 85, 247, 0.15);
+}
+
+/* Tables with astro styling */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+th, td {
+    border: 1px solid var(--table-border);
+    padding: 0.75rem;
+    text-align: left;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+th {
+    background: linear-gradient(135deg, var(--table-header-bg), var(--bg-secondary));
+    font-weight: bold;
+    color: var(--heading-color);
+    position: relative;
+}
+
+tr:nth-child(even) {
+    background-color: var(--table-stripe-bg);
+}
+
+tr:hover {
+    background-color: var(--toc-link-hover-bg);
+}
+
+/* Strikethrough */
+del, s {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+/* Mark/Highlight with astro colors */
+mark {
+    background: linear-gradient(135deg, var(--warning-yellow), #fbbf24);
+    color: #1a1a1a;
+    padding: 0.1em 0.2em;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.theme-dark mark {
+    background: linear-gradient(135deg, var(--warning-yellow), #f59e0b);
+    color: #0a0a0a;
+}
+
+/* Footnotes */
+.footnote-ref {
+    font-size: 0.8em;
+    vertical-align: super;
+    color: var(--primary-accent);
+    font-weight: bold;
+}
+
+.footnotes {
+    border-top: 1px solid var(--border-light);
+    margin-top: 2rem;
+    padding-top: 1rem;
+    font-size: 0.9em;
+}
+
+/* Definition lists */
+dt {
+    font-weight: bold;
+    margin-top: 1rem;
+    color: var(--heading-color);
+}
+
+dd {
+    margin-left: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Keyboard keys with astro styling */
+kbd {
+    background: linear-gradient(135deg, var(--bg-code), var(--bg-secondary));
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(168, 85, 247, 0.1);
+    color: var(--text-color);
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 0.9em;
+    padding: 0.2em 0.4em;
+    vertical-align: baseline;
+    font-weight: 500;
+}
+
+/* Abbreviations */
+abbr {
+    border-bottom: 1px dotted var(--primary-accent);
+    cursor: help;
+    text-decoration: none;
+}
+
+/* Admonitions with astro colors */
+.admonition {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-left: 4px solid var(--border-strong);
+    background-color: var(--bg-secondary);
+    border-radius: 6px;
+    position: relative;
+    overflow: hidden;
+}
+
+.admonition::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 4px;
+    background: linear-gradient(to bottom, var(--primary-accent), var(--secondary-accent));
+}
+
+/* Admonition types with design manual colors */
+.admonition-note {
+    border-left-color: var(--info-green);
+}
+
+.admonition-note::before {
+    background: linear-gradient(to bottom, var(--info-green), #059669);
+}
+
+.admonition-tip {
+    border-left-color: var(--info-green);
+}
+
+.admonition-tip::before {
+    background: linear-gradient(to bottom, var(--info-green), #047857);
+}
+
+.admonition-important {
+    border-left-color: var(--primary-accent);
+}
+
+.admonition-important::before {
+    background: linear-gradient(to bottom, var(--primary-accent), #7c3aed);
+}
+
+.admonition-warning {
+    border-left-color: var(--warning-yellow);
+}
+
+.admonition-warning::before {
+    background: linear-gradient(to bottom, var(--warning-yellow), #d97706);
+}
+
+.admonition-caution {
+    border-left-color: var(--secondary-accent);
+}
+
+.admonition-caution::before {
+    background: linear-gradient(to bottom, var(--secondary-accent), #db2777);
+}
+
+/* Table of Contents (TOC) with astro styling */
+.toc {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: linear-gradient(135deg, var(--toc-bg), var(--bg-secondary));
+    border: 1px solid var(--toc-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px var(--toc-shadow);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.toc::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(to right, var(--primary-accent), var(--secondary-accent));
+}
+
+.toc h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: var(--toc-header-color);
+    border-bottom: 2px solid var(--toc-header-border);
+    padding-bottom: 0.5rem;
+    font-weight: 600;
+    background: linear-gradient(45deg, var(--primary-accent), var(--secondary-accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.toc ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.toc li {
+    margin: 0.25rem 0;
+    line-height: 1.4;
+}
+
+.toc a {
+    display: block;
+    padding: 0.4rem 0.8rem;
+    color: var(--toc-link-color);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.toc a:hover {
+    background: linear-gradient(135deg, var(--toc-link-hover-bg), rgba(168, 85, 247, 0.05));
+    color: var(--toc-link-hover-color);
+    text-decoration: none;
+    transform: translateX(4px);
+    box-shadow: 0 2px 4px rgba(168, 85, 247, 0.1);
+}
+
+.toc a:active,
+.toc a.active {
+    background: linear-gradient(135deg, var(--toc-link-active-bg), rgba(168, 85, 247, 0.1));
+    color: var(--toc-link-active-color);
+    font-weight: 500;
+}
+
+/* Nested TOC levels */
+.toc ul ul {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1.2rem;
+}
+
+.toc ul ul li {
+    margin: 0.15rem 0;
+}
+
+.toc ul ul a {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.6rem;
+    color: var(--text-secondary);
+}
+
+.toc ul ul a:hover {
+    color: var(--toc-link-hover-color);
+}
+
+/* Third level nesting */
+.toc ul ul ul {
+    padding-left: 1rem;
+}
+
+.toc ul ul ul a {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    color: var(--text-muted);
+}
+
+/* TOC for specific header detection */
+h4:has(+ ul li a[href^="#"]) {
+    color: var(--toc-header-color);
+    border-bottom: 2px solid var(--toc-header-border);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.8em;
+}
+
+/* Generic anchor links styling (for TOC generated by Marco) */
+ul li a[href^="#"] {
+    color: var(--toc-link-color);
+    text-decoration: none;
+    padding: 0.3em 0.6em;
+    display: block;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin: 0.1em 0;
+}
+
+ul li a[href^="#"]:hover {
+    background: linear-gradient(135deg, var(--toc-link-hover-bg), rgba(168, 85, 247, 0.05));
+    color: var(--toc-link-hover-color);
+    text-decoration: none;
+    transform: translateX(2px);
+}
+
+ul li a[href^="#"]:active {
+    background: linear-gradient(135deg, var(--toc-link-active-bg), rgba(168, 85, 247, 0.1));
+    color: var(--toc-link-active-color);
+}
+
+/* TOC nested list styling for Marco-generated TOC */
+ul li ul {
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    padding-left: 1.2em;
+}
+
+ul li ul li a[href^="#"] {
+    font-size: 0.9em;
+    padding: 0.2em 0.5em;
+    color: var(--text-secondary);
+}
+
+ul li ul li a[href^="#"]:hover {
+    color: var(--toc-link-hover-color);
+}
+
+/* Compact TOC variant */
+.toc-compact {
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.toc-compact h4 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.toc-compact a {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #2d3748;
+        background: unset;
+        -webkit-background-clip: unset;
+        -webkit-text-fill-color: unset;
+        background-clip: unset;
+    }
+    
+    a {
+        color: #a855f7;
+        text-decoration: underline;
+    }
+    
+    pre, code {
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+    }
+    
+    .admonition {
+        background: #f9f9f9;
+        border: 1px solid #ccc;
+    }
+}
+
+/* Editor styling for plain text mode (when syntax highlighting is off) */
+.editor-theme-light {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.editor-theme-dark {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* SourceView editor styling that respects theme */
+textview {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Monaco', 'Consolas', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 10px;
+}
+
+textview text {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Selection colors that work with both themes */
+textview text selection {
+    background-color: var(--primary-accent);
+    color: var(--bg-color);
+}
+
+/* Astro-specific zen glow effect for focused elements */
+@keyframes astro-glow {
+    0%, 100% {
+        box-shadow: 0 0 5px rgba(168, 85, 247, 0.3);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(168, 85, 247, 0.6), 0 0 30px rgba(236, 72, 153, 0.3);
+    }
+}
+
+/* Apply glow to focused interactive elements */
+a:focus,
+button:focus,
+input:focus,
+.toc a:focus {
+    animation: astro-glow 2s ease-in-out infinite;
+    outline: none;
+}

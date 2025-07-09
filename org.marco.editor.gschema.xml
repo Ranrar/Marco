@@ -43,6 +43,7 @@
         <choice value='github'/>
         <choice value='minimal'/>
         <choice value='academic'/>
+        <choice value='astro'/>
       </choices>
       <default>'standard'</default>
       <summary>CSS theme</summary>
