@@ -586,51 +586,52 @@ impl MarkdownEditor {
             extra_syntax.apply_extra_syntax_coloring(&self.source_buffer, &text, &mut tag_table);
         }
 
-        // Get UI theme to determine which syntect theme to use
-        let ui_theme = prefs.get_ui_theme();
-        let theme_name = match ui_theme.as_str() {
-            "dark" => "dark",
-            "light" => "light",
-            _ => "dark", // default to dark theme
-        };
-
-        // Apply syntect coloring
-        let mut tag_table_ref = self.tag_table.borrow_mut();
-        println!(
-            "DEBUG: Applying syntect coloring with theme: {}",
-            theme_name
-        );
-        crate::editor::syntax::color::apply_syntax_coloring(
-            &self.source_buffer,
-            &text,
-            &mut tag_table_ref,
-            theme_name,
-        );
-        println!("DEBUG: apply_syntax_coloring completed");
+        // Apply syntect coloring using ThemeManager
+        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            let mut tag_table_ref = self.tag_table.borrow_mut();
+            println!("DEBUG: Applying syntect coloring using ThemeManager");
+            self.apply_syntect_highlighting(
+                &self.source_buffer,
+                &text,
+                &mut tag_table_ref,
+                theme_manager,
+            );
+            println!("DEBUG: apply_syntect_highlighting completed");
+        } else {
+            println!("DEBUG: No ThemeManager available, skipping syntax highlighting");
+        }
     }
 
     /// Update the editor theme to match the current UI theme
     pub fn update_editor_theme(&self) {
-        let prefs = crate::settings::core::get_app_preferences();
-        let ui_theme = prefs.get_ui_theme();
-        let style_manager = StyleSchemeManager::default();
-
-        // Apply the appropriate style scheme based on UI theme
-        let scheme_name = if ui_theme == "dark" {
-            "Adwaita-dark"
+        // Use ThemeManager for theming instead of fallback style schemes
+        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            // Apply CSS classes for visual theming
+            let style_context = self.source_view.style_context();
+            
+            // Remove any existing theme classes
+            style_context.remove_class("theme-light");
+            style_context.remove_class("theme-dark");
+            
+            // Add appropriate theme class based on effective theme
+            match theme_manager.get_effective_theme() {
+                crate::theme::Theme::Light => style_context.add_class("theme-light"),
+                crate::theme::Theme::Dark => style_context.add_class("theme-dark"),
+                crate::theme::Theme::System => {
+                    match crate::theme::ThemeManager::detect_system_theme() {
+                        crate::theme::Theme::Dark => style_context.add_class("theme-dark"),
+                        _ => style_context.add_class("theme-light"),
+                    }
+                }
+            }
+            
+            eprintln!("============ Updated editor theme using ThemeManager ============");
         } else {
-            "Adwaita"
-        };
-
-        if let Some(scheme) = style_manager.scheme(scheme_name) {
-            self.source_buffer.set_style_scheme(Some(&scheme));
-            eprintln!(
-                "============ Updated editor theme to: {} ============",
-                scheme_name
-            );
+            eprintln!("WARNING: No ThemeManager available for editor theme update");
         }
 
         // If syntax coloring is enabled, reapply it with the new theme
+        let prefs = crate::settings::core::get_app_preferences();
         if prefs.get_editor_color_syntax() {
             self.apply_syntax_coloring();
         }

@@ -45,14 +45,14 @@ impl SettingsChangeTracker {
     pub fn apply_changes(
         &self,
         editor: &crate::editor::MarkdownEditor,
-        _theme_manager: &crate::theme::ThemeManager,
+        theme_manager: &crate::theme::ThemeManager,
     ) {
         let prefs = get_app_preferences();
 
         // Store current values for comparison
-        let _old_ui_theme = prefs.get_ui_theme();
-        let _old_css_theme = prefs.get_css_theme();
-        let _old_language = prefs.get_language();
+        let old_ui_theme = prefs.get_ui_theme();
+        let old_css_theme = prefs.get_css_theme();
+        let old_language = prefs.get_language();
         let old_view_mode = prefs.get_view_mode();
         let old_layout_mode = prefs.get_layout_mode();
         let old_function_highlighting = prefs.get_function_highlighting();
@@ -70,8 +70,40 @@ impl SettingsChangeTracker {
         prefs.set_language(&self.language);
         prefs.set_custom_css_file(&self.custom_css_file);
 
-        // TODO: Apply UI theme, CSS theme, and language changes immediately if needed
-        // (implement apply_ui_theme_change, apply_css_theme_change, apply_language_change if required)
+        // Apply UI theme changes immediately
+        if old_ui_theme != self.ui_theme {
+            let new_theme = match self.ui_theme.as_str() {
+                "light" => crate::theme::Theme::Light,
+                "dark" => crate::theme::Theme::Dark,
+                "system" => crate::theme::Theme::System,
+                _ => crate::theme::Theme::System,
+            };
+            theme_manager.set_theme(new_theme);
+            
+            // When UI theme changes, also update the CSS theme to use the correct variant
+            if let Ok(_css_content) = theme_manager.set_css_theme(&self.css_theme) {
+                // This will automatically apply the correct light/dark variant
+                editor.set_css_theme(&self.css_theme);
+            }
+            
+            // Also update the editor theme immediately
+            editor.update_editor_theme();
+        }
+
+        // Apply CSS theme changes immediately  
+        if old_css_theme != self.css_theme {
+            // When CSS theme changes, check current UI theme and apply correct variant
+            if let Ok(_css_content) = theme_manager.set_css_theme(&self.css_theme) {
+                editor.set_css_theme(&self.css_theme);
+            }
+        }
+
+        // Apply language changes immediately
+        if old_language != self.language {
+            crate::language::set_locale(&self.language);
+        }
+
+        // Apply other settings changes
         if old_view_mode != self.view_mode {
             editor.set_view_mode(&self.view_mode);
         }

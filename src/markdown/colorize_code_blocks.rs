@@ -34,23 +34,28 @@ impl SyntectHighlighter {
     /// Create a new highlighter with default syntax definitions and themes
     pub fn new() -> Self {
         let syntax_set = SyntaxSet::load_defaults_newlines();
-        // Try to load all themes from src/assets/themes using ThemeSet::load_from_folder
-        let theme_set = ThemeSet::load_from_folder("src/assets/themes")
-            .unwrap_or_else(|_| ThemeSet::load_defaults());
+        
+        // Load themes only from src/assets/colorize_code_blocks folder
+        let mut theme_set = ThemeSet::new();
+        let custom_themes = Self::load_custom_themes_from_folder("src/assets/colorize_code_blocks");
+        
+        for (name, theme) in custom_themes {
+            theme_set.themes.insert(name, theme);
+        }
 
-        // Prefer MarcoDark/MarcoLight as defaults if available
+        // Default to MarcoDark if available, otherwise first available theme
         let default_theme = if theme_set.themes.contains_key("MarcoDark") {
-            "MarcoDark"
+            "MarcoDark".to_string()
         } else if theme_set.themes.contains_key("MarcoLight") {
-            "MarcoLight"
+            "MarcoLight".to_string()
         } else {
-            "base16-ocean.dark"
+            theme_set.themes.keys().next().cloned().unwrap_or_else(|| "default".to_string())
         };
 
         Self {
             syntax_set,
             theme_set,
-            current_theme: default_theme.to_string(),
+            current_theme: default_theme,
         }
     }
 
@@ -63,18 +68,12 @@ impl SyntectHighlighter {
 
     /// Set the current theme
     pub fn set_theme(&mut self, theme_name: &str) {
-        // Check if theme exists, fallback to default if not
+        // Check if theme exists in our loaded themes
         if self.theme_set.themes.contains_key(theme_name) {
             self.current_theme = theme_name.to_string();
         } else {
-            // Try some common theme names as fallbacks
-            let fallbacks = ["base16-ocean.dark", "base16-ocean.light", "InspiredGitHub"];
-            for fallback in &fallbacks {
-                if self.theme_set.themes.contains_key(*fallback) {
-                    self.current_theme = fallback.to_string();
-                    break;
-                }
-            }
+            eprintln!("Theme '{}' not found in loaded themes", theme_name);
+            // Keep current theme if requested theme doesn't exist
         }
     }
 
@@ -114,15 +113,13 @@ impl SyntectHighlighter {
             })
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
-        // Get the theme safely, prefer custom Marco themes, then built-ins
+        // Get the theme safely, only use loaded themes
         let theme = self
             .theme_set
             .themes
             .get(&self.current_theme)
             .or_else(|| self.theme_set.themes.get("MarcoDark"))
             .or_else(|| self.theme_set.themes.get("MarcoLight"))
-            .or_else(|| self.theme_set.themes.get("base16-ocean.dark"))
-            .or_else(|| self.theme_set.themes.get("InspiredGitHub"))
             .or_else(|| self.theme_set.themes.values().next());
 
         if let Some(theme) = theme {
@@ -404,26 +401,18 @@ impl SyntectHighlighter {
         language: &str,
         is_dark_theme: bool,
     ) -> String {
-        // Choose MarcoDark for dark mode, MarcoLight for light mode, with fallback
+        // Choose MarcoDark for dark mode, MarcoLight for light mode
         let original_theme = self.current_theme.clone();
 
         let theme_name = if is_dark_theme {
             if self.theme_set.themes.contains_key("MarcoDark") {
                 "MarcoDark"
-            } else if self.theme_set.themes.contains_key("base16-ocean.dark") {
-                "base16-ocean.dark"
-            } else if self.theme_set.themes.contains_key("Monokai") {
-                "Monokai"
             } else {
                 &original_theme
             }
         } else {
             if self.theme_set.themes.contains_key("MarcoLight") {
                 "MarcoLight"
-            } else if self.theme_set.themes.contains_key("InspiredGitHub") {
-                "InspiredGitHub"
-            } else if self.theme_set.themes.contains_key("base16-ocean.light") {
-                "base16-ocean.light"
             } else {
                 &original_theme
             }
@@ -502,6 +491,16 @@ impl CodeLanguageManager {
     /// Highlight code with syntax colorize code
     pub fn colorize_code(&self, code: &str, language: &str) -> String {
         self.highlighter.highlight_code(code, language)
+    }
+
+    /// Set the theme for syntax highlighting
+    pub fn set_theme(&mut self, theme_name: &str) {
+        self.highlighter.set_theme(theme_name);
+    }
+
+    /// Get the current theme name
+    pub fn get_current_theme(&self) -> String {
+        self.highlighter.get_current_theme().to_string()
     }
 
     /// Check if a language exists

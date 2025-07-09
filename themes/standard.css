@@ -337,13 +337,7 @@ mark {
     border-radius: 2px;
 }
 
-/* Dark theme override for mark */
-@media (prefers-color-scheme: dark) {
-    mark {
-        background-color: #ffc107;
-        color: #000;
-    }
-}
+
 
 .theme-dark mark {
     background-color: #ffc107;

@@ -119,6 +119,22 @@ impl MarkdownHtmlView {
     }
 
     pub fn set_theme_manager(&self, theme_manager: ThemeManager) {
+        // Update the code language manager with the appropriate theme
+        let syntax_theme_name = theme_manager.get_syntax_theme_name();
+        println!("DEBUG: HTML view setting syntax theme to: {}", syntax_theme_name);
+        
+        // Map ThemeManager theme names to actual tmTheme file names
+        let actual_theme_name = match syntax_theme_name.as_str() {
+            "MarcoLight" => "light",
+            "MarcoDark" => "dark",
+            _ => &syntax_theme_name,
+        };
+        
+        {
+            let mut code_manager = self.code_language_manager.borrow_mut();
+            code_manager.set_theme(actual_theme_name);
+        }
+        
         *self.theme_manager.borrow_mut() = Some(theme_manager);
         self.refresh_with_current_content();
     }
@@ -290,10 +306,16 @@ impl MarkdownHtmlView {
             match theme_manager.get_effective_theme() {
                 crate::theme::Theme::Light => "theme-light",
                 crate::theme::Theme::Dark => "theme-dark",
-                crate::theme::Theme::System => "",
+                crate::theme::Theme::System => {
+                    // Detect actual system theme and apply the appropriate class
+                    match crate::theme::ThemeManager::detect_system_theme() {
+                        crate::theme::Theme::Dark => "theme-dark",
+                        _ => "theme-light",
+                    }
+                }
             }
         } else {
-            ""
+            "theme-light" // Default to light theme if no theme manager
         };
 
         format!(
@@ -341,10 +363,16 @@ impl MarkdownHtmlView {
             match theme_manager.get_effective_theme() {
                 crate::theme::Theme::Light => "theme-light",
                 crate::theme::Theme::Dark => "theme-dark",
-                crate::theme::Theme::System => "",
+                crate::theme::Theme::System => {
+                    // Detect actual system theme and apply the appropriate class
+                    match crate::theme::ThemeManager::detect_system_theme() {
+                        crate::theme::Theme::Dark => "theme-dark",
+                        _ => "theme-light",
+                    }
+                }
             }
         } else {
-            ""
+            "theme-light" // Default to light theme if no theme manager
         };
 
         format!(
@@ -375,25 +403,19 @@ impl MarkdownHtmlView {
         }
 
         let css_content = if let Some(ref theme_manager) = *self.theme_manager.borrow() {
-            // Use theme manager to load CSS content
+            // Use theme manager to load CSS content - only project files, no fallbacks
             let css_theme = theme_manager.get_current_css_theme();
             match theme_manager.set_css_theme(&css_theme) {
-                Ok(css) => {
-                    let mut complete_css = css;
-
-                    // Add theme override CSS if needed
-                    let theme_override = theme_manager.get_theme_override_css();
-                    if !theme_override.is_empty() {
-                        complete_css.push_str("\n\n");
-                        complete_css.push_str(&theme_override);
-                    }
-
-                    complete_css
+                Ok(css) => css,
+                Err(e) => {
+                    eprintln!("ERROR: Failed to load CSS theme '{}': {}", css_theme, e);
+                    eprintln!("Using empty CSS content as no fallback is allowed");
+                    String::new() // Return empty CSS instead of fallback
                 }
-                Err(_) => self.get_fallback_css(),
             }
         } else {
-            self.get_fallback_css()
+            eprintln!("WARNING: No ThemeManager available for CSS loading");
+            String::new() // Return empty CSS instead of fallback
         };
 
         // Cache the result
@@ -401,59 +423,7 @@ impl MarkdownHtmlView {
         css_content
     }
 
-    fn get_fallback_css(&self) -> String {
-        let fallback_bg = "#fff";
-        let fallback_color = "#24292e";
 
-        format!(
-            r#"
-body {{
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    line-height: 1.4;
-    color: {};
-    background-color: {};
-    margin: 1rem;
-    padding: 0;
-}}
-h1, h2, h3, h4, h5, h6 {{
-    font-weight: 600;
-    margin-top: 0.8em;
-    margin-bottom: 0.4em;
-}}
-h1 {{ font-size: 1.8em; }}
-h2 {{ font-size: 1.4em; }}
-h3 {{ font-size: 1.2em; }}
-p {{ 
-    margin: 0.5em 0; 
-    line-height: 1.4;
-}}
-ul, ol {{ 
-    margin: 0.5em 0;
-    padding-left: 1.5em;
-}}
-li {{ margin: 0.2em 0; }}
-blockquote {{
-    margin: 1em 0;
-    padding: 0.5em 1em;
-    border-left: 4px solid #ddd;
-    background-color: #f9f9f9;
-}}
-pre {{
-    background-color: #f6f8fa;
-    padding: 1em;
-    border-radius: 4px;
-    overflow-x: auto;
-}}
-code {{
-    background-color: #f6f8fa;
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-}}
-"#,
-            fallback_color, fallback_bg
-        )
-    }
 
     fn clear_cache_if_needed(&self) {
         let mut cache = self.cached_html.borrow_mut();
@@ -484,7 +454,8 @@ code {{
         let css_content = match std::fs::read_to_string("src/assets/syntect.css") {
             Ok(css) => css,
             Err(e) => {
-                eprintln!("Warning: Failed to load syntect.css: {}", e);
+                eprintln!("ERROR: Failed to load syntect.css: {}", e);
+                eprintln!("Using empty CSS as no fallback is allowed");
                 String::new() // Return empty string instead of fallback CSS
             }
         };

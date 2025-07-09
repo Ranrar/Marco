@@ -130,57 +130,49 @@ pub mod color {
         theme_name: &str,
     ) {
         println!(
-            "DEBUG: apply_syntect_highlighting called with text length: {}, theme: {}",
+            "DEBUG: apply_syntax_coloring called with text length: {}, theme: {}",
             text.len(),
             theme_name
         );
 
-        // Load syntax set and theme set (including custom themes from assets)
+        // Load syntax set and theme set (only from project assets)
         let ps = SyntaxSet::load_defaults_newlines();
-        let ts = ThemeSet::load_from_folder("src/assets/themes")
-            .unwrap_or_else(|_| ThemeSet::load_defaults());
+        let mut ts = ThemeSet::new();
+        
+        // Load only our custom themes from assets - use exact file names
+        if let Ok(entries) = std::fs::read_dir("src/assets/colorize_code_blocks") {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if let Some(ext) = path.extension() {
+                    if ext == "tmTheme" {
+                        if let Ok(theme) = ThemeSet::get_theme(&path) {
+                            if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
+                                ts.themes.insert(name.to_string(), theme);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-        // Map the theme name to the correct custom theme
+        // Map theme names to our exact tmTheme file names
         let actual_theme_name = match theme_name {
-            "light" => {
-                if ts.themes.contains_key("MarcoLight") {
-                    "MarcoLight"
-                } else if ts.themes.contains_key("InspiredGitHub") {
-                    "InspiredGitHub"
-                } else {
-                    "base16-ocean.light"
-                }
-            }
-            "dark" => {
-                if ts.themes.contains_key("MarcoDark") {
-                    "MarcoDark"
-                } else if ts.themes.contains_key("Monokai") {
-                    "Monokai"
-                } else {
-                    "base16-ocean.dark"
-                }
-            }
+            "MarcoLight" | "light" => "light",
+            "MarcoDark" | "dark" => "dark", 
             _ => theme_name, // Use as-is for any other theme names
         };
 
-        // Try to find the theme, fallback to default if not found
-        let theme = ts
-            .themes
-            .get(actual_theme_name)
-            .or_else(|| ts.themes.get("MarcoDark"))
-            .or_else(|| ts.themes.get("MarcoLight"))
-            .or_else(|| ts.themes.get("base16-ocean.dark"))
-            .or_else(|| ts.themes.values().next())
-            .expect("No themes available");
+        // Use only our project themes - no fallbacks to external themes
+        let theme = if let Some(theme) = ts.themes.get(actual_theme_name) {
+            theme
+        } else {
+            eprintln!("WARNING: Theme '{}' not found in project assets", actual_theme_name);
+            // If we can't find the requested theme, don't apply syntax highlighting
+            return;
+        };
 
-        println!(
-            "DEBUG: Using theme: {} -> {}",
-            theme_name, actual_theme_name
-        );
-        println!(
-            "DEBUG: Theme loaded: {:?}",
-            theme.name.as_ref().unwrap_or(&"unknown".to_string())
-        );
+        println!("DEBUG: Using project theme: {} -> {}", theme_name, actual_theme_name);
+        println!("DEBUG: Theme loaded: {:?}", theme.name.as_ref().unwrap_or(&"unknown".to_string()));
 
         // Find markdown syntax
         let syntax = ps
@@ -299,9 +291,13 @@ impl MarkdownEditor {
         buffer: &sourceview5::Buffer,
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
-        theme_name: &str,
+        theme_manager: &crate::theme::ThemeManager,
     ) {
-        crate::editor::syntax::color::apply_syntax_coloring(buffer, text, tag_table, theme_name)
+        // Get the appropriate theme name from the ThemeManager
+        let theme_name = theme_manager.get_syntax_theme_name();
+        
+        // Apply the syntax coloring with the correct theme
+        crate::editor::syntax::color::apply_syntax_coloring(buffer, text, tag_table, &theme_name)
     }
 
     /// Parse color names and hex codes to RGBA (delegated to the color module)

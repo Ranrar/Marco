@@ -1,4 +1,5 @@
 use gtk4::prelude::*;
+use gtk4::CssProvider;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -41,6 +42,7 @@ pub struct ThemeManager {
     current_theme: Rc<RefCell<Theme>>,
     callbacks: Rc<RefCell<Vec<Box<dyn Fn(Theme)>>>>,
     current_css_theme: Rc<RefCell<String>>,
+    gtk_css_provider: Rc<RefCell<Option<CssProvider>>>,
 }
 
 impl ThemeManager {
@@ -50,6 +52,7 @@ impl ThemeManager {
             current_theme: Rc::new(RefCell::new(detected_theme)),
             callbacks: Rc::new(RefCell::new(Vec::new())),
             current_css_theme: Rc::new(RefCell::new("standard".to_string())),
+            gtk_css_provider: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -303,7 +306,11 @@ h1, h2, h3, h4, h5, h6 {
         // Load CSS file from the themes/ directory
         let css_path = format!("themes/{}.css", theme_name);
         match std::fs::read_to_string(&css_path) {
-            Ok(css_content) => Ok(css_content),
+            Ok(css_content) => {
+                // Load GTK-specific CSS into the provider
+                self.load_theme_css_into_gtk(&css_content);
+                Ok(css_content)
+            },
             Err(e) => {
                 eprintln!("Failed to load CSS theme '{}': {}", theme_name, e);
                 // Fallback to standard theme
@@ -365,12 +372,192 @@ h1, h2, h3, h4, h5, h6 {
         themes
     }
 
+    /// Initialize the GTK CSS provider for editor styling
+    fn initialize_gtk_css_provider(&self) -> Result<(), String> {
+        if let Some(display) = gtk4::gdk::Display::default() {
+            let provider = CssProvider::new();
+            *self.gtk_css_provider.borrow_mut() = Some(provider.clone());
+            
+            // Add the provider to the display with application priority
+            gtk4::style_context_add_provider_for_display(
+                &display,
+                &provider,
+                gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+            
+            Ok(())
+        } else {
+            Err("Could not get default display for CSS provider".to_string())
+        }
+    }
+
+    /// Generate GTK-specific CSS from theme colors and load into provider
+    fn load_theme_css_into_gtk(&self, css_content: &str) {
+        if let Some(ref provider) = *self.gtk_css_provider.borrow() {
+            // Generate GTK-specific CSS instead of using web CSS
+            let gtk_css = self.generate_gtk_css_from_theme(css_content);
+            provider.load_from_data(&gtk_css);
+            eprintln!("DEBUG: Loaded GTK-specific CSS into provider");
+        } else {
+            eprintln!("WARNING: GTK CSS provider not initialized");
+        }
+    }
+
+    /// Generate GTK-compatible CSS from theme variables
+    fn generate_gtk_css_from_theme(&self, css_content: &str) -> String {
+        let effective_theme = self.get_effective_theme();
+        
+        // Extract colors based on current theme
+        let (bg_color, text_color) = self.extract_theme_colors(css_content, effective_theme);
+        
+        // Generate minimal GTK CSS that works with SourceView
+        format!(
+            r#"
+/* GTK CSS for Marco Editor - Generated from {theme} theme */
+
+/* Base SourceView styling */
+textview {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+
+textview text {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+
+/* Theme-specific classes for SourceView */
+.theme-light textview {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+
+.theme-dark textview {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+
+/* SourceView specific elements */
+textview.sourceview {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+
+/* Line numbers */
+textview gutter {{
+    background-color: {bg_color};
+    color: {text_color};
+}}
+
+/* Current line highlighting */
+textview text:selected {{
+    background-color: alpha({text_color}, 0.1);
+}}
+"#,
+            theme = self.get_current_css_theme(),
+            bg_color = bg_color,
+            text_color = text_color
+        )
+    }
+
+    /// Extract background and text colors from CSS content
+    fn extract_theme_colors(&self, css_content: &str, theme: Theme) -> (String, String) {
+        let (theme_class, default_bg, default_text) = match theme {
+            Theme::Light => (".theme-light", "#ffffff", "#000000"),
+            Theme::Dark => (".theme-dark", "#1e1e1e", "#ffffff"),
+            Theme::System => {
+                match Self::detect_system_theme() {
+                    Theme::Light => (".theme-light", "#ffffff", "#000000"),
+                    Theme::Dark => (".theme-dark", "#1e1e1e", "#ffffff"),
+                    Theme::System => (".theme-light", "#ffffff", "#000000"), // fallback
+                }
+            }
+        };
+
+        // Look for CSS variables in the theme section
+        let bg_color = self.extract_css_variable(css_content, theme_class, "--bg-color")
+            .unwrap_or_else(|| default_bg.to_string());
+        let text_color = self.extract_css_variable(css_content, theme_class, "--text-color")
+            .unwrap_or_else(|| default_text.to_string());
+
+        (bg_color, text_color)
+    }
+
+    /// Extract a CSS variable value from a specific theme section
+    fn extract_css_variable(&self, css_content: &str, theme_class: &str, var_name: &str) -> Option<String> {
+        // Find the theme class section
+        let theme_start = css_content.find(&format!("{} {{", theme_class))?;
+        let theme_section = &css_content[theme_start..];
+        
+        // Find the closing brace for this section
+        let mut brace_count = 0;
+        let mut theme_end = 0;
+        for (i, c) in theme_section.char_indices() {
+            match c {
+                '{' => brace_count += 1,
+                '}' => {
+                    brace_count -= 1;
+                    if brace_count == 0 {
+                        theme_end = i;
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        
+        let theme_content = &theme_section[..theme_end];
+        
+        // Look for the variable
+        for line in theme_content.lines() {
+            let line = line.trim();
+            if line.starts_with(var_name) {
+                if let Some(colon_pos) = line.find(':') {
+                    let value = line[colon_pos + 1..].trim();
+                    let value = value.trim_end_matches(';').trim();
+                    // Remove any comments
+                    if let Some(comment_pos) = value.find("/*") {
+                        return Some(value[..comment_pos].trim().to_string());
+                    }
+                    return Some(value.to_string());
+                }
+            }
+        }
+        
+        None
+    }
+
     /// Initialize the theme manager with default CSS theme
     /// This should be called at startup to ensure the CSS is loaded
     pub fn initialize(&self) -> Result<(), String> {
+        // Initialize the GTK CSS provider
+        self.initialize_gtk_css_provider()?;
+        
         // Load the default CSS theme
         self.set_css_theme("standard")?;
         Ok(())
+    }
+
+    /// Get the syntax theme name based on current theme
+    pub fn get_syntax_theme_name(&self) -> String {
+        match self.get_effective_theme() {
+            Theme::Dark => "dark".to_string(),
+            Theme::Light => "light".to_string(),
+            Theme::System => {
+                match Self::detect_system_theme() {
+                    Theme::Dark => "dark".to_string(),
+                    Theme::Light => "light".to_string(),
+                    Theme::System => "light".to_string(), // fallback
+                }
+            }
+        }
+    }
+
+    /// Get the editor background color from CSS content
+    pub fn get_editor_background_color(&self, css_content: &str) -> String {
+        let effective_theme = self.get_effective_theme();
+        let (bg_color, _) = self.extract_theme_colors(css_content, effective_theme);
+        bg_color
     }
 
     /// Create a weak reference to this theme manager
@@ -387,6 +574,7 @@ impl Clone for ThemeManager {
             current_theme: self.current_theme.clone(),
             callbacks: self.callbacks.clone(), // Share the same callbacks vector
             current_css_theme: self.current_css_theme.clone(),
+            gtk_css_provider: self.gtk_css_provider.clone(),
         }
     }
 }

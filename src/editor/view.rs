@@ -1,6 +1,5 @@
 use crate::editor::core::MarkdownEditor;
 use sourceview5::prelude::*;
-use sourceview5::StyleSchemeManager;
 
 impl MarkdownEditor {
     /// Switch between HTML and code views
@@ -35,7 +34,6 @@ impl MarkdownEditor {
         let editor_weak = self.html_view.clone();
         let code_view_weak = self.code_view.clone();
         let theme_manager_weak = theme_manager.clone();
-        let source_buffer_weak = self.source_buffer.clone();
 
         theme_manager.add_theme_change_callback(move |_new_theme| {
             println!("DEBUG: Theme change callback triggered in editor");
@@ -46,47 +44,9 @@ impl MarkdownEditor {
             // Update Code view
             code_view_weak.set_theme_manager(theme_manager_weak.clone());
 
-            // Update source editor theme
-            let style_manager = sourceview5::StyleSchemeManager::default();
-            let preferred_schemes = match theme_manager_weak.get_effective_theme() {
-                crate::theme::Theme::Light => {
-                    vec!["Adwaita", "classic", "tango", "kate", "solarized-light"]
-                }
-                crate::theme::Theme::Dark => vec![
-                    "Adwaita-dark",
-                    "oblivion",
-                    "cobalt",
-                    "monokai",
-                    "solarized-dark",
-                ],
-                crate::theme::Theme::System => {
-                    match crate::theme::ThemeManager::detect_system_theme() {
-                        crate::theme::Theme::Dark => vec![
-                            "Adwaita-dark",
-                            "oblivion",
-                            "cobalt",
-                            "monokai",
-                            "solarized-dark",
-                        ],
-                        _ => vec!["Adwaita", "classic", "tango", "kate", "solarized-light"],
-                    }
-                }
-            };
-
-            let mut applied_scheme = false;
-            for scheme_name in preferred_schemes {
-                if let Some(scheme) = style_manager.scheme(scheme_name) {
-                    source_buffer_weak.set_style_scheme(Some(&scheme));
-                    applied_scheme = true;
-                    break;
-                }
-            }
-
-            if !applied_scheme {
-                if let Some(scheme) = style_manager.scheme("Adwaita") {
-                    source_buffer_weak.set_style_scheme(Some(&scheme));
-                }
-            }
+            // Update source editor theme using the new approach
+            // Note: The actual styling will be handled by the main update_source_editor_theme method
+            // when the editor view is refreshed
 
             println!("DEBUG: Editor theme change callback completed");
         });
@@ -94,51 +54,43 @@ impl MarkdownEditor {
 
     /// Update the source editor theme based on the theme manager
     fn update_source_editor_theme(&self, theme_manager: &crate::theme::ThemeManager) {
-        let style_manager = StyleSchemeManager::default();
-
-        // Choose appropriate style scheme based on theme
-        let preferred_schemes = match theme_manager.get_effective_theme() {
-            crate::theme::Theme::Light => {
-                vec!["Adwaita", "classic", "tango", "kate", "solarized-light"]
-            }
-            crate::theme::Theme::Dark => vec![
-                "Adwaita-dark",
-                "oblivion",
-                "cobalt",
-                "monokai",
-                "solarized-dark",
-            ],
-            crate::theme::Theme::System => {
-                // For system theme, detect and choose appropriate schemes
-                match crate::theme::ThemeManager::detect_system_theme() {
-                    crate::theme::Theme::Dark => vec![
-                        "Adwaita-dark",
-                        "oblivion",
-                        "cobalt",
-                        "monokai",
-                        "solarized-dark",
-                    ],
-                    _ => vec!["Adwaita", "classic", "tango", "kate", "solarized-light"],
-                }
+        // Get CSS content for background color extraction
+        let css_content = match theme_manager.set_css_theme(&theme_manager.get_current_css_theme()) {
+            Ok(css) => css,
+            Err(_) => {
+                eprintln!("Failed to load CSS theme for editor background");
+                String::new()
             }
         };
 
-        // Try to find the first available scheme from the preferred list
-        let mut applied_scheme = false;
-        for scheme_name in preferred_schemes {
-            if let Some(scheme) = style_manager.scheme(scheme_name) {
-                self.source_buffer.set_style_scheme(Some(&scheme));
-                applied_scheme = true;
-                break;
+        // Extract background color from current theme (for future use)
+        let _bg_color = theme_manager.get_editor_background_color(&css_content);
+        
+        // Apply background color to the source view
+        let style_context = self.source_view.style_context();
+        
+        // Remove any existing theme classes
+        style_context.remove_class("theme-light");
+        style_context.remove_class("theme-dark");
+        
+        // Add appropriate theme class
+        match theme_manager.get_effective_theme() {
+            crate::theme::Theme::Light => style_context.add_class("theme-light"),
+            crate::theme::Theme::Dark => style_context.add_class("theme-dark"),
+            crate::theme::Theme::System => {
+                match crate::theme::ThemeManager::detect_system_theme() {
+                    crate::theme::Theme::Dark => style_context.add_class("theme-dark"),
+                    _ => style_context.add_class("theme-light"),
+                }
             }
         }
 
-        // Ultimate fallback - use default scheme
-        if !applied_scheme {
-            if let Some(scheme) = style_manager.scheme("Adwaita") {
-                self.source_buffer.set_style_scheme(Some(&scheme));
-            }
-        }
+        // For syntax highlighting, use only our project's colorize_code_blocks system
+        // The actual syntax highlighting will be handled by the colorize_code_blocks module
+        // when the editor content contains code, using the appropriate tmTheme file
+        
+        // Note: We no longer set GTK SourceView style schemes as fallbacks
+        // All syntax highlighting is now handled consistently through colorize_code_blocks
     }
 
     /// Refresh both the HTML view and source editor (useful after theme changes)

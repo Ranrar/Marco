@@ -295,28 +295,13 @@ pub fn show_notification(_parent: &Window, message: &str) {
     // that doesn't interfere with dialog management
 }
 
-/// Get available CSS themes by scanning themes directory
+/// Get available CSS themes by using ThemeManager (no fallbacks)
 pub fn get_available_css_themes() -> Vec<String> {
-    let themes_dir = std::path::Path::new("themes");
-    let mut themes = vec!["standard".to_string()]; // Default theme
-
-    if themes_dir.exists() {
-        if let Ok(entries) = std::fs::read_dir(themes_dir) {
-            for entry in entries.flatten() {
-                if let Some(filename) = entry.file_name().to_str() {
-                    if filename.ends_with(".css") {
-                        let theme_name = filename.strip_suffix(".css").unwrap_or(filename);
-                        if theme_name != "standard" {
-                            themes.push(theme_name.to_string());
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    themes.sort();
-    themes
+    // Use ThemeManager to get available themes
+    let themes = crate::theme::ThemeManager::get_available_css_themes();
+    
+    // Extract just the theme IDs (first element of the tuple)
+    themes.into_iter().map(|(theme_id, _display_name, _sanitized_name)| theme_id).collect()
 }
 
 /// Get available UI languages
