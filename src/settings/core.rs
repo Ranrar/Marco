@@ -31,18 +31,22 @@ impl SettingsChangeTracker {
     }
 
     pub fn has_changes(&self, original: &OriginalSettings) -> bool {
-        self.function_highlighting != original.function_highlighting ||
-        self.editor_color_syntax != original.editor_color_syntax ||
-        self.markdown_warnings != original.markdown_warnings ||
-        self.ui_theme != original.ui_theme ||
-        self.css_theme != original.css_theme ||
-        self.layout_mode != original.layout_mode ||
-        self.view_mode != original.view_mode ||
-        self.language != original.language ||
-        self.custom_css_file != original.custom_css_file
+        self.function_highlighting != original.function_highlighting
+            || self.editor_color_syntax != original.editor_color_syntax
+            || self.markdown_warnings != original.markdown_warnings
+            || self.ui_theme != original.ui_theme
+            || self.css_theme != original.css_theme
+            || self.layout_mode != original.layout_mode
+            || self.view_mode != original.view_mode
+            || self.language != original.language
+            || self.custom_css_file != original.custom_css_file
     }
 
-    pub fn apply_changes(&self, editor: &crate::editor::MarkdownEditor, _theme_manager: &crate::theme::ThemeManager) {
+    pub fn apply_changes(
+        &self,
+        editor: &crate::editor::MarkdownEditor,
+        _theme_manager: &crate::theme::ThemeManager,
+    ) {
         let prefs = get_app_preferences();
 
         // Store current values for comparison
@@ -73,9 +77,9 @@ impl SettingsChangeTracker {
         }
         if old_layout_mode != self.layout_mode {
             if self.layout_mode == "editor-right" {
-                editor.set_layout_reversed(true);   // Preview left, editor right
+                editor.set_layout_reversed(true); // Preview left, editor right
             } else {
-                editor.set_layout_reversed(false);  // Editor left, preview right (default)
+                editor.set_layout_reversed(false); // Editor left, preview right (default)
             }
         }
         if old_function_highlighting != self.function_highlighting {
@@ -147,160 +151,166 @@ impl AppPreferences {
         let settings = Settings::new("org.marco.editor");
         Ok(Self { settings })
     }
-    
+
     /// Function highlighting toggle
     pub fn get_function_highlighting(&self) -> bool {
         self.settings.boolean("function-highlighting")
     }
-    
+
     pub fn set_function_syntax_coloring(&self, enabled: bool) {
         let _ = self.settings.set_boolean("function-highlighting", enabled);
     }
-    
+
     /// Editor color syntax highlighting toggle
     pub fn get_editor_color_syntax(&self) -> bool {
         self.settings.boolean("syntax-color-enabled")
     }
-    
+
     pub fn set_editor_color_syntax(&self, enabled: bool) {
         let _ = self.settings.set_boolean("syntax-color-enabled", enabled);
     }
-    
+
     /// Markdown format detection
     pub fn get_markdown_warnings(&self) -> bool {
         self.settings.boolean("markdown-warnings")
     }
-    
+
     pub fn set_markdown_warnings(&self, enabled: bool) {
         let _ = self.settings.set_boolean("markdown-warnings", enabled);
     }
-    
+
     /// Individual markdown warning categories
     pub fn get_markdown_syntax_errors(&self) -> bool {
         self.settings.boolean("markdown-syntax-errors")
     }
-    
+
     pub fn set_markdown_syntax_errors(&self, enabled: bool) {
         let _ = self.settings.set_boolean("markdown-syntax-errors", enabled);
     }
-    
+
     pub fn get_markdown_formatting_issues(&self) -> bool {
         self.settings.boolean("markdown-formatting-issues")
     }
-    
+
     pub fn set_markdown_formatting_issues(&self, enabled: bool) {
-        let _ = self.settings.set_boolean("markdown-formatting-issues", enabled);
+        let _ = self
+            .settings
+            .set_boolean("markdown-formatting-issues", enabled);
     }
-    
+
     pub fn get_markdown_style_warnings(&self) -> bool {
         self.settings.boolean("markdown-style-warnings")
     }
-    
+
     pub fn set_markdown_style_warnings(&self, enabled: bool) {
-        let _ = self.settings.set_boolean("markdown-style-warnings", enabled);
+        let _ = self
+            .settings
+            .set_boolean("markdown-style-warnings", enabled);
     }
-    
+
     pub fn get_markdown_structure_issues(&self) -> bool {
         self.settings.boolean("markdown-structure-issues")
     }
-    
+
     pub fn set_markdown_structure_issues(&self, enabled: bool) {
-        let _ = self.settings.set_boolean("markdown-structure-issues", enabled);
+        let _ = self
+            .settings
+            .set_boolean("markdown-structure-issues", enabled);
     }
-    
+
     /// Window size and position
     pub fn get_window_size(&self) -> (i32, i32) {
         let width = self.settings.int("window-width");
         let height = self.settings.int("window-height");
         (width, height)
     }
-    
+
     pub fn set_window_size(&self, width: i32, height: i32) {
         let _ = self.settings.set_int("window-width", width);
         let _ = self.settings.set_int("window-height", height);
     }
-    
+
     pub fn get_window_position(&self) -> (i32, i32) {
         let x = self.settings.int("window-x");
         let y = self.settings.int("window-y");
         (x, y)
     }
-    
+
     pub fn set_window_position(&self, x: i32, y: i32) {
         let _ = self.settings.set_int("window-x", x);
         let _ = self.settings.set_int("window-y", y);
     }
-    
+
     pub fn get_window_maximized(&self) -> bool {
         self.settings.boolean("window-maximized")
     }
-    
+
     pub fn set_window_maximized(&self, maximized: bool) {
         let _ = self.settings.set_boolean("window-maximized", maximized);
     }
-    
+
     /// Layout preferences
     pub fn get_layout_mode(&self) -> String {
         self.settings.string("layout-mode").to_string()
     }
-    
+
     pub fn set_layout_mode(&self, mode: &str) {
         let _ = self.settings.set_string("layout-mode", mode);
     }
-    
+
     /// Theme settings
     pub fn get_ui_theme(&self) -> String {
         self.settings.string("ui-theme").to_string()
     }
-    
+
     pub fn set_ui_theme(&self, theme: &str) {
         let _ = self.settings.set_string("ui-theme", theme);
     }
-    
+
     /// CSS theme settings
     pub fn get_css_theme(&self) -> String {
         self.settings.string("css-theme").to_string()
     }
-    
+
     pub fn set_css_theme(&self, theme: &str) {
         let _ = self.settings.set_string("css-theme", theme);
     }
-    
+
     /// Custom CSS file path
     pub fn get_custom_css_file(&self) -> String {
         self.settings.string("custom-css-file").to_string()
     }
-    
+
     pub fn set_custom_css_file(&self, path: &str) {
         let _ = self.settings.set_string("custom-css-file", path);
     }
-    
+
     /// Language settings
     pub fn get_language(&self) -> String {
         self.settings.string("language").to_string()
     }
-    
+
     pub fn set_language(&self, language: &str) {
         let _ = self.settings.set_string("language", language);
     }
-    
+
     /// View mode settings
     pub fn get_view_mode(&self) -> String {
         self.settings.string("view-mode").to_string()
     }
-    
+
     pub fn set_view_mode(&self, mode: &str) {
         let _ = self.settings.set_string("view-mode", mode);
     }
-    
+
     /// Bind a widget property to a settings key
-    pub fn bind_property<T>(&self, key: &str, object: &T, property: &str) 
-    where 
+    pub fn bind_property<T>(&self, key: &str, object: &T, property: &str)
+    where
         T: glib::object::IsA<glib::Object>,
     {
         self.settings.bind(key, object, property).build();
     }
-    
+
     /// Connect to settings changes
     pub fn connect_changed<F>(&self, key: Option<&str>, callback: F) -> glib::SignalHandlerId
     where
@@ -308,7 +318,7 @@ impl AppPreferences {
     {
         self.settings.connect_changed(key, callback)
     }
-    
+
     /// Reset all settings to default values
     pub fn reset_to_defaults(&self) {
         // Reset all keys to their default values
@@ -345,7 +355,9 @@ pub fn initialize_global_settings() -> Result<(), Box<dyn std::error::Error>> {
 /// This should only be called from the main thread
 pub fn get_app_preferences() -> &'static AppPreferences {
     unsafe {
-        APP_PREFERENCES.as_ref().expect("Settings not initialized. Call initialize_global_settings() first.")
+        APP_PREFERENCES
+            .as_ref()
+            .expect("Settings not initialized. Call initialize_global_settings() first.")
     }
 }
 
@@ -353,7 +365,9 @@ pub fn get_app_preferences() -> &'static AppPreferences {
 /// This should only be called from the main thread
 pub fn get_app_preferences_mut() -> &'static mut AppPreferences {
     unsafe {
-        APP_PREFERENCES.as_mut().expect("Settings not initialized. Call initialize_global_settings() first.")
+        APP_PREFERENCES
+            .as_mut()
+            .expect("Settings not initialized. Call initialize_global_settings() first.")
     }
 }
 
@@ -361,7 +375,7 @@ pub fn get_app_preferences_mut() -> &'static mut AppPreferences {
 pub fn initialize_settings() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize the global settings instance
     initialize_global_settings()?;
-    
+
     println!("GSettings initialized successfully");
     Ok(())
 }

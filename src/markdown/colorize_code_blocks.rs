@@ -1,6 +1,6 @@
-use syntect::parsing::SyntaxSet;
-use syntect::highlighting::{ThemeSet, Theme};
+use syntect::highlighting::{Theme, ThemeSet};
 use syntect::html::highlighted_html_for_string;
+use syntect::parsing::SyntaxSet;
 
 /// Modern syntax highlighter using syntect library
 pub struct SyntectHighlighter {
@@ -35,7 +35,8 @@ impl SyntectHighlighter {
     pub fn new() -> Self {
         let syntax_set = SyntaxSet::load_defaults_newlines();
         // Try to load all themes from src/assets/themes using ThemeSet::load_from_folder
-        let theme_set = ThemeSet::load_from_folder("src/assets/themes").unwrap_or_else(|_| ThemeSet::load_defaults());
+        let theme_set = ThemeSet::load_from_folder("src/assets/themes")
+            .unwrap_or_else(|_| ThemeSet::load_defaults());
 
         // Prefer MarcoDark/MarcoLight as defaults if available
         let default_theme = if theme_set.themes.contains_key("MarcoDark") {
@@ -92,7 +93,8 @@ impl SyntectHighlighter {
     /// Highlight code and return HTML with CSS classes
     pub fn highlight_code(&self, code: &str, language: &str) -> String {
         // Try to find syntax by various means
-        let syntax = self.syntax_set
+        let syntax = self
+            .syntax_set
             .find_syntax_by_token(language)
             .or_else(|| self.syntax_set.find_syntax_by_extension(language))
             .or_else(|| {
@@ -113,7 +115,10 @@ impl SyntectHighlighter {
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
         // Get the theme safely, prefer custom Marco themes, then built-ins
-        let theme = self.theme_set.themes.get(&self.current_theme)
+        let theme = self
+            .theme_set
+            .themes
+            .get(&self.current_theme)
             .or_else(|| self.theme_set.themes.get("MarcoDark"))
             .or_else(|| self.theme_set.themes.get("MarcoLight"))
             .or_else(|| self.theme_set.themes.get("base16-ocean.dark"))
@@ -131,8 +136,7 @@ impl SyntectHighlighter {
                         .replace("#", "sharp");
                     format!(
                         r#"<div class="code-block code-block-{}">{}</div>"#,
-                        language_class,
-                        html
+                        language_class, html
                     )
                 }
                 Err(_) => {
@@ -154,7 +158,8 @@ impl SyntectHighlighter {
 
     /// Get all available programming language names
     pub fn get_language_names(&self) -> Vec<String> {
-        let mut names: Vec<String> = self.syntax_set
+        let mut names: Vec<String> = self
+            .syntax_set
             .syntaxes()
             .iter()
             .map(|syntax| syntax.name.clone())
@@ -175,7 +180,11 @@ impl SyntectHighlighter {
             }
             // Also check file extensions
             for ext in &syntax.file_extensions {
-                if ext.trim_start_matches('.').to_lowercase().starts_with(&partial_lower) {
+                if ext
+                    .trim_start_matches('.')
+                    .to_lowercase()
+                    .starts_with(&partial_lower)
+                {
                     suggestions.push(syntax.name.clone());
                     break;
                 }
@@ -193,10 +202,25 @@ impl SyntectHighlighter {
     pub fn get_smart_language_suggestions(&self, query: &str) -> Vec<String> {
         if query.is_empty() {
             // Return popular languages for empty query
-            let popular = ["Rust", "JavaScript", "Python", "Java", "TypeScript", "C++", "C#", "Go", "PHP", "Ruby"];
+            let popular = [
+                "Rust",
+                "JavaScript",
+                "Python",
+                "Java",
+                "TypeScript",
+                "C++",
+                "C#",
+                "Go",
+                "PHP",
+                "Ruby",
+            ];
             let mut result = Vec::new();
             for lang in popular {
-                if let Some(found) = self.get_language_names().iter().find(|l| l.eq_ignore_ascii_case(lang)) {
+                if let Some(found) = self
+                    .get_language_names()
+                    .iter()
+                    .find(|l| l.eq_ignore_ascii_case(lang))
+                {
                     result.push(found.clone());
                 }
             }
@@ -245,7 +269,10 @@ impl SyntectHighlighter {
         // Check for exact alias matches first
         for (alias, lang_name) in &aliases {
             if alias.to_lowercase() == query_lower {
-                if let Some(found) = all_languages.iter().find(|l| l.eq_ignore_ascii_case(lang_name)) {
+                if let Some(found) = all_languages
+                    .iter()
+                    .find(|l| l.eq_ignore_ascii_case(lang_name))
+                {
                     scored_languages.push((found.clone(), 1000)); // Highest priority
                 }
             }
@@ -254,7 +281,7 @@ impl SyntectHighlighter {
         // Score all languages based on matching criteria
         for lang in &all_languages {
             let lang_lower = lang.to_lowercase();
-            
+
             // Skip if already added through alias
             if scored_languages.iter().any(|(l, _)| l == lang) {
                 continue;
@@ -290,7 +317,8 @@ impl SyntectHighlighter {
 
             // Bonus for popular languages
             let popular_bonus = match lang.as_str() {
-                "Rust" | "JavaScript" | "Python" | "Java" | "TypeScript" | "C++" | "C#" | "Go" | "PHP" | "Ruby" => 100,
+                "Rust" | "JavaScript" | "Python" | "Java" | "TypeScript" | "C++" | "C#" | "Go"
+                | "PHP" | "Ruby" => 100,
                 "HTML" | "CSS" | "JSON" | "XML" | "SQL" | "Bash" | "YAML" | "Markdown" => 50,
                 _ => 0,
             };
@@ -311,7 +339,8 @@ impl SyntectHighlighter {
         });
 
         // Return top results
-        scored_languages.into_iter()
+        scored_languages
+            .into_iter()
             .take(20)
             .map(|(lang, _)| lang)
             .collect()
@@ -319,8 +348,8 @@ impl SyntectHighlighter {
 
     /// Check if a language is supported
     pub fn has_language(&self, name: &str) -> bool {
-        self.syntax_set.find_syntax_by_token(name).is_some() ||
-        self.syntax_set.find_syntax_by_extension(name).is_some()
+        self.syntax_set.find_syntax_by_token(name).is_some()
+            || self.syntax_set.find_syntax_by_extension(name).is_some()
     }
 
     /// Get the total number of supported languages
@@ -330,9 +359,7 @@ impl SyntectHighlighter {
 
     /// Detect language from file extension
     pub fn detect_language_from_extension(&self, filename: &str) -> Option<String> {
-        let extension = std::path::Path::new(filename)
-            .extension()?
-            .to_str()?;
+        let extension = std::path::Path::new(filename).extension()?.to_str()?;
 
         self.syntax_set
             .find_syntax_by_extension(extension)
@@ -358,7 +385,8 @@ impl SyntectHighlighter {
 
     /// Get information about a specific language
     pub fn get_language_info(&self, name: &str) -> Option<LanguageInfo> {
-        let syntax = self.syntax_set
+        let syntax = self
+            .syntax_set
             .find_syntax_by_token(name)
             .or_else(|| self.syntax_set.find_syntax_by_extension(name))?;
 
@@ -370,7 +398,12 @@ impl SyntectHighlighter {
     }
 
     /// Apply syntax colorize code with custom theme colors that integrate with Marco's theme system
-    pub fn colorize_code_with_theme_integration(&self, code: &str, language: &str, is_dark_theme: bool) -> String {
+    pub fn colorize_code_with_theme_integration(
+        &self,
+        code: &str,
+        language: &str,
+        is_dark_theme: bool,
+    ) -> String {
         // Choose MarcoDark for dark mode, MarcoLight for light mode, with fallback
         let original_theme = self.current_theme.clone();
 
@@ -495,25 +528,40 @@ impl CodeLanguageManager {
     pub fn html_escape(text: &str) -> String {
         SyntectHighlighter::html_escape(text)
     }
-    
+
     /// Get smart language suggestions with fuzzy matching and alias support
     pub fn get_smart_language_suggestions(&self, query: &str) -> Vec<String> {
         if query.is_empty() {
             // Return popular languages when no query
-            let popular = ["Rust", "JavaScript", "Python", "Java", "TypeScript", "C++", "C#", "Go", "PHP", "Ruby"];
+            let popular = [
+                "Rust",
+                "JavaScript",
+                "Python",
+                "Java",
+                "TypeScript",
+                "C++",
+                "C#",
+                "Go",
+                "PHP",
+                "Ruby",
+            ];
             let mut result = Vec::new();
             for lang in popular {
-                if let Some(found) = self.get_language_names().iter().find(|l| l.eq_ignore_ascii_case(lang)) {
+                if let Some(found) = self
+                    .get_language_names()
+                    .iter()
+                    .find(|l| l.eq_ignore_ascii_case(lang))
+                {
                     result.push(found.clone());
                 }
             }
             return result;
         }
-        
+
         let query_lower = query.to_lowercase();
         let mut suggestions = Vec::new();
         let all_languages = self.get_language_names();
-        
+
         // Common aliases mapping
         let aliases = std::collections::HashMap::from([
             ("js", "JavaScript"),
@@ -563,17 +611,20 @@ impl CodeLanguageManager {
             ("makefile", "Makefile"),
             ("make", "Makefile"),
         ]);
-        
+
         // Check for exact alias match first
         if let Some(&alias_target) = aliases.get(query_lower.as_str()) {
-            if let Some(found) = all_languages.iter().find(|l| l.eq_ignore_ascii_case(alias_target)) {
+            if let Some(found) = all_languages
+                .iter()
+                .find(|l| l.eq_ignore_ascii_case(alias_target))
+            {
                 suggestions.push(found.clone());
             }
         }
-        
+
         // Collect all matches with scores
         let mut scored_matches = Vec::new();
-        
+
         for lang in &all_languages {
             let lang_lower = lang.to_lowercase();
             let score = if lang_lower == query_lower {
@@ -593,24 +644,22 @@ impl CodeLanguageManager {
                 }
                 alias_score
             };
-            
+
             if score > 0 {
                 scored_matches.push((lang.clone(), score));
             }
         }
-        
+
         // Sort by score (highest first) then alphabetically
-        scored_matches.sort_by(|a, b| {
-            b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0))
-        });
-        
+        scored_matches.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
         // Add to suggestions (avoiding duplicates)
         for (lang, _score) in scored_matches {
             if !suggestions.contains(&lang) {
                 suggestions.push(lang);
             }
         }
-        
+
         // Limit to 20 suggestions
         suggestions.truncate(20);
         suggestions
@@ -638,7 +687,7 @@ mod tests {
     #[test]
     fn test_syntect_colorize_code() {
         let highlighter = SyntectHighlighter::new();
-        
+
         let rust_code = r#"fn main() {
     println!("Hello, world!");
     let x = 42;
@@ -647,82 +696,82 @@ mod tests {
         println!("x is positive: {}", x);
     }
 }"#;
-        
+
         let highlighted = highlighter.highlight_code(rust_code, "rust");
         assert!(!highlighted.is_empty());
         assert!(highlighted.contains("span"));
-        
+
         // Test that we have languages available
         let languages = highlighter.get_language_names();
         assert!(!languages.is_empty());
         assert!(languages.contains(&"Rust".to_string()));
         assert!(languages.contains(&"JavaScript".to_string()));
         assert!(languages.contains(&"Python".to_string()));
-        
+
         // Test themes
         let themes = highlighter.get_available_themes();
         assert!(!themes.is_empty());
         assert!(themes.contains(&"base16-ocean.dark".to_string()));
     }
-    
+
     #[test]
     fn test_code_language_manager() {
         let manager = CodeLanguageManager::new();
-        
+
         // Test get_language_names
         let languages = manager.get_language_names();
         assert!(!languages.is_empty());
-        
+
         // Test get_language
         assert!(manager.get_language("rust").is_some());
         assert!(manager.get_language("javascript").is_some());
         assert!(manager.get_language("nonexistent").is_none());
-        
+
         // Test colorize code
         let code = "fn main() { println!('Hello'); }";
         let highlighted = manager.colorize_code(code, "rust");
         assert!(!highlighted.is_empty());
         assert!(highlighted.contains("span"));
-        
+
         // Test HTML escape
         let escaped = SyntectHighlighter::html_escape("<script>alert('xss')</script>");
         assert!(escaped.contains("&lt;script&gt;"));
         assert!(escaped.contains("&#x27;"));
         assert!(escaped.contains("&lt;/script&gt;"));
     }
-    
+
     #[test]
     fn test_smart_language_suggestions() {
         let manager = CodeLanguageManager::new();
-        
+
         // Test empty query returns popular languages
         let suggestions = manager.get_smart_language_suggestions("");
         assert!(!suggestions.is_empty());
         assert!(suggestions.contains(&"Rust".to_string()));
         assert!(suggestions.contains(&"JavaScript".to_string()));
         assert!(suggestions.contains(&"Python".to_string()));
-        
+
         // Test alias matching
         let js_suggestions = manager.get_smart_language_suggestions("js");
         assert!(js_suggestions.contains(&"JavaScript".to_string()));
-        
+
         let py_suggestions = manager.get_smart_language_suggestions("py");
         assert!(py_suggestions.contains(&"Python".to_string()));
-        
+
         let rs_suggestions = manager.get_smart_language_suggestions("rs");
         assert!(rs_suggestions.contains(&"Rust".to_string()));
-        
+
         // Test partial name matching
         let rust_suggestions = manager.get_smart_language_suggestions("rust");
         assert!(rust_suggestions.contains(&"Rust".to_string()));
-        
+
         let java_suggestions = manager.get_smart_language_suggestions("java");
         assert!(java_suggestions.contains(&"Java".to_string()));
-        
+
         // Test case insensitive matching
         let cpp_suggestions = manager.get_smart_language_suggestions("C++");
         assert!(cpp_suggestions.contains(&"C++".to_string()));
-        
+
         // Test that suggestions are limited
         let all_suggestions = manager.get_smart_language_suggestions("a");
         assert!(all_suggestions.len() <= 20);

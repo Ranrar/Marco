@@ -33,17 +33,17 @@ pub fn update_preview_text(text_view: &TextView, content: &str) {
 /// Creates a preview section with label and text view
 pub fn create_preview_section(title: &str) -> (gtk4::Box, TextView) {
     let preview_box = gtk4::Box::new(Orientation::Vertical, 8);
-    
+
     let preview_label = Label::new(Some(title));
     preview_label.set_halign(gtk4::Align::Start);
     preview_label.add_css_class("heading");
     preview_box.append(&preview_label);
-    
+
     let scroll = create_preview_scroll();
     let text_view = create_preview_text_view();
     scroll.set_child(Some(&text_view));
     preview_box.append(&scroll);
-    
+
     (preview_box, text_view)
 }
 

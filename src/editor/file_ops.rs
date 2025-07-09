@@ -1,6 +1,6 @@
+use crate::editor::core::MarkdownEditor;
 use gtk4::prelude::*;
 use gtk4::{FileChooserAction, FileChooserDialog, ResponseType};
-use crate::editor::core::MarkdownEditor;
 
 impl MarkdownEditor {
     pub fn new_file(&self) {
@@ -9,7 +9,7 @@ impl MarkdownEditor {
         // Reset original content to empty string for new file
         *self.original_content.borrow_mut() = String::new();
         self.mark_as_saved(); // New file is not modified (also updates window title)
-        
+
         // Update base path for image resolution
         self.html_view.set_base_path(None);
     }
@@ -31,7 +31,10 @@ impl MarkdownEditor {
             Some("Open File"),
             parent,
             FileChooserAction::Open,
-            &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Open", ResponseType::Accept),
+            ],
         );
 
         let source_buffer = self.source_buffer.clone();
@@ -39,7 +42,7 @@ impl MarkdownEditor {
         let is_modified = self.is_modified.clone();
         let original_content = self.original_content.clone();
         let editor_for_title = self.clone();
-        
+
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
@@ -49,7 +52,7 @@ impl MarkdownEditor {
                                 source_buffer.set_text(&content);
                                 *current_file.borrow_mut() = Some(path.clone());
                                 *is_modified.borrow_mut() = false; // Mark as saved after opening
-                                // Set original content to the loaded content
+                                                                   // Set original content to the loaded content
                                 *original_content.borrow_mut() = content;
                                 println!("DEBUG: File opened and marked as saved");
                                 // Update window title after opening file
@@ -92,8 +95,11 @@ impl MarkdownEditor {
     }
 
     /// Save current file with a callback that's only called on successful save
-    pub(crate) fn save_current_file_with_callback<F>(&self, parent: Option<&gtk4::Window>, on_save_complete: F) 
-    where
+    pub(crate) fn save_current_file_with_callback<F>(
+        &self,
+        parent: Option<&gtk4::Window>,
+        on_save_complete: F,
+    ) where
         F: Fn() + 'static,
     {
         println!("DEBUG: save_current_file_with_callback called");
@@ -122,14 +128,17 @@ impl MarkdownEditor {
             Some("Save File"),
             parent,
             FileChooserAction::Save,
-            &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Save", ResponseType::Accept),
+            ],
         );
 
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
         let is_modified = self.is_modified.clone();
         let editor_for_title = self.clone();
-        
+
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
@@ -137,7 +146,7 @@ impl MarkdownEditor {
                         let start = source_buffer.start_iter();
                         let end = source_buffer.end_iter();
                         let text = source_buffer.text(&start, &end, false);
-                        
+
                         match std::fs::write(&path, text) {
                             Ok(_) => {
                                 *current_file.borrow_mut() = Some(path.clone());
@@ -162,8 +171,11 @@ impl MarkdownEditor {
     }
 
     /// Show save as dialog with a callback that's only called on successful save
-    fn show_save_as_dialog_with_callback<F>(&self, parent: Option<&gtk4::Window>, on_save_complete: F)
-    where
+    fn show_save_as_dialog_with_callback<F>(
+        &self,
+        parent: Option<&gtk4::Window>,
+        on_save_complete: F,
+    ) where
         F: Fn() + 'static,
     {
         println!("DEBUG: show_save_as_dialog_with_callback called");
@@ -171,14 +183,17 @@ impl MarkdownEditor {
             Some("Save File"),
             parent,
             FileChooserAction::Save,
-            &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Save", ResponseType::Accept),
+            ],
         );
 
         let source_buffer = self.source_buffer.clone();
         let current_file = self.current_file.clone();
         let is_modified = self.is_modified.clone();
         let editor_for_title = self.clone();
-        
+
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 println!("DEBUG: User clicked Save in Save As dialog");
@@ -187,7 +202,6 @@ impl MarkdownEditor {
                         let start = source_buffer.start_iter();
                         let end = source_buffer.end_iter();
                         let text = source_buffer.text(&start, &end, false);
-                        
                         match std::fs::write(&path, text) {
                             Ok(_) => {
                                 println!("DEBUG: File saved successfully, marking as saved and calling callback");
@@ -218,31 +232,31 @@ impl MarkdownEditor {
     /// Load a file from a given path (for command-line usage)
     pub fn load_file_from_path(&self, file_path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let path = std::path::Path::new(file_path);
-        
+
         if !path.exists() {
             return Err(format!("File does not exist: {}", file_path).into());
         }
-        
+
         let content = std::fs::read_to_string(path)?;
-        
+
         // Set the content in the source buffer
         self.source_buffer.set_text(&content);
-        
+
         // Update the current file
         *self.current_file.borrow_mut() = Some(path.to_path_buf());
-        
+
         // Mark as saved (since we just loaded it)
         *self.is_modified.borrow_mut() = false;
-        
+
         // Set original content to the loaded content
         *self.original_content.borrow_mut() = content;
-        
+
         // Update window title
         self.update_window_title();
-        
+
         // Update base path for image resolution
         self.html_view.set_base_path(Some(path.to_path_buf()));
-        
+
         Ok(())
     }
 }

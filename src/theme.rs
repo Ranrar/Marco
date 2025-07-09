@@ -11,20 +11,20 @@ pub enum Theme {
 
 impl Theme {
     /// Convert theme to string representation for settings/serialization
-    /// 
-    /// Used for converting theme enum values to strings for storage in 
+    ///
+    /// Used for converting theme enum values to strings for storage in
     /// configuration files and settings persistence.
     #[allow(dead_code)]
     pub fn as_str(&self) -> &'static str {
         match self {
             Theme::Light => "light",
-            Theme::Dark => "dark", 
+            Theme::Dark => "dark",
             Theme::System => "system",
         }
     }
-    
+
     /// Convert string to Theme enum for loading from settings
-    /// 
+    ///
     /// Used for parsing theme strings from configuration files back
     /// into Theme enum values. Defaults to System theme for unknown values.
     #[allow(dead_code)]
@@ -52,7 +52,7 @@ impl ThemeManager {
             current_css_theme: Rc::new(RefCell::new("standard".to_string())),
         }
     }
-    
+
     /// Detect the system theme preference
     pub fn detect_system_theme() -> Theme {
         // Try to detect system theme using GTK settings
@@ -63,14 +63,14 @@ impl ThemeManager {
                 return Theme::Dark;
             }
         }
-        
+
         // Fallback: try environment variables (works on Linux)
         if let Ok(theme) = std::env::var("GTK_THEME") {
             if theme.to_lowercase().contains("dark") {
                 return Theme::Dark;
             }
         }
-        
+
         // Check for GNOME dark theme preference
         if let Ok(output) = std::process::Command::new("gsettings")
             .args(&["get", "org.gnome.desktop.interface", "gtk-theme"])
@@ -82,42 +82,42 @@ impl ThemeManager {
                 }
             }
         }
-        
+
         // Default to light theme
         Theme::Light
     }
-    
+
     pub fn get_current_theme(&self) -> Theme {
         *self.current_theme.borrow()
     }
-    
+
     pub fn set_theme(&self, theme: Theme) {
         let actual_theme = match theme {
             Theme::System => Self::detect_system_theme(),
             other => other,
         };
-        
+
         *self.current_theme.borrow_mut() = theme;
-        
+
         // Notify all callbacks
         for callback in self.callbacks.borrow().iter() {
             callback(actual_theme);
         }
     }
-    
+
     pub fn get_effective_theme(&self) -> Theme {
         match self.get_current_theme() {
             Theme::System => Self::detect_system_theme(),
             other => other,
         }
     }
-    
+
     /// Register a callback for theme change notifications
-    /// 
+    ///
     /// Allows components to register functions that will be called whenever
-    /// the theme changes. Useful for updating UI elements that need to 
+    /// the theme changes. Useful for updating UI elements that need to
     /// respond to theme switches.
-    /// 
+    ///
     /// # Arguments
     /// * `callback` - Function to call when theme changes, receives the new effective theme
     #[allow(dead_code)]
@@ -127,13 +127,13 @@ impl ThemeManager {
     {
         self.callbacks.borrow_mut().push(Box::new(callback));
     }
-    
+
     /// Get CSS class name for the current effective theme
-    /// 
+    ///
     /// Returns appropriate CSS class names that can be applied to UI elements
     /// for consistent theming. Useful for components that need to apply
     /// theme-specific styling beyond the automatic theme detection.
-    /// 
+    ///
     /// # Returns
     /// * "dark-theme" for dark mode
     /// * "light-theme" for light mode or system fallback
@@ -216,7 +216,8 @@ body {
 h1, h2, h3, h4, h5, h6 { 
     color: var(--heading-color) !important; 
 }
-"#.to_string()
+"#
+                .to_string()
             }
             Theme::Light => {
                 // Force light mode by overriding CSS custom properties
@@ -285,7 +286,8 @@ body {
 h1, h2, h3, h4, h5, h6 { 
     color: var(--heading-color) !important; 
 }
-"#.to_string()
+"#
+                .to_string()
             }
             Theme::System => {
                 // No override, let system preference decide
@@ -293,17 +295,15 @@ h1, h2, h3, h4, h5, h6 {
             }
         }
     }
-    
+
     /// Set the CSS theme for the preview
     pub fn set_css_theme(&self, theme_name: &str) -> Result<String, String> {
         *self.current_css_theme.borrow_mut() = theme_name.to_string();
-        
+
         // Load CSS file from the themes/ directory
         let css_path = format!("themes/{}.css", theme_name);
         match std::fs::read_to_string(&css_path) {
-            Ok(css_content) => {
-                Ok(css_content)
-            }
+            Ok(css_content) => Ok(css_content),
             Err(e) => {
                 eprintln!("Failed to load CSS theme '{}': {}", theme_name, e);
                 // Fallback to standard theme
@@ -314,7 +314,7 @@ h1, h2, h3, h4, h5, h6 {
             }
         }
     }
-    
+
     /// Get the current CSS theme name
     pub fn get_current_css_theme(&self) -> String {
         self.current_css_theme.borrow().clone()
@@ -323,7 +323,7 @@ h1, h2, h3, h4, h5, h6 {
     /// Get available CSS themes by scanning the themes/ directory
     pub fn get_available_css_themes() -> Vec<(String, String, String)> {
         let mut themes = Vec::new();
-        
+
         if let Ok(entries) = std::fs::read_dir("themes") {
             for entry in entries {
                 if let Ok(entry) = entry {
@@ -332,21 +332,26 @@ h1, h2, h3, h4, h5, h6 {
                         if extension == "css" {
                             if let Some(filename) = path.file_stem() {
                                 let theme_id = filename.to_string_lossy().to_string();
-                                let display_name = theme_id.replace('_', " ")
+                                let display_name = theme_id
+                                    .replace('_', " ")
                                     .split(' ')
                                     .map(|word| {
                                         let mut chars = word.chars();
                                         match chars.next() {
                                             None => String::new(),
-                                            Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                                            Some(first) => {
+                                                first.to_uppercase().collect::<String>()
+                                                    + chars.as_str()
+                                            }
                                         }
                                     })
                                     .collect::<Vec<String>>()
                                     .join(" ");
-                                
+
                                 // Create a properly sanitized name for action IDs (no spaces, special chars)
-                                let sanitized_name = theme_id.replace(|c: char| !c.is_alphanumeric(), "_");
-                                
+                                let sanitized_name =
+                                    theme_id.replace(|c: char| !c.is_alphanumeric(), "_");
+
                                 themes.push((theme_id, display_name, sanitized_name));
                             }
                         }
@@ -354,12 +359,12 @@ h1, h2, h3, h4, h5, h6 {
                 }
             }
         }
-        
+
         // Sort themes alphabetically by display name
         themes.sort_by(|a, b| a.1.cmp(&b.1));
         themes
     }
-    
+
     /// Initialize the theme manager with default CSS theme
     /// This should be called at startup to ensure the CSS is loaded
     pub fn initialize(&self) -> Result<(), String> {
@@ -367,7 +372,7 @@ h1, h2, h3, h4, h5, h6 {
         self.set_css_theme("standard")?;
         Ok(())
     }
-    
+
     /// Create a weak reference to this theme manager
     pub fn downgrade(&self) -> std::rc::Weak<RefCell<ThemeManager>> {
         // This is a placeholder - the actual implementation would depend on how the theme manager is stored

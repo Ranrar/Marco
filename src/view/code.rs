@@ -1,8 +1,8 @@
-use gtk4::prelude::*;
-use gtk4::{ScrolledWindow, TextView, Widget, TextBuffer, TextTagTable};
-use pulldown_cmark::{Parser, Options, html, Event, Tag, CodeBlockKind};
 use crate::markdown::colorize_code_blocks::CodeLanguageManager;
 use crate::theme::ThemeManager;
+use gtk4::prelude::*;
+use gtk4::{ScrolledWindow, TextBuffer, TextTagTable, TextView, Widget};
+use pulldown_cmark::{html, CodeBlockKind, Event, Options, Parser, Tag};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -20,13 +20,13 @@ impl MarkdownCodeView {
         text_view.set_editable(false);
         text_view.set_cursor_visible(false);
         text_view.set_monospace(true); // Use monospace font for code display
-        
+
         // Set up text view styling
         text_view.set_left_margin(15);
         text_view.set_right_margin(15);
         text_view.set_top_margin(15);
         text_view.set_bottom_margin(15);
-        
+
         // Create tag table and buffer with syntax highlighting support
         let tag_table = TextTagTable::new();
         let buffer = TextBuffer::new(Some(&tag_table));
@@ -45,7 +45,7 @@ impl MarkdownCodeView {
             theme_manager: Rc::new(RefCell::new(None)),
         }
     }
-    
+
     /// Sets up the preview context menu for the Code view
     pub fn setup_context_menu(&self, editor: &crate::editor::MarkdownEditor) {
         let preview_menu = crate::view::context_menu::PreviewContextMenu::new();
@@ -64,30 +64,30 @@ impl MarkdownCodeView {
         options.insert(Options::ENABLE_STRIKETHROUGH);
         options.insert(Options::ENABLE_TASKLISTS);
         options.insert(Options::ENABLE_SMART_PUNCTUATION);
-        
+
         let parser = Parser::new_ext(markdown_text, options);
         let mut html_content = String::new();
-        
+
         // Process events with syntax highlighting to match the HTML view exactly
         let events = self.process_events_with_code_highlighting(parser);
         html::push_html(&mut html_content, events.into_iter());
-        
+
         // Format HTML as a full W3C-standard page with proper indentation
         // NOTE: The HTML content from html::push_html is already escaped properly
         let formatted_html = self.format_as_complete_html_document(&html_content);
-        
+
         // Apply syntax highlighting directly to the HTML content using the HTML language
         // No need to escape again as the HTML is already properly escaped
         let highlighted_html = self.language_manager.colorize_code(&formatted_html, "html");
-        
+
         // Set the HTML content in the text view
         let preview_buffer = self.text_view.buffer();
-        
+
         // For a purely monospace display of the highlighted HTML:
         // Convert HTML to plain text (removing HTML tags from the highlighted HTML)
         let plain_text = self.html_to_plain_text(&highlighted_html);
         preview_buffer.set_text(&plain_text);
-        
+
         // Update text view font and styling based on theme
         self.update_theme_styling();
     }
@@ -99,7 +99,7 @@ impl MarkdownCodeView {
         let mut in_code_block = false;
         let mut code_block_lang = String::new();
         let mut code_block_content = String::new();
-        
+
         for event in parser {
             match event {
                 Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(lang))) => {
@@ -111,19 +111,23 @@ impl MarkdownCodeView {
                 Event::End(Tag::CodeBlock(CodeBlockKind::Fenced(_))) => {
                     if in_code_block {
                         in_code_block = false;
-                        
+
                         // Special handling for HTML code blocks
                         if code_block_lang.to_lowercase() == "html" {
                             // For HTML code blocks, just preserve them with proper escaping
                             // They will be processed later in update_content
-                            let highlighted_html = self.generate_highlighted_code_block(&code_block_content, "html");
+                            let highlighted_html =
+                                self.generate_highlighted_code_block(&code_block_content, "html");
                             events.push(Event::Html(highlighted_html.into()));
                         } else {
                             // Regular code blocks get normal syntax highlighting
-                            let highlighted_html = self.generate_highlighted_code_block(&code_block_content, &code_block_lang);
+                            let highlighted_html = self.generate_highlighted_code_block(
+                                &code_block_content,
+                                &code_block_lang,
+                            );
                             events.push(Event::Html(highlighted_html.into()));
                         }
-                        
+
                         code_block_content.clear();
                         code_block_lang.clear();
                     }
@@ -132,7 +136,8 @@ impl MarkdownCodeView {
                     // Handle indented code blocks
                     if in_code_block {
                         in_code_block = false;
-                        let highlighted_html = self.generate_highlighted_code_block(&code_block_content, &code_block_lang);
+                        let highlighted_html = self
+                            .generate_highlighted_code_block(&code_block_content, &code_block_lang);
                         events.push(Event::Html(highlighted_html.into()));
                         code_block_content.clear();
                         code_block_lang.clear();
@@ -155,7 +160,7 @@ impl MarkdownCodeView {
                 }
             }
         }
-        
+
         events
     }
 
@@ -164,18 +169,23 @@ impl MarkdownCodeView {
     fn generate_highlighted_code_block(&self, code: &str, language: &str) -> String {
         if language.is_empty() {
             // Plain code block without language specification
-            format!(r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#, 
-                    self.html_escape(code))
+            format!(
+                r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
+                self.html_escape(code)
+            )
         } else if language.to_lowercase() == "html" {
             // Special handling for HTML code
             // First escape the HTML to prevent rendering, then highlight it
             let escaped_code = self.html_escape(code);
-            
+
             // Use syntax highlighting on the escaped HTML
             let highlighted = self.language_manager.colorize_code(&escaped_code, "html");
-            
+
             // Wrap in a code editor style container
-            format!(r#"<div class="html-code-editor code-block-html">{}</div>"#, highlighted)
+            format!(
+                r#"<div class="html-code-editor code-block-html">{}</div>"#,
+                highlighted
+            )
         } else {
             // Standard syntax highlighting for other languages
             self.language_manager.colorize_code(code, language)
@@ -203,7 +213,7 @@ impl MarkdownCodeView {
         } else {
             "Markdown Document"
         };
-        
+
         // Create a full HTML document with proper indentation and structure
         format!(
             r#"<!DOCTYPE html>
@@ -224,18 +234,19 @@ impl MarkdownCodeView {
 </html>"#,
             title,
             // Indent content appropriately
-            content.lines()
+            content
+                .lines()
                 .map(|line| format!("      {}", line))
                 .collect::<Vec<String>>()
                 .join("\n")
         )
     }
-    
+
     /// Convert HTML with syntax highlighting to plain text for TextView display
     fn html_to_plain_text(&self, html: &str) -> String {
         // The highlighted HTML from syntect contains spans with syntax classes
         // We need to extract just the text content while properly handling HTML entities
-        
+
         // Process text to:
         // 1. Remove all HTML tags but preserve whitespace
         // 2. Convert HTML entities back to their characters for display
@@ -244,7 +255,7 @@ impl MarkdownCodeView {
         let mut in_tag = false;
         let mut in_entity = false;
         let mut entity = String::new();
-        
+
         let mut chars = html.chars().peekable();
         while let Some(c) = chars.next() {
             match c {
@@ -253,7 +264,7 @@ impl MarkdownCodeView {
                 '&' if !in_tag && !in_entity => {
                     in_entity = true;
                     entity.clear();
-                },
+                }
                 ';' if in_entity => {
                     in_entity = false;
                     // Convert the entity back to its character representation
@@ -271,15 +282,15 @@ impl MarkdownCodeView {
                         }
                     }
                     entity.clear();
-                },
+                }
                 _ if in_entity => {
                     entity.push(c);
-                },
+                }
                 _ if !in_tag && !in_entity => result.push(c),
                 _ => {}
             }
         }
-        
+
         result
     }
 
@@ -287,47 +298,47 @@ impl MarkdownCodeView {
     pub fn get_text_view(&self) -> &TextView {
         &self.text_view
     }
-    
+
     pub fn set_theme_manager(&self, theme_manager: ThemeManager) {
         *self.theme_manager.borrow_mut() = Some(theme_manager);
-        
+
         // Update the view styling based on theme
         self.update_theme_styling();
     }
-    
+
     /// Update the text view styling based on the current theme
     fn update_theme_styling(&self) {
         if let Some(ref theme_manager) = *self.theme_manager.borrow() {
             // Apply theme-specific styling
             let text_view = &self.text_view;
-            
+
             match theme_manager.get_effective_theme() {
                 crate::theme::Theme::Light => {
                     // Light theme
                     text_view.set_css_classes(&["theme-light"]);
                     text_view.add_css_class("theme-light");
                     text_view.remove_css_class("theme-dark");
-                    
+
                     // Set monospace font and styling
                     text_view.set_monospace(true);
                     text_view.set_top_margin(15);
                     text_view.set_bottom_margin(15);
                     text_view.set_left_margin(15);
                     text_view.set_right_margin(15);
-                },
+                }
                 crate::theme::Theme::Dark => {
                     // Dark theme
                     text_view.set_css_classes(&["theme-dark"]);
                     text_view.add_css_class("theme-dark");
                     text_view.remove_css_class("theme-light");
-                    
+
                     // Set monospace font and styling
                     text_view.set_monospace(true);
                     text_view.set_top_margin(15);
                     text_view.set_bottom_margin(15);
                     text_view.set_left_margin(15);
                     text_view.set_right_margin(15);
-                },
+                }
                 crate::theme::Theme::System => {
                     // System theme (detect and apply appropriate theme)
                     let system_theme = crate::theme::ThemeManager::detect_system_theme();
@@ -336,14 +347,14 @@ impl MarkdownCodeView {
                             text_view.set_css_classes(&["theme-dark"]);
                             text_view.add_css_class("theme-dark");
                             text_view.remove_css_class("theme-light");
-                        },
+                        }
                         _ => {
                             text_view.set_css_classes(&["theme-light"]);
                             text_view.add_css_class("theme-light");
                             text_view.remove_css_class("theme-dark");
                         }
                     }
-                    
+
                     // Set monospace font and styling
                     text_view.set_monospace(true);
                     text_view.set_top_margin(15);
@@ -354,6 +365,4 @@ impl MarkdownCodeView {
             }
         }
     }
-
-
 }

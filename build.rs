@@ -4,12 +4,12 @@ use std::process::Command;
 fn main() {
     // Compile GSettings schema
     println!("cargo:rerun-if-changed=org.marco.editor.gschema.xml");
-    
+
     let output = Command::new("glib-compile-schemas")
         .arg(".")
         .arg("--strict")
         .output();
-        
+
     match output {
         Ok(output) => {
             if !output.status.success() {
@@ -25,14 +25,17 @@ fn main() {
             std::process::exit(1);
         }
     }
-    
+
     // Set environment variable for runtime
-    println!("cargo:rustc-env=GSETTINGS_SCHEMA_DIR={}", std::env::current_dir().unwrap().display());
-    
+    println!(
+        "cargo:rustc-env=GSETTINGS_SCHEMA_DIR={}",
+        std::env::current_dir().unwrap().display()
+    );
+
     // Compile resources if they exist
     if std::path::Path::new("resources").exists() {
         compile_resources(
-            &["resources"],  // Changed to array slice
+            &["resources"], // Changed to array slice
             "resources/resources.gresource.xml",
             "resources.gresource",
         );

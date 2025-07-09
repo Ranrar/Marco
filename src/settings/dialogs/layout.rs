@@ -1,9 +1,9 @@
+use super::common::{create_settings_row, create_settings_section_header};
+use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
 use gtk4::prelude::*;
-use gtk4::{Box, Button, Label, Orientation, Notebook, CheckButton, ComboBoxText, Align};
-use std::rc::Rc;
+use gtk4::{Align, Box, Button, CheckButton, ComboBoxText, Label, Notebook, Orientation};
 use std::cell::RefCell;
-use crate::settings::core::{SettingsChangeTracker, OriginalSettings};
-use super::common::{create_settings_section_header, create_settings_row};
+use std::rc::Rc;
 
 /// Helper to create a settings row: title/subtitle left, selector right, vertically aligned
 fn create_settings_row_aligned(
@@ -90,7 +90,7 @@ pub fn create_layout_settings_page(
     let layout_row = create_settings_row_aligned(
         "Layout mode",
         Some("Choose whether the editor or preview appears on the left side"),
-        &layout_box
+        &layout_box,
     );
     layout_box.append(&editor_left_radio);
     layout_box.append(&editor_right_radio);
@@ -115,7 +115,7 @@ pub fn create_layout_settings_page(
     let view_row = create_settings_row_aligned(
         "Default view mode",
         Some("Default view mode when opening files"),
-        &view_combo
+        &view_combo,
     );
     page_box.append(&view_row);
 

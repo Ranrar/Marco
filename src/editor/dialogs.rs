@@ -1,9 +1,9 @@
+use crate::editor::core::MarkdownEditor;
 use gtk4::prelude::*;
 use gtk4::{
-    Dialog, Entry, Grid, Label, ResponseType, FileChooserAction, 
-    FileChooserDialog, FileFilter, SearchEntry, ListBox, ListBoxRow, ScrolledWindow,
+    Dialog, Entry, FileChooserAction, FileChooserDialog, FileFilter, Grid, Label, ListBox,
+    ListBoxRow, ResponseType, ScrolledWindow, SearchEntry,
 };
-use crate::editor::core::MarkdownEditor;
 
 /// URL-encode a file path or URL to handle spaces and special characters
 fn url_encode_path(path: &str) -> String {
@@ -47,58 +47,63 @@ impl MarkdownEditor {
             Some("Insert Fenced Code Block"),
             window.as_ref(),
             gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
-            &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Insert", ResponseType::Accept),
+            ],
         );
-        
+
         // Create the main container
         let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
         main_box.set_margin_top(20);
         main_box.set_margin_bottom(20);
         main_box.set_margin_start(20);
         main_box.set_margin_end(20);
-        
+
         // Title label
         let title_label = Label::new(Some("Choose a programming language:"));
         title_label.set_halign(gtk4::Align::Start);
         title_label.add_css_class("heading");
         main_box.append(&title_label);
-        
+
         // Search entry
         let search_entry = SearchEntry::new();
-        search_entry.set_placeholder_text(Some("Type to search languages (e.g., rust, javascript, python...)"));
+        search_entry.set_placeholder_text(Some(
+            "Type to search languages (e.g., rust, javascript, python...)",
+        ));
         search_entry.set_hexpand(true);
         main_box.append(&search_entry);
-        
+
         // Scrolled window for the language list
         let scrolled_window = ScrolledWindow::new();
         scrolled_window.set_policy(gtk4::PolicyType::Never, gtk4::PolicyType::Automatic);
         scrolled_window.set_min_content_height(200);
         scrolled_window.set_max_content_height(300);
-        
+
         // List box for displaying filtered languages
         let list_box = ListBox::new();
         list_box.set_selection_mode(gtk4::SelectionMode::Single);
         list_box.add_css_class("rich-list");
         scrolled_window.set_child(Some(&list_box));
         main_box.append(&scrolled_window);
-        
+
         // Get all available languages from syntect
         let code_manager = self.code_language_manager.borrow().clone();
-        
+
         // Selected language storage
         let selected_language = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
-        
+
         // Function to populate the list
         let populate_list = {
             let list_box = list_box.clone();
             let selected_language = selected_language.clone();
-            
+
             move |filter: &str| {
                 // Clear existing items
                 while let Some(child) = list_box.first_child() {
                     list_box.remove(&child);
                 }
-                
+
                 // Add "(none)" option
                 let none_row = ListBoxRow::new();
                 let none_label = Label::new(Some("(none) - Plain text"));
@@ -110,10 +115,10 @@ impl MarkdownEditor {
                 none_row.set_child(Some(&none_label));
                 none_row.set_activatable(true);
                 list_box.append(&none_row);
-                
+
                 // Use smart language suggestions from syntect_highlight
                 let matching_languages = code_manager.get_smart_language_suggestions(filter);
-                
+
                 // Limit to 20 results for performance
                 for lang in matching_languages.iter().take(20) {
                     let row = ListBoxRow::new();
@@ -127,12 +132,13 @@ impl MarkdownEditor {
                     row.set_activatable(true);
                     list_box.append(&row);
                 }
-                
+
                 // Auto-select first item if filter matches exactly
                 if !filter.is_empty() && !matching_languages.is_empty() {
                     if let Some(first_lang) = matching_languages.get(0) {
                         if first_lang.to_lowercase() == filter.to_lowercase() {
-                            if let Some(row) = list_box.row_at_index(1) { // Skip "(none)" row
+                            if let Some(row) = list_box.row_at_index(1) {
+                                // Skip "(none)" row
                                 list_box.select_row(Some(&row));
                                 *selected_language.borrow_mut() = first_lang.clone();
                             }
@@ -141,17 +147,17 @@ impl MarkdownEditor {
                 }
             }
         };
-        
+
         // Initial population
         populate_list("");
-        
+
         // Search functionality
         let search_populate = populate_list.clone();
         search_entry.connect_search_changed(move |entry| {
             let text = entry.text();
             search_populate(&text);
         });
-        
+
         // List box selection
         let selection_language = selected_language.clone();
         list_box.connect_row_selected(move |_list_box, row| {
@@ -169,7 +175,7 @@ impl MarkdownEditor {
                 }
             }
         });
-        
+
         // Double-click to insert
         let dialog_close = dialog.clone();
         let buffer_clone = self.source_buffer.clone();
@@ -182,47 +188,47 @@ impl MarkdownEditor {
                     } else {
                         text.to_string()
                     };
-                    
+
                     let code_block = if language.is_empty() {
                         "\n```\ncode goes here\n```\n".to_string()
                     } else {
                         format!("\n```{}\ncode goes here\n```\n", language.to_lowercase())
                     };
-                    
+
                     let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
                     let cursor_mark = gtk_buffer.get_insert();
                     let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
                     buffer_clone.insert(&mut cursor_iter, &code_block);
-                    
+
                     dialog_close.close();
                 }
             }
         });
-        
+
         // Add content to dialog
         dialog.content_area().append(&main_box);
-        
+
         // Set default button
         if let Some(insert_button) = dialog.widget_for_response(ResponseType::Accept) {
             insert_button.add_css_class("suggested-action");
         }
-        
+
         // Focus on search entry
         search_entry.grab_focus();
-        
+
         // Connect response
         let final_buffer_clone = self.source_buffer.clone();
         let final_selected_language = selected_language.clone();
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 let language = final_selected_language.borrow().clone();
-                
+
                 let code_block = if language.is_empty() {
                     "\n```\ncode goes here\n```\n".to_string()
                 } else {
                     format!("\n```{}\ncode goes here\n```\n", language.to_lowercase())
                 };
-                
+
                 let gtk_buffer = final_buffer_clone.upcast_ref::<gtk4::TextBuffer>();
                 let cursor_mark = gtk_buffer.get_insert();
                 let mut cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
@@ -230,9 +236,9 @@ impl MarkdownEditor {
             }
             dialog.close();
         });
-        
+
         dialog.present();
-        
+
         // Focus editor after dialog is shown
         let editor_clone = self.clone();
         dialog.connect_close(move |_| {
@@ -257,9 +263,12 @@ impl MarkdownEditor {
             Some("Insert Link"),
             window.as_ref(),
             gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
-            &[("Cancel", ResponseType::Cancel), ("Insert", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Insert", ResponseType::Accept),
+            ],
         );
-        
+
         // Create the grid layout
         let grid = Grid::new();
         grid.set_row_spacing(10);
@@ -268,21 +277,21 @@ impl MarkdownEditor {
         grid.set_margin_bottom(20);
         grid.set_margin_start(20);
         grid.set_margin_end(20);
-        
+
         // URL input
         let url_label = Label::new(Some("URL:"));
         url_label.set_halign(gtk4::Align::Start);
         let url_entry = Entry::new();
         url_entry.set_placeholder_text(Some("https://example.com"));
         url_entry.set_hexpand(true);
-        
+
         // Link text input
         let text_label = Label::new(Some("Link Text:"));
         text_label.set_halign(gtk4::Align::Start);
         let text_entry = Entry::new();
         text_entry.set_placeholder_text(Some("Link description"));
         text_entry.set_hexpand(true);
-        
+
         // Check if we have selected text to use as default
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
@@ -292,35 +301,35 @@ impl MarkdownEditor {
                 text_entry.set_text(&selected_text);
             }
         }
-        
+
         // Add to grid
         grid.attach(&url_label, 0, 0, 1, 1);
         grid.attach(&url_entry, 1, 0, 1, 1);
         grid.attach(&text_label, 0, 1, 1, 1);
         grid.attach(&text_entry, 1, 1, 1, 1);
-        
+
         // Add grid to dialog
         dialog.content_area().append(&grid);
-        
+
         // Focus on URL entry
         url_entry.grab_focus();
-        
+
         // Connect response
         let buffer_clone = self.source_buffer.clone();
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
                 let url = url_entry.text();
                 let text = text_entry.text();
-                
+
                 if !url.is_empty() {
                     let link_text = if text.is_empty() {
                         url.to_string()
                     } else {
                         text.to_string()
                     };
-                    
+
                     let link = format!("[{}]({})", link_text, url);
-                    
+
                     // Insert at cursor or replace selection
                     let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
                     if gtk_buffer.has_selection() {
@@ -342,9 +351,9 @@ impl MarkdownEditor {
             }
             dialog.close();
         });
-        
+
         dialog.present();
-        
+
         // Focus editor after dialog is shown
         let editor_clone = self.clone();
         dialog.connect_close(move |_| {
@@ -369,9 +378,12 @@ impl MarkdownEditor {
             Some("Select Image"),
             window.as_ref(),
             FileChooserAction::Open,
-            &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Open", ResponseType::Accept),
+            ],
         );
-        
+
         // Add image file filters
         let filter = FileFilter::new();
         filter.set_name(Some("Image Files"));
@@ -384,12 +396,12 @@ impl MarkdownEditor {
         filter.add_pattern("*.svg");
         filter.add_pattern("*.webp");
         dialog.add_filter(&filter);
-        
+
         let all_filter = FileFilter::new();
         all_filter.set_name(Some("All Files"));
         all_filter.add_pattern("*");
         dialog.add_filter(&all_filter);
-        
+
         // Connect response
         let buffer_clone = self.source_buffer.clone();
         dialog.connect_response(move |dialog, response| {
@@ -397,15 +409,16 @@ impl MarkdownEditor {
                 if let Some(file) = dialog.file() {
                     if let Some(path) = file.path() {
                         let path_str = path.to_string_lossy();
-                        let filename = path.file_name()
+                        let filename = path
+                            .file_name()
                             .and_then(|name| name.to_str())
                             .unwrap_or("image");
-                        
+
                         // URL-encode the path to handle spaces and special characters
                         let encoded_path = url_encode_path(&path_str);
-                        
+
                         let image_markdown = format!("![{}]({})", filename, encoded_path);
-                        
+
                         // Insert at cursor
                         let gtk_buffer = buffer_clone.upcast_ref::<gtk4::TextBuffer>();
                         let cursor_mark = gtk_buffer.get_insert();
@@ -416,9 +429,9 @@ impl MarkdownEditor {
             }
             dialog.close();
         });
-        
+
         dialog.present();
-        
+
         // Focus editor after dialog is shown
         let editor_clone = self.clone();
         dialog.connect_close(move |_| {
@@ -445,11 +458,9 @@ impl MarkdownEditor {
         let find_label = Label::new(Some("Find:"));
         let find_entry = Entry::new();
         find_entry.set_hexpand(true);
-        
+
         // Add case-sensitive checkbox
-        let case_sensitive_check = gtk4::CheckButton::builder()
-            .label("Case sensitive")
-            .build();
+        let case_sensitive_check = gtk4::CheckButton::builder().label("Case sensitive").build();
 
         grid.attach(&find_label, 0, 0, 1, 1);
         grid.attach(&find_entry, 1, 0, 1, 1);
@@ -463,10 +474,10 @@ impl MarkdownEditor {
 
         let source_buffer = self.source_buffer.clone();
         let source_view = self.source_view.clone();
-        
+
         // Set focus to the entry
         find_entry.grab_focus();
-        
+
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Ok {
                 let entry = dialog
@@ -493,20 +504,20 @@ impl MarkdownEditor {
                         let text = source_buffer.text(&cursor_iter, &end_iter, false);
                         let text_str = text.as_str();
                         let search_str = search_text.as_str();
-                        
+
                         let found_pos = if case_check.is_active() {
                             text_str.find(search_str)
                         } else {
                             text_str.to_lowercase().find(&search_str.to_lowercase())
                         };
-                        
+
                         if let Some(pos) = found_pos {
                             let mut search_start = cursor_iter;
                             search_start.forward_chars(pos as i32);
                             let mut search_end = search_start;
                             search_end.forward_chars(search_str.len() as i32);
                             source_buffer.select_range(&search_start, &search_end);
-                            
+
                             // Scroll to the found text
                             let mut scroll_iter = search_start;
                             source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
@@ -515,13 +526,13 @@ impl MarkdownEditor {
                             let (start, _) = source_buffer.bounds();
                             let text = source_buffer.text(&start, &cursor_iter, false);
                             let text_str = text.as_str();
-                            
+
                             let found_pos = if case_check.is_active() {
                                 text_str.find(search_str)
                             } else {
                                 text_str.to_lowercase().find(&search_str.to_lowercase())
                             };
-                            
+
                             if let Some(pos) = found_pos {
                                 let mut search_start = start;
                                 search_start.forward_chars(pos as i32);
@@ -565,11 +576,9 @@ impl MarkdownEditor {
         let replace_label = Label::new(Some("Replace:"));
         let replace_entry = Entry::new();
         replace_entry.set_hexpand(true);
-        
+
         // Add case-sensitive checkbox
-        let case_sensitive_check = gtk4::CheckButton::builder()
-            .label("Case sensitive")
-            .build();
+        let case_sensitive_check = gtk4::CheckButton::builder().label("Case sensitive").build();
 
         grid.attach(&find_label, 0, 0, 1, 1);
         grid.attach(&find_entry, 1, 0, 1, 1);
@@ -589,7 +598,7 @@ impl MarkdownEditor {
 
         let source_buffer = self.source_buffer.clone();
         let source_view = self.source_view.clone();
-        
+
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Ok || response == ResponseType::Apply {
                 let content_area = dialog.content_area();
@@ -598,14 +607,19 @@ impl MarkdownEditor {
                     .and_then(|grid| grid.downcast::<Grid>().ok());
 
                 if let Some(grid) = grid {
-                    let find_entry = grid.child_at(1, 0)
+                    let find_entry = grid
+                        .child_at(1, 0)
                         .and_then(|entry| entry.downcast::<Entry>().ok());
-                    let replace_entry = grid.child_at(1, 1)
+                    let replace_entry = grid
+                        .child_at(1, 1)
                         .and_then(|entry| entry.downcast::<Entry>().ok());
-                    let case_check = grid.child_at(1, 2)
+                    let case_check = grid
+                        .child_at(1, 2)
                         .and_then(|check| check.downcast::<gtk4::CheckButton>().ok());
 
-                    if let (Some(find_entry), Some(replace_entry), Some(case_check)) = (find_entry, replace_entry, case_check) {
+                    if let (Some(find_entry), Some(replace_entry), Some(case_check)) =
+                        (find_entry, replace_entry, case_check)
+                    {
                         let find_text = find_entry.text();
                         let replace_text = replace_entry.text();
 
@@ -615,7 +629,7 @@ impl MarkdownEditor {
                             let text_str = text.as_str();
                             let find_str = find_text.as_str();
                             let replace_str = replace_text.as_str();
-                            
+
                             if response == ResponseType::Apply {
                                 // Replace all
                                 let new_text = if case_check.is_active() {
@@ -626,7 +640,7 @@ impl MarkdownEditor {
                                     let mut last_end = 0;
                                     let text_lower = text_str.to_lowercase();
                                     let find_lower = find_str.to_lowercase();
-                                    
+
                                     for (start, _) in text_lower.match_indices(&find_lower) {
                                         result.push_str(&text_str[last_end..start]);
                                         result.push_str(replace_str);
@@ -641,80 +655,103 @@ impl MarkdownEditor {
                                 let cursor_mark = source_buffer.get_insert();
                                 let cursor_iter = source_buffer.iter_at_mark(&cursor_mark);
                                 let end_iter = source_buffer.end_iter();
-                                let text_from_cursor = source_buffer.text(&cursor_iter, &end_iter, false);
+                                let text_from_cursor =
+                                    source_buffer.text(&cursor_iter, &end_iter, false);
                                 let text_from_cursor_str = text_from_cursor.as_str();
-                                
+
                                 let found_pos = if case_check.is_active() {
                                     text_from_cursor_str.find(find_str)
                                 } else {
-                                    text_from_cursor_str.to_lowercase().find(&find_str.to_lowercase())
+                                    text_from_cursor_str
+                                        .to_lowercase()
+                                        .find(&find_str.to_lowercase())
                                 };
-                                
+
                                 if let Some(pos) = found_pos {
                                     let mut search_start = cursor_iter;
                                     search_start.forward_chars(pos as i32);
                                     let mut search_end = search_start;
                                     search_end.forward_chars(find_str.len() as i32);
-                                    
+
                                     // Create a mark to preserve the position before deletion
-                                    let replace_mark = source_buffer.create_mark(None, &search_start, false);
-                                    
+                                    let replace_mark =
+                                        source_buffer.create_mark(None, &search_start, false);
+
                                     // Replace the found text
                                     let mut search_start_mut = search_start;
                                     let mut search_end_mut = search_end;
-                                    source_buffer.delete(&mut search_start_mut, &mut search_end_mut);
-                                    
+                                    source_buffer
+                                        .delete(&mut search_start_mut, &mut search_end_mut);
+
                                     // Get fresh iterator from mark for insertion
                                     let mut insert_iter = source_buffer.iter_at_mark(&replace_mark);
                                     source_buffer.insert(&mut insert_iter, replace_str);
-                                    
+
                                     // Position cursor after replacement and scroll to it
                                     let new_start = source_buffer.iter_at_mark(&replace_mark);
                                     let mut new_pos = new_start;
                                     new_pos.forward_chars(replace_str.len() as i32);
                                     source_buffer.place_cursor(&new_pos);
                                     let mut scroll_iter = new_pos;
-                                    source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
-                                    
+                                    source_view.scroll_to_iter(
+                                        &mut scroll_iter,
+                                        0.0,
+                                        false,
+                                        0.0,
+                                        0.0,
+                                    );
+
                                     // Clean up the temporary mark
                                     source_buffer.delete_mark(&replace_mark);
                                 } else {
                                     // Not found from cursor, search from beginning
                                     let (start, _) = source_buffer.bounds();
-                                    let text_to_cursor = source_buffer.text(&start, &cursor_iter, false);
+                                    let text_to_cursor =
+                                        source_buffer.text(&start, &cursor_iter, false);
                                     let text_to_cursor_str = text_to_cursor.as_str();
-                                    
+
                                     let found_pos = if case_check.is_active() {
                                         text_to_cursor_str.find(find_str)
                                     } else {
-                                        text_to_cursor_str.to_lowercase().find(&find_str.to_lowercase())
+                                        text_to_cursor_str
+                                            .to_lowercase()
+                                            .find(&find_str.to_lowercase())
                                     };
-                                    
+
                                     if let Some(pos) = found_pos {
                                         let mut search_start = start;
                                         search_start.forward_chars(pos as i32);
                                         let mut search_end = search_start;
                                         search_end.forward_chars(find_str.len() as i32);
-                                        
+
                                         // Replace the found text
-                                        let replace_mark = source_buffer.create_mark(None, &search_start, false);
-                                        
+                                        let replace_mark =
+                                            source_buffer.create_mark(None, &search_start, false);
+
                                         let mut search_start_mut = search_start;
                                         let mut search_end_mut = search_end;
-                                        source_buffer.delete(&mut search_start_mut, &mut search_end_mut);
-                                        
+                                        source_buffer
+                                            .delete(&mut search_start_mut, &mut search_end_mut);
+
                                         // Get fresh iterator from mark for insertion
-                                        let mut insert_iter = source_buffer.iter_at_mark(&replace_mark);
+                                        let mut insert_iter =
+                                            source_buffer.iter_at_mark(&replace_mark);
                                         source_buffer.insert(&mut insert_iter, replace_str);
-                                        
+
                                         // Position cursor after replacement and scroll to it
                                         let new_start = source_buffer.iter_at_mark(&replace_mark);
                                         let mut new_pos = new_start;
                                         new_pos.forward_chars(replace_str.len() as i32);
                                         source_buffer.place_cursor(&new_pos);
                                         let mut scroll_iter = new_pos;
-                                        source_view.scroll_to_iter(&mut scroll_iter, 0.0, false, 0.0, 0.0);
-                                        
+                                        source_view.scroll_to_iter(
+                                            &mut scroll_iter,
+                                            0.0,
+                                            false,
+                                            0.0,
+                                            0.0,
+                                        );
+
                                         // Clean up the temporary mark
                                         source_buffer.delete_mark(&replace_mark);
                                     }
@@ -733,7 +770,11 @@ impl MarkdownEditor {
 
     /// Show save confirmation dialog and handle the response asynchronously
     /// Returns true immediately if no unsaved changes, false if dialog is shown (to prevent immediate quit)
-    pub fn show_unsaved_changes_dialog_and_quit<F>(&self, parent: Option<&gtk4::Window>, on_confirm_quit: F) -> bool
+    pub fn show_unsaved_changes_dialog_and_quit<F>(
+        &self,
+        parent: Option<&gtk4::Window>,
+        on_confirm_quit: F,
+    ) -> bool
     where
         F: Fn() + 'static,
     {
@@ -744,7 +785,9 @@ impl MarkdownEditor {
 
         // Check if document is effectively empty (even if it was modified) - if so, don't show save dialog
         if self.is_empty() {
-            println!("DEBUG: Document is empty after edits, proceeding immediately without save prompt");
+            println!(
+                "DEBUG: Document is empty after edits, proceeding immediately without save prompt"
+            );
             return true; // Empty document, safe to proceed immediately
         }
 
@@ -756,10 +799,10 @@ impl MarkdownEditor {
         let cancel_text = crate::language::tr("dialog.unsaved_changes.cancel");
         let discard_text = crate::language::tr("dialog.unsaved_changes.discard");
         let save_text = crate::language::tr("dialog.unsaved_changes.save");
-        
+
         println!("DEBUG: Dialog strings - Title: '{}', Message: '{}', Cancel: '{}', Discard: '{}', Save: '{}'", 
                  title, message, cancel_text, discard_text, save_text);
-        
+
         let dialog = gtk4::MessageDialog::builder()
             .transient_for(parent.unwrap_or(&gtk4::Window::new()))
             .modal(true)
@@ -775,46 +818,53 @@ impl MarkdownEditor {
         // Set default response to Save
         dialog.set_default_response(ResponseType::Yes);
 
-        println!("DEBUG: Dialog created with buttons - Cancel: {:?}, Discard: {:?}, Save: {:?}", 
-                 ResponseType::Cancel, ResponseType::No, ResponseType::Yes);
+        println!(
+            "DEBUG: Dialog created with buttons - Cancel: {:?}, Discard: {:?}, Save: {:?}",
+            ResponseType::Cancel,
+            ResponseType::No,
+            ResponseType::Yes
+        );
 
         // Handle dialog response asynchronously
         let editor_weak = self.clone();
         let parent_window = parent.map(|w| w.clone());
-        
+
         println!("DEBUG: Setting up dialog response callback");
-        
+
         // Clone the callback for the save case
         let on_confirm_quit_for_save = std::rc::Rc::new(on_confirm_quit);
         let on_confirm_quit_for_discard = on_confirm_quit_for_save.clone();
-        
+
         // Use a flag to ensure the dialog response is only handled once
         let response_handled = std::rc::Rc::new(std::cell::RefCell::new(false));
         let response_handled_clone = response_handled.clone();
-        
+
         dialog.connect_response(move |dialog, response| {
             println!("DEBUG: Dialog response received: {:?}", response);
-            
+
             // Check if response was already handled
             if *response_handled_clone.borrow() {
                 println!("DEBUG: Dialog response already handled, ignoring");
                 return;
             }
-            
+
             match response {
                 ResponseType::Yes => {
                     // User wants to save before quitting
                     println!("DEBUG: User clicked Save button");
                     *response_handled_clone.borrow_mut() = true;
                     dialog.close();
-                    
+
                     // Use the callback-based save method to only quit if save is successful
                     let quit_callback = on_confirm_quit_for_save.clone();
-                    editor_weak.save_current_file_with_callback(parent_window.as_ref(), move || {
-                        println!("DEBUG: Save completed successfully, calling quit callback");
-                        quit_callback();
-                        println!("DEBUG: on_confirm_quit callback completed");
-                    });
+                    editor_weak.save_current_file_with_callback(
+                        parent_window.as_ref(),
+                        move || {
+                            println!("DEBUG: Save completed successfully, calling quit callback");
+                            quit_callback();
+                            println!("DEBUG: on_confirm_quit callback completed");
+                        },
+                    );
                 }
                 ResponseType::No => {
                     // User wants to discard changes and quit
@@ -839,7 +889,10 @@ impl MarkdownEditor {
                 }
                 _ => {
                     // Other responses - treat as cancel
-                    println!("DEBUG: Other dialog response: {:?}, treating as cancel", response);
+                    println!(
+                        "DEBUG: Other dialog response: {:?}, treating as cancel",
+                        response
+                    );
                     *response_handled_clone.borrow_mut() = true;
                     dialog.close();
                 }
@@ -849,7 +902,7 @@ impl MarkdownEditor {
         // Show the dialog
         println!("DEBUG: Presenting dialog to user");
         dialog.present();
-        
+
         // Return false to indicate that quit should not proceed immediately
         // The actual quit will happen in the dialog response callback
         println!("DEBUG: Returning false - quit should wait for dialog response");

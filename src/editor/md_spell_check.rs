@@ -2,9 +2,9 @@ use gtk4::prelude::*;
 use gtk4::TextTag;
 use pulldown_cmark::{Event, Parser, Tag};
 use regex::Regex;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// Represents a Markdown syntax warning with location and type
 #[derive(Debug, Clone, PartialEq)]
@@ -130,7 +130,7 @@ pub struct SpellSyntaxChecker {
     warnings: Vec<SpellError>,
     warning_tags: HashMap<String, TextTag>,
     buffer: Option<gtk4::TextBuffer>,
-    
+
     // Regex patterns for advanced syntax checking
     heading_regex: Regex,
     emphasis_regex: Regex,
@@ -148,13 +148,13 @@ pub struct SpellSyntaxChecker {
 impl SpellSyntaxChecker {
     pub fn new(config: SpellLintConfig) -> Self {
         let warning_tags = Self::create_error_tags();
-        
+
         Self {
             config,
             warnings: Vec::new(),
             warning_tags,
             buffer: None,
-            
+
             // Initialize regex patterns
             heading_regex: Regex::new(r"^(#{1,6})([^ #]|$)").unwrap(),
             emphasis_regex: Regex::new(r"(\*{1,2}|_{1,2})([^*_\n]*?)(\*{1,2}|_{1,2})").unwrap(),
@@ -208,7 +208,7 @@ impl SpellSyntaxChecker {
     fn create_error_tags_for_buffer(buffer: &gtk4::TextBuffer) -> HashMap<String, TextTag> {
         let mut tags = HashMap::new();
         let tag_table = buffer.tag_table();
-        
+
         // Create or reuse tag for syntax warnings with wavy red underline
         let warning_tag = if let Some(existing_tag) = tag_table.lookup("markdown-warning") {
             existing_tag
@@ -263,7 +263,7 @@ impl SpellSyntaxChecker {
     /// Set the text buffer for applying visual warnings
     pub fn set_buffer(&mut self, buffer: &gtk4::TextBuffer) {
         self.buffer = Some(buffer.clone());
-        
+
         // Create fresh tags for this buffer to avoid conflicts
         self.warning_tags = Self::create_error_tags_for_buffer(buffer);
     }
@@ -271,21 +271,21 @@ impl SpellSyntaxChecker {
     /// Lint markdown content and return warnings
     pub fn lint(&mut self, content: &str) -> Vec<SpellError> {
         self.warnings.clear();
-        
+
         // First pass: use pulldown-cmark for AST-based checking
         self.ast_based_checks(content);
-        
+
         // Second pass: regex-based checks for syntax not covered by AST
         self.regex_based_checks(content);
-        
+
         // Third pass: multi-line structural checks
         self.structural_checks(content);
-        
+
         // Apply visual warnings to the buffer if available
         if let Some(buffer) = &self.buffer {
             self.apply_visual_errors(buffer, content);
         }
-        
+
         self.warnings.clone()
     }
 
@@ -295,7 +295,7 @@ impl SpellSyntaxChecker {
         let mut event_stack = Vec::new();
         let mut current_offset = 0;
         let line_offsets = self.build_line_offsets(content);
-        
+
         for event in parser {
             match event {
                 Event::Start(tag) => {
@@ -312,7 +312,10 @@ impl SpellSyntaxChecker {
                                 start_offset,
                                 end_offset: current_offset,
                                 warning_type: SpellType::ImproperNesting,
-                                message: format!("Mismatched tag: expected {:?}, found {:?}", start_tag, tag),
+                                message: format!(
+                                    "Mismatched tag: expected {:?}, found {:?}",
+                                    start_tag, tag
+                                ),
                                 suggestion: Some("Check tag nesting".to_string()),
                             });
                         }
@@ -342,7 +345,7 @@ impl SpellSyntaxChecker {
                 _ => {}
             }
         }
-        
+
         // Check for unclosed tags
         if !event_stack.is_empty() {
             for (tag, start_offset) in event_stack {
@@ -364,41 +367,45 @@ impl SpellSyntaxChecker {
     fn regex_based_checks(&mut self, content: &str) {
         let lines: Vec<&str> = content.lines().collect();
         let line_offsets = self.build_line_offsets(content);
-        
+
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-            let line_start_offset = if line_num == 1 { 0 } else { line_offsets[line_num - 2] };
-            
+            let line_start_offset = if line_num == 1 {
+                0
+            } else {
+                line_offsets[line_num - 2]
+            };
+
             // Check headings
             if self.config.check_improper_headings {
                 self.check_heading_syntax(line, line_num, line_start_offset);
             }
-            
+
             // Check emphasis
             if self.config.check_unclosed_emphasis {
                 self.check_emphasis_syntax(line, line_num, line_start_offset);
             }
-            
+
             // Check links
             if self.config.check_broken_links || self.config.check_empty_links {
                 self.check_link_syntax(line, line_num, line_start_offset);
             }
-            
+
             // Check images
             if self.config.check_broken_images || self.config.check_missing_alt_text {
                 self.check_image_syntax(line, line_num, line_start_offset);
             }
-            
+
             // Check task lists
             if self.config.check_invalid_task_lists {
                 self.check_task_list_syntax(line, line_num, line_start_offset);
             }
-            
+
             // Check footnotes
             if self.config.check_malformed_footnotes {
                 self.check_footnote_syntax(line, line_num, line_start_offset);
             }
-            
+
             // Check HTML tags
             if self.config.check_raw_html {
                 self.check_html_syntax(line, line_num, line_start_offset);
@@ -409,19 +416,19 @@ impl SpellSyntaxChecker {
     /// Structural checks for multi-line patterns
     fn structural_checks(&mut self, content: &str) {
         let lines: Vec<&str> = content.lines().collect();
-        
+
         if self.config.check_unclosed_code_blocks {
             self.check_code_blocks(&lines);
         }
-        
+
         if self.config.check_malformed_tables {
             self.check_table_structure(&lines);
         }
-        
+
         if self.config.check_invalid_references {
             self.check_reference_links(&lines);
         }
-        
+
         if self.config.check_inconsistent_list_markers {
             self.check_list_consistency(&lines);
         }
@@ -434,7 +441,7 @@ impl SpellSyntaxChecker {
             let column = caps.get(1).unwrap().end();
             let start_offset = line_start_offset + caps.get(1).unwrap().start();
             let end_offset = line_start_offset + caps.get(1).unwrap().end();
-            
+
             self.warnings.push(SpellError {
                 line: line_num,
                 column,
@@ -454,7 +461,7 @@ impl SpellSyntaxChecker {
         let mut italic_count = 0;
         let mut i = 0;
         let chars: Vec<char> = line.chars().collect();
-        
+
         while i < chars.len() {
             if i + 1 < chars.len() && chars[i] == '*' && chars[i + 1] == '*' {
                 bold_count += 1;
@@ -466,7 +473,7 @@ impl SpellSyntaxChecker {
                 i += 1;
             }
         }
-        
+
         if bold_count % 2 != 0 {
             self.warnings.push(SpellError {
                 line: line_num,
@@ -478,7 +485,7 @@ impl SpellSyntaxChecker {
                 suggestion: Some("Ensure bold markers are properly paired".to_string()),
             });
         }
-        
+
         if italic_count % 2 != 0 {
             self.warnings.push(SpellError {
                 line: line_num,
@@ -498,10 +505,10 @@ impl SpellSyntaxChecker {
             let full_match = caps.get(0).unwrap();
             let _text = caps.get(1).unwrap().as_str();
             let url = caps.get(2).unwrap().as_str();
-            
+
             let start_offset = line_start_offset + full_match.start();
             let end_offset = line_start_offset + full_match.end();
-            
+
             // Check for empty links
             if self.config.check_empty_links && url.trim().is_empty() {
                 self.warnings.push(SpellError {
@@ -515,13 +522,14 @@ impl SpellSyntaxChecker {
                 });
             }
         }
-        
+
         // Check for broken link syntax
-        let broken_link_regex = Regex::new(r"\[([^\]]*)\]\([^)]*$|\[([^\]]*)\]$|\[([^\]]*)$").unwrap();
+        let broken_link_regex =
+            Regex::new(r"\[([^\]]*)\]\([^)]*$|\[([^\]]*)\]$|\[([^\]]*)$").unwrap();
         for mat in broken_link_regex.find_iter(line) {
             let start_offset = line_start_offset + mat.start();
             let end_offset = line_start_offset + mat.end();
-            
+
             self.warnings.push(SpellError {
                 line: line_num,
                 column: mat.start() + 1,
@@ -540,10 +548,10 @@ impl SpellSyntaxChecker {
             let full_match = caps.get(0).unwrap();
             let alt_text = caps.get(1).unwrap().as_str();
             let _src = caps.get(2).unwrap().as_str();
-            
+
             let start_offset = line_start_offset + full_match.start();
             let end_offset = line_start_offset + full_match.end();
-            
+
             // Check for missing alt text
             if self.config.check_missing_alt_text && alt_text.trim().is_empty() {
                 self.warnings.push(SpellError {
@@ -567,7 +575,7 @@ impl SpellSyntaxChecker {
             let checkbox = caps.get(2).unwrap().as_str();
             let start_offset = line_start_offset + caps.get(0).unwrap().start();
             let end_offset = line_start_offset + caps.get(0).unwrap().end();
-            
+
             self.warnings.push(SpellError {
                 line: line_num,
                 column: caps.get(0).unwrap().start() + 1,
@@ -584,17 +592,17 @@ impl SpellSyntaxChecker {
     fn check_footnote_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
         // Check for malformed footnotes - find footnote references that are not definitions
         let footnote_regex = Regex::new(r"\[\^([^\]]*)\]").unwrap();
-        
+
         for caps in footnote_regex.captures_iter(line) {
             let full_match = caps.get(0).unwrap();
             let footnote_id = caps.get(1).unwrap().as_str();
             let start_offset = line_start_offset + full_match.start();
             let end_offset = line_start_offset + full_match.end();
-            
+
             // Check if this is actually a footnote definition (contains colon after)
             let remainder = &line[full_match.end()..];
             let is_definition = remainder.trim_start().starts_with(':');
-            
+
             // Only warn about empty IDs in footnote references, not definitions
             if !is_definition && footnote_id.trim().is_empty() {
                 self.warnings.push(SpellError {
@@ -615,7 +623,7 @@ impl SpellSyntaxChecker {
         for mat in self.html_tag_regex.find_iter(line) {
             let start_offset = line_start_offset + mat.start();
             let end_offset = line_start_offset + mat.end();
-            
+
             self.warnings.push(SpellError {
                 line: line_num,
                 column: mat.start() + 1,
@@ -634,10 +642,10 @@ impl SpellSyntaxChecker {
         let mut code_block_start = 0;
         let mut code_block_start_offset = 0;
         let mut current_offset = 0;
-        
+
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-            
+
             if line.starts_with("```") {
                 if in_code_block {
                     in_code_block = false;
@@ -649,7 +657,7 @@ impl SpellSyntaxChecker {
             }
             current_offset += line.len() + 1; // +1 for newline
         }
-        
+
         if in_code_block {
             self.warnings.push(SpellError {
                 line: code_block_start,
@@ -668,13 +676,13 @@ impl SpellSyntaxChecker {
         let mut in_table = false;
         let mut expected_columns = 0;
         let mut current_offset = 0;
-        
+
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-            
+
             if line.contains('|') {
                 let current_columns = line.matches('|').count();
-                
+
                 if !in_table {
                     in_table = true;
                     expected_columns = current_columns;
@@ -685,8 +693,13 @@ impl SpellSyntaxChecker {
                         start_offset: current_offset,
                         end_offset: current_offset + line.len(),
                         warning_type: SpellType::MalformedTable,
-                        message: format!("Table row has {} columns, expected {}", current_columns, expected_columns),
-                        suggestion: Some("Ensure all table rows have the same number of columns".to_string()),
+                        message: format!(
+                            "Table row has {} columns, expected {}",
+                            current_columns, expected_columns
+                        ),
+                        suggestion: Some(
+                            "Ensure all table rows have the same number of columns".to_string(),
+                        ),
                     });
                 }
             } else if in_table && line.trim().is_empty() {
@@ -700,37 +713,37 @@ impl SpellSyntaxChecker {
     fn check_reference_links(&mut self, lines: &[&str]) {
         let mut references = HashMap::new();
         let mut current_offset = 0;
-        
+
         // Collect reference definitions
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-            
+
             if let Some(caps) = self.reference_regex.captures(line) {
                 let ref_name = caps.get(1).unwrap().as_str().to_lowercase();
                 references.insert(ref_name, line_num);
             }
             current_offset += line.len() + 1; // +1 for newline
         }
-        
+
         // Reset offset for second pass
         current_offset = 0;
-        
+
         // Find reference uses
         let reference_use_regex = Regex::new(r"\[([^\]]+)\]\[([^\]]*)\]").unwrap();
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-            
+
             for caps in reference_use_regex.captures_iter(line) {
                 let ref_name = if caps.get(2).unwrap().as_str().is_empty() {
                     caps.get(1).unwrap().as_str().to_lowercase()
                 } else {
                     caps.get(2).unwrap().as_str().to_lowercase()
                 };
-                
+
                 if !references.contains_key(&ref_name) {
                     let match_start = caps.get(0).unwrap().start();
                     let match_end = caps.get(0).unwrap().end();
-                    
+
                     self.warnings.push(SpellError {
                         line: line_num,
                         column: match_start + 1,
@@ -751,15 +764,15 @@ impl SpellSyntaxChecker {
         let mut list_markers = Vec::new();
         let mut in_list = false;
         let mut current_offset = 0;
-        
+
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-            
+
             let list_marker_regex = Regex::new(r"^(\s*)([-*+])\s").unwrap();
             if let Some(caps) = list_marker_regex.captures(line) {
                 let indent = caps.get(1).unwrap().as_str();
                 let marker = caps.get(2).unwrap().as_str();
-                
+
                 if !in_list {
                     in_list = true;
                     list_markers.clear();
@@ -767,20 +780,27 @@ impl SpellSyntaxChecker {
                 } else {
                     let current_indent = indent.len();
                     let current_marker = marker.chars().next().unwrap();
-                    
-                    if let Some((_, expected_marker)) = list_markers.iter().find(|(i, _)| *i == current_indent) {
+
+                    if let Some((_, expected_marker)) =
+                        list_markers.iter().find(|(i, _)| *i == current_indent)
+                    {
                         if *expected_marker != current_marker {
                             let marker_start = caps.get(2).unwrap().start();
                             let marker_end = caps.get(2).unwrap().end();
-                            
+
                             self.warnings.push(SpellError {
                                 line: line_num,
                                 column: marker_start + 1,
                                 start_offset: current_offset + marker_start,
                                 end_offset: current_offset + marker_end,
                                 warning_type: SpellType::InconsistentListMarkers,
-                                message: format!("Inconsistent list marker '{}', expected '{}'", current_marker, expected_marker),
-                                suggestion: Some("Use consistent list markers throughout the list".to_string()),
+                                message: format!(
+                                    "Inconsistent list marker '{}', expected '{}'",
+                                    current_marker, expected_marker
+                                ),
+                                suggestion: Some(
+                                    "Use consistent list markers throughout the list".to_string(),
+                                ),
                             });
                         }
                     } else {
@@ -802,7 +822,7 @@ impl SpellSyntaxChecker {
         let start_iter = buffer.start_iter();
         let end_iter = buffer.end_iter();
         let tag_table = buffer.tag_table();
-        
+
         // Only remove tags that actually exist in this buffer's tag table
         if let Some(tag) = tag_table.lookup("markdown-warning") {
             buffer.remove_tag(&tag, &start_iter, &end_iter);
@@ -823,7 +843,9 @@ impl SpellSyntaxChecker {
             let end_iter = buffer.iter_at_offset(warning.end_offset as i32);
 
             let tag_name = match warning.warning_type {
-                SpellType::BrokenLink | SpellType::BrokenImage | SpellType::EmptyLink => "broken-link",
+                SpellType::BrokenLink | SpellType::BrokenImage | SpellType::EmptyLink => {
+                    "broken-link"
+                }
                 SpellType::RawHtml => "html-warning",
                 // Structure issues get blue underline
                 SpellType::UncloseTag
@@ -847,12 +869,12 @@ impl SpellSyntaxChecker {
     fn build_line_offsets(&self, content: &str) -> Vec<usize> {
         let mut offsets = Vec::new();
         let mut current_offset = 0;
-        
+
         for line in content.lines() {
             current_offset += line.len() + 1; // +1 for newline
             offsets.push(current_offset);
         }
-        
+
         offsets
     }
 
@@ -860,12 +882,16 @@ impl SpellSyntaxChecker {
     fn offset_to_line_col(&self, offset: usize, line_offsets: &[usize]) -> (usize, usize) {
         for (line_num, &line_offset) in line_offsets.iter().enumerate() {
             if offset < line_offset {
-                let line_start = if line_num == 0 { 0 } else { line_offsets[line_num - 1] };
+                let line_start = if line_num == 0 {
+                    0
+                } else {
+                    line_offsets[line_num - 1]
+                };
                 let column = offset - line_start + 1;
                 return (line_num + 1, column);
             }
         }
-        
+
         (line_offsets.len() + 1, 1)
     }
 
@@ -877,12 +903,12 @@ impl SpellSyntaxChecker {
     /// Clear all warnings and visual indicators
     pub fn clear_warnings(&mut self) {
         self.warnings.clear();
-        
+
         if let Some(buffer) = &self.buffer {
             let start_iter = buffer.start_iter();
             let end_iter = buffer.end_iter();
             let tag_table = buffer.tag_table();
-            
+
             // Only remove tags that actually exist in this buffer's tag table
             if let Some(tag) = tag_table.lookup("markdown-error") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
@@ -966,7 +992,9 @@ mod tests {
     #[test]
     fn test_valid_markdown() {
         let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint("# Heading\n\nThis is **bold** and *italic* text.\n\n[Link](https://example.com)");
+        let warnings = checker.lint(
+            "# Heading\n\nThis is **bold** and *italic* text.\n\n[Link](https://example.com)",
+        );
         assert_eq!(warnings.len(), 0);
     }
 }

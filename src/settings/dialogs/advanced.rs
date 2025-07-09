@@ -1,9 +1,9 @@
-use gtk4::prelude::*;
-use gtk4::{Box, Button, Label, Orientation, Notebook, Align};
-use std::rc::Rc;
-use std::cell::RefCell;
-use crate::settings::core::{SettingsChangeTracker, OriginalSettings};
 use super::common::create_settings_section_header;
+use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
+use gtk4::prelude::*;
+use gtk4::{Align, Box, Button, Label, Notebook, Orientation};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Helper to create a settings row: title/subtitle left, selector right, vertically aligned
 fn create_settings_row_aligned(
@@ -65,12 +65,18 @@ pub fn create_advanced_settings_page(
         move |button| {
             let file_chooser = gtk4::FileChooserDialog::new(
                 Some("Select CSS File"),
-                Some(button.root().unwrap().downcast_ref::<gtk4::Window>().unwrap()),
+                Some(
+                    button
+                        .root()
+                        .unwrap()
+                        .downcast_ref::<gtk4::Window>()
+                        .unwrap(),
+                ),
                 gtk4::FileChooserAction::Open,
                 &[
                     ("Cancel", gtk4::ResponseType::Cancel),
                     ("Select", gtk4::ResponseType::Accept),
-                ]
+                ],
             );
             let filter = gtk4::FileFilter::new();
             filter.set_name(Some("CSS Files"));
@@ -87,7 +93,9 @@ pub fn create_advanced_settings_page(
                             let path_str = path.to_str().unwrap_or("");
                             change_tracker.borrow_mut().custom_css_file = path_str.to_string();
                             button_clone.set_label(&format!("CSS File: {}", path.display()));
-                            save_button.set_sensitive(change_tracker.borrow().has_changes(&original_settings));
+                            save_button.set_sensitive(
+                                change_tracker.borrow().has_changes(&original_settings),
+                            );
                         }
                     }
                 }
@@ -99,7 +107,7 @@ pub fn create_advanced_settings_page(
     let css_row = create_settings_row_aligned(
         "Custom CSS file",
         Some("Path to a custom CSS file to override preview styling"),
-        &css_button
+        &css_button,
     );
     page_box.append(&css_row);
 

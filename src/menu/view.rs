@@ -1,22 +1,29 @@
-use gtk4::prelude::*;
-use gtk4::{Application, gio};
 use crate::{editor, language, settings};
+use gtk4::prelude::*;
+use gtk4::{gio, Application};
 
-pub fn add_view_menu(menu_model: &gio::Menu, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) {
+pub fn add_view_menu(
+    menu_model: &gio::Menu,
+    editor: &editor::MarkdownEditor,
+    theme_manager: &crate::theme::ThemeManager,
+) {
     let view_menu = create_view_menu(editor, theme_manager);
     menu_model.append_submenu(Some(&language::tr("menu.view")), &view_menu);
 }
 
-pub fn create_view_menu(_editor: &editor::MarkdownEditor, _theme_manager: &crate::theme::ThemeManager) -> gio::Menu {
+pub fn create_view_menu(
+    _editor: &editor::MarkdownEditor,
+    _theme_manager: &crate::theme::ThemeManager,
+) -> gio::Menu {
     let view_menu = gio::Menu::new();
-    
+
     // Get current settings
     let prefs = settings::get_app_preferences();
     let current_view_mode = prefs.get_view_mode();
-    
+
     // Add view mode submenu
     let view_mode_menu = gio::Menu::new();
-    
+
     // Create view mode menu items with checkmarks based on settings
     let html_label = if current_view_mode == "html" {
         "HTML\t✓"
@@ -24,27 +31,31 @@ pub fn create_view_menu(_editor: &editor::MarkdownEditor, _theme_manager: &crate
         "HTML"
     };
     view_mode_menu.append(Some(html_label), Some("app.view_html"));
-    
+
     let code_label = if current_view_mode == "code" {
         "HTML Code\t✓"
     } else {
         "HTML Code"
     };
     view_mode_menu.append(Some(code_label), Some("app.view_code"));
-    
+
     view_menu.append_submenu(Some("Preview Mode"), &view_mode_menu);
-    
+
     // Add settings separator and menu item
     view_menu.append_section(None, &{
         let settings_section = gio::Menu::new();
         settings_section.append(Some(&language::tr("menu.settings")), Some("app.settings"));
         settings_section
     });
-    
+
     view_menu
 }
 
-pub fn create_view_actions(app: &Application, editor: &editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) {
+pub fn create_view_actions(
+    app: &Application,
+    editor: &editor::MarkdownEditor,
+    theme_manager: &crate::theme::ThemeManager,
+) {
     // View mode actions
     let view_html_action = gio::ActionEntry::builder("view_html")
         .activate({
@@ -71,7 +82,7 @@ pub fn create_view_actions(app: &Application, editor: &editor::MarkdownEditor, t
             }
         })
         .build();
-    
+
     // Settings action
     let settings_action = gio::ActionEntry::builder("settings")
         .activate({
@@ -88,9 +99,9 @@ pub fn create_view_actions(app: &Application, editor: &editor::MarkdownEditor, t
             }
         })
         .build();
-    
+
     // Add only the view and settings actions to the application
     let all_actions = vec![view_html_action, view_code_action, settings_action];
-    
+
     app.add_action_entries(all_actions);
 }

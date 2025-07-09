@@ -1,9 +1,12 @@
 // Custom Shortcuts Dialog - Modern GTK4 ShortcutsWindow-style design
 // Built with CSS styling and custom widgets for a polished look
 
-use gtk4::prelude::*;
-use gtk4::{Orientation, Align, Grid, Label, Dialog, ScrolledWindow, Box, Button, Stack, StackSidebar, Separator};
 use crate::language;
+use gtk4::prelude::*;
+use gtk4::{
+    Align, Box, Button, Dialog, Grid, Label, Orientation, ScrolledWindow, Separator, Stack,
+    StackSidebar,
+};
 
 /// Show a modern shortcuts dialog with section navigation
 pub fn show_shortcuts_dialog(parent: &gtk4::Window) {
@@ -13,55 +16,55 @@ pub fn show_shortcuts_dialog(parent: &gtk4::Window) {
     dialog.set_title(Some(&language::tr("shortcuts.title")));
     dialog.set_default_size(900, 650);
     dialog.set_resizable(true);
-    
+
     // Apply custom CSS styling
     apply_shortcuts_dialog_css();
-    
+
     // Create main container
     let main_box = Box::new(Orientation::Vertical, 0);
     main_box.add_css_class("shortcuts-window");
-    
+
     // Create header with title and close button
     let header = create_header_bar(&dialog);
     main_box.append(&header);
-    
+
     // Create content area with sidebar navigation
     let content_box = Box::new(Orientation::Horizontal, 0);
     content_box.set_vexpand(true);
     content_box.add_css_class("shortcuts-content");
-    
+
     // Create stack for different sections
     let stack = Stack::new();
     stack.set_transition_type(gtk4::StackTransitionType::SlideLeftRight);
     stack.set_transition_duration(200);
-    
+
     // Create sidebar for navigation
     let sidebar = StackSidebar::new();
     sidebar.set_stack(&stack);
     sidebar.set_width_request(200);
     sidebar.add_css_class("shortcuts-sidebar");
-    
+
     // Add sections to the stack
     add_editing_section(&stack);
     add_formatting_section(&stack);
     add_insert_section(&stack);
     add_view_section(&stack);
     add_advanced_section(&stack);
-    
+
     // Add sidebar and stack to content
     content_box.append(&sidebar);
     content_box.append(&stack);
-    
+
     main_box.append(&content_box);
-    
+
     // Set up dialog
     dialog.set_child(Some(&main_box));
-    
+
     // Connect close button
     dialog.connect_response(|dialog, _| {
         dialog.close();
     });
-    
+
     dialog.present();
 }
 
@@ -70,19 +73,19 @@ fn create_header_bar(dialog: &Dialog) -> Box {
     let header = Box::new(Orientation::Horizontal, 0);
     header.set_height_request(48);
     header.add_css_class("shortcuts-header");
-    
+
     // Title
     let title_label = Label::new(Some(&language::tr("shortcuts.title")));
     title_label.add_css_class("shortcuts-title");
     title_label.set_halign(Align::Start);
     title_label.set_hexpand(true);
     header.append(&title_label);
-    
+
     // Close button
     let close_button = Button::with_label("✕");
     close_button.add_css_class("shortcuts-close");
     close_button.set_halign(Align::End);
-    
+
     {
         let dialog_weak = dialog.downgrade();
         close_button.connect_clicked(move |_| {
@@ -91,7 +94,7 @@ fn create_header_bar(dialog: &Dialog) -> Box {
             }
         });
     }
-    
+
     header.append(&close_button);
     header
 }
@@ -99,7 +102,7 @@ fn create_header_bar(dialog: &Dialog) -> Box {
 /// Add editing section (File, Edit operations)
 fn add_editing_section(stack: &Stack) {
     let section = create_section_container();
-    
+
     // File Operations Group
     let file_group = create_shortcut_group(
         "File Operations",
@@ -109,10 +112,10 @@ fn add_editing_section(stack: &Stack) {
             ("Ctrl+S", "Save Document"),
             ("Ctrl+Shift+S", "Save As..."),
             ("Ctrl+Q", "Quit Application"),
-        ]
+        ],
     );
     section.append(&file_group);
-    
+
     // Edit Operations Group
     let edit_group = create_shortcut_group(
         "Edit Operations",
@@ -125,10 +128,10 @@ fn add_editing_section(stack: &Stack) {
             ("Ctrl+A", "Select All"),
             ("Ctrl+F", "Find"),
             ("Ctrl+H", "Replace"),
-        ]
+        ],
     );
     section.append(&edit_group);
-    
+
     // Create scrolled window for this section
     let section_scroll = create_scrolled_section(&section);
     stack.add_titled(&section_scroll, Some("editing"), "Editing");
@@ -137,44 +140,83 @@ fn add_editing_section(stack: &Stack) {
 /// Add formatting section
 fn add_formatting_section(stack: &Stack) {
     let section = create_section_container();
-    
+
     // Basic Formatting Group
     let basic_group = create_shortcut_group(
         &language::tr("shortcuts.basic_formatting"),
         &[
-            (&language::tr("shortcuts.ctrl_b"), &language::tr("shortcuts.bold_text")),
-            (&language::tr("shortcuts.ctrl_i"), &language::tr("shortcuts.italic_text")),
-            (&language::tr("shortcuts.ctrl_u"), &language::tr("shortcuts.strikethrough_text")),
-            (&language::tr("shortcuts.ctrl_backtick"), &language::tr("shortcuts.inline_code")),
-        ]
+            (
+                &language::tr("shortcuts.ctrl_b"),
+                &language::tr("shortcuts.bold_text"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_i"),
+                &language::tr("shortcuts.italic_text"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_u"),
+                &language::tr("shortcuts.strikethrough_text"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_backtick"),
+                &language::tr("shortcuts.inline_code"),
+            ),
+        ],
     );
     section.append(&basic_group);
-    
+
     // Headings Group
     let headings_group = create_shortcut_group(
         &language::tr("shortcuts.headings"),
         &[
-            (&language::tr("shortcuts.ctrl_1"), &language::tr("shortcuts.heading_1")),
-            (&language::tr("shortcuts.ctrl_2"), &language::tr("shortcuts.heading_2")),
-            (&language::tr("shortcuts.ctrl_3"), &language::tr("shortcuts.heading_3")),
-            (&language::tr("shortcuts.ctrl_4"), &language::tr("shortcuts.heading_4")),
-            (&language::tr("shortcuts.ctrl_5"), &language::tr("shortcuts.heading_5")),
-            (&language::tr("shortcuts.ctrl_6"), &language::tr("shortcuts.heading_6")),
-        ]
+            (
+                &language::tr("shortcuts.ctrl_1"),
+                &language::tr("shortcuts.heading_1"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_2"),
+                &language::tr("shortcuts.heading_2"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_3"),
+                &language::tr("shortcuts.heading_3"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_4"),
+                &language::tr("shortcuts.heading_4"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_5"),
+                &language::tr("shortcuts.heading_5"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_6"),
+                &language::tr("shortcuts.heading_6"),
+            ),
+        ],
     );
     section.append(&headings_group);
-    
+
     // Lists and Quotes Group
     let lists_group = create_shortcut_group(
         &language::tr("shortcuts.lists_and_quotes"),
         &[
-            (&language::tr("shortcuts.ctrl_shift_8"), &language::tr("shortcuts.bullet_list")),
-            (&language::tr("shortcuts.ctrl_shift_7"), &language::tr("shortcuts.numbered_list")),
-            (&language::tr("shortcuts.ctrl_shift_period"), &language::tr("shortcuts.blockquote")),
-        ]
+            (
+                &language::tr("shortcuts.ctrl_shift_8"),
+                &language::tr("shortcuts.bullet_list"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_shift_7"),
+                &language::tr("shortcuts.numbered_list"),
+            ),
+            (
+                &language::tr("shortcuts.ctrl_shift_period"),
+                &language::tr("shortcuts.blockquote"),
+            ),
+        ],
     );
     section.append(&lists_group);
-    
+
     // Create scrolled window for this section
     let section_scroll = create_scrolled_section(&section);
     stack.add_titled(&section_scroll, Some("formatting"), "Formatting");
@@ -183,20 +225,23 @@ fn add_formatting_section(stack: &Stack) {
 /// Add insert section
 fn add_insert_section(stack: &Stack) {
     let section = create_section_container();
-    
+
     // Insert Elements Group
     let insert_group = create_shortcut_group(
         "Insert Elements",
         &[
-            (&language::tr("shortcuts.ctrl_k"), &language::tr("shortcuts.insert_link")),
+            (
+                &language::tr("shortcuts.ctrl_k"),
+                &language::tr("shortcuts.insert_link"),
+            ),
             ("Ctrl+Shift+I", "Insert Image"),
             ("Ctrl+Shift+T", "Insert Table"),
             ("Ctrl+Shift+H", "Insert Horizontal Rule"),
             ("Ctrl+.", "Insert Emoji"),
-        ]
+        ],
     );
     section.append(&insert_group);
-    
+
     // Code Blocks Group
     let code_group = create_shortcut_group(
         "Code Blocks",
@@ -204,10 +249,10 @@ fn add_insert_section(stack: &Stack) {
             ("Ctrl+Shift+C", "Insert Code Block"),
             ("Ctrl+Shift+F", "Insert Fenced Code Block"),
             ("Ctrl+Shift+`", "Toggle Inline Code"),
-        ]
+        ],
     );
     section.append(&code_group);
-    
+
     // Create scrolled window for this section
     let section_scroll = create_scrolled_section(&section);
     stack.add_titled(&section_scroll, Some("insert"), "Insert");
@@ -216,7 +261,7 @@ fn add_insert_section(stack: &Stack) {
 /// Add view section
 fn add_view_section(stack: &Stack) {
     let section = create_section_container();
-    
+
     // View Operations Group
     let view_group = create_shortcut_group(
         "View Operations",
@@ -228,10 +273,10 @@ fn add_view_section(stack: &Stack) {
             ("Ctrl+Plus", "Zoom In"),
             ("Ctrl+Minus", "Zoom Out"),
             ("Ctrl+0", "Reset Zoom"),
-        ]
+        ],
     );
     section.append(&view_group);
-    
+
     // Navigation Group
     let nav_group = create_shortcut_group(
         "Navigation",
@@ -241,10 +286,10 @@ fn add_view_section(stack: &Stack) {
             ("Ctrl+End", "Go to End"),
             ("Ctrl+Left", "Word Left"),
             ("Ctrl+Right", "Word Right"),
-        ]
+        ],
     );
     section.append(&nav_group);
-    
+
     // Create scrolled window for this section
     let section_scroll = create_scrolled_section(&section);
     stack.add_titled(&section_scroll, Some("view"), "View");
@@ -253,7 +298,7 @@ fn add_view_section(stack: &Stack) {
 /// Add advanced section
 fn add_advanced_section(stack: &Stack) {
     let section = create_section_container();
-    
+
     // Advanced Formatting Group
     let advanced_group = create_shortcut_group(
         "Advanced Formatting",
@@ -264,10 +309,10 @@ fn add_advanced_section(stack: &Stack) {
             ("Ctrl+Shift+M", "Highlight"),
             ("Ctrl+Shift+Plus", "Superscript"),
             ("Ctrl+Shift+Minus", "Subscript"),
-        ]
+        ],
     );
     section.append(&advanced_group);
-    
+
     // Help Group
     let help_group = create_shortcut_group(
         "Help",
@@ -275,10 +320,10 @@ fn add_advanced_section(stack: &Stack) {
             ("Ctrl+?", "Show Keyboard Shortcuts"),
             ("F1", "Show Markdown Guide"),
             ("Ctrl+Shift+A", "About Marco"),
-        ]
+        ],
     );
     section.append(&help_group);
-    
+
     // Create scrolled window for this section
     let section_scroll = create_scrolled_section(&section);
     stack.add_titled(&section_scroll, Some("advanced"), "Advanced");
@@ -309,39 +354,39 @@ fn create_scrolled_section(section: &Box) -> ScrolledWindow {
 fn create_shortcut_group(title: &str, shortcuts: &[(&str, &str)]) -> Box {
     let group = Box::new(Orientation::Vertical, 12);
     group.add_css_class("shortcuts-group");
-    
+
     // Group title
     let title_label = Label::new(Some(title));
     title_label.set_halign(Align::Start);
     title_label.add_css_class("shortcuts-group-title");
     group.append(&title_label);
-    
+
     // Shortcuts grid
     let grid = Grid::new();
     grid.set_row_spacing(8);
     grid.set_column_spacing(32);
     grid.set_margin_start(16);
     grid.add_css_class("shortcuts-grid");
-    
+
     for (row, (shortcut, description)) in shortcuts.iter().enumerate() {
         // Keyboard shortcut display
         let shortcut_box = create_shortcut_key_display(shortcut);
         grid.attach(&shortcut_box, 0, row as i32, 1, 1);
-        
+
         // Description
         let desc_label = Label::new(Some(description));
         desc_label.set_halign(Align::Start);
         desc_label.add_css_class("shortcuts-description");
         grid.attach(&desc_label, 1, row as i32, 1, 1);
     }
-    
+
     group.append(&grid);
-    
+
     // Add separator after group (except for last group)
     let separator = Separator::new(Orientation::Horizontal);
     separator.add_css_class("shortcuts-separator");
     group.append(&separator);
-    
+
     group
 }
 
@@ -350,10 +395,10 @@ fn create_shortcut_key_display(shortcut: &str) -> Box {
     let key_box = Box::new(Orientation::Horizontal, 4);
     key_box.set_halign(Align::Start);
     key_box.add_css_class("shortcuts-key-container");
-    
+
     // Split shortcut into individual keys
     let keys: Vec<&str> = shortcut.split('+').collect();
-    
+
     for (i, key) in keys.iter().enumerate() {
         if i > 0 {
             // Add "+" separator
@@ -361,13 +406,13 @@ fn create_shortcut_key_display(shortcut: &str) -> Box {
             plus_label.add_css_class("shortcuts-key-separator");
             key_box.append(&plus_label);
         }
-        
+
         // Create key badge
         let key_label = Label::new(Some(key));
         key_label.add_css_class("shortcuts-key");
         key_box.append(&key_label);
     }
-    
+
     key_box
 }
 
@@ -496,7 +541,7 @@ fn apply_shortcuts_dialog_css() {
         }
         "
     );
-    
+
     gtk4::style_context_add_provider_for_display(
         &gtk4::gdk::Display::default().unwrap(),
         &css_provider,

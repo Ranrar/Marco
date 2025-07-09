@@ -14,13 +14,13 @@ pub fn create_labeled_entry(
     let label = Label::new(Some(label_text));
     label.set_halign(gtk4::Align::End);
     grid.attach(&label, 0, row, 1, 1);
-    
+
     let entry = Entry::new();
     if let Some(placeholder) = placeholder {
         entry.set_placeholder_text(Some(placeholder));
     }
     grid.attach(&entry, 1, row, 1, 1);
-    
+
     entry
 }
 
@@ -33,19 +33,22 @@ pub fn create_file_picker_button_for_dialog(
     url_entry: &Entry,
 ) -> Button {
     let button = Button::with_label(label);
-    
+
     let parent_clone = parent_dialog.clone();
     let title_clone = title.to_string();
     let url_entry_clone = url_entry.clone();
-    
+
     button.connect_clicked(move |_| {
         let dialog = FileChooserDialog::new(
             Some(&title_clone),
             Some(&parent_clone),
             FileChooserAction::Open,
-            &[("Cancel", ResponseType::Cancel), ("Open", ResponseType::Accept)],
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Open", ResponseType::Accept),
+            ],
         );
-        
+
         // Add file filters if provided
         if let Some(filters) = &file_filters {
             // Create a single filter for all image files
@@ -57,14 +60,14 @@ pub fn create_file_picker_button_for_dialog(
                 }
             }
             dialog.add_filter(&image_filter);
-            
+
             // Add "All files" filter
             let all_filter = FileFilter::new();
             all_filter.set_name(Some("All files"));
             all_filter.add_pattern("*");
             dialog.add_filter(&all_filter);
         }
-        
+
         let url_entry_inner = url_entry_clone.clone();
         dialog.connect_response(move |dialog, response| {
             if response == ResponseType::Accept {
@@ -78,9 +81,9 @@ pub fn create_file_picker_button_for_dialog(
             }
             dialog.close();
         });
-        
+
         dialog.present();
     });
-    
+
     button
 }

@@ -1,13 +1,21 @@
-use gtk4::{Dialog, Window, Button, Orientation, Notebook};
 use gtk4::glib;
+use gtk4::{Button, Dialog, Notebook, Orientation, Window};
 
-use crate::settings::dialogs::{editor::create_editor_settings_page, layout::create_layout_settings_page, appearance::create_appearance_settings_page, language::create_language_settings_page, advanced::create_advanced_settings_page};
-use crate::settings::core::{SettingsChangeTracker, OriginalSettings};
-use std::rc::Rc;
+use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
+use crate::settings::dialogs::{
+    advanced::create_advanced_settings_page, appearance::create_appearance_settings_page,
+    editor::create_editor_settings_page, language::create_language_settings_page,
+    layout::create_layout_settings_page,
+};
 use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Create and show the modular settings dialog
-pub fn show_settings_dialog(parent: &Window, editor: &crate::editor::MarkdownEditor, theme_manager: &crate::theme::ThemeManager) {
+pub fn show_settings_dialog(
+    parent: &Window,
+    editor: &crate::editor::MarkdownEditor,
+    theme_manager: &crate::theme::ThemeManager,
+) {
     let dialog = Dialog::builder()
         .title("Settings")
         .transient_for(parent)
@@ -67,7 +75,9 @@ pub fn show_settings_dialog(parent: &Window, editor: &crate::editor::MarkdownEdi
         let editor = editor.clone();
         let theme_manager = theme_manager.clone();
         save_button.connect_clicked(move |_| {
-            change_tracker.borrow().apply_changes(&editor, &theme_manager);
+            change_tracker
+                .borrow()
+                .apply_changes(&editor, &theme_manager);
             *change_tracker.borrow_mut() = SettingsChangeTracker::load_current();
             *settings_saved.borrow_mut() = true;
             dialog.close();
@@ -91,7 +101,8 @@ pub fn show_settings_dialog(parent: &Window, editor: &crate::editor::MarkdownEdi
                 confirm_dialog.add_button("Don't Save", gtk4::ResponseType::Accept);
                 confirm_dialog.add_button("Cancel", gtk4::ResponseType::Cancel);
                 let content = confirm_dialog.content_area();
-                let message = gtk4::Label::new(Some("You have unsaved changes. What would you like to do?"));
+                let message =
+                    gtk4::Label::new(Some("You have unsaved changes. What would you like to do?"));
                 message.set_wrap(true);
                 message.set_margin_top(16);
                 message.set_margin_bottom(16);
@@ -181,7 +192,8 @@ pub fn show_settings_dialog(parent: &Window, editor: &crate::editor::MarkdownEdi
                 confirm_dialog.add_button("Don't Save", gtk4::ResponseType::Accept);
                 confirm_dialog.add_button("Cancel", gtk4::ResponseType::Cancel);
                 let content = confirm_dialog.content_area();
-                let message = gtk4::Label::new(Some("You have unsaved changes. What would you like to do?"));
+                let message =
+                    gtk4::Label::new(Some("You have unsaved changes. What would you like to do?"));
                 message.set_wrap(true);
                 message.set_margin_top(16);
                 message.set_margin_bottom(16);
@@ -235,7 +247,11 @@ pub fn create_settings_section_header(title: &str, subtitle: Option<&str>) -> Bo
 }
 
 /// Create a row for a settings option (label + widget + optional description)
-pub fn create_settings_row(label: &str, widget: &impl IsA<Widget>, description: Option<&str>) -> Box {
+pub fn create_settings_row(
+    label: &str,
+    widget: &impl IsA<Widget>,
+    description: Option<&str>,
+) -> Box {
     let row_box = Box::new(gtk4::Orientation::Vertical, 2);
     let label_box = Box::new(gtk4::Orientation::Horizontal, 8);
     let label_widget = Label::new(Some(label));

@@ -24,6 +24,7 @@
     
     <!-- UI theme -->
     <key name="ui-theme" type="s">
+      <!-- Default is 'system' (System Default) -->
       <choices>
         <choice value='system'/>
         <choice value='light'/>
@@ -31,11 +32,12 @@
       </choices>
       <default>'system'</default>
       <summary>UI theme</summary>
-      <description>The UI theme to use: system follows desktop theme, light forces light theme, dark forces dark theme</description>
+      <description>The UI theme to use: system follows desktop theme, light forces light theme, dark forces dark theme. Default is 'system' (System Default).</description>
     </key>
     
     <!-- CSS theme -->
     <key name="css-theme" type="s">
+      <!-- Default is 'standard' (Standard CSS Theme) -->
       <choices>
         <choice value='standard'/>
         <choice value='github'/>
@@ -44,7 +46,7 @@
       </choices>
       <default>'standard'</default>
       <summary>CSS theme</summary>
-      <description>The CSS theme to use for rendering markdown content</description>
+      <description>The CSS theme to use for rendering markdown content. Default is 'standard' (Standard CSS Theme).</description>
     </key>
     
     <!-- Custom CSS file -->

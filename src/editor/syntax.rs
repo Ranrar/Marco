@@ -3,13 +3,13 @@ use std::collections::HashMap;
 
 // Public standalone color functions
 pub mod color {
-    use std::collections::HashMap;
     use gtk4::prelude::*;
     use sourceview5;
+    use std::collections::HashMap;
+    use syntect::easy::HighlightLines;
     use syntect::highlighting::ThemeSet;
     use syntect::parsing::SyntaxSet;
-    use syntect::easy::HighlightLines;
-    
+
     /// Parse color names and hex codes to RGBA
     pub fn parse_color(color: &str) -> Option<gdk4::RGBA> {
         match color.to_lowercase().as_str() {
@@ -59,25 +59,24 @@ pub mod color {
     /// Ensure a tag exists in the tag table
     pub fn ensure_tag_exists<F>(
         buffer: &sourceview5::Buffer,
-        tag_table: &mut HashMap<String, gtk4::TextTag>, 
-        name: &str, 
-        configure: F
-    )
-    where
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+        name: &str,
+        configure: F,
+    ) where
         F: FnOnce(&gtk4::TextTag),
     {
         if !tag_table.contains_key(name) {
             let tag = gtk4::TextTag::new(Some(name));
             configure(&tag);
-            
+
             // Add the tag to the buffer's tag table
             let gtk_tag_table = buffer.tag_table();
             gtk_tag_table.add(&tag);
-            
+
             tag_table.insert(name.to_string(), tag);
         }
     }
-    
+
     /// Highlight colored text using style attributes
     pub fn highlight_colored_text(
         buffer: &sourceview5::Buffer,
@@ -91,7 +90,7 @@ pub mod color {
             if let Some(mat) = captures.get(0) {
                 let color_name = &captures[1];
                 let tag_name = format!("color_{}", color_name);
-                
+
                 ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
                     if let Some(rgba) = parse_color(color_name) {
                         tag.set_foreground_rgba(Some(&rgba));
@@ -109,7 +108,7 @@ pub mod color {
             if let Some(mat) = captures.get(0) {
                 let color_name = &captures[1];
                 let tag_name = format!("font_color_{}", color_name);
-                
+
                 ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
                     if let Some(rgba) = parse_color(color_name) {
                         tag.set_foreground_rgba(Some(&rgba));
@@ -130,12 +129,17 @@ pub mod color {
         tag_table: &mut HashMap<String, gtk4::TextTag>,
         theme_name: &str,
     ) {
-        println!("DEBUG: apply_syntect_highlighting called with text length: {}, theme: {}", text.len(), theme_name);
-        
+        println!(
+            "DEBUG: apply_syntect_highlighting called with text length: {}, theme: {}",
+            text.len(),
+            theme_name
+        );
+
         // Load syntax set and theme set (including custom themes from assets)
         let ps = SyntaxSet::load_defaults_newlines();
-        let ts = ThemeSet::load_from_folder("src/assets/themes").unwrap_or_else(|_| ThemeSet::load_defaults());
-        
+        let ts = ThemeSet::load_from_folder("src/assets/themes")
+            .unwrap_or_else(|_| ThemeSet::load_defaults());
+
         // Map the theme name to the correct custom theme
         let actual_theme_name = match theme_name {
             "light" => {
@@ -156,22 +160,31 @@ pub mod color {
                     "base16-ocean.dark"
                 }
             }
-            _ => theme_name // Use as-is for any other theme names
+            _ => theme_name, // Use as-is for any other theme names
         };
-        
+
         // Try to find the theme, fallback to default if not found
-        let theme = ts.themes.get(actual_theme_name)
+        let theme = ts
+            .themes
+            .get(actual_theme_name)
             .or_else(|| ts.themes.get("MarcoDark"))
             .or_else(|| ts.themes.get("MarcoLight"))
             .or_else(|| ts.themes.get("base16-ocean.dark"))
             .or_else(|| ts.themes.values().next())
             .expect("No themes available");
-        
-        println!("DEBUG: Using theme: {} -> {}", theme_name, actual_theme_name);
-        println!("DEBUG: Theme loaded: {:?}", theme.name.as_ref().unwrap_or(&"unknown".to_string()));
-        
+
+        println!(
+            "DEBUG: Using theme: {} -> {}",
+            theme_name, actual_theme_name
+        );
+        println!(
+            "DEBUG: Theme loaded: {:?}",
+            theme.name.as_ref().unwrap_or(&"unknown".to_string())
+        );
+
         // Find markdown syntax
-        let syntax = ps.find_syntax_by_extension("md")
+        let syntax = ps
+            .find_syntax_by_extension("md")
             .or_else(|| ps.find_syntax_by_name("Markdown"))
             .unwrap_or_else(|| ps.find_syntax_plain_text());
 
@@ -179,40 +192,60 @@ pub mod color {
 
         let mut h = HighlightLines::new(syntax, theme);
         let mut total_tags_applied = 0;
-        
+
         // Split text into lines and highlight each line
         for (line_idx, line) in text.lines().enumerate() {
             if let Ok(ranges) = h.highlight_line(line, &ps) {
                 let mut char_offset = 0;
-                
+
                 // Calculate the starting position of this line in the buffer
-                let line_start_offset: usize = text.lines()
+                let line_start_offset: usize = text
+                    .lines()
                     .take(line_idx)
                     .map(|l| l.len() + 1) // +1 for newline
                     .sum();
-                
+
                 for (style, segment) in ranges {
                     if !segment.is_empty() {
                         let start_pos = line_start_offset + char_offset;
                         let end_pos = start_pos + segment.len();
-                        
+
                         // Create a unique tag name based on the style
-                        let tag_name = format!("syntect_{}_{}_{}_{}", 
-                            style.foreground.r, style.foreground.g, style.foreground.b,
-                            if style.font_style.contains(syntect::highlighting::FontStyle::BOLD) { "bold" } else { "normal" }
+                        let tag_name = format!(
+                            "syntect_{}_{}_{}_{}",
+                            style.foreground.r,
+                            style.foreground.g,
+                            style.foreground.b,
+                            if style
+                                .font_style
+                                .contains(syntect::highlighting::FontStyle::BOLD)
+                            {
+                                "bold"
+                            } else {
+                                "normal"
+                            }
                         );
-                        
+
                         ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
                             let fg_color = syntect_color_to_rgba(style.foreground);
                             tag.set_foreground_rgba(Some(&fg_color));
-                            
-                            if style.font_style.contains(syntect::highlighting::FontStyle::BOLD) {
+
+                            if style
+                                .font_style
+                                .contains(syntect::highlighting::FontStyle::BOLD)
+                            {
                                 tag.set_weight(700); // Bold weight
                             }
-                            if style.font_style.contains(syntect::highlighting::FontStyle::ITALIC) {
+                            if style
+                                .font_style
+                                .contains(syntect::highlighting::FontStyle::ITALIC)
+                            {
                                 tag.set_style(pango::Style::Italic);
                             }
-                            if style.font_style.contains(syntect::highlighting::FontStyle::UNDERLINE) {
+                            if style
+                                .font_style
+                                .contains(syntect::highlighting::FontStyle::UNDERLINE)
+                            {
                                 tag.set_underline(pango::Underline::Single);
                             }
                         });
@@ -223,19 +256,22 @@ pub mod color {
                         buffer.apply_tag(&tag_table[&tag_name], &start_iter, &end_iter);
                         total_tags_applied += 1;
                     }
-                    
+
                     char_offset += segment.len();
                 }
             }
         }
-        
-        println!("DEBUG: Applied {} syntect tags to buffer", total_tags_applied);
+
+        println!(
+            "DEBUG: Applied {} syntect tags to buffer",
+            total_tags_applied
+        );
     }
 }
 
 impl MarkdownEditor {
     // Extra Markdown Syntax Methods
-    
+
     // --- Markdown Color Highlighting Logic ---
 
     /// Highlight colored text using style attributes (moved from advanced.rs)
@@ -253,7 +289,7 @@ impl MarkdownEditor {
             text,
             tag_table,
             color_regex,
-            font_color_regex
+            font_color_regex,
         )
     }
 
@@ -265,12 +301,7 @@ impl MarkdownEditor {
         tag_table: &mut HashMap<String, gtk4::TextTag>,
         theme_name: &str,
     ) {
-        crate::editor::syntax::color::apply_syntax_coloring(
-            buffer,
-            text,
-            tag_table,
-            theme_name
-        )
+        crate::editor::syntax::color::apply_syntax_coloring(buffer, text, tag_table, theme_name)
     }
 
     /// Parse color names and hex codes to RGBA (delegated to the color module)
@@ -281,11 +312,10 @@ impl MarkdownEditor {
     /// Ensure a tag exists in the tag table (delegated to the color module)
     pub fn ensure_tag_exists<F>(
         buffer: &sourceview5::Buffer,
-        tag_table: &mut HashMap<String, gtk4::TextTag>, 
-        name: &str, 
-        configure: F
-    )
-    where
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+        name: &str,
+        configure: F,
+    ) where
         F: FnOnce(&gtk4::TextTag),
     {
         crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, name, configure)
@@ -317,7 +347,13 @@ impl MarkdownEditor {
     }
 
     /// Insert image with size
-    pub fn insert_image_with_size(&self, src: &str, alt: &str, width: Option<&str>, height: Option<&str>) {
+    pub fn insert_image_with_size(
+        &self,
+        src: &str,
+        alt: &str,
+        width: Option<&str>,
+        height: Option<&str>,
+    ) {
         crate::markdown::advanced::insert_image_with_size(self, src, alt, width, height);
     }
 

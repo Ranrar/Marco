@@ -1,9 +1,9 @@
 // Colored text dialog - Insert colored text using HTML span tags
 // Simple dialog with text and color inputs plus live preview
 
-use gtk4::prelude::*;
 use crate::menu::dialogs::common::*;
 use crate::{editor, language};
+use gtk4::prelude::*;
 
 /// Show dialog to insert colored text
 pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {
@@ -11,11 +11,13 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
         Some(&language::tr("advanced.colored_text")),
         Some(window),
         gtk4::DialogFlags::MODAL,
-        &[(&language::tr("table_dialog.insert"), ResponseType::Accept), 
-          (&language::tr("table_dialog.cancel"), ResponseType::Cancel)],
+        &[
+            (&language::tr("table_dialog.insert"), ResponseType::Accept),
+            (&language::tr("table_dialog.cancel"), ResponseType::Cancel),
+        ],
     );
     let content_area = dialog.content_area();
-    
+
     // Create main container
     let main_container = create_content_box(Orientation::Vertical, 12);
     main_container.set_margin_top(12);
@@ -35,13 +37,9 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
     input_grid.set_margin_top(12);
 
     // Text input
-    let text_entry = builders::create_labeled_entry(
-        &input_grid,
-        0,
-        "Text to color:",
-        Some("Enter text here"),
-    );
-    
+    let text_entry =
+        builders::create_labeled_entry(&input_grid, 0, "Text to color:", Some("Enter text here"));
+
     // Pre-fill with selected text if available
     if let Some(selected_text) = editor.get_selected_text() {
         text_entry.set_text(&selected_text);
@@ -55,7 +53,7 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
         Some("#ff0000 or red"),
     );
     color_entry.set_text("#ff0000");
-    
+
     // Add input validation
     text_entry.connect_changed({
         let text_entry = text_entry.clone();
@@ -65,7 +63,7 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
             validation::remove_error_style(&color_entry);
         }
     });
-    
+
     color_entry.connect_changed({
         let color_entry = color_entry.clone();
         let text_entry = text_entry.clone();
@@ -81,7 +79,7 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
     let (preview_box, preview_text) = crate::menu::dialogs::common::create_preview_area("Preview");
     main_container.append(&preview_box);
     content_area.append(&main_container);
-    
+
     // Update preview function
     let update_preview = {
         let text_entry = text_entry.clone();
@@ -90,15 +88,22 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
         move || {
             let text = text_entry.text();
             let color = color_entry.text();
-            let preview = format!("<span style=\"color: {}\">{}</span>", color, 
-                                if text.is_empty() { "Sample text" } else { &text });
+            let preview = format!(
+                "<span style=\"color: {}\">{}</span>",
+                color,
+                if text.is_empty() {
+                    "Sample text"
+                } else {
+                    &text
+                }
+            );
             preview_buffer.set_text(&preview);
         }
     };
-    
+
     // Initial preview
     update_preview();
-    
+
     // Connect change signals
     text_entry.connect_changed({
         let update_preview = update_preview.clone();
@@ -108,26 +113,26 @@ pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::Markdown
         let update_preview = update_preview.clone();
         move |_| update_preview()
     });
-    
+
     // Set focus to text entry
     text_entry.grab_focus();
-    
+
     dialog.set_default_response(ResponseType::Accept);
     dialog.show();
 
     let editor_clone = editor.clone();
     let text_entry_clone = std::rc::Rc::new(text_entry);
     let color_entry_clone = std::rc::Rc::new(color_entry);
-    
+
     dialog.connect_response(move |dialog, resp| {
         if resp == ResponseType::Accept {
             let text = text_entry_clone.text();
             let color = color_entry_clone.text();
-            
+
             // Validate input using common validation
             let text_valid = validation::validate_not_empty(&text);
             let color_valid = validation::validate_html_color(&color);
-            
+
             if validation::validate_form_fields(&[
                 (text_valid, &*text_entry_clone),
                 (color_valid, &*color_entry_clone),

@@ -98,7 +98,7 @@
         <!-- Classes & Types -->
         <dict>
             <key>name</key>
-            <string>Type & Class</string>
+            <string>Type and Class</string>
             <key>scope</key>
             <string>entity.name.type, entity.name.class, storage.type, meta.class, meta.struct, support.type</string>
             <key>settings</key>
@@ -150,7 +150,7 @@
         <!-- Entity & Meta -->
         <dict>
             <key>name</key>
-            <string>Entity & Meta</string>
+            <string>Entity and Meta</string>
             <key>scope</key>
             <string>entity.name, meta, meta.annotation</string>
             <key>settings</key>

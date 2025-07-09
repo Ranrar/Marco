@@ -1,10 +1,10 @@
-use gtk4::prelude::*;
-use gtk4::{Box, Label, Orientation, Notebook, ComboBoxText, Button, Align};
-use std::rc::Rc;
-use std::cell::RefCell;
-use crate::settings::core::{SettingsChangeTracker, OriginalSettings};
 use super::common::create_settings_section_header;
+use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
 use crate::settings::ui::get_available_languages;
+use gtk4::prelude::*;
+use gtk4::{Align, Box, Button, ComboBoxText, Label, Notebook, Orientation};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Helper to create a settings row: title/subtitle left, selector right, vertically aligned
 fn create_settings_row_aligned(
@@ -75,7 +75,7 @@ pub fn create_language_settings_page(
     let language_row = create_settings_row_aligned(
         "Interface language",
         Some("Language for the application interface"),
-        &language_combo
+        &language_combo,
     );
     page_box.append(&language_row);
 

@@ -1,8 +1,8 @@
-use gtk4::prelude::*;
-use gtk4::{Box, Orientation, Button, Separator, DropDown, StringList};
-use std::rc::Rc;
-use std::cell::RefCell;
 use crate::{editor, language};
+use gtk4::prelude::*;
+use gtk4::{Box, Button, DropDown, Orientation, Separator, StringList};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Toolbar button references for updating active states
 pub struct ToolbarButtons {
@@ -14,34 +14,32 @@ pub struct ToolbarButtons {
     pub updating_dropdown: std::cell::RefCell<bool>, // Flag to prevent recursive updates
 }
 
-pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefCell<ToolbarButtons>>) {
+pub fn create_markdown_toolbar(
+    editor: &editor::MarkdownEditor,
+) -> (Box, Rc<RefCell<ToolbarButtons>>) {
     // BASIC SYNTAX ONLY - Markdown formatting toolbar
     let markdown_toolbar = Box::new(Orientation::Horizontal, 5);
     markdown_toolbar.set_margin_top(5);
     markdown_toolbar.set_margin_bottom(5);
     markdown_toolbar.set_margin_start(10);
     markdown_toolbar.set_margin_end(10);
-    
+
     // Create headings dropdown
-    let headings_list = StringList::new(&[
-        "H1",
-        "H2", 
-        "H3",
-        "H4",
-        "H5",
-        "H6",
-    ]);
-    
-    let headings_dropdown = DropDown::new(Some(headings_list.upcast::<gtk4::gio::ListModel>()), None::<&gtk4::Expression>);
+    let headings_list = StringList::new(&["H1", "H2", "H3", "H4", "H5", "H6"]);
+
+    let headings_dropdown = DropDown::new(
+        Some(headings_list.upcast::<gtk4::gio::ListModel>()),
+        None::<&gtk4::Expression>,
+    );
     headings_dropdown.set_selected(0); // Default to "H1"
     headings_dropdown.set_tooltip_text(Some(&language::tr("toolbar.tooltip.headings")));
-    
+
     markdown_toolbar.append(&headings_dropdown);
-    
+
     // Separator
     let sep1 = Separator::new(Orientation::Vertical);
     markdown_toolbar.append(&sep1);
-    
+
     // Text formatting buttons (Basic)
     let bold_button = Button::with_label("𝐁");
     bold_button.set_size_request(32, 32);
@@ -53,7 +51,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&bold_button);
-    
+
     let italic_button = Button::with_label("𝐼");
     italic_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.italic")));
     italic_button.connect_clicked({
@@ -63,7 +61,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&italic_button);
-    
+
     let code_button = Button::with_label("{ }");
     code_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.inline_code")));
     code_button.connect_clicked({
@@ -73,7 +71,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&code_button);
-    
+
     let strikethrough_button = Button::with_label("S̶");
     strikethrough_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.strikethrough")));
     strikethrough_button.connect_clicked({
@@ -83,7 +81,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&strikethrough_button);
-    
+
     // Store references to formatting buttons for state tracking
     let toolbar_buttons = Rc::new(RefCell::new(ToolbarButtons {
         headings_dropdown: headings_dropdown.clone(),
@@ -93,7 +91,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         strikethrough_button: strikethrough_button.clone(),
         updating_dropdown: std::cell::RefCell::new(false),
     }));
-    
+
     // Set up dropdown callback after toolbar_buttons is created
     headings_dropdown.connect_selected_notify({
         let editor = editor.clone();
@@ -105,7 +103,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
                     return; // Skip if we're updating programmatically
                 }
             }
-            
+
             let selected = dropdown.selected();
             match selected {
                 0 => editor.insert_heading(1), // H1
@@ -114,18 +112,18 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
                 3 => editor.insert_heading(4), // H4
                 4 => editor.insert_heading(5), // H5
                 5 => editor.insert_heading(6), // H6
-                _ => {},
+                _ => {}
             }
         }
     });
-    
+
     // Connect cursor tracking for visual feedback
     setup_cursor_tracking(editor, toolbar_buttons.clone());
-    
+
     // Separator
     let sep2 = Separator::new(Orientation::Vertical);
     markdown_toolbar.append(&sep2);
-    
+
     // List buttons (Basic)
     let bullet_list_button = Button::with_label("•");
     bullet_list_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.unordered_list")));
@@ -136,7 +134,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&bullet_list_button);
-    
+
     let numbered_list_button = Button::with_label("1.");
     numbered_list_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.ordered_list")));
     numbered_list_button.connect_clicked({
@@ -146,7 +144,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&numbered_list_button);
-    
+
     let quote_button = Button::with_label("❝");
     quote_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.blockquote")));
     quote_button.connect_clicked({
@@ -156,11 +154,11 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&quote_button);
-    
+
     // Separator
     let sep3 = Separator::new(Orientation::Vertical);
     markdown_toolbar.append(&sep3);
-    
+
     // Insert buttons (Basic)
     let link_button = Button::with_label("🔗");
     link_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.link")));
@@ -171,7 +169,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&link_button);
-    
+
     let image_button = Button::with_label("🖼");
     image_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.image")));
     image_button.connect_clicked({
@@ -181,7 +179,7 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&image_button);
-    
+
     let hr_button = Button::with_label("—");
     hr_button.set_tooltip_text(Some(&language::tr("toolbar.tooltip.horizontal_rule")));
     hr_button.connect_clicked({
@@ -191,15 +189,18 @@ pub fn create_markdown_toolbar(editor: &editor::MarkdownEditor) -> (Box, Rc<RefC
         }
     });
     markdown_toolbar.append(&hr_button);
-    
+
     (markdown_toolbar, toolbar_buttons)
 }
 
 /// Set up cursor tracking to update toolbar button states based on formatting at cursor
-fn setup_cursor_tracking(editor: &editor::MarkdownEditor, toolbar_buttons: Rc<RefCell<ToolbarButtons>>) {
+fn setup_cursor_tracking(
+    editor: &editor::MarkdownEditor,
+    toolbar_buttons: Rc<RefCell<ToolbarButtons>>,
+) {
     let buffer = editor.get_source_buffer().clone();
     let editor_clone = editor.clone();
-    
+
     buffer.connect_mark_set(move |buffer, _iter, mark| {
         // Only react to cursor movement (insert mark)
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
@@ -210,12 +211,15 @@ fn setup_cursor_tracking(editor: &editor::MarkdownEditor, toolbar_buttons: Rc<Re
 }
 
 /// Update toolbar button states based on formatting at cursor position
-fn update_toolbar_states(editor: &editor::MarkdownEditor, toolbar_buttons: &Rc<RefCell<ToolbarButtons>>) {
+fn update_toolbar_states(
+    editor: &editor::MarkdownEditor,
+    toolbar_buttons: &Rc<RefCell<ToolbarButtons>>,
+) {
     let buttons = toolbar_buttons.borrow();
-    
+
     // Set flag to indicate we're updating programmatically
     *buttons.updating_dropdown.borrow_mut() = true;
-    
+
     // Check for heading level at cursor and update dropdown
     if let Some(level) = editor.get_heading_level_at_cursor() {
         // Set dropdown to the appropriate heading level (1-6 maps to indices 0-5)
@@ -226,33 +230,35 @@ fn update_toolbar_states(editor: &editor::MarkdownEditor, toolbar_buttons: &Rc<R
         // No heading, set dropdown to first item (H1, index 0)
         buttons.headings_dropdown.set_selected(0);
     }
-    
+
     // Clear the flag
     *buttons.updating_dropdown.borrow_mut() = false;
-    
+
     // Check each formatting type and update button appearance
     if editor.is_cursor_in_format("**", "**") || editor.is_cursor_in_format("__", "__") {
         buttons.bold_button.add_css_class("active-format");
     } else {
         buttons.bold_button.remove_css_class("active-format");
     }
-    
+
     if editor.is_cursor_in_format("*", "*") || editor.is_cursor_in_format("_", "_") {
         buttons.italic_button.add_css_class("active-format");
     } else {
         buttons.italic_button.remove_css_class("active-format");
     }
-    
+
     if editor.is_cursor_in_format("`", "`") {
         buttons.code_button.add_css_class("active-format");
     } else {
         buttons.code_button.remove_css_class("active-format");
     }
-    
+
     if editor.is_cursor_in_format("~~", "~~") {
         buttons.strikethrough_button.add_css_class("active-format");
     } else {
-        buttons.strikethrough_button.remove_css_class("active-format");
+        buttons
+            .strikethrough_button
+            .remove_css_class("active-format");
     }
 }
 
@@ -260,13 +266,17 @@ fn update_toolbar_states(editor: &editor::MarkdownEditor, toolbar_buttons: &Rc<R
 pub fn rebuild_toolbar_in_window(app: &gtk4::Application, editor: &editor::MarkdownEditor) {
     if let Some(window) = app.active_window() {
         // Find the main box (first child of window)
-        if let Some(main_box) = window.child().and_then(|child| child.downcast::<gtk4::Box>().ok()) {
+        if let Some(main_box) = window
+            .child()
+            .and_then(|child| child.downcast::<gtk4::Box>().ok())
+        {
             // Find and remove existing toolbar (should be second child after menu bar)
             let mut child = main_box.first_child();
             let mut child_index = 0;
             while let Some(widget) = child {
                 let next_child = widget.next_sibling();
-                if child_index == 1 { // Toolbar is the second child (index 1)
+                if child_index == 1 {
+                    // Toolbar is the second child (index 1)
                     // Check if this is actually a toolbar by looking for buttons
                     if widget.is::<gtk4::Box>() {
                         main_box.remove(&widget);
@@ -276,10 +286,10 @@ pub fn rebuild_toolbar_in_window(app: &gtk4::Application, editor: &editor::Markd
                 child = next_child;
                 child_index += 1;
             }
-            
+
             // Create and insert new toolbar with updated translations
             let (new_toolbar, _toolbar_buttons) = create_markdown_toolbar(editor);
-            
+
             // Insert the new toolbar at position 1 (after menu bar)
             main_box.insert_child_after(&new_toolbar, main_box.first_child().as_ref());
         }

@@ -1,20 +1,27 @@
 use gtk4::prelude::*;
-use gtk4::{Button, HeaderBar, Image, Window, ApplicationWindow};
+use gtk4::{ApplicationWindow, Button, HeaderBar, Image, Window};
 
 /// Create a settings button with burger icon for the header bar
 pub fn create_settings_button() -> Button {
     let button = Button::new();
-    
+
     // Try to use system hamburger icon, fallback to Unicode
     let icon_theme = gtk4::IconTheme::for_display(&gtk4::gdk::Display::default().unwrap());
-    let icon = icon_theme.lookup_icon("open-menu-symbolic", &[], 16, 1, gtk4::TextDirection::None, gtk4::IconLookupFlags::empty());
-    
+    let icon = icon_theme.lookup_icon(
+        "open-menu-symbolic",
+        &[],
+        16,
+        1,
+        gtk4::TextDirection::None,
+        gtk4::IconLookupFlags::empty(),
+    );
+
     let image = Image::from_paintable(Some(&icon));
     button.set_child(Some(&image));
-    
+
     button.set_tooltip_text(Some("Settings"));
     // Use the same styling as toolbar buttons - remove "flat" class to get default button styling
-    
+
     button
 }
 
@@ -25,7 +32,7 @@ pub fn add_settings_button_to_header_bar(
     editor: &crate::editor::MarkdownEditor,
     theme_manager: &crate::theme::ThemeManager,
 ) {
-    use gtk4::{Popover, Orientation, Box as GtkBox, Align, Label, ListBox, ListBoxRow};
+    use gtk4::{Align, Box as GtkBox, Label, ListBox, ListBoxRow, Orientation, Popover};
     let settings_button = create_settings_button();
 
     // Show popover when settings button is clicked
@@ -35,7 +42,10 @@ pub fn add_settings_button_to_header_bar(
         let editor = editor.clone();
         let theme_manager = theme_manager.clone();
         move |btn| {
-            use gtk4::{Popover, Box as GtkBox, Orientation, Align, Button as GtkButton, ListBox, ListBoxRow, Label};
+            use gtk4::{
+                Align, Box as GtkBox, Button as GtkButton, Label, ListBox, ListBoxRow, Orientation,
+                Popover,
+            };
 
             // Create a vertical box to hold the header and menu
             let vbox = GtkBox::new(Orientation::Vertical, 0);
@@ -83,7 +93,6 @@ pub fn add_settings_button_to_header_bar(
             header.append(&detach_btn);
             header.append(&zen_btn);
             vbox.append(&header);
-
 
             // ListBox for menu items (menu-like appearance)
             let listbox = ListBox::new();
@@ -137,9 +146,7 @@ pub fn add_settings_button_to_header_bar(
             vbox.append(&listbox);
 
             // Create a plain Popover and set the vbox as its child
-            let popover = Popover::builder()
-                .has_arrow(true)
-                .build();
+            let popover = Popover::builder().has_arrow(true).build();
             popover.set_child(Some(&vbox));
             popover.add_css_class("menu");
 
@@ -156,12 +163,12 @@ pub fn add_settings_button_to_header_bar(
 /// Create a styled section header for settings pages
 pub fn create_settings_section_header(title: &str, description: Option<&str>) -> gtk4::Box {
     let section_box = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
-    
+
     let title_label = gtk4::Label::new(Some(title));
     title_label.set_halign(gtk4::Align::Start);
     title_label.add_css_class("heading");
     section_box.append(&title_label);
-    
+
     if let Some(desc) = description {
         let desc_label = gtk4::Label::new(Some(desc));
         desc_label.set_halign(gtk4::Align::Start);
@@ -169,7 +176,7 @@ pub fn create_settings_section_header(title: &str, description: Option<&str>) ->
         desc_label.set_wrap(true);
         section_box.append(&desc_label);
     }
-    
+
     section_box.set_margin_bottom(8);
     section_box
 }
@@ -181,20 +188,20 @@ pub fn create_settings_row(
     description: Option<&str>,
 ) -> gtk4::Box {
     let row_box = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
-    
+
     let main_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
     main_box.set_homogeneous(false);
-    
+
     let label_widget = gtk4::Label::new(Some(label));
     label_widget.set_halign(gtk4::Align::Start);
     label_widget.set_hexpand(true);
     main_box.append(&label_widget);
-    
+
     control.set_halign(gtk4::Align::End);
     main_box.append(control);
-    
+
     row_box.append(&main_box);
-    
+
     if let Some(desc) = description {
         let desc_label = gtk4::Label::new(Some(desc));
         desc_label.set_halign(gtk4::Align::Start);
@@ -203,7 +210,7 @@ pub fn create_settings_row(
         desc_label.set_margin_top(4);
         row_box.append(&desc_label);
     }
-    
+
     row_box.set_margin_bottom(8);
     row_box
 }
@@ -211,7 +218,7 @@ pub fn create_settings_row(
 /// Apply settings-specific CSS
 pub fn apply_settings_css() {
     let provider = gtk4::CssProvider::new();
-    
+
     // Essential settings styling
     let css_content = "
         .settings-dialog .heading {
@@ -269,9 +276,9 @@ pub fn apply_settings_css() {
             background-color: transparent;
         }
         ";
-    
+
     provider.load_from_data(&css_content);
-    
+
     gtk4::style_context_add_provider_for_display(
         &gtk4::gdk::Display::default().expect("Could not connect to a display."),
         &provider,
@@ -283,7 +290,7 @@ pub fn apply_settings_css() {
 pub fn show_notification(_parent: &Window, message: &str) {
     // For now, just print to console to avoid modal dialog conflicts
     println!("Settings: {}", message);
-    
+
     // TODO: In a full implementation, you might use libadwaita's toast or a custom notification
     // that doesn't interfere with dialog management
 }
@@ -292,7 +299,7 @@ pub fn show_notification(_parent: &Window, message: &str) {
 pub fn get_available_css_themes() -> Vec<String> {
     let themes_dir = std::path::Path::new("themes");
     let mut themes = vec!["standard".to_string()]; // Default theme
-    
+
     if themes_dir.exists() {
         if let Ok(entries) = std::fs::read_dir(themes_dir) {
             for entry in entries.flatten() {
@@ -307,7 +314,7 @@ pub fn get_available_css_themes() -> Vec<String> {
             }
         }
     }
-    
+
     themes.sort();
     themes
 }

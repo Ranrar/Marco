@@ -11,21 +11,53 @@ pub fn validate_html_color(color: &str) -> bool {
     if color.is_empty() {
         return false;
     }
-    
+
     // Check if it's a valid hex color
     if color.starts_with('#') && color.len() == 7 {
         return color.chars().skip(1).all(|c| c.is_ascii_hexdigit());
     }
-    
+
     // Check if it's a valid CSS color name (basic validation)
-    matches!(color.to_lowercase().as_str(),
-        "red" | "green" | "blue" | "yellow" | "orange" | "purple" | "pink" | 
-        "brown" | "gray" | "grey" | "black" | "white" | "cyan" | "magenta" |
-        "lime" | "navy" | "teal" | "silver" | "maroon" | "olive" | "aqua" |
-        "fuchsia" | "darkred" | "darkgreen" | "darkblue" | "darkcyan" |
-        "darkmagenta" | "darkyellow" | "darkgray" | "darkgrey" | "lightgray" |
-        "lightgrey" | "lightred" | "lightgreen" | "lightblue" | "lightcyan" |
-        "lightmagenta" | "lightyellow"
+    matches!(
+        color.to_lowercase().as_str(),
+        "red"
+            | "green"
+            | "blue"
+            | "yellow"
+            | "orange"
+            | "purple"
+            | "pink"
+            | "brown"
+            | "gray"
+            | "grey"
+            | "black"
+            | "white"
+            | "cyan"
+            | "magenta"
+            | "lime"
+            | "navy"
+            | "teal"
+            | "silver"
+            | "maroon"
+            | "olive"
+            | "aqua"
+            | "fuchsia"
+            | "darkred"
+            | "darkgreen"
+            | "darkblue"
+            | "darkcyan"
+            | "darkmagenta"
+            | "darkyellow"
+            | "darkgray"
+            | "darkgrey"
+            | "lightgray"
+            | "lightgrey"
+            | "lightred"
+            | "lightgreen"
+            | "lightblue"
+            | "lightcyan"
+            | "lightmagenta"
+            | "lightyellow"
     )
 }
 
@@ -39,7 +71,7 @@ pub fn validate_youtube_url(url: &str) -> bool {
     if url.is_empty() {
         return false;
     }
-    
+
     url.contains("youtube.com/watch?v=") || url.contains("youtu.be/")
 }
 
@@ -48,7 +80,7 @@ pub fn validate_url(url: &str) -> bool {
     if url.is_empty() {
         return false;
     }
-    
+
     url.starts_with("http://") || url.starts_with("https://") || url.starts_with("ftp://")
 }
 
@@ -65,7 +97,7 @@ pub fn remove_error_style(widget: &impl gtk4::prelude::WidgetExt) {
 /// Validates all required fields in a form
 pub fn validate_form_fields<W: gtk4::prelude::WidgetExt>(validations: &[(bool, &W)]) -> bool {
     let mut all_valid = true;
-    
+
     for (is_valid, widget) in validations {
         if *is_valid {
             remove_error_style(*widget);
@@ -74,6 +106,6 @@ pub fn validate_form_fields<W: gtk4::prelude::WidgetExt>(validations: &[(bool, &
             all_valid = false;
         }
     }
-    
+
     all_valid
 }

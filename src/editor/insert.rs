@@ -1,5 +1,5 @@
-use gtk4::prelude::*;
 use crate::editor::core::MarkdownEditor;
+use gtk4::prelude::*;
 
 impl MarkdownEditor {
     pub fn insert_heading(&self, level: u8) {
@@ -36,21 +36,21 @@ impl MarkdownEditor {
     pub fn insert_custom_table(&self, rows: usize, cols: usize) {
         let mut table = String::new();
         table.push('\n');
-        
+
         // Create header row
         table.push('|');
         for c in 0..cols {
             table.push_str(&format!(" Header {} |", c + 1));
         }
         table.push('\n');
-        
+
         // Create separator row
         table.push('|');
         for _ in 0..cols {
             table.push_str("----------|");
         }
         table.push('\n');
-        
+
         // Create data rows
         for r in 0..rows {
             table.push('|');
@@ -59,7 +59,7 @@ impl MarkdownEditor {
             }
             table.push('\n');
         }
-        
+
         self.insert_text_at_cursor(&table);
         self.focus_editor_and_position_cursor();
     }
@@ -95,32 +95,32 @@ impl MarkdownEditor {
     pub fn insert_footnote(&self) {
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Get the full document text to analyze existing footnotes
         let start_iter = gtk_buffer.start_iter();
         let end_iter = gtk_buffer.end_iter();
         let full_text = gtk_buffer.text(&start_iter, &end_iter, false);
-        
+
         // Find the next footnote number
         let footnote_number = self.find_next_footnote_number(&full_text);
-        
+
         if gtk_buffer.has_selection() {
             // Use selected text for footnote
             if let Some((start, end)) = gtk_buffer.selection_bounds() {
                 let selected_text = gtk_buffer.text(&start, &end, false);
                 let footnote_text = format!("{}[^{}]", selected_text, footnote_number);
-                
+
                 // Create a mark to preserve the position before deletion
                 let insert_mark = gtk_buffer.create_mark(None, &start, false);
-                
+
                 let mut start_mut = start;
                 let mut end_mut = end;
                 buffer.delete(&mut start_mut, &mut end_mut);
-                
+
                 // Get a fresh iterator from the mark after deletion
                 let mut insert_iter = gtk_buffer.iter_at_mark(&insert_mark);
                 buffer.insert(&mut insert_iter, &footnote_text);
-                
+
                 // Clean up the temporary mark
                 gtk_buffer.delete_mark(&insert_mark);
             }
@@ -128,42 +128,43 @@ impl MarkdownEditor {
             // Insert footnote reference at cursor
             self.insert_text_at_cursor(&format!("text[^{}]", footnote_number));
         }
-        
+
         // Add footnote definition at the end of the document
         self.add_footnote_definition_to_bottom(&full_text, footnote_number);
-        
+
         // Focus editor after insertion
         self.focus_editor_and_position_cursor();
     }
-    
+
     /// Find the next available footnote number by scanning existing footnotes
     fn find_next_footnote_number(&self, text: &str) -> u32 {
         use regex::Regex;
         let footnote_regex = Regex::new(r"\[\^(\d+)\]").unwrap();
         let mut max_number = 0;
-        
+
         for captures in footnote_regex.captures_iter(text) {
             if let Ok(number) = captures[1].parse::<u32>() {
                 max_number = max_number.max(number);
             }
         }
-        
+
         max_number + 1
     }
-    
+
     /// Add footnote definition at the bottom of the document
     fn add_footnote_definition_to_bottom(&self, current_text: &str, footnote_number: u32) {
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Position cursor at the end of the document
         let mut end_iter = gtk_buffer.end_iter();
-        
+
         // Check if we need to add separators
-        let needs_separator = !current_text.ends_with("\n---\n") && !current_text.contains("\n---\n");
-        
+        let needs_separator =
+            !current_text.ends_with("\n---\n") && !current_text.contains("\n---\n");
+
         let mut footnote_text = String::new();
-        
+
         // Add separator if needed
         if needs_separator {
             if !current_text.is_empty() && !current_text.ends_with('\n') {
@@ -173,10 +174,10 @@ impl MarkdownEditor {
         } else if !current_text.ends_with('\n') {
             footnote_text.push('\n');
         }
-        
+
         // Add the footnote definition
         footnote_text.push_str(&format!("[^{}]: Footnote text here\n", footnote_number));
-        
+
         buffer.insert(&mut end_iter, &footnote_text);
     }
 
@@ -218,7 +219,9 @@ impl MarkdownEditor {
     /// Add a new programming language to the manager
     #[allow(dead_code)]
     pub fn add_programming_language(&self, language: String) {
-        self.code_language_manager.borrow_mut().add_language(language);
+        self.code_language_manager
+            .borrow_mut()
+            .add_language(language);
     }
 
     /// Get available programming languages
@@ -230,7 +233,9 @@ impl MarkdownEditor {
     /// Get language suggestions based on input
     #[allow(dead_code)]
     pub fn get_language_suggestions(&self, partial: &str) -> Vec<String> {
-        self.code_language_manager.borrow().get_language_suggestions(partial)
+        self.code_language_manager
+            .borrow()
+            .get_language_suggestions(partial)
     }
 
     pub fn insert_horizontal_rule(&self) {
@@ -240,52 +245,53 @@ impl MarkdownEditor {
     fn insert_at_new_line(&self, text: &str) {
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Get current cursor position using mark
         let cursor_mark = gtk_buffer.get_insert();
         let cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
-        
+
         // Check if we're at the start of a line
         let line_offset = cursor_iter.line_offset();
-        
+
         // Prepare the text to insert
         let text_to_insert = if line_offset == 0 {
             text.to_string()
         } else {
             format!("\n{}", text)
         };
-        
+
         // Insert at cursor mark (this is safer than using iterators)
         buffer.insert_at_cursor(&text_to_insert);
-        
+
         // Focus editor and position cursor
         self.focus_editor_and_position_cursor();
     }
-    
+
     /// Focus the editor and move cursor to a new line if needed
     pub fn focus_editor_and_position_cursor(&self) {
         // Focus the source editor
         self.source_view.grab_focus();
-        
+
         let buffer = &self.source_buffer;
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Get current cursor position
         let cursor_mark = gtk_buffer.get_insert();
         let cursor_iter = gtk_buffer.iter_at_mark(&cursor_mark);
-        
+
         // Check if we need to move to a new line
         let line_offset = cursor_iter.line_offset();
         let mut line_end_iter = cursor_iter.clone();
         line_end_iter.forward_to_line_end();
         let line_text = cursor_iter.slice(&line_end_iter);
-        
+
         // If we're not at the end of the line and there's text after cursor, move to new line
         if line_offset > 0 && !line_text.trim().is_empty() {
             buffer.insert_at_cursor("\n");
         }
-        
+
         // Scroll to cursor position
-        self.source_view.scroll_to_mark(&cursor_mark, 0.0, false, 0.0, 0.0);
+        self.source_view
+            .scroll_to_mark(&cursor_mark, 0.0, false, 0.0, 0.0);
     }
 }

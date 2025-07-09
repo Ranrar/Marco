@@ -8,39 +8,39 @@ pub struct ExtendedMarkdownSyntax {
     /// Tables (GitHub Flavored Markdown style)
     table_regex: Regex,
     table_header_separator_regex: Regex,
-    
+
     /// Task Lists (GitHub style checkboxes)
     task_list_regex: Regex,
-    
+
     /// Strikethrough (already in basic but included for completeness)
     strikethrough_regex: Regex,
-    
+
     /// Footnotes
     footnote_reference_regex: Regex,
     footnote_definition_regex: Regex,
-    
+
     /// Definition Lists
     definition_term_regex: Regex,
     definition_description_regex: Regex,
-    
+
     /// Fenced Code Blocks with syntax highlighting
     fenced_code_regex: Regex,
-    
+
     /// Heading IDs
     heading_with_id_regex: Regex,
-    
+
     /// Highlight (==text==)
     highlight_regex: Regex,
-    
+
     /// Subscript (~text~)
     subscript_regex: Regex,
-    
+
     /// Superscript (^text^)
     superscript_regex: Regex,
-    
+
     /// Automatic URL linking
     auto_url_regex: Regex,
-    
+
     /// Emoji shortcodes (:emoji:)
     emoji_shortcode_regex: Regex,
 }
@@ -50,47 +50,53 @@ impl ExtendedMarkdownSyntax {
         Self {
             // Tables: | Header 1 | Header 2 |
             table_regex: Regex::new(r"^\|.*\|$").unwrap(),
-            
+
             // Table header separator: |----------|----------|
-            table_header_separator_regex: Regex::new(r"^\|[\s]*:?-+:?[\s]*(\|[\s]*:?-+:?[\s]*)*\|?$").unwrap(),
-            
+            table_header_separator_regex: Regex::new(
+                r"^\|[\s]*:?-+:?[\s]*(\|[\s]*:?-+:?[\s]*)*\|?$",
+            )
+            .unwrap(),
+
             // Task Lists: - [x] Task or - [ ] Task
             task_list_regex: Regex::new(r"^[\s]*[-*+][\s]+\[([ xX])\][\s]+(.*)$").unwrap(),
-            
+
             // Strikethrough: ~~text~~
             strikethrough_regex: Regex::new(r"~~([^~]+)~~").unwrap(),
-            
+
             // Footnote reference: [^identifier]
             footnote_reference_regex: Regex::new(r"\[\^([^\]]+)\]").unwrap(),
-            
+
             // Footnote definition: [^identifier]: text
             footnote_definition_regex: Regex::new(r"^\[\^([^\]]+)\]:[\s]+(.*)$").unwrap(),
-            
+
             // Definition term (followed by : definition)
             definition_term_regex: Regex::new(r"^([^\n:]+)$").unwrap(),
-            
+
             // Definition description: : definition text
             definition_description_regex: Regex::new(r"^:[\s]+(.*)$").unwrap(),
-            
+
             // Fenced code blocks: ```language
             fenced_code_regex: Regex::new(r"^```([a-zA-Z0-9+#\-]*)$").unwrap(),
-            
+
             // Heading with ID: ## Heading {#custom-id}
-            heading_with_id_regex: Regex::new(r"^(#{1,6})[\s]+(.+?)[\s]*\{#([a-zA-Z0-9\-_]+)\}[\s]*$").unwrap(),
-            
+            heading_with_id_regex: Regex::new(
+                r"^(#{1,6})[\s]+(.+?)[\s]*\{#([a-zA-Z0-9\-_]+)\}[\s]*$",
+            )
+            .unwrap(),
+
             // Highlight: ==text==
             highlight_regex: Regex::new(r"==([^=]+)==").unwrap(),
-            
+
             // Subscript: ~text~
             subscript_regex: Regex::new(r"~([^~\s]+)~").unwrap(),
-            
+
             // Superscript: ^text^ (avoid conflict with footnotes [^1])
             // Use word boundary or space to ensure we don't match footnotes
             superscript_regex: Regex::new(r"(^|\s)\^([^\^\s]+)\^").unwrap(),
-            
+
             // Auto URL: http://example.com or https://example.com
             auto_url_regex: Regex::new(r"(?:^|[\s])(https?://[^\s]+)").unwrap(),
-            
+
             // Emoji shortcodes: :emoji_name:
             emoji_shortcode_regex: Regex::new(r":([a-zA-Z0-9_+\-]+):").unwrap(),
         }
@@ -104,10 +110,10 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
         let text = gtk_buffer.text(&gtk_buffer.start_iter(), &gtk_buffer.end_iter(), false);
-        
+
         // Clear existing extended syntax tags
         self.clear_extended_tags(buffer, tag_table);
-        
+
         // Apply extended syntax highlighting
         self.highlight_tables(buffer, &text, tag_table);
         self.highlight_task_lists(buffer, &text, tag_table);
@@ -122,17 +128,36 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Clear extended syntax tags
-    fn clear_extended_tags(&self, buffer: &sourceview5::Buffer, tag_table: &HashMap<String, gtk4::TextTag>) {
+    fn clear_extended_tags(
+        &self,
+        buffer: &sourceview5::Buffer,
+        tag_table: &HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
         let start = gtk_buffer.start_iter();
         let end = gtk_buffer.end_iter();
-        
+
         let extended_tags = [
-            "table", "table-header", "table-separator", "task-list", "task-checked", "task-unchecked",
-            "strikethrough", "footnote-ref", "footnote-def", "definition-term", "definition-desc",
-            "fenced-code", "heading-id", "highlight", "subscript", "superscript", "auto-url", "emoji"
+            "table",
+            "table-header",
+            "table-separator",
+            "task-list",
+            "task-checked",
+            "task-unchecked",
+            "strikethrough",
+            "footnote-ref",
+            "footnote-def",
+            "definition-term",
+            "definition-desc",
+            "fenced-code",
+            "heading-id",
+            "highlight",
+            "subscript",
+            "superscript",
+            "auto-url",
+            "emoji",
         ];
-        
+
         for tag_name in &extended_tags {
             if let Some(tag) = tag_table.get(*tag_name) {
                 gtk_buffer.remove_tag(tag, &start, &end);
@@ -141,15 +166,20 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight tables
-    fn highlight_tables(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_tables(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Create table tags if they don't exist
         self.ensure_tag_exists(tag_table, "table", |tag| {
             tag.set_family(Some("monospace"));
             tag.set_foreground(Some("#2563eb")); // Blue
         });
-        
+
         self.ensure_tag_exists(tag_table, "table-separator", |tag| {
             tag.set_foreground(Some("#6b7280")); // Gray
             tag.set_family(Some("monospace"));
@@ -161,13 +191,13 @@ impl ExtendedMarkdownSyntax {
                 let line_start = gtk_buffer.iter_at_line(line_num as i32).unwrap();
                 let mut line_end = line_start;
                 line_end.forward_to_line_end();
-                
+
                 let tag_name = if self.table_header_separator_regex.is_match(line) {
                     "table-separator"
                 } else {
                     "table"
                 };
-                
+
                 if let Some(tag) = tag_table.get(tag_name) {
                     gtk_buffer.apply_tag(tag, &line_start, &line_end);
                 }
@@ -176,15 +206,20 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight task lists
-    fn highlight_task_lists(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_task_lists(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Create task list tags
         self.ensure_tag_exists(tag_table, "task-checked", |tag| {
             tag.set_foreground(Some("#16a34a")); // Green
             tag.set_weight(700); // Bold weight as integer
         });
-        
+
         self.ensure_tag_exists(tag_table, "task-unchecked", |tag| {
             tag.set_foreground(Some("#6b7280")); // Gray
         });
@@ -194,12 +229,16 @@ impl ExtendedMarkdownSyntax {
             if let Some(captures) = self.task_list_regex.captures(line) {
                 let checkbox_state = captures.get(1).unwrap().as_str();
                 let is_checked = checkbox_state.to_lowercase() == "x";
-                
+
                 let line_start = gtk_buffer.iter_at_line(line_num as i32).unwrap();
                 let mut line_end = line_start;
                 line_end.forward_to_line_end();
-                
-                let tag_name = if is_checked { "task-checked" } else { "task-unchecked" };
+
+                let tag_name = if is_checked {
+                    "task-checked"
+                } else {
+                    "task-unchecked"
+                };
                 if let Some(tag) = tag_table.get(tag_name) {
                     gtk_buffer.apply_tag(tag, &line_start, &line_end);
                 }
@@ -208,9 +247,14 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight strikethrough text
-    fn highlight_strikethrough(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_strikethrough(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "strikethrough", |tag| {
             tag.set_strikethrough(true);
             tag.set_foreground(Some("#6b7280")); // Gray
@@ -226,14 +270,19 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight footnotes
-    fn highlight_footnotes(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_footnotes(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "footnote-ref", |tag| {
             tag.set_foreground(Some("#7c3aed")); // Purple
             tag.set_underline(gtk4::pango::Underline::Single);
         });
-        
+
         self.ensure_tag_exists(tag_table, "footnote-def", |tag| {
             tag.set_foreground(Some("#7c3aed")); // Purple
             tag.set_weight(700); // Bold weight as integer
@@ -263,14 +312,19 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight definition lists
-    fn highlight_definition_lists(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_definition_lists(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "definition-term", |tag| {
             tag.set_weight(700); // Bold weight as integer
             tag.set_foreground(Some("#1f2937")); // Dark gray
         });
-        
+
         self.ensure_tag_exists(tag_table, "definition-desc", |tag| {
             tag.set_style(gtk4::pango::Style::Italic);
             tag.set_foreground(Some("#4b5563")); // Medium gray
@@ -279,7 +333,11 @@ impl ExtendedMarkdownSyntax {
         let lines: Vec<&str> = text.lines().collect();
         for (line_num, line) in lines.iter().enumerate() {
             // Check if next line is a definition description
-            if line_num + 1 < lines.len() && self.definition_description_regex.is_match(lines[line_num + 1]) {
+            if line_num + 1 < lines.len()
+                && self
+                    .definition_description_regex
+                    .is_match(lines[line_num + 1])
+            {
                 // This line is a definition term
                 if let Some(term_tag) = tag_table.get("definition-term") {
                     let line_start = gtk_buffer.iter_at_line(line_num as i32).unwrap();
@@ -300,9 +358,14 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight fenced code blocks
-    fn highlight_fenced_code_blocks(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_fenced_code_blocks(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "fenced-code", |tag| {
             tag.set_family(Some("monospace"));
             tag.set_background(Some("#f3f4f6")); // Light gray background
@@ -337,9 +400,14 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight headings with custom IDs
-    fn highlight_heading_ids(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_heading_ids(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "heading-id", |tag| {
             tag.set_foreground(Some("#7c3aed")); // Purple
             tag.set_style(gtk4::pango::Style::Italic);
@@ -357,21 +425,26 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight special text (highlight, subscript, superscript)
-    fn highlight_special_text(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_special_text(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         // Highlight ==text==
         self.ensure_tag_exists(tag_table, "highlight", |tag| {
             tag.set_background(Some("#fef08a")); // Yellow highlight
             tag.set_foreground(Some("#1f2937"));
         });
-        
+
         // Subscript ~text~ (simplified without actual subscript positioning)
         self.ensure_tag_exists(tag_table, "subscript", |tag| {
             tag.set_foreground(Some("#6b7280"));
             tag.set_scale(0.8); // Smaller text
         });
-        
+
         // Superscript ^text^ (simplified without actual superscript positioning)
         self.ensure_tag_exists(tag_table, "superscript", |tag| {
             tag.set_foreground(Some("#6b7280"));
@@ -407,9 +480,14 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight automatic URLs
-    fn highlight_auto_urls(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_auto_urls(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "auto-url", |tag| {
             tag.set_foreground(Some("#2563eb")); // Blue
             tag.set_underline(gtk4::pango::Underline::Single);
@@ -427,9 +505,14 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Highlight emoji shortcodes
-    fn highlight_emoji_shortcodes(&self, buffer: &sourceview5::Buffer, text: &str, tag_table: &mut HashMap<String, gtk4::TextTag>) {
+    fn highlight_emoji_shortcodes(
+        &self,
+        buffer: &sourceview5::Buffer,
+        text: &str,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+    ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
-        
+
         self.ensure_tag_exists(tag_table, "emoji", |tag| {
             tag.set_foreground(Some("#f59e0b")); // Orange
             tag.set_weight(700); // Bold weight as integer
@@ -445,8 +528,12 @@ impl ExtendedMarkdownSyntax {
     }
 
     /// Helper method to ensure a tag exists in the tag table
-    fn ensure_tag_exists<F>(&self, tag_table: &mut HashMap<String, gtk4::TextTag>, name: &str, configure: F)
-    where
+    fn ensure_tag_exists<F>(
+        &self,
+        tag_table: &mut HashMap<String, gtk4::TextTag>,
+        name: &str,
+        configure: F,
+    ) where
         F: FnOnce(&gtk4::TextTag),
     {
         if !tag_table.contains_key(name) {

@@ -1,9 +1,9 @@
-use gtk4::prelude::*;
-use gtk4::{Box, Button, Label, Orientation, Switch, Notebook, Align};
-use std::rc::Rc;
-use std::cell::RefCell;
-use crate::settings::core::{SettingsChangeTracker, OriginalSettings};
 use super::common::create_settings_section_header;
+use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
+use gtk4::prelude::*;
+use gtk4::{Align, Box, Button, Label, Notebook, Orientation, Switch};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Helper: Create a row with label left, switch right, vertically centered, with optional subtitle below the title.
 fn create_toggle_row(title: &str, subtitle: Option<&str>, switch: &Switch) -> Box {
@@ -126,10 +126,26 @@ pub fn create_editor_settings_page(
     explanation_box.set_margin_end(8);
 
     let warning_types = vec![
-        ("🔴", "Syntax Errors", "Broken links, unclosed code blocks, malformed tables"),
-        ("🟠", "Formatting Issues", "Missing alt text, empty links, improper headings"),
-        ("🟡", "Style Warnings", "Raw HTML usage, inconsistent list markers"),
-        ("🔵", "Structure Issues", "Invalid references, unclosed emphasis markers"),
+        (
+            "🔴",
+            "Syntax Errors",
+            "Broken links, unclosed code blocks, malformed tables",
+        ),
+        (
+            "🟠",
+            "Formatting Issues",
+            "Missing alt text, empty links, improper headings",
+        ),
+        (
+            "🟡",
+            "Style Warnings",
+            "Raw HTML usage, inconsistent list markers",
+        ),
+        (
+            "🔵",
+            "Structure Issues",
+            "Invalid references, unclosed emphasis markers",
+        ),
     ];
     for (icon, category, description) in warning_types {
         let warning_box = Box::new(Orientation::Horizontal, 12);
