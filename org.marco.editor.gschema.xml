@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="marco">
   <schema id="org.marco.editor" path="/org/marco/editor/">
+    <key name="debounce-timeout-ms" type="i">
+      <default>300</default>
+      <summary>Debounce timeout for live spellcheck (ms)</summary>
+      <description>How many milliseconds to wait after user input before triggering live spellcheck. Lower values make spellcheck more responsive, higher values reduce CPU usage.</description>
+    </key>
     <!-- Function highlighting toggle -->
     <key name="function-highlighting" type="b">
       <default>true</default>

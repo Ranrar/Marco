@@ -1,4 +1,10 @@
-# Marco - Markdown Editor User Guide
+<center>
+<img src="/home/ranrar/Code/projects/marco/src/assets/logo.png" alt="Marco" width="300" height="200">
+</center>
+
+---
+
+#  User Guide
 
 ## Table of Contents
 1. [Getting Started](#getting-started)
@@ -172,35 +178,79 @@ Marco now features an advanced language picker for fenced code blocks:
 
 ## Advanced Features
 
+
 ### Text Styling (Requires Text Selection)
 Access through Advanced menu when text is selected:
 
-#### Underline Text
-- Select text → Advanced → Text Styling → Underline
-- Wraps selected text with HTML `<u>` tags
+- **Underline Text**: Wraps selected text with `<u>` tags
+- **Center Text**: Centers text using `<center>` tags
+- **Colored Text**: Opens a color picker dialog for live color preview and applies HTML color styling
+- **Indent Text**: Adds indentation to selected text
 
-#### Center Text
-- Select text → Advanced → Text Styling → Center Text
-- Centers text using HTML `<center>` tags
+### Advanced Elements & Dialogs
+- **Admonitions**: Insert callout boxes ("Note", "Tip", "Warning", etc.) with emoji and custom color via Advanced → Admonition. Choose type, emoji, and content. Supports both standard and custom styles.
 
-#### Colored Text
-- Select text → Advanced → Text Styling → Colored Text
-- Opens modal color picker dialog attached to the main window
-- Provides live preview of color changes
-- Applies HTML color styling
+  **Showcase:**
+  > 💡**Tip:** You can use admonitions to highlight important information!
 
-#### Indent Text
-- Select text → Advanced → Text Styling → Indent Text
-- Adds proper indentation to selected text
+- **Emoji Picker**: Insert emoji anywhere using the native GTK4 emoji picker (Edit → Emoji, or shortcut `Ctrl+.`). Also supports emoji shortcodes like `:smile:`.
 
-### Special Elements
-- **Tables**: Insert → Table (creates basic table structure)
-- **Task Lists**: Insert → Task List (creates checkable items)
-- **Definition Lists**: Insert → Definition List (creates term/definition pairs)
+  **Showcase:**
+  - Use the picker or type `:rocket:` → 🚀
+
+- **Smart Code Block Language Search**: When inserting fenced code blocks, use the smart search dialog to filter among 100+ languages and aliases (e.g., "js" for JavaScript, "py" for Python). Popular languages are shown first, and fuzzy search is supported.
+
+  **Showcase:**
+  ```JavaScript
+  // JavaScript code block using alias "js"
+  console.log("Hello, world!");
+  ```
+
+- **Custom Task Lists**: Create checkable lists with a custom number of open/closed tasks via Advanced → Task List → Custom Task List.
+
+  **Showcase:**
+  - [x] Write documentation
+  - [ ] Add more features
+  - [ ] Review pull requests
+
+- **Custom Definition Lists**: Create definition lists with a custom number of term/definition pairs via Advanced → Definition List → Custom Definition List.
+
+  **Showcase:**
+  Term 1
+  :   Definition for term 1
+
+  Term 2
+  :   Definition for term 2
+
+- **Table of Contents**: Insert a dynamic TOC (Advanced → Table of Contents). Automatically generates links to all headings (H1–H4) in your document.
+
+  **Showcase:**
+  #### Table of Contents
+  * [Getting Started](#getting-started)
+  * [Advanced Features](#advanced-features)
+
+- **Footnotes**: Insert and manage footnotes using the Format menu. Footnotes are rendered with superscript references and a footnotes section at the bottom.
+
+  **Showcase:**
+  Here is a statement with a footnote.[^1]
+  
+  [^1]: This is the footnote content.
+
+- **Spell Check & Linting**: Real-time spell check and Markdown linting highlight misspellings, unclosed tags, malformed tables, and other issues. Warnings are shown inline and in the status bar.
+- **Theme Switching & Custom CSS**: Instantly switch between built-in CSS themes (Standard, Academic, GitHub, Minimal, Astro) and light/dark/system UI. You can also load a custom CSS file for preview styling.
+
+  **Showcase:**
+  - Switch between themes in View → Themes or Preferences
+  - Example: Try the "Astro" theme for a cosmic look
+
+- **About Dialog**: View app version, license, and credits via Help → About.
+
+  **Showcase:**
+  - Open Help → About to see version and license info
 
 ### HTML Integration
-- **HTML Entities**: Insert → HTML Entity (special characters)
-- **Custom HTML**: Direct HTML input is supported
+- **HTML Entities**: Insert special characters via Insert → HTML Entity (with preview)
+- **Custom HTML**: Direct HTML input is supported in Markdown documents
 
 ## View Options
 

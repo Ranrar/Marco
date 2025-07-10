@@ -284,15 +284,13 @@ impl MarkdownEditor {
                 eprintln!("============ NOT applying coloring - syntax is disabled ============");
             }
 
-            // Apply markdown warnings if enabled
+            // Clear all warning tags immediately on every keystroke
+            spell_checker.borrow().clear_visual_warnings();
+
+            // Apply markdown warnings if enabled (debounced)
             if *warnings_enabled.borrow() {
-                let warnings = spell_checker.borrow_mut().lint(&text);
-                if !warnings.is_empty() {
-                    println!("DEBUG: Found {} markdown warnings", warnings.len());
-                    for warning in &warnings {
-                        println!("  - {}", warning);
-                    }
-                }
+                let weak_checker = Rc::downgrade(&spell_checker);
+                crate::editor::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text.to_string());
             }
 
             // Update footer statistics immediately (no delay needed for stats)

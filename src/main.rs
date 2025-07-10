@@ -7,6 +7,7 @@ mod settings;
 mod theme;
 mod toolbar;
 pub mod view;
+pub mod utils;
 
 use clap::{Arg, Command};
 use gtk4::prelude::*;

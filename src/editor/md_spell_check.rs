@@ -1,10 +1,196 @@
+use gio::prelude::*;
+use gio::Settings;
+use glib::{source::SourceId, timeout_add_local, ControlFlow};
+use std::time::Duration;
+use std::cell::RefCell;
+use std::rc::Rc;
+/// Debouncer for spellcheck or other delayed actions in GTK4
+#[derive(Clone)]
+pub struct SpellcheckDebouncer {
+
+    timeout_ms: std::cell::Cell<u32>,
+    source_id: Rc<RefCell<Option<SourceId>>>,
+    callback: Rc<RefCell<Option<Box<dyn FnOnce()>>>>,
+}
+
+impl SpellcheckDebouncer {
+    pub fn set_timeout_ms(&self, ms: u32) {
+        let timeout = ms.max(50);
+        self.timeout_ms.set(timeout);
+    }
+    pub fn new(timeout_ms: u32) -> Self {
+        Self {
+            timeout_ms: std::cell::Cell::new(timeout_ms.max(50)),
+            source_id: Rc::new(RefCell::new(None)),
+            callback: Rc::new(RefCell::new(None)),
+        }
+    }
+
+    /// Debounce the given callback. If called again before timeout, resets the timer.
+    pub fn debounce<F: FnOnce() + 'static>(&self, callback: F) {
+        // Remove any existing timer
+        if let Some(id) = self.source_id.borrow_mut().take() {
+            id.remove();
+        }
+        // Store the callback in a box
+        *self.callback.borrow_mut() = Some(Box::new(callback));
+        let source_id_cell = self.source_id.clone();
+        let callback_cell = self.callback.clone();
+        let timeout = self.timeout_ms.get();
+        let source_id_cell_inner = source_id_cell.clone();
+        *source_id_cell.borrow_mut() = Some(timeout_add_local(Duration::from_millis(timeout as u64), move || {
+            // Take and call the callback if present
+            if let Some(cb) = callback_cell.borrow_mut().take() {
+                cb();
+            }
+            *source_id_cell_inner.borrow_mut() = None;
+            ControlFlow::Break
+        }));
+    }
+}
+use rayon::prelude::*;
+/// Spellcheck all words in Markdown-aware text spans, returning precise SpellErrors for misspellings.
+fn spellcheck_text_spans(content: &str) -> Vec<SpellError> {
+    let spans = extract_text_spans_with_offsets(content);
+    let mut errors = Vec::new();
+    // Use the static zspell dictionary
+    let dict = match &*SPELL_DICTIONARY {
+        Some(d) => d,
+        None => {
+            // If dictionary failed to load, return a single error
+            errors.push(SpellError {
+                line: 1,
+                column: 1,
+                start_offset: 0,
+                end_offset: 0,
+                warning_type: SpellType::InvalidEscapeSequence, // Use a custom type for spelling
+                message: "Spellcheck dictionary not loaded. Please provide dictionaries/en_US.aff and dictionaries/en_US.dic".to_string(),
+                suggestion: Some("Download Hunspell en_US dictionary files and place them in the dictionaries/ folder.".to_string()),
+            });
+            return errors;
+        }
+    };
+    // Collect all (word, start, end) tuples
+    let mut word_offsets = Vec::new();
+    for (span, span_offset) in &spans {
+        for mat in WORD_REGEX.find_iter(span) {
+            let word = mat.as_str();
+            let start = span_offset + mat.start();
+            let end = span_offset + mat.end();
+            word_offsets.push((word.to_string(), start, end));
+        }
+    }
+    // Build line offsets for offset-to-line/col mapping
+    let line_offsets = build_line_offsets(content);
+    // Spellcheck in parallel
+    let misspelled: Vec<_> = word_offsets.par_iter().filter_map(|(word, start, end)| {
+        if !dict.check_word(word) {
+            Some((word.clone(), *start, *end))
+        } else {
+            None
+        }
+    }).collect();
+    // Map to SpellError with line/col
+    for (word, start, end) in misspelled {
+        let (line, column) = offset_to_line_col(start, &line_offsets);
+        errors.push(SpellError {
+            line,
+            column,
+            start_offset: start,
+            end_offset: end,
+            warning_type: SpellType::InvalidEscapeSequence, // Use a custom type for spelling
+            message: format!("Misspelled word: {}", word),
+            suggestion: None,
+        });
+    }
+    errors
+}
+// Standalone version for use in spellcheck_text_spans
+fn build_line_offsets(content: &str) -> Vec<usize> {
+    let mut offsets = Vec::new();
+    let mut current_offset = 0;
+    for line in content.lines() {
+        current_offset += line.len() + 1; // +1 for newline
+        offsets.push(current_offset);
+    }
+    offsets
+}
+
+// Standalone version for use in spellcheck_text_spans
+fn offset_to_line_col(offset: usize, line_offsets: &[usize]) -> (usize, usize) {
+    for (line_num, &line_offset) in line_offsets.iter().enumerate() {
+        if offset < line_offset {
+            let line_start = if line_num == 0 {
+                0
+            } else {
+                line_offsets[line_num - 1]
+            };
+            let column = offset - line_start + 1;
+            return (line_num + 1, column);
+        }
+    }
+    (line_offsets.len() + 1, 1)
+}
+use pulldown_cmark::{Parser, Event, Tag};
+/// Extracts all text spans (with offsets) from Markdown, skipping code blocks, inline code, and links.
+fn extract_text_spans_with_offsets(content: &str) -> Vec<(String, usize)> {
+    let parser = Parser::new(content);
+    let mut spans = Vec::new();
+    let mut in_code_block = false;
+    let mut in_link = false;
+    let mut last_text_offset = 0;
+    let mut skip_next_text = false;
+    for event in parser {
+        match event {
+            Event::Start(Tag::CodeBlock(_)) => in_code_block = true,
+            Event::End(Tag::CodeBlock(_)) => in_code_block = false,
+            Event::Start(Tag::Link(_, _, _)) => in_link = true,
+            Event::End(Tag::Link(_, _, _)) => in_link = false,
+            Event::Code(_) => skip_next_text = true, // Next Event::Text is inline code
+            Event::Text(ref text) if !in_code_block && !in_link && !skip_next_text => {
+                // Find the offset of this text in the original content
+                if let Some(pos) = content[last_text_offset..].find(text.as_ref()) {
+                    let abs_offset = last_text_offset + pos;
+                    spans.push((text.to_string(), abs_offset));
+                    last_text_offset = abs_offset + text.len();
+                }
+            }
+            Event::Text(_) => {
+                if skip_next_text {
+                    skip_next_text = false;
+                }
+            },
+            _ => {},
+        }
+    }
+    spans
+}
+use once_cell::sync::Lazy;
+use std::fs;
+use zspell::Dictionary;
+// Unicode-aware word regex (minimum 2 letters)
+static WORD_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
+    regex::Regex::new(r"\p{L}{2,}").expect("Failed to compile word regex")
+});
+
+/// Loads the Hunspell dictionary from language/dic/en.aff and language/dic/en.dic.
+/// You can replace these files with your preferred language.
+static SPELL_DICTIONARY: Lazy<Option<Dictionary>> = Lazy::new(|| {
+    let aff_path = "language/dic/en.aff";
+    let dic_path = "language/dic/en.dic";
+    let aff_content = fs::read_to_string(aff_path).ok()?;
+    let dic_content = fs::read_to_string(dic_path).ok()?;
+    zspell::DictBuilder::new()
+        .config_str(&aff_content)
+        .dict_str(&dic_content)
+        .build()
+        .ok()
+});
 use gtk4::prelude::*;
 use gtk4::TextTag;
-use pulldown_cmark::{Event, Parser, Tag};
+// Duplicate import removed: use pulldown_cmark::{Event, Parser};
 use regex::Regex;
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
 /// Represents a Markdown syntax warning with location and type
 #[derive(Debug, Clone, PartialEq)]
@@ -17,6 +203,7 @@ pub struct SpellError {
     pub message: String,
     pub suggestion: Option<String>,
 }
+
 
 /// Types of Markdown syntax warnings
 #[derive(Debug, Clone, PartialEq)]
@@ -37,6 +224,7 @@ pub enum SpellType {
     InvalidTaskList,
     MalformedFootnote,
     UnclosedBlockquote,
+
     InvalidEscapeSequence,
 }
 
@@ -63,7 +251,6 @@ impl std::fmt::Display for SpellType {
         }
     }
 }
-
 impl std::fmt::Display for SpellError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -98,6 +285,7 @@ pub struct SpellLintConfig {
     pub check_malformed_footnotes: bool,
     pub check_unclosed_blockquotes: bool,
     pub check_invalid_escape_sequences: bool,
+    pub enable_spellcheck: bool,
 }
 
 impl Default for SpellLintConfig {
@@ -120,6 +308,7 @@ impl Default for SpellLintConfig {
             check_malformed_footnotes: true,
             check_unclosed_blockquotes: true,
             check_invalid_escape_sequences: false, // Optional by default
+            enable_spellcheck: true,
         }
     }
 }
@@ -131,45 +320,103 @@ pub struct SpellSyntaxChecker {
     warning_tags: HashMap<String, TextTag>,
     buffer: Option<gtk4::TextBuffer>,
 
+    // Debouncer for live spellcheck
+    debouncer: Option<SpellcheckDebouncer>,
+    settings: Option<Settings>,
+
     // Regex patterns for advanced syntax checking
     heading_regex: Regex,
-    emphasis_regex: Regex,
     link_regex: Regex,
     image_regex: Regex,
-    code_block_regex: Regex,
-    table_regex: Regex,
-    task_list_regex: Regex,
-    footnote_regex: Regex,
     html_tag_regex: Regex,
     reference_regex: Regex,
-    escape_regex: Regex,
 }
 
 impl SpellSyntaxChecker {
+    /// Clear all visual warning tags from the buffer immediately.
+    ///
+    /// # Safety
+    /// This function must only be called from the main GTK thread.
+    /// Panics in debug mode if called from another thread.
+    pub fn clear_visual_warnings(&self) {
+        debug_assert!(glib::MainContext::default().is_owner(), "clear_visual_warnings must be called from the main thread!");
+        if let Some(buffer) = &self.buffer {
+            let start_iter = buffer.start_iter();
+            let end_iter = buffer.end_iter();
+            let tag_table = buffer.tag_table();
+            let mut removed_any = false;
+            if let Some(tag) = tag_table.lookup("markdown-warning") {
+                buffer.remove_tag(&tag, &start_iter, &end_iter);
+                removed_any = true;
+            }
+            if let Some(tag) = tag_table.lookup("broken-link") {
+                buffer.remove_tag(&tag, &start_iter, &end_iter);
+                removed_any = true;
+            }
+            if let Some(tag) = tag_table.lookup("html-warning") {
+                buffer.remove_tag(&tag, &start_iter, &end_iter);
+                removed_any = true;
+            }
+            if let Some(tag) = tag_table.lookup("structure-warning") {
+                buffer.remove_tag(&tag, &start_iter, &end_iter);
+                removed_any = true;
+            }
+            if removed_any {
+                eprintln!("[DEBUG] clear_visual_warnings: tags removed (no changed signal emitted)");
+                // DO NOT emit the "changed" signal here! Doing so causes infinite recursion if called from a buffer change handler.
+                // If a redraw is needed, the view widget should be queued for redraw externally.
+            } else {
+                eprintln!("[DEBUG] clear_visual_warnings: no tags found to remove");
+            }
+        }
+    }
     pub fn new(config: SpellLintConfig) -> Self {
         let warning_tags = Self::create_error_tags();
-
-        Self {
+        // Load settings
+        let settings = Settings::new("org.marco.editor");
+        let timeout_ms = settings.int("debounce-timeout-ms").max(50); // Clamp to minimum 50ms
+        let debouncer = SpellcheckDebouncer::new(timeout_ms as u32);
+        let checker = Self {
             config,
             warnings: Vec::new(),
             warning_tags,
             buffer: None,
-
-            // Initialize regex patterns
+            debouncer: Some(debouncer.clone()),
+            settings: Some(settings.clone()),
             heading_regex: Regex::new(r"^(#{1,6})([^ #]|$)").unwrap(),
-            emphasis_regex: Regex::new(r"(\*{1,2}|_{1,2})([^*_\n]*?)(\*{1,2}|_{1,2})").unwrap(),
             link_regex: Regex::new(r"\[([^\]]*)\]\(([^)]*)\)").unwrap(),
             image_regex: Regex::new(r"!\[([^\]]*)\]\(([^)]*)\)").unwrap(),
-            code_block_regex: Regex::new(r"```(\w+)?\n(.*?)```").unwrap(),
-            table_regex: Regex::new(r"\|.*\|").unwrap(),
-            task_list_regex: Regex::new(r"^(\s*)-\s+\[([ xX])\]\s+(.*)$").unwrap(),
-            footnote_regex: Regex::new(r"\[\^([^\]]+)\]").unwrap(),
             html_tag_regex: Regex::new(r"<[^>]+>").unwrap(),
             reference_regex: Regex::new(r"\[([^\]]+)\]:\s*(.+)").unwrap(),
-            escape_regex: Regex::new(r"\\[^\\]").unwrap(),
+        };
+        // Listen for changes to debounce-timeout-ms and update debouncer
+        if let Some(settings) = &checker.settings {
+            let settings = settings.clone();
+            let debouncer = checker.debouncer.as_ref().unwrap().clone();
+            settings.connect_changed(Some("debounce-timeout-ms"), move |s, _| {
+                let ms = s.int("debounce-timeout-ms").max(50) as u32;
+                debouncer.set_timeout_ms(ms);
+            });
         }
+        checker
     }
 
+    /// Debounced spellcheck trigger. Call this on user input events.
+    pub fn trigger_spellcheck_debounced(weak_self: std::rc::Weak<std::cell::RefCell<Self>>, content: String) {
+        if let Some(strong_self) = weak_self.upgrade() {
+            let mut checker = strong_self.borrow_mut();
+            if let Some(debouncer) = &checker.debouncer {
+                let weak_self2 = weak_self.clone();
+                let content_clone = content.clone();
+                debouncer.debounce(move || {
+                    if let Some(strong_self_inner) = weak_self2.upgrade() {
+                        let mut checker_inner = strong_self_inner.borrow_mut();
+                        checker_inner.lint(&content_clone);
+                    }
+                });
+            }
+        }
+    }
     pub fn new_with_defaults() -> Self {
         Self::new(SpellLintConfig::default())
     }
@@ -233,68 +480,84 @@ impl SpellSyntaxChecker {
         };
         tags.insert("broken-link".to_string(), broken_link_tag);
 
-        // Create or reuse tag for HTML errors
-        let html_warning_tag = if let Some(existing_tag) = tag_table.lookup("html-error") {
+        // Create or reuse tag for HTML warnings
+        let html_warning_tag = if let Some(existing_tag) = tag_table.lookup("html-warning") {
             existing_tag
         } else {
-            let tag = TextTag::new(Some("html-error"));
+            let tag = TextTag::new(Some("html-warning"));
             tag.set_property("underline", gtk4::pango::Underline::Single);
             tag.set_property("underline-rgba", &gdk4::RGBA::new(0.8, 0.8, 0.0, 1.0));
             tag_table.add(&tag);
             tag
         };
-        tags.insert("html-error".to_string(), html_warning_tag);
+        tags.insert("html-warning".to_string(), html_warning_tag);
 
         // Create or reuse tag for structure issues (blue underline)
-        let structure_tag = if let Some(existing_tag) = tag_table.lookup("structure-error") {
+        let structure_tag = if let Some(existing_tag) = tag_table.lookup("structure-warning") {
             existing_tag
         } else {
-            let tag = TextTag::new(Some("structure-error"));
+            let tag = TextTag::new(Some("structure-warning"));
             tag.set_property("underline", gtk4::pango::Underline::Single);
             tag.set_property("underline-rgba", &gdk4::RGBA::new(0.2, 0.4, 1.0, 1.0));
             tag_table.add(&tag);
             tag
         };
-        tags.insert("structure-error".to_string(), structure_tag);
+        tags.insert("structure-warning".to_string(), structure_tag);
 
         tags
     }
 
-    /// Set the text buffer for applying visual warnings
+    /// Set the text buffer for applying visual warnings.
+    ///
+    /// # Safety
+    /// This function must only be called from the main GTK thread.
+    /// Panics in debug mode if called from another thread.
     pub fn set_buffer(&mut self, buffer: &gtk4::TextBuffer) {
+        debug_assert!(glib::MainContext::default().is_owner(), "set_buffer must be called from the main thread!");
         self.buffer = Some(buffer.clone());
 
         // Create fresh tags for this buffer to avoid conflicts
         self.warning_tags = Self::create_error_tags_for_buffer(buffer);
     }
+    // ...existing code...
 
     /// Lint markdown content and return warnings
     pub fn lint(&mut self, content: &str) -> Vec<SpellError> {
-        self.warnings.clear();
+        // Refactored: collect warnings from each pass, then merge
+        let mut all_warnings = Vec::new();
 
-        // First pass: use pulldown-cmark for AST-based checking
-        self.ast_based_checks(content);
+        // Markdown-aware spellcheck (parallel, precise offsets)
+        if self.config.enable_spellcheck {
+            all_warnings.extend(spellcheck_text_spans(content));
+        }
 
-        // Second pass: regex-based checks for syntax not covered by AST
-        self.regex_based_checks(content);
+        // First pass: AST-based
+        all_warnings.extend(self.ast_based_checks_pure(content));
 
-        // Third pass: multi-line structural checks
-        self.structural_checks(content);
+        // Second pass: regex-based (per-line)
+        all_warnings.extend(self.regex_based_checks_pure(content));
+
+        // Third pass: structural (multi-line)
+        all_warnings.extend(self.structural_checks_pure(content));
+
+        // Update self.warnings for compatibility
+        self.warnings = all_warnings.clone();
 
         // Apply visual warnings to the buffer if available
         if let Some(buffer) = &self.buffer {
             self.apply_visual_errors(buffer, content);
         }
 
-        self.warnings.clone()
+        all_warnings
     }
 
-    /// AST-based checks using pulldown-cmark
-    fn ast_based_checks(&mut self, content: &str) {
+    /// AST-based checks using pulldown-cmark (pure, returns Vec)
+    fn ast_based_checks_pure(&self, content: &str) -> Vec<SpellError> {
         let parser = Parser::new(content);
         let mut event_stack = Vec::new();
         let mut current_offset = 0;
         let line_offsets = self.build_line_offsets(content);
+        let mut warnings = Vec::new();
 
         for event in parser {
             match event {
@@ -306,7 +569,7 @@ impl SpellSyntaxChecker {
                         if std::mem::discriminant(&start_tag) != std::mem::discriminant(&tag) {
                             // Mismatched tags
                             let (line, col) = self.offset_to_line_col(start_offset, &line_offsets);
-                            self.warnings.push(SpellError {
+                            warnings.push(SpellError {
                                 line,
                                 column: col,
                                 start_offset,
@@ -330,7 +593,7 @@ impl SpellSyntaxChecker {
                 Event::Html(html) => {
                     if self.config.check_raw_html {
                         let (line, col) = self.offset_to_line_col(current_offset, &line_offsets);
-                        self.warnings.push(SpellError {
+                        warnings.push(SpellError {
                             line,
                             column: col,
                             start_offset: current_offset,
@@ -350,7 +613,7 @@ impl SpellSyntaxChecker {
         if !event_stack.is_empty() {
             for (tag, start_offset) in event_stack {
                 let (line, col) = self.offset_to_line_col(start_offset, &line_offsets);
-                self.warnings.push(SpellError {
+                warnings.push(SpellError {
                     line,
                     column: col,
                     start_offset,
@@ -361,291 +624,230 @@ impl SpellSyntaxChecker {
                 });
             }
         }
+        warnings
     }
 
-    /// Regex-based checks for syntax patterns
-    fn regex_based_checks(&mut self, content: &str) {
+    /// Regex-based checks for syntax patterns (pure, returns Vec)
+    fn regex_based_checks_pure(&self, content: &str) -> Vec<SpellError> {
+        use rayon::prelude::*;
         let lines: Vec<&str> = content.lines().collect();
         let line_offsets = self.build_line_offsets(content);
-
-        for (line_num, line) in lines.iter().enumerate() {
-            let line_num = line_num + 1;
+        // Clone only thread-safe config and regexes
+        let config = self.config.clone();
+        let heading_regex = self.heading_regex.clone();
+        let link_regex = self.link_regex.clone();
+        let image_regex = self.image_regex.clone();
+        let html_tag_regex = self.html_tag_regex.clone();
+        // Parallelize per-line checks without capturing &self
+        lines.par_iter().enumerate().flat_map(|(idx, line)| {
+            let line_num = idx + 1;
             let line_start_offset = if line_num == 1 {
                 0
             } else {
                 line_offsets[line_num - 2]
             };
-
-            // Check headings
-            if self.config.check_improper_headings {
-                self.check_heading_syntax(line, line_num, line_start_offset);
+            let mut warnings = Vec::new();
+            if config.check_improper_headings {
+                if let Some(caps) = heading_regex.captures(line) {
+                    let hashes = caps.get(1).unwrap().as_str();
+                    let column = caps.get(1).unwrap().end();
+                    let start_offset = line_start_offset + caps.get(1).unwrap().start();
+                    let end_offset = line_start_offset + caps.get(1).unwrap().end();
+                    warnings.push(SpellError {
+                        line: line_num,
+                        column,
+                        start_offset,
+                        end_offset,
+                        warning_type: SpellType::ImproperHeading,
+                        message: format!("Heading should have a space after `{}`", hashes),
+                        suggestion: Some(format!("Change to `{} `", hashes)),
+                    });
+                }
             }
-
-            // Check emphasis
-            if self.config.check_unclosed_emphasis {
-                self.check_emphasis_syntax(line, line_num, line_start_offset);
+            if config.check_unclosed_emphasis {
+                // Inline pure logic for emphasis check
+                let mut bold_count = 0;
+                let mut italic_count = 0;
+                let mut i = 0;
+                let chars: Vec<char> = line.chars().collect();
+                while i < chars.len() {
+                    if i + 1 < chars.len() && chars[i] == '*' && chars[i + 1] == '*' {
+                        bold_count += 1;
+                        i += 2;
+                    } else if chars[i] == '*' || chars[i] == '_' {
+                        italic_count += 1;
+                        i += 1;
+                    } else {
+                        i += 1;
+                    }
+                }
+                if bold_count % 2 != 0 {
+                    warnings.push(SpellError {
+                        line: line_num,
+                        column: 1,
+                        start_offset: line_start_offset,
+                        end_offset: line_start_offset + line.len(),
+                        warning_type: SpellType::UnclosedEmphasis,
+                        message: "Unclosed bold marker (**)".to_string(),
+                        suggestion: Some("Ensure bold markers are properly paired".to_string()),
+                    });
+                }
+                if italic_count % 2 != 0 {
+                    warnings.push(SpellError {
+                        line: line_num,
+                        column: 1,
+                        start_offset: line_start_offset,
+                        end_offset: line_start_offset + line.len(),
+                        warning_type: SpellType::UnclosedEmphasis,
+                        message: "Unclosed italic marker (* or _)".to_string(),
+                        suggestion: Some("Ensure italic markers are properly paired".to_string()),
+                    });
+                }
             }
-
-            // Check links
-            if self.config.check_broken_links || self.config.check_empty_links {
-                self.check_link_syntax(line, line_num, line_start_offset);
+            if config.check_broken_links || config.check_empty_links {
+                for caps in link_regex.captures_iter(line) {
+                    let full_match = caps.get(0).unwrap();
+                    let url = caps.get(2).unwrap().as_str();
+                    let start_offset = line_start_offset + full_match.start();
+                    let end_offset = line_start_offset + full_match.end();
+                    if config.check_empty_links && url.trim().is_empty() {
+                        warnings.push(SpellError {
+                            line: line_num,
+                            column: full_match.start() + 1,
+                            start_offset,
+                            end_offset,
+                            warning_type: SpellType::EmptyLink,
+                            message: "Link with empty URL".to_string(),
+                            suggestion: Some("Provide a valid URL or remove the link".to_string()),
+                        });
+                    }
+                }
+                let broken_link_regex = Regex::new(r"\[([^\]]*)\]\([^)]*$|\[([^\]]*)\]$|\[([^\]]*)$").unwrap();
+                for mat in broken_link_regex.find_iter(line) {
+                    let start_offset = line_start_offset + mat.start();
+                    let end_offset = line_start_offset + mat.end();
+                    warnings.push(SpellError {
+                        line: line_num,
+                        column: mat.start() + 1,
+                        start_offset,
+                        end_offset,
+                        warning_type: SpellType::BrokenLink,
+                        message: "Incomplete link syntax".to_string(),
+                        suggestion: Some("Ensure link has format [text](url)".to_string()),
+                    });
+                }
             }
-
-            // Check images
-            if self.config.check_broken_images || self.config.check_missing_alt_text {
-                self.check_image_syntax(line, line_num, line_start_offset);
+            if config.check_broken_images || config.check_missing_alt_text {
+                for caps in image_regex.captures_iter(line) {
+                    let full_match = caps.get(0).unwrap();
+                    let alt_text = caps.get(1).unwrap().as_str();
+                    let start_offset = line_start_offset + full_match.start();
+                    let end_offset = line_start_offset + full_match.end();
+                    if config.check_missing_alt_text && alt_text.trim().is_empty() {
+                        warnings.push(SpellError {
+                            line: line_num,
+                            column: full_match.start() + 1,
+                            start_offset,
+                            end_offset,
+                            warning_type: SpellType::MissingAltText,
+                            message: "Image missing alt text".to_string(),
+                            suggestion: Some("Add descriptive alt text for accessibility".to_string()),
+                        });
+                    }
+                }
             }
-
-            // Check task lists
-            if self.config.check_invalid_task_lists {
-                self.check_task_list_syntax(line, line_num, line_start_offset);
+            if config.check_invalid_task_lists {
+                let malformed_task_regex = Regex::new(r"^(\s*)-\s+\[([^\]xX ])\]").unwrap();
+                if let Some(caps) = malformed_task_regex.captures(line) {
+                    let checkbox = caps.get(2).unwrap().as_str();
+                    let start_offset = line_start_offset + caps.get(0).unwrap().start();
+                    let end_offset = line_start_offset + caps.get(0).unwrap().end();
+                    warnings.push(SpellError {
+                        line: line_num,
+                        column: caps.get(0).unwrap().start() + 1,
+                        start_offset,
+                        end_offset,
+                        warning_type: SpellType::InvalidTaskList,
+                        message: format!("Invalid task list checkbox: [{}]", checkbox),
+                        suggestion: Some("Use [ ] for unchecked or [x] for checked".to_string()),
+                    });
+                }
             }
-
-            // Check footnotes
-            if self.config.check_malformed_footnotes {
-                self.check_footnote_syntax(line, line_num, line_start_offset);
+            if config.check_malformed_footnotes {
+                let footnote_regex = Regex::new(r"\[\^([^\]]*)\]").unwrap();
+                for caps in footnote_regex.captures_iter(line) {
+                    let full_match = caps.get(0).unwrap();
+                    let footnote_id = caps.get(1).unwrap().as_str();
+                    let start_offset = line_start_offset + full_match.start();
+                    let end_offset = line_start_offset + full_match.end();
+                    let remainder = &line[full_match.end()..];
+                    let is_definition = remainder.trim_start().starts_with(':');
+                    if !is_definition && footnote_id.trim().is_empty() {
+                        warnings.push(SpellError {
+                            line: line_num,
+                            column: caps.get(0).unwrap().start() + 1,
+                            start_offset,
+                            end_offset,
+                            warning_type: SpellType::MalformedFootnote,
+                            message: "Footnote reference with empty ID".to_string(),
+                            suggestion: Some("Provide a valid footnote ID".to_string()),
+                        });
+                    }
+                }
             }
-
-            // Check HTML tags
-            if self.config.check_raw_html {
-                self.check_html_syntax(line, line_num, line_start_offset);
+            if config.check_raw_html {
+                for mat in html_tag_regex.find_iter(line) {
+                    let start_offset = line_start_offset + mat.start();
+                    let end_offset = line_start_offset + mat.end();
+                    warnings.push(SpellError {
+                        line: line_num,
+                        column: mat.start() + 1,
+                        start_offset,
+                        end_offset,
+                        warning_type: SpellType::RawHtml,
+                        message: format!("Raw HTML tag found: {}", mat.as_str()),
+                        suggestion: Some("Consider using Markdown syntax instead".to_string()),
+                    });
+                }
             }
-        }
+            warnings
+        }).collect()
     }
-
-    /// Structural checks for multi-line patterns
-    fn structural_checks(&mut self, content: &str) {
+    /// Structural checks for multi-line patterns (pure, returns Vec)
+    fn structural_checks_pure(&self, content: &str) -> Vec<SpellError> {
         let lines: Vec<&str> = content.lines().collect();
-
+        // For multi-line checks, parallelize where possible (e.g., table rows, list blocks)
+        let mut warnings = Vec::new();
+        // These checks are not always independent, but we can parallelize the ones that are
         if self.config.check_unclosed_code_blocks {
-            self.check_code_blocks(&lines);
+            warnings.extend(self.check_code_blocks_pure(&lines)); // Not parallelizable (needs state)
         }
-
         if self.config.check_malformed_tables {
-            self.check_table_structure(&lines);
+            // Table structure can be checked per row, but needs expected_columns state
+            warnings.extend(self.check_table_structure_pure(&lines));
         }
-
         if self.config.check_invalid_references {
-            self.check_reference_links(&lines);
+            warnings.extend(self.check_reference_links_pure(&lines));
         }
-
         if self.config.check_inconsistent_list_markers {
-            self.check_list_consistency(&lines);
+            warnings.extend(self.check_list_consistency_pure(&lines));
         }
+        warnings
     }
-
-    /// Check heading syntax
-    fn check_heading_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        if let Some(caps) = self.heading_regex.captures(line) {
-            let hashes = caps.get(1).unwrap().as_str();
-            let column = caps.get(1).unwrap().end();
-            let start_offset = line_start_offset + caps.get(1).unwrap().start();
-            let end_offset = line_start_offset + caps.get(1).unwrap().end();
-
-            self.warnings.push(SpellError {
-                line: line_num,
-                column,
-                start_offset,
-                end_offset,
-                warning_type: SpellType::ImproperHeading,
-                message: format!("Heading should have a space after `{}`", hashes),
-                suggestion: Some(format!("Change to `{} `", hashes)),
-            });
-        }
-    }
-
-    /// Check emphasis syntax (bold/italic)
-    fn check_emphasis_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        // Check for unmatched emphasis markers
-        let mut bold_count = 0;
-        let mut italic_count = 0;
-        let mut i = 0;
-        let chars: Vec<char> = line.chars().collect();
-
-        while i < chars.len() {
-            if i + 1 < chars.len() && chars[i] == '*' && chars[i + 1] == '*' {
-                bold_count += 1;
-                i += 2;
-            } else if chars[i] == '*' || chars[i] == '_' {
-                italic_count += 1;
-                i += 1;
-            } else {
-                i += 1;
-            }
-        }
-
-        if bold_count % 2 != 0 {
-            self.warnings.push(SpellError {
-                line: line_num,
-                column: 1,
-                start_offset: line_start_offset,
-                end_offset: line_start_offset + line.len(),
-                warning_type: SpellType::UnclosedEmphasis,
-                message: "Unclosed bold marker (**)".to_string(),
-                suggestion: Some("Ensure bold markers are properly paired".to_string()),
-            });
-        }
-
-        if italic_count % 2 != 0 {
-            self.warnings.push(SpellError {
-                line: line_num,
-                column: 1,
-                start_offset: line_start_offset,
-                end_offset: line_start_offset + line.len(),
-                warning_type: SpellType::UnclosedEmphasis,
-                message: "Unclosed italic marker (* or _)".to_string(),
-                suggestion: Some("Ensure italic markers are properly paired".to_string()),
-            });
-        }
-    }
-
-    /// Check link syntax
-    fn check_link_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        for caps in self.link_regex.captures_iter(line) {
-            let full_match = caps.get(0).unwrap();
-            let _text = caps.get(1).unwrap().as_str();
-            let url = caps.get(2).unwrap().as_str();
-
-            let start_offset = line_start_offset + full_match.start();
-            let end_offset = line_start_offset + full_match.end();
-
-            // Check for empty links
-            if self.config.check_empty_links && url.trim().is_empty() {
-                self.warnings.push(SpellError {
-                    line: line_num,
-                    column: full_match.start() + 1,
-                    start_offset,
-                    end_offset,
-                    warning_type: SpellType::EmptyLink,
-                    message: "Link with empty URL".to_string(),
-                    suggestion: Some("Provide a valid URL or remove the link".to_string()),
-                });
-            }
-        }
-
-        // Check for broken link syntax
-        let broken_link_regex =
-            Regex::new(r"\[([^\]]*)\]\([^)]*$|\[([^\]]*)\]$|\[([^\]]*)$").unwrap();
-        for mat in broken_link_regex.find_iter(line) {
-            let start_offset = line_start_offset + mat.start();
-            let end_offset = line_start_offset + mat.end();
-
-            self.warnings.push(SpellError {
-                line: line_num,
-                column: mat.start() + 1,
-                start_offset,
-                end_offset,
-                warning_type: SpellType::BrokenLink,
-                message: "Incomplete link syntax".to_string(),
-                suggestion: Some("Ensure link has format [text](url)".to_string()),
-            });
-        }
-    }
-
-    /// Check image syntax
-    fn check_image_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        for caps in self.image_regex.captures_iter(line) {
-            let full_match = caps.get(0).unwrap();
-            let alt_text = caps.get(1).unwrap().as_str();
-            let _src = caps.get(2).unwrap().as_str();
-
-            let start_offset = line_start_offset + full_match.start();
-            let end_offset = line_start_offset + full_match.end();
-
-            // Check for missing alt text
-            if self.config.check_missing_alt_text && alt_text.trim().is_empty() {
-                self.warnings.push(SpellError {
-                    line: line_num,
-                    column: full_match.start() + 1,
-                    start_offset,
-                    end_offset,
-                    warning_type: SpellType::MissingAltText,
-                    message: "Image missing alt text".to_string(),
-                    suggestion: Some("Add descriptive alt text for accessibility".to_string()),
-                });
-            }
-        }
-    }
-
-    /// Check task list syntax
-    fn check_task_list_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        // Check for malformed task lists
-        let malformed_task_regex = Regex::new(r"^(\s*)-\s+\[([^\]xX ])\]").unwrap();
-        if let Some(caps) = malformed_task_regex.captures(line) {
-            let checkbox = caps.get(2).unwrap().as_str();
-            let start_offset = line_start_offset + caps.get(0).unwrap().start();
-            let end_offset = line_start_offset + caps.get(0).unwrap().end();
-
-            self.warnings.push(SpellError {
-                line: line_num,
-                column: caps.get(0).unwrap().start() + 1,
-                start_offset,
-                end_offset,
-                warning_type: SpellType::InvalidTaskList,
-                message: format!("Invalid task list checkbox: [{}]", checkbox),
-                suggestion: Some("Use [ ] for unchecked or [x] for checked".to_string()),
-            });
-        }
-    }
-
-    /// Check footnote syntax
-    fn check_footnote_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        // Check for malformed footnotes - find footnote references that are not definitions
-        let footnote_regex = Regex::new(r"\[\^([^\]]*)\]").unwrap();
-
-        for caps in footnote_regex.captures_iter(line) {
-            let full_match = caps.get(0).unwrap();
-            let footnote_id = caps.get(1).unwrap().as_str();
-            let start_offset = line_start_offset + full_match.start();
-            let end_offset = line_start_offset + full_match.end();
-
-            // Check if this is actually a footnote definition (contains colon after)
-            let remainder = &line[full_match.end()..];
-            let is_definition = remainder.trim_start().starts_with(':');
-
-            // Only warn about empty IDs in footnote references, not definitions
-            if !is_definition && footnote_id.trim().is_empty() {
-                self.warnings.push(SpellError {
-                    line: line_num,
-                    column: caps.get(0).unwrap().start() + 1,
-                    start_offset,
-                    end_offset,
-                    warning_type: SpellType::MalformedFootnote,
-                    message: "Footnote reference with empty ID".to_string(),
-                    suggestion: Some("Provide a valid footnote ID".to_string()),
-                });
-            }
-        }
-    }
-
-    /// Check HTML syntax
-    fn check_html_syntax(&mut self, line: &str, line_num: usize, line_start_offset: usize) {
-        for mat in self.html_tag_regex.find_iter(line) {
-            let start_offset = line_start_offset + mat.start();
-            let end_offset = line_start_offset + mat.end();
-
-            self.warnings.push(SpellError {
-                line: line_num,
-                column: mat.start() + 1,
-                start_offset,
-                end_offset,
-                warning_type: SpellType::RawHtml,
-                message: format!("Raw HTML tag found: {}", mat.as_str()),
-                suggestion: Some("Consider using Markdown syntax instead".to_string()),
-            });
-        }
-    }
-
-    /// Check code blocks
-    fn check_code_blocks(&mut self, lines: &[&str]) {
+    // ---
+    // The following are pure versions of the per-line and per-block check functions.
+    // They return Vec<SpellError> instead of mutating self.warnings.
+    // ---
+    // ---
+    // Pure versions of structural/multi-line checks
+    fn check_code_blocks_pure(&self, lines: &[&str]) -> Vec<SpellError> {
+        let mut warnings = Vec::new();
         let mut in_code_block = false;
         let mut code_block_start = 0;
         let mut code_block_start_offset = 0;
         let mut current_offset = 0;
-
         for (line_num, line) in lines.iter().enumerate() {
             let line_num = line_num + 1;
-
             if line.starts_with("```") {
                 if in_code_block {
                     in_code_block = false;
@@ -655,169 +857,170 @@ impl SpellSyntaxChecker {
                     code_block_start_offset = current_offset;
                 }
             }
-            current_offset += line.len() + 1; // +1 for newline
+            current_offset += line.len() + 1;
         }
-
         if in_code_block {
-            self.warnings.push(SpellError {
+            warnings.push(SpellError {
                 line: code_block_start,
                 column: 1,
                 start_offset: code_block_start_offset,
-                end_offset: code_block_start_offset + 3, // Length of "```"
+                end_offset: code_block_start_offset + 3,
                 warning_type: SpellType::UnclosedCodeBlock,
                 message: "Unclosed code block".to_string(),
                 suggestion: Some("Add closing ``` to end the code block".to_string()),
             });
         }
+        warnings
     }
-
-    /// Check table structure
-    fn check_table_structure(&mut self, lines: &[&str]) {
-        let mut in_table = false;
-        let mut expected_columns = 0;
-        let mut current_offset = 0;
-
-        for (line_num, line) in lines.iter().enumerate() {
-            let line_num = line_num + 1;
-
+    fn check_table_structure_pure(&self, lines: &[&str]) -> Vec<SpellError> {
+        use rayon::prelude::*;
+        // Find table blocks (consecutive lines with '|'), then check each block in parallel
+        let mut table_blocks = Vec::new();
+        let mut current_block = Vec::new();
+        let mut block_start = 0;
+        for (i, line) in lines.iter().enumerate() {
             if line.contains('|') {
-                let current_columns = line.matches('|').count();
-
-                if !in_table {
-                    in_table = true;
-                    expected_columns = current_columns;
-                } else if current_columns != expected_columns {
-                    self.warnings.push(SpellError {
-                        line: line_num,
-                        column: 1,
-                        start_offset: current_offset,
-                        end_offset: current_offset + line.len(),
-                        warning_type: SpellType::MalformedTable,
-                        message: format!(
-                            "Table row has {} columns, expected {}",
-                            current_columns, expected_columns
-                        ),
-                        suggestion: Some(
-                            "Ensure all table rows have the same number of columns".to_string(),
-                        ),
-                    });
+                if current_block.is_empty() {
+                    block_start = i;
                 }
-            } else if in_table && line.trim().is_empty() {
-                in_table = false;
+                current_block.push((i, *line));
+            } else if !current_block.is_empty() && line.trim().is_empty() {
+                table_blocks.push((block_start, current_block.clone()));
+                current_block.clear();
+            } else if !current_block.is_empty() {
+                // End of table block
+                table_blocks.push((block_start, current_block.clone()));
+                current_block.clear();
             }
-            current_offset += line.len() + 1; // +1 for newline
         }
+        if !current_block.is_empty() {
+            table_blocks.push((block_start, current_block));
+        }
+        // For each block, check column consistency in parallel
+        table_blocks.par_iter()
+            .map(|(_start, block)| {
+                if block.is_empty() { return Vec::new(); }
+                let expected_columns = block[0].1.matches('|').count();
+                block.iter().filter_map(move |(line_idx, line)| {
+                    let current_columns = line.matches('|').count();
+                    if current_columns != expected_columns {
+                        Some(SpellError {
+                            line: line_idx + 1,
+                            column: 1,
+                            start_offset: 0, // Offset not tracked for now
+                            end_offset: 0,
+                            warning_type: SpellType::MalformedTable,
+                            message: format!(
+                                "Table row has {} columns, expected {}",
+                                current_columns, expected_columns
+                            ),
+                            suggestion: Some(
+                                "Ensure all table rows have the same number of columns".to_string(),
+                            ),
+                        })
+                    } else {
+                        None
+                    }
+                }).collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect()
     }
-
-    /// Check reference links
-    fn check_reference_links(&mut self, lines: &[&str]) {
+    fn check_reference_links_pure(&self, lines: &[&str]) -> Vec<SpellError> {
+        use rayon::prelude::*;
+        use std::collections::HashMap;
         let mut references = HashMap::new();
-        let mut current_offset = 0;
-
-        // Collect reference definitions
-        for (line_num, line) in lines.iter().enumerate() {
-            let line_num = line_num + 1;
-
+        for line in lines.iter() {
             if let Some(caps) = self.reference_regex.captures(line) {
                 let ref_name = caps.get(1).unwrap().as_str().to_lowercase();
-                references.insert(ref_name, line_num);
+                references.insert(ref_name, true);
             }
-            current_offset += line.len() + 1; // +1 for newline
         }
-
-        // Reset offset for second pass
-        current_offset = 0;
-
-        // Find reference uses
         let reference_use_regex = Regex::new(r"\[([^\]]+)\]\[([^\]]*)\]").unwrap();
-        for (line_num, line) in lines.iter().enumerate() {
-            let line_num = line_num + 1;
-
+        lines.par_iter().enumerate().map(|(line_num, line)| {
+            let mut warnings = Vec::new();
             for caps in reference_use_regex.captures_iter(line) {
                 let ref_name = if caps.get(2).unwrap().as_str().is_empty() {
                     caps.get(1).unwrap().as_str().to_lowercase()
                 } else {
                     caps.get(2).unwrap().as_str().to_lowercase()
                 };
-
                 if !references.contains_key(&ref_name) {
                     let match_start = caps.get(0).unwrap().start();
-                    let match_end = caps.get(0).unwrap().end();
-
-                    self.warnings.push(SpellError {
-                        line: line_num,
+                    warnings.push(SpellError {
+                        line: line_num + 1,
                         column: match_start + 1,
-                        start_offset: current_offset + match_start,
-                        end_offset: current_offset + match_end,
+                        start_offset: 0, // Offset not tracked for now
+                        end_offset: 0,
                         warning_type: SpellType::InvalidReference,
                         message: format!("Reference '{}' not found", ref_name),
                         suggestion: Some("Define the reference or use a direct link".to_string()),
                     });
                 }
             }
-            current_offset += line.len() + 1; // +1 for newline
-        }
+            warnings
+        }).flatten().collect()
     }
-
-    /// Check list consistency
-    fn check_list_consistency(&mut self, lines: &[&str]) {
-        let mut list_markers = Vec::new();
-        let mut in_list = false;
-        let mut current_offset = 0;
-
-        for (line_num, line) in lines.iter().enumerate() {
-            let line_num = line_num + 1;
-
-            let list_marker_regex = Regex::new(r"^(\s*)([-*+])\s").unwrap();
-            if let Some(caps) = list_marker_regex.captures(line) {
-                let indent = caps.get(1).unwrap().as_str();
-                let marker = caps.get(2).unwrap().as_str();
-
-                if !in_list {
-                    in_list = true;
-                    list_markers.clear();
-                    list_markers.push((indent.len(), marker.chars().next().unwrap()));
-                } else {
-                    let current_indent = indent.len();
-                    let current_marker = marker.chars().next().unwrap();
-
-                    if let Some((_, expected_marker)) =
-                        list_markers.iter().find(|(i, _)| *i == current_indent)
-                    {
-                        if *expected_marker != current_marker {
-                            let marker_start = caps.get(2).unwrap().start();
-                            let marker_end = caps.get(2).unwrap().end();
-
-                            self.warnings.push(SpellError {
-                                line: line_num,
-                                column: marker_start + 1,
-                                start_offset: current_offset + marker_start,
-                                end_offset: current_offset + marker_end,
-                                warning_type: SpellType::InconsistentListMarkers,
-                                message: format!(
-                                    "Inconsistent list marker '{}', expected '{}'",
-                                    current_marker, expected_marker
-                                ),
-                                suggestion: Some(
-                                    "Use consistent list markers throughout the list".to_string(),
-                                ),
-                            });
-                        }
-                    } else {
-                        list_markers.push((current_indent, current_marker));
-                    }
+    fn check_list_consistency_pure(&self, lines: &[&str]) -> Vec<SpellError> {
+        use rayon::prelude::*;
+        use regex::Regex;
+        use std::sync::Arc;
+        // Find list blocks (consecutive lines starting with list marker)
+        let list_marker_regex = Arc::new(Regex::new(r"^(\s*)([-*+])\s").unwrap());
+        let mut blocks = Vec::new();
+        let mut current_block = Vec::new();
+        let mut block_start = 0;
+        for (i, line) in lines.iter().enumerate() {
+            if list_marker_regex.is_match(line) {
+                if current_block.is_empty() {
+                    block_start = i;
                 }
-            } else if in_list && line.trim().is_empty() {
-                // Continue - empty lines are okay within lists
-            } else if in_list && !line.starts_with(' ') {
-                in_list = false;
+                current_block.push((i, *line));
+            } else if !current_block.is_empty() && line.trim().is_empty() {
+                blocks.push((block_start, current_block.clone()));
+                current_block.clear();
+            } else if !current_block.is_empty() {
+                blocks.push((block_start, current_block.clone()));
+                current_block.clear();
             }
-            current_offset += line.len() + 1; // +1 for newline
         }
+        if !current_block.is_empty() {
+            blocks.push((block_start, current_block));
+        }
+        blocks.par_iter()
+            .map(|(_start, block)| {
+                if block.is_empty() { return Vec::new(); }
+                let list_marker_regex = Arc::clone(&list_marker_regex);
+                let (first_indent, first_marker) = {
+                    let caps = list_marker_regex.captures(block[0].1).unwrap();
+                    (caps.get(1).unwrap().as_str().len(), caps.get(2).unwrap().as_str().chars().next().unwrap())
+                };
+                block.iter().filter_map(move |(line_idx, line)| {
+                    let caps = list_marker_regex.captures(line).unwrap();
+                    let indent = caps.get(1).unwrap().as_str().len();
+                    let marker = caps.get(2).unwrap().as_str().chars().next().unwrap();
+                    if indent != first_indent || marker != first_marker {
+                        Some(SpellError {
+                            line: line_idx + 1,
+                            column: 1,
+                            start_offset: 0, // Offset not tracked for now
+                            end_offset: 0,
+                            warning_type: SpellType::InconsistentListMarkers,
+                            message: format!("List marker or indentation inconsistent: expected '{}', found '{}'", first_marker, marker),
+                            suggestion: Some("Use consistent list markers and indentation".to_string()),
+                        })
+                    } else {
+                        None
+                    }
+                }).collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect()
     }
 
     /// Apply visual warnings to the text buffer
     fn apply_visual_errors(&self, buffer: &gtk4::TextBuffer, _content: &str) {
+        debug_assert!(glib::MainContext::default().is_owner(), "apply_visual_errors must be called from the main thread!");
         // Clear existing warning tags - only remove tags that belong to this buffer
         let start_iter = buffer.start_iter();
         let end_iter = buffer.end_iter();
@@ -896,12 +1099,12 @@ impl SpellSyntaxChecker {
     }
 
     /// Get all warnings
-    pub fn get_warnings(&self) -> &[SpellError] {
+    fn get_warnings(&self) -> &[SpellError] {
         &self.warnings
     }
 
     /// Clear all warnings and visual indicators
-    pub fn clear_warnings(&mut self) {
+    fn clear_warnings(&mut self) {
         self.warnings.clear();
 
         if let Some(buffer) = &self.buffer {
@@ -926,7 +1129,7 @@ impl SpellSyntaxChecker {
     }
 
     /// Format warnings as text
-    pub fn format_warnings(&self) -> String {
+    fn format_warnings(&self) -> String {
         self.warnings
             .iter()
             .map(|w| w.to_string())
@@ -948,53 +1151,71 @@ pub fn create_syntax_checker_with_config(config: SpellLintConfig) -> SpellSyntax
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_improper_heading() {
-        let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint("##No space after hash");
-        assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, SpellType::ImproperHeading);
+    use std::sync::Once;
+    static GTK_INIT: Once = Once::new();
+    fn ensure_gtk_init() {
+        GTK_INIT.call_once(|| {
+            let _ = gtk4::init();
+        });
     }
 
     #[test]
-    fn test_unclosed_emphasis() {
-        let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint("This is **bold without closing");
-        assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, SpellType::UnclosedEmphasis);
-    }
-
-    #[test]
-    fn test_empty_link() {
-        let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint("This is an [empty link]()");
-        assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, SpellType::EmptyLink);
-    }
-
-    #[test]
-    fn test_missing_alt_text() {
-        let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint("This is an image ![](image.png)");
-        assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, SpellType::MissingAltText);
-    }
-
-    #[test]
-    fn test_unclosed_code_block() {
-        let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint("```rust\nfn main() {}\n// Missing closing ```");
-        assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].warning_type, SpellType::UnclosedCodeBlock);
-    }
-
-    #[test]
-    fn test_valid_markdown() {
-        let mut checker = SpellSyntaxChecker::new_with_defaults();
-        let warnings = checker.lint(
-            "# Heading\n\nThis is **bold** and *italic* text.\n\n[Link](https://example.com)",
-        );
-        assert_eq!(warnings.len(), 0);
+    fn gtk_spell_check_suite() {
+        ensure_gtk_init();
+        // test_improper_heading
+        {
+            let mut config = SpellLintConfig::default();
+            config.enable_spellcheck = false;
+            let mut checker = SpellSyntaxChecker::new(config);
+            let warnings = checker.lint("##No space after hash");
+            assert_eq!(warnings.len(), 1);
+            assert_eq!(warnings[0].warning_type, SpellType::ImproperHeading);
+        }
+        // test_unclosed_emphasis
+        {
+            let mut config = SpellLintConfig::default();
+            config.enable_spellcheck = false;
+            let mut checker = SpellSyntaxChecker::new(config);
+            let warnings = checker.lint("This is **bold without closing");
+            assert_eq!(warnings.len(), 1);
+            assert_eq!(warnings[0].warning_type, SpellType::UnclosedEmphasis);
+        }
+        // test_empty_link
+        {
+            let mut config = SpellLintConfig::default();
+            config.enable_spellcheck = false;
+            let mut checker = SpellSyntaxChecker::new(config);
+            let warnings = checker.lint("This is an [empty link]()");
+            assert_eq!(warnings.len(), 1);
+            assert_eq!(warnings[0].warning_type, SpellType::EmptyLink);
+        }
+        // test_missing_alt_text
+        {
+            let mut config = SpellLintConfig::default();
+            config.enable_spellcheck = false;
+            let mut checker = SpellSyntaxChecker::new(config);
+            let warnings = checker.lint("This is an image ![](image.png)");
+            assert_eq!(warnings.len(), 1);
+            assert_eq!(warnings[0].warning_type, SpellType::MissingAltText);
+        }
+        // test_unclosed_code_block
+        {
+            let mut config = SpellLintConfig::default();
+            config.enable_spellcheck = false;
+            let mut checker = SpellSyntaxChecker::new(config);
+            let warnings = checker.lint("```rust\nfn main() {}\n// Missing closing ```");
+            assert_eq!(warnings.len(), 1);
+            assert_eq!(warnings[0].warning_type, SpellType::UnclosedCodeBlock);
+        }
+        // test_valid_markdown
+        {
+            let mut config = SpellLintConfig::default();
+            config.enable_spellcheck = false;
+            let mut checker = SpellSyntaxChecker::new(config);
+            let warnings = checker.lint(
+                "# Heading\n\nThis is **bold** and *italic* text.\n\n[Link](https://example.com)",
+            );
+            assert!(warnings.is_empty());
+        }
     }
 }

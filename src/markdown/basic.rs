@@ -33,189 +33,195 @@ impl MarkdownParser {
         }
     }
 
-    /// Convert markdown text to HTML following best practices
+    /// Convert markdown text to HTML using Rayon for parallel block processing when appropriate.
     pub fn to_html(&self, markdown: &str) -> String {
+        use rayon::prelude::*;
         let lines: Vec<&str> = markdown.lines().collect();
-        let mut html = String::new();
-        let mut i = 0;
-        let mut in_unordered_list = false;
-        let mut in_ordered_list = false;
-        let mut in_blockquote = false;
-        let mut in_code_block = false;
-        let mut in_fenced_code = false;
-
-        while i < lines.len() {
-            let line = lines[i];
-            let trimmed = line.trim();
-
-            // Handle fenced code blocks first
-            if trimmed.starts_with("```") {
-                if !in_fenced_code {
-                    let lang = trimmed.strip_prefix("```").unwrap_or("");
-                    if !lang.is_empty() {
-                        html.push_str(&format!("<pre><code class=\"language-{}\">", lang));
-                    } else {
-                        html.push_str("<pre><code>");
+        // For large documents, split into blocks and process in parallel
+        if lines.len() > 200 {
+            // Naive block split: treat each paragraph (separated by empty line) as a block
+            let mut blocks = Vec::new();
+            let mut current = Vec::new();
+            for line in &lines {
+                if line.trim().is_empty() {
+                    if !current.is_empty() {
+                        blocks.push(current.clone());
+                        current.clear();
                     }
-                    in_fenced_code = true;
                 } else {
+                    current.push(*line);
+                }
+            }
+            if !current.is_empty() {
+                blocks.push(current);
+            }
+            let html_blocks: Vec<String> = blocks
+                .par_iter()
+                .map(|block| {
+                    let joined = block.join("\n");
+                    self.to_html(&joined)
+                })
+                .collect();
+            html_blocks.join("\n")
+        } else {
+            // ...existing code (sequential processing for small docs)...
+            let mut html = String::new();
+            let mut i = 0;
+            let mut in_unordered_list = false;
+            let mut in_ordered_list = false;
+            let mut in_blockquote = false;
+            let mut in_code_block = false;
+            let mut in_fenced_code = false;
+
+            while i < lines.len() {
+                let line = lines[i];
+                let trimmed = line.trim();
+
+                // ...existing code...
+                if trimmed.starts_with("```") {
+                    if !in_fenced_code {
+                        let lang = trimmed.strip_prefix("```").unwrap_or("");
+                        if !lang.is_empty() {
+                            html.push_str(&format!("<pre><code class=\"language-{}\">", lang));
+                        } else {
+                            html.push_str("<pre><code>");
+                        }
+                        in_fenced_code = true;
+                    } else {
+                        html.push_str("</code></pre>\n");
+                        in_fenced_code = false;
+                    }
+                    i += 1;
+                    continue;
+                }
+                if in_fenced_code {
+                    html.push_str(&self.escape_html(line));
+                    html.push('\n');
+                    i += 1;
+                    continue;
+                }
+                if line.starts_with("    ") && !line.trim().is_empty() {
+                    if !in_code_block {
+                        html.push_str("<pre><code>");
+                        in_code_block = true;
+                    }
+                    html.push_str(&self.escape_html(&line[4..]));
+                    html.push('\n');
+                    i += 1;
+                    continue;
+                } else if in_code_block {
                     html.push_str("</code></pre>\n");
-                    in_fenced_code = false;
+                    in_code_block = false;
+                }
+                if trimmed.is_empty() {
+                    if in_unordered_list {
+                        html.push_str("</ul>\n");
+                        in_unordered_list = false;
+                    }
+                    if in_ordered_list {
+                        html.push_str("</ol>\n");
+                        in_ordered_list = false;
+                    }
+                    if in_blockquote {
+                        html.push_str("</blockquote>\n");
+                        in_blockquote = false;
+                    }
+                    i += 1;
+                    continue;
+                }
+                if let Some(heading_html) = self.parse_heading(line) {
+                    self.close_all_blocks(
+                        &mut html,
+                        &mut in_unordered_list,
+                        &mut in_ordered_list,
+                        &mut in_blockquote,
+                    );
+                    html.push_str(&heading_html);
+                    html.push('\n');
+                } else if self.is_horizontal_rule(trimmed) {
+                    self.close_all_blocks(
+                        &mut html,
+                        &mut in_unordered_list,
+                        &mut in_ordered_list,
+                        &mut in_blockquote,
+                    );
+                    html.push_str("<hr>\n");
+                } else if trimmed.starts_with('>') {
+                    if in_unordered_list || in_ordered_list {
+                        self.close_lists(&mut html, &mut in_unordered_list, &mut in_ordered_list);
+                    }
+                    if !in_blockquote {
+                        html.push_str("<blockquote>\n");
+                        in_blockquote = true;
+                    }
+                    let quote_content = trimmed[1..].trim();
+                    html.push_str("<p>");
+                    html.push_str(&self.process_inline_formatting(quote_content));
+                    html.push_str("</p>\n");
+                } else if trimmed.starts_with("- ")
+                    || trimmed.starts_with("* ")
+                    || trimmed.starts_with("+ ")
+                {
+                    if in_blockquote {
+                        html.push_str("</blockquote>\n");
+                        in_blockquote = false;
+                    }
+                    if in_ordered_list {
+                        html.push_str("</ol>\n");
+                        in_ordered_list = false;
+                    }
+                    if !in_unordered_list {
+                        html.push_str("<ul>\n");
+                        in_unordered_list = true;
+                    }
+                    let list_content = &trimmed[2..];
+                    html.push_str("<li>");
+                    html.push_str(&self.process_inline_formatting(list_content));
+                    html.push_str("</li>\n");
+                } else if let Some(captures) = self.ordered_list_regex.captures(trimmed) {
+                    if in_blockquote {
+                        html.push_str("</blockquote>\n");
+                        in_blockquote = false;
+                    }
+                    if in_unordered_list {
+                        html.push_str("</ul>\n");
+                        in_unordered_list = false;
+                    }
+                    if !in_ordered_list {
+                        html.push_str("<ol>\n");
+                        in_ordered_list = true;
+                    }
+                    let list_content = &captures[2];
+                    html.push_str("<li>");
+                    html.push_str(&self.process_inline_formatting(list_content));
+                    html.push_str("</li>\n");
+                } else {
+                    self.close_all_blocks(
+                        &mut html,
+                        &mut in_unordered_list,
+                        &mut in_ordered_list,
+                        &mut in_blockquote,
+                    );
+                    html.push_str("<p>");
+                    html.push_str(&self.process_inline_formatting(line));
+                    html.push_str("</p>\n");
                 }
                 i += 1;
-                continue;
             }
-
-            // If we're in a fenced code block, just add the content
-            if in_fenced_code {
-                html.push_str(&self.escape_html(line));
-                html.push('\n');
-                i += 1;
-                continue;
-            }
-
-            // Handle indented code blocks (4 spaces)
-            if line.starts_with("    ") && !line.trim().is_empty() {
-                if !in_code_block {
-                    html.push_str("<pre><code>");
-                    in_code_block = true;
-                }
-                html.push_str(&self.escape_html(&line[4..]));
-                html.push('\n');
-                i += 1;
-                continue;
-            } else if in_code_block {
+            self.close_all_blocks(
+                &mut html,
+                &mut in_unordered_list,
+                &mut in_ordered_list,
+                &mut in_blockquote,
+            );
+            if in_code_block {
                 html.push_str("</code></pre>\n");
-                in_code_block = false;
             }
-
-            // Handle empty lines - close lists and blockquotes
-            if trimmed.is_empty() {
-                if in_unordered_list {
-                    html.push_str("</ul>\n");
-                    in_unordered_list = false;
-                }
-                if in_ordered_list {
-                    html.push_str("</ol>\n");
-                    in_ordered_list = false;
-                }
-                if in_blockquote {
-                    html.push_str("</blockquote>\n");
-                    in_blockquote = false;
-                }
-                // Don't add <br> for empty lines, just continue
-                i += 1;
-                continue;
+            if in_fenced_code {
+                html.push_str("</code></pre>\n");
             }
-
-            // Handle headings
-            if let Some(heading_html) = self.parse_heading(line) {
-                self.close_all_blocks(
-                    &mut html,
-                    &mut in_unordered_list,
-                    &mut in_ordered_list,
-                    &mut in_blockquote,
-                );
-                html.push_str(&heading_html);
-                html.push('\n');
-            }
-            // Handle horizontal rules
-            else if self.is_horizontal_rule(trimmed) {
-                self.close_all_blocks(
-                    &mut html,
-                    &mut in_unordered_list,
-                    &mut in_ordered_list,
-                    &mut in_blockquote,
-                );
-                html.push_str("<hr>\n");
-            }
-            // Handle blockquotes
-            else if trimmed.starts_with('>') {
-                if in_unordered_list || in_ordered_list {
-                    self.close_lists(&mut html, &mut in_unordered_list, &mut in_ordered_list);
-                }
-                if !in_blockquote {
-                    html.push_str("<blockquote>\n");
-                    in_blockquote = true;
-                }
-                let quote_content = trimmed[1..].trim();
-                html.push_str("<p>");
-                html.push_str(&self.process_inline_formatting(quote_content));
-                html.push_str("</p>\n");
-            }
-            // Handle unordered lists
-            else if trimmed.starts_with("- ")
-                || trimmed.starts_with("* ")
-                || trimmed.starts_with("+ ")
-            {
-                if in_blockquote {
-                    html.push_str("</blockquote>\n");
-                    in_blockquote = false;
-                }
-                if in_ordered_list {
-                    html.push_str("</ol>\n");
-                    in_ordered_list = false;
-                }
-                if !in_unordered_list {
-                    html.push_str("<ul>\n");
-                    in_unordered_list = true;
-                }
-                let list_content = &trimmed[2..];
-                html.push_str("<li>");
-                html.push_str(&self.process_inline_formatting(list_content));
-                html.push_str("</li>\n");
-            }
-            // Handle ordered lists
-            else if let Some(captures) = self.ordered_list_regex.captures(trimmed) {
-                if in_blockquote {
-                    html.push_str("</blockquote>\n");
-                    in_blockquote = false;
-                }
-                if in_unordered_list {
-                    html.push_str("</ul>\n");
-                    in_unordered_list = false;
-                }
-                if !in_ordered_list {
-                    html.push_str("<ol>\n");
-                    in_ordered_list = true;
-                }
-                let list_content = &captures[2];
-                html.push_str("<li>");
-                html.push_str(&self.process_inline_formatting(list_content));
-                html.push_str("</li>\n");
-            }
-            // Handle regular paragraphs
-            else {
-                self.close_all_blocks(
-                    &mut html,
-                    &mut in_unordered_list,
-                    &mut in_ordered_list,
-                    &mut in_blockquote,
-                );
-
-                html.push_str("<p>");
-                html.push_str(&self.process_inline_formatting(line));
-                html.push_str("</p>\n");
-            }
-
-            i += 1;
+            html
         }
-
-        // Close any remaining open tags
-        self.close_all_blocks(
-            &mut html,
-            &mut in_unordered_list,
-            &mut in_ordered_list,
-            &mut in_blockquote,
-        );
-        if in_code_block {
-            html.push_str("</code></pre>\n");
-        }
-        if in_fenced_code {
-            html.push_str("</code></pre>\n");
-        }
-
-        html
     }
 
     fn close_all_blocks(
