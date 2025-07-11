@@ -76,6 +76,7 @@ pub struct SyntectHighlighter {
     syntax_set: SyntaxSet,
     theme_set: ThemeSet,
     current_theme: String,
+    theme_cache: crate::utils::cache::CacheSync<String, Theme>,
 }
 
 use std::fs;
@@ -125,6 +126,7 @@ impl SyntectHighlighter {
             syntax_set,
             theme_set,
             current_theme: default_theme,
+            theme_cache: crate::utils::cache::CacheSync::new(),
         }
     }
 
@@ -140,6 +142,8 @@ impl SyntectHighlighter {
         // Check if theme exists in our loaded themes
         if self.theme_set.themes.contains_key(theme_name) {
             self.current_theme = theme_name.to_string();
+            // Invalidate cache for this theme to force reload if needed
+            self.theme_cache.invalidate(&self.current_theme);
         } else {
             eprintln!("Theme '{}' not found in loaded themes", theme_name);
             // Keep current theme if requested theme doesn't exist
@@ -182,43 +186,35 @@ impl SyntectHighlighter {
             })
             .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
 
-        // Get the theme safely, only use loaded themes
-        let theme = self
-            .theme_set
-            .themes
-            .get(&self.current_theme)
-            .or_else(|| self.theme_set.themes.get("MarcoDark"))
-            .or_else(|| self.theme_set.themes.get("MarcoLight"))
-            .or_else(|| self.theme_set.themes.values().next());
+        // Use cache for syntect::Theme objects
+        let theme = self.theme_cache.get_or_insert_with(self.current_theme.clone(), |name| {
+            self.theme_set.themes.get(name).cloned()
+                .or_else(|| self.theme_set.themes.get("MarcoDark").cloned())
+                .or_else(|| self.theme_set.themes.get("MarcoLight").cloned())
+                .or_else(|| self.theme_set.themes.values().next().cloned())
+                .unwrap_or_else(|| Theme::default())
+        });
 
-        if let Some(theme) = theme {
-            // Generate highlighted HTML
-            match highlighted_html_for_string(code, &self.syntax_set, syntax, theme) {
-                Ok(html) => {
-                    // Wrap in a div with language-specific class for additional styling
-                    let language_class = language
-                        .to_lowercase()
-                        .replace("+", "plus")
-                        .replace("#", "sharp");
-                    format!(
-                        r#"<div class="code-block code-block-{}">{}</div>"#,
-                        language_class, html
-                    )
-                }
-                Err(_) => {
-                    // Fallback for errors
-                    format!(
-                        r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
-                        Self::html_escape(code)
-                    )
-                }
+        // Generate highlighted HTML
+        match highlighted_html_for_string(code, &self.syntax_set, syntax, &theme) {
+            Ok(html) => {
+                // Wrap in a div with language-specific class for additional styling
+                let language_class = language
+                    .to_lowercase()
+                    .replace("+", "plus")
+                    .replace("#", "sharp");
+                format!(
+                    r#"<div class="code-block code-block-{}">{}</div>"#,
+                    language_class, html
+                )
             }
-        } else {
-            // No theme found at all, fallback to plain
-            format!(
-                r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
-                Self::html_escape(code)
-            )
+            Err(_) => {
+                // Fallback for errors
+                format!(
+                    r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
+                    Self::html_escape(code)
+                )
+            }
         }
     }
 
@@ -500,6 +496,7 @@ impl Clone for SyntectHighlighter {
             syntax_set: self.syntax_set.clone(),
             theme_set: ThemeSet::load_defaults(), // ThemeSet doesn't implement Clone, so we reload defaults
             current_theme: self.current_theme.clone(),
+            theme_cache: crate::utils::cache::CacheSync::new(), // New cache for clone
         }
     }
 }

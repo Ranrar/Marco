@@ -1,4 +1,5 @@
 use crate::editor::core::MarkdownEditor;
+use crate::utils::cache::get_file_contents;
 use gtk4::prelude::*;
 use gtk4::{FileChooserAction, FileChooserDialog, ResponseType};
 
@@ -47,22 +48,18 @@ impl MarkdownEditor {
             if response == ResponseType::Accept {
                 if let Some(file) = dialog.file() {
                     if let Some(path) = file.path() {
-                        match std::fs::read_to_string(&path) {
-                            Ok(content) => {
-                                source_buffer.set_text(&content);
-                                *current_file.borrow_mut() = Some(path.clone());
-                                *is_modified.borrow_mut() = false; // Mark as saved after opening
-                                                                   // Set original content to the loaded content
-                                *original_content.borrow_mut() = content;
-                                println!("DEBUG: File opened and marked as saved");
-                                // Update window title after opening file
-                                editor_for_title.update_window_title();
-                                // Update base path for image resolution
-                                editor_for_title.html_view.set_base_path(Some(path));
-                            }
-                            Err(e) => {
-                                eprintln!("Failed to open file: {}", e);
-                            }
+                        if let Some(content) = get_file_contents(&path) {
+                            source_buffer.set_text(&content);
+                            *current_file.borrow_mut() = Some(path.clone());
+                            *is_modified.borrow_mut() = false; // Mark as saved after opening
+                            *original_content.borrow_mut() = content;
+                            println!("DEBUG: File opened and marked as saved");
+                            editor_for_title.update_window_title();
+                            editor_for_title.html_view.set_base_path(Some(path.clone()));
+                            crate::utils::cache::on_file_save_or_reload(path.to_str().unwrap_or(""));
+                        } else {
+                            eprintln!("ERROR: Failed to read file: {:?}", path);
+                            // Optionally, show an error dialog to the user here
                         }
                     }
                 }
@@ -84,6 +81,7 @@ impl MarkdownEditor {
             if std::fs::write(&path, text).is_ok() {
                 println!("DEBUG: File saved successfully, marking as saved");
                 self.mark_as_saved(); // Mark as saved after successful write
+                crate::utils::cache::on_file_save_or_reload(path.to_str().unwrap_or(""));
             } else {
                 println!("DEBUG: Failed to save file");
             }
@@ -155,7 +153,8 @@ impl MarkdownEditor {
                                 // Update window title after saving file
                                 editor_for_title.update_window_title();
                                 // Update base path for image resolution
-                                editor_for_title.html_view.set_base_path(Some(path));
+                                editor_for_title.html_view.set_base_path(Some(path.clone()));
+                                crate::utils::cache::on_file_save_or_reload(path.to_str().unwrap_or(""));
                             }
                             Err(e) => {
                                 eprintln!("Failed to save file: {}", e);
@@ -210,7 +209,8 @@ impl MarkdownEditor {
                                 // Update window title after saving file
                                 editor_for_title.update_window_title();
                                 // Update base path for image resolution
-                                editor_for_title.html_view.set_base_path(Some(path));
+                                editor_for_title.html_view.set_base_path(Some(path.clone()));
+                                crate::utils::cache::on_file_save_or_reload(path.to_str().unwrap_or(""));
                                 on_save_complete(); // Call the callback only on successful save
                             }
                             Err(e) => {
@@ -256,6 +256,7 @@ impl MarkdownEditor {
 
         // Update base path for image resolution
         self.html_view.set_base_path(Some(path.to_path_buf()));
+        crate::utils::cache::on_file_save_or_reload(file_path);
 
         Ok(())
     }

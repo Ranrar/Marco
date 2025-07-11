@@ -11,6 +11,7 @@ pub struct SettingsChangeTracker {
     pub view_mode: String,
     pub language: String,
     pub custom_css_file: String,
+    pub debounce_timeout_ms: i32,
 }
 
 impl SettingsChangeTracker {
@@ -27,6 +28,7 @@ impl SettingsChangeTracker {
             view_mode: prefs.get_view_mode(),
             language: prefs.get_language(),
             custom_css_file: prefs.get_custom_css_file(),
+            debounce_timeout_ms: prefs.get_debounce_timeout_ms(),
         }
     }
 
@@ -40,6 +42,7 @@ impl SettingsChangeTracker {
             || self.view_mode != original.view_mode
             || self.language != original.language
             || self.custom_css_file != original.custom_css_file
+            || self.debounce_timeout_ms != original.debounce_timeout_ms
     }
 
     pub fn apply_changes(
@@ -69,6 +72,7 @@ impl SettingsChangeTracker {
         prefs.set_view_mode(&self.view_mode);
         prefs.set_language(&self.language);
         prefs.set_custom_css_file(&self.custom_css_file);
+        prefs.set_debounce_timeout_ms(self.debounce_timeout_ms);
 
         // Apply UI theme changes immediately
         if old_ui_theme != self.ui_theme {
@@ -138,6 +142,7 @@ pub struct OriginalSettings {
     pub view_mode: String,
     pub language: String,
     pub custom_css_file: String,
+    pub debounce_timeout_ms: i32,
 }
 
 impl OriginalSettings {
@@ -153,6 +158,7 @@ impl OriginalSettings {
             view_mode: prefs.get_view_mode(),
             language: prefs.get_language(),
             custom_css_file: prefs.get_custom_css_file(),
+            debounce_timeout_ms: prefs.get_debounce_timeout_ms(),
         }
     }
 
@@ -167,7 +173,10 @@ impl OriginalSettings {
         prefs.set_view_mode(&self.view_mode);
         prefs.set_language(&self.language);
         prefs.set_custom_css_file(&self.custom_css_file);
+        prefs.set_debounce_timeout_ms(self.debounce_timeout_ms);
     }
+
+
 }
 use gio::prelude::*;
 use gio::Settings;
@@ -178,6 +187,14 @@ pub struct AppPreferences {
 }
 
 impl AppPreferences {
+    /// Debounce timeout (ms)
+    pub fn get_debounce_timeout_ms(&self) -> i32 {
+        self.settings.int("debounce-timeout-ms")
+    }
+
+    pub fn set_debounce_timeout_ms(&self, value: i32) {
+        let _ = self.settings.set_int("debounce-timeout-ms", value);
+    }
     /// Create a new AppPreferences instance
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let settings = Settings::new("org.marco.editor");

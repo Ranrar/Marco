@@ -9,7 +9,7 @@ Cargo.lock
 *.swo
 dev/
 .VSCodeCounter/
-test/
+tests/
 .github/instructions/rust.instructions.md
 
 # OS

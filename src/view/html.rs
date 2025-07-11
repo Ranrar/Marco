@@ -3,38 +3,17 @@ use crate::theme::ThemeManager;
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, Widget};
 use pulldown_cmark::{html, CodeBlockKind, Event, Options, Parser, Tag};
-use regex::Regex;
+use crate::utils::cache::{AST_CACHE, hash_source};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
 use std::hash::Hasher;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
+use crate::utils::cache::get_regex;
 use webkit6::prelude::*;
 use webkit6::{UserContentManager, UserStyleLevel, UserStyleSheet, WebView};
 
-/// Cached compiled regexes for performance
-struct CachedRegexes {
-    open_task_pattern: Regex,
-    closed_task_pattern: Regex,
-    highlight_pattern: Regex,
-    subscript_pattern: Regex,
-    superscript_pattern: Regex,
-    header_regex: Regex,
-}
-
-impl CachedRegexes {
-    fn new() -> Self {
-        Self {
-            open_task_pattern: Regex::new(r"^(\s*)(\[ \])(.*)$").unwrap(),
-            closed_task_pattern: Regex::new(r"^(\s*)(\[x\])(.*)$").unwrap(),
-            highlight_pattern: Regex::new(r"==([^=]+)==").unwrap(),
-            subscript_pattern: Regex::new(r"~([^~]+)~").unwrap(),
-            superscript_pattern: Regex::new(r"(^|\s)\^([^^]+)\^").unwrap(),
-            header_regex: Regex::new(r"<(h[1-6])>([^<]+)</h[1-6]>").unwrap(),
-        }
-    }
-}
 
 #[derive(Clone)]
 pub struct MarkdownHtmlView {
@@ -51,7 +30,7 @@ pub struct MarkdownHtmlView {
     last_update: Rc<RefCell<Option<Instant>>>,
     cached_html: Rc<RefCell<HashMap<String, String>>>,
     user_content_manager: UserContentManager,
-    cached_regexes: Rc<RefCell<CachedRegexes>>,
+    // Regexes are now cached globally using utils::regex_cache
     cached_css: Rc<RefCell<Option<String>>>,
 }
 
@@ -95,7 +74,7 @@ impl MarkdownHtmlView {
             last_update: Rc::new(RefCell::new(None)),
             cached_html: Rc::new(RefCell::new(HashMap::new())),
             user_content_manager,
-            cached_regexes: Rc::new(RefCell::new(CachedRegexes::new())),
+            // Regexes are now cached globally using utils::regex_cache
             cached_css: Rc::new(RefCell::new(None)),
         };
 
@@ -122,19 +101,22 @@ impl MarkdownHtmlView {
         // Update the code language manager with the appropriate theme
         let syntax_theme_name = theme_manager.get_syntax_theme_name();
         println!("DEBUG: HTML view setting syntax theme to: {}", syntax_theme_name);
-        
+
+        // Invalidate all theme-dependent caches
+        crate::utils::cache::on_theme_change();
+
         // Map ThemeManager theme names to actual tmTheme file names
         let actual_theme_name = match syntax_theme_name.as_str() {
             "MarcoLight" => "light",
             "MarcoDark" => "dark",
             _ => &syntax_theme_name,
         };
-        
+
         {
             let mut code_manager = self.code_language_manager.borrow_mut();
             code_manager.set_theme(actual_theme_name);
         }
-        
+
         *self.theme_manager.borrow_mut() = Some(theme_manager);
         self.refresh_with_current_content();
     }
@@ -230,6 +212,10 @@ impl MarkdownHtmlView {
         // Store the original markdown for theme refresh
         *self.current_markdown.borrow_mut() = markdown_text.to_string();
 
+        // Invalidate AST cache for this content if changed
+        let hash = hash_source(markdown_text);
+        AST_CACHE.invalidate(hash);
+
         // Clear cache if needed to prevent memory leaks
         self.clear_cache_if_needed();
 
@@ -258,19 +244,26 @@ impl MarkdownHtmlView {
     fn process_markdown_to_html(&self, markdown_text: &str) -> String {
         let processed_markdown = self.preprocess_for_compact_html(markdown_text);
 
-        let mut options = Options::empty();
-        options.insert(Options::ENABLE_TABLES);
-        options.insert(Options::ENABLE_FOOTNOTES);
-        options.insert(Options::ENABLE_STRIKETHROUGH);
-        options.insert(Options::ENABLE_TASKLISTS);
-        options.insert(Options::ENABLE_SMART_PUNCTUATION);
-
-        let parser = Parser::new_ext(&processed_markdown, options);
+        let hash = hash_source(&processed_markdown);
         let mut html_content = String::new();
 
-        let events = self.process_events_with_code_highlighting(parser);
+        // Try AST cache first
+        let events = if let Some(cached) = AST_CACHE.get(hash) {
+            cached
+        } else {
+            let mut options = Options::empty();
+            options.insert(Options::ENABLE_TABLES);
+            options.insert(Options::ENABLE_FOOTNOTES);
+            options.insert(Options::ENABLE_STRIKETHROUGH);
+            options.insert(Options::ENABLE_TASKLISTS);
+            options.insert(Options::ENABLE_SMART_PUNCTUATION);
+            let parser = Parser::new_ext(&processed_markdown, options);
+            let events_borrowed = self.process_events_with_code_highlighting(parser);
+            let events = crate::utils::cache::own_events(events_borrowed);
+            AST_CACHE.insert(hash, events.clone());
+            events
+        };
         html::push_html(&mut html_content, events.into_iter());
-
         self.add_header_ids_to_html(&html_content)
     }
 
@@ -465,18 +458,22 @@ impl MarkdownHtmlView {
     }
 
     fn preprocess_for_compact_html(&self, markdown: &str) -> String {
-        let regexes = self.cached_regexes.borrow();
         let mut result = String::new();
+        let open_task_pattern = get_regex(r"^(\s*)(\[ \])(.*)$");
+        let closed_task_pattern = get_regex(r"^(\s*)(\[x\])(.*)$");
+        let highlight_pattern = get_regex(r"==([^=]+)==");
+        let subscript_pattern = get_regex(r"~([^~]+)~");
+        let superscript_pattern = get_regex(r"(^|\s)\^([^^]+)\^");
 
         for line in markdown.lines() {
             let mut processed_line =
-                if let Some(captures) = regexes.open_task_pattern.captures(line) {
+                if let Some(captures) = open_task_pattern.captures(line) {
                     let task_text = &captures[3];
                     format!(
                         "<p><input type=\"checkbox\" disabled> {}</p>",
                         task_text.trim()
                     )
-                } else if let Some(captures) = regexes.closed_task_pattern.captures(line) {
+                } else if let Some(captures) = closed_task_pattern.captures(line) {
                     let task_text = &captures[3];
                     format!(
                         "<p><input type=\"checkbox\" checked disabled> {}</p>",
@@ -486,16 +483,13 @@ impl MarkdownHtmlView {
                     line.to_string()
                 };
 
-            processed_line = regexes
-                .highlight_pattern
+            processed_line = highlight_pattern
                 .replace_all(&processed_line, "<mark>$1</mark>")
                 .to_string();
-            processed_line = regexes
-                .subscript_pattern
+            processed_line = subscript_pattern
                 .replace_all(&processed_line, "<sub>$1</sub>")
                 .to_string();
-            processed_line = regexes
-                .superscript_pattern
+            processed_line = superscript_pattern
                 .replace_all(&processed_line, "$1<sup>$2</sup>")
                 .to_string();
 
@@ -507,10 +501,9 @@ impl MarkdownHtmlView {
     }
 
     fn add_header_ids_to_html(&self, html_content: &str) -> String {
-        let regexes = self.cached_regexes.borrow();
+        let header_regex = get_regex(r"<(h[1-6])>([^<]+)</h[1-6]>");
 
-        regexes
-            .header_regex
+        header_regex
             .replace_all(html_content, |caps: &regex::Captures| {
                 let tag = &caps[1];
                 let content = &caps[2];

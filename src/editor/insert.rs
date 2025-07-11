@@ -138,8 +138,8 @@ impl MarkdownEditor {
 
     /// Find the next available footnote number by scanning existing footnotes
     fn find_next_footnote_number(&self, text: &str) -> u32 {
-        use regex::Regex;
-        let footnote_regex = Regex::new(r"\[\^(\d+)\]").unwrap();
+        use crate::utils::cache::get_regex;
+        let footnote_regex = get_regex(r"\[\^(\d+)\]");
         let mut max_number = 0;
 
         for captures in footnote_regex.captures_iter(text) {

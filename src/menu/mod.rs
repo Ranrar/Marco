@@ -226,21 +226,19 @@ fn open_markdown_guide(editor: &editor::MarkdownEditor) {
     load_guide_file(editor, guide_path);
 }
 
-fn load_guide_file(editor: &editor::MarkdownEditor, guide_path: &std::path::Path) {
-    match std::fs::read_to_string(guide_path) {
-        Ok(content) => {
-            // Set the content in the editor using the source buffer
-            editor.get_source_buffer().set_text(&content);
+use crate::utils::cache::get_file_contents;
 
-            println!("Loaded Marco User Guide");
-        }
-        Err(e) => {
-            eprintln!("Error loading user guide: {}", e);
-            // Fallback: Show basic guide content
-            editor
-                .get_source_buffer()
-                .set_text(&get_basic_guide_content());
-        }
+fn load_guide_file(editor: &editor::MarkdownEditor, guide_path: &std::path::Path) {
+    if let Some(content) = get_file_contents(guide_path) {
+        // Set the content in the editor using the source buffer
+        editor.get_source_buffer().set_text(&content);
+        println!("Loaded Marco User Guide");
+    } else {
+        eprintln!("Error loading user guide: {:?}", guide_path);
+        // Fallback: Show basic guide content
+        editor
+            .get_source_buffer()
+            .set_text(&get_basic_guide_content());
     }
 }
 

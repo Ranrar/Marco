@@ -1,5 +1,5 @@
 <center>
-<img src="/home/ranrar/Code/projects/marco/src/assets/logo.png" alt="Marco" width="300" height="200">
+<img src="doc/img/logo.png" alt="Marco" width="300" height="200">
 </center>
 
 ---

@@ -1,4 +1,5 @@
 use gtk4::prelude::*;
+use crate::utils::cache::get_regex;
 use regex::Regex;
 use std::collections::HashMap;
 
@@ -49,50 +50,21 @@ pub struct ExtraMarkdownSyntax {
 impl ExtraMarkdownSyntax {
     pub fn new() -> Self {
         Self {
-            // Underline: <ins>text</ins>
-            underline_regex: Regex::new(r"<ins>(.*?)</ins>").unwrap(),
-
-            // Center: <center>text</center> or <p style="text-align:center">text</p>
-            center_regex: Regex::new(r"<center>(.*?)</center>").unwrap(),
-
-            // Color: <p style="color:colorname">text</p>
-            color_regex: Regex::new(r#"<p\s+style="color:([^"]+)">(.*?)</p>"#).unwrap(),
-
-            // Font color (deprecated): <font color="red">text</font>
-            font_color_regex: Regex::new(r#"<font\s+color="([^"]+)">(.*?)</font>"#).unwrap(),
-
-            // Comments: [comment]: # or [comment]: # (text)
-            comment_regex: Regex::new(r"^\s*\[([^\]]+)\]:\s*#\s*(.*)$").unwrap(),
-
-            // Admonitions: > :emoji: **Type:** text
-            admonition_regex: Regex::new(r">\s*:([^:]+):\s*\*\*([^*]+):\*\*\s*(.*)").unwrap(),
-
-            // GitHub-style admonitions: > [!TYPE]
-            github_admonition_regex: Regex::new(r"^\s*>\s*\[!([A-Z]+)\]\s*(.*)$").unwrap(),
-
-            // Image with size: <img src="..." width="..." height="...">
-            image_size_regex: Regex::new(r#"<img\s+src="([^"]+)"(?:\s+width="([^"]+)")?(?:\s+height="([^"]+)")?[^>]*>"#).unwrap(),
-
-            // Image caption: <figure><img...><figcaption>...</figcaption></figure>
-            image_caption_regex: Regex::new(r#"<figure>\s*<img[^>]+>\s*<figcaption>(.*?)</figcaption>\s*</figure>"#).unwrap(),
-
-            // Link target: <a href="..." target="_blank">text</a>
-            link_target_regex: Regex::new(r#"<a\s+href="([^"]+)"\s+target="([^"]+)">(.*?)</a>"#).unwrap(),
-
-            // HTML entities: &entity;
-            html_entity_regex: Regex::new(r"&([a-zA-Z0-9#]+);").unwrap(),
-
-            // Table line breaks: <br>
-            table_linebreak_regex: Regex::new(r"<br\s*/?>").unwrap(),
-
-            // Table lists: <ul><li>...</li></ul>
-            table_list_regex: Regex::new(r"<ul>(.*?)</ul>").unwrap(),
-
-            // Video embeds: [![alt](thumbnail)](video_url)
-            video_embed_regex: Regex::new(r"!\[([^\]]*)\]\(https://img\.youtube\.com/vi/([^/]+)/[^)]+\)\]\(https://www\.youtube\.com/watch\?v=([^)]+)\)").unwrap(),
-
-            // Indent with &nbsp;
-            indent_regex: Regex::new(r"^(\s*)((?:&nbsp;)+)(.*)$").unwrap(),
+            underline_regex: get_regex(r"<ins>(.*?)</ins>"),
+            center_regex: get_regex(r"<center>(.*?)</center>"),
+            color_regex: get_regex(r#"<p\s+style="color:([^"]+)">(.*?)</p>"#),
+            font_color_regex: get_regex(r#"<font\s+color="([^"]+)">(.*?)</font>"#),
+            comment_regex: get_regex(r"^\s*\[([^\]]+)\]:\s*#\s*(.*)$"),
+            admonition_regex: get_regex(r">\s*:([^:]+):\s*\*\*([^*]+):\*\*\s*(.*)"),
+            github_admonition_regex: get_regex(r"^\s*>\s*\[!([A-Z]+)\]\s*(.*)$"),
+            image_size_regex: get_regex(r#"<img\s+src="([^"]+)"(?:\s+width="([^"]+)")?(?:\s+height="([^"]+)")?[^>]*>"#),
+            image_caption_regex: get_regex(r#"<figure>\s*<img[^>]+>\s*<figcaption>(.*?)</figcaption>\s*</figure>"#),
+            link_target_regex: get_regex(r#"<a\s+href="([^"]+)"\s+target="([^"]+)">(.*?)</a>"#),
+            html_entity_regex: get_regex(r"&([a-zA-Z0-9#]+);"),
+            table_linebreak_regex: get_regex(r"<br\s*/?>"),
+            table_list_regex: get_regex(r"<ul>(.*?)</ul>"),
+            video_embed_regex: get_regex(r"!\[([^\]]*)\]\(https://img\.youtube\.com/vi/([^/]+)/[^)]+\)\]\(https://www\.youtube\.com/watch\?v=([^)]+)\)"),
+            indent_regex: get_regex(r"^(\s*)((?:&nbsp;)+)(.*)$"),
         }
     }
 
@@ -574,8 +546,8 @@ struct Header {
 
 /// Parse headers from markdown text
 fn parse_headers(text: &str) -> Vec<Header> {
-    use regex::Regex;
-    let header_regex = Regex::new(r"^(#{1,6})\s+(.+)$").unwrap();
+    use crate::utils::cache::get_regex;
+    let header_regex = get_regex(r"^(#{1,6})\s+(.+)$");
     let mut headers = Vec::new();
 
     for line in text.lines() {

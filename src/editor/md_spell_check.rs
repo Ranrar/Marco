@@ -1,53 +1,6 @@
 use gio::prelude::*;
 use gio::Settings;
-use glib::{source::SourceId, timeout_add_local, ControlFlow};
-use std::time::Duration;
-use std::cell::RefCell;
-use std::rc::Rc;
-/// Debouncer for spellcheck or other delayed actions in GTK4
-#[derive(Clone)]
-pub struct SpellcheckDebouncer {
-
-    timeout_ms: std::cell::Cell<u32>,
-    source_id: Rc<RefCell<Option<SourceId>>>,
-    callback: Rc<RefCell<Option<Box<dyn FnOnce()>>>>,
-}
-
-impl SpellcheckDebouncer {
-    pub fn set_timeout_ms(&self, ms: u32) {
-        let timeout = ms.max(50);
-        self.timeout_ms.set(timeout);
-    }
-    pub fn new(timeout_ms: u32) -> Self {
-        Self {
-            timeout_ms: std::cell::Cell::new(timeout_ms.max(50)),
-            source_id: Rc::new(RefCell::new(None)),
-            callback: Rc::new(RefCell::new(None)),
-        }
-    }
-
-    /// Debounce the given callback. If called again before timeout, resets the timer.
-    pub fn debounce<F: FnOnce() + 'static>(&self, callback: F) {
-        // Remove any existing timer
-        if let Some(id) = self.source_id.borrow_mut().take() {
-            id.remove();
-        }
-        // Store the callback in a box
-        *self.callback.borrow_mut() = Some(Box::new(callback));
-        let source_id_cell = self.source_id.clone();
-        let callback_cell = self.callback.clone();
-        let timeout = self.timeout_ms.get();
-        let source_id_cell_inner = source_id_cell.clone();
-        *source_id_cell.borrow_mut() = Some(timeout_add_local(Duration::from_millis(timeout as u64), move || {
-            // Take and call the callback if present
-            if let Some(cb) = callback_cell.borrow_mut().take() {
-                cb();
-            }
-            *source_id_cell_inner.borrow_mut() = None;
-            ControlFlow::Break
-        }));
-    }
-}
+use crate::utils::debouncer::Debouncer;
 use rayon::prelude::*;
 /// Spellcheck all words in Markdown-aware text spans, returning precise SpellErrors for misspellings.
 fn spellcheck_text_spans(content: &str) -> Vec<SpellError> {
@@ -73,7 +26,7 @@ fn spellcheck_text_spans(content: &str) -> Vec<SpellError> {
     // Collect all (word, start, end) tuples
     let mut word_offsets = Vec::new();
     for (span, span_offset) in &spans {
-        for mat in WORD_REGEX.find_iter(span) {
+        for mat in word_regex().find_iter(span) {
             let word = mat.as_str();
             let start = span_offset + mat.start();
             let end = span_offset + mat.end();
@@ -169,9 +122,13 @@ use once_cell::sync::Lazy;
 use std::fs;
 use zspell::Dictionary;
 // Unicode-aware word regex (minimum 2 letters)
-static WORD_REGEX: Lazy<regex::Regex> = Lazy::new(|| {
-    regex::Regex::new(r"\p{L}{2,}").expect("Failed to compile word regex")
-});
+use crate::utils::cache::get_regex;
+
+// Unicode-aware word regex (minimum 2 letters)
+// Use the global regex cache for consistency
+fn word_regex() -> regex::Regex {
+    get_regex(r"\p{L}{2,}")
+}
 
 /// Loads the Hunspell dictionary from language/dic/en.aff and language/dic/en.dic.
 /// You can replace these files with your preferred language.
@@ -321,7 +278,7 @@ pub struct SpellSyntaxChecker {
     buffer: Option<gtk4::TextBuffer>,
 
     // Debouncer for live spellcheck
-    debouncer: Option<SpellcheckDebouncer>,
+    debouncer: Option<Debouncer>,
     settings: Option<Settings>,
 
     // Regex patterns for advanced syntax checking
@@ -375,7 +332,7 @@ impl SpellSyntaxChecker {
         // Load settings
         let settings = Settings::new("org.marco.editor");
         let timeout_ms = settings.int("debounce-timeout-ms").max(50); // Clamp to minimum 50ms
-        let debouncer = SpellcheckDebouncer::new(timeout_ms as u32);
+        let debouncer = Debouncer::new(timeout_ms as u32);
         let checker = Self {
             config,
             warnings: Vec::new(),
@@ -383,11 +340,11 @@ impl SpellSyntaxChecker {
             buffer: None,
             debouncer: Some(debouncer.clone()),
             settings: Some(settings.clone()),
-            heading_regex: Regex::new(r"^(#{1,6})([^ #]|$)").unwrap(),
-            link_regex: Regex::new(r"\[([^\]]*)\]\(([^)]*)\)").unwrap(),
-            image_regex: Regex::new(r"!\[([^\]]*)\]\(([^)]*)\)").unwrap(),
-            html_tag_regex: Regex::new(r"<[^>]+>").unwrap(),
-            reference_regex: Regex::new(r"\[([^\]]+)\]:\s*(.+)").unwrap(),
+            heading_regex: get_regex(r"^(#{1,6})([^ #]|$)"),
+            link_regex: get_regex(r"\[([^\]]*)\]\(([^)]*)\)"),
+            image_regex: get_regex(r"!\[([^\]]*)\]\(([^)]*)\)"),
+            html_tag_regex: get_regex(r"<[^>]+>"),
+            reference_regex: get_regex(r"\[([^\]]+)\]:\s*(.+)"),
         };
         // Listen for changes to debounce-timeout-ms and update debouncer
         if let Some(settings) = &checker.settings {
@@ -404,7 +361,7 @@ impl SpellSyntaxChecker {
     /// Debounced spellcheck trigger. Call this on user input events.
     pub fn trigger_spellcheck_debounced(weak_self: std::rc::Weak<std::cell::RefCell<Self>>, content: String) {
         if let Some(strong_self) = weak_self.upgrade() {
-            let mut checker = strong_self.borrow_mut();
+            let checker = strong_self.borrow_mut();
             if let Some(debouncer) = &checker.debouncer {
                 let weak_self2 = weak_self.clone();
                 let content_clone = content.clone();
@@ -1104,7 +1061,7 @@ impl SpellSyntaxChecker {
     }
 
     /// Clear all warnings and visual indicators
-    fn clear_warnings(&mut self) {
+    pub fn clear_warnings(&mut self) {
         self.warnings.clear();
 
         if let Some(buffer) = &self.buffer {

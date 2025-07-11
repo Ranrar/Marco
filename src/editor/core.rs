@@ -36,6 +36,8 @@ pub struct MarkdownEditor {
     // Markdown syntax checker for warnings
     pub(crate) spell_checker: Rc<RefCell<SpellSyntaxChecker>>,
     pub(crate) warnings_enabled: Rc<RefCell<bool>>,
+    /// General-purpose debouncer for per-keystroke features (syntax, lint, etc)
+    pub(crate) debouncer: Rc<crate::utils::debouncer::Debouncer>,
 }
 
 impl MarkdownEditor {
@@ -119,6 +121,7 @@ impl MarkdownEditor {
         // Initialize syntax checker for markdown warnings
         let spell_check_markdown = SpellSyntaxChecker::new_with_defaults();
 
+        let debouncer = Rc::new(crate::utils::debouncer::Debouncer::new(120)); // 120ms default debounce
         let editor = Self {
             widget: paned,
             source_view,
@@ -140,6 +143,7 @@ impl MarkdownEditor {
             original_content: Rc::new(RefCell::new(String::new())),
             spell_checker: Rc::new(RefCell::new(spell_check_markdown)),
             warnings_enabled: Rc::new(RefCell::new(true)), // Enable warnings by default
+            debouncer,
         };
 
         // Set buffer reference for syntax checker
@@ -220,11 +224,10 @@ impl MarkdownEditor {
         let is_modified = self.is_modified.clone();
         let extra_syntax = self.extra_syntax.clone();
         let tag_table = self.tag_table.clone();
-        let update_timer: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
         let original_content = self.original_content.clone();
         let spell_checker = self.spell_checker.clone();
         let warnings_enabled = self.warnings_enabled.clone();
-
+        let debouncer = self.debouncer.clone();
         // Store clone of editor for window title updates
         let editor_for_title = self.clone();
 
@@ -232,12 +235,15 @@ impl MarkdownEditor {
             let start = buffer.start_iter();
             let end = buffer.end_iter();
             let text = buffer.text(&start, &end, false);
+            let text_string = text.to_string();
+            // Restore immediate HTML view update
+            html_view.update_content(&text_string);
 
             // Smart modification tracking: compare current content with original content
             let was_modified = *is_modified.borrow();
-            let current_content = text.to_string();
+            let current_content = &text_string;
             let original = original_content.borrow();
-            let is_now_modified = current_content != *original;
+            let is_now_modified = current_content != &*original;
 
             if was_modified != is_now_modified {
                 *is_modified.borrow_mut() = is_now_modified;
@@ -249,91 +255,68 @@ impl MarkdownEditor {
                 editor_for_title.update_window_title();
             }
 
-            // Apply syntax coloring if enabled
+            // Debounce syntax highlighting and related per-keystroke features
+            let extra_syntax = extra_syntax.clone();
+            let tag_table = tag_table.clone();
+            let buffer_clone = buffer.clone();
             let prefs = crate::settings::core::get_app_preferences();
             let syntax_enabled = prefs.get_editor_color_syntax();
-            eprintln!(
-                "============ DEBUG: Buffer changed, syntax_enabled={} ============",
-                syntax_enabled
-            );
-            if syntax_enabled {
-                eprintln!("============ Applying syntax coloring ============");
-                // Apply extra syntax coloring (underlines, colors, comments, etc.)
-                {
-                    let extra_syntax_ref = extra_syntax.borrow();
+            let spell_checker = spell_checker.clone();
+            let warnings_enabled = warnings_enabled.clone();
+            let text_string_clone = text_string.clone();
+            debouncer.debounce(move || {
+                if syntax_enabled {
+                    eprintln!("============ Applying syntax coloring (debounced) ============");
+                    // Apply extra syntax coloring (underlines, colors, comments, etc.)
+                    {
+                        let extra_syntax_ref = extra_syntax.borrow();
+                        let mut tag_table_ref = tag_table.borrow_mut();
+                        extra_syntax_ref.apply_extra_syntax_coloring(&buffer_clone, &text_string_clone, &mut tag_table_ref);
+                    }
+                    // Apply syntect syntax coloring
+                    let ui_theme = prefs.get_ui_theme();
+                    let theme_name = match ui_theme.as_str() {
+                        "dark" => "dark",
+                        "light" => "light",
+                        _ => "dark",
+                    };
                     let mut tag_table_ref = tag_table.borrow_mut();
-                    extra_syntax_ref.apply_extra_syntax_coloring(buffer, &text, &mut tag_table_ref);
+                    crate::editor::syntax::color::apply_syntax_coloring(
+                        &buffer_clone,
+                        &text_string_clone,
+                        &mut tag_table_ref,
+                        theme_name,
+                    );
+                } else {
+                    eprintln!("============ NOT applying coloring - syntax is disabled ============");
                 }
-
-                // Apply syntect syntax coloring
-                let ui_theme = prefs.get_ui_theme();
-                let theme_name = match ui_theme.as_str() {
-                    "dark" => "dark",
-                    "light" => "light",
-                    _ => "dark", // default to dark theme
-                };
-
-                let mut tag_table_ref = tag_table.borrow_mut();
-                crate::editor::syntax::color::apply_syntax_coloring(
-                    buffer,
-                    &text,
-                    &mut tag_table_ref,
-                    theme_name,
-                );
-            } else {
-                eprintln!("============ NOT applying coloring - syntax is disabled ============");
-            }
-
-            // Clear all warning tags immediately on every keystroke
-            spell_checker.borrow().clear_visual_warnings();
-
-            // Apply markdown warnings if enabled (debounced)
-            if *warnings_enabled.borrow() {
-                let weak_checker = Rc::downgrade(&spell_checker);
-                crate::editor::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text.to_string());
-            }
+                // Clear all warning tags immediately on every keystroke (debounced)
+                spell_checker.borrow_mut().clear_warnings();
+                // Apply markdown warnings if enabled (debounced)
+                if *warnings_enabled.borrow() {
+                    let weak_checker = Rc::downgrade(&spell_checker);
+                    // If you want to debounce spellcheck, call it here
+                    // crate::editor::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text_string_clone.clone());
+                }
+            });
 
             // Update footer statistics immediately (no delay needed for stats)
-            let char_count = text.chars().count();
-            let word_count = text.split_whitespace().count();
-
+            let char_count = text_string.chars().count();
+            let word_count = text_string.split_whitespace().count();
             // Use GTK TextBuffer's get_insert mark
             let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
             let cursor_iter = gtk_buffer.iter_at_mark(&gtk_buffer.get_insert());
             let line = cursor_iter.line() + 1;
             let column = cursor_iter.line_offset() + 1;
-
             for callback in footer_callbacks.borrow().iter() {
                 callback(
-                    &text,
+                    &text_string,
                     word_count,
                     char_count,
                     line as usize,
                     column as usize,
                 );
             }
-
-            // Debounce the view updates to prevent constant WebView reloads
-            let html_view_clone = html_view.clone();
-            let code_view_clone = code_view.clone();
-            let text_clone = text.to_string();
-            let timer_ref = update_timer.clone();
-
-            // Cancel any existing timer
-            if let Some(timer_id) = timer_ref.borrow_mut().take() {
-                timer_id.remove();
-            }
-
-            // Set a new timer for 800ms delay (longer to reduce updates)
-            let new_timer =
-                glib::timeout_add_local(std::time::Duration::from_millis(800), move || {
-                    html_view_clone.update_content(&text_clone);
-                    code_view_clone.update_content(&text_clone);
-                    *timer_ref.borrow_mut() = None;
-                    glib::ControlFlow::Break
-                });
-
-            *update_timer.borrow_mut() = Some(new_timer);
         });
     }
 

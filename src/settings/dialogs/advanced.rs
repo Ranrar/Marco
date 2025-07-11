@@ -104,6 +104,28 @@ pub fn create_advanced_settings_page(
             file_chooser.show();
         }
     });
+
+    // Debounce timeout setting (SpinButton) using change tracker
+    let spin = gtk4::SpinButton::with_range(50.0, 2000.0, 10.0);
+    spin.set_value(change_tracker.borrow().debounce_timeout_ms as f64);
+    spin.set_tooltip_text(Some("How many milliseconds to wait after user input before triggering live spellcheck. Lower values make spellcheck more responsive, higher values reduce CPU usage."));
+    {
+        let change_tracker = change_tracker.clone();
+        let save_button = save_button.clone();
+        let original_settings = original_settings.clone();
+        spin.connect_value_changed(move |spin| {
+            let value = spin.value() as i32;
+            change_tracker.borrow_mut().debounce_timeout_ms = value;
+            save_button.set_sensitive(change_tracker.borrow().has_changes(&original_settings));
+        });
+    }
+    let debounce_row = create_settings_row_aligned(
+        "Debounce timeout (ms)",
+        Some("How many milliseconds to wait after user input before triggering live spellcheck."),
+        &spin,
+    );
+    page_box.append(&debounce_row);
+
     let css_row = create_settings_row_aligned(
         "Custom CSS file",
         Some("Path to a custom CSS file to override preview styling"),

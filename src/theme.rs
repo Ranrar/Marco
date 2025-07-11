@@ -1,3 +1,4 @@
+use crate::utils::cache::Cache;
 use gtk4::prelude::*;
 use gtk4::CssProvider;
 use std::cell::RefCell;
@@ -43,6 +44,7 @@ pub struct ThemeManager {
     callbacks: Rc<RefCell<Vec<Box<dyn Fn(Theme)>>>>,
     current_css_theme: Rc<RefCell<String>>,
     gtk_css_provider: Rc<RefCell<Option<CssProvider>>>,
+    css_cache: Rc<Cache<String, String>>,
 }
 
 impl ThemeManager {
@@ -53,6 +55,7 @@ impl ThemeManager {
             callbacks: Rc::new(RefCell::new(Vec::new())),
             current_css_theme: Rc::new(RefCell::new("standard".to_string())),
             gtk_css_provider: Rc::new(RefCell::new(None)),
+            css_cache: Rc::new(Cache::new()),
         }
     }
 
@@ -303,22 +306,39 @@ h1, h2, h3, h4, h5, h6 {
     pub fn set_css_theme(&self, theme_name: &str) -> Result<String, String> {
         *self.current_css_theme.borrow_mut() = theme_name.to_string();
 
-        // Load CSS file from the themes/ directory
+        // Try cache first
+        if let Some(css_content) = self.css_cache.get(&theme_name.to_string()) {
+            if !css_content.is_empty() {
+                self.load_theme_css_into_gtk(&css_content);
+                return Ok(css_content);
+            }
+        }
+
+        // Not cached or previously failed, try to load
         let css_path = format!("themes/{}.css", theme_name);
         match std::fs::read_to_string(&css_path) {
             Ok(css_content) => {
-                // Load GTK-specific CSS into the provider
+                self.css_cache.insert(theme_name.to_string(), css_content.clone());
                 self.load_theme_css_into_gtk(&css_content);
                 Ok(css_content)
             },
             Err(e) => {
                 eprintln!("Failed to load CSS theme '{}': {}", theme_name, e);
-                // Fallback to standard theme
+                // Fallback to standard theme if not already tried
                 if theme_name != "standard" {
+                    self.css_cache.invalidate(&theme_name.to_string());
                     return self.set_css_theme("standard");
                 }
                 Err(format!("Failed to load CSS theme '{}': {}", theme_name, e))
             }
+        }
+    }
+    /// Invalidate the CSS cache for a specific theme (or all)
+    pub fn invalidate_css_cache(&self, theme_name: Option<&str>) {
+        if let Some(name) = theme_name {
+            self.css_cache.invalidate(&name.to_string());
+        } else {
+            self.css_cache.clear();
         }
     }
 
@@ -575,6 +595,7 @@ impl Clone for ThemeManager {
             callbacks: self.callbacks.clone(), // Share the same callbacks vector
             current_css_theme: self.current_css_theme.clone(),
             gtk_css_provider: self.gtk_css_provider.clone(),
+            css_cache: self.css_cache.clone(),
         }
     }
 }
