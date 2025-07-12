@@ -17,6 +17,75 @@ pub struct MarkdownParser {
 }
 
 impl MarkdownParser {
+    /// Check if a line is an ordered list item
+    pub fn is_ordered_list(&self, line: &str) -> bool {
+        self.ordered_list_regex.is_match(line)
+    }
+
+    /// Iterate over all regions for a given inline format in a line
+    pub fn find_bold_double(&self, line: &str) -> Vec<(usize, usize)> {
+        self.bold_double_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_bold_underscore(&self, line: &str) -> Vec<(usize, usize)> {
+        self.bold_underscore_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_italic_single(&self, line: &str) -> Vec<(usize, usize)> {
+        self.italic_single_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_italic_underscore(&self, line: &str) -> Vec<(usize, usize)> {
+        self.italic_underscore_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_strikethrough(&self, line: &str) -> Vec<(usize, usize)> {
+        self.strikethrough_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_inline_code(&self, line: &str) -> Vec<(usize, usize)> {
+        self.code_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_links(&self, line: &str) -> Vec<(usize, usize)> {
+        self.link_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    pub fn find_images(&self, line: &str) -> Vec<(usize, usize)> {
+        self.image_regex.captures_iter(line)
+            .filter_map(|cap| cap.get(0).map(|m| (m.start(), m.end())))
+            .collect()
+    }
+    /// Check if a line is a Markdown heading and return its level if so
+    pub fn detect_heading(&self, line: &str) -> Option<usize> {
+        if let Some(caps) = self.heading_regex.captures(line.trim_start()) {
+            Some(caps[1].len())
+        } else {
+            None
+        }
+    }
+
+    /// Check if the text contains bold formatting (** or __)
+    pub fn detect_bold(&self, text: &str) -> bool {
+        self.bold_double_regex.is_match(text) || self.bold_underscore_regex.is_match(text)
+    }
+
+    /// Check if the text contains italic formatting (* or _)
+    pub fn detect_italic(&self, text: &str) -> bool {
+        self.italic_single_regex.is_match(text) || self.italic_underscore_regex.is_match(text)
+    }
+
+    /// Check if the text contains inline code formatting (`)
+    pub fn detect_inline_code(&self, text: &str) -> bool {
+        self.code_regex.is_match(text)
+    }
     pub fn new() -> Self {
         Self {
             heading_regex: Regex::new(r"^(#{1,6})\s+(.+)$").unwrap(),

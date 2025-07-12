@@ -74,7 +74,6 @@ fn update_footer_labels(
     footer_labels
         .cursor_pos
         .set_text(&language::tr_with_args("footer.position", &pos_args));
-    footer_labels.status.set_text(&language::tr("footer.ready"));
 }
 
 /// Set up language change detection system
@@ -396,8 +395,11 @@ fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
     // Connect editor to footer updates
     editor.add_footer_callback({
         let footer_labels = footer_labels.clone();
-        move |_text, word_count, char_count, line, column| {
+        move |text, word_count, char_count, line, column| {
             update_footer_labels(&footer_labels, word_count, char_count, line, column);
+            // Also update formatting label
+            let formatting_html = crate::editor::core::get_formatting_at_cursor(text, line, column);
+            crate::footer::update_formatting_label(&footer_labels, &formatting_html);
         }
     });
 
