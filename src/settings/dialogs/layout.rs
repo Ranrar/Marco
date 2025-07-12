@@ -53,51 +53,7 @@ pub fn create_layout_settings_page(
     page_box.set_margin_end(24);
     page_box.add_css_class("settings-page");
 
-    let layout_box = Box::new(Orientation::Vertical, 8);
-    let editor_left_radio = CheckButton::with_label("Editor Left, Preview Right");
-    let editor_right_radio = CheckButton::with_label("Editor Right, Preview Left");
-    let current_layout = &change_tracker.borrow().layout_mode;
     let current_ratio = change_tracker.borrow().layout_ratio;
-    
-    editor_right_radio.set_group(Some(&editor_left_radio));
-    let current_layout = &change_tracker.borrow().layout_mode;
-    if current_layout == "editor-left" {
-        editor_left_radio.set_active(true);
-    } else {
-        editor_right_radio.set_active(true);
-    }
-    editor_left_radio.connect_toggled({
-        let change_tracker = change_tracker.clone();
-        let save_button = save_button.clone();
-        let original_settings = original_settings.clone();
-        move |button| {
-            if button.is_active() {
-                change_tracker.borrow_mut().layout_mode = "editor-left".to_string();
-                let has_changes = change_tracker.borrow().has_changes(&original_settings);
-                save_button.set_sensitive(has_changes);
-            }
-        }
-    });
-    editor_right_radio.connect_toggled({
-        let change_tracker = change_tracker.clone();
-        let save_button = save_button.clone();
-        let original_settings = original_settings.clone();
-        move |button| {
-            if button.is_active() {
-                change_tracker.borrow_mut().layout_mode = "editor-right".to_string();
-                let has_changes = change_tracker.borrow().has_changes(&original_settings);
-                save_button.set_sensitive(has_changes);
-            }
-        }
-    });
-    let layout_row = create_settings_row_aligned(
-        "Layout mode",
-        Some("Choose whether the editor or preview appears on the left side"),
-        &layout_box,
-    );
-    layout_box.append(&editor_left_radio);
-    layout_box.append(&editor_right_radio);
-    page_box.append(&layout_row);
 
     let view_combo = ComboBoxText::new();
     view_combo.append(Some("html"), "HTML Preview");
