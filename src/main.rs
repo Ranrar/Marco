@@ -407,15 +407,28 @@ fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
     // Add main box to window
     window.set_child(Some(&main_box));
 
-    // Set up 50/50 split after window is properly sized
-    window.connect_realize({
+    // Set up split ratio from settings after paned is fully sized
+    // Set up split ratio from settings after main loop starts
+    {
         let editor = editor.clone();
-        move |window| {
-            // Get the default window width and set 50/50 split
-            let width = window.default_width();
-            editor.set_split_ratio(width);
-        }
-    });
+        glib::idle_add_local(move || {
+            let paned = &editor.widget;
+            let width = paned.allocated_width();
+            if width > 0 {
+                let ratio = settings::get_app_preferences().get_layout_ratio();
+                let min = 10;
+                let max = 90;
+                let ratio = ratio.clamp(min, max);
+                let mut pos = (width * ratio / 100).max(200).min(width - 200);
+                if pos < 200 { pos = 200; }
+                if pos > width - 200 { pos = width - 200; }
+                paned.set_position(pos);
+                glib::ControlFlow::Break
+            } else {
+                glib::ControlFlow::Continue
+            }
+        });
+    }
 
     // Handle window close event to check for unsaved changes
     window.connect_close_request({

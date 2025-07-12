@@ -56,6 +56,9 @@ pub fn create_layout_settings_page(
     let layout_box = Box::new(Orientation::Vertical, 8);
     let editor_left_radio = CheckButton::with_label("Editor Left, Preview Right");
     let editor_right_radio = CheckButton::with_label("Editor Right, Preview Left");
+    let current_layout = &change_tracker.borrow().layout_mode;
+    let current_ratio = change_tracker.borrow().layout_ratio;
+    
     editor_right_radio.set_group(Some(&editor_left_radio));
     let current_layout = &change_tracker.borrow().layout_mode;
     if current_layout == "editor-left" {
@@ -99,6 +102,47 @@ pub fn create_layout_settings_page(
     let view_combo = ComboBoxText::new();
     view_combo.append(Some("html"), "HTML Preview");
     view_combo.append(Some("code"), "Source Code");
+    
+    // --- Editor/Viewer Split Ratio Slider ---
+
+    let ratio_label = Label::new(Some(&format!("{}% editor / {}% viewer", current_ratio, 100 - current_ratio)));
+    ratio_label.set_halign(Align::Start);
+    ratio_label.set_valign(Align::Center);
+    ratio_label.set_margin_bottom(6);
+
+    let ratio_scale = gtk4::Scale::with_range(Orientation::Horizontal, 10.0, 90.0, 1.0);
+    ratio_scale.set_value(current_ratio as f64);
+    ratio_scale.set_digits(0);
+    ratio_scale.set_hexpand(true);
+    ratio_scale.set_valign(Align::Center);
+    ratio_scale.set_tooltip_text(Some("Adjust the horizontal space for the editor (10–90%)"));
+    ratio_scale.set_width_request(320);
+    ratio_scale.set_margin_bottom(8);
+
+    // Update label and change_tracker on slider move
+    ratio_scale.connect_value_changed({
+        let change_tracker = change_tracker.clone();
+        let save_button = save_button.clone();
+        let original_settings = original_settings.clone();
+        let ratio_label = ratio_label.clone();
+        move |scale| {
+            let value = scale.value().round() as i32;
+            change_tracker.borrow_mut().layout_ratio = value;
+            ratio_label.set_text(&format!("{}% editor / {}% viewer", value, 100 - value));
+            save_button.set_sensitive(change_tracker.borrow().has_changes(&original_settings));
+        }
+    });
+
+    let ratio_col = Box::new(Orientation::Vertical, 4);
+    ratio_col.append(&ratio_label);
+    ratio_col.append(&ratio_scale);
+    let ratio_settings_row = create_settings_row_aligned(
+        "Editor/Viewer Split",
+        Some("Adjust how much horizontal space the editor takes (10–90%)"),
+        &ratio_col,
+    );
+    page_box.append(&ratio_settings_row);
+
     let current_view = &change_tracker.borrow().view_mode;
     view_combo.set_active_id(Some(current_view));
     view_combo.connect_changed({

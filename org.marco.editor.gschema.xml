@@ -72,6 +72,14 @@
       <summary>Layout mode</summary>
       <description>The layout mode for the application: editor-left places the editor on the left with preview on the right, editor-right places the editor on the right with preview on the left</description>
     </key>
+
+    <!-- Editor/Viewer split ratio (percentage of editor width) -->
+    <key name="layout-ratio" type="i">
+      <range min="10" max="90"/>
+      <default>60</default>
+      <summary>Editor/Viewer split ratio</summary>
+      <description>Defines the percentage of horizontal space allocated to the editor in split view. Range: 10-90. Example: 60 = 60% editor, 40% viewer.</description>
+    </key>
     
     <!-- Window dimensions -->
     <key name="window-width" type="i">

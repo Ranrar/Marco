@@ -90,8 +90,7 @@ impl MarkdownEditor {
         paned.set_start_child(Some(&source_scroll));
         paned.set_end_child(Some(&view_stack));
 
-        // Clamp split position logic
-        // We'll clamp the position between min and max (e.g., 200px and total_width-200px)
+        // Clamp split position logic and save ratio on user move
         let _paned_clone = paned.clone();
         paned.connect_notify(Some("position"), move |paned, _pspec| {
             if let Some(window) = paned.root().and_then(|w| w.downcast::<gtk4::Window>().ok()) {
@@ -103,6 +102,12 @@ impl MarkdownEditor {
                     paned.set_position(min);
                 } else if pos > max {
                     paned.set_position(max);
+                }
+                // Save split ratio to settings
+                if total_width > 0 {
+                    let ratio = ((pos as f64 / total_width as f64) * 100.0).round() as i32;
+                    let ratio = ratio.clamp(10, 90);
+                    crate::settings::get_app_preferences().set_layout_ratio(ratio);
                 }
             }
         });

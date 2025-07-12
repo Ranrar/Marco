@@ -8,6 +8,7 @@ pub struct SettingsChangeTracker {
     pub ui_theme: String,
     pub css_theme: String,
     pub layout_mode: String,
+    pub layout_ratio: i32,
     pub view_mode: String,
     pub language: String,
     pub custom_css_file: String,
@@ -18,6 +19,7 @@ impl SettingsChangeTracker {
     pub fn load_current() -> Self {
         let prefs = get_app_preferences();
         let layout_mode = prefs.get_layout_mode();
+        let layout_ratio = prefs.get_layout_ratio();
         Self {
             function_highlighting: prefs.get_function_highlighting(),
             editor_color_syntax: prefs.get_editor_color_syntax(),
@@ -25,6 +27,7 @@ impl SettingsChangeTracker {
             ui_theme: prefs.get_ui_theme(),
             css_theme: prefs.get_css_theme(),
             layout_mode,
+            layout_ratio,
             view_mode: prefs.get_view_mode(),
             language: prefs.get_language(),
             custom_css_file: prefs.get_custom_css_file(),
@@ -39,6 +42,7 @@ impl SettingsChangeTracker {
             || self.ui_theme != original.ui_theme
             || self.css_theme != original.css_theme
             || self.layout_mode != original.layout_mode
+            || self.layout_ratio != original.layout_ratio
             || self.view_mode != original.view_mode
             || self.language != original.language
             || self.custom_css_file != original.custom_css_file
@@ -69,10 +73,32 @@ impl SettingsChangeTracker {
         prefs.set_ui_theme(&self.ui_theme);
         prefs.set_css_theme(&self.css_theme);
         prefs.set_layout_mode(&self.layout_mode);
+        prefs.set_layout_ratio(self.layout_ratio);
         prefs.set_view_mode(&self.view_mode);
         prefs.set_language(&self.language);
         prefs.set_custom_css_file(&self.custom_css_file);
         prefs.set_debounce_timeout_ms(self.debounce_timeout_ms);
+
+        // Update the editor/viewer split after saving
+        // Get the current window width and set the paned position
+        if let Some(window) = editor.widget.root().and_then(|w| w.downcast::<gtk4::Window>().ok()) {
+            let total_width = window.allocated_width();
+            let min = 200;
+            let max = (total_width - 200).max(min);
+            let mut pos = (total_width * self.layout_ratio / 100).clamp(min, max);
+            if pos < min { pos = min; }
+            if pos > max { pos = max; }
+            editor.widget.set_position(pos);
+        } else {
+            // Fallback: use paned width if window not found
+            let total_width = editor.widget.width();
+            let min = 200;
+            let max = (total_width - 200).max(min);
+            let mut pos = (total_width * self.layout_ratio / 100).clamp(min, max);
+            if pos < min { pos = min; }
+            if pos > max { pos = max; }
+            editor.widget.set_position(pos);
+        }
 
         // Apply UI theme changes immediately
         if old_ui_theme != self.ui_theme {
@@ -139,6 +165,7 @@ pub struct OriginalSettings {
     pub ui_theme: String,
     pub css_theme: String,
     pub layout_mode: String,
+    pub layout_ratio: i32,
     pub view_mode: String,
     pub language: String,
     pub custom_css_file: String,
@@ -155,6 +182,7 @@ impl OriginalSettings {
             ui_theme: prefs.get_ui_theme(),
             css_theme: prefs.get_css_theme(),
             layout_mode: prefs.get_layout_mode(),
+            layout_ratio: prefs.get_layout_ratio(),
             view_mode: prefs.get_view_mode(),
             language: prefs.get_language(),
             custom_css_file: prefs.get_custom_css_file(),
@@ -170,6 +198,7 @@ impl OriginalSettings {
         prefs.set_ui_theme(&self.ui_theme);
         prefs.set_css_theme(&self.css_theme);
         prefs.set_layout_mode(&self.layout_mode);
+        prefs.set_layout_ratio(self.layout_ratio);
         prefs.set_view_mode(&self.view_mode);
         prefs.set_language(&self.language);
         prefs.set_custom_css_file(&self.custom_css_file);
@@ -180,6 +209,8 @@ impl OriginalSettings {
 }
 use gio::prelude::*;
 use gio::Settings;
+use gtk4::prelude::MountExt;
+use gtk4::prelude::WidgetExt;
 
 /// Application settings using GSettings
 pub struct AppPreferences {
@@ -305,6 +336,15 @@ impl AppPreferences {
 
     pub fn set_layout_mode(&self, mode: &str) {
         let _ = self.settings.set_string("layout-mode", mode);
+    }
+
+    /// Editor/Viewer split ratio (percentage of editor width)
+    pub fn get_layout_ratio(&self) -> i32 {
+        self.settings.int("layout-ratio")
+    }
+
+    pub fn set_layout_ratio(&self, ratio: i32) {
+        let _ = self.settings.set_int("layout-ratio", ratio);
     }
 
     /// Theme settings
