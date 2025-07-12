@@ -252,6 +252,13 @@ pub struct MarkdownEditor {
 }
 
 impl MarkdownEditor {
+    /// Enable or disable text wrapping in the editor
+    pub fn set_text_wrap(&self, enabled: bool) {
+        use gtk4::WrapMode;
+        // sourceview5::View implements IsA<TextView>
+        let wrap_mode = if enabled { WrapMode::Word } else { WrapMode::None };
+        self.source_view.set_wrap_mode(wrap_mode);
+    }
     pub fn new() -> Self {
         // Create the main paned widget
         let paned = Paned::new(Orientation::Horizontal);
@@ -361,6 +368,11 @@ impl MarkdownEditor {
             warnings_enabled: Rc::new(RefCell::new(true)), // Enable warnings by default
             debouncer,
         };
+
+        // Load and apply text wrap setting at startup
+        let prefs = crate::settings::core::get_app_preferences();
+        let wrap_enabled = prefs.get_editor_text_wrap();
+        editor.set_text_wrap(wrap_enabled);
 
         // Set buffer reference for syntax checker
         {

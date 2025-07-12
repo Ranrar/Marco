@@ -112,6 +112,25 @@ pub fn create_editor_settings_page(
     );
     page_box.append(&markdown_row);
 
+    // Text wrap section
+    let text_wrap_switch = Switch::new();
+    text_wrap_switch.set_active(change_tracker.borrow().editor_text_wrap);
+    text_wrap_switch.connect_active_notify({
+        let change_tracker = change_tracker.clone();
+        let save_button = save_button.clone();
+        let original_settings = original_settings.clone();
+        move |switch| {
+            change_tracker.borrow_mut().editor_text_wrap = switch.is_active();
+            save_button.set_sensitive(change_tracker.borrow().has_changes(&original_settings));
+        }
+    });
+    let text_wrap_row = create_toggle_row(
+        "Text Wrap",
+        Some("Wrap long lines in the editor instead of horizontal scrolling"),
+        &text_wrap_switch,
+    );
+    page_box.append(&text_wrap_row);
+
     // Add expandable explanation of errors types (keep as requested)
     let expander = gtk4::Expander::new(Some("What do the different errors types mean?"));
     expander.set_margin_top(8);

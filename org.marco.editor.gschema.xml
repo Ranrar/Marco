@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist gettext-domain="marco">
   <schema id="org.marco.editor" path="/org/marco/editor/">
+    <!-- Text wrap toggle for editor -->
+    <key name="editor-text-wrap" type="b">
+      <default>true</default>
+      <summary>Enable text wrapping in the editor</summary>
+      <description>Whether to enable line wrapping in the main editor TextView. If false, lines will scroll horizontally.</description>
+    </key>
     <key name="debounce-timeout-ms" type="i">
       <default>300</default>
       <summary>Debounce timeout for live spellcheck (ms)</summary>

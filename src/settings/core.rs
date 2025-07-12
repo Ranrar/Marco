@@ -5,6 +5,7 @@ pub struct SettingsChangeTracker {
     pub function_highlighting: bool,
     pub editor_color_syntax: bool,
     pub markdown_warnings: bool,
+    pub editor_text_wrap: bool,
     pub ui_theme: String,
     pub css_theme: String,
     pub layout_mode: String,
@@ -24,6 +25,7 @@ impl SettingsChangeTracker {
             function_highlighting: prefs.get_function_highlighting(),
             editor_color_syntax: prefs.get_editor_color_syntax(),
             markdown_warnings: prefs.get_markdown_warnings(),
+            editor_text_wrap: prefs.get_editor_text_wrap(),
             ui_theme: prefs.get_ui_theme(),
             css_theme: prefs.get_css_theme(),
             layout_mode,
@@ -39,6 +41,7 @@ impl SettingsChangeTracker {
         self.function_highlighting != original.function_highlighting
             || self.editor_color_syntax != original.editor_color_syntax
             || self.markdown_warnings != original.markdown_warnings
+            || self.editor_text_wrap != original.editor_text_wrap
             || self.ui_theme != original.ui_theme
             || self.css_theme != original.css_theme
             || self.layout_mode != original.layout_mode
@@ -66,10 +69,13 @@ impl SettingsChangeTracker {
         let old_editor_color_syntax = prefs.get_editor_color_syntax();
         let old_markdown_warnings = prefs.get_markdown_warnings();
 
+        let old_editor_text_wrap = prefs.get_editor_text_wrap();
+
         // Apply all changes to settings
         prefs.set_function_syntax_coloring(self.function_highlighting);
         prefs.set_editor_color_syntax(self.editor_color_syntax);
         prefs.set_markdown_warnings(self.markdown_warnings);
+        prefs.set_editor_text_wrap(self.editor_text_wrap);
         prefs.set_ui_theme(&self.ui_theme);
         prefs.set_css_theme(&self.css_theme);
         prefs.set_layout_mode(&self.layout_mode);
@@ -78,6 +84,10 @@ impl SettingsChangeTracker {
         prefs.set_language(&self.language);
         prefs.set_custom_css_file(&self.custom_css_file);
         prefs.set_debounce_timeout_ms(self.debounce_timeout_ms);
+        // Apply text wrap setting immediately if changed
+        if old_editor_text_wrap != self.editor_text_wrap {
+            editor.set_text_wrap(self.editor_text_wrap);
+        }
 
         // Update the editor/viewer split after saving
         // Get the current window width and set the paned position
@@ -162,6 +172,7 @@ pub struct OriginalSettings {
     pub function_highlighting: bool,
     pub editor_color_syntax: bool,
     pub markdown_warnings: bool,
+    pub editor_text_wrap: bool,
     pub ui_theme: String,
     pub css_theme: String,
     pub layout_mode: String,
@@ -179,6 +190,7 @@ impl OriginalSettings {
             function_highlighting: prefs.get_function_highlighting(),
             editor_color_syntax: prefs.get_editor_color_syntax(),
             markdown_warnings: prefs.get_markdown_warnings(),
+            editor_text_wrap: prefs.get_editor_text_wrap(),
             ui_theme: prefs.get_ui_theme(),
             css_theme: prefs.get_css_theme(),
             layout_mode: prefs.get_layout_mode(),
@@ -195,6 +207,7 @@ impl OriginalSettings {
         prefs.set_function_syntax_coloring(self.function_highlighting);
         prefs.set_editor_color_syntax(self.editor_color_syntax);
         prefs.set_markdown_warnings(self.markdown_warnings);
+        prefs.set_editor_text_wrap(self.editor_text_wrap);
         prefs.set_ui_theme(&self.ui_theme);
         prefs.set_css_theme(&self.css_theme);
         prefs.set_layout_mode(&self.layout_mode);
@@ -218,6 +231,14 @@ pub struct AppPreferences {
 }
 
 impl AppPreferences {
+    /// Editor text wrap toggle
+    pub fn get_editor_text_wrap(&self) -> bool {
+        self.settings.boolean("editor-text-wrap")
+    }
+
+    pub fn set_editor_text_wrap(&self, enabled: bool) {
+        let _ = self.settings.set_boolean("editor-text-wrap", enabled);
+    }
     /// Debounce timeout (ms)
     pub fn get_debounce_timeout_ms(&self) -> i32 {
         self.settings.int("debounce-timeout-ms")
