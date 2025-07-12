@@ -157,6 +157,10 @@ fn setup_menu_accelerators(app: &Application) {
 
     // Help menu accelerators
     app.set_accels_for_action("app.shortcuts", &["<Ctrl>question"]);
+
+    // View mode global accelerators
+    app.set_accels_for_action("app.view_html", &["F5"]);
+    app.set_accels_for_action("app.view_code", &["F6"]);
 }
 
 fn show_about_dialog(app: &Application) {

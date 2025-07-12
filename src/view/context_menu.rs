@@ -1,3 +1,4 @@
+use webkit6::prelude::WebViewExt;
 use crate::editor::MarkdownEditor;
 use crate::language;
 use gtk4::prelude::*;
@@ -154,7 +155,10 @@ impl PreviewContextMenu {
     }
 
     /// Creates the action group with all preview context menu actions
-    fn create_action_group(editor: &MarkdownEditor) -> gio::SimpleActionGroup {
+    fn create_action_group<W: IsA<gtk4::Widget> + Clone + 'static>(
+        editor: &MarkdownEditor,
+        widget: W,
+    ) -> gio::SimpleActionGroup {
         let action_group = gio::SimpleActionGroup::new();
 
         // Helper macro to create actions more concisely
@@ -169,60 +173,58 @@ impl PreviewContextMenu {
 
         // Edit actions (disabled)
         add_action!("undo", false, {
-            move |_action, _param| {
-                // Undo not available in preview mode
-            }
+            move |_action, _param| {}
         });
-
         add_action!("redo", false, {
-            move |_action, _param| {
-                // Redo not available in preview mode
-            }
+            move |_action, _param| {}
+        });
+        add_action!("cut", false, {
+            move |_action, _param| {}
         });
 
         // Clipboard actions
-        add_action!("cut", false, {
-            move |_action, _param| {
-                // Cut not available in preview mode
-            }
-        });
-        add_action!("copy", true, {
-            move |_action, _param| {
-                // Copy action for preview - get clipboard and perform copy
-                if let Some(_display) = gdk::Display::default() {
-                    // Note: In a real implementation, we'd need to get the actual selected text
-                    // For now, we'll trigger the system copy command
-                    println!("Copy action triggered in preview context menu");
-
-                    // This is a placeholder - in a real implementation we'd need to:
-                    // 1. Get the selected text from the WebView or TextView
-                    // 2. Put it on the clipboard
-                    // For now, we'll just show that the action was triggered
+        {
+            let widget = widget.clone();
+            add_action!("copy", true, move |_action, _param| {
+                // Copy for TextView
+                if let Some(text_view) = widget.clone().dynamic_cast::<gtk4::TextView>().ok() {
+                    let buffer = text_view.buffer();
+                    if let Some(display) = gdk::Display::default() {
+                        let clipboard = display.clipboard();
+                        buffer.copy_clipboard(&clipboard);
+                    }
                 }
-            }
-        });
+                // Copy for WebView
+                if let Some(webview) = widget.clone().dynamic_cast::<webkit6::WebView>().ok() {
+                    webview.execute_editing_command("Copy");
+                }
+            });
+        }
 
         add_action!("paste", false, {
-            move |_action, _param| {
-                // Paste not available in preview mode
-            }
+            move |_action, _param| {}
         });
-
         add_action!("delete", false, {
-            move |_action, _param| {
-                // Delete not available in preview mode
-            }
+            move |_action, _param| {}
         });
 
         // Selection actions
-        add_action!("select_all", true, {
-            move |_action, _param| {
-                // Select all content in preview
-                println!("Select all action triggered in preview context menu");
-                // Note: In a real implementation, we'd need to select all text
-                // in the WebView or TextView depending on the current view mode
-            }
-        });
+        {
+            let widget = widget.clone();
+            add_action!("select_all", true, move |_action, _param| {
+                // Select all for TextView
+                if let Some(text_view) = widget.clone().dynamic_cast::<gtk4::TextView>().ok() {
+                    let buffer = text_view.buffer();
+                    let start = buffer.start_iter();
+                    let end = buffer.end_iter();
+                    buffer.select_range(&start, &end);
+                }
+                // Select all for WebView
+                if let Some(webview) = widget.clone().dynamic_cast::<webkit6::WebView>().ok() {
+                    webview.execute_editing_command("SelectAll");
+                }
+            });
+        }
 
         // View mode switching actions
         add_action!("switch_to_html", true, {
@@ -233,7 +235,6 @@ impl PreviewContextMenu {
                 prefs.set_view_mode("html");
             }
         });
-
         add_action!("switch_to_code", true, {
             let editor = editor.clone();
             move |_action, _param| {
@@ -249,7 +250,7 @@ impl PreviewContextMenu {
     /// Sets up the right-click gesture on a given widget (HTML or Code preview)
     pub fn setup_gesture_for_widget<W>(&self, widget: &W, editor: &MarkdownEditor)
     where
-        W: IsA<gtk4::Widget>,
+        W: IsA<gtk4::Widget> + Clone + 'static,
     {
         let menu_model = Self::create_menu_model();
         let popover =
@@ -257,7 +258,7 @@ impl PreviewContextMenu {
         popover.set_autohide(true);
         popover.set_has_arrow(true);
 
-        let action_group = Self::create_action_group(editor);
+        let action_group = Self::create_action_group(editor, widget.clone());
         popover.insert_action_group("preview", Some(&action_group));
 
         Self::add_preview_styling();
@@ -281,5 +282,45 @@ impl PreviewContextMenu {
         });
 
         widget.add_controller(gesture);
+
+        // Keyboard shortcuts for preview area
+        let widget_clone = widget.clone();
+        let key_controller = gtk4::EventControllerKey::new();
+        key_controller.connect_key_pressed(move |_ctrl, keyval, _keycode, state| {
+            let ctrl = state.contains(gdk::ModifierType::CONTROL_MASK);
+            use gtk4::glib::Propagation;
+            match (ctrl, keyval) {
+                (true, gdk::Key::c) => {
+                    // Copy
+                    if let Some(text_view) = widget_clone.clone().dynamic_cast::<gtk4::TextView>().ok() {
+                        let buffer = text_view.buffer();
+                        if let Some(display) = gdk::Display::default() {
+                            let clipboard = display.clipboard();
+                            buffer.copy_clipboard(&clipboard);
+                        }
+                    }
+                    if let Some(webview) = widget_clone.clone().dynamic_cast::<webkit6::WebView>().ok() {
+                        webview.execute_editing_command("Copy");
+                    }
+                    return Propagation::Stop;
+                }
+                (true, gdk::Key::a) => {
+                    // Select All
+                    if let Some(text_view) = widget_clone.clone().dynamic_cast::<gtk4::TextView>().ok() {
+                        let buffer = text_view.buffer();
+                        let start = buffer.start_iter();
+                        let end = buffer.end_iter();
+                        buffer.select_range(&start, &end);
+                    }
+                    if let Some(webview) = widget_clone.clone().dynamic_cast::<webkit6::WebView>().ok() {
+                        webview.execute_editing_command("SelectAll");
+                    }
+                    return Propagation::Stop;
+                }
+                _ => {}
+            }
+            Propagation::Proceed
+        });
+        widget.add_controller(key_controller);
     }
 }

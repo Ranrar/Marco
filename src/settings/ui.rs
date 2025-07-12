@@ -37,119 +37,127 @@ pub fn add_settings_button_to_header_bar(
 
     // Show popover when settings button is clicked
 
-    settings_button.connect_clicked({
+
+    // Create a plain Popover and set up its content
+    // (imports moved to top of file or already present)
+    let popover = Popover::builder().has_arrow(true).build();
+
+    // Create a vertical box to hold the header and menu
+    let vbox = GtkBox::new(Orientation::Vertical, 0);
+
+    // Add custom header (row of icon buttons)
+    let header = GtkBox::new(Orientation::Horizontal, 8);
+    header.set_halign(Align::Center);
+    header.set_margin_top(8);
+    header.set_margin_bottom(8);
+
+    // Settings (gear) icon button
+    let gear_btn = Button::builder()
+        .icon_name("emblem-system-symbolic")
+        .tooltip_text("Settings")
+        .build();
+    {
         let parent_window = parent_window.clone();
         let editor = editor.clone();
         let theme_manager = theme_manager.clone();
+        let popover = popover.clone();
+        gear_btn.connect_clicked(move |_| {
+            let window = parent_window.upcast_ref::<Window>();
+            crate::settings::dialogs::show_settings_dialog(window, &editor, &theme_manager);
+            popover.popdown();
+        });
+    }
+
+    // Detach preview icon button (placeholder)
+    let detach_btn = Button::builder()
+        .icon_name("window-new-symbolic")
+        .tooltip_text("Detach Preview")
+        .build();
+    {
+        let popover = popover.clone();
+        detach_btn.connect_clicked(move |_| {
+            println!("DEBUG: Detach Preview clicked (not implemented)");
+            popover.popdown();
+        });
+    }
+
+    // Zenmode icon button (placeholder)
+    let zen_btn = Button::builder()
+        .icon_name("view-fullscreen-symbolic")
+        .tooltip_text("Zenmode")
+        .build();
+    {
+        let popover = popover.clone();
+        zen_btn.connect_clicked(move |_| {
+            println!("DEBUG: Zenmode clicked (not implemented)");
+            popover.popdown();
+        });
+    }
+
+    header.append(&gear_btn);
+    header.append(&detach_btn);
+    header.append(&zen_btn);
+    vbox.append(&header);
+
+    // ListBox for menu items (menu-like appearance)
+    let listbox = ListBox::new();
+    listbox.set_selection_mode(gtk4::SelectionMode::Single);
+    listbox.add_css_class("menu");
+
+    // Deselect row after activation to avoid sticky highlight
+    listbox.connect_row_activated(|listbox, row| {
+        listbox.unselect_row(row);
+    });
+
+    let menu_items = vec![
+        ("New Window", "app.new_window"),
+        ("Save As...", "app.save_as"),
+        ("Save All", "app.save_all"),
+        ("Find...", "app.find"),
+        ("Find and Replace...", "app.replace"),
+        ("Go to Line...", "app.goto_line"),
+        ("View", "app.view_menu"),
+        ("Tools", "app.tools_menu"),
+        ("Preferences", "app.settings"),
+        ("Keyboard Shortcuts", "app.shortcuts"),
+        ("Help", "app.help"),
+        ("About", "app.about"),
+    ];
+
+    for (label, action) in menu_items {
+        let row = ListBoxRow::new();
+        row.add_css_class("menuitem");
+        row.set_activatable(true);
+        row.set_selectable(true);
+        let label_widget = Label::new(Some(label));
+        label_widget.set_xalign(0.0);
+        row.set_child(Some(&label_widget));
+        let action = action.to_string();
+        let parent_window = parent_window.clone();
+        let editor = editor.clone();
+        let theme_manager = theme_manager.clone();
+        let popover = popover.clone();
+        row.connect_activate(move |_| {
+            // Dispatch actions here. For now, just print for debug.
+            println!("Menu action triggered: {}", action);
+            // TODO: Actually trigger the corresponding app action
+            if action == "app.settings" {
+                let window = parent_window.upcast_ref::<Window>();
+                crate::settings::show_settings_dialog(window, &editor, &theme_manager);
+            }
+            popover.popdown();
+        });
+        listbox.append(&row);
+    }
+
+    vbox.append(&listbox);
+    popover.set_child(Some(&vbox));
+    popover.add_css_class("menu");
+
+    // Show popover when settings button is clicked
+    settings_button.connect_clicked({
+        let popover = popover.clone();
         move |btn| {
-            use gtk4::{
-                Align, Box as GtkBox, Button as GtkButton, Label, ListBox, ListBoxRow, Orientation,
-                Popover,
-            };
-
-            // Create a vertical box to hold the header and menu
-            let vbox = GtkBox::new(Orientation::Vertical, 0);
-
-            // Add custom header (row of icon buttons)
-            let header = GtkBox::new(Orientation::Horizontal, 8);
-            header.set_halign(Align::Center);
-            header.set_margin_top(8);
-            header.set_margin_bottom(8);
-
-            // Settings (gear) icon button
-            let gear_btn = GtkButton::builder()
-                .icon_name("emblem-system-symbolic")
-                .tooltip_text("Settings")
-                .build();
-            {
-                let parent_window = parent_window.clone();
-                let editor = editor.clone();
-                let theme_manager = theme_manager.clone();
-                gear_btn.connect_clicked(move |_| {
-                    let window = parent_window.upcast_ref::<Window>();
-                    crate::settings::dialogs::show_settings_dialog(window, &editor, &theme_manager);
-                });
-            }
-
-            // Detach preview icon button (placeholder)
-            let detach_btn = GtkButton::builder()
-                .icon_name("window-new-symbolic")
-                .tooltip_text("Detach Preview")
-                .build();
-            detach_btn.connect_clicked(|_| {
-                println!("DEBUG: Detach Preview clicked (not implemented)");
-            });
-
-            // Zenmode icon button (placeholder)
-            let zen_btn = GtkButton::builder()
-                .icon_name("view-fullscreen-symbolic")
-                .tooltip_text("Zenmode")
-                .build();
-            zen_btn.connect_clicked(|_| {
-                println!("DEBUG: Zenmode clicked (not implemented)");
-            });
-
-            header.append(&gear_btn);
-            header.append(&detach_btn);
-            header.append(&zen_btn);
-            vbox.append(&header);
-
-            // ListBox for menu items (menu-like appearance)
-            let listbox = ListBox::new();
-            listbox.set_selection_mode(gtk4::SelectionMode::Single);
-            listbox.add_css_class("menu");
-
-            // Deselect row after activation to avoid sticky highlight
-            listbox.connect_row_activated(|listbox, row| {
-                listbox.unselect_row(row);
-            });
-
-            let menu_items = vec![
-                ("New Window", "app.new_window"),
-                ("Save As...", "app.save_as"),
-                ("Save All", "app.save_all"),
-                ("Find...", "app.find"),
-                ("Find and Replace...", "app.replace"),
-                ("Go to Line...", "app.goto_line"),
-                ("View", "app.view_menu"),
-                ("Tools", "app.tools_menu"),
-                ("Preferences", "app.settings"),
-                ("Keyboard Shortcuts", "app.shortcuts"),
-                ("Help", "app.help"),
-                ("About", "app.about"),
-            ];
-
-            for (label, action) in menu_items {
-                let row = ListBoxRow::new();
-                row.add_css_class("menuitem");
-                row.set_activatable(true);
-                row.set_selectable(true);
-                let label_widget = Label::new(Some(label));
-                label_widget.set_xalign(0.0);
-                row.set_child(Some(&label_widget));
-                let action = action.to_string();
-                let parent_window = parent_window.clone();
-                let editor = editor.clone();
-                let theme_manager = theme_manager.clone();
-                row.connect_activate(move |_| {
-                    // Dispatch actions here. For now, just print for debug.
-                    println!("Menu action triggered: {}", action);
-                    // TODO: Actually trigger the corresponding app action
-                    if action == "app.settings" {
-                        let window = parent_window.upcast_ref::<Window>();
-                        crate::settings::show_settings_dialog(window, &editor, &theme_manager);
-                    }
-                });
-                listbox.append(&row);
-            }
-
-            vbox.append(&listbox);
-
-            // Create a plain Popover and set the vbox as its child
-            let popover = Popover::builder().has_arrow(true).build();
-            popover.set_child(Some(&vbox));
-            popover.add_css_class("menu");
-
             popover.set_pointing_to(None);
             popover.set_parent(btn);
             popover.popup();

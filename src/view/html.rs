@@ -35,6 +35,10 @@ pub struct MarkdownHtmlView {
 }
 
 impl MarkdownHtmlView {
+    /// Focus the WebView for keyboard input
+    pub fn grab_focus(&self) {
+        self.webview.grab_focus();
+    }
     pub fn new() -> Self {
         // Create UserContentManager for efficient CSS injection
         let user_content_manager = UserContentManager::new();

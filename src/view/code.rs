@@ -15,6 +15,10 @@ pub struct MarkdownCodeView {
 }
 
 impl MarkdownCodeView {
+    /// Focus the TextView for keyboard input
+    pub fn grab_focus(&self) {
+        self.text_view.grab_focus();
+    }
     pub fn new() -> Self {
         eprintln!("[DEBUG] MarkdownCodeView::new() called");
         let text_view = TextView::new();
