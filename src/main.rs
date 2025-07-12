@@ -398,7 +398,7 @@ fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
         move |text, word_count, char_count, line, column| {
             update_footer_labels(&footer_labels, word_count, char_count, line, column);
             // Also update formatting label
-            let formatting_html = crate::editor::core::get_formatting_at_cursor(text, line, column);
+            let formatting_html = crate::footer::get_formatting_at_cursor(text, line, column);
             crate::footer::update_formatting_label(&footer_labels, &formatting_html);
         }
     });
