@@ -5,6 +5,14 @@ impl MarkdownEditor {
     /// Switch between HTML and code views
     pub fn set_view_mode(&self, mode: &str) {
         self.view_stack.set_visible_child_name(mode);
+        if mode == "code" {
+            // Get the current markdown text from the source buffer
+            let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
+            let start = gtk_buffer.start_iter();
+            let end = gtk_buffer.end_iter();
+            let text = gtk_buffer.text(&start, &end, false).to_string();
+            self.code_view.update_content(&text);
+        }
     }
 
     /// Get the current view mode

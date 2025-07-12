@@ -2,7 +2,7 @@ use crate::markdown::colorize_code_blocks::CodeLanguageManager;
 use crate::theme::ThemeManager;
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, TextBuffer, TextTagTable, TextView, Widget};
-use pulldown_cmark::{html, CodeBlockKind, Event, Options, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -16,6 +16,7 @@ pub struct MarkdownCodeView {
 
 impl MarkdownCodeView {
     pub fn new() -> Self {
+        eprintln!("[DEBUG] MarkdownCodeView::new() called");
         let text_view = TextView::new();
         text_view.set_editable(false);
         text_view.set_cursor_visible(false);
@@ -38,6 +39,7 @@ impl MarkdownCodeView {
         scrolled_window.set_hexpand(true);
         scrolled_window.set_size_request(200, -1); // Minimum width of 200px
 
+
         Self {
             widget: scrolled_window,
             text_view,
@@ -53,43 +55,135 @@ impl MarkdownCodeView {
     }
 
     pub fn widget(&self) -> &Widget {
+        eprintln!("[DEBUG] MarkdownCodeView::widget() called");
         self.widget.upcast_ref()
     }
 
     pub fn update_content(&self, markdown_text: &str) {
-        // Use the same syntax highlighting pipeline as the HTML view
-        let mut options = Options::empty();
-        options.insert(Options::ENABLE_TABLES);
-        options.insert(Options::ENABLE_FOOTNOTES);
-        options.insert(Options::ENABLE_STRIKETHROUGH);
-        options.insert(Options::ENABLE_TASKLISTS);
-        options.insert(Options::ENABLE_SMART_PUNCTUATION);
+        eprintln!("[DEBUG] update_content called with input: {} chars", markdown_text.len());
+        // Convert markdown to HTML
+        use pulldown_cmark::{Parser, Options, html};
+        let mut html_output = String::new();
+        let parser = Parser::new_ext(markdown_text, Options::all());
+        html::push_html(&mut html_output, parser);
 
-        let parser = Parser::new_ext(markdown_text, options);
-        let mut html_content = String::new();
+        // Wrap the HTML in a full HTML5 document with title, meta, etc.
+        let full_html = self.format_as_complete_html_document(&html_output);
 
-        // Process events with syntax highlighting to match the HTML view exactly
-        let events = self.process_events_with_code_highlighting(parser);
-        html::push_html(&mut html_content, events.into_iter());
+        // Indent the HTML for readability
+        let indented_html = self.indent_html(&full_html);
 
-        // Format HTML as a full W3C-standard page with proper indentation
-        // NOTE: The HTML content from html::push_html is already escaped properly
-        let formatted_html = self.format_as_complete_html_document(&html_content);
+        // Syntax highlight the HTML code using syntect
+        use syntect::easy::HighlightLines;
+        use syntect::highlighting::ThemeSet;
+        use syntect::parsing::SyntaxSet;
+        use gtk4::TextTag;
+        use gtk4::gdk::RGBA;
 
-        // Apply syntax highlighting directly to the HTML content using the HTML language
-        // No need to escape again as the HTML is already properly escaped
-        let highlighted_html = self.language_manager.colorize_code(&formatted_html, "html");
+        let buffer = self.text_view.buffer();
+        let tag_table = buffer.tag_table();
+        buffer.set_text("");
 
-        // Set the HTML content in the text view
-        let preview_buffer = self.text_view.buffer();
+        let ps = SyntaxSet::load_defaults_newlines();
+        let ts = ThemeSet::load_defaults();
+        // Use a dark theme if available, fallback to any
+        let theme = ts.themes.get("base16-ocean.dark").or_else(|| ts.themes.values().next()).unwrap();
+        let syntax = ps.find_syntax_by_extension("html").unwrap_or_else(|| ps.find_syntax_plain_text());
+        let mut h = HighlightLines::new(syntax, theme);
 
-        // For a purely monospace display of the highlighted HTML:
-        // Convert HTML to plain text (removing HTML tags from the highlighted HTML)
-        let plain_text = self.html_to_plain_text(&highlighted_html);
-        preview_buffer.set_text(&plain_text);
+        let mut inserted_any = false;
+        for line in indented_html.lines() {
+            match h.highlight_line(line, &ps) {
+                Ok(ranges) => {
+                    for (style, text) in ranges {
+                        if text.is_empty() {
+                            continue;
+                        }
+                        let tag_name = format!("fg#{:02x}{:02x}{:02x}", style.foreground.r, style.foreground.g, style.foreground.b);
+                        let tag = if let Some(tag) = tag_table.lookup(&tag_name) {
+                            tag
+                        } else {
+                            let rgba = RGBA::new(
+                                style.foreground.r as f32 / 255.0,
+                                style.foreground.g as f32 / 255.0,
+                                style.foreground.b as f32 / 255.0,
+                                1.0,
+                            );
+                            let tag = TextTag::builder().name(&tag_name)
+                                .foreground_rgba(&rgba)
+                                .build();
+                            tag_table.add(&tag);
+                            tag
+                        };
+                        let mut insert_iter = buffer.end_iter();
+                        buffer.insert_with_tags(&mut insert_iter, text, &[&tag]);
+                        inserted_any = true;
+                    }
+                    // Add newline (not highlighted)
+                    let mut insert_iter = buffer.end_iter();
+                    buffer.insert(&mut insert_iter, "\n");
+                }
+                Err(_) => {
+                    // Fallback: insert plain text
+                    let mut insert_iter = buffer.end_iter();
+                    buffer.insert(&mut insert_iter, line);
+                    buffer.insert(&mut insert_iter, "\n");
+                    inserted_any = true;
+                }
+            }
+        }
+        // If nothing was inserted (e.g., empty input), insert at least an empty line
+        if !inserted_any {
+            let mut insert_iter = buffer.end_iter();
+            buffer.insert(&mut insert_iter, "\n");
+        }
 
         // Update text view font and styling based on theme
         self.update_theme_styling();
+    }
+
+    /// Indent HTML code for readability (simple pretty-printer)
+    fn indent_html(&self, input: &str) -> String {
+        let mut result = String::new();
+        let mut indent = 0;
+        let mut in_tag = false;
+        let mut tag_buf = String::new();
+        let mut chars = input.chars().peekable();
+        while let Some(c) = chars.next() {
+            if c == '<' {
+                // If not first tag, add newline and indent
+                if !result.is_empty() && !result.ends_with('\n') {
+                    result.push('\n');
+                }
+                // Check if this is a closing tag
+                if chars.peek() == Some(&'/') {
+                    if indent > 0 {
+                        indent -= 1;
+                    }
+                }
+                // Add indentation
+                for _ in 0..indent {
+                    result.push_str("    ");
+                }
+                in_tag = true;
+                tag_buf.clear();
+                result.push('<');
+            } else if c == '>' && in_tag {
+                tag_buf.push('>');
+                result.push_str(&tag_buf);
+                in_tag = false;
+                // If this is not a closing or self-closing tag, increase indent
+                if !tag_buf.starts_with("/") && !tag_buf.ends_with("/>") && !tag_buf.starts_with("!DOCTYPE") && !tag_buf.starts_with("!--") {
+                    indent += 1;
+                }
+                tag_buf.clear();
+            } else if in_tag {
+                tag_buf.push(c);
+            } else {
+                result.push(c);
+            }
+        }
+        result
     }
 
     /// Process pulldown-cmark events to add syntax highlighting to code blocks
@@ -215,7 +309,7 @@ impl MarkdownCodeView {
         };
 
         // Create a full HTML document with proper indentation and structure
-        format!(
+        format!{
             r#"<!DOCTYPE html>
 <html lang="en">
   <head>
@@ -239,7 +333,7 @@ impl MarkdownCodeView {
                 .map(|line| format!("      {}", line))
                 .collect::<Vec<String>>()
                 .join("\n")
-        )
+        }
     }
 
     /// Convert HTML with syntax highlighting to plain text for TextView display
@@ -361,8 +455,8 @@ impl MarkdownCodeView {
                     text_view.set_bottom_margin(15);
                     text_view.set_left_margin(15);
                     text_view.set_right_margin(15);
-                }
-            }
+                }    
+            }        
         }
     }
 }
