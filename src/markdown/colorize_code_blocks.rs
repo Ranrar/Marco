@@ -82,10 +82,14 @@ pub struct SyntectHighlighter {
 use std::fs;
 
 impl SyntectHighlighter {
-    /// Load all .tmTheme files from a folder and return as Vec<(name, Theme)>
-    fn load_custom_themes_from_folder(folder: &str) -> Vec<(String, Theme)> {
+    /// Load all .tmTheme files from the resolved colorize_code_blocks directory and return as Vec<(name, Theme)>
+    fn load_custom_themes_from_folder() -> Vec<(String, Theme)> {
+        use crate::utils::dir::resolve_resource_path;
+        use std::fs;
         let mut result = Vec::new();
-        if let Ok(entries) = fs::read_dir(folder) {
+        // Get the resolved path to the colorize_code_blocks directory
+        let themes_dir = resolve_resource_path("assets/colorize_code_blocks", "");
+        if let Ok(entries) = fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(ext) = path.extension() {
@@ -105,9 +109,9 @@ impl SyntectHighlighter {
     pub fn new() -> Self {
         let syntax_set = SyntaxSet::load_defaults_newlines();
         
-        // Load themes only from src/assets/colorize_code_blocks folder
+        // Load themes from the resolved themes directory
         let mut theme_set = ThemeSet::new();
-        let custom_themes = Self::load_custom_themes_from_folder("src/assets/colorize_code_blocks");
+        let custom_themes = Self::load_custom_themes_from_folder();
         
         for (name, theme) in custom_themes {
             theme_set.themes.insert(name, theme);

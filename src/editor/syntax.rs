@@ -139,8 +139,10 @@ pub mod color {
         let ps = SyntaxSet::load_defaults_newlines();
         let mut ts = ThemeSet::new();
         
-        // Load only our custom themes from assets - use exact file names
-        if let Ok(entries) = std::fs::read_dir("src/assets/colorize_code_blocks") {
+        // Load only our custom themes from the resolved themes directory
+        use crate::utils::dir::resolve_resource_path;
+        let themes_dir = resolve_resource_path("themes", "");
+        if let Ok(entries) = std::fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(ext) = path.extension() {
