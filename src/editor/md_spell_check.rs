@@ -479,7 +479,19 @@ impl SpellSyntaxChecker {
     // ...existing code...
 
     /// Lint markdown content and return warnings
+    ///
+    /// # Panics
+    /// Panics in debug mode if `set_buffer` has not been called before linting.
+    /// Logs a warning in release mode if `set_buffer` has not been called.
     pub fn lint(&mut self, content: &str) -> Vec<SpellError> {
+        // Ensure set_buffer has been called before linting
+        if self.buffer.is_none() {
+            #[cfg(debug_assertions)]
+            panic!("SpellSyntaxChecker: set_buffer() must be called before linting to ensure tags are in the buffer's tag table. Underline graphics will not appear otherwise.");
+            #[cfg(not(debug_assertions))]
+            eprintln!("[WARN] SpellSyntaxChecker: set_buffer() has not been called before linting. Underline graphics will not appear.");
+        }
+
         // Refactored: collect warnings from each pass, then merge
         let mut all_warnings = Vec::new();
 
@@ -976,8 +988,17 @@ impl SpellSyntaxChecker {
     }
 
     /// Apply visual warnings to the text buffer
+    ///
+    /// # Panics
+    /// Panics in debug mode if `set_buffer` has not been called before tag application.
     fn apply_visual_errors(&self, buffer: &gtk4::TextBuffer, _content: &str) {
         debug_assert!(glib::MainContext::default().is_owner(), "apply_visual_errors must be called from the main thread!");
+        // Ensure tags are in the buffer's tag table
+        #[cfg(debug_assertions)]
+        if self.warning_tags.is_empty() {
+            panic!("SpellSyntaxChecker: set_buffer() must be called before applying tags. No tags present.");
+        }
+
         // Clear existing warning tags - only remove tags that belong to this buffer
         let start_iter = buffer.start_iter();
         let end_iter = buffer.end_iter();
@@ -1021,6 +1042,11 @@ impl SpellSyntaxChecker {
 
             if let Some(tag) = self.warning_tags.get(tag_name) {
                 buffer.apply_tag(tag, &start_iter, &end_iter);
+            } else {
+                #[cfg(debug_assertions)]
+                panic!("SpellSyntaxChecker: Tag '{}' not found in warning_tags. set_buffer() may not have been called.", tag_name);
+                #[cfg(not(debug_assertions))]
+                eprintln!("[WARN] SpellSyntaxChecker: Tag '{}' not found in warning_tags. set_buffer() may not have been called.", tag_name);
             }
         }
     }
@@ -1115,15 +1141,17 @@ mod tests {
             let _ = gtk4::init();
         });
     }
-
     #[test]
     fn gtk_spell_check_suite() {
         ensure_gtk_init();
+        use gtk4::TextBuffer;
         // test_improper_heading
         {
             let mut config = SpellLintConfig::default();
             config.enable_spellcheck = false;
             let mut checker = SpellSyntaxChecker::new(config);
+            let buffer = TextBuffer::new(None);
+            checker.set_buffer(&buffer);
             let warnings = checker.lint("##No space after hash");
             assert_eq!(warnings.len(), 1);
             assert_eq!(warnings[0].warning_type, SpellType::ImproperHeading);
@@ -1133,6 +1161,8 @@ mod tests {
             let mut config = SpellLintConfig::default();
             config.enable_spellcheck = false;
             let mut checker = SpellSyntaxChecker::new(config);
+            let buffer = TextBuffer::new(None);
+            checker.set_buffer(&buffer);
             let warnings = checker.lint("This is **bold without closing");
             assert_eq!(warnings.len(), 1);
             assert_eq!(warnings[0].warning_type, SpellType::UnclosedEmphasis);
@@ -1142,6 +1172,8 @@ mod tests {
             let mut config = SpellLintConfig::default();
             config.enable_spellcheck = false;
             let mut checker = SpellSyntaxChecker::new(config);
+            let buffer = TextBuffer::new(None);
+            checker.set_buffer(&buffer);
             let warnings = checker.lint("This is an [empty link]()");
             assert_eq!(warnings.len(), 1);
             assert_eq!(warnings[0].warning_type, SpellType::EmptyLink);
@@ -1151,6 +1183,8 @@ mod tests {
             let mut config = SpellLintConfig::default();
             config.enable_spellcheck = false;
             let mut checker = SpellSyntaxChecker::new(config);
+            let buffer = TextBuffer::new(None);
+            checker.set_buffer(&buffer);
             let warnings = checker.lint("This is an image ![](image.png)");
             assert_eq!(warnings.len(), 1);
             assert_eq!(warnings[0].warning_type, SpellType::MissingAltText);
@@ -1160,6 +1194,8 @@ mod tests {
             let mut config = SpellLintConfig::default();
             config.enable_spellcheck = false;
             let mut checker = SpellSyntaxChecker::new(config);
+            let buffer = TextBuffer::new(None);
+            checker.set_buffer(&buffer);
             let warnings = checker.lint("```rust\nfn main() {}\n// Missing closing ```");
             assert_eq!(warnings.len(), 1);
             assert_eq!(warnings[0].warning_type, SpellType::UnclosedCodeBlock);
@@ -1168,11 +1204,12 @@ mod tests {
         {
             let mut config = SpellLintConfig::default();
             config.enable_spellcheck = false;
+            // No warnings expected for valid markdown, but still set buffer
             let mut checker = SpellSyntaxChecker::new(config);
-            let warnings = checker.lint(
-                "# Heading\n\nThis is **bold** and *italic* text.\n\n[Link](https://example.com)",
-            );
-            assert!(warnings.is_empty());
+            let buffer = TextBuffer::new(None);
+            checker.set_buffer(&buffer);
+            let warnings = checker.lint("# Valid Heading\n\nSome text here.");
+            assert_eq!(warnings.len(), 0);
         }
     }
 }

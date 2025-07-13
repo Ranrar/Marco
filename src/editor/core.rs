@@ -302,8 +302,7 @@ impl MarkdownEditor {
                 // Apply markdown warnings if enabled (debounced)
                 if *warnings_enabled.borrow() {
                     let weak_checker = Rc::downgrade(&spell_checker);
-                    // If you want to debounce spellcheck, call it here
-                    // crate::editor::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text_string_clone.clone());
+                    crate::editor::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text_string_clone.clone());
                 }
             });
 
