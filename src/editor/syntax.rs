@@ -141,7 +141,7 @@ pub mod color {
         
         // Load only our custom themes from the resolved themes directory
         use crate::utils::dir::resolve_resource_path;
-        let themes_dir = resolve_resource_path("themes", "");
+        let themes_dir = resolve_resource_path("assets/colorize_code_blocks", "");
         if let Ok(entries) = std::fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -157,18 +157,19 @@ pub mod color {
             }
         }
 
-        // Map theme names to our exact tmTheme file names
-        let actual_theme_name = match theme_name {
-            "MarcoLight" | "light" => "light",
-            "MarcoDark" | "dark" => "dark", 
-            _ => theme_name, // Use as-is for any other theme names
+        // Always use the file stem ("light"/"dark") for lookup, regardless of <name> inside the file
+        let theme_name_lower = theme_name.to_lowercase();
+        let actual_theme_name = match theme_name_lower.as_str() {
+            "marcolight" | "light" => "light",
+            "marcodark" | "dark" => "dark",
+            other => other,
         };
 
         // Use only our project themes - no fallbacks to external themes
         let theme = if let Some(theme) = ts.themes.get(actual_theme_name) {
             theme
         } else {
-            eprintln!("WARNING: Theme '{}' not found in project assets", actual_theme_name);
+            eprintln!("WARNING: Theme '{}' not found in project assets (available: {:?})", actual_theme_name, ts.themes.keys().collect::<Vec<_>>());
             // If we can't find the requested theme, don't apply syntax highlighting
             return;
         };

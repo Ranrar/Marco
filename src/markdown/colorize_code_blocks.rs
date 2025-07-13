@@ -89,14 +89,26 @@ impl SyntectHighlighter {
         let mut result = Vec::new();
         // Get the resolved path to the colorize_code_blocks directory
         let themes_dir = resolve_resource_path("assets/colorize_code_blocks", "");
+        eprintln!("[DEBUG] Looking for .tmTheme files in: {}", themes_dir.display());
         if let Ok(entries) = fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if let Some(ext) = path.extension() {
                     if ext == "tmTheme" {
                         if let Ok(theme) = ThemeSet::get_theme(&path) {
-                            if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
-                                result.push((name.to_string(), theme));
+                            // Register both the file stem and the <name> field as keys
+                            if let Some(file_stem) = path.file_stem().and_then(|n| n.to_str()) {
+                                result.push((file_stem.to_string(), theme.clone()));
+                            }
+                            // Try to extract the <name> field from the XML
+                            if let Ok(xml) = std::fs::read_to_string(&path) {
+                                if let Some(name_start) = xml.find("<string>Marco") {
+                                    let name_end = xml[name_start+8..].find("</string>").map(|i| i + name_start + 8);
+                                    if let Some(end) = name_end {
+                                        let marco_name = &xml[name_start+8..end];
+                                        result.push((marco_name.to_string(), theme.clone()));
+                                    }
+                                }
                             }
                         }
                     }
@@ -137,19 +149,30 @@ impl SyntectHighlighter {
     /// Create a new highlighter with custom theme
     pub fn with_theme(theme_name: &str) -> Self {
         let mut highlighter = Self::new();
-        highlighter.set_theme(theme_name);
+        // Map 'dark' and 'light' to the correct theme names
+        let mapped_theme = match theme_name.to_lowercase().as_str() {
+            "dark" => "MarcoDark",
+            "light" => "MarcoLight",
+            _ => theme_name,
+        };
+        highlighter.set_theme(mapped_theme);
         highlighter
     }
 
     /// Set the current theme
     pub fn set_theme(&mut self, theme_name: &str) {
-        // Check if theme exists in our loaded themes
-        if self.theme_set.themes.contains_key(theme_name) {
-            self.current_theme = theme_name.to_string();
+        // Map 'dark' and 'light' to the correct theme names
+        let mapped_theme = match theme_name.to_lowercase().as_str() {
+            "dark" => "MarcoDark",
+            "light" => "MarcoLight",
+            _ => theme_name,
+        };
+        if self.theme_set.themes.contains_key(mapped_theme) {
+            self.current_theme = mapped_theme.to_string();
             // Invalidate cache for this theme to force reload if needed
             self.theme_cache.invalidate(&self.current_theme);
         } else {
-            eprintln!("Theme '{}' not found in loaded themes", theme_name);
+            eprintln!("Theme '{}' not found in loaded themes", mapped_theme);
             // Keep current theme if requested theme doesn't exist
         }
     }

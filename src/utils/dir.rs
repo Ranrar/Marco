@@ -14,7 +14,10 @@ pub fn resolve_resource_path(subdir: &str, filename: &str) -> PathBuf {
         let mut path = PathBuf::from(base);
         path.push(subdir);
         path.push(filename);
-        return path;
+        if path.exists() || path.parent().map(|p| p.exists()).unwrap_or(false) {
+            eprintln!("[resolve_resource_path] Using MARCO_DATA_DIR: {}", path.display());
+            return path;
+        }
     }
 
     // 2. Platform fallback
@@ -41,9 +44,37 @@ pub fn resolve_resource_path(subdir: &str, filename: &str) -> PathBuf {
             PathBuf::from(".")
         })
     };
-    let mut path = base;
+    let mut path = base.clone();
     path.push(subdir);
     path.push(filename);
+    // Special case: if looking for a directory of .tmTheme files, ensure at least one .tmTheme exists
+    if subdir == "assets/colorize_code_blocks" && filename.is_empty() {
+        if path.exists() && path.is_dir() {
+            let has_tmtheme = std::fs::read_dir(&path)
+                .map(|mut entries| entries.any(|e| e.ok().and_then(|e| e.path().extension().map(|x| x == "tmTheme")).unwrap_or(false)))
+                .unwrap_or(false);
+            if has_tmtheme {
+                eprintln!("[resolve_resource_path] Using runtime path (with .tmTheme): {}", path.display());
+                return path;
+            }
+        }
+    } else if path.exists() || path.parent().map(|p| p.exists()).unwrap_or(false) {
+        eprintln!("[resolve_resource_path] Using runtime path: {}", path.display());
+        return path;
+    }
+
+    // 3. Development fallback: check src/assets for asset files
+    if subdir.starts_with("assets") {
+        let mut dev_path = PathBuf::from("src");
+        dev_path.push(subdir);
+        dev_path.push(filename);
+        if dev_path.exists() || dev_path.parent().map(|p| p.exists()).unwrap_or(false) {
+            eprintln!("[resolve_resource_path] Using dev fallback: {}", dev_path.display());
+            return dev_path;
+        }
+    }
+
+    // 4. Fallback: return the original runtime path (may not exist)
     path
 }
 

@@ -275,7 +275,8 @@ fn main() -> glib::ExitCode {
             move |app| build_ui(app, file_to_open.as_deref(), debug_mode)
         });
 
-        return app.run_with_args(&filtered_args);
+        let no_args: [&str; 0] = [];
+        return app.run_with_args(&no_args);
     }
 
     // Non-DEV: fallback to original CLI
@@ -346,7 +347,8 @@ fn main() -> glib::ExitCode {
         move |app| build_ui(app, file_to_open.as_deref(), debug_mode)
     });
 
-    return app.run_with_args(&filtered_args);
+    let no_args: [&str; 0] = [];
+    return app.run_with_args(&no_args);
 }
 
 fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
