@@ -306,7 +306,7 @@ pub fn show_notification(_parent: &Window, message: &str) {
 /// Get available CSS themes by using ThemeManager (no fallbacks)
 pub fn get_available_css_themes() -> Vec<String> {
     // Use ThemeManager to get available themes
-    let themes = crate::theme::ThemeManager::get_available_css_themes();
+    let themes = crate::ui::css_theme::CssTheme::get_available_css_themes();
     
     // Extract just the theme IDs (first element of the tuple)
     themes.into_iter().map(|(theme_id, _display_name, _sanitized_name)| theme_id).collect()

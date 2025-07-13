@@ -1,3 +1,4 @@
+pub mod ui;
 pub mod editor;
 mod footer;
 pub mod language;

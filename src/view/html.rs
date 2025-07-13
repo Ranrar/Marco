@@ -399,10 +399,9 @@ impl MarkdownHtmlView {
             return cached_css.clone();
         }
 
-        let css_content = if let Some(ref theme_manager) = *self.theme_manager.borrow() {
-            // Use theme manager to load CSS content - only project files, no fallbacks
-            let css_theme = theme_manager.get_current_css_theme();
-            match theme_manager.set_css_theme(&css_theme) {
+        let css_content = {
+            let css_theme = crate::ui::css_theme::CssTheme::get_current_css_theme();
+            match crate::ui::css_theme::CssTheme::set_css_theme(&css_theme) {
                 Ok(css) => css,
                 Err(e) => {
                     eprintln!("ERROR: Failed to load CSS theme '{}': {}", css_theme, e);
@@ -410,9 +409,6 @@ impl MarkdownHtmlView {
                     String::new() // Return empty CSS instead of fallback
                 }
             }
-        } else {
-            eprintln!("WARNING: No ThemeManager available for CSS loading");
-            String::new() // Return empty CSS instead of fallback
         };
 
         // Cache the result

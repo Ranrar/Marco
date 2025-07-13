@@ -70,7 +70,7 @@ impl MarkdownEditor {
     /// Update the source editor theme based on the theme manager
     fn update_source_editor_theme(&self, theme_manager: &crate::theme::ThemeManager) {
         // Get CSS content for background color extraction
-        let css_content = match theme_manager.set_css_theme(&theme_manager.get_current_css_theme()) {
+        let css_content = match crate::ui::css_theme::CssTheme::set_css_theme(&crate::ui::css_theme::CssTheme::get_current_css_theme()) {
             Ok(css) => css,
             Err(_) => {
                 eprintln!("Failed to load CSS theme for editor background");
@@ -79,7 +79,7 @@ impl MarkdownEditor {
         };
 
         // Extract background color from current theme (for future use)
-        let _bg_color = theme_manager.get_editor_background_color(&css_content);
+        let _bg_color = crate::ui::ui_theme::UiTheme::get_editor_background_color(&css_content, theme_manager.get_effective_theme());
         
         // Apply background color to the source view
         let style_context = self.source_view.style_context();
@@ -124,35 +124,27 @@ impl MarkdownEditor {
             "DEBUG: Editor set_css_theme called with theme: {}",
             theme_name
         );
-        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
-            println!("DEBUG: Theme manager is available, setting CSS theme");
-            match theme_manager.set_css_theme(theme_name) {
-                Ok(css_content) => {
-                    println!("DEBUG: CSS theme loaded successfully, applying to HTML view");
-                    self.html_view.set_custom_css(&css_content);
-                    self.refresh_html_view();
-                    println!("DEBUG: CSS theme applied and view refreshed");
-                }
-                Err(e) => {
-                    eprintln!("Failed to set CSS theme: {}", e);
-                }
+        println!("DEBUG: Theme manager is available, setting CSS theme");
+        match crate::ui::css_theme::CssTheme::set_css_theme(theme_name) {
+            Ok(css_content) => {
+                println!("DEBUG: CSS theme loaded successfully, applying to HTML view");
+                self.html_view.set_custom_css(&css_content);
+                self.refresh_html_view();
+                println!("DEBUG: CSS theme applied and view refreshed");
             }
-        } else {
-            eprintln!("Theme manager not initialized");
+            Err(e) => {
+                eprintln!("Failed to set CSS theme: {}", e);
+            }
         }
     }
 
     /// Get the current CSS theme name
     pub fn get_current_css_theme(&self) -> String {
-        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
-            theme_manager.get_current_css_theme()
-        } else {
-            "standard".to_string()
-        }
+        crate::ui::css_theme::CssTheme::get_current_css_theme()
     }
 
     /// Get available CSS themes by scanning the ui/css_theme/ directory
     pub fn get_available_css_themes() -> Vec<(String, String, String)> {
-        crate::theme::ThemeManager::get_available_css_themes()
+        crate::ui::css_theme::CssTheme::get_available_css_themes()
     }
 }

@@ -121,7 +121,7 @@ impl SettingsChangeTracker {
             theme_manager.set_theme(new_theme);
             
             // When UI theme changes, also update the CSS theme to use the correct variant
-            if let Ok(_css_content) = theme_manager.set_css_theme(&self.css_theme) {
+            if let Ok(_css_content) = crate::ui::css_theme::CssTheme::set_css_theme(&self.css_theme) {
                 // This will automatically apply the correct light/dark variant
                 editor.set_css_theme(&self.css_theme);
             }
@@ -133,7 +133,7 @@ impl SettingsChangeTracker {
         // Apply CSS theme changes immediately  
         if old_css_theme != self.css_theme {
             // When CSS theme changes, check current UI theme and apply correct variant
-            if let Ok(_css_content) = theme_manager.set_css_theme(&self.css_theme) {
+            if let Ok(_css_content) = crate::ui::css_theme::CssTheme::set_css_theme(&self.css_theme) {
                 editor.set_css_theme(&self.css_theme);
             }
         }

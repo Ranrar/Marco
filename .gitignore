@@ -10,7 +10,7 @@ Cargo.lock
 dev/
 .VSCodeCounter/
 tests/
-.github/instructions/rust.instructions.md
+.github/instructions/
 
 # OS
 .DS_Store
