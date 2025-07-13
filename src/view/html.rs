@@ -449,7 +449,7 @@ impl MarkdownHtmlView {
         }
 
         use crate::utils::dir::resolve_resource_path;
-        let css_path = resolve_resource_path("assets", "syntect.css");
+        let css_path = resolve_resource_path("ui/ui_theme", "syntect.css");
         let css_content = match std::fs::read_to_string(&css_path) {
             Ok(css) => css,
             Err(e) => {

@@ -316,7 +316,7 @@ h1, h2, h3, h4, h5, h6 {
 
         // Not cached or previously failed, try to load
         use crate::utils::dir::resolve_resource_path;
-        let css_path = resolve_resource_path("themes", &format!("{}.css", theme_name));
+        let css_path = resolve_resource_path("ui/css_theme", &format!("{}.css", theme_name));
         match std::fs::read_to_string(&css_path) {
             Ok(css_content) => {
                 self.css_cache.insert(theme_name.to_string(), css_content.clone());
@@ -348,12 +348,12 @@ h1, h2, h3, h4, h5, h6 {
         self.current_css_theme.borrow().clone()
     }
 
-    /// Get available CSS themes by scanning the themes/ directory
+    /// Get available CSS themes by scanning the ui/css_theme/ directory
     pub fn get_available_css_themes() -> Vec<(String, String, String)> {
         let mut themes = Vec::new();
 
         use crate::utils::dir::resolve_resource_path;
-        let themes_dir = resolve_resource_path("themes", "");
+        let themes_dir = resolve_resource_path("ui/css_theme", "");
         if let Ok(entries) = std::fs::read_dir(&themes_dir) {
             for entry in entries {
                 if let Ok(entry) = entry {

@@ -141,7 +141,7 @@ pub mod color {
         
         // Load only our custom themes from the resolved themes directory
         use crate::utils::dir::resolve_resource_path;
-        let themes_dir = resolve_resource_path("assets/colorize_code_blocks", "");
+        let themes_dir = resolve_resource_path("ui/ui_theme", "");
         if let Ok(entries) = std::fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {
                 let path = entry.path();

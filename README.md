@@ -37,7 +37,7 @@ A modern editor built with Rust and GTK4. Features live preview, multiple langua
 - Highlights errors and warnings inline as you type
 
 ### Build Your Own Theme & Add Language
-- Add your own CSS theme: place a `.css` file in the `themes/` folder
+- Add your own CSS theme: place a `.css` file in the `src/ui/css_theme/` folder
 - Add a new language: copy and translate `language/en/main.yml`, then add to the menu
 
 ## What's Coming Next?

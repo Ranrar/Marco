@@ -151,7 +151,7 @@ impl MarkdownEditor {
         }
     }
 
-    /// Get available CSS themes by scanning the themes/ directory
+    /// Get available CSS themes by scanning the ui/css_theme/ directory
     pub fn get_available_css_themes() -> Vec<(String, String, String)> {
         crate::theme::ThemeManager::get_available_css_themes()
     }

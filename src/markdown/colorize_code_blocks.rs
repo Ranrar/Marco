@@ -87,8 +87,8 @@ impl SyntectHighlighter {
         use crate::utils::dir::resolve_resource_path;
         use std::fs;
         let mut result = Vec::new();
-        // Get the resolved path to the colorize_code_blocks directory
-        let themes_dir = resolve_resource_path("assets/colorize_code_blocks", "");
+        // Get the resolved path to the ui_theme directory
+        let themes_dir = resolve_resource_path("ui/ui_theme", "");
         eprintln!("[DEBUG] Looking for .tmTheme files in: {}", themes_dir.display());
         if let Ok(entries) = fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {

@@ -7,7 +7,7 @@ use std::env;
 use std::path::{PathBuf};
 
 /// Resolves a resource path for Marco, checking MARCO_DATA_DIR first, then falling back to platform default.
-/// Example: resolve_resource_path("assets", "syntect.css")
+/// Example: resolve_resource_path("ui/ui_theme", "syntect.css")
 pub fn resolve_resource_path(subdir: &str, filename: &str) -> PathBuf {
     // 1. Check MARCO_DATA_DIR
     if let Ok(base) = env::var("MARCO_DATA_DIR") {
@@ -48,7 +48,7 @@ pub fn resolve_resource_path(subdir: &str, filename: &str) -> PathBuf {
     path.push(subdir);
     path.push(filename);
     // Special case: if looking for a directory of .tmTheme files, ensure at least one .tmTheme exists
-    if subdir == "assets/colorize_code_blocks" && filename.is_empty() {
+    if subdir == "ui/ui_theme" && filename.is_empty() {
         if path.exists() && path.is_dir() {
             let has_tmtheme = std::fs::read_dir(&path)
                 .map(|mut entries| entries.any(|e| e.ok().and_then(|e| e.path().extension().map(|x| x == "tmTheme")).unwrap_or(false)))
@@ -63,15 +63,13 @@ pub fn resolve_resource_path(subdir: &str, filename: &str) -> PathBuf {
         return path;
     }
 
-    // 3. Development fallback: check src/assets for asset files
-    if subdir.starts_with("assets") {
-        let mut dev_path = PathBuf::from("src");
-        dev_path.push(subdir);
-        dev_path.push(filename);
-        if dev_path.exists() || dev_path.parent().map(|p| p.exists()).unwrap_or(false) {
-            eprintln!("[resolve_resource_path] Using dev fallback: {}", dev_path.display());
-            return dev_path;
-        }
+    // 3. Development fallback: check src/ for any resource files (themes, css, etc.)
+    let mut dev_path = PathBuf::from("src");
+    dev_path.push(subdir);
+    dev_path.push(filename);
+    if dev_path.exists() || dev_path.parent().map(|p| p.exists()).unwrap_or(false) {
+        eprintln!("[resolve_resource_path] Using dev fallback: {}", dev_path.display());
+        return dev_path;
     }
 
     // 4. Fallback: return the original runtime path (may not exist)
@@ -83,11 +81,20 @@ mod tests {
     use super::*;
     use std::env;
 
+
+    use std::fs;
+    use tempfile::TempDir;
+
     #[test]
     fn test_env_var() {
-        env::set_var("MARCO_DATA_DIR", "/tmp/marco_test");
-        let p = resolve_resource_path("assets", "foo.txt");
-        assert!(p.starts_with("/tmp/marco_test/assets"));
+        let temp = TempDir::new().unwrap();
+        let marco_data = temp.path();
+        let theme_dir = marco_data.join("ui/ui_theme");
+        fs::create_dir_all(&theme_dir).unwrap();
+        fs::write(theme_dir.join("foo.txt"), b"test").unwrap();
+        env::set_var("MARCO_DATA_DIR", marco_data);
+        let p = resolve_resource_path("ui/ui_theme", "foo.txt");
+        assert!(p.starts_with(marco_data));
         env::remove_var("MARCO_DATA_DIR");
     }
 
@@ -98,8 +105,13 @@ mod tests {
         }
         env::remove_var("MARCO_DATA_DIR");
         let home = env::var("HOME").unwrap_or_else(|_| String::from("/home/testuser"));
-        let p = resolve_resource_path("themes", "bar.css");
-        assert!(p.starts_with(format!("{}/.local/share/marco/themes", home)) || p.starts_with("./themes"));
+        let user_css_theme = format!("{}/.local/share/marco/ui/css_theme", home);
+        let _ = fs::create_dir_all(&user_css_theme);
+        let css_file = format!("{}/bar.css", user_css_theme);
+        let _ = fs::write(&css_file, b"test");
+        let p = resolve_resource_path("ui/css_theme", "bar.css");
+        assert!(p.starts_with(&user_css_theme) || p.starts_with("./ui/css_theme"));
+        let _ = fs::remove_file(&css_file);
     }
 
     #[test]
