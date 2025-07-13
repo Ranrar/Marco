@@ -1,5 +1,5 @@
 <center>
-<img src="doc/img/logo.png" alt="Marco" width="300" height="200">
+<img src="logo.png" alt="Marco" width="300" height="200">
 </center>
 
 ---

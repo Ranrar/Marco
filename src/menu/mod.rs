@@ -207,93 +207,32 @@ SOFTWARE."; // load full license
 }
 
 fn open_markdown_guide(editor: &editor::MarkdownEditor) {
-    // Path to the user guide file
-    let guide_path = std::path::Path::new("MARCO_USER_GUIDE.md");
+    use std::env;
+    use std::fs;
+    use std::io::Write;
 
-    // Check if the guide file exists, if not create it in the current directory
-    if !guide_path.exists() {
-        // Try to read from the project root or create it
-        if let Some(current_dir) = std::env::current_dir().ok() {
-            let project_guide = current_dir.join("MARCO_USER_GUIDE.md");
-            if project_guide.exists() {
-                // File exists in project root, load it
-                load_guide_file(editor, &project_guide);
-                return;
-            }
+
+    // Embed the user guide and logo
+    const USER_GUIDE_MD: &str = include_str!("../assets/doc/user_guide.md");
+    const LOGO_PNG: &[u8] = include_bytes!("../assets/doc/logo.png");
+
+    // Write logo.png to a temp file if it doesn't exist
+    let mut temp_logo_path = env::temp_dir();
+    temp_logo_path.push("logo.png");
+    if !temp_logo_path.exists() {
+        if let Ok(mut file) = fs::File::create(&temp_logo_path) {
+            let _ = file.write_all(LOGO_PNG);
         }
-
-        // If file doesn't exist, create it with the embedded content
-        create_guide_file_if_missing(&guide_path);
     }
 
-    // Load the guide file
-    load_guide_file(editor, guide_path);
-}
-
-use crate::utils::cache::get_file_contents;
-
-fn load_guide_file(editor: &editor::MarkdownEditor, guide_path: &std::path::Path) {
-    if let Some(content) = get_file_contents(guide_path) {
-        // Set the content in the editor using the source buffer
-        editor.get_source_buffer().set_text(&content);
-        println!("Loaded Marco User Guide");
-    } else {
-        eprintln!("Error loading user guide: {:?}", guide_path);
-        // Fallback: Show basic guide content
-        editor
-            .get_source_buffer()
-            .set_text(&get_basic_guide_content());
-    }
-}
-
-fn create_guide_file_if_missing(guide_path: &std::path::Path) {
-    let guide_content = get_full_guide_content();
-
-    if let Err(e) = std::fs::write(guide_path, guide_content) {
-        eprintln!("Warning: Could not create user guide file: {}", e);
-    }
-}
-
-fn get_basic_guide_content() -> String {
-    "# Marco - Markdown Editor User Guide
-
-## Quick Start
-
-Welcome to Marco! This is a powerful Markdown editor with the following features:
-
-### File Operations
-- **New**: Ctrl+N
-- **Open**: Ctrl+O  
-- **Save**: Ctrl+S
-- **Save As**: Ctrl+Shift+S
-
-### Text Editing
-- **Undo**: Ctrl+Z
-- **Redo**: Ctrl+Y
-- **Cut**: Ctrl+X
-- **Copy**: Ctrl+C
-- **Paste**: Ctrl+V
-- **Find**: Ctrl+F
-- **Replace**: Ctrl+H
-
-### Markdown Formatting
-- **Bold**: Ctrl+B or **text**
-- **Italic**: Ctrl+I or *text*
-- **Code**: Ctrl+` or `code`
-- **Headings**: Ctrl+1-6 or # Heading
-
-### Advanced Features
-- Live preview in split view
-- Syntax highlighting
-- Theme switching (Light/Dark/System)
-- Multi-language support
-- Advanced text styling (when text is selected)
-
-For the complete user guide, check the MARCO_USER_GUIDE.md file in your project directory.
-"
-    .to_string()
-}
-
-fn get_full_guide_content() -> &'static str {
-    include_str!("../../MARCO_USER_GUIDE.md")
+    // Rewrite the Markdown to point to the temp logo file
+    let logo_path_str = temp_logo_path.to_string_lossy();
+    let content = USER_GUIDE_MD.replace(
+        "src=\"logo.png\"",
+        &format!("src=\"{}\"", logo_path_str)
+    );
+    editor.get_source_buffer().set_text(&content);
+    // Set the HTML preview base path to the temp dir (for image resolution)
+    editor.html_view.set_base_path(Some(temp_logo_path.parent().unwrap().to_path_buf()));
+    println!("Loaded embedded user guide and logo from binary, using temp file: {}", logo_path_str);
 }
