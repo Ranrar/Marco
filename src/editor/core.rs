@@ -665,7 +665,7 @@ impl MarkdownEditor {
         *self.warnings_enabled.borrow_mut() = enabled;
 
         if enabled {
-            println!("Markdown warnings enabled");
+            println!("Markdown syntax errors enabled");
 
             // Re-check current content when enabling warnings
             let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
@@ -675,14 +675,7 @@ impl MarkdownEditor {
 
             // Warning checking would be done here if implemented
         } else {
-            println!("Markdown warnings disabled");
+            println!("Markdown syntax errors disabled");
         }
-    }
-
-    /// Set layout direction (for compatibility with existing code)
-    pub fn set_layout_reversed(&self, _reversed: bool) {
-        // This is a placeholder - the actual layout reversal would be handled
-        // at the application level by rearranging the paned container
-        println!("Layout reversed setting changed (handled at app level)");
     }
 }

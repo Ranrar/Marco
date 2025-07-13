@@ -142,18 +142,6 @@ impl SettingsChangeTracker {
         if old_language != self.language {
             crate::language::set_locale(&self.language);
         }
-
-        // Apply other settings changes
-        if old_view_mode != self.view_mode {
-            editor.set_view_mode(&self.view_mode);
-        }
-        if old_layout_mode != self.layout_mode {
-            if self.layout_mode == "editor-right" {
-                editor.set_layout_reversed(true); // Preview left, editor right
-            } else {
-                editor.set_layout_reversed(false); // Editor left, preview right (default)
-            }
-        }
         if old_function_highlighting != self.function_highlighting {
             editor.set_function_colloring(self.function_highlighting);
         }

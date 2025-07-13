@@ -35,14 +35,6 @@ pub fn apply_settings_to_app(
     let language_code = prefs.get_language();
     language::set_locale(&language_code);
 
-    // Apply layout mode
-    let layout_mode = prefs.get_layout_mode();
-    if layout_mode == "editor-right" {
-        editor.set_layout_reversed(true); // Preview left, editor right
-    } else {
-        editor.set_layout_reversed(false); // Editor left, preview right (default)
-    }
-
     // Apply function highlighting
     let function_highlighting = prefs.get_function_highlighting();
     editor.set_function_colloring(function_highlighting);
