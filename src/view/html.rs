@@ -448,10 +448,12 @@ impl MarkdownHtmlView {
             return cached_css.clone();
         }
 
-        let css_content = match std::fs::read_to_string("src/assets/syntect.css") {
+        use crate::utils::dir::resolve_resource_path;
+        let css_path = resolve_resource_path("assets", "syntect.css");
+        let css_content = match std::fs::read_to_string(&css_path) {
             Ok(css) => css,
             Err(e) => {
-                eprintln!("ERROR: Failed to load syntect.css: {}", e);
+                eprintln!("ERROR: Failed to load syntect.css from {}: {}", css_path.display(), e);
                 eprintln!("Using empty CSS as no fallback is allowed");
                 String::new() // Return empty string instead of fallback CSS
             }

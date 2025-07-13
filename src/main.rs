@@ -127,15 +127,158 @@ fn rebuild_toolbar(app: &Application, editor: &editor::MarkdownEditor) {
 }
 
 fn main() -> glib::ExitCode {
+    // DEBUG: Start of main
+    println!("[DEBUG] Entered main()");
+    // Print all environment variables for debugging menu vs terminal launch
+    println!("[DEBUG] Environment variables at startup:");
+    for (key, value) in std::env::vars() {
+        println!("[DEBUG] {}={}", key, value);
+    }
     // Initialize settings system early
     if let Err(e) = settings::core::initialize_settings() {
         eprintln!("Warning: Failed to initialize settings: {}", e);
     }
 
+
     // Parse command line arguments before GTK processing
     let args: Vec<String> = std::env::args().collect();
 
-    // Parse command line arguments manually to avoid conflicts with GTK
+    // DEV-only: Add --register-open-with flag
+    #[cfg(debug_assertions)]
+    {
+        println!("[DEBUG] DEV mode block entered");
+        use clap::ArgAction;
+        let matches = Command::new("marco")
+            .version("0.1.0")
+            .author("Kim Skov Rasmussen")
+            .about("Marco - Markdown Composer")
+            .arg(
+                Arg::new("debug")
+                    .short('d')
+                    .long("debug")
+                    .help("Enable debug mode with verbose output")
+                    .action(ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("register-open-with")
+                    .long("register-open-with")
+                    .help("Register 'Open with Marco' in the OS context menu (DEV mode only)")
+                    .action(ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("platform")
+                    .long("platform")
+                    .help("Platform for registration: linux, windows, macos")
+                    .value_parser(["linux", "windows", "macos"])
+                    .default_value("linux"),
+            )
+            .arg(
+                Arg::new("file")
+                    .help("Optional markdown file to open")
+                    .value_name("FILE")
+                    .index(1),
+            )
+            .try_get_matches_from(&args);
+
+        let (debug_mode, file_to_open) = match matches {
+            Ok(matches) => {
+                println!("[DEBUG] Parsed CLI arguments");
+                let debug_mode = matches.get_flag("debug");
+                let file_to_open = matches.get_one::<String>("file").map(|s| s.as_str());
+                let register_open_with = matches.get_flag("register-open-with");
+                let platform = matches.get_one::<String>("platform").map(|s| s.as_str()).unwrap_or("linux");
+
+                if register_open_with {
+                    println!("[DEBUG] --register-open-with flag detected, platform: {}", platform);
+                    match platform {
+                        "linux" => {
+                            println!("[DEBUG] Entering Linux registration block");
+                            use std::fs;
+                            use std::path::PathBuf;
+                            let home = std::env::var("HOME").unwrap_or_else(|_| String::from("~"));
+                            let src = "dev/os-integration/linux/marco.desktop";
+                            let dest_dir = format!("{}/.local/share/applications", home);
+                            let dest = format!("{}/marco.desktop", dest_dir);
+                            if let Err(e) = fs::create_dir_all(&dest_dir) {
+                                eprintln!("[ERROR] Failed to create directory {}: {}", dest_dir, e);
+                            }
+                            let desktop = match fs::read_to_string(src) {
+                                Ok(content) => content,
+                                Err(e) => {
+                                    eprintln!("[ERROR] Failed to read {}: {}", src, e);
+                                    std::process::exit(1);
+                                }
+                            };
+                            let exe_path = std::env::current_exe().unwrap_or_else(|_| PathBuf::from("/usr/bin/marco"));
+                            let desktop = desktop.replace("/full/path/to/marco", exe_path.to_str().unwrap_or("/usr/bin/marco"));
+                            match fs::write(&dest, &desktop) {
+                                Ok(_) => println!("[DEV] Copied marco.desktop to {}", dest),
+                                Err(e) => {
+                                    eprintln!("[ERROR] Failed to write {}: {}", dest, e);
+                                    std::process::exit(1);
+                                }
+                            }
+                            match std::process::Command::new("update-desktop-database").arg(&dest_dir).status() {
+                                Ok(status) => println!("[DEV] Ran update-desktop-database (exit code: {})", status),
+                                Err(e) => eprintln!("[ERROR] Failed to run update-desktop-database: {}", e),
+                            }
+                            println!("[DEV] 'Open With Marco' should now appear for .md files in Nautilus/KDE");
+                        }
+                        "windows" => {
+                            println!("[DEV] To register on Windows, import dev/os-integration/open_with_marco.reg after editing the path to your marco.exe");
+                        }
+                        "macos" => {
+                            println!("[DEV] For macOS, add the Info.plist.snippet.xml to your app bundle's Info.plist and rebuild the .app");
+                        }
+                        _ => println!("[DEV] Unknown platform: {}", platform),
+                    }
+                    println!("[DEBUG] Exiting after registration block");
+                    std::process::exit(0);
+                }
+
+                if debug_mode {
+                    println!("Debug mode enabled");
+                    std::env::set_var("RUST_LOG", "debug");
+                    println!("Marco - Debug Mode");
+                    println!("Version: 0.1.0");
+                    println!("GTK4 Version: {}", gtk4::major_version());
+                    println!(
+                        "Build Profile: {}",
+                        if cfg!(debug_assertions) {
+                            "Debug"
+                        } else {
+                            "Release"
+                        }
+                    );
+                }
+                (debug_mode, file_to_open.map(|s| s.to_string()))
+            }
+            Err(_) => {
+                (false, None)
+            }
+        };
+
+        // Initialize localization
+        language::init_localization();
+
+        // Filter out our custom arguments before passing to GTK
+        let filtered_args: Vec<String> = args
+            .into_iter()
+            .filter(|arg| !arg.starts_with("--debug") && !arg.starts_with("-d") && !arg.starts_with("--register-open-with") && !arg.starts_with("--platform"))
+            .collect();
+
+        // Override command line args for GTK
+        let app = Application::builder().application_id(APP_ID).build();
+
+        app.connect_activate({
+            let file_to_open = file_to_open.clone();
+            move |app| build_ui(app, file_to_open.as_deref(), debug_mode)
+        });
+
+        return app.run_with_args(&filtered_args);
+    }
+
+    // Non-DEV: fallback to original CLI
     let matches = Command::new("marco")
         .version("0.1.0")
         .author("Kim Skov Rasmussen")
@@ -198,13 +341,12 @@ fn main() -> glib::ExitCode {
     // Override command line args for GTK
     let app = Application::builder().application_id(APP_ID).build();
 
-    // Pass the file to open to the UI builder
     app.connect_activate({
         let file_to_open = file_to_open.clone();
         move |app| build_ui(app, file_to_open.as_deref(), debug_mode)
     });
 
-    app.run_with_args(&filtered_args)
+    return app.run_with_args(&filtered_args);
 }
 
 fn build_ui(app: &Application, file_to_open: Option<&str>, debug_mode: bool) {
