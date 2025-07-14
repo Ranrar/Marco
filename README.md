@@ -1,4 +1,4 @@
-[![DevSkim](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml)  [![rust-clippy analyze](https://github.com/Ranrar/Marco/actions/workflows/rust-clippy.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/rust-clippy.yml)
+[![DevSkim](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml)  [![rust-analyze-and-audit](https://github.com/Ranrar/Marco/actions/workflows/rust-analyze-and-audit.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/rust-analyze-and-audit.yml)
 
 
 ![Marco - Markdown Composer](doc/img/logo.png)
@@ -16,11 +16,6 @@ A modern editor built with Rust and GTK4. Features live preview, multiple langua
 - **Context menus & toolbar**: Quick access to formatting and actions
 - **Professional dialogs**: Table, code, and task dialogs with validation
 - **Real-time preview**: Fast, accurate, and interactive
-
-<figure>
-    <img src="doc/img/astro_theme.png" alt="Marco Astro Theme">
-    <figcaption>Marco Darkmode with Astro theme</figcaption>
-</figure>
 
 ### CSS Theme + UI Theme
 - Choose from 4 built-in CSS themes (Standard, Academic, GitHub, Minimal) or add your own
