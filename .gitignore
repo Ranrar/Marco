@@ -3,14 +3,13 @@ target/
 Cargo.lock
 
 # IDE
+.VSCodeCounter/
 .vscode/
 .idea/
 *.swp
 *.swo
 dev/
-.VSCodeCounter/
 tests/
-.github/instructions/
 
 # OS
 .DS_Store
@@ -19,4 +18,3 @@ Thumbs.db
 # Build artifacts
 *.gresource
 *.compiled
-Ejer baunehøj.png
