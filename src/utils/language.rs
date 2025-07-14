@@ -29,7 +29,7 @@ fn load_translations() {
     let mut translations = HashMap::new();
 
     // Get the path relative to the executable or cargo workspace
-    use crate::utils::dir::resolve_resource_path;
+    use crate::utils::cross_platform_resource::resolve_resource_path;
     // Load English translations
     let en_path = resolve_resource_path("language/en", "main.yml");
     if let Ok(content) = std::fs::read_to_string(&en_path) {

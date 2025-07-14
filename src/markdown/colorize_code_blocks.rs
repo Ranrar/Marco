@@ -84,7 +84,7 @@ use std::fs;
 impl SyntectHighlighter {
     /// Load all .tmTheme files from the resolved colorize_code_blocks directory and return as Vec<(name, Theme)>
     fn load_custom_themes_from_folder() -> Vec<(String, Theme)> {
-        use crate::utils::dir::resolve_resource_path;
+        use crate::utils::cross_platform_resource::resolve_resource_path;
         use std::fs;
         let mut result = Vec::new();
         // Get the resolved path to the ui_theme directory

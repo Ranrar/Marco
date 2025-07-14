@@ -140,7 +140,7 @@ pub mod color {
         let mut ts = ThemeSet::new();
         
         // Load only our custom themes from the resolved themes directory
-        use crate::utils::dir::resolve_resource_path;
+        use crate::utils::cross_platform_resource::resolve_resource_path;
         let themes_dir = resolve_resource_path("ui/ui_theme", "");
         if let Ok(entries) = std::fs::read_dir(&themes_dir) {
             for entry in entries.flatten() {

@@ -254,7 +254,7 @@ h1, h2, h3, h4, h5, h6 {
 /// This module handles all theming for the HTML/markdown preview view.
 /// It will NOT handle GTK/editor theming.
 use std::fs;
-use crate::utils::dir::resolve_resource_path;
+use crate::utils::cross_platform_resource::resolve_resource_path;
 
 pub struct CssTheme {
     pub css_content: String,

@@ -1,18 +1,19 @@
-pub mod ui;
-pub mod editor;
 mod footer;
-pub mod language;
 mod markdown;
 mod menu;
 mod settings;
 mod theme;
 mod toolbar;
+pub mod ui;
+pub mod editor;
 pub mod view;
 pub mod utils;
 
 use clap::{Arg, Command};
 use gtk4::prelude::*;
 use gtk4::{gdk, glib, Application, ApplicationWindow, Box, CssProvider, Orientation};
+
+use crate::utils::language;
 
 const APP_ID: &str = "com.example.Marco";
 

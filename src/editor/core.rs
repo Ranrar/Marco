@@ -5,13 +5,15 @@ use crate::markdown::colorize_code_blocks::CodeLanguageManager;
 use crate::view::{MarkdownCodeView, MarkdownHtmlView};
 use gtk4::prelude::*;
 use gtk4::{HeaderBar, Label, Orientation, Paned, ScrolledWindow, Stack, Widget};
-use crate::utils::splitview;
+use crate::ui::splitview;
 use sourceview5::prelude::*;
 use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
+
+use crate::ui::other::shortcuts;
 
 #[derive(Clone)]
 pub struct MarkdownEditor {
