@@ -1,3 +1,5 @@
+// Type alias for clarity: MarkdownEditorView is just a View
+type MarkdownEditorView = sourceview5::View;
 use gtk4::{Orientation, Paned, ScrolledWindow, Stack};
 
 /// Create a configured Paned (split view) widget for the editor
@@ -17,13 +19,13 @@ pub fn set_split_ratio(paned: &Paned, total_width: i32) {
 }
 use gtk4::prelude::*;
 use sourceview5::prelude::*;
-use sourceview5::{Buffer, View};
+use sourceview5::{Buffer};
 use crate::view::{MarkdownHtmlView, MarkdownCodeView};
 
 pub struct SplitViewWidgets {
     pub paned: Paned,
-    pub source_buffer: Buffer,
-    pub source_view: View,
+    pub editor_data_buffer: Buffer,
+    pub editor_view: MarkdownEditorView,
     pub source_scroll: ScrolledWindow,
     pub view_stack: Stack,
     pub html_view: MarkdownHtmlView,
@@ -40,12 +42,12 @@ pub fn create_splitview_ui() -> SplitViewWidgets {
     paned.set_shrink_end_child(false);
 
     let source_buffer = Buffer::new(None);
-    let source_view = View::with_buffer(&source_buffer);
-    source_view.set_show_line_numbers(true);
-    source_view.set_highlight_current_line(true);
-    source_view.set_tab_width(4);
-    source_view.set_insert_spaces_instead_of_tabs(true);
-    source_view.set_auto_indent(true);
+    let editor_view = MarkdownEditorView::with_buffer(&source_buffer);
+    editor_view.set_show_line_numbers(true);
+    editor_view.set_highlight_current_line(true);
+    editor_view.set_tab_width(4);
+    editor_view.set_insert_spaces_instead_of_tabs(true);
+    editor_view.set_auto_indent(true);
 
     let html_view = MarkdownHtmlView::new();
     let code_view = MarkdownCodeView::new();
@@ -57,7 +59,7 @@ pub fn create_splitview_ui() -> SplitViewWidgets {
     view_stack.set_visible_child_name("html");
 
     let source_scroll = ScrolledWindow::new();
-    source_scroll.set_child(Some(&source_view));
+    source_scroll.set_child(Some(&editor_view));
     source_scroll.set_vexpand(true);
     source_scroll.set_size_request(200, -1);
 
@@ -66,8 +68,8 @@ pub fn create_splitview_ui() -> SplitViewWidgets {
 
     SplitViewWidgets {
         paned,
-        source_buffer,
-        source_view,
+        editor_data_buffer: source_buffer,
+        editor_view,
         source_scroll,
         view_stack,
         html_view,

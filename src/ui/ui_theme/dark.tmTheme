@@ -2,12 +2,12 @@
 <plist version="1.0">
 <dict>
     <key>name</key>
-    <string>MarcoDark</string>
+    <string>MarcoDark Enhanced</string>
     <key>author</key>
     <string>Kim Skov Rasmussen</string>
     <key>settings</key>
     <array>
-        <!-- Background & Default Text -->
+        <!-- Background & Defaults -->
         <dict>
             <key>settings</key>
             <dict>
@@ -16,63 +16,65 @@
                 <key>foreground</key>
                 <string>#E6E6E6</string>
                 <key>caret</key>
-                <string>#E6E6E6</string>
+                <string>#FFCC00</string>
                 <key>selection</key>
-                <string>#264F78</string>
+                <string>#005F87</string>
+                <key>inactiveSelection</key>
+                <string>#333333</string>
                 <key>lineHighlight</key>
                 <string>#1A1A1A</string>
             </dict>
         </dict>
-        
+
         <!-- Comments -->
         <dict>
             <key>name</key>
             <string>Comment</string>
             <key>scope</key>
-            <string>comment, comment.line, comment.block, comment.documentation</string>
+            <string>comment</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
-                <string>#00FF9F</string>
+                <string>#00C8A0</string>
                 <key>fontStyle</key>
                 <string>italic</string>
             </dict>
         </dict>
-        
+
         <!-- Keywords -->
         <dict>
             <key>name</key>
             <string>Keyword</string>
             <key>scope</key>
-            <string>keyword, keyword.control, keyword.operator, keyword.declaration, keyword.other, keyword.operator.assignment, keyword.operator.arithmetic, keyword.operator.logical, keyword.operator.bitwise, keyword.operator.comparison, storage.type</string>
+            <string>keyword</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
-                <string>#FF4081</string>
+                <string>#FF007F</string>
                 <key>fontStyle</key>
                 <string>bold</string>
             </dict>
         </dict>
-        
+
         <!-- Strings -->
         <dict>
             <key>name</key>
             <string>String</string>
             <key>scope</key>
-            <string>string, string.quoted.single, string.quoted.double, string.quoted.triple, string.interpolated, string.unquoted, string.regexp</string>
+            <string>string</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
-                <string>#00C8FF</string>
+                <string>#00BFFF</string>
             </dict>
         </dict>
-        
-        <!-- Function Names -->
+
+        <!-- Functions -->
         <dict>
             <key>name</key>
             <string>Function</string>
             <key>scope</key>
-            <string>entity.name.function, meta.function-call, support.function, meta.function</string>
+            <string>entity.name.function, meta.function-call</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
@@ -81,86 +83,86 @@
                 <string>bold</string>
             </dict>
         </dict>
-        
-        <!-- Numbers & Constants -->
+
+        <!-- Constants -->
         <dict>
             <key>name</key>
             <string>Constant</string>
             <key>scope</key>
-            <string>constant, constant.numeric, constant.language, constant.character, constant.other</string>
+            <string>constant</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
                 <string>#BF00FF</string>
             </dict>
         </dict>
-        
-        <!-- Classes & Types -->
+
+        <!-- Types & Classes -->
         <dict>
             <key>name</key>
             <string>Type and Class</string>
             <key>scope</key>
-            <string>entity.name.type, entity.name.class, storage.type, meta.class, meta.struct, support.type</string>
+            <string>entity.name.type, entity.name.class, meta.class</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
                 <string>#FFCC00</string>
             </dict>
         </dict>
-        
+
         <!-- Variables -->
         <dict>
             <key>name</key>
             <string>Variable</string>
             <key>scope</key>
-            <string>variable, variable.parameter, variable.language, variable.function, variable.other</string>
+            <string>variable</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
-                <string>#00FFEE</string>
+                <string>#00CCCC</string>
             </dict>
         </dict>
-        
-        <!-- Punctuation & Brackets -->
+
+        <!-- Punctuation -->
         <dict>
             <key>name</key>
             <string>Punctuation</string>
             <key>scope</key>
-            <string>punctuation, punctuation.definition, punctuation.section, punctuation.separator, punctuation.terminator, punctuation.definition.string, punctuation.definition.parameters, punctuation.definition.comment</string>
+            <string>punctuation</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
-                <string>#666666</string>
+                <string>#888888</string>
             </dict>
         </dict>
-        
+
         <!-- Markup (Markdown, HTML, etc.) -->
         <dict>
             <key>name</key>
             <string>Markup</string>
             <key>scope</key>
-            <string>markup.heading, markup.bold, markup.italic, markup.underline, markup.list, markup.quote, markup.inline.raw, markup.code</string>
+            <string>markup</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
                 <string>#FFCC00</string>
             </dict>
         </dict>
-        
-        <!-- Entity & Meta -->
+
+        <!-- Entity and Meta -->
         <dict>
             <key>name</key>
             <string>Entity and Meta</string>
             <key>scope</key>
-            <string>entity.name, meta, meta.annotation</string>
+            <string>entity.name, meta</string>
             <key>settings</key>
             <dict>
                 <key>foreground</key>
-                <string>#00FFEE</string>
+                <string>#00BBAA</string>
             </dict>
         </dict>
-        
-        <!-- Diagnostics (Errors) -->
+
+        <!-- Errors and Warnings -->
         <dict>
             <key>name</key>
             <string>Diagnostics</string>

@@ -1,10 +1,10 @@
 use crate::editor::context_menu::ContextMenu;
-use crate::editor::md_spell_check::SpellSyntaxChecker;
+use crate::editor::syntax::md_spell_check::SpellSyntaxChecker;
 use crate::markdown::advanced::ExtraMarkdownSyntax;
-use crate::markdown::colorize_code_blocks::CodeLanguageManager;
+use crate::editor::fencing_code_block::fencing_code_block::CodeLanguageManager;
 use crate::view::{MarkdownCodeView, MarkdownHtmlView};
 use gtk4::prelude::*;
-use gtk4::{HeaderBar, Label, Orientation, Paned, ScrolledWindow, Stack, Widget};
+use gtk4::{HeaderBar, Label, Paned, ScrolledWindow, Stack, Widget};
 use crate::ui::splitview;
 use sourceview5::prelude::*;
 use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
@@ -13,7 +13,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::ui::other::shortcuts;
 
 #[derive(Clone)]
 pub struct MarkdownEditor {
@@ -32,7 +31,6 @@ pub struct MarkdownEditor {
     pub(crate) tag_table: Rc<RefCell<HashMap<String, gtk4::TextTag>>>,
     pub(crate) context_menu: Rc<RefCell<Option<ContextMenu>>>,
     pub(crate) last_formatting_action: Rc<RefCell<Option<Instant>>>,
-    pub(crate) preserve_selection: Rc<RefCell<bool>>,
     pub(crate) header_bar: HeaderBar,
     // Track the original content to determine if document is truly modified
     pub(crate) original_content: Rc<RefCell<String>>,
@@ -71,7 +69,7 @@ impl MarkdownEditor {
 
         // Create views
         let html_view = MarkdownHtmlView::new();
-        let code_view = MarkdownCodeView::new();
+        let code_view = MarkdownCodeView::new(); // Only used for view_stack, not needed as a local variable
 
         // Create a stack to hold both views
         let view_stack = Stack::new();
@@ -143,7 +141,6 @@ impl MarkdownEditor {
             tag_table,
             context_menu: Rc::new(RefCell::new(None)),
             last_formatting_action: Rc::new(RefCell::new(None)),
-            preserve_selection: Rc::new(RefCell::new(false)),
             header_bar,
             original_content: Rc::new(RefCell::new(String::new())),
             spell_checker: Rc::new(RefCell::new(spell_check_markdown)),
@@ -228,7 +225,6 @@ impl MarkdownEditor {
 
     fn connect_text_changed(&self) {
         let html_view = self.html_view.clone();
-        let code_view = self.code_view.clone();
         let footer_callbacks = self.footer_callbacks.clone();
         let is_modified = self.is_modified.clone();
         let extra_syntax = self.extra_syntax.clone();
@@ -290,7 +286,7 @@ impl MarkdownEditor {
                         _ => "dark",
                     };
                     let mut tag_table_ref = tag_table.borrow_mut();
-                    crate::editor::syntax::color::apply_syntax_coloring(
+                    crate::editor::syntax::syntax::color::apply_syntax_coloring(
                         &buffer_clone,
                         &text_string_clone,
                         &mut tag_table_ref,
@@ -304,7 +300,7 @@ impl MarkdownEditor {
                 // Apply markdown warnings if enabled (debounced)
                 if *warnings_enabled.borrow() {
                     let weak_checker = Rc::downgrade(&spell_checker);
-                    crate::editor::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text_string_clone.clone());
+                    crate::editor::syntax::md_spell_check::SpellSyntaxChecker::trigger_spellcheck_debounced(weak_checker, text_string_clone.clone());
                 }
             });
 

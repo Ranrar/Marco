@@ -7,8 +7,37 @@ use std::env;
 use std::path::{PathBuf};
 
 /// Resolves a resource path for Marco, checking MARCO_DATA_DIR first, then falling back to platform default.
-/// Example: resolve_resource_path("ui/ui_theme", "syntect.css")
 pub fn resolve_resource_path(subdir: &str, filename: &str) -> PathBuf {
+    // 0. Check for resource in the binary directory (e.g., $HOME/.local/bin/marco_language/)
+    let is_lang_code = matches!(subdir, "en"|"es"|"fr"|"de");
+    if is_lang_code || subdir.starts_with("assets/language") || subdir.starts_with("language") {
+        if let Ok(exe_path) = env::current_exe() {
+            if let Some(bin_dir) = exe_path.parent() {
+                let mut bin_lang_path = bin_dir.to_path_buf();
+                bin_lang_path.push("language");
+                if is_lang_code {
+                    bin_lang_path.push(subdir);
+                } else if subdir.ends_with("language") {
+                    // e.g. subdir = "language/en"
+                    let lang_subdir = subdir.splitn(2, '/').nth(1).unwrap_or("");
+                    if !lang_subdir.is_empty() {
+                        bin_lang_path.push(lang_subdir);
+                    }
+                } else if subdir.contains("assets/language/") {
+                    // e.g. subdir = "assets/language/en"
+                    let lang_subdir = subdir.splitn(3, '/').nth(2).unwrap_or("");
+                    if !lang_subdir.is_empty() {
+                        bin_lang_path.push(lang_subdir);
+                    }
+                }
+                bin_lang_path.push(filename);
+                if bin_lang_path.exists() {
+                    eprintln!("[resolve_resource_path] Using binary dir: {}", bin_lang_path.display());
+                    return bin_lang_path;
+                }
+            }
+        }
+    }
     // 1. Check MARCO_DATA_DIR
     if let Ok(base) = env::var("MARCO_DATA_DIR") {
         let mut path = PathBuf::from(base);

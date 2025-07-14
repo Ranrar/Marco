@@ -3,11 +3,15 @@ use std::collections::HashMap;
 
 // Public standalone color functions
 pub mod color {
+    /// Wrapper for ThemeSet::get_theme for clarity
+    pub fn get_ui_theme(path: &std::path::Path) -> Result<syntect::highlighting::Theme, syntect::LoadingError> {
+        syntect::highlighting::ThemeSet::get_theme(path)
+    }
     use gtk4::prelude::*;
     use sourceview5;
     use std::collections::HashMap;
     use syntect::easy::HighlightLines;
-    use syntect::highlighting::ThemeSet;
+    // use syntect::highlighting::ThemeSet; // no longer needed
     use syntect::parsing::SyntaxSet;
 
     /// Parse color names and hex codes to RGBA
@@ -135,46 +139,31 @@ pub mod color {
             theme_name
         );
 
-        // Load syntax set and theme set (only from project assets)
+        // Load syntax set
         let ps = SyntaxSet::load_defaults_newlines();
-        let mut ts = ThemeSet::new();
-        
-        // Load only our custom themes from the resolved themes directory
+
+
+
+
+        // Explicitly resolve and load both dark and light themes
         use crate::utils::cross_platform_resource::resolve_resource_path;
-        let themes_dir = resolve_resource_path("ui/ui_theme", "");
-        if let Ok(entries) = std::fs::read_dir(&themes_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if let Some(ext) = path.extension() {
-                    if ext == "tmTheme" {
-                        if let Ok(theme) = ThemeSet::get_theme(&path) {
-                            if let Some(name) = path.file_stem().and_then(|n| n.to_str()) {
-                                ts.themes.insert(name.to_string(), theme);
-                            }
-                        }
-                    }
-                }
+        let ui_dark_path = resolve_resource_path("ui/ui_theme", "dark.tmTheme");
+        let ui_dark_theme = get_ui_theme(&ui_dark_path).expect("Failed to load dark.tmTheme");
+
+        let ui_light_path = resolve_resource_path("ui/ui_theme", "light.tmTheme");
+        let ui_light_theme = get_ui_theme(&ui_light_path).expect("Failed to load light.tmTheme");
+
+        // Select the theme to use based on the input file name
+        let theme = match theme_name {
+            "dark.tmTheme" => &ui_dark_theme,
+            "light.tmTheme" => &ui_light_theme,
+            _ => {
+                eprintln!("WARNING: Unknown theme file '{}', defaulting to dark.tmTheme", theme_name);
+                &ui_dark_theme
             }
-        }
-
-        // Always use the file stem ("light"/"dark") for lookup, regardless of <name> inside the file
-        let theme_name_lower = theme_name.to_lowercase();
-        let actual_theme_name = match theme_name_lower.as_str() {
-            "marcolight" | "light" => "light",
-            "marcodark" | "dark" => "dark",
-            other => other,
         };
 
-        // Use only our project themes - no fallbacks to external themes
-        let theme = if let Some(theme) = ts.themes.get(actual_theme_name) {
-            theme
-        } else {
-            eprintln!("WARNING: Theme '{}' not found in project assets (available: {:?})", actual_theme_name, ts.themes.keys().collect::<Vec<_>>());
-            // If we can't find the requested theme, don't apply syntax highlighting
-            return;
-        };
-
-        println!("DEBUG: Using project theme: {} -> {}", theme_name, actual_theme_name);
+        println!("DEBUG: Using theme file: {}", theme_name);
         println!("DEBUG: Theme loaded: {:?}", theme.name.as_ref().unwrap_or(&"unknown".to_string()));
 
         // Find markdown syntax
@@ -185,7 +174,7 @@ pub mod color {
 
         println!("DEBUG: Using syntax: {}", syntax.name);
 
-        let mut h = HighlightLines::new(syntax, theme);
+        let mut h = HighlightLines::new(syntax, &theme);
         let mut total_tags_applied = 0;
 
         // Split text into lines and highlight each line
@@ -279,7 +268,7 @@ impl MarkdownEditor {
         font_color_regex: &regex::Regex,
     ) {
         // Delegate to the standalone function in the color module
-        crate::editor::syntax::color::highlight_colored_text(
+        crate::editor::syntax::syntax::color::highlight_colored_text(
             buffer,
             text,
             tag_table,
@@ -300,12 +289,12 @@ impl MarkdownEditor {
         let theme_name = theme_manager.get_syntax_theme_name();
         
         // Apply the syntax coloring with the correct theme
-        crate::editor::syntax::color::apply_syntax_coloring(buffer, text, tag_table, &theme_name)
+        crate::editor::syntax::syntax::color::apply_syntax_coloring(buffer, text, tag_table, &theme_name)
     }
 
     /// Parse color names and hex codes to RGBA (delegated to the color module)
     pub fn parse_color(color: &str) -> Option<gdk4::RGBA> {
-        crate::editor::syntax::color::parse_color(color)
+        crate::editor::syntax::syntax::color::parse_color(color)
     }
 
     /// Ensure a tag exists in the tag table (delegated to the color module)
@@ -317,7 +306,7 @@ impl MarkdownEditor {
     ) where
         F: FnOnce(&gtk4::TextTag),
     {
-        crate::editor::syntax::color::ensure_tag_exists(buffer, tag_table, name, configure)
+        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, name, configure)
     }
 
     /// Insert underlined text

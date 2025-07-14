@@ -1,5 +1,5 @@
 /// Analyze the text at the cursor and return an HTML-like formatting string with indentation
-pub fn get_formatting_at_cursor(text: &str, line: usize, col: usize) -> String {
+pub fn get_formatting_at_cursor(text: &str, line: usize) -> String {
     use crate::markdown::basic::MarkdownParser;
     let parser = MarkdownParser::new();
     let lines: Vec<&str> = text.lines().collect();
@@ -49,14 +49,13 @@ pub fn get_formatting_at_cursor(text: &str, line: usize, col: usize) -> String {
     // We'll scan from the start of the document to the current line to determine if we're inside a fenced code block
     let mut in_fence = false;
     let mut fence_lang = String::new();
-    let mut fence_start = 0;
-    for (i, l) in lines.iter().enumerate().take(line) {
+    for (_, l) in lines.iter().enumerate().take(line) {
         let trimmed = l.trim_start();
         if trimmed.starts_with("```") {
             if !in_fence {
                 // Opening fence
                 in_fence = true;
-                fence_start = i + 1;
+                // fence_start removed (unused)
                 // Try to extract language name
                 let after = trimmed.trim_start_matches("```").trim();
                 if !after.is_empty() {
@@ -107,7 +106,7 @@ pub fn get_formatting_at_cursor(text: &str, line: usize, col: usize) -> String {
 
     // Inline Markdown detection (all regions, not just at cursor)
     let mut inline_regions = Vec::new();
-    let text_bytes = line_text.as_bytes();
+    // text_bytes removed (unused)
 
     // Detect Bold and Italic (***x***)
     let mut idx = 0;
@@ -212,7 +211,7 @@ pub fn get_formatting_at_cursor(text: &str, line: usize, col: usize) -> String {
 pub fn update_formatting_label(footer_labels: &FooterLabels, formatting_md: &str) {
     footer_labels.formatting.set_text(formatting_md);
 }
-use crate::language;
+
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 

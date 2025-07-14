@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// General-purpose debouncer for delayed actions in GTK4, with optional dynamic timeout via gio::Settings
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct Debouncer {
     timeout_ms: std::cell::Cell<u32>,

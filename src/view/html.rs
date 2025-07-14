@@ -1,4 +1,4 @@
-use crate::markdown::colorize_code_blocks::CodeLanguageManager;
+use crate::editor::fencing_code_block::fencing_code_block::CodeLanguageManager;
 use crate::theme::ThemeManager;
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, Widget};
@@ -445,11 +445,11 @@ impl MarkdownHtmlView {
         }
 
         use crate::utils::cross_platform_resource::resolve_resource_path;
-        let css_path = resolve_resource_path("ui/ui_theme", "syntect.css");
+        let css_path = resolve_resource_path("editor/fencing_code_block/", "code_block_styling.css");
         let css_content = match std::fs::read_to_string(&css_path) {
             Ok(css) => css,
             Err(e) => {
-                eprintln!("ERROR: Failed to load syntect.css from {}: {}", css_path.display(), e);
+                eprintln!("ERROR: Failed to load code_block_styling.css from {}: {}", css_path.display(), e);
                 eprintln!("Using empty CSS as no fallback is allowed");
                 String::new() // Return empty string instead of fallback CSS
             }

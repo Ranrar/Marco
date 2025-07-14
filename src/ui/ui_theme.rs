@@ -1,4 +1,3 @@
-use gtk4::prelude::*;
 use gtk4::CssProvider;
 use std::cell::RefCell;
 use std::rc::Rc;
