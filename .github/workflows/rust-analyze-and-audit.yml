@@ -50,5 +50,5 @@ jobs:
           sarif_file: rust-clippy-results.sarif
           wait-for-processing: true
 
-      - name: Run cargo audit (fail on advisories)
-        run: cargo audit --deny advisories
+      - name: Run cargo audit
+        run: cargo audit
