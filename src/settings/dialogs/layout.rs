@@ -1,7 +1,7 @@
-use super::common::{create_settings_row, create_settings_section_header};
+// ...existing code...
 use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
 use gtk4::prelude::*;
-use gtk4::{Align, Box, Button, CheckButton, ComboBoxText, Label, Notebook, Orientation};
+use gtk4::{Align, Box, Button, ComboBoxText, Label, Notebook, Orientation};
 use std::cell::RefCell;
 use std::rc::Rc;
 

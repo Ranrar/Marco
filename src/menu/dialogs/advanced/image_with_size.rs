@@ -3,7 +3,6 @@
 
 use crate::menu::dialogs::common::{self, *};
 use crate::{editor, language};
-use gtk4::prelude::*;
 
 /// Show dialog to insert image with size
 pub fn show_image_with_size_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

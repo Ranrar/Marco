@@ -1,6 +1,5 @@
-use super::common::create_settings_section_header;
 use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
-use crate::settings::ui::{get_available_css_themes, get_available_languages};
+use crate::settings::ui::{get_available_css_themes,};
 use gtk4::prelude::*;
 use gtk4::{Align, Box, Button, ComboBoxText, Label, Notebook, Orientation};
 use std::cell::RefCell;

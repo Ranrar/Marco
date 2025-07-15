@@ -3,7 +3,6 @@
 
 use crate::editor;
 use crate::menu::dialogs::common::*;
-use gtk4::prelude::*;
 
 /// Show dialog to create a link that opens in a new tab/window
 pub fn show_link_open_new_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

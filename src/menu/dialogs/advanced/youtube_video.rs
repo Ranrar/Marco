@@ -3,7 +3,6 @@
 
 use crate::menu::dialogs::common::*;
 use crate::{editor, language};
-use gtk4::prelude::*;
 
 /// Show dialog to insert YouTube video
 pub fn show_youtube_video_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

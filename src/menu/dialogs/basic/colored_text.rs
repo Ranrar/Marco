@@ -3,7 +3,6 @@
 
 use crate::menu::dialogs::common::*;
 use crate::{editor, language};
-use gtk4::prelude::*;
 
 /// Show dialog to insert colored text
 pub fn show_colored_text_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

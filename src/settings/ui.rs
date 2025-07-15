@@ -168,60 +168,6 @@ pub fn add_settings_button_to_header_bar(
     header_bar.pack_end(&settings_button);
 }
 
-/// Create a styled section header for settings pages
-pub fn create_settings_section_header(title: &str, description: Option<&str>) -> gtk4::Box {
-    let section_box = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
-
-    let title_label = gtk4::Label::new(Some(title));
-    title_label.set_halign(gtk4::Align::Start);
-    title_label.add_css_class("heading");
-    section_box.append(&title_label);
-
-    if let Some(desc) = description {
-        let desc_label = gtk4::Label::new(Some(desc));
-        desc_label.set_halign(gtk4::Align::Start);
-        desc_label.add_css_class("dim-label");
-        desc_label.set_wrap(true);
-        section_box.append(&desc_label);
-    }
-
-    section_box.set_margin_bottom(8);
-    section_box
-}
-
-/// Create a settings row with label and control
-pub fn create_settings_row(
-    label: &str,
-    control: &impl IsA<gtk4::Widget>,
-    description: Option<&str>,
-) -> gtk4::Box {
-    let row_box = gtk4::Box::new(gtk4::Orientation::Vertical, 4);
-
-    let main_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 12);
-    main_box.set_homogeneous(false);
-
-    let label_widget = gtk4::Label::new(Some(label));
-    label_widget.set_halign(gtk4::Align::Start);
-    label_widget.set_hexpand(true);
-    main_box.append(&label_widget);
-
-    control.set_halign(gtk4::Align::End);
-    main_box.append(control);
-
-    row_box.append(&main_box);
-
-    if let Some(desc) = description {
-        let desc_label = gtk4::Label::new(Some(desc));
-        desc_label.set_halign(gtk4::Align::Start);
-        desc_label.add_css_class("dim-label");
-        desc_label.set_wrap(true);
-        desc_label.set_margin_top(4);
-        row_box.append(&desc_label);
-    }
-
-    row_box.set_margin_bottom(8);
-    row_box
-}
 
 /// Apply settings-specific CSS
 pub fn apply_settings_css() {
@@ -294,14 +240,6 @@ pub fn apply_settings_css() {
     );
 }
 
-/// Show a notification toast (if available)
-pub fn show_notification(_parent: &Window, message: &str) {
-    // For now, just print to console to avoid modal dialog conflicts
-    println!("Settings: {}", message);
-
-    // TODO: In a full implementation, you might use libadwaita's toast or a custom notification
-    // that doesn't interfere with dialog management
-}
 
 /// Get available CSS themes by using ThemeManager (no fallbacks)
 pub fn get_available_css_themes() -> Vec<String> {
@@ -323,7 +261,3 @@ pub fn get_available_languages() -> Vec<(String, String)> {
     ]
 }
 
-/// Check if a file exists and is readable
-pub fn is_file_readable(path: &str) -> bool {
-    std::path::Path::new(path).exists() && std::path::Path::new(path).is_file()
-}

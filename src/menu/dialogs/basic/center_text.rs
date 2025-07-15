@@ -3,7 +3,6 @@
 
 use crate::menu::dialogs::common::*;
 use crate::{editor, language};
-use gtk4::prelude::*;
 
 /// Show dialog to center text
 pub fn show_center_text_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

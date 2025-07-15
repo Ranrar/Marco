@@ -1,4 +1,3 @@
-use super::common::create_settings_section_header;
 use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
 use gtk4::prelude::*;
 use gtk4::{Align, Box, Button, Label, Notebook, Orientation, Switch};

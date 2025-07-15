@@ -3,7 +3,6 @@
 
 use crate::editor;
 use crate::menu::dialogs::common::*;
-use gtk4::prelude::*;
 
 /// Show HTML entity selection dialog
 pub fn show_html_entity_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

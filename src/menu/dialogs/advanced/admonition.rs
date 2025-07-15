@@ -3,7 +3,6 @@
 
 use crate::menu::dialogs::common::*;
 use crate::{editor, language};
-use gtk4::prelude::*;
 use gtk4::{gdk, Button, ColorButton, ComboBoxText, EmojiChooser, ToggleButton};
 
 /// Show dialog to insert an admonition with Standard/Customize modes

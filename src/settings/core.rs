@@ -63,8 +63,8 @@ impl SettingsChangeTracker {
         let old_ui_theme = prefs.get_ui_theme();
         let old_css_theme = prefs.get_css_theme();
         let old_language = prefs.get_language();
-        let old_view_mode = prefs.get_view_mode();
-        let old_layout_mode = prefs.get_layout_mode();
+        let _old_view_mode = prefs.get_view_mode();
+        let _old_layout_mode = prefs.get_layout_mode();
         let old_function_highlighting = prefs.get_function_highlighting();
         let old_editor_color_syntax = prefs.get_editor_color_syntax();
         let old_markdown_warnings = prefs.get_markdown_warnings();
@@ -190,28 +190,13 @@ impl OriginalSettings {
         }
     }
 
-    pub fn restore(&self) {
-        let prefs = get_app_preferences();
-        prefs.set_function_syntax_coloring(self.function_highlighting);
-        prefs.set_editor_color_syntax(self.editor_color_syntax);
-        prefs.set_markdown_warnings(self.markdown_warnings);
-        prefs.set_editor_text_wrap(self.editor_text_wrap);
-        prefs.set_ui_theme(&self.ui_theme);
-        prefs.set_css_theme(&self.css_theme);
-        prefs.set_layout_mode(&self.layout_mode);
-        prefs.set_layout_ratio(self.layout_ratio);
-        prefs.set_view_mode(&self.view_mode);
-        prefs.set_language(&self.language);
-        prefs.set_custom_css_file(&self.custom_css_file);
-        prefs.set_debounce_timeout_ms(self.debounce_timeout_ms);
-    }
 
 
 }
 use gio::prelude::*;
 use gio::Settings;
-use gtk4::prelude::MountExt;
 use gtk4::prelude::WidgetExt;
+use std::cell::RefCell;
 
 /// Application settings using GSettings
 pub struct AppPreferences {
@@ -268,44 +253,6 @@ impl AppPreferences {
         let _ = self.settings.set_boolean("markdown-warnings", enabled);
     }
 
-    /// Individual markdown warning categories
-    pub fn get_markdown_syntax_errors(&self) -> bool {
-        self.settings.boolean("markdown-syntax-errors")
-    }
-
-    pub fn set_markdown_syntax_errors(&self, enabled: bool) {
-        let _ = self.settings.set_boolean("markdown-syntax-errors", enabled);
-    }
-
-    pub fn get_markdown_formatting_issues(&self) -> bool {
-        self.settings.boolean("markdown-formatting-issues")
-    }
-
-    pub fn set_markdown_formatting_issues(&self, enabled: bool) {
-        let _ = self
-            .settings
-            .set_boolean("markdown-formatting-issues", enabled);
-    }
-
-    pub fn get_markdown_style_warnings(&self) -> bool {
-        self.settings.boolean("markdown-style-warnings")
-    }
-
-    pub fn set_markdown_style_warnings(&self, enabled: bool) {
-        let _ = self
-            .settings
-            .set_boolean("markdown-style-warnings", enabled);
-    }
-
-    pub fn get_markdown_structure_issues(&self) -> bool {
-        self.settings.boolean("markdown-structure-issues")
-    }
-
-    pub fn set_markdown_structure_issues(&self, enabled: bool) {
-        let _ = self
-            .settings
-            .set_boolean("markdown-structure-issues", enabled);
-    }
 
     /// Window size and position
     pub fn get_window_size(&self) -> (i32, i32) {
@@ -319,16 +266,6 @@ impl AppPreferences {
         let _ = self.settings.set_int("window-height", height);
     }
 
-    pub fn get_window_position(&self) -> (i32, i32) {
-        let x = self.settings.int("window-x");
-        let y = self.settings.int("window-y");
-        (x, y)
-    }
-
-    pub fn set_window_position(&self, x: i32, y: i32) {
-        let _ = self.settings.set_int("window-x", x);
-        let _ = self.settings.set_int("window-y", y);
-    }
 
     pub fn get_window_maximized(&self) -> bool {
         self.settings.boolean("window-maximized")
@@ -401,13 +338,6 @@ impl AppPreferences {
         let _ = self.settings.set_string("view-mode", mode);
     }
 
-    /// Bind a widget property to a settings key
-    pub fn bind_property<T>(&self, key: &str, object: &T, property: &str)
-    where
-        T: glib::object::IsA<glib::Object>,
-    {
-        self.settings.bind(key, object, property).build();
-    }
 
     /// Connect to settings changes
     pub fn connect_changed<F>(&self, key: Option<&str>, callback: F) -> glib::SignalHandlerId
@@ -437,37 +367,30 @@ impl AppPreferences {
     }
 }
 
-/// Global settings instance - using a simpler approach without thread safety
-/// This should be accessed only from the main thread
-static mut APP_PREFERENCES: Option<AppPreferences> = None;
+thread_local! {
+    static APP_PREFERENCES: RefCell<Option<std::rc::Rc<AppPreferences>>> = RefCell::new(None);
+}
 
-/// Initialize the global settings instance
 pub fn initialize_global_settings() -> Result<(), Box<dyn std::error::Error>> {
-    unsafe {
-        APP_PREFERENCES = Some(AppPreferences::new()?);
-    }
+    let prefs = std::rc::Rc::new(AppPreferences::new()?);
+    APP_PREFERENCES.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if opt.is_some() {
+            return Err("Settings already initialized".to_string());
+        }
+        *opt = Some(prefs);
+        Ok(())
+    })?;
     Ok(())
 }
 
-/// Get a reference to the global settings instance
-/// This should only be called from the main thread
-pub fn get_app_preferences() -> &'static AppPreferences {
-    unsafe {
-        APP_PREFERENCES
-            .as_ref()
-            .expect("Settings not initialized. Call initialize_global_settings() first.")
-    }
+/// Get a reference to the global settings instance (main thread only)
+pub fn get_app_preferences() -> std::rc::Rc<AppPreferences> {
+    APP_PREFERENCES.with(|cell| {
+        cell.borrow().as_ref().expect("Settings not initialized. Call initialize_global_settings() first.").clone()
+    })
 }
 
-/// Get a mutable reference to the global settings instance
-/// This should only be called from the main thread
-pub fn get_app_preferences_mut() -> &'static mut AppPreferences {
-    unsafe {
-        APP_PREFERENCES
-            .as_mut()
-            .expect("Settings not initialized. Call initialize_global_settings() first.")
-    }
-}
 
 /// Initialize settings system
 pub fn initialize_settings() -> Result<(), Box<dyn std::error::Error>> {

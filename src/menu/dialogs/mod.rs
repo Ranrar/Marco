@@ -18,7 +18,6 @@ pub use basic::underline::show_underline_dialog;
 
 pub use advanced::admonition::show_admonition_dialog;
 pub use advanced::html_entity::show_html_entity_dialog;
-pub use advanced::image_with_caption::show_image_with_caption_dialog;
 pub use advanced::image_with_size::show_image_with_size_dialog;
 pub use advanced::link_open_new::show_link_open_new_dialog;
 pub use advanced::youtube_video::show_youtube_video_dialog;

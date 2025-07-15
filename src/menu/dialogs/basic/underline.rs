@@ -3,7 +3,6 @@
 
 use crate::menu::dialogs::common::*;
 use crate::{editor, language};
-use gtk4::prelude::*;
 
 /// Show dialog to insert underlined text
 pub fn show_underline_dialog(window: &gtk4::Window, editor: &editor::MarkdownEditor) {

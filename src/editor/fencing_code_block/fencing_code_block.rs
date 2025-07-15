@@ -78,9 +78,6 @@ pub struct SyntectHighlighter {
     current_theme: String,
     theme_cache: crate::utils::cache::CacheSync<String, Theme>,
 }
-
-use std::fs;
-
 impl SyntectHighlighter {
     /// Load all .tmTheme files from the resolved colorize_code_blocks directory and return as Vec<(name, Theme)>
     fn load_custom_themes_from_folder() -> Vec<(String, Theme)> {

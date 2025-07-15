@@ -1,4 +1,3 @@
-use super::common::create_settings_section_header;
 use crate::settings::core::{OriginalSettings, SettingsChangeTracker};
 use crate::settings::ui::get_available_languages;
 use gtk4::prelude::*;

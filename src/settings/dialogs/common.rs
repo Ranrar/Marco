@@ -224,46 +224,6 @@ pub fn show_settings_dialog(
     dialog.add_css_class("settings-dialog");
     dialog.show();
 }
-// Shared helpers for settings dialog pages
-// Extracted from legacy dialog.rs
 
 use gtk4::prelude::*;
-use gtk4::{Box, Label, Widget};
 
-/// Create a section header for a settings page
-pub fn create_settings_section_header(title: &str, subtitle: Option<&str>) -> Box {
-    let section_box = Box::new(gtk4::Orientation::Vertical, 2);
-    let title_label = Label::new(Some(title));
-    title_label.set_halign(gtk4::Align::Start);
-    title_label.set_markup(&format!("<b>{}</b>", title));
-    section_box.append(&title_label);
-    if let Some(sub) = subtitle {
-        let subtitle_label = Label::new(Some(sub));
-        subtitle_label.set_halign(gtk4::Align::Start);
-        subtitle_label.add_css_class("dim-label");
-        section_box.append(&subtitle_label);
-    }
-    section_box
-}
-
-/// Create a row for a settings option (label + widget + optional description)
-pub fn create_settings_row(
-    label: &str,
-    widget: &impl IsA<Widget>,
-    description: Option<&str>,
-) -> Box {
-    let row_box = Box::new(gtk4::Orientation::Vertical, 2);
-    let label_box = Box::new(gtk4::Orientation::Horizontal, 8);
-    let label_widget = Label::new(Some(label));
-    label_widget.set_halign(gtk4::Align::Start);
-    label_box.append(&label_widget);
-    label_box.append(widget);
-    row_box.append(&label_box);
-    if let Some(desc) = description {
-        let desc_label = Label::new(Some(desc));
-        desc_label.set_halign(gtk4::Align::Start);
-        desc_label.add_css_class("dim-label");
-        row_box.append(&desc_label);
-    }
-    row_box
-}

@@ -1081,11 +1081,6 @@ impl SpellSyntaxChecker {
         (line_offsets.len() + 1, 1)
     }
 
-    /// Get all warnings
-    fn get_warnings(&self) -> &[SpellError] {
-        &self.warnings
-    }
-
     /// Clear all warnings and visual indicators
     pub fn clear_warnings(&mut self) {
         self.warnings.clear();
@@ -1111,14 +1106,6 @@ impl SpellSyntaxChecker {
         }
     }
 
-    /// Format warnings as text
-    fn format_warnings(&self) -> String {
-        self.warnings
-            .iter()
-            .map(|w| w.to_string())
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
 }
 
 /// Convenience function to create a syntax checker with default config
