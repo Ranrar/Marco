@@ -1,6 +1,6 @@
 use crate::editor::context_menu::ContextMenu;
 use crate::editor::syntax::md_spell_check::SpellSyntaxChecker;
-use crate::markdown::advanced::ExtraMarkdownSyntax;
+use crate::markdown::extended::ExtendedMarkdownSyntax;
 use crate::editor::fencing_code_block::fencing_code_block::CodeLanguageManager;
 use crate::view::{MarkdownCodeView, MarkdownHtmlView};
 use gtk4::prelude::*;
@@ -27,7 +27,7 @@ pub struct MarkdownEditor {
     pub(crate) code_language_manager: Rc<RefCell<CodeLanguageManager>>,
     pub(crate) theme_manager: Rc<RefCell<Option<crate::theme::ThemeManager>>>,
     pub(crate) is_modified: Rc<RefCell<bool>>,
-    pub(crate) extra_syntax: Rc<RefCell<ExtraMarkdownSyntax>>,
+    pub(crate) extended_syntax: Rc<RefCell<ExtendedMarkdownSyntax>>,
     pub(crate) tag_table: Rc<RefCell<HashMap<String, gtk4::TextTag>>>,
     pub(crate) context_menu: Rc<RefCell<Option<ContextMenu>>>,
     pub(crate) last_formatting_action: Rc<RefCell<Option<Instant>>>,
@@ -115,7 +115,7 @@ impl MarkdownEditor {
         let footer_callbacks = Rc::new(RefCell::new(Vec::new()));
         let code_language_manager = Rc::new(RefCell::new(CodeLanguageManager::new()));
         let is_modified = Rc::new(RefCell::new(false));
-        let extra_syntax = Rc::new(RefCell::new(ExtraMarkdownSyntax::new()));
+        let extended_syntax = Rc::new(RefCell::new(ExtendedMarkdownSyntax::new()));
         let tag_table = Rc::new(RefCell::new(HashMap::new()));
 
         // Create header bar for title management
@@ -137,7 +137,7 @@ impl MarkdownEditor {
             code_language_manager,
             theme_manager: Rc::new(RefCell::new(None)),
             is_modified,
-            extra_syntax,
+            extended_syntax,
             tag_table,
             context_menu: Rc::new(RefCell::new(None)),
             last_formatting_action: Rc::new(RefCell::new(None)),
@@ -227,7 +227,7 @@ impl MarkdownEditor {
         let html_view = self.html_view.clone();
         let footer_callbacks = self.footer_callbacks.clone();
         let is_modified = self.is_modified.clone();
-        let extra_syntax = self.extra_syntax.clone();
+        let extended_syntax = self.extended_syntax.clone();
         let tag_table = self.tag_table.clone();
         let original_content = self.original_content.clone();
         let spell_checker = self.spell_checker.clone();
@@ -261,7 +261,6 @@ impl MarkdownEditor {
             }
 
             // Debounce syntax highlighting and related per-keystroke features
-            let extra_syntax = extra_syntax.clone();
             let tag_table = tag_table.clone();
             let buffer_clone = buffer.clone();
             let prefs = crate::settings::core::get_app_preferences();
@@ -269,16 +268,12 @@ impl MarkdownEditor {
             let spell_checker = spell_checker.clone();
             let warnings_enabled = warnings_enabled.clone();
             let text_string_clone = text_string.clone();
+            let extended_syntax = extended_syntax.clone();
             debouncer.debounce(move || {
                 if syntax_enabled {
                     eprintln!("============ Applying syntax coloring (debounced) ============");
-                    // Apply extra syntax coloring (underlines, colors, comments, etc.)
-                    {
-                        let extra_syntax_ref = extra_syntax.borrow();
-                        let mut tag_table_ref = tag_table.borrow_mut();
-                        extra_syntax_ref.apply_extra_syntax_coloring(&buffer_clone, &text_string_clone, &mut tag_table_ref);
-                    }
-                    // Apply syntect syntax coloring
+                    // Apply extended syntax coloring and syntect coloring with a single mutable borrow
+                    let extended_syntax_ref = extended_syntax.borrow();
                     let ui_theme = prefs.get_ui_theme();
                     let theme_name = match ui_theme.as_str() {
                         "dark" => "dark",
@@ -286,6 +281,7 @@ impl MarkdownEditor {
                         _ => "dark",
                     };
                     let mut tag_table_ref = tag_table.borrow_mut();
+                    extended_syntax_ref.apply_syntax_highlighting(&buffer_clone, &mut tag_table_ref);
                     crate::editor::syntax::syntax::color::apply_syntax_coloring(
                         &buffer_clone,
                         &text_string_clone,
@@ -566,9 +562,8 @@ impl MarkdownEditor {
         // Apply extra syntax coloring (underlines, colors, comments, etc.)
         {
             let mut tag_table = self.tag_table.borrow_mut();
-            let extra_syntax = self.extra_syntax.borrow();
-            println!("DEBUG: Applying extra syntax coloring");
-            extra_syntax.apply_extra_syntax_coloring(&self.source_buffer, &text, &mut tag_table);
+            println!("DEBUG: Applying extended syntax highlighting");
+            self.extended_syntax.borrow().apply_syntax_highlighting(&self.source_buffer, &mut tag_table);
         }
 
         // Apply syntect coloring using ThemeManager

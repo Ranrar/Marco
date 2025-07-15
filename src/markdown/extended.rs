@@ -12,7 +12,7 @@ pub struct ExtendedMarkdownSyntax {
     /// Task Lists (GitHub style checkboxes)
     task_list_regex: Regex,
 
-    /// Strikethrough (already in basic but included for completeness)
+    /// Strikethrough (~~text~~)
     strikethrough_regex: Regex,
 
     /// Footnotes
@@ -54,14 +54,13 @@ impl ExtendedMarkdownSyntax {
             // Table header separator: |----------|----------|
             table_header_separator_regex: Regex::new(
                 r"^\|[\s]*:?-+:?[\s]*(\|[\s]*:?-+:?[\s]*)*\|?$",
-            )
-            .unwrap(),
+            ).unwrap(),
 
             // Task Lists: - [x] Task or - [ ] Task
             task_list_regex: Regex::new(r"^[\s]*[-*+][\s]+\[([ xX])\][\s]+(.*)$").unwrap(),
 
-            // Strikethrough: ~~text~~
-            strikethrough_regex: Regex::new(r"~~([^~]+)~~").unwrap(),
+            // Strikethrough: ~~text~~ (must not match single ~)
+            strikethrough_regex: Regex::new(r"~~(.*?)~~").unwrap(),
 
             // Footnote reference: [^identifier]
             footnote_reference_regex: Regex::new(r"\[\^([^\]]+)\]").unwrap(),
@@ -81,21 +80,19 @@ impl ExtendedMarkdownSyntax {
             // Heading with ID: ## Heading {#custom-id}
             heading_with_id_regex: Regex::new(
                 r"^(#{1,6})[\s]+(.+?)[\s]*\{#([a-zA-Z0-9\-_]+)\}[\s]*$",
-            )
-            .unwrap(),
+            ).unwrap(),
 
             // Highlight: ==text==
             highlight_regex: Regex::new(r"==([^=]+)==").unwrap(),
 
-            // Subscript: ~text~
-            subscript_regex: Regex::new(r"~([^~\s]+)~").unwrap(),
+            // Subscript: ~text~ (simple, filter in code)
+            subscript_regex: Regex::new(r"~([^~\s][^~]*?)~").unwrap(),
 
-            // Superscript: ^text^ (avoid conflict with footnotes [^1])
-            // Use word boundary or space to ensure we don't match footnotes
-            superscript_regex: Regex::new(r"(^|\s)\^([^\^\s]+)\^").unwrap(),
+            // Superscript: ^text^ (allow punctuation, not inside words)
+            superscript_regex: Regex::new(r"\^([^\s^]+)\^").unwrap(),
 
-            // Auto URL: http://example.com or https://example.com
-            auto_url_regex: Regex::new(r"(?:^|[\s])(https?://[^\s]+)").unwrap(),
+            // Auto URL: http(s):// or www. (not inside []())
+            auto_url_regex: Regex::new(r"(?i)\b((?:https?://|www\.)[^\s<]+[^\s<\.,;:])").unwrap(),
 
             // Emoji shortcodes: :emoji_name:
             emoji_shortcode_regex: Regex::new(r":([a-zA-Z0-9_+\-]+):").unwrap(),
@@ -175,12 +172,12 @@ impl ExtendedMarkdownSyntax {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
         // Create table tags if they don't exist
-        self.ensure_tag_exists(tag_table, "table", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "table", |tag| {
             tag.set_family(Some("monospace"));
             tag.set_foreground(Some("#2563eb")); // Blue
         });
 
-        self.ensure_tag_exists(tag_table, "table-separator", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "table-separator", |tag| {
             tag.set_foreground(Some("#6b7280")); // Gray
             tag.set_family(Some("monospace"));
         });
@@ -215,12 +212,12 @@ impl ExtendedMarkdownSyntax {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
         // Create task list tags
-        self.ensure_tag_exists(tag_table, "task-checked", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "task-checked", |tag| {
             tag.set_foreground(Some("#16a34a")); // Green
             tag.set_weight(700); // Bold weight as integer
         });
 
-        self.ensure_tag_exists(tag_table, "task-unchecked", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "task-unchecked", |tag| {
             tag.set_foreground(Some("#6b7280")); // Gray
         });
 
@@ -255,7 +252,7 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "strikethrough", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "strikethrough", |tag| {
             tag.set_strikethrough(true);
             tag.set_foreground(Some("#6b7280")); // Gray
         });
@@ -278,12 +275,12 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "footnote-ref", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "footnote-ref", |tag| {
             tag.set_foreground(Some("#7c3aed")); // Purple
             tag.set_underline(gtk4::pango::Underline::Single);
         });
 
-        self.ensure_tag_exists(tag_table, "footnote-def", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "footnote-def", |tag| {
             tag.set_foreground(Some("#7c3aed")); // Purple
             tag.set_weight(700); // Bold weight as integer
         });
@@ -320,12 +317,12 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "definition-term", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "definition-term", |tag| {
             tag.set_weight(700); // Bold weight as integer
             tag.set_foreground(Some("#1f2937")); // Dark gray
         });
 
-        self.ensure_tag_exists(tag_table, "definition-desc", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "definition-desc", |tag| {
             tag.set_style(gtk4::pango::Style::Italic);
             tag.set_foreground(Some("#4b5563")); // Medium gray
         });
@@ -366,7 +363,7 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "fenced-code", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "fenced-code", |tag| {
             tag.set_family(Some("monospace"));
             tag.set_background(Some("#f3f4f6")); // Light gray background
             tag.set_foreground(Some("#1f2937")); // Dark text
@@ -408,7 +405,7 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "heading-id", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "heading-id", |tag| {
             tag.set_foreground(Some("#7c3aed")); // Purple
             tag.set_style(gtk4::pango::Style::Italic);
         });
@@ -434,19 +431,19 @@ impl ExtendedMarkdownSyntax {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
         // Highlight ==text==
-        self.ensure_tag_exists(tag_table, "highlight", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "highlight", |tag| {
             tag.set_background(Some("#fef08a")); // Yellow highlight
             tag.set_foreground(Some("#1f2937"));
         });
 
         // Subscript ~text~ (simplified without actual subscript positioning)
-        self.ensure_tag_exists(tag_table, "subscript", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "subscript", |tag| {
             tag.set_foreground(Some("#6b7280"));
             tag.set_scale(0.8); // Smaller text
         });
 
         // Superscript ^text^ (simplified without actual superscript positioning)
-        self.ensure_tag_exists(tag_table, "superscript", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "superscript", |tag| {
             tag.set_foreground(Some("#6b7280"));
             tag.set_scale(0.8); // Smaller text
         });
@@ -460,11 +457,19 @@ impl ExtendedMarkdownSyntax {
             }
         }
 
-        // Apply subscript
+        // Apply subscript, but skip if surrounded by ~ (i.e., part of ~~strikethrough~~)
         if let Some(tag) = tag_table.get("subscript") {
             for mat in self.subscript_regex.find_iter(text) {
-                let start_iter = gtk_buffer.iter_at_offset(mat.start() as i32);
-                let end_iter = gtk_buffer.iter_at_offset(mat.end() as i32);
+                let start = mat.start();
+                let end = mat.end();
+                // Check previous and next char to avoid ~~
+                let prev = if start > 0 { text.as_bytes()[start - 1] } else { b' ' };
+                let next = if end < text.len() { text.as_bytes()[end] } else { b' ' };
+                if prev == b'~' || next == b'~' {
+                    continue;
+                }
+                let start_iter = gtk_buffer.iter_at_offset(start as i32);
+                let end_iter = gtk_buffer.iter_at_offset(end as i32);
                 gtk_buffer.apply_tag(tag, &start_iter, &end_iter);
             }
         }
@@ -488,7 +493,7 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "auto-url", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "auto-url", |tag| {
             tag.set_foreground(Some("#2563eb")); // Blue
             tag.set_underline(gtk4::pango::Underline::Single);
         });
@@ -513,7 +518,7 @@ impl ExtendedMarkdownSyntax {
     ) {
         let gtk_buffer = buffer.upcast_ref::<gtk4::TextBuffer>();
 
-        self.ensure_tag_exists(tag_table, "emoji", |tag| {
+        self.ensure_tag_exists(gtk_buffer, tag_table, "emoji", |tag| {
             tag.set_foreground(Some("#f59e0b")); // Orange
             tag.set_weight(700); // Bold weight as integer
         });
@@ -530,6 +535,7 @@ impl ExtendedMarkdownSyntax {
     /// Helper method to ensure a tag exists in the tag table
     fn ensure_tag_exists<F>(
         &self,
+        gtk_buffer: &gtk4::TextBuffer,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
         name: &str,
         configure: F,
@@ -537,7 +543,7 @@ impl ExtendedMarkdownSyntax {
         F: FnOnce(&gtk4::TextTag),
     {
         if !tag_table.contains_key(name) {
-            let tag = gtk4::TextTag::new(Some(name));
+            let tag = gtk_buffer.create_tag(Some(name), &[]).expect("Failed to create tag");
             configure(&tag);
             tag_table.insert(name.to_string(), tag);
         }

@@ -141,8 +141,8 @@ Create headings using the toolbar dropdown or keyboard shortcuts:
 - **Strikethrough**: Use toolbar or surround with `~~text~~`
 
 ### Lists
-- **Bullet Lists**: Click toolbar button or start line with `- ` or `* `
-- **Numbered Lists**: Click toolbar button or start line with `1. `
+- **Bullet Lists**: Click toolbar button or start line with `-` or `*`
+- **Numbered Lists**: Click toolbar button or start line with `1.`
 - **Nested Lists**: Indent with spaces or tabs
 
 ### Links and Images

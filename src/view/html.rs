@@ -3,6 +3,7 @@ use crate::theme::ThemeManager;
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, Widget};
 use pulldown_cmark::{html, CodeBlockKind, Event, Options, Parser, Tag};
+use crate::markdown::basic::MarkdownParser;
 use crate::utils::cache::{AST_CACHE, hash_source};
 use std::cell::RefCell;
 use std::collections::hash_map::DefaultHasher;
@@ -32,6 +33,10 @@ pub struct MarkdownHtmlView {
     user_content_manager: UserContentManager,
     // Regexes are now cached globally using utils::regex_cache
     cached_css: Rc<RefCell<Option<String>>>,
+
+    /// If true, use MarkdownParser from basic.rs instead of pulldown_cmark
+    use_custom_parser: Rc<RefCell<bool>>,
+    custom_parser: Rc<MarkdownParser>,
 }
 
 impl MarkdownHtmlView {
@@ -80,15 +85,27 @@ impl MarkdownHtmlView {
             user_content_manager,
             // Regexes are now cached globally using utils::regex_cache
             cached_css: Rc::new(RefCell::new(None)),
+
+            use_custom_parser: Rc::new(RefCell::new(false)),
+            custom_parser: Rc::new(MarkdownParser::new()),
         };
 
         // Inject syntax highlighting CSS once at initialization
         view.inject_syntax_highlighting_css();
 
+        // Connect external link handler
+        view.connect_external_link_handler();
+
         // Initialize with a default empty document
         view.initialize_empty_document();
 
         view
+    }
+
+    /// Enable or disable the custom MarkdownParser for HTML conversion
+    pub fn set_use_custom_parser(&self, enabled: bool) {
+        *self.use_custom_parser.borrow_mut() = enabled;
+        self.refresh_with_current_content();
     }
 
     /// Sets up the preview context menu for the HTML view
@@ -246,29 +263,9 @@ impl MarkdownHtmlView {
     }
 
     fn process_markdown_to_html(&self, markdown_text: &str) -> String {
-        let processed_markdown = self.preprocess_for_compact_html(markdown_text);
-
-        let hash = hash_source(&processed_markdown);
-        let mut html_content = String::new();
-
-        // Try AST cache first
-        let events = if let Some(cached) = AST_CACHE.get(hash) {
-            cached
-        } else {
-            let mut options = Options::empty();
-            options.insert(Options::ENABLE_TABLES);
-            options.insert(Options::ENABLE_FOOTNOTES);
-            options.insert(Options::ENABLE_STRIKETHROUGH);
-            options.insert(Options::ENABLE_TASKLISTS);
-            options.insert(Options::ENABLE_SMART_PUNCTUATION);
-            let parser = Parser::new_ext(&processed_markdown, options);
-            let events_borrowed = self.process_events_with_code_highlighting(parser);
-            let events = crate::utils::cache::own_events(events_borrowed);
-            AST_CACHE.insert(hash, events.clone());
-            events
-        };
-        html::push_html(&mut html_content, events.into_iter());
-        self.add_header_ids_to_html(&html_content)
+        // Always use the robust MarkdownParser for HTML conversion
+        // This ensures inline formatting (tildes, subscript, strikethrough, etc.) matches the editor
+        self.custom_parser.to_html(markdown_text)
     }
 
     fn load_html_content(&self, html_content: &str) {
@@ -315,6 +312,23 @@ impl MarkdownHtmlView {
             "theme-light" // Default to light theme if no theme manager
         };
 
+        // JavaScript to intercept external link clicks, but allow anchor (#) links
+        let link_intercept_js = r#"
+            document.addEventListener('click', function(e) {
+                let target = e.target;
+                while (target && target.tagName !== 'A') {
+                    target = target.parentElement;
+                }
+                if (target && target.tagName === 'A') {
+                    let href = target.getAttribute('href');
+                    if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                        e.preventDefault();
+                        window.open(href, '_blank');
+                    }
+                }
+            }, true);
+        "#;
+
         format!(
             r#"<!DOCTYPE html>
 <html lang="en">
@@ -328,7 +342,6 @@ impl MarkdownHtmlView {
     <script>
         window.addEventListener('DOMContentLoaded', function() {{
             window.scrollTo(0, {});
-            
             var scrollTimeout;
             window.addEventListener('scroll', function() {{
                 clearTimeout(scrollTimeout);
@@ -337,10 +350,10 @@ impl MarkdownHtmlView {
                 }}, 100);
             }}, {{ passive: true }});
         }});
-        
         window.addEventListener('load', function() {{
             window.scrollTo(0, {});
         }});
+        {}
     </script>
 </head>
 <body class="{}">
@@ -350,9 +363,37 @@ impl MarkdownHtmlView {
             self.load_css_content_cached(),
             scroll_y,
             scroll_y,
+            link_intercept_js,
             theme_class,
             html_content
         )
+    }
+    /// Connect navigation policy to open external links in the OS browser
+    pub fn connect_external_link_handler(&self) {
+        use gtk4::glib;
+        use webkit6::prelude::*;
+        let webview = self.webview.clone();
+        webview.connect_decide_policy(move |_webview, decision, _decision_type| {
+            if let Some(nav) = decision.dynamic_cast_ref::<webkit6::NavigationPolicyDecision>() {
+                if let Some(mut na) = nav.navigation_action() {
+                    if let Some(request) = na.request() {
+                        if let Some(url) = request.uri() {
+                            if url.starts_with("http://") || url.starts_with("https://") {
+                                // Open in OS browser
+                                let ctx = glib::MainContext::default();
+                                let url = url.to_string();
+                                ctx.spawn_local(async move {
+                                    let _ = open::that(url);
+                                });
+                                decision.ignore();
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+            false
+        });
     }
 
     fn create_minimal_html_document(&self, html_content: &str, _scroll_y: f64) -> String {
@@ -460,45 +501,32 @@ impl MarkdownHtmlView {
     }
 
     fn preprocess_for_compact_html(&self, markdown: &str) -> String {
+        // Delegate all inline formatting to MarkdownParser for consistency
+        let parser = &*self.custom_parser;
         let mut result = String::new();
         let open_task_pattern = get_regex(r"^(\s*)(\[ \])(.*)$");
         let closed_task_pattern = get_regex(r"^(\s*)(\[x\])(.*)$");
-        let highlight_pattern = get_regex(r"==([^=]+)==");
-        let subscript_pattern = get_regex(r"~([^~]+)~");
-        let superscript_pattern = get_regex(r"(^|\s)\^([^^]+)\^");
 
         for line in markdown.lines() {
-            let mut processed_line =
+            let processed_line =
                 if let Some(captures) = open_task_pattern.captures(line) {
                     let task_text = &captures[3];
                     format!(
                         "<p><input type=\"checkbox\" disabled> {}</p>",
-                        task_text.trim()
+                        parser.process_inline_formatting(task_text.trim())
                     )
                 } else if let Some(captures) = closed_task_pattern.captures(line) {
                     let task_text = &captures[3];
                     format!(
                         "<p><input type=\"checkbox\" checked disabled> {}</p>",
-                        task_text.trim()
+                        parser.process_inline_formatting(task_text.trim())
                     )
                 } else {
-                    line.to_string()
+                    parser.process_inline_formatting(line)
                 };
-
-            processed_line = highlight_pattern
-                .replace_all(&processed_line, "<mark>$1</mark>")
-                .to_string();
-            processed_line = subscript_pattern
-                .replace_all(&processed_line, "<sub>$1</sub>")
-                .to_string();
-            processed_line = superscript_pattern
-                .replace_all(&processed_line, "$1<sup>$2</sup>")
-                .to_string();
-
             result.push_str(&processed_line);
             result.push('\n');
         }
-
         result
     }
 

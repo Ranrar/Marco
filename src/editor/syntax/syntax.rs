@@ -1,3 +1,4 @@
+use syntect::highlighting::Theme;
 use crate::editor::core::MarkdownEditor;
 use std::collections::HashMap;
 
@@ -148,10 +149,18 @@ pub mod color {
         // Explicitly resolve and load both dark and light themes
         use crate::utils::cross_platform_resource::resolve_resource_path;
         let ui_dark_path = resolve_resource_path("ui/ui_theme", "dark.tmTheme");
-        let ui_dark_theme = get_ui_theme(&ui_dark_path).expect("Failed to load dark.tmTheme");
+        let ui_dark_theme = get_ui_theme(&ui_dark_path)
+            .unwrap_or_else(|_| {
+                eprintln!("WARNING: dark.tmTheme not found, using default theme");
+                syntect::highlighting::Theme::default()
+            });
 
         let ui_light_path = resolve_resource_path("ui/ui_theme", "light.tmTheme");
-        let ui_light_theme = get_ui_theme(&ui_light_path).expect("Failed to load light.tmTheme");
+        let ui_light_theme = get_ui_theme(&ui_light_path)
+            .unwrap_or_else(|_| {
+                eprintln!("WARNING: light.tmTheme not found, using default theme");
+                syntect::highlighting::Theme::default()
+            });
 
         // Select the theme to use based on the input file name
         let theme = match theme_name {
