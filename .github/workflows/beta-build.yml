@@ -1,7 +1,7 @@
 name: Beta Build
 
 on:
-  workflow_dispatch:  # Manual run only
+  workflow_dispatch:
 
 jobs:
   linux:
@@ -18,8 +18,11 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install GTK dependencies
-        run: sudo apt update && sudo apt install -y libgtk-4-dev libwebkit2gtk-4.0-dev pkg-config
+      - name: Install GTK + WebKit dependencies
+        run: |
+          sudo add-apt-repository universe
+          sudo apt update
+          sudo apt install -y libgtk-4-dev libwebkit2gtk-4.1-dev pkg-config
 
       - name: Build for Linux
         run: cargo build --release
@@ -44,10 +47,10 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install MSYS2
+      - name: Install MSYS2 (specific release)
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/latest/download/msys2-x86_64.exe -OutFile msys2.exe
+          Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/download/2025-06-22/msys2-base-x86_64-20250622.sfx.exe -OutFile msys2.exe
           Start-Process msys2.exe -ArgumentList '--quiet-mode --norestart' -Wait
 
       - name: Add MSYS2 to PATH
