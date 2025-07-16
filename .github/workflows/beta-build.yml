@@ -43,7 +43,7 @@ jobs:
         run: strip target/${{ matrix.target }}/release/marco || echo "strip not available"
 
       - name: Upload binary artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: marco-${{ matrix.target }}-beta
           path: target/${{ matrix.target }}/release/marco${{ runner.os == 'Windows' && '.exe' || '' }}
