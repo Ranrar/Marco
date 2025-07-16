@@ -1,7 +1,7 @@
 name: Beta Build
 
 on:
-  workflow_dispatch:
+  workflow_dispatch:  # Manual run only
 
 jobs:
   linux:
@@ -11,15 +11,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-rust@v2
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          profile: minimal
+          override: true
 
-      - run: sudo apt update && sudo apt install -y libgtk-4-dev pkg-config
+      - name: Install GTK dependencies
+        run: sudo apt update && sudo apt install -y libgtk-4-dev pkg-config
 
-      - run: cargo build --release
+      - name: Build for Linux
+        run: cargo build --release
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
         with:
           name: marco-linux
           path: target/release/marco
@@ -31,14 +37,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
       - name: Install MSYS2
         shell: powershell
         run: |
           Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20230719.exe -OutFile msys2.exe
           Start-Process msys2.exe -ArgumentList '--quiet-mode --norestart' -Wait
-          $env:PATH += ";C:\msys64\usr\bin;C:\msys64\mingw64\bin"
-          echo "::add-path::C:\msys64\usr\bin"
-          echo "::add-path::C:\msys64\mingw64\bin"
+
+      - name: Add MSYS2 to PATH
+        shell: powershell
+        run: |
+          echo "C:\msys64\usr\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
+          echo "C:\msys64\mingw64\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
 
       - name: Update MSYS2 and Install GTK4
         shell: msys2 {0}
@@ -47,7 +63,7 @@ jobs:
           pacman -Sy --noconfirm
           pacman -S --needed --noconfirm mingw-w64-x86_64-toolchain mingw-w64-x86_64-gtk4 git
 
-      - name: Setup Rust Target
+      - name: Add Windows GNU target
         run: rustup target add x86_64-pc-windows-gnu
 
       - name: Build for Windows
@@ -64,7 +80,8 @@ jobs:
           Copy-Item -Recurse C:\msys64\mingw64\lib dist\windows\lib
           Compress-Archive -Path dist\windows\* -DestinationPath dist\marco-windows.zip
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Windows ZIP
+        uses: actions/upload-artifact@v4
         with:
           name: marco-windows
           path: dist/marco-windows.zip
