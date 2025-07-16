@@ -5,33 +5,49 @@ on:
 
 jobs:
   linux:
-    name: Build for Linux
+    name: Build for Linux (Docker)
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
-      - name: Install GTK + WebKit dependencies
+      - name: Build Docker image
         run: |
-          sudo add-apt-repository universe
-          sudo apt update
-          sudo apt install -y libgtk-4-dev libwebkit2gtk-4.1-dev pkg-config
+          cat > Dockerfile <<EOF
+          FROM ubuntu:22.04
 
-      - name: Build for Linux
-        run: cargo build --release
+          RUN apt-get update && apt-get install -y \
+            build-essential \
+            curl \
+            pkg-config \
+            libgtk-4-dev \
+            libwebkit2gtk-4.1-dev \
+            ca-certificates \
+            && rm -rf /var/lib/apt/lists/*
+
+          RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+          ENV PATH="/root/.cargo/bin:\$PATH"
+
+          WORKDIR /app
+
+          COPY . .
+
+          RUN cargo build --release
+          EOF
+
+          docker build -t marco-builder .
+
+      - name: Extract binary from Docker container
+        run: |
+          container_id=$(docker create marco-builder)
+          docker cp $container_id:/app/target/release/marco ./marco
+          docker rm $container_id
 
       - name: Upload Linux binary
         uses: actions/upload-artifact@v4
         with:
-          name: marco-linux
-          path: target/release/marco
+          name: marco-linux-docker
+          path: marco
 
   windows:
     name: Build and Package for Windows
@@ -50,7 +66,7 @@ jobs:
       - name: Install MSYS2 (specific release)
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/download/2025-06-22/msys2-base-x86_64-20250622.sfx.exe -OutFile msys2.exe
+          Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/download/2025-06-22/msys2-x86_64-20250622.exe -OutFile msys2.exe
           Start-Process msys2.exe -ArgumentList '--quiet-mode --norestart' -Wait
 
       - name: Add MSYS2 to PATH
