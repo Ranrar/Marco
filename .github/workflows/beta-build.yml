@@ -4,96 +4,46 @@ on:
   workflow_dispatch:
 
 jobs:
-  linux:
-    name: Build for Linux (Docker)
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-      - name: Build Docker image
-        run: |
-          cat > Dockerfile <<EOF
-          FROM ubuntu:22.04
-
-          RUN apt-get update && apt-get install -y \
-            build-essential \
-            curl \
-            pkg-config \
-            libgtk-4-dev \
-            libwebkit2gtk-4.1-dev \
-            libjavascriptcoregtk-6.0-dev \
-            ca-certificates \
-            && rm -rf /var/lib/apt/lists/*
-
-          RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-          ENV PATH="/root/.cargo/bin:\$PATH"
-
-          WORKDIR /app
-
-          COPY . .
-
-          RUN cargo build --release
-          EOF
-
-          docker build -t marco-builder .
-
-      - name: Extract binary from Docker container
-        run: |
-          container_id=$(docker create marco-builder)
-          docker cp $container_id:/app/target/release/marco ./marco
-          docker rm $container_id
-
-      - name: Upload Linux binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: marco-linux-docker
-          path: marco
-
-  windows:
-    name: Build and Package for Windows
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust
+      - name: Set up Rust stable
         uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
           override: true
 
-      - name: Install MSYS2 and dependencies
-        uses: msys2/setup-msys2@v2
-        with:
-          update: true
-          install: >-
-            mingw-w64-x86_64-toolchain
-            mingw-w64-x86_64-gtk4
-            mingw-w64-x86_64-webkitgtk
-            git
-
-      - name: Add Windows GNU target
-        run: rustup target add x86_64-pc-windows-gnu
-
-      - name: Build for Windows
-        shell: msys2 {0}
-        run: cargo build --release --target x86_64-pc-windows-gnu
-
-      - name: Package App with GTK Runtime
-        shell: powershell
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
-          mkdir dist\windows
-          Copy-Item target\x86_64-pc-windows-gnu\release\marco.exe dist\windows\
-          Copy-Item C:\msys64\mingw64\bin\*.dll dist\windows\
-          Copy-Item -Recurse C:\msys64\mingw64\share dist\windows\share
-          Copy-Item -Recurse C:\msys64\mingw64\lib dist\windows\lib
-          Compress-Archive -Path dist\windows\* -DestinationPath dist\marco-windows.zip
+          echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" | sudo tee /etc/apt/sources.list.d/jammy-webkit.list
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libwebkit2gtk-6.0-dev
 
-      - name: Upload Windows ZIP
-        uses: actions/upload-artifact@v4
+      - name: Install Windows dependencies
+        if: runner.os == 'Windows'
+        run: |
+          choco install gtk4
+          choco install webkitgtk6
+
+      - name: Build release
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Strip binary (Linux only)
+        if: runner.os == 'Linux'
+        run: strip target/${{ matrix.target }}/release/marco || echo "strip not available"
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: marco-windows
-          path: dist/marco-windows.zip
-  
+          name: marco-${{ matrix.target }}-beta
+          path: target/${{ matrix.target }}/release/marco${{ runner.os == 'Windows' && '.exe' || '' }}
