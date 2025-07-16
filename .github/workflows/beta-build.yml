@@ -22,6 +22,7 @@ jobs:
             pkg-config \
             libgtk-4-dev \
             libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-6.0-dev \
             ca-certificates \
             && rm -rf /var/lib/apt/lists/*
 
@@ -63,27 +64,14 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install MSYS2 (specific release)
-        shell: powershell
-        run: |
-          Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/download/2025-06-22/msys2-x86_64-20250622.exe -OutFile msys2.exe
-          Start-Process msys2.exe -ArgumentList '--quiet-mode --norestart' -Wait
-
-      - name: Add MSYS2 to PATH
-        shell: powershell
-        run: |
-          echo "C:\msys64\usr\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
-          echo "C:\msys64\mingw64\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
-
-      - name: Update MSYS2 and Install GTK4 + WebKitGTK
-        shell: msys2 {0}
-        run: |
-          pacman -Syuu --noconfirm
-          pacman -Sy --noconfirm
-          pacman -S --needed --noconfirm \
-            mingw-w64-x86_64-toolchain \
-            mingw-w64-x86_64-gtk4 \
-            mingw-w64-x86_64-webkitgtk \
+      - name: Install MSYS2 and dependencies
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-gtk4
+            mingw-w64-x86_64-webkitgtk
             git
 
       - name: Add Windows GNU target
@@ -108,3 +96,4 @@ jobs:
         with:
           name: marco-windows
           path: dist/marco-windows.zip
+  
