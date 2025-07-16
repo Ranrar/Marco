@@ -79,6 +79,20 @@ pub struct SyntectHighlighter {
     theme_cache: crate::utils::cache::CacheSync<String, Theme>,
 }
 impl SyntectHighlighter {
+    /// Create a new highlighter with a specific theme name
+    pub fn with_theme(theme_name: &str) -> Self {
+        let mut highlighter = Self::new();
+        // Map 'dark' and 'light' to the correct theme names
+        let mapped_theme = match theme_name.to_lowercase().as_str() {
+            "dark" => "MarcoDark",
+            "light" => "MarcoLight",
+            _ => theme_name,
+        };
+        if highlighter.theme_set.themes.contains_key(mapped_theme) {
+            highlighter.current_theme = mapped_theme.to_string();
+        }
+        highlighter
+    }
     /// Load all .tmTheme files from the resolved colorize_code_blocks directory and return as Vec<(name, Theme)>
     fn load_custom_themes_from_folder() -> Vec<(String, Theme)> {
         use crate::utils::cross_platform_resource::resolve_resource_path;
@@ -117,11 +131,11 @@ impl SyntectHighlighter {
     /// Create a new highlighter with default syntax definitions and themes
     pub fn new() -> Self {
         let syntax_set = SyntaxSet::load_defaults_newlines();
-        
+
         // Load themes from the resolved themes directory
         let mut theme_set = ThemeSet::new();
         let custom_themes = Self::load_custom_themes_from_folder();
-        
+
         for (name, theme) in custom_themes {
             theme_set.themes.insert(name, theme);
         }
@@ -140,37 +154,6 @@ impl SyntectHighlighter {
             theme_set,
             current_theme: default_theme,
             theme_cache: crate::utils::cache::CacheSync::new(),
-        }
-    }
-
-    /// Create a new highlighter with custom theme
-    pub fn with_theme(theme_name: &str) -> Self {
-        let mut highlighter = Self::new();
-        // Map 'dark' and 'light' to the correct theme names
-        let mapped_theme = match theme_name.to_lowercase().as_str() {
-            "dark" => "MarcoDark",
-            "light" => "MarcoLight",
-            _ => theme_name,
-        };
-        highlighter.set_theme(mapped_theme);
-        highlighter
-    }
-
-    /// Set the current theme
-    pub fn set_theme(&mut self, theme_name: &str) {
-        // Map 'dark' and 'light' to the correct theme names
-        let mapped_theme = match theme_name.to_lowercase().as_str() {
-            "dark" => "MarcoDark",
-            "light" => "MarcoLight",
-            _ => theme_name,
-        };
-        if self.theme_set.themes.contains_key(mapped_theme) {
-            self.current_theme = mapped_theme.to_string();
-            // Invalidate cache for this theme to force reload if needed
-            self.theme_cache.invalidate(&self.current_theme);
-        } else {
-            eprintln!("Theme '{}' not found in loaded themes", mapped_theme);
-            // Keep current theme if requested theme doesn't exist
         }
     }
 
@@ -491,25 +474,22 @@ impl SyntectHighlighter {
         is_dark_theme: bool,
     ) -> String {
         // Choose MarcoDark for dark mode, MarcoLight for light mode
-        let original_theme = self.current_theme.clone();
-
         let theme_name = if is_dark_theme {
             if self.theme_set.themes.contains_key("MarcoDark") {
                 "MarcoDark"
             } else {
-                &original_theme
+                &self.current_theme
             }
         } else {
             if self.theme_set.themes.contains_key("MarcoLight") {
                 "MarcoLight"
             } else {
-                &original_theme
+                &self.current_theme
             }
         };
 
-        // Temporarily change theme
-        let mut temp_highlighter = self.clone();
-        temp_highlighter.set_theme(theme_name);
+        // Create a new highlighter with the selected theme
+        let temp_highlighter = SyntectHighlighter::with_theme(theme_name);
         temp_highlighter.highlight_code(code, language)
     }
 }
@@ -539,235 +519,6 @@ pub struct LanguageInfo {
     pub scope_name: String,
 }
 
-/// Legacy compatibility wrapper for the old CodeLanguageManager API
-pub struct CodeLanguageManager {
-    highlighter: SyntectHighlighter,
-}
-
-impl CodeLanguageManager {
-    pub fn new() -> Self {
-        Self {
-            highlighter: SyntectHighlighter::new(),
-        }
-    }
-
-    /// Add a language (no-op for syntect, as all languages are pre-loaded)
-    pub fn add_language(&mut self, _language: String) {
-        // Syntect has all languages pre-loaded, so this is a no-op
-        // We keep this for API compatibility
-    }
-
-    /// Get all available language names
-    pub fn get_language_names(&self) -> Vec<String> {
-        self.highlighter.get_language_names()
-    }
-
-    /// Get language suggestions based on partial input
-    pub fn get_language_suggestions(&self, partial: &str) -> Vec<String> {
-        self.highlighter.get_language_suggestions(partial)
-    }
-
-    /// Get language by name (returns Some(name) if language exists)
-    pub fn get_language(&self, name: &str) -> Option<String> {
-        let names = self.get_language_names();
-        for lang in names {
-            if lang.to_lowercase() == name.to_lowercase() {
-                return Some(lang);
-            }
-        }
-        None
-    }
-
-    /// Highlight code with syntax colorize code
-    pub fn colorize_code(&self, code: &str, language: &str) -> String {
-        self.highlighter.highlight_code(code, language)
-    }
-
-    /// Set the theme for syntax highlighting
-    pub fn set_theme(&mut self, theme_name: &str) {
-        self.highlighter.set_theme(theme_name);
-    }
-
-    /// Get the current theme name
-    pub fn get_current_theme(&self) -> String {
-        self.highlighter.get_current_theme().to_string()
-    }
-
-    /// Check if a language exists
-    pub fn has_language(&self, name: &str) -> bool {
-        self.highlighter.has_language(name)
-    }
-
-    /// Get language count
-    pub fn language_count(&self) -> usize {
-        self.highlighter.language_count()
-    }
-
-    /// Detect language from file extension
-    pub fn detect_language_from_extension(&self, filename: &str) -> Option<String> {
-        self.highlighter.detect_language_from_extension(filename)
-    }
-
-    /// Get language by extension
-    pub fn get_language_by_extension(&self, extension: &str) -> Option<String> {
-        self.highlighter.get_language_by_extension(extension)
-    }
-
-    /// HTML escape function for compatibility
-    pub fn html_escape(text: &str) -> String {
-        SyntectHighlighter::html_escape(text)
-    }
-
-    /// Get smart language suggestions with fuzzy matching and alias support
-    pub fn get_smart_language_suggestions(&self, query: &str) -> Vec<String> {
-        if query.is_empty() {
-            // Return popular languages when no query
-            let popular = [
-                "Rust",
-                "JavaScript",
-                "Python",
-                "Java",
-                "TypeScript",
-                "C++",
-                "C#",
-                "Go",
-                "PHP",
-                "Ruby",
-            ];
-            let mut result = Vec::new();
-            for lang in popular {
-                if let Some(found) = self
-                    .get_language_names()
-                    .iter()
-                    .find(|l| l.eq_ignore_ascii_case(lang))
-                {
-                    result.push(found.clone());
-                }
-            }
-            return result;
-        }
-
-        let query_lower = query.to_lowercase();
-        let mut suggestions = Vec::new();
-        let all_languages = self.get_language_names();
-
-        // Common aliases mapping
-        let aliases = std::collections::HashMap::from([
-            ("js", "JavaScript"),
-            ("ts", "TypeScript"),
-            ("py", "Python"),
-            ("rs", "Rust"),
-            ("cpp", "C++"),
-            ("c++", "C++"),
-            ("cs", "C#"),
-            ("csharp", "C#"),
-            ("c#", "C#"),
-            ("go", "Go"),
-            ("golang", "Go"),
-            ("php", "PHP"),
-            ("java", "Java"),
-            ("rb", "Ruby"),
-            ("ruby", "Ruby"),
-            ("sh", "Shell"),
-            ("bash", "Shell"),
-            ("zsh", "Shell"),
-            ("fish", "Shell"),
-            ("ps1", "PowerShell"),
-            ("powershell", "PowerShell"),
-            ("html", "HTML"),
-            ("css", "CSS"),
-            ("scss", "SCSS"),
-            ("sass", "Sass"),
-            ("less", "Less"),
-            ("json", "JSON"),
-            ("xml", "XML"),
-            ("yaml", "YAML"),
-            ("yml", "YAML"),
-            ("toml", "TOML"),
-            ("md", "Markdown"),
-            ("markdown", "Markdown"),
-            ("tex", "LaTeX"),
-            ("latex", "LaTeX"),
-            ("sql", "SQL"),
-            ("sqlite", "SQL"),
-            ("mysql", "SQL"),
-            ("postgresql", "SQL"),
-            ("postgres", "SQL"),
-            ("vim", "VimL"),
-            ("viml", "VimL"),
-            ("dockerfile", "Dockerfile"),
-            ("docker", "Dockerfile"),
-            ("makefile", "Makefile"),
-            ("make", "Makefile"),
-        ]);
-
-        // Check for exact alias match first
-        if let Some(&alias_target) = aliases.get(query_lower.as_str()) {
-            if let Some(found) = all_languages
-                .iter()
-                .find(|l| l.eq_ignore_ascii_case(alias_target))
-            {
-                suggestions.push(found.clone());
-            }
-        }
-
-        // Collect all matches with scores
-        let mut scored_matches = Vec::new();
-
-        for lang in &all_languages {
-            let lang_lower = lang.to_lowercase();
-            let score = if lang_lower == query_lower {
-                100 // Exact match
-            } else if lang_lower.starts_with(&query_lower) {
-                90 // Starts with
-            } else if lang_lower.contains(&query_lower) {
-                70 // Contains
-            } else {
-                // Check if any alias matches
-                let mut alias_score = 0;
-                for (alias, target) in &aliases {
-                    if alias.contains(&query_lower) && lang.eq_ignore_ascii_case(target) {
-                        alias_score = 60;
-                        break;
-                    }
-                }
-                alias_score
-            };
-
-            if score > 0 {
-                scored_matches.push((lang.clone(), score));
-            }
-        }
-
-        // Sort by score (highest first) then alphabetically
-        scored_matches.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
-
-        // Add to suggestions (avoiding duplicates)
-        for (lang, _score) in scored_matches {
-            if !suggestions.contains(&lang) {
-                suggestions.push(lang);
-            }
-        }
-
-        // Limit to 20 suggestions
-        suggestions.truncate(20);
-        suggestions
-    }
-}
-
-impl Clone for CodeLanguageManager {
-    fn clone(&self) -> Self {
-        Self {
-            highlighter: self.highlighter.clone(),
-        }
-    }
-}
-
-impl Default for CodeLanguageManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -810,66 +561,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_code_language_manager() {
-        let manager = CodeLanguageManager::new();
 
-        // Test get_language_names
-        let languages = manager.get_language_names();
-        assert!(!languages.is_empty());
-
-        // Test get_language
-        assert!(manager.get_language("rust").is_some());
-        assert!(manager.get_language("javascript").is_some());
-        assert!(manager.get_language("nonexistent").is_none());
-
-        // Test colorize code
-        let code = "fn main() { println!('Hello'); }";
-        let highlighted = manager.colorize_code(code, "rust");
-        assert!(!highlighted.is_empty());
-        assert!(highlighted.contains("span"));
-
-        // Test HTML escape
-        let escaped = SyntectHighlighter::html_escape("<script>alert('xss')</script>");
-        assert!(escaped.contains("&lt;script&gt;"));
-        assert!(escaped.contains("&#x27;"));
-        assert!(escaped.contains("&lt;/script&gt;"));
-    }
-
-    #[test]
-    fn test_smart_language_suggestions() {
-        let manager = CodeLanguageManager::new();
-
-        // Test empty query returns popular languages
-        let suggestions = manager.get_smart_language_suggestions("");
-        assert!(!suggestions.is_empty());
-        assert!(suggestions.contains(&"Rust".to_string()));
-        assert!(suggestions.contains(&"JavaScript".to_string()));
-        assert!(suggestions.contains(&"Python".to_string()));
-
-        // Test alias matching
-        let js_suggestions = manager.get_smart_language_suggestions("js");
-        assert!(js_suggestions.contains(&"JavaScript".to_string()));
-
-        let py_suggestions = manager.get_smart_language_suggestions("py");
-        assert!(py_suggestions.contains(&"Python".to_string()));
-
-        let rs_suggestions = manager.get_smart_language_suggestions("rs");
-        assert!(rs_suggestions.contains(&"Rust".to_string()));
-
-        // Test partial name matching
-        let rust_suggestions = manager.get_smart_language_suggestions("rust");
-        assert!(rust_suggestions.contains(&"Rust".to_string()));
-
-        let java_suggestions = manager.get_smart_language_suggestions("java");
-        assert!(java_suggestions.contains(&"Java".to_string()));
-
-        // Test case insensitive matching
-        let cpp_suggestions = manager.get_smart_language_suggestions("C++");
-        assert!(cpp_suggestions.contains(&"C++".to_string()));
-
-        // Test that suggestions are limited
-        let all_suggestions = manager.get_smart_language_suggestions("a");
-        assert!(all_suggestions.len() <= 20);
-    }
 }

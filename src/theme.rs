@@ -50,6 +50,24 @@ pub struct ThemeManager {
 }
 
 impl ThemeManager {
+    /// Get the syntect Theme object for the current effective theme
+    pub fn get_syntect_theme(&self) -> syntect::highlighting::Theme {
+        use crate::utils::cross_platform_resource::resolve_resource_path;
+        let theme_file = match self.get_effective_theme() {
+            Theme::Dark => "dark.tmTheme",
+            Theme::Light => "light.tmTheme",
+            Theme::System => "system.tmTheme", // Use explicit file for system if you have one, else fallback below
+        };
+        // Fallback: if system.tmTheme does not exist, you may want to fallback to light or dark explicitly here
+        let path = resolve_resource_path("ui/ui_theme", theme_file);
+        match syntect::highlighting::ThemeSet::get_theme(&path) {
+            Ok(theme) => theme,
+            Err(e) => {
+                eprintln!("WARNING: Could not load syntect theme '{}': {}. Using default theme.", theme_file, e);
+                syntect::highlighting::Theme::default()
+            }
+        }
+    }
     /// Get the current CssTheme for the HTML/markdown view
     pub fn get_current_css_theme_for_view(&self) -> Result<CssTheme, String> {
         let theme_name = crate::ui::css_theme::CssTheme::get_current_css_theme();

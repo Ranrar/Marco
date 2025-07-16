@@ -216,24 +216,23 @@ impl MarkdownEditor {
         self.focus_editor_and_position_cursor();
     }
 
-    /// Add a new programming language to the manager
+
+    /// Add a new programming language to the highlighter (no-op for SyntectHighlighter, kept for API compatibility)
     #[allow(dead_code)]
-    pub fn add_programming_language(&self, language: String) {
-        self.code_language_manager
-            .borrow_mut()
-            .add_language(language);
+    pub fn add_programming_language(&self, _language: String) {
+        // SyntectHighlighter does not support dynamic language addition at runtime
     }
 
     /// Get available programming languages
     #[allow(dead_code)]
     pub fn get_available_languages(&self) -> Vec<String> {
-        self.code_language_manager.borrow().get_language_names()
+        self.syntect_highlighter.borrow().get_language_names()
     }
 
     /// Get language suggestions based on input
     #[allow(dead_code)]
     pub fn get_language_suggestions(&self, partial: &str) -> Vec<String> {
-        self.code_language_manager
+        self.syntect_highlighter
             .borrow()
             .get_language_suggestions(partial)
     }

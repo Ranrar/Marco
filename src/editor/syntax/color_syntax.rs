@@ -1,4 +1,3 @@
-use syntect::highlighting::Theme;
 use crate::editor::core::MarkdownEditor;
 use std::collections::HashMap;
 
@@ -11,11 +10,9 @@ pub mod color {
     use gtk4::prelude::*;
     use sourceview5;
     use std::collections::HashMap;
-    use syntect::easy::HighlightLines;
-    // use syntect::highlighting::ThemeSet; // no longer needed
-    use syntect::parsing::SyntaxSet;
+    // Syntect-based highlighting removed
 
-    /// Parse color names and hex codes to RGBA
+    /// Parse color names and hex codes to RGBA to the editor
     pub fn parse_color(color: &str) -> Option<gdk4::RGBA> {
         match color.to_lowercase().as_str() {
             "red" => Some(gdk4::RGBA::new(1.0, 0.0, 0.0, 1.0)),
@@ -127,139 +124,7 @@ pub mod color {
         }
     }
 
-    /// Apply syntect-based syntax highlighting to markdown text
-    pub fn apply_syntax_coloring(
-        buffer: &sourceview5::Buffer,
-        text: &str,
-        tag_table: &mut HashMap<String, gtk4::TextTag>,
-        theme_name: &str,
-    ) {
-        println!(
-            "DEBUG: apply_syntax_coloring called with text length: {}, theme: {}",
-            text.len(),
-            theme_name
-        );
-
-        // Load syntax set
-        let ps = SyntaxSet::load_defaults_newlines();
-
-
-
-
-        // Explicitly resolve and load both dark and light themes
-        use crate::utils::cross_platform_resource::resolve_resource_path;
-        let ui_dark_path = resolve_resource_path("ui/ui_theme", "dark.tmTheme");
-        let ui_dark_theme = get_ui_theme(&ui_dark_path)
-            .unwrap_or_else(|_| {
-                eprintln!("WARNING: dark.tmTheme not found, using default theme");
-                syntect::highlighting::Theme::default()
-            });
-
-        let ui_light_path = resolve_resource_path("ui/ui_theme", "light.tmTheme");
-        let ui_light_theme = get_ui_theme(&ui_light_path)
-            .unwrap_or_else(|_| {
-                eprintln!("WARNING: light.tmTheme not found, using default theme");
-                syntect::highlighting::Theme::default()
-            });
-
-        // Select the theme to use based on the input file name
-        let theme = match theme_name {
-            "dark.tmTheme" => &ui_dark_theme,
-            "light.tmTheme" => &ui_light_theme,
-            _ => {
-                eprintln!("WARNING: Unknown theme file '{}', defaulting to dark.tmTheme", theme_name);
-                &ui_dark_theme
-            }
-        };
-
-        println!("DEBUG: Using theme file: {}", theme_name);
-        println!("DEBUG: Theme loaded: {:?}", theme.name.as_ref().unwrap_or(&"unknown".to_string()));
-
-        // Find markdown syntax
-        let syntax = ps
-            .find_syntax_by_extension("md")
-            .or_else(|| ps.find_syntax_by_name("Markdown"))
-            .unwrap_or_else(|| ps.find_syntax_plain_text());
-
-        println!("DEBUG: Using syntax: {}", syntax.name);
-
-        let mut h = HighlightLines::new(syntax, &theme);
-        let mut total_tags_applied = 0;
-
-        // Split text into lines and highlight each line
-        for (line_idx, line) in text.lines().enumerate() {
-            if let Ok(ranges) = h.highlight_line(line, &ps) {
-                let mut char_offset = 0;
-
-                // Calculate the starting position of this line in the buffer
-                let line_start_offset: usize = text
-                    .lines()
-                    .take(line_idx)
-                    .map(|l| l.len() + 1) // +1 for newline
-                    .sum();
-
-                for (style, segment) in ranges {
-                    if !segment.is_empty() {
-                        let start_pos = line_start_offset + char_offset;
-                        let end_pos = start_pos + segment.len();
-
-                        // Create a unique tag name based on the style
-                        let tag_name = format!(
-                            "syntect_{}_{}_{}_{}",
-                            style.foreground.r,
-                            style.foreground.g,
-                            style.foreground.b,
-                            if style
-                                .font_style
-                                .contains(syntect::highlighting::FontStyle::BOLD)
-                            {
-                                "bold"
-                            } else {
-                                "normal"
-                            }
-                        );
-
-                        ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
-                            let fg_color = syntect_color_to_rgba(style.foreground);
-                            tag.set_foreground_rgba(Some(&fg_color));
-
-                            if style
-                                .font_style
-                                .contains(syntect::highlighting::FontStyle::BOLD)
-                            {
-                                tag.set_weight(700); // Bold weight
-                            }
-                            if style
-                                .font_style
-                                .contains(syntect::highlighting::FontStyle::ITALIC)
-                            {
-                                tag.set_style(pango::Style::Italic);
-                            }
-                            if style
-                                .font_style
-                                .contains(syntect::highlighting::FontStyle::UNDERLINE)
-                            {
-                                tag.set_underline(pango::Underline::Single);
-                            }
-                        });
-
-                        // Apply the tag to the buffer
-                        let start_iter = buffer.iter_at_offset(start_pos as i32);
-                        let end_iter = buffer.iter_at_offset(end_pos as i32);
-                        buffer.apply_tag(&tag_table[&tag_name], &start_iter, &end_iter);
-                        total_tags_applied += 1;
-                    }
-
-                    char_offset += segment.len();
-                }
-            }
-        }
-
-        println!(
-            "DEBUG: Applied {} syntect tags to buffer",
-            total_tags_applied
-        );
-    }
+    // Syntect-based syntax highlighting removed
 }
 
 impl MarkdownEditor {
@@ -277,7 +142,7 @@ impl MarkdownEditor {
         font_color_regex: &regex::Regex,
     ) {
         // Delegate to the standalone function in the color module
-        crate::editor::syntax::syntax::color::highlight_colored_text(
+        crate::editor::syntax::color_syntax::color::highlight_colored_text(
             buffer,
             text,
             tag_table,
@@ -286,24 +151,9 @@ impl MarkdownEditor {
         )
     }
 
-    /// Apply syntect-based syntax highlighting
-    pub fn apply_syntect_highlighting(
-        &self,
-        buffer: &sourceview5::Buffer,
-        text: &str,
-        tag_table: &mut HashMap<String, gtk4::TextTag>,
-        theme_manager: &crate::theme::ThemeManager,
-    ) {
-        // Get the appropriate theme name from the ThemeManager
-        let theme_name = theme_manager.get_syntax_theme_name();
-        
-        // Apply the syntax coloring with the correct theme
-        crate::editor::syntax::syntax::color::apply_syntax_coloring(buffer, text, tag_table, &theme_name)
-    }
-
     /// Parse color names and hex codes to RGBA (delegated to the color module)
     pub fn parse_color(color: &str) -> Option<gdk4::RGBA> {
-        crate::editor::syntax::syntax::color::parse_color(color)
+        crate::editor::syntax::color_syntax::color::parse_color(color)
     }
 
     /// Ensure a tag exists in the tag table (delegated to the color module)
@@ -315,7 +165,7 @@ impl MarkdownEditor {
     ) where
         F: FnOnce(&gtk4::TextTag),
     {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, name, configure)
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, name, configure)
     }
 
     /// Insert underlined text

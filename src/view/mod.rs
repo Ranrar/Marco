@@ -1,3 +1,4 @@
+pub mod color_syntax;
 pub mod code;
 pub mod context_menu;
 pub mod html;

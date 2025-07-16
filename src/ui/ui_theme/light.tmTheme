@@ -1,8 +1,9 @@
+<!-- used when switching ui_theme -->
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0">
 <dict>
     <key>name</key>
-    <string>MarcoLight</string>
+    <string>light color code syntax</string>
     <key>author</key>
     <string>Kim Skov Rasmussen</string>
     <key>settings</key>

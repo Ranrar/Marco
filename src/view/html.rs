@@ -1,8 +1,8 @@
-use crate::editor::fencing_code_block::fencing_code_block::CodeLanguageManager;
+use crate::view::color_syntax::highlight_code_html;
 use crate::theme::ThemeManager;
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, Widget};
-use pulldown_cmark::{html, CodeBlockKind, Event, Options, Parser, Tag};
+use pulldown_cmark::{CodeBlockKind, Event, Parser, Tag};
 use crate::markdown::basic::MarkdownParser;
 use crate::utils::cache::{AST_CACHE, hash_source};
 use std::cell::RefCell;
@@ -12,6 +12,7 @@ use std::hash::Hasher;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 use crate::utils::cache::get_regex;
+use html_escape;
 use webkit6::prelude::*;
 use webkit6::{UserContentManager, UserStyleLevel, UserStyleSheet, WebView};
 
@@ -27,7 +28,6 @@ pub struct MarkdownHtmlView {
     theme_manager: Rc<RefCell<Option<ThemeManager>>>,
     custom_css: Rc<RefCell<String>>,
     base_path: Rc<RefCell<Option<std::path::PathBuf>>>,
-    code_language_manager: Rc<RefCell<CodeLanguageManager>>,
     last_update: Rc<RefCell<Option<Instant>>>,
     cached_html: Rc<RefCell<HashMap<String, String>>>,
     user_content_manager: UserContentManager,
@@ -79,7 +79,6 @@ impl MarkdownHtmlView {
             theme_manager: Rc::new(RefCell::new(None)),
             custom_css: Rc::new(RefCell::new(String::new())),
             base_path: Rc::new(RefCell::new(None)),
-            code_language_manager: Rc::new(RefCell::new(CodeLanguageManager::new())),
             last_update: Rc::new(RefCell::new(None)),
             cached_html: Rc::new(RefCell::new(HashMap::new())),
             user_content_manager,
@@ -103,6 +102,7 @@ impl MarkdownHtmlView {
     }
 
     /// Enable or disable the custom MarkdownParser for HTML conversion
+        // No-op: highlighter now handled by color_syntax.rs
     pub fn set_use_custom_parser(&self, enabled: bool) {
         *self.use_custom_parser.borrow_mut() = enabled;
         self.refresh_with_current_content();
@@ -119,23 +119,15 @@ impl MarkdownHtmlView {
     }
 
     pub fn set_theme_manager(&self, theme_manager: ThemeManager) {
-        // Update the code language manager with the appropriate theme
+        // Update the syntax highlighter with the appropriate theme
         let syntax_theme_name = theme_manager.get_syntax_theme_name();
         println!("DEBUG: HTML view setting syntax theme to: {}", syntax_theme_name);
 
         // Invalidate all theme-dependent caches
         crate::utils::cache::on_theme_change();
 
-        // Map ThemeManager theme names to actual tmTheme file names
-        let actual_theme_name = match syntax_theme_name.as_str() {
-            "MarcoLight" => "light",
-            "MarcoDark" => "dark",
-            _ => &syntax_theme_name,
-        };
-
         {
-            let mut code_manager = self.code_language_manager.borrow_mut();
-            code_manager.set_theme(actual_theme_name);
+            // No-op: highlighter now handled by color_syntax.rs
         }
 
         *self.theme_manager.borrow_mut() = Some(theme_manager);
@@ -263,9 +255,18 @@ impl MarkdownHtmlView {
     }
 
     fn process_markdown_to_html(&self, markdown_text: &str) -> String {
-        // Always use the robust MarkdownParser for HTML conversion
-        // This ensures inline formatting (tildes, subscript, strikethrough, etc.) matches the editor
-        self.custom_parser.to_html(markdown_text)
+        // 1. Preprocess for compact HTML (tasks, etc.)
+        let preprocessed = self.preprocess_for_compact_html(markdown_text);
+
+        // 2. Use pulldown_cmark to parse markdown and process events with code highlighting
+        let parser = Parser::new(&preprocessed);
+        let events = self.process_events_with_code_highlighting(parser);
+        let mut html_output = String::new();
+        pulldown_cmark::html::push_html(&mut html_output, events.into_iter());
+
+        // 3. Add header IDs for anchor links
+        let html_with_ids = self.add_header_ids_to_html(&html_output);
+        html_with_ids
     }
 
     fn load_html_content(&self, html_content: &str) {
@@ -485,16 +486,23 @@ impl MarkdownHtmlView {
             return cached_css.clone();
         }
 
-        use crate::utils::cross_platform_resource::resolve_resource_path;
-        let css_path = resolve_resource_path("editor/fencing_code_block/", "code_block_styling.css");
-        let css_content = match std::fs::read_to_string(&css_path) {
-            Ok(css) => css,
-            Err(e) => {
-                eprintln!("ERROR: Failed to load code_block_styling.css from {}: {}", css_path.display(), e);
-                eprintln!("Using empty CSS as no fallback is allowed");
-                String::new() // Return empty string instead of fallback CSS
+        // Use ThemeManager to get the correct tmTheme for the current app theme
+        let theme_name = if let Some(ref theme_manager) = *self.theme_manager.borrow() {
+            let file_name = theme_manager.get_syntax_theme_name();
+            if file_name.ends_with(".tmTheme") {
+                file_name
+            } else {
+                format!("{}.tmTheme", file_name)
             }
+        } else {
+            "MarcoDark.tmTheme".to_string() // fallback to a default
         };
+
+        let css_content = crate::view::color_syntax::generate_syntect_css(&theme_name)
+            .unwrap_or_else(|| {
+                eprintln!("ERROR: Failed to generate Syntect CSS for theme: {}", theme_name);
+                String::new()
+            });
 
         *self.cached_css.borrow_mut() = Some(css_content.clone());
         css_content
@@ -629,16 +637,26 @@ impl MarkdownHtmlView {
     }
 
     fn generate_highlighted_code_block(&self, code: &str, language: &str) -> String {
-        let code_lang_manager = self.code_language_manager.borrow();
-
-        if !language.is_empty() && code_lang_manager.get_language(language).is_some() {
-            code_lang_manager.colorize_code(code, language)
+        // Normalize language for CSS class (accent color)
+        let lang_class = if !language.is_empty() {
+            format!("code-block code-block-{}", language.to_lowercase().replace("+", "plus").replace("#", "sharp").replace(".", ""))
         } else {
-            let escaped_code = CodeLanguageManager::html_escape(code);
-            format!(
-                r#"<div class="code-block code-block-plain"><pre><code>{}</code></pre></div>"#,
-                escaped_code
-            )
+            "code-block code-block-plain".to_string()
+        };
+
+        if let Some(html_inner) = highlight_code_html(code, language) {
+            // If the highlighter returns HTML with <span>, wrap in accent div
+            if html_inner.contains("<span") {
+                format!(r#"<div class=\"{}\">{}</div>"#, lang_class, html_inner)
+            } else {
+                // Fallback: HTML-escape and wrap in <pre><code>
+                let escaped_code = html_escape::encode_safe(&html_inner);
+                format!(r#"<div class=\"{}\"><pre><code>{}</code></pre></div>"#, lang_class, escaped_code)
+            }
+        } else {
+            // Fallback: HTML-escape and wrap in <pre><code>
+            let escaped_code = html_escape::encode_safe(code);
+            format!(r#"<div class=\"{}\"><pre><code>{}</code></pre></div>"#, lang_class, escaped_code)
         }
     }
-}
+}    

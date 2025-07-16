@@ -87,17 +87,18 @@ impl MarkdownEditor {
         scrolled_window.set_child(Some(&list_box));
         main_box.append(&scrolled_window);
 
-        // Get all available languages from syntect
-        let code_manager = self.code_language_manager.borrow().clone();
-
         // Selected language storage
         let selected_language = std::rc::Rc::new(std::cell::RefCell::new(String::new()));
 
-        // Function to populate the list
+
+        // Use SyntectHighlighter for language names and suggestions
+        // Use SyntectHighlighter for language names and suggestions (no need to prefetch all_languages)
+
+        // Function to populate the list using SyntectHighlighter
         let populate_list = {
             let list_box = list_box.clone();
             let selected_language = selected_language.clone();
-
+            let editor = self.clone();
             move |filter: &str| {
                 // Clear existing items
                 while let Some(child) = list_box.first_child() {
@@ -116,8 +117,14 @@ impl MarkdownEditor {
                 none_row.set_activatable(true);
                 list_box.append(&none_row);
 
-                // Use smart language suggestions from syntect_highlight
-                let matching_languages = code_manager.get_smart_language_suggestions(filter);
+                // Get matching languages using SyntectHighlighter
+                let matching_languages = if filter.is_empty() {
+                    let syntect_highlighter = editor.syntect_highlighter.borrow();
+                    syntect_highlighter.get_language_names()
+                } else {
+                    let syntect_highlighter = editor.syntect_highlighter.borrow();
+                    syntect_highlighter.get_language_suggestions(filter)
+                };
 
                 // Limit to 20 results for performance
                 for lang in matching_languages.iter().take(20) {

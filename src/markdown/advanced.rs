@@ -114,7 +114,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "underline", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "underline", |tag| {
             tag.set_underline(pango::Underline::Single);
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.2, 0.4, 0.8, 1.0)));
             // Blue underline
@@ -134,7 +134,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "center", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "center", |tag| {
             tag.set_justification(gtk4::Justification::Center);
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.3, 0.6, 0.3, 1.0)));
             // Green
@@ -156,7 +156,7 @@ impl ExtraMarkdownSyntax {
     ) {
         // Delegate to the implementation in syntax.rs color module
         // This ensures that all color-related logic is in the editor module
-        crate::editor::syntax::syntax::color::highlight_colored_text(
+        crate::editor::syntax::color_syntax::color::highlight_colored_text(
             buffer,
             text,
             tag_table,
@@ -172,7 +172,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "comment", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "comment", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.5, 0.5, 0.5, 0.7))); // Gray, semi-transparent
             tag.set_style(pango::Style::Italic);
         });
@@ -193,7 +193,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "admonition", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "admonition", |tag| {
             tag.set_background_rgba(Some(&gdk4::RGBA::new(0.95, 0.95, 0.8, 1.0))); // Light yellow background
             tag.set_left_margin(20);
             tag.set_right_margin(20);
@@ -226,7 +226,7 @@ impl ExtraMarkdownSyntax {
 
         for (adm_type, color) in &admonition_types {
             let tag_name = format!("github_admonition_{}", adm_type.to_lowercase());
-            crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
+            crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, &tag_name, |tag| {
                 tag.set_background_rgba(Some(color));
                 tag.set_left_margin(10);
                 tag.set_right_margin(10);
@@ -235,7 +235,7 @@ impl ExtraMarkdownSyntax {
         }
 
         // Default tag for unknown admonition types
-        crate::editor::syntax::syntax::color::ensure_tag_exists(
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(
             buffer,
             tag_table,
             "github_admonition_default",
@@ -273,7 +273,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "image_size", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "image_size", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.8, 0.4, 0.8, 1.0))); // Purple
             tag.set_weight(700); // Bold weight
         });
@@ -300,7 +300,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "link_target", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "link_target", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.0, 0.4, 0.8, 1.0))); // Blue
             tag.set_underline(pango::Underline::Single);
         });
@@ -319,7 +319,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "html_entity", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "html_entity", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.6, 0.3, 0.8, 1.0))); // Purple
             tag.set_family(Some("monospace"));
         });
@@ -338,7 +338,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(
             buffer,
             tag_table,
             "table_extension",
@@ -370,7 +370,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "video_embed", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "video_embed", |tag| {
             tag.set_foreground_rgba(Some(&gdk4::RGBA::new(0.8, 0.2, 0.2, 1.0))); // Red
             tag.set_weight(700); // Bold weight
         });
@@ -389,7 +389,7 @@ impl ExtraMarkdownSyntax {
         text: &str,
         tag_table: &mut HashMap<String, gtk4::TextTag>,
     ) {
-        crate::editor::syntax::syntax::color::ensure_tag_exists(buffer, tag_table, "indent", |tag| {
+        crate::editor::syntax::color_syntax::color::ensure_tag_exists(buffer, tag_table, "indent", |tag| {
             tag.set_background_rgba(Some(&gdk4::RGBA::new(0.9, 0.9, 1.0, 0.5)));
             // Light blue background
         });
@@ -654,9 +654,9 @@ mod tests {
     #[test]
     fn test_color_parsing() {
         // Use the color parsing function from the syntax module
-        assert!(crate::editor::syntax::syntax::color::parse_color("red").is_some());
-        assert!(crate::editor::syntax::syntax::color::parse_color("#FF0000").is_some());
-        assert!(crate::editor::syntax::syntax::color::parse_color("invalid").is_none());
+        assert!(crate::editor::syntax::color_syntax::color::parse_color("red").is_some());
+        assert!(crate::editor::syntax::color_syntax::color::parse_color("#FF0000").is_some());
+        assert!(crate::editor::syntax::color_syntax::color::parse_color("invalid").is_none());
     }
 
     #[test]

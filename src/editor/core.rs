@@ -1,13 +1,12 @@
 use crate::editor::context_menu::ContextMenu;
 use crate::editor::syntax::md_spell_check::SpellSyntaxChecker;
 use crate::markdown::extended::ExtendedMarkdownSyntax;
-use crate::editor::fencing_code_block::fencing_code_block::CodeLanguageManager;
 use crate::view::{MarkdownCodeView, MarkdownHtmlView};
 use gtk4::prelude::*;
 use gtk4::{HeaderBar, Label, Paned, ScrolledWindow, Stack, Widget};
 use crate::ui::splitview;
 use sourceview5::prelude::*;
-use sourceview5::{Buffer, LanguageManager, StyleSchemeManager, View};
+use sourceview5::{Buffer, StyleSchemeManager, View};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -24,7 +23,6 @@ pub struct MarkdownEditor {
     pub(crate) source_buffer: Buffer,
     pub(crate) current_file: Rc<RefCell<Option<std::path::PathBuf>>>,
     pub(crate) footer_callbacks: Rc<RefCell<Vec<Box<dyn Fn(&str, usize, usize, usize, usize)>>>>,
-    pub(crate) code_language_manager: Rc<RefCell<CodeLanguageManager>>,
     pub(crate) theme_manager: Rc<RefCell<Option<crate::theme::ThemeManager>>>,
     pub(crate) is_modified: Rc<RefCell<bool>>,
     pub(crate) extended_syntax: Rc<RefCell<ExtendedMarkdownSyntax>>,
@@ -39,6 +37,7 @@ pub struct MarkdownEditor {
     pub(crate) warnings_enabled: Rc<RefCell<bool>>,
     /// General-purpose debouncer for per-keystroke features (syntax, lint, etc)
     pub(crate) debouncer: Rc<crate::utils::debouncer::Debouncer>,
+    pub(crate) syntect_highlighter: Rc<RefCell<crate::editor::fencing_code_block::fencing_code_block::SyntectHighlighter>>,
 }
 
 impl MarkdownEditor {
@@ -113,7 +112,6 @@ impl MarkdownEditor {
         // Set up current_file and footer_callbacks
         let current_file = Rc::new(RefCell::new(None));
         let footer_callbacks = Rc::new(RefCell::new(Vec::new()));
-        let code_language_manager = Rc::new(RefCell::new(CodeLanguageManager::new()));
         let is_modified = Rc::new(RefCell::new(false));
         let extended_syntax = Rc::new(RefCell::new(ExtendedMarkdownSyntax::new()));
         let tag_table = Rc::new(RefCell::new(HashMap::new()));
@@ -125,6 +123,7 @@ impl MarkdownEditor {
         let spell_check_markdown = SpellSyntaxChecker::new_with_defaults();
 
         let debouncer = Rc::new(crate::utils::debouncer::Debouncer::new(120)); // 120ms default debounce
+        let syntect_highlighter = Rc::new(RefCell::new(crate::editor::fencing_code_block::fencing_code_block::SyntectHighlighter::new()));
         let editor = Self {
             widget: paned,
             source_view,
@@ -134,7 +133,6 @@ impl MarkdownEditor {
             source_buffer,
             current_file,
             footer_callbacks,
-            code_language_manager,
             theme_manager: Rc::new(RefCell::new(None)),
             is_modified,
             extended_syntax,
@@ -146,6 +144,7 @@ impl MarkdownEditor {
             spell_checker: Rc::new(RefCell::new(spell_check_markdown)),
             warnings_enabled: Rc::new(RefCell::new(true)), // Enable warnings by default
             debouncer,
+            syntect_highlighter,
         };
 
         // Load and apply text wrap setting at startup
@@ -227,12 +226,13 @@ impl MarkdownEditor {
         let html_view = self.html_view.clone();
         let footer_callbacks = self.footer_callbacks.clone();
         let is_modified = self.is_modified.clone();
-        let extended_syntax = self.extended_syntax.clone();
+        // let extended_syntax = self.extended_syntax.clone(); // No longer needed
         let tag_table = self.tag_table.clone();
         let original_content = self.original_content.clone();
         let spell_checker = self.spell_checker.clone();
         let warnings_enabled = self.warnings_enabled.clone();
         let debouncer = self.debouncer.clone();
+        // let theme_manager_cloned = self.theme_manager.clone(); // No longer needed
         // Store clone of editor for window title updates
         let editor_for_title = self.clone();
 
@@ -268,28 +268,24 @@ impl MarkdownEditor {
             let spell_checker = spell_checker.clone();
             let warnings_enabled = warnings_enabled.clone();
             let text_string_clone = text_string.clone();
-            let extended_syntax = extended_syntax.clone();
+            // let extended_syntax = extended_syntax.clone(); // No longer needed
+            // let theme_manager = theme_manager_cloned.clone(); // No longer needed
             debouncer.debounce(move || {
                 if syntax_enabled {
-                    eprintln!("============ Applying syntax coloring (debounced) ============");
-                    // Apply extended syntax coloring and syntect coloring with a single mutable borrow
-                    let extended_syntax_ref = extended_syntax.borrow();
-                    let ui_theme = prefs.get_ui_theme();
-                    let theme_name = match ui_theme.as_str() {
-                        "dark" => "dark",
-                        "light" => "light",
-                        _ => "dark",
-                    };
+                    eprintln!("============ Applying named/hex color parsing (debounced) ============" );
                     let mut tag_table_ref = tag_table.borrow_mut();
-                    extended_syntax_ref.apply_syntax_highlighting(&buffer_clone, &mut tag_table_ref);
-                    crate::editor::syntax::syntax::color::apply_syntax_coloring(
+                    // Use regexes for color tags (define or import as needed)
+                    let color_regex = regex::Regex::new(r#"color:\s*([#\w]+)"#).unwrap();
+                    let font_color_regex = regex::Regex::new(r#"<font color=\"([#\w]+)\">"#).unwrap();
+                    crate::editor::syntax::color_syntax::color::highlight_colored_text(
                         &buffer_clone,
                         &text_string_clone,
                         &mut tag_table_ref,
-                        theme_name,
+                        &color_regex,
+                        &font_color_regex,
                     );
                 } else {
-                    eprintln!("============ NOT applying coloring - syntax is disabled ============");
+                    eprintln!("============ NOT applying coloring - syntax is disabled ============" );
                 }
                 // Clear all warning tags immediately on every keystroke (debounced)
                 spell_checker.borrow_mut().clear_warnings();
@@ -518,68 +514,32 @@ impl MarkdownEditor {
         }
 
         if enabled {
-            eprintln!("============ Editor color syntax enabled ============");
-
-            // Enable SourceView built-in syntax coloring
-            let language_manager = LanguageManager::default();
-            if let Some(language) = language_manager.language("markdown") {
-                self.source_buffer.set_language(Some(&language));
-            }
-
-            // Apply our custom syntax coloring (tmTheme overlays)
-            self.apply_syntax_coloring();
+            eprintln!("============ Editor named/hex color parsing enabled ============");
+            // Only apply named/hex color parsing
+            self.apply_colored_text_highlighting();
         } else {
-            eprintln!("============ Editor color syntax coloring disabled ============");
-
-            // Disable SourceView built-in syntax coloring but keep base theme
-            self.source_buffer.set_language(None);
-
-            // Remove our custom syntax coloring but keep base style scheme
+            eprintln!("============ Editor named/hex color parsing disabled ============");
             self.remove_syntax_coloring();
         }
     }
 
-    /// Apply syntax coloring to the editor using syntect
-    fn apply_syntax_coloring(&self) {
-        println!("DEBUG: apply_syntax_coloring called");
-        // Check if syntax coloring is enabled
-        let prefs = crate::settings::core::get_app_preferences();
-        if !prefs.get_editor_color_syntax() {
-            println!("DEBUG: Syntax coloring disabled in apply_syntax_coloring, returning");
-            return; // Do nothing if syntax coloring is disabled
-        }
-
+    /// Apply only named/hex color parsing to the editor
+    fn apply_colored_text_highlighting(&self) {
         let gtk_buffer = self.source_buffer.upcast_ref::<gtk4::TextBuffer>();
         let start = gtk_buffer.start_iter();
         let end = gtk_buffer.end_iter();
         let text = gtk_buffer.text(&start, &end, false).to_string();
-
-        println!("DEBUG: Text length to highlight: {}", text.len());
-
-        // Remove existing syntax coloring tags first
         self.remove_syntax_coloring();
-
-        // Apply extra syntax coloring (underlines, colors, comments, etc.)
-        {
-            let mut tag_table = self.tag_table.borrow_mut();
-            println!("DEBUG: Applying extended syntax highlighting");
-            self.extended_syntax.borrow().apply_syntax_highlighting(&self.source_buffer, &mut tag_table);
-        }
-
-        // Apply syntect coloring using ThemeManager
-        if let Some(ref theme_manager) = *self.theme_manager.borrow() {
-            let mut tag_table_ref = self.tag_table.borrow_mut();
-            println!("DEBUG: Applying syntect coloring using ThemeManager");
-            self.apply_syntect_highlighting(
-                &self.source_buffer,
-                &text,
-                &mut tag_table_ref,
-                theme_manager,
-            );
-            println!("DEBUG: apply_syntect_highlighting completed");
-        } else {
-            println!("DEBUG: No ThemeManager available, skipping syntax highlighting");
-        }
+        let mut tag_table_ref = self.tag_table.borrow_mut();
+        let color_regex = regex::Regex::new(r#"color:\s*([#\w]+)"#).unwrap();
+        let font_color_regex = regex::Regex::new(r#"<font color=\"([#\w]+)\">"#).unwrap();
+        crate::editor::syntax::color_syntax::color::highlight_colored_text(
+            &self.source_buffer,
+            &text,
+            &mut tag_table_ref,
+            &color_regex,
+            &font_color_regex,
+        );
     }
 
     /// Update the editor theme to match the current UI theme
@@ -613,7 +573,7 @@ impl MarkdownEditor {
         // If syntax coloring is enabled, reapply it with the new theme
         let prefs = crate::settings::core::get_app_preferences();
         if prefs.get_editor_color_syntax() {
-            self.apply_syntax_coloring();
+            self.apply_colored_text_highlighting();
         }
     }
 

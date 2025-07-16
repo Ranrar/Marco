@@ -2,7 +2,7 @@ use gtk4::CssProvider;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-/// Handles GTK CSS provider setup and loading for the editor
+/// Used for color code syntax in light and dark mode ui_theme in editor and html
 pub struct UiThemeProvider {
     gtk_css_provider: Rc<RefCell<Option<CssProvider>>>,
 }
