@@ -8,8 +8,10 @@ pub mod ui;
 pub mod editor;
 pub mod viewer;
 
+
 use gtk4::prelude::*;
-use gtk4::{glib, Application, ApplicationWindow, Box, Orientation};
+use gtk4::{glib, Application, ApplicationWindow, Box, Orientation, HeaderBar, Button};
+use gtk4::Align;
 
 const APP_ID: &str = "com.example.Marco";
 
@@ -32,11 +34,36 @@ fn build_ui(app: &Application) {
         .default_height(800)
         .build();
 
+    // Create a HeaderBar
+    let header_bar = HeaderBar::builder()
+        .title_widget(&gtk4::Label::new(Some("Marco")))
+        .show_title_buttons(true)
+        .build();
+
+
+    // Create a Button with a settings icon
+    let settings_button = Button::builder()
+        .icon_name("emblem-system-symbolic")
+        .valign(Align::Center)
+        .build();
+
+    // Connect Button to show settings dialog
+    let win_clone = window.clone();
+    settings_button.connect_clicked(move |_| {
+        settings::show_settings_dialog(win_clone.upcast_ref());
+    });
+
+    // Add Button to the end (right) of the header bar
+    header_bar.pack_end(&settings_button);
+
+    // Set the header bar as the window's titlebar
+    window.set_titlebar(Some(&header_bar));
+
     // Create main vertical box layout
     let main_box = Box::new(Orientation::Vertical, 0);
 
     // Create basic UI components (structure only)
-    let menu_bar = menu::create_menu_structure();
+    let menu_bar = menu::main_menu_structure();
     let toolbar = toolbar::create_toolbar_structure();
     let editor_area = editor::create_editor_structure();
     let footer = footer::create_footer_structure();

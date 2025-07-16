@@ -4,13 +4,13 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[derive(Clone)]
-pub struct MarkdownCodeView {
+pub struct render_html_code {
     widget: ScrolledWindow,
     text_view: TextView,
     current_content: Rc<RefCell<String>>,
 }
 
-impl MarkdownCodeView {
+impl render_html_code {
     pub fn new() -> Self {
         let text_view = TextView::new();
         text_view.set_editable(false);
@@ -28,7 +28,7 @@ impl MarkdownCodeView {
         scrolled.set_vexpand(true);
         scrolled.set_hexpand(true);
 
-        MarkdownCodeView {
+        render_html_code {
             widget: scrolled,
             text_view,
             current_content: Rc::new(RefCell::new(String::new())),

@@ -1,13 +1,7 @@
 use gtk4::prelude::*;
 use gtk4::{gio, PopoverMenuBar};
 
-// Module declarations
-pub mod basic;
-pub mod format;
-pub mod insert;
-pub mod view;
-
-pub fn create_menu_structure() -> PopoverMenuBar {
+pub fn main_menu_structure() -> PopoverMenuBar {
     // Create basic menu structure
     let menu_model = gio::Menu::new();
 

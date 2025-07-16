@@ -1,0 +1,54 @@
+name: rust-analyze-and-audit
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '40 15 * * 5'
+
+jobs:
+  rust-analyze-and-audit:
+    name: Run rust-clippy analysis and cargo audit on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          - macos-latest
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain with clippy
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          components: clippy
+          override: true
+
+      - name: Install required cargo tools
+        run: |
+          cargo install clippy-sarif sarif-fmt cargo-audit
+
+      - name: Run rust-clippy (allow warnings, output SARIF)
+        run: |
+          cargo clippy --all-targets --all-features -- -A warnings --message-format=json \
+          | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+        continue-on-error: true
+
+      - name: Upload clippy SARIF results to GitHub
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: rust-clippy-results.sarif
+          wait-for-processing: true
+
+      - name: Run cargo audit
+        run: cargo audit
