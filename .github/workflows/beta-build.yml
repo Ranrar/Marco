@@ -19,7 +19,7 @@ jobs:
           override: true
 
       - name: Install GTK dependencies
-        run: sudo apt update && sudo apt install -y libgtk-4-dev pkg-config
+        run: sudo apt update && sudo apt install -y libgtk-4-dev libwebkit2gtk-4.0-dev pkg-config
 
       - name: Build for Linux
         run: cargo build --release
@@ -47,7 +47,7 @@ jobs:
       - name: Install MSYS2
         shell: powershell
         run: |
-          Invoke-WebRequest -Uri https://repo.msys2.org/distrib/x86_64/msys2-x86_64-20230719.exe -OutFile msys2.exe
+          Invoke-WebRequest -Uri https://github.com/msys2/msys2-installer/releases/latest/download/msys2-x86_64.exe -OutFile msys2.exe
           Start-Process msys2.exe -ArgumentList '--quiet-mode --norestart' -Wait
 
       - name: Add MSYS2 to PATH
@@ -56,12 +56,16 @@ jobs:
           echo "C:\msys64\usr\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
           echo "C:\msys64\mingw64\bin" | Out-File -Append -Encoding ascii $env:GITHUB_PATH
 
-      - name: Update MSYS2 and Install GTK4
+      - name: Update MSYS2 and Install GTK4 + WebKitGTK
         shell: msys2 {0}
         run: |
           pacman -Syuu --noconfirm
           pacman -Sy --noconfirm
-          pacman -S --needed --noconfirm mingw-w64-x86_64-toolchain mingw-w64-x86_64-gtk4 git
+          pacman -S --needed --noconfirm \
+            mingw-w64-x86_64-toolchain \
+            mingw-w64-x86_64-gtk4 \
+            mingw-w64-x86_64-webkitgtk \
+            git
 
       - name: Add Windows GNU target
         run: rustup target add x86_64-pc-windows-gnu
