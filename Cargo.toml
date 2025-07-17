@@ -13,6 +13,7 @@ sourceview5 = "0.9.0"
 webkit6 = "0.4.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+unicode-general-category = "0.6"
 
 [dev-dependencies]
 # Basic testing

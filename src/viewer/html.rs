@@ -1,4 +1,8 @@
-use crate::markdown::ast::MarkdownNode;
+// Update the path below to the correct location of MarkdownNode in your project.
+// For example, if MarkdownNode is defined in crate::ast, use:
+use crate::editor::logic::ast::MarkdownNode;
+// Or if it's in crate::viewer::ast, use:
+// use crate::viewer::ast::MarkdownNode;
 use html_escape::encode_text;
 
 pub fn render_html(ast: &MarkdownNode) -> String {
