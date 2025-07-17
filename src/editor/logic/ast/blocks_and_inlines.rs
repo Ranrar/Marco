@@ -1,4 +1,3 @@
-use crate::editor::logic::ast::inlines::Inline;
 // ============================================================================
 // CommonMark Spec Version 0.31.2
 // Section 3: Blocks and inlines
@@ -25,7 +24,7 @@ pub enum BlockOrInline {
     /// A block-level element (see `Block` enum).
     Block(Block),
     /// An inline-level element (see `Inline` enum).
-    Inline(Inline),
+    Inline(crate::editor::logic::ast::inlines::Inline),
 }
 
 /// --------------------------------------------------------------------------
@@ -50,6 +49,8 @@ pub enum Block {
 /// Container blocks: blocks that can contain other blocks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerBlock {
+    /// Document root (contains blocks).
+    Document(Vec<Block>),
     /// Block quote (can contain blocks).
     BlockQuote(Vec<Block>),
     /// List item (can contain blocks).
@@ -62,9 +63,9 @@ pub enum ContainerBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LeafBlock {
     /// Paragraph (contains inlines).
-    Paragraph(Vec<Inline>),
+    Paragraph(Vec<crate::editor::logic::ast::inlines::Inline>),
     /// Heading (contains inlines, with level).
-    Heading { level: u8, content: Vec<Inline> },
+    Heading { level: u8, content: Vec<crate::editor::logic::ast::inlines::Inline> },
     /// Code block (literal text).
     CodeBlock(String),
     /// Thematic break (horizontal rule).

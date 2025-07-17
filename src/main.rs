@@ -11,6 +11,8 @@ pub mod viewer;
 
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box, Orientation, HeaderBar, Button};
+use crate::editor::editor::create_editor_with_preview;
+use crate::editor::logic::ast::blocks_and_inlines::{Block, LeafBlock};
 use gtk4::Align;
 
 const APP_ID: &str = "com.example.Marco";
@@ -65,17 +67,19 @@ fn build_ui(app: &Application) {
     // Create basic UI components (structure only)
     let menu_bar = menu::main_menu_structure();
     let toolbar = toolbar::create_toolbar_structure();
-    let editor_area = editor::create_editor_structure();
+    // Create a dummy AST for initial display
+    let ast = Block::Leaf(LeafBlock::Paragraph(vec![]));
+    let split = create_editor_with_preview(&ast);
     let footer = footer::create_footer_structure();
 
     // Add components to main layout
     main_box.append(&menu_bar);
     main_box.append(&toolbar);
-    main_box.append(&editor_area);
+    main_box.append(&split);
     main_box.append(&footer);
 
     // Set editor area to expand
-    editor_area.set_vexpand(true);
+    split.set_vexpand(true);
 
     // Add main box to window
     window.set_child(Some(&main_box));

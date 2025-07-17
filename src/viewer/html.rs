@@ -1,76 +1,31 @@
-// Update the path below to the correct location of MarkdownNode in your project.
-// For example, if MarkdownNode is defined in crate::ast, use:
-use crate::editor::logic::ast::MarkdownNode;
-// Or if it's in crate::viewer::ast, use:
-// use crate::viewer::ast::MarkdownNode;
-use html_escape::encode_text;
 
-pub fn render_html(ast: &MarkdownNode) -> String {
-    match ast {
-        MarkdownNode::Document(children) => children.iter()
-            .map(render_html)
-            .collect::<Vec<_>>()
-            .join("\n"),
+use crate::editor::logic::parser::EventIter;
+use crate::editor::logic::ast::blocks_and_inlines::Block;
 
-        MarkdownNode::Heading { level, content } => {
-            let inner = content.iter().map(render_html).collect::<String>();
-            format!("<h{lvl}>{}</h{lvl}>", inner, lvl = level)
+pub fn render_html(ast: &Block) -> String {
+    let mut html = String::new();
+    for event in EventIter::new(ast) {
+        match event {
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::Paragraph) => html.push_str("<p>"),
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::Paragraph) => html.push_str("</p>\n"),
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::Heading(level)) => html.push_str(&format!("<h{}>", level)),
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::Heading) => html.push_str("</h1>\n"),
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::BlockQuote) => html.push_str("<blockquote>"),
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::BlockQuote) => html.push_str("</blockquote>\n"),
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::List) => html.push_str("<ul>"),
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::List) => html.push_str("</ul>\n"),
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::Item) => html.push_str("<li>"),
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::Item) => html.push_str("</li>\n"),
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::CodeBlock) => html.push_str("<pre><code>"),
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::CodeBlock) => html.push_str("</code></pre>\n"),
+            crate::editor::logic::parser::Event::Start(crate::editor::logic::parser::Tag::HtmlBlock) => {},
+            crate::editor::logic::parser::Event::End(crate::editor::logic::parser::TagEnd::HtmlBlock) => {},
+            crate::editor::logic::parser::Event::Text(text) => html.push_str(text),
+            crate::editor::logic::parser::Event::Code(code) => html.push_str(code),
+            crate::editor::logic::parser::Event::Html(html_block) => html.push_str(html_block),
         }
-
-        MarkdownNode::Paragraph(children) => {
-            let inner = children.iter().map(render_html).collect::<String>();
-            format!("<p>{}</p>", inner)
-        }
-
-        MarkdownNode::Text(text) => encode_text(text),
-
-        MarkdownNode::Emphasis(inner) =>
-            format!("<em>{}</em>", inner.iter().map(render_html).collect::<String>()),
-
-        MarkdownNode::Strong(inner) =>
-            format!("<strong>{}</strong>", inner.iter().map(render_html).collect::<String>()),
-
-        MarkdownNode::Strikethrough(inner) =>
-            format!("<del>{}</del>", inner.iter().map(render_html).collect::<String>()),
-
-        MarkdownNode::Code(code) => format!("<code>{}</code>", encode_text(code)),
-
-        MarkdownNode::CodeBlock { language, code } => {
-            let lang = language.clone().unwrap_or_else(|| "text".to_string());
-            format!(
-                "<pre><code class=\"language-{}\">{}</code></pre>",
-                lang, encode_text(code)
-            )
-        }
-
-        MarkdownNode::List { ordered, items } => {
-            let tag = if *ordered { "ol" } else { "ul" };
-            let content = items.iter().map(render_html).collect::<String>();
-            format!("<{tag}>{}</{tag}>", content)
-        }
-
-        MarkdownNode::ListItem(children) => {
-            let inner = children.iter().map(render_html).collect::<String>();
-            format!("<li>{}</li>", inner)
-        }
-
-        MarkdownNode::Link { label, destination, title } => {
-            let label_html = label.iter().map(render_html).collect::<String>();
-            let title_attr = title.as_ref().map_or(String::new(), |t| format!(" title=\"{}\"", t));
-            format!("<a href=\"{}\"{}>{}</a>", destination, title_attr, label_html)
-        }
-
-        MarkdownNode::Image { alt, src, title } => {
-            let alt_text = alt.iter().map(render_html).collect::<String>();
-            let title_attr = title.as_ref().map_or(String::new(), |t| format!(" title=\"{}\"", t));
-            format!("<img src=\"{}\" alt=\"{}\"{} />", src, alt_text, title_attr)
-        }
-
-        MarkdownNode::LineBreak => "<br/>".into(),
-        MarkdownNode::ThematicBreak => "<hr/>".into(),
-
-        _ => String::new(), // unsupported node
     }
+    html
 }
 
 pub fn wrap_html_document(body: &str) -> String {
