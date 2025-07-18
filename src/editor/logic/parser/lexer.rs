@@ -1,4 +1,5 @@
 // Tokenizer: raw Markdown → Tokens (with SourcePos for tracking)
+use crate::editor::logic::parser::attributes_parser;
 // For now, just move parse_phrases here
 use crate::editor::logic::ast::inlines::Inline;
 
@@ -50,6 +51,42 @@ pub fn parse_phrases(input: &str) -> Vec<(Inline, SourcePos)> {
             }
             buffer.push(c);
             chars.next();
+        } else if c == '{' {
+            // Try to parse an attribute block
+            let mut attr_block = String::new();
+            let mut brace_count = 0;
+            while let Some(&next) = chars.peek() {
+                if next == '{' {
+                    brace_count += 1;
+                }
+                if next == '}' {
+                    brace_count -= 1;
+                    attr_block.push(next);
+                    chars.next();
+                    if brace_count == 0 {
+                        break;
+                    }
+                    continue;
+                }
+                attr_block.push(next);
+                chars.next();
+            }
+            // Parse attributes and attach to previous inline if possible
+            if let Some((last_inline, last_pos)) = result.pop() {
+                let attrs = attributes_parser::parse_attributes_block(&attr_block);
+                let new_inline = match last_inline {
+                    Inline::Text(s) => Inline::Text(s),
+                    Inline::Code(mut code) => { code.attributes = Some(attrs); Inline::Code(code) },
+                    Inline::Emphasis(emph) => match emph {
+                        crate::editor::logic::ast::inlines::Emphasis::Emph(inner, _) => Inline::Emphasis(crate::editor::logic::ast::inlines::Emphasis::Emph(inner, Some(attrs.clone()))),
+                        crate::editor::logic::ast::inlines::Emphasis::Strong(inner, _) => Inline::Emphasis(crate::editor::logic::ast::inlines::Emphasis::Strong(inner, Some(attrs.clone()))),
+                    },
+                    Inline::Link(mut link) => { link.attributes = Some(attrs); Inline::Link(link) },
+                    Inline::Image(mut image) => { image.attributes = Some(attrs); Inline::Image(image) },
+                    other => other,
+                };
+                result.push((new_inline, last_pos));
+            }
         } else {
             buffer.push(c);
             chars.next();

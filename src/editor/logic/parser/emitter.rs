@@ -4,89 +4,69 @@ use crate::editor::logic::ast::inlines::Inline;
 use crate::editor::logic::ast::blocks_and_inlines::{Block, ContainerBlock, LeafBlock};
 
 // Helper to push inline events for all inline types
-pub fn push_inline_events<'a>(state: &mut Vec<EventState<'a>>, inlines: Vec<(Inline, SourcePos)>) {
+pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePos)>) {
     for (inline, pos) in inlines.into_iter().rev() {
         match inline {
-            Inline::Text(s) => state.push(EventState::EnterInline(s.clone(), pos.clone())),
+            Inline::Text(s) => state.push(Event::Text(s.clone(), Some(pos.clone()), None)),
             Inline::Code(code) => {
-                state.push(EventState::ExitInline("code".to_string(), pos.clone()));
-                state.push(EventState::EnterInline(code.content.clone(), pos.clone()));
-                state.push(EventState::EnterInline("code".to_string(), pos.clone()));
+                let attrs = code.attributes.clone();
+                state.push(Event::Code(code.content.clone(), Some(pos.clone()), attrs.clone()));
             }
             Inline::Emphasis(emph) => match emph {
-                crate::editor::logic::ast::inlines::Emphasis::Emph(inner, _) => {
-                    state.push(EventState::ExitInline("emph".to_string(), pos.clone()));
+                crate::editor::logic::ast::inlines::Emphasis::Emph(inner, attrs) => {
+                    state.push(Event::EmphasisEnd(Some(pos.clone()), attrs.clone()));
                     push_inline_events(state, inner.clone());
-                    state.push(EventState::EnterInline("emph".to_string(), pos.clone()));
+                    state.push(Event::EmphasisStart(Some(pos.clone()), attrs.clone()));
                 }
-                crate::editor::logic::ast::inlines::Emphasis::Strong(inner, _) => {
-                    state.push(EventState::ExitInline("strong".to_string(), pos.clone()));
+                crate::editor::logic::ast::inlines::Emphasis::Strong(inner, attrs) => {
+                    state.push(Event::StrongEnd(Some(pos.clone()), attrs.clone()));
                     push_inline_events(state, inner.clone());
-                    state.push(EventState::EnterInline("strong".to_string(), pos.clone()));
+                    state.push(Event::StrongStart(Some(pos.clone()), attrs.clone()));
                 }
             },
             Inline::Link(link) => {
-                state.push(EventState::ExitInline("link".to_string(), pos.clone()));
+                let attrs = link.attributes.clone();
+                state.push(Event::LinkEnd(Some(pos.clone()), attrs.clone()));
                 push_inline_events(state, link.label.clone());
-                let href = match &link.destination {
-                    crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.as_str(),
-                    crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.as_str(),
+                let href_owned = match &link.destination {
+                    crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
+                    crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
                 };
-                let title = link.title.as_deref().unwrap_or("");
-                let marker = format!("link|href:{}|title:{}", href, title);
-                state.push(EventState::EnterInline(marker, pos.clone()));
+                let title_owned = link.title.clone();
+                state.push(Event::LinkStart { href: href_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
             }
             Inline::Image(image) => {
-                state.push(EventState::ExitInline("image".to_string(), pos.clone()));
+                let attrs = image.attributes.clone();
+                state.push(Event::ImageEnd(Some(pos.clone()), attrs.clone()));
                 push_inline_events(state, image.alt.clone());
-                let alt_text = image.alt.iter().map(|(inline, _pos)| match inline {
+                let alt_text_owned = image.alt.iter().map(|(inline, _pos)| match inline {
                     Inline::Text(s) => s.as_str(),
                     _ => "",
                 }).collect::<Vec<_>>().join(" ");
-                let src = match &image.destination {
-                    crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.as_str(),
-                    crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.as_str(),
+                let src_owned = match &image.destination {
+                    crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
+                    crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
                 };
-                let title = image.title.as_deref().unwrap_or("");
-                let marker = format!("image|src:{}|alt:{}|title:{}", src, alt_text, title);
-                state.push(EventState::EnterInline(marker, pos.clone()));
+                let title_owned = image.title.clone();
+                state.push(Event::ImageStart { src: src_owned, alt: alt_text_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
             }
             Inline::Autolink(autolink) => match autolink {
                 crate::editor::logic::ast::inlines::Autolink::Uri(uri) => {
-                    state.push(EventState::ExitInline("autolink".to_string(), pos.clone()));
-                    state.push(EventState::EnterInline(uri.clone(), pos.clone()));
-                    state.push(EventState::EnterInline("autolink".to_string(), pos.clone()));
+                    state.push(Event::Autolink(uri.clone(), Some(pos.clone()), None));
                 }
                 crate::editor::logic::ast::inlines::Autolink::Email(email) => {
-                    state.push(EventState::ExitInline("autolink".to_string(), pos.clone()));
-                    state.push(EventState::EnterInline(email.clone(), pos.clone()));
-                    state.push(EventState::EnterInline("autolink".to_string(), pos.clone()));
+                    state.push(Event::Autolink(email.clone(), Some(pos.clone()), None));
                 }
             },
             Inline::RawHtml(html) => {
-                state.push(EventState::ExitInline("rawhtml".to_string(), pos.clone()));
-                state.push(EventState::EnterInline(html.clone(), pos.clone()));
-                state.push(EventState::EnterInline("rawhtml".to_string(), pos.clone()));
+                state.push(Event::RawHtml(html.clone(), Some(pos.clone()), None));
             }
             Inline::HardBreak => {
-                state.push(EventState::ExitInline("hardbreak".to_string(), pos.clone()));
-                state.push(EventState::EnterInline("\n".to_string(), pos.clone()));
-                state.push(EventState::EnterInline("hardbreak".to_string(), pos.clone()));
+                state.push(Event::HardBreak(Some(pos.clone()), None));
             }
             Inline::SoftBreak => {
-                state.push(EventState::ExitInline("softbreak".to_string(), pos.clone()));
-                state.push(EventState::EnterInline(" ".to_string(), pos.clone()));
-                state.push(EventState::EnterInline("softbreak".to_string(), pos.clone()));
+                state.push(Event::SoftBreak(Some(pos.clone()), None));
             }
         }
     }
-}
-
-// EventState for emitter
-#[derive(Debug, Clone)]
-pub enum EventState<'a> {
-    EnterBlock(&'a Block, Option<SourcePos>),
-    ExitBlock(&'a Block, Option<SourcePos>),
-    EnterInline(String, SourcePos),
-    ExitInline(String, SourcePos),
 }

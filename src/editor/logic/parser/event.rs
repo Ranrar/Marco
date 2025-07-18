@@ -1,7 +1,7 @@
 // Core event types for Markdown event stream
 use crate::editor::logic::attributes::Attributes;
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Event<'a> {
+pub enum Event {
     Start(Tag, Option<SourcePos>, Option<Attributes>),
     End(TagEnd, Option<SourcePos>, Option<Attributes>),
     Text(String, Option<SourcePos>, Option<Attributes>),
@@ -15,9 +15,9 @@ pub enum Event<'a> {
     EmphasisEnd(Option<SourcePos>, Option<Attributes>),
     StrongStart(Option<SourcePos>, Option<Attributes>),
     StrongEnd(Option<SourcePos>, Option<Attributes>),
-    LinkStart { href: &'a str, title: Option<&'a str>, pos: Option<SourcePos>, attributes: Option<Attributes> },
+    LinkStart { href: String, title: Option<String>, pos: Option<SourcePos>, attributes: Option<Attributes> },
     LinkEnd(Option<SourcePos>, Option<Attributes>),
-    ImageStart { src: &'a str, alt: &'a str, title: Option<&'a str>, pos: Option<SourcePos>, attributes: Option<Attributes> },
+    ImageStart { src: String, alt: String, title: Option<String>, pos: Option<SourcePos>, attributes: Option<Attributes> },
     ImageEnd(Option<SourcePos>, Option<Attributes>),
 }
 

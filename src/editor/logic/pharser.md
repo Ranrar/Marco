@@ -68,11 +68,17 @@ Links/images (Event::Start(Tag::Link), Event::Text, Event::End(TagEnd::Link))
 Autolinks, raw HTML, line breaks, etc.
 2. Source Position Tracking
 Include line/column info in events for error reporting, syntax highlighting, or mapping output to source.
-
-All above is done
-
 3. Custom Attributes
 Emit events with custom attributes (e.g., classes, IDs, data-* attributes) for advanced rendering or extensions.
+
+**Recommendations:**
+- Propagate attributes for inline events (Emphasis, Strong, Link, etc.) for full coverage.
+- Implement attribute parsing from Markdown syntax (e.g., `{.class #id}`) for advanced use cases.
+- Add tests to verify attribute propagation for both blocks and inlines.
+- Document attribute propagation and extension points for plugin authors.
+All above is done
+
+
 4. Extension Support
 Support for GFM features (tables, task lists, strikethrough, etc.) by emitting specialized events.
 5. Event Filtering/Transformation
