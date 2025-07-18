@@ -50,28 +50,91 @@ pub enum Block {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerBlock {
     /// Document root (contains blocks).
-    Document(Vec<Block>),
+    Document(Vec<Block>, Option<crate::editor::logic::attributes::Attributes>),
     /// Block quote (can contain blocks).
-    BlockQuote(Vec<Block>),
-    /// List item (can contain blocks).
-    ListItem(Vec<Block>),
-    /// List (meta-container for list items).
-    List(Vec<ContainerBlock>),
+    BlockQuote(Vec<Block>, Option<crate::editor::logic::attributes::Attributes>),
+    /// List item (can contain blocks, with marker and kind).
+    ListItem {
+        marker: ListMarker,
+        contents: Vec<Block>,
+        attributes: Option<crate::editor::logic::attributes::Attributes>,
+    },
+    /// List (container for blocks, with kind, tight/loose, delimiter, start number).
+    /// Now uses Vec<Block> for items, allowing safe traversal and transformation.
+    List {
+        kind: ListKind,
+        tight: bool,
+        items: Vec<Block>,
+        attributes: Option<crate::editor::logic::attributes::Attributes>,
+    },
 }
 
 /// Leaf blocks: blocks that cannot contain other blocks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LeafBlock {
-    /// Paragraph (contains inlines).
-    Paragraph(Vec<crate::editor::logic::ast::inlines::Inline>),
-    /// Heading (contains inlines, with level).
-    Heading { level: u8, content: Vec<crate::editor::logic::ast::inlines::Inline> },
-    /// Code block (literal text).
-    CodeBlock(String),
-    /// Thematic break (horizontal rule).
-    ThematicBreak,
-    /// HTML block (raw HTML).
-    HtmlBlock(String),
-    // ... other leaf block types as needed
+    /// Paragraph (contains inlines and source positions).
+    Paragraph(Vec<(crate::editor::logic::ast::inlines::Inline, crate::editor::logic::parser::event::SourcePos)>, Option<crate::editor::logic::attributes::Attributes>),
+    /// Heading (contains inlines and source positions, with level).
+    Heading { level: u8, content: Vec<(crate::editor::logic::ast::inlines::Inline, crate::editor::logic::parser::event::SourcePos)>, attributes: Option<crate::editor::logic::attributes::Attributes> },
+    /// ATX Heading (with level and raw content).
+    AtxHeading { level: u8, raw_content: String, attributes: Option<crate::editor::logic::attributes::Attributes> },
+    /// Setext Heading (with level and raw content).
+    SetextHeading { level: u8, raw_content: String, attributes: Option<crate::editor::logic::attributes::Attributes> },
+    /// Indented code block (literal text).
+    IndentedCodeBlock { content: String, attributes: Option<crate::editor::logic::attributes::Attributes> },
+    /// Fenced code block (fence char, count, info string, content).
+    FencedCodeBlock {
+        fence_char: char,
+        fence_count: usize,
+        info_string: Option<String>,
+        content: String,
+        attributes: Option<crate::editor::logic::attributes::Attributes>,
+    },
+    /// Thematic break (horizontal rule, marker and count).
+    ThematicBreak { marker: char, count: usize, raw: String, attributes: Option<crate::editor::logic::attributes::Attributes> },
+    /// HTML block (raw HTML, block type).
+    HtmlBlock { block_type: HtmlBlockType, content: String, attributes: Option<crate::editor::logic::attributes::Attributes> },
+    /// Link reference definition ([label]: destination "title").
+    LinkReferenceDefinition {
+        label: String,
+        destination: String,
+        title: Option<String>,
+        attributes: Option<crate::editor::logic::attributes::Attributes>,
+    },
+    /// Blank line (for block separation).
+    BlankLine,
+}
+
+/// List marker: bullet or ordered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ListMarker {
+    Bullet { char: char },
+    Ordered { number: u64, delimiter: OrderedDelimiter },
+}
+
+/// Ordered list delimiter: '.' or ')'.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum OrderedDelimiter {
+    Period,
+    Paren,
+}
+
+/// List kind: bullet or ordered.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ListKind {
+    Bullet { char: char },
+    Ordered { start: u64, delimiter: OrderedDelimiter },
+}
+
+/// HTML block type (1–7, per spec).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HtmlBlockType {
+    Type1, // <pre>, <script>, <style>, <textarea>
+    Type2, // <!-- ... -->
+    Type3, // <? ... ?>
+    Type4, // <!A ... >
+    Type5, // <![CDATA[ ... ]]>
+    Type6, // Block-level open/close tags
+    Type7, // Any complete open/close tag on its own line
 }
 

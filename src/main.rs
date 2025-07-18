@@ -68,7 +68,7 @@ fn build_ui(app: &Application) {
     let menu_bar = menu::main_menu_structure();
     let toolbar = toolbar::create_toolbar_structure();
     // Create a dummy AST for initial display
-    let ast = Block::Leaf(LeafBlock::Paragraph(vec![]));
+    let ast = Block::Leaf(LeafBlock::Paragraph(vec![], None));
     let split = create_editor_with_preview(&ast);
     let footer = footer::create_footer_structure();
 

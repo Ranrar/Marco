@@ -1,4 +1,5 @@
 pub mod ast;
-pub mod inline;
 pub mod parser;
+pub use parser::*;
 pub mod renderer;
+pub mod attributes;

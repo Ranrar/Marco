@@ -46,6 +46,7 @@ pub enum Inline {
 pub struct CodeSpan {
     /// The literal code content (spaces and line endings normalized as per spec).
     pub content: String,
+    pub attributes: Option<crate::editor::logic::attributes::Attributes>,
 }
 
 // === 6.2 Emphasis and strong emphasis ===
@@ -54,9 +55,9 @@ pub struct CodeSpan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Emphasis {
     /// Emphasized text (single * or _).
-    Emph(Vec<Inline>),
+    Emph(Vec<(Inline, crate::editor::logic::parser::event::SourcePos)>, Option<crate::editor::logic::attributes::Attributes>),
     /// Strongly emphasized text (double ** or __).
-    Strong(Vec<Inline>),
+    Strong(Vec<(Inline, crate::editor::logic::parser::event::SourcePos)>, Option<crate::editor::logic::attributes::Attributes>),
 }
 
 // === 6.3 Links ===
@@ -65,11 +66,12 @@ pub enum Emphasis {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Link {
     /// The link text (inline content inside [ ]).
-    pub label: Vec<Inline>,
+    pub label: Vec<(Inline, crate::editor::logic::parser::event::SourcePos)>,
     /// The link destination (URL or reference label).
     pub destination: LinkDestination,
     /// Optional link title (from title attribute or reference definition).
     pub title: Option<String>,
+    pub attributes: Option<crate::editor::logic::attributes::Attributes>,
 }
 
 /// The destination of a link: either a direct URI or a reference label.
@@ -87,11 +89,12 @@ pub enum LinkDestination {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     /// The alt text (inline content inside [ ]).
-    pub alt: Vec<Inline>,
+    pub alt: Vec<(Inline, crate::editor::logic::parser::event::SourcePos)>,
     /// The image source (URL or reference label).
     pub destination: LinkDestination,
     /// Optional image title (from title attribute or reference definition).
     pub title: Option<String>,
+    pub attributes: Option<crate::editor::logic::attributes::Attributes>,
 }
 
 // === 6.5 Autolinks ===

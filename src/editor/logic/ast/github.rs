@@ -27,7 +27,7 @@ pub enum TableAlignment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TableCell {
     /// The inline content of the cell (e.g., text, emphasis, code, etc.).
-    pub content: Vec<Inline>,
+    pub content: Vec<(crate::editor::logic::ast::inlines::Inline, crate::editor::logic::parser::event::SourcePos)>,
 }
 
 /// Represents a row in a table (either header or data row) (GFM 4.10).
@@ -114,9 +114,9 @@ pub enum Inline {
     /// Plain text content.
     Text(String),
     /// Strikethrough content, delimited by one or two tildes (~) (GFM 6.5).
-    /// Contains a vector of child inlines that are struck through.
+    /// Contains a vector of child inlines (with source positions) that are struck through.
     /// Example: ~~Hi~~ or ~there~
-    Strikethrough(Vec<Inline>),
+    Strikethrough(Vec<(Inline, crate::editor::logic::parser::event::SourcePos)>),
     /// Autolink content (HTTPS URLs, emails, or XMPP links only) (GFM 6.9).
     /// All URLs (including www-prefixed and explicit http URLs) are coerced to HTTPS.
     /// Example: Autolink(AutolinkKind::HttpsUrl("https://www.example.com".to_string()))

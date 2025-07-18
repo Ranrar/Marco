@@ -66,8 +66,8 @@ pub struct List {
     pub kind: ListKind,
     /// Whether the list is tight (no blank lines between items) or loose (blank lines present).
     pub tight: bool,
-    /// The sequence of list items in this list.
-    pub items: Vec<ListItem>,
+    /// The sequence of blocks in this list (was Vec<ListItem>, now Vec<Block> for consistency).
+    pub items: Vec<Block>,
 }
 
 /// The kind of list: bullet or ordered.

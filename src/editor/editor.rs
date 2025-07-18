@@ -1,4 +1,4 @@
-use crate::editor::logic::inline::parse_inlines;
+use crate::editor::logic::parser::parse_phrases;
 use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
@@ -41,9 +41,9 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
 fn parse_markdown(input: &str) -> Block {
     use crate::editor::logic::ast::blocks_and_inlines::{Block, LeafBlock};
     if input.trim().is_empty() {
-        Block::Leaf(LeafBlock::Paragraph(vec![]))
+        Block::Leaf(LeafBlock::Paragraph(vec![], None))
     } else {
-        Block::Leaf(LeafBlock::Paragraph(parse_inlines(input)))
+        Block::Leaf(LeafBlock::Paragraph(parse_phrases(input), None))
     }
 }
 
