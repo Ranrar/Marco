@@ -1,7 +1,7 @@
 [![DevSkim](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/devskim.yml)  [![rust-analyze-and-audit](https://github.com/Ranrar/Marco/actions/workflows/rust-analyze-and-audit.yml/badge.svg)](https://github.com/Ranrar/Marco/actions/workflows/rust-analyze-and-audit.yml)
 
 
-![Marco - Markdown Composer](doc/img/logo.png)
+![Marco - Markdown Composer](/src/assets/doc/logo.png)
 
 # Status: i am curently revriting a lot of logic, and fixing bugs.
 
