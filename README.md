@@ -3,6 +3,7 @@
 
 ![Marco - Markdown Composer](doc/img/logo.png)
 
+# Status: i am curently revriting a lot of logic, and fixing bugs.
 
 A modern editor built with Rust and GTK4. Features live preview, multiple languages, and advanced markdown support.
 
