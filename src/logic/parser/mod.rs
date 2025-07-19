@@ -7,3 +7,4 @@ pub use lexer::parse_phrases;
 pub use parser::EventIter;
 pub mod transform;
 pub mod attributes;
+pub mod batch;

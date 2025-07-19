@@ -27,6 +27,10 @@
 //! ```
 //!
 //! For more, see [GTK4 Rust Book](https://gtk-rs.org/gtk4-rs/git/book/) and [Rust Concurrency Guide](https://doc.rust-lang.org/book/ch20-00-concurrency.html).
+//!
+//! IMPORTANT: All GTK/UI code must run on the main thread.
+//! Never call GTK functions from Rayon worker threads or any thread pool.
+//! Use message passing (e.g., glib::Sender) to communicate results to the main thread.
 /// Profiling event types for performance hooks
 ///
 /// # Safety
