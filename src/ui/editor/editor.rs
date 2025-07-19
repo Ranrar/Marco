@@ -2,7 +2,7 @@ use crate::logic::parser::parse_phrases;
 use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
-use crate::logic::renderer::render;
+use crate::logic::renderer::renderer::render;
 use crate::viewer::html::wrap_html_document;
 /// Create a split editor with live HTML preview using WebKit6
 pub fn create_editor_with_preview(ast: &Block) -> Paned {
