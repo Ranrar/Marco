@@ -76,7 +76,7 @@ impl TagEnd {
     }
 }
 // Core event types for Markdown event stream
-use crate::logic::core::attributes::Attributes;
+use crate::logic::core::attr_parser::Attributes;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// Profiling/timing/memory usage event
@@ -222,7 +222,7 @@ mod tests {
     }
     #[test]
     fn custom_tag_event_works() {
-        use crate::logic::attributes::Attributes;
+        use crate::logic::attr_parser::Attributes;
         let attrs = Some(Attributes::default());
         let tag = Tag::custom("callout", Some("info".to_string()), attrs.clone());
         let tag_end = TagEnd::custom("callout", attrs.clone());

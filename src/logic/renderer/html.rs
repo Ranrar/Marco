@@ -3,7 +3,7 @@
 
 use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
 use crate::logic::ast::inlines::Inline;
-use crate::logic::core::event::SourcePos;
+use crate::logic::core::event_types::SourcePos;
 
 pub struct HtmlRenderer;
 
@@ -113,7 +113,7 @@ impl HtmlRenderer {
 mod tests {
     use super::*;
     use crate::logic::ast::inlines::{Inline, CodeSpan, Link, Image, LinkDestination};
-    use crate::logic::core::event::SourcePos;
+    use crate::logic::core::event_types::SourcePos;
     use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
 
     #[test]

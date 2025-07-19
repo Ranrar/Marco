@@ -17,7 +17,7 @@ impl Renderer for GtkSourceViewRenderer {
     fn render(&mut self, ast: &crate::logic::ast::blocks_and_inlines::Block) -> Result<(), String> {
         use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
         use crate::logic::ast::inlines::Inline;
-        let debug_inlines = |inlines: &[(Inline, crate::logic::core::event::SourcePos)]| {
+        let debug_inlines = |inlines: &[(Inline, crate::logic::core::event_types::SourcePos)]| {
             for (inline, _pos) in inlines {
                 match inline {
                     Inline::CodeSpan(code_span) => {
@@ -57,10 +57,10 @@ impl Renderer for GtkSourceViewRenderer {
         }
         Ok(())
     }
-    fn highlight(&mut self, pos: &crate::logic::core::event::SourcePos) {
+    fn highlight(&mut self, pos: &crate::logic::core::event_types::SourcePos) {
         // TODO: Implement highlight logic
     }
-    fn annotate_error(&mut self, pos: &crate::logic::core::event::SourcePos, message: &str) {
+    fn annotate_error(&mut self, pos: &crate::logic::core::event_types::SourcePos, message: &str) {
         // TODO: Implement error annotation logic
     }
 }

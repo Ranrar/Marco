@@ -1,7 +1,7 @@
 use rayon::ThreadPoolBuilder;
 use rayon::prelude::*;
 use crate::logic::ast::blocks_and_inlines::Block;
-use crate::logic::core::parser::EventIter;
+use crate::logic::core::block_parser::EventIter;
 
 /// Parse a batch of documents in parallel using a fixed-size Rayon thread pool.
 pub fn parse_batch_parallel<'a>(docs: Vec<&'a Block>) -> Vec<usize> {

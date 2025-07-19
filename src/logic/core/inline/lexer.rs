@@ -40,10 +40,10 @@ struct Bracket {
 use crate::logic::ast::inlines::{Inline, CodeSpan};
 use crate::logic::ast::math::MathInline;
 
-use crate::logic::core::event::SourcePos;
+use crate::logic::core::event_types::SourcePos;
 
 /// Parse a string into a sequence of Inline AST nodes (phrases) with source positions.
-pub fn parse_phrases(input: &str) -> (Vec<(Inline, SourcePos)>, Vec<crate::logic::core::event::Event>) {
+pub fn parse_phrases(input: &str) -> (Vec<(Inline, SourcePos)>, Vec<crate::logic::core::event_types::Event>) {
 
     let mut chars = input.chars().peekable();
     let mut buffer = String::new();

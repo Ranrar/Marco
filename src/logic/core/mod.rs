@@ -1,10 +1,10 @@
-pub mod event;
-pub mod emitter;
-pub mod parser;
+pub mod event_types;
+pub mod event_emitter;
+pub mod block_parser;
 pub mod lexer;
 pub mod diagnostics;
 pub use lexer::parse_phrases;
-pub use parser::EventIter;
-pub mod transform;
-pub mod attributes;
-pub mod batch;
+pub use block_parser::EventIter;
+pub mod event_pipeline;
+pub mod attr_parser;
+pub mod parallel;

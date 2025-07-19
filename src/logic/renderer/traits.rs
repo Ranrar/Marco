@@ -6,8 +6,8 @@ pub trait Renderer {
     fn render(&mut self, ast: &crate::logic::ast::blocks_and_inlines::Block) -> Result<(), String>;
 
     /// Highlight a region in the output corresponding to a source position.
-    fn highlight(&mut self, pos: &crate::logic::core::event::SourcePos);
+    fn highlight(&mut self, pos: &crate::logic::core::event_types::SourcePos);
 
     /// Annotate an error at a given source position with a message.
-    fn annotate_error(&mut self, pos: &crate::logic::core::event::SourcePos, message: &str);
+    fn annotate_error(&mut self, pos: &crate::logic::core::event_types::SourcePos, message: &str);
 }

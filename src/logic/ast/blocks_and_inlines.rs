@@ -50,14 +50,14 @@ pub enum Block {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerBlock {
     /// Document root (contains blocks).
-    Document(Vec<Block>, Option<crate::logic::attributes::Attributes>),
+    Document(Vec<Block>, Option<crate::logic::attr_parser::Attributes>),
     /// Block quote (can contain blocks).
-    BlockQuote(Vec<Block>, Option<crate::logic::attributes::Attributes>),
+    BlockQuote(Vec<Block>, Option<crate::logic::attr_parser::Attributes>),
     /// List item (can contain blocks, with marker and kind).
     ListItem {
         marker: ListMarker,
         contents: Vec<Block>,
-        attributes: Option<crate::logic::attributes::Attributes>,
+        attributes: Option<crate::logic::attr_parser::Attributes>,
     },
     /// List (container for blocks, with kind, tight/loose, delimiter, start number).
     /// Now uses Vec<Block> for items, allowing safe traversal and transformation.
@@ -65,7 +65,7 @@ pub enum ContainerBlock {
         kind: ListKind,
         tight: bool,
         items: Vec<Block>,
-        attributes: Option<crate::logic::attributes::Attributes>,
+        attributes: Option<crate::logic::attr_parser::Attributes>,
     },
 }
 
@@ -73,33 +73,33 @@ pub enum ContainerBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LeafBlock {
     /// Paragraph (contains inlines and source positions).
-    Paragraph(Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
+    Paragraph(Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::attr_parser::Attributes>),
     /// Heading (contains inlines and source positions, with level).
-    Heading { level: u8, content: Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event::SourcePos)>, attributes: Option<crate::logic::attributes::Attributes> },
+    Heading { level: u8, content: Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>, attributes: Option<crate::logic::attr_parser::Attributes> },
     /// ATX Heading (with level and raw content).
-    AtxHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attributes::Attributes> },
+    AtxHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
     /// Setext Heading (with level and raw content).
-    SetextHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attributes::Attributes> },
+    SetextHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
     /// Indented code block (literal text).
-    IndentedCodeBlock { content: String, attributes: Option<crate::logic::attributes::Attributes> },
+    IndentedCodeBlock { content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
     /// Fenced code block (fence char, count, info string, content).
     FencedCodeBlock {
         fence_char: char,
         fence_count: usize,
         info_string: Option<String>,
         content: String,
-        attributes: Option<crate::logic::attributes::Attributes>,
+        attributes: Option<crate::logic::attr_parser::Attributes>,
     },
     /// Thematic break (horizontal rule, marker and count).
-    ThematicBreak { marker: char, count: usize, raw: String, attributes: Option<crate::logic::attributes::Attributes> },
+    ThematicBreak { marker: char, count: usize, raw: String, attributes: Option<crate::logic::attr_parser::Attributes> },
     /// HTML block (raw HTML, block type).
-    HtmlBlock { block_type: HtmlBlockType, content: String, attributes: Option<crate::logic::attributes::Attributes> },
+    HtmlBlock { block_type: HtmlBlockType, content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
     /// Link reference definition ([label]: destination "title").
     LinkReferenceDefinition {
         label: String,
         destination: String,
         title: Option<String>,
-        attributes: Option<crate::logic::attributes::Attributes>,
+        attributes: Option<crate::logic::attr_parser::Attributes>,
     },
     /// Blank line (for block separation).
     BlankLine,

@@ -4,7 +4,7 @@ pub trait DiagnosticsInterceptor {
 }
 
 // Diagnostics: error/warning event collection and reporting
-use crate::logic::core::event::{Event, SourcePos};
+use crate::logic::core::event_types::{Event, SourcePos};
 
 pub struct Diagnostics {
     pub errors: Vec<(String, Option<SourcePos>)>,
@@ -52,7 +52,7 @@ impl Diagnostics {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logic::core::event::{Event, SourcePos};
+    use crate::logic::core::event_types::{Event, SourcePos};
     use std::sync::{Arc, Mutex};
 
     struct TestPlugin {
@@ -104,15 +104,15 @@ mod tests {
 pub struct LoggingDiagnosticsPlugin;
 
 impl DiagnosticsInterceptor for LoggingDiagnosticsPlugin {
-    fn intercept(&mut self, event: &crate::logic::core::event::Event) {
+    fn intercept(&mut self, event: &crate::logic::core::event_types::Event) {
         match event {
-            crate::logic::core::event::Event::Error(msg, pos) => {
+            crate::logic::core::event_types::Event::Error(msg, pos) => {
                 eprintln!("[PLUGIN] Error at {:?}: {}", pos, msg);
             }
-            crate::logic::core::event::Event::Warning(msg, pos) => {
+            crate::logic::core::event_types::Event::Warning(msg, pos) => {
                 println!("[PLUGIN] Warning at {:?}: {}", pos, msg);
             }
-            crate::logic::core::event::Event::Unsupported(msg, pos) => {
+            crate::logic::core::event_types::Event::Unsupported(msg, pos) => {
                 println!("[PLUGIN] Unsupported at {:?}: {}", pos, msg);
             }
             _ => {}
