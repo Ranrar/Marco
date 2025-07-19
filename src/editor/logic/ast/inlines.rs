@@ -1,4 +1,3 @@
-
 //! # 6 Inlines (CommonMark 0.31.2)
 //
 //! This module defines the Abstract Syntax Tree (AST) node types for CommonMark section 6 (Inlines),
@@ -37,6 +36,16 @@ pub enum Inline {
     SoftBreak,
     /// 6.9 Textual content: Any literal text not otherwise interpreted.
     Text(String),
+    /// Math inline (GFM/LaTeX, e.g., $ ... $)
+    Math(crate::editor::logic::ast::math::MathInline),
+    /// Emoji inline (e.g., :smile:)
+    Emoji(String, String, crate::editor::logic::parser::event::SourcePos),
+    /// Mention inline (e.g., @username)
+    Mention(String, crate::editor::logic::parser::event::SourcePos),
+    /// Table caption inline
+    TableCaption(String, Option<crate::editor::logic::attributes::Attributes>, crate::editor::logic::parser::event::SourcePos),
+    /// Task list metadata inline
+    TaskListMeta(Option<String>, Option<crate::editor::logic::attributes::Attributes>, crate::editor::logic::parser::event::SourcePos),
 }
 
 // === 6.1 Code spans ===

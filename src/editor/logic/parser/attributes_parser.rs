@@ -39,11 +39,10 @@ mod tests {
     fn test_markdown_event_stream_with_attributes() {
         use crate::editor::logic::parser::lexer::parse_phrases;
         use crate::editor::logic::parser::emitter::push_inline_events;
-        use crate::editor::logic::parser::event::Event;
         let md = "*emph*{.important} and **strong**{#main} and [link](url){.external}";
         let inlines = parse_phrases(md);
         let mut events = Vec::new();
-        push_inline_events(&mut events, inlines);
+        push_inline_events(&mut events, inlines, &mut None);
         for event in &events {
             println!("{:?}", event);
         }

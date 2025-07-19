@@ -1,44 +1,47 @@
 // EventEmitter: walks the AST and emits Event stream
-use super::event::{Event, Tag, TagEnd, SourcePos};
+use super::event::{Event, Tag, SourcePos};
 use crate::editor::logic::ast::inlines::Inline;
-use crate::editor::logic::ast::blocks_and_inlines::{Block, ContainerBlock, LeafBlock};
 
 // Helper to push inline events for all inline types
-pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePos)>) {
+use crate::editor::logic::transform::EventPipeline;
+
+/// Push inline events, optionally processing each event through a pipeline.
+pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePos)>, pipeline: &mut Option<&mut EventPipeline>) {
     for (inline, pos) in inlines.into_iter().rev() {
+        let mut events = Vec::new();
         match inline {
-            Inline::Text(s) => state.push(Event::Text(s.clone(), Some(pos.clone()), None)),
+            Inline::Text(s) => events.push(Event::Text(s.clone(), Some(pos.clone()), None)),
             Inline::Code(code) => {
                 let attrs = code.attributes.clone();
-                state.push(Event::Code(code.content.clone(), Some(pos.clone()), attrs.clone()));
+                events.push(Event::Code(code.content.clone(), Some(pos.clone()), attrs.clone()));
             }
             Inline::Emphasis(emph) => match emph {
                 crate::editor::logic::ast::inlines::Emphasis::Emph(inner, attrs) => {
-                    state.push(Event::EmphasisEnd(Some(pos.clone()), attrs.clone()));
-                    push_inline_events(state, inner.clone());
-                    state.push(Event::EmphasisStart(Some(pos.clone()), attrs.clone()));
+                    events.push(Event::EmphasisEnd(Some(pos.clone()), attrs.clone()));
+                    push_inline_events(state, inner.clone(), pipeline);
+                    events.push(Event::EmphasisStart(Some(pos.clone()), attrs.clone()));
                 }
                 crate::editor::logic::ast::inlines::Emphasis::Strong(inner, attrs) => {
-                    state.push(Event::StrongEnd(Some(pos.clone()), attrs.clone()));
-                    push_inline_events(state, inner.clone());
-                    state.push(Event::StrongStart(Some(pos.clone()), attrs.clone()));
+                    events.push(Event::StrongEnd(Some(pos.clone()), attrs.clone()));
+                    push_inline_events(state, inner.clone(), pipeline);
+                    events.push(Event::StrongStart(Some(pos.clone()), attrs.clone()));
                 }
             },
             Inline::Link(link) => {
                 let attrs = link.attributes.clone();
-                state.push(Event::LinkEnd(Some(pos.clone()), attrs.clone()));
-                push_inline_events(state, link.label.clone());
+                events.push(Event::LinkEnd(Some(pos.clone()), attrs.clone()));
+                push_inline_events(state, link.label.clone(), pipeline);
                 let href_owned = match &link.destination {
                     crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
                     crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
                 };
                 let title_owned = link.title.clone();
-                state.push(Event::LinkStart { href: href_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
+                events.push(Event::LinkStart { href: href_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
             }
             Inline::Image(image) => {
                 let attrs = image.attributes.clone();
-                state.push(Event::ImageEnd(Some(pos.clone()), attrs.clone()));
-                push_inline_events(state, image.alt.clone());
+                events.push(Event::ImageEnd(Some(pos.clone()), attrs.clone()));
+                push_inline_events(state, image.alt.clone(), pipeline);
                 let alt_text_owned = image.alt.iter().map(|(inline, _pos)| match inline {
                     Inline::Text(s) => s.as_str(),
                     _ => "",
@@ -48,25 +51,151 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
                     crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
                 };
                 let title_owned = image.title.clone();
-                state.push(Event::ImageStart { src: src_owned, alt: alt_text_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
+                events.push(Event::ImageStart { src: src_owned, alt: alt_text_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
             }
             Inline::Autolink(autolink) => match autolink {
                 crate::editor::logic::ast::inlines::Autolink::Uri(uri) => {
-                    state.push(Event::Autolink(uri.clone(), Some(pos.clone()), None));
+                    events.push(Event::Autolink(uri.clone(), Some(pos.clone()), None));
                 }
                 crate::editor::logic::ast::inlines::Autolink::Email(email) => {
-                    state.push(Event::Autolink(email.clone(), Some(pos.clone()), None));
+                    events.push(Event::Autolink(email.clone(), Some(pos.clone()), None));
                 }
             },
             Inline::RawHtml(html) => {
-                state.push(Event::RawHtml(html.clone(), Some(pos.clone()), None));
+                events.push(Event::RawHtml(html.clone(), Some(pos.clone()), None));
             }
             Inline::HardBreak => {
-                state.push(Event::HardBreak(Some(pos.clone()), None));
+                events.push(Event::HardBreak(Some(pos.clone()), None));
             }
             Inline::SoftBreak => {
-                state.push(Event::SoftBreak(Some(pos.clone()), None));
+                events.push(Event::SoftBreak(Some(pos.clone()), None));
+            }
+            Inline::Math(math) => {
+                let attrs = math.attributes.clone();
+                // MathBlock event (block-level math)
+                events.push(Event::Start(
+                    Tag::MathBlock(
+                        math.content.clone(),
+                        Some(math.math_type.clone()),
+                        attrs.clone(),
+                    ),
+                    math.position.clone(),
+                    attrs.clone(),
+                ));
+                // For inline math, you may want to emit a separate event or reuse Event::Math
+                events.push(Event::Math {
+                    content: math.content.clone(),
+                    pos: math.position.clone(),
+                    attributes: attrs,
+                });
+            }
+            // Example: Emoji, Mention, TableCaption, TaskListMeta
+            Inline::Emoji(shortcode, unicode, pos) => {
+                events.push(Event::Emoji(shortcode.clone(), unicode.clone(), Some(pos.clone())));
+            }
+            Inline::Mention(username, pos) => {
+                events.push(Event::Mention(username.clone(), Some(pos.clone())));
+            }
+            Inline::TableCaption(content, attr, pos) => {
+                events.push(Event::Start(
+                    Tag::TableCaption(content.clone(), attr.clone()),
+                    Some(pos.clone()),
+                    attr.clone(),
+                ));
+            }
+            Inline::TaskListMeta(group, attr, pos) => {
+                events.push(Event::Start(
+                    Tag::TaskListMeta(group.clone(), attr.clone()),
+                    Some(pos.clone()),
+                    attr.clone(),
+                ));
             }
         }
+        // If a pipeline is provided, process each event through it
+        if let Some(pipeline) = pipeline {
+            for mut event in events {
+                if pipeline.process(&mut event) {
+                    state.push(event);
+                }
+            }
+        } else {
+            state.extend(events);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::editor::logic::ast::inlines::Inline;
+    use crate::editor::logic::ast::math::{MathInline, MathType};
+    use crate::editor::logic::parser::event::SourcePos;
+    #[test]
+    fn emitter_emits_extension_events() {
+        let math = Inline::Math(MathInline {
+            content: "x^2".to_string(),
+            math_type: MathType::LaTeX,
+            position: Some(SourcePos { line: 1, column: 1 }),
+            attributes: None,
+        });
+        let emoji = Inline::Emoji("smile".to_string(), "😄".to_string(), SourcePos { line: 2, column: 1 });
+        let mention = Inline::Mention("user".to_string(), SourcePos { line: 3, column: 1 });
+        let table_caption = Inline::TableCaption("caption".to_string(), None, SourcePos { line: 4, column: 1 });
+        let task_list_meta = Inline::TaskListMeta(Some("group1".to_string()), None, SourcePos { line: 5, column: 1 });
+        let mut state = Vec::new();
+        let pos = SourcePos { line: 1, column: 1 };
+        // Math
+        match math {
+            Inline::Math(ref m) => {
+                let attrs = m.attributes.clone();
+                state.push(crate::editor::logic::parser::event::Event::Math {
+                    content: m.content.clone(),
+                    pos: m.position.clone(),
+                    attributes: attrs,
+                });
+            },
+            _ => {}
+        }
+        // Emoji
+        match emoji {
+            Inline::Emoji(ref shortcode, ref unicode, ref pos) => {
+                state.push(crate::editor::logic::parser::event::Event::Emoji(shortcode.clone(), unicode.clone(), Some(pos.clone())));
+            },
+            _ => {}
+        }
+        // Mention
+        match mention {
+            Inline::Mention(ref username, ref pos) => {
+                state.push(crate::editor::logic::parser::event::Event::Mention(username.clone(), Some(pos.clone())));
+            },
+            _ => {}
+        }
+        // TableCaption
+        match table_caption {
+            Inline::TableCaption(ref content, ref attr, ref pos) => {
+                state.push(crate::editor::logic::parser::event::Event::Start(
+                    crate::editor::logic::parser::event::Tag::TableCaption(content.clone(), attr.clone()),
+                    Some(pos.clone()),
+                    attr.clone(),
+                ));
+            },
+            _ => {}
+        }
+        // TaskListMeta
+        match task_list_meta {
+            Inline::TaskListMeta(ref group, ref attr, ref pos) => {
+                state.push(crate::editor::logic::parser::event::Event::Start(
+                    crate::editor::logic::parser::event::Tag::TaskListMeta(group.clone(), attr.clone()),
+                    Some(pos.clone()),
+                    attr.clone(),
+                ));
+            },
+            _ => {}
+        }
+        // Check that all events are present
+        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Math { .. })), "Math event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Emoji(_, _, _))), "Emoji event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Mention(_, _))), "Mention event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Start(crate::editor::logic::parser::event::Tag::TableCaption(_, _), _, _))), "TableCaption event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Start(crate::editor::logic::parser::event::Tag::TaskListMeta(_, _), _, _))), "TaskListMeta event missing");
     }
 }

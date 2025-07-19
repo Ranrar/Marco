@@ -70,19 +70,21 @@ Autolinks, raw HTML, line breaks, etc.
 Include line/column info in events for error reporting, syntax highlighting, or mapping output to source.
 3. Custom Attributes
 Emit events with custom attributes (e.g., classes, IDs, data-* attributes) for advanced rendering or extensions.
-
-**Recommendations:**
 - Propagate attributes for inline events (Emphasis, Strong, Link, etc.) for full coverage.
 - Implement attribute parsing from Markdown syntax (e.g., `{.class #id}`) for advanced use cases.
 - Add tests to verify attribute propagation for both blocks and inlines.
 - Document attribute propagation and extension points for plugin authors.
-All above is done
-
-
 4. Extension Support
 Support for GFM features (tables, task lists, strikethrough, etc.) by emitting specialized events.
+- Tables: Caption support (if needed) can be added.
+- Math Blocks: Not present, but can be added as a new event.
+- Emoji, Mentions, Task List Metadata: Not present, but can be added as needed. https://lib.rs/crates/gh-emoji
+- Code Block Info Strings: If you want to support fenced code blocks with info strings, consider adding a CodeBlockStart event with language and attributes.
 5. Event Filtering/Transformation
 Allow users to filter, transform, or intercept events (e.g., for plugins, custom rendering, or analytics).
+
+All above is done
+
 6. Streaming Output
 Design the iterator to work efficiently with very large documents, emitting events as soon as possible (no buffering).
 7. Error/Warning Events

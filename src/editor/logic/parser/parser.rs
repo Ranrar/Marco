@@ -1,35 +1,42 @@
 // Main parser: Token stream → Event stream or AST (supports streaming)
-use super::event::{Event, Tag, TagEnd};
-use super::event::{SourcePos};
-use super::emitter::push_inline_events;
-use crate::editor::logic::ast::blocks_and_inlines::{Block, ContainerBlock, LeafBlock};
+use super::event::Event;
+use crate::editor::logic::ast::blocks_and_inlines::Block;
+use crate::editor::logic::transform::EventPipeline;
 
 pub struct EventIter<'a> {
     stack: Vec<&'a Block>,
     state: Vec<Event>,
+    pipeline: Option<EventPipeline>,
 }
 
 impl<'a> EventIter<'a> {
     pub fn new(root: &'a Block) -> Self {
         Self {
             stack: vec![root],
-            state: vec![], // Initial state now empty; will be filled by push_inline_events
+            state: vec![],
+            pipeline: None,
+        }
+    }
+    pub fn with_pipeline(root: &'a Block, pipeline: EventPipeline) -> Self {
+        Self {
+            stack: vec![root],
+            state: vec![],
+            pipeline: Some(pipeline),
         }
     }
 }
-
 impl<'a> Iterator for EventIter<'a> {
     type Item = Event;
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(state) = self.state.pop() {
-            match state {
-                Event::Start(_, _, _) => {
-                    // ...existing code...
+        while let Some(mut event) = self.state.pop() {
+            if let Some(pipeline) = &mut self.pipeline {
+                if pipeline.process(&mut event) {
+                    return Some(event);
+                } else {
+                    continue;
                 }
-                Event::End(_, _, _) => {
-                    // ...existing code...
-                }
-                _ => {}
+            } else {
+                return Some(event);
             }
         }
         None

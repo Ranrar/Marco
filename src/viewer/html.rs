@@ -1,4 +1,3 @@
-
 use crate::editor::logic::parser::EventIter;
 use crate::editor::logic::event::{Event, Tag, TagEnd};
 use crate::editor::logic::ast::blocks_and_inlines::Block;
@@ -23,6 +22,17 @@ pub fn render_html(ast: &Block) -> String {
             Event::End(TagEnd::CodeBlock(attr), _, _) => html.push_str("</code></pre>\n"),
             Event::Start(Tag::HtmlBlock(attr), _, _) => {},
             Event::End(TagEnd::HtmlBlock(attr), _, _) => {},
+            Event::Start(Tag::MathBlock(content, math_type, attr), _, _) => {
+                let typ = math_type.as_ref().map(|t| format!(" class='math-{:?}'", t)).unwrap_or_default();
+                html.push_str(&format!("<div class='math-block'{}>{}</div>", typ, content));
+            },
+            Event::Start(Tag::TableCaption(content, attr), _, _) => {
+                html.push_str(&format!("<caption>{}</caption>", content));
+            },
+            Event::Start(Tag::TaskListMeta(group, attr), _, _) => {
+                let group_str = group.as_ref().map(|g| format!(" data-group='{}'", g)).unwrap_or_default();
+                html.push_str(&format!("<div class='task-list-meta'{}></div>", group_str));
+            },
             Event::Text(text, _, _) => html.push_str(&text),
             Event::Code(code, _, _) => html.push_str(&code),
             Event::Html(html_block, _, _) => html.push_str(&html_block),
@@ -34,6 +44,22 @@ pub fn render_html(ast: &Block) -> String {
             Event::End(TagEnd::Link(attr), _, _) => html.push_str("</a>"),
             Event::Start(Tag::Image(attr), _, _) => html.push_str("<img src='#' alt='' />"), // TODO: use actual src/alt
             Event::End(TagEnd::Image(attr), _, _) => {},
+            Event::Math { content, .. } => {
+                html.push_str(&format!("<span class='math'>{}</span>", content));
+            },
+            Event::MathBlock { content, math_type, .. } => {
+                // Render block math with type info
+                let typ = math_type.as_ref().map(|t| format!(" class='math-{:?}'", t)).unwrap_or_default();
+                html.push_str(&format!("<div class='math-block'{}>{}</div>", typ, content));
+            },
+            Event::Emoji(shortcode, unicode, _) => {
+                // Render emoji as unicode with tooltip
+                html.push_str(&format!("<span class='emoji' title=':{}:'>{}</span>", shortcode, unicode));
+            },
+            Event::Mention(username, _) => {
+                // Render mention as a link
+                html.push_str(&format!("<a class='mention' href='https://github.com/{}'>@{}</a>", username, username));
+            },
             Event::EmphasisStart(_, _) | Event::EmphasisEnd(_, _) | Event::StrongStart(_, _) | Event::StrongEnd(_, _) |
             Event::LinkStart { .. } | Event::LinkEnd(_, _) | Event::ImageStart { .. } | Event::ImageEnd(_, _) |
             Event::Autolink(_, _, _) | Event::RawHtml(_, _, _) | Event::HardBreak(_, _) | Event::SoftBreak(_, _) => {},

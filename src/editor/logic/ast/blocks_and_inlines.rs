@@ -103,6 +103,8 @@ pub enum LeafBlock {
     },
     /// Blank line (for block separation).
     BlankLine,
+    /// Math block (GFM/LaTeX, e.g., $$ ... $$ or ```math ... ```)
+    Math(crate::editor::logic::ast::math::MathBlock),
 }
 
 /// List marker: bullet or ordered.
