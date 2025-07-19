@@ -1,4 +1,4 @@
-use gtk4::prelude::*;
+// use gtk4::prelude::*;
 use gtk4::{gio, PopoverMenuBar};
 
 pub fn main_menu_structure() -> PopoverMenuBar {

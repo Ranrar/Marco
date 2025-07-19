@@ -1,9 +1,16 @@
+        // Example: CustomTag (user-defined extension)
+        // To emit a custom tag, add an Inline variant and handle it here, e.g.:
+        // Inline::CustomTag(name, data, attr, pos) => {
+        //     events.push(Event::Start(Tag::CustomTag { name, data, attributes: attr.clone() }, Some(pos.clone()), attr.clone()));
+        //     // ...emit inner events if needed...
+        //     events.push(Event::End(TagEnd::CustomTagEnd { name, attributes: attr.clone() }, Some(pos.clone()), attr.clone()));
+        // }
 // EventEmitter: walks the AST and emits Event stream
 use super::event::{Event, Tag, SourcePos};
-use crate::editor::logic::ast::inlines::Inline;
+use crate::logic::ast::inlines::Inline;
 
 // Helper to push inline events for all inline types
-use crate::editor::logic::transform::EventPipeline;
+use crate::logic::parser::transform::EventPipeline;
 
 /// Push inline events, optionally processing each event through a pipeline.
 pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePos)>, pipeline: &mut Option<&mut EventPipeline>) {
@@ -16,12 +23,12 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
                 events.push(Event::Code(code.content.clone(), Some(pos.clone()), attrs.clone()));
             }
             Inline::Emphasis(emph) => match emph {
-                crate::editor::logic::ast::inlines::Emphasis::Emph(inner, attrs) => {
+                crate::logic::ast::inlines::Emphasis::Emph(inner, attrs) => {
                     events.push(Event::EmphasisEnd(Some(pos.clone()), attrs.clone()));
                     push_inline_events(state, inner.clone(), pipeline);
                     events.push(Event::EmphasisStart(Some(pos.clone()), attrs.clone()));
                 }
-                crate::editor::logic::ast::inlines::Emphasis::Strong(inner, attrs) => {
+                crate::logic::ast::inlines::Emphasis::Strong(inner, attrs) => {
                     events.push(Event::StrongEnd(Some(pos.clone()), attrs.clone()));
                     push_inline_events(state, inner.clone(), pipeline);
                     events.push(Event::StrongStart(Some(pos.clone()), attrs.clone()));
@@ -32,8 +39,8 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
                 events.push(Event::LinkEnd(Some(pos.clone()), attrs.clone()));
                 push_inline_events(state, link.label.clone(), pipeline);
                 let href_owned = match &link.destination {
-                    crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
-                    crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
+                    crate::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
+                    crate::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
                 };
                 let title_owned = link.title.clone();
                 events.push(Event::LinkStart { href: href_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
@@ -47,17 +54,17 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
                     _ => "",
                 }).collect::<Vec<_>>().join(" ");
                 let src_owned = match &image.destination {
-                    crate::editor::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
-                    crate::editor::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
+                    crate::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
+                    crate::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
                 };
                 let title_owned = image.title.clone();
                 events.push(Event::ImageStart { src: src_owned, alt: alt_text_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
             }
             Inline::Autolink(autolink) => match autolink {
-                crate::editor::logic::ast::inlines::Autolink::Uri(uri) => {
+                crate::logic::ast::inlines::Autolink::Uri(uri) => {
                     events.push(Event::Autolink(uri.clone(), Some(pos.clone()), None));
                 }
-                crate::editor::logic::ast::inlines::Autolink::Email(email) => {
+                crate::logic::ast::inlines::Autolink::Email(email) => {
                     events.push(Event::Autolink(email.clone(), Some(pos.clone()), None));
                 }
             },
@@ -126,9 +133,25 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
 
 #[cfg(test)]
 mod tests {
-    use crate::editor::logic::ast::inlines::Inline;
-    use crate::editor::logic::ast::math::{MathInline, MathType};
-    use crate::editor::logic::parser::event::SourcePos;
+    #[test]
+    fn emitter_emits_custom_tag_events() {
+        use crate::logic::parser::event::{Tag, TagEnd, Event, SourcePos};
+        let name = "callout".to_string();
+        let data = Some("info".to_string());
+        let attrs = None;
+        let pos = Some(SourcePos { line: 10, column: 5 });
+        let mut state = Vec::new();
+        // Simulate emitting a custom tag
+        state.push(Event::Start(Tag::CustomTag { name: name.clone(), data: data.clone(), attributes: attrs.clone() }, pos.clone(), attrs.clone()));
+        // ...emit inner events if needed...
+        state.push(Event::End(TagEnd::CustomTagEnd { name: name.clone(), attributes: attrs.clone() }, pos.clone(), attrs.clone()));
+        // Check that custom tag events are present
+        assert!(state.iter().any(|e| matches!(e, Event::Start(Tag::CustomTag { .. }, _, _))), "CustomTag start event missing");
+        assert!(state.iter().any(|e| matches!(e, Event::End(TagEnd::CustomTagEnd { .. }, _, _))), "CustomTag end event missing");
+    }
+    use crate::logic::ast::inlines::Inline;
+    use crate::logic::ast::math::{MathInline, MathType};
+    use crate::logic::parser::event::SourcePos;
     #[test]
     fn emitter_emits_extension_events() {
         let math = Inline::Math(MathInline {
@@ -147,7 +170,7 @@ mod tests {
         match math {
             Inline::Math(ref m) => {
                 let attrs = m.attributes.clone();
-                state.push(crate::editor::logic::parser::event::Event::Math {
+                state.push(crate::logic::parser::event::Event::Math {
                     content: m.content.clone(),
                     pos: m.position.clone(),
                     attributes: attrs,
@@ -158,22 +181,22 @@ mod tests {
         // Emoji
         match emoji {
             Inline::Emoji(ref shortcode, ref unicode, ref pos) => {
-                state.push(crate::editor::logic::parser::event::Event::Emoji(shortcode.clone(), unicode.clone(), Some(pos.clone())));
+                state.push(crate::logic::parser::event::Event::Emoji(shortcode.clone(), unicode.clone(), Some(pos.clone())));
             },
             _ => {}
         }
         // Mention
         match mention {
             Inline::Mention(ref username, ref pos) => {
-                state.push(crate::editor::logic::parser::event::Event::Mention(username.clone(), Some(pos.clone())));
+                state.push(crate::logic::parser::event::Event::Mention(username.clone(), Some(pos.clone())));
             },
             _ => {}
         }
         // TableCaption
         match table_caption {
             Inline::TableCaption(ref content, ref attr, ref pos) => {
-                state.push(crate::editor::logic::parser::event::Event::Start(
-                    crate::editor::logic::parser::event::Tag::TableCaption(content.clone(), attr.clone()),
+                state.push(crate::logic::parser::event::Event::Start(
+                    crate::logic::parser::event::Tag::TableCaption(content.clone(), attr.clone()),
                     Some(pos.clone()),
                     attr.clone(),
                 ));
@@ -183,8 +206,8 @@ mod tests {
         // TaskListMeta
         match task_list_meta {
             Inline::TaskListMeta(ref group, ref attr, ref pos) => {
-                state.push(crate::editor::logic::parser::event::Event::Start(
-                    crate::editor::logic::parser::event::Tag::TaskListMeta(group.clone(), attr.clone()),
+                state.push(crate::logic::parser::event::Event::Start(
+                    crate::logic::parser::event::Tag::TaskListMeta(group.clone(), attr.clone()),
                     Some(pos.clone()),
                     attr.clone(),
                 ));
@@ -192,10 +215,10 @@ mod tests {
             _ => {}
         }
         // Check that all events are present
-        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Math { .. })), "Math event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Emoji(_, _, _))), "Emoji event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Mention(_, _))), "Mention event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Start(crate::editor::logic::parser::event::Tag::TableCaption(_, _), _, _))), "TableCaption event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::editor::logic::parser::event::Event::Start(crate::editor::logic::parser::event::Tag::TaskListMeta(_, _), _, _))), "TaskListMeta event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Math { .. })), "Math event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Emoji(_, _, _))), "Emoji event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Mention(_, _))), "Mention event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Start(crate::logic::parser::event::Tag::TableCaption(_, _), _, _))), "TableCaption event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Start(crate::logic::parser::event::Tag::TaskListMeta(_, _), _, _))), "TaskListMeta event missing");
     }
 }

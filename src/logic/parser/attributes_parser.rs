@@ -1,7 +1,7 @@
 // Parses Pandoc/Maruku-style attribute blocks: `{.class #id key=value}`
 // Returns an Attributes struct
 use std::collections::HashMap;
-use crate::editor::logic::attributes::Attributes;
+use crate::logic::attributes::Attributes;
 
 pub fn parse_attributes_block(s: &str) -> Attributes {
     let mut classes = Vec::new();
@@ -37,10 +37,10 @@ mod tests {
 
     #[test]
     fn test_markdown_event_stream_with_attributes() {
-        use crate::editor::logic::parser::lexer::parse_phrases;
-        use crate::editor::logic::parser::emitter::push_inline_events;
+        use crate::logic::parser::lexer::parse_phrases;
+        use crate::logic::parser::emitter::push_inline_events;
         let md = "*emph*{.important} and **strong**{#main} and [link](url){.external}";
-        let inlines = parse_phrases(md);
+        let (inlines, _diag_events) = parse_phrases(md);
         let mut events = Vec::new();
         push_inline_events(&mut events, inlines, &mut None);
         for event in &events {

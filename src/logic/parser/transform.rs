@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::logic::parser::event::{Event, Tag};
+    use crate::logic::parser::event::{Event, Tag};
 
     #[test]
     fn test_event_filtering_pipeline() {
@@ -35,7 +35,7 @@ mod tests {
         }
     }
 }
-use crate::editor::logic::event::Event;
+use crate::logic::event::Event;
 
 /// Trait for filtering events. Return true to keep, false to discard.
 pub trait EventFilter {

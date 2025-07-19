@@ -1,4 +1,4 @@
 // Settings module
 pub mod settings;
 
-pub use settings::{Settings, show_settings_dialog};
+pub use settings::show_settings_dialog;

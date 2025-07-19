@@ -1,7 +1,7 @@
-use crate::editor::logic::ast::blocks_and_inlines::{Block, LeafBlock};
-use crate::editor::logic::ast::inlines::{Inline, Emphasis};
+use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
+use crate::logic::ast::inlines::{Inline, Emphasis};
 
-fn render_inlines(inlines: &[(Inline, crate::editor::logic::parser::event::SourcePos)]) -> String {
+fn render_inlines(inlines: &[(Inline, crate::logic::parser::event::SourcePos)]) -> String {
     inlines.iter().map(|(inline, _pos)| match inline {
         Inline::Text(s) => {
             // Replace newlines with <br> for visibility

@@ -1,8 +1,8 @@
 //! GFM and custom extension support for the Markdown parser event stream.
 //! Emits specialized events for tables, task lists, strikethrough, autolinks, etc.
 
-use crate::editor::logic::parser::event::{Event, Tag, TagEnd, SourcePos};
-use crate::editor::logic::parser::attributes::Attributes;
+use crate::logic::parser::event::{Event, Tag, TagEnd, SourcePos};
+use crate::logic::parser::attributes::Attributes;
 
 /// Table alignment for GFM tables.
 #[derive(Debug, Clone, PartialEq)]
@@ -31,7 +31,7 @@ pub enum ExtensionEvent {
     FootnoteReference { name: String, pos: Option<SourcePos> },
     FootnoteDefinitionStart { name: String, pos: Option<SourcePos> },
     FootnoteDefinitionEnd { name: String, pos: Option<SourcePos> },
-    MathBlock { content: String, math_type: Option<crate::editor::logic::ast::math::MathType>, pos: Option<SourcePos>, attr: Option<Attributes> },
+    MathBlock { content: String, math_type: Option<crate::logic::ast::math::MathType>, pos: Option<SourcePos>, attr: Option<Attributes> },
     Emoji { shortcode: String, unicode: String, pos: Option<SourcePos> },
     Mention { username: String, pos: Option<SourcePos> },
     CodeBlockStart { language: Option<String>, info_string: Option<String>, pos: Option<SourcePos>, attr: Option<Attributes> },
@@ -45,7 +45,7 @@ pub fn emit_extension_events(tokens: &[Event]) -> Vec<ExtensionEvent> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::logic::ast::math::MathType;
+    use crate::logic::ast::math::MathType;
     #[test]
     fn extension_event_variants_work() {
         let table_caption = ExtensionEvent::TableCaption {

@@ -58,7 +58,59 @@ Here's a focused review and recommendation for your AST and parser.rs design, sp
 | Use `Rc<Block>`  | Shared ownership, flexible  | More heap allocations       | Complex, shared ASTs       |
 | Arena Allocation | Fast, minimal allocations   | More complex setup          | Large, performance-critical|
 
+
+
+Functions/Areas Needing Attention
+Event Emission Functions
+
+In parser.rs and emitter.rs:
+Ensure all inline types (code spans, emphasis, links, images, autolinks, raw HTML, breaks) are covered.
+Risk: Incomplete event coverage.
+Source Position Propagation
+
+In lexer.rs, parser.rs, and event.rs:
+Functions that attach or propagate SourcePos to events.
+Risk: Dropped or missing position info.
+Attribute Parsing and Propagation
+
+In attributes.rs, parser.rs, and emitter.rs:
+Functions that parse {.class #id} and attach attributes to both block and inline events.
+Risk: Attribute propagation gaps, especially for inlines.
+Extension Event Handling
+
+In extensions.rs and event.rs:
+Functions that emit events for GFM features (tables, task lists, strikethrough, etc.) and custom tags.
+Risk: Missing or incomplete extension event support.
+Event Filtering/Transformation
+
+In transform.rs:
+Functions that filter, map, or intercept events for plugins and custom rendering.
+Risk: Broken event order or composability.
+Streaming Output Logic
+
+In parser.rs and emitter.rs:
+Iterator logic for emitting events without buffering.
+Risk: Unnecessary buffering or memory issues with large documents.
+Error/Warning Event Emission
+
+In diagnostics.rs and parser.rs:
+Functions that emit error/warning events for parse issues.
+Risk: Errors only logged, not emitted as events.
+Event Grouping Logic
+
+In group.rs and emitter.rs:
+Functions that group related events (e.g., table rows, list items).
+Risk: Inconsistent grouping, breaking renderers.
+Performance/Profiling Hooks
+
+In diagnostics.rs and parser.rs:
+Functions that emit timing and memory usage events.
+Risk: Missing hooks or performance impact.
+
 ---
+
+DONE:
+
 Advanced Event Stream Features
 1. Full Inline Traversal
 Emit events for all inline types, not just text:
@@ -82,9 +134,6 @@ Support for GFM features (tables, task lists, strikethrough, etc.) by emitting s
 - Code Block Info Strings: If you want to support fenced code blocks with info strings, consider adding a CodeBlockStart event with language and attributes.
 5. Event Filtering/Transformation
 Allow users to filter, transform, or intercept events (e.g., for plugins, custom rendering, or analytics).
-
-All above is done
-
 6. Streaming Output
 Design the iterator to work efficiently with very large documents, emitting events as soon as possible (no buffering).
 7. Error/Warning Events
@@ -94,7 +143,7 @@ Add custom tags for user-defined extensions, block types, or inline types.
 9. Event Grouping
 Emit events for logical groups (e.g., a list of items, a table row) to simplify rendering.
 10. Performance/Profiling Hooks
-Emit timing or memory usage events for profiling and optimization.
+Emit timing and memory usage events for profiling and optimization. 
 
 /src/editor/logic/
 ├── mod.rs

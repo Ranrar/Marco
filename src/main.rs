@@ -1,4 +1,5 @@
 // Stripped-down UI structure modules
+
 mod footer;
 mod menu;
 mod settings;
@@ -7,12 +8,13 @@ mod toolbar;
 pub mod ui;
 pub mod editor;
 pub mod viewer;
+pub mod logic;
 
 
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box, Orientation, HeaderBar, Button};
 use crate::editor::editor::create_editor_with_preview;
-use crate::editor::logic::ast::blocks_and_inlines::{Block, LeafBlock};
+use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
 use gtk4::Align;
 
 const APP_ID: &str = "com.example.Marco";

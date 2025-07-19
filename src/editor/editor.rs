@@ -1,8 +1,8 @@
-use crate::editor::logic::parser::parse_phrases;
+use crate::logic::parser::parse_phrases;
 use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
-use crate::editor::logic::renderer::render;
+use crate::logic::renderer::render;
 use crate::viewer::html::wrap_html_document;
 /// Create a split editor with live HTML preview using WebKit6
 pub fn create_editor_with_preview(ast: &Block) -> Paned {
@@ -39,11 +39,13 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
 
 // Dummy parser for now. Replace with your real Markdown parser implementation.
 fn parse_markdown(input: &str) -> Block {
-    use crate::editor::logic::ast::blocks_and_inlines::{Block, LeafBlock};
+    use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
     if input.trim().is_empty() {
         Block::Leaf(LeafBlock::Paragraph(vec![], None))
     } else {
-        Block::Leaf(LeafBlock::Paragraph(parse_phrases(input), None))
+        let (inlines, _events) = parse_phrases(input);
+        Block::Leaf(LeafBlock::Paragraph(inlines, None))
+        // TODO: handle diagnostics events if needed
     }
 }
 
@@ -52,12 +54,12 @@ fn parse_markdown(input: &str) -> Block {
 // src/markdown/edit.rs
 
 use gtk4 as gtk;
-use gtk::prelude::*;
+// use gtk::prelude::*;
 use gtk::{Box as GtkBox, Label, ScrolledWindow};
 use sourceview5 as gtk_sourceview5;
 use gtk_sourceview5::{Buffer as SourceBuffer, View as SourceView};
-use crate::editor::logic::parser::EventIter;
-use crate::editor::logic::ast::blocks_and_inlines::Block;
+use crate::logic::parser::EventIter;
+use crate::logic::ast::blocks_and_inlines::Block;
 
 pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
     let container = GtkBox::new(gtk::Orientation::Vertical, 6);
@@ -80,7 +82,8 @@ pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
     container.append(&scrolled);
 
     // Use the event stream to display a label for each event (for debugging/demo)
-    for event in EventIter::new(ast) {
+    let mut diagnostics = crate::logic::parser::diagnostics::Diagnostics::new();
+    for event in EventIter::new(ast, Some(&mut diagnostics)) {
         let label = Label::new(Some(&format!("{:?}", event)));
         container.append(&label);
     }

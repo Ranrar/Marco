@@ -1,7 +1,39 @@
-# Marco2 Markdown Parser Architecture & Event Stream Design
+---
+
+## 12. Error/Warning Events & Diagnostics Integration
+
+Marco2 emits error, warning, and unsupported feature events in the event stream, allowing renderers and plugins to handle issues gracefully.
+
+- **Event Enum:**
+    - `Event::Error(String, Option<SourcePos>)`
+    - `Event::Warning(String, Option<SourcePos>)`
+    - `Event::Unsupported(String, Option<SourcePos>)`
+- **Emission:**
+    - Lexer, parser, and extensions emit these events on parse errors, deprecated syntax, or unsupported features.
+- **Diagnostics Integration:**
+    - Centralized in `diagnostics.rs` for reporting, logging, and analytics.
+- **Renderer/Plugin Handling:**
+    - Plugins and renderers can intercept these events for display, logging, or custom handling.
+
+### Example
+```rust
+if invalid_token {
+    events.push(Event::Error("Unrecognized token".to_string(), Some(pos)));
+}
+if deprecated_syntax {
+    events.push(Event::Warning("Deprecated syntax used".to_string(), Some(pos)));
+}
+if unsupported_feature {
+    events.push(Event::Unsupported("Footnotes not supported".to_string(), Some(pos)));
+}
+```
+
+**Best Practice:**
+Emit events for all errors/warnings, never panic or silently skip. Let consumers decide how to handle issues.
+# Marco Markdown Parser Architecture & Event Stream Design
 
 ## Overview
-Marco2 is a modular, extensible Markdown parser designed for advanced event streaming, filtering, and plugin support. This document covers best practices, architecture, and extension points for developers and plugin authors.
+Marco is a modular, extensible Markdown parser designed for advanced event streaming, filtering, and plugin support. This document covers best practices, architecture, and extension points for developers and plugin authors.
 
 ---
 
@@ -45,27 +77,12 @@ Marco2 is a modular, extensible Markdown parser designed for advanced event stre
 
 ## 3. Advanced Event Stream Features
 
-- **Full Inline Traversal:** Emits events for all inline types (text, code, emphasis, links, images, autolinks, raw HTML, breaks, etc.).
-- **Source Position Tracking:** All events include line/column info for error reporting, highlighting, and mapping output to source.
-- **Custom Attributes:** Events can carry custom attributes (classes, IDs, data-*). Attribute parsing from Markdown syntax (`{.class #id}`) is supported.
-- **Extension Support:** GFM features (tables, task lists, strikethrough, etc.), math blocks, emoji, mentions, and code block info strings are supported via specialized events.
-- **Event Filtering/Transformation:** Users can filter, transform, or intercept events for plugins, custom rendering, or analytics.
-- **Streaming Output:** Iterator design emits events efficiently for large documents (no buffering).
-- **Error/Warning Events:** Events for parse errors, warnings, or unsupported features allow graceful handling by renderers.
-- **Custom Tag Types:** Easily add custom tags for user-defined extensions, block types, or inline types.
-- **Event Grouping:** Logical groups (e.g., list items, table rows) simplify rendering.
-- **Performance/Profiling Hooks:** Emit timing/memory usage events for profiling and optimization.
 
----
 
 ## 4. Event Filtering & Transformation API
 
 ### Traits & Pipeline
 ```rust
-pub trait EventFilter {
-    fn filter(&mut self, event: &mut Event) -> bool;
-}
-
 pub trait EventMapper {
     fn map(&mut self, event: &mut Event);
 }
@@ -81,8 +98,6 @@ pub struct EventPipeline {
 let mut pipeline = EventPipeline::new();
 pipeline.add_filter(|event: &mut Event| !matches!(event, Event::SoftBreak(_, _)));
 pipeline.add_mapper(|event: &mut Event| {
-    if let Event::Text(ref mut s, _, _) = event {
-        *s = s.to_uppercase();
     }
 });
 ```
@@ -131,4 +146,78 @@ pipeline.add_mapper(|event: &mut Event| {
 
 ---
 
+## 9. Extension Points for Plugins
+
+### Where to Extend
+- **EventPipeline (transform.rs):** Add custom filters/mappers for analytics, logging, or custom rendering.
+- **Event/Tag Enums (event.rs):** Add new event/tag types for custom syntax or features.
+- **Emitter (emitter.rs):** Intercept or transform events as they are emitted.
+- **Diagnostics (diagnostics.rs):** Intercept error/warning events for reporting or profiling.
+- **Extensions (extensions.rs):** Add support for new Markdown/GFM features or custom syntax.
+
+### Example: Custom Plugin for Analytics
+```rust
+use crate::editor::logic::parser::event::Event;
+use crate::editor::logic::transform::{EventPipeline, EventFilter};
+
+struct EventCounter {
+    pub count: usize,
+}
+
+impl EventFilter for EventCounter {
+    fn filter(&mut self, event: &mut Event) -> bool {
+        self.count += 1;
+        true // keep all events
+    }
+}
+
+let mut counter = EventCounter { count: 0 };
+let mut pipeline = EventPipeline::new();
+pipeline.add_filter(counter);
+// Use pipeline in parser/emitter, then read counter.count
+```
+
+### Example: Timing Plugin
+```rust
+use std::time::Instant;
+struct Timer {
+    start: Instant,
+}
+impl EventFilter for Timer {
+    fn filter(&mut self, _event: &mut Event) -> bool {
+        // Log elapsed time per event
+        println!("Elapsed: {:?}", self.start.elapsed());
+        true
+    }
+}
+```
+
+### Example: Diagnostics Interception
+```rust
+// In diagnostics.rs, define a filter for error/warning events
+struct ErrorLogger;
+impl EventFilter for ErrorLogger {
+    fn filter(&mut self, event: &mut Event) -> bool {
+        if let Event::Error(msg, pos) = event {
+            eprintln!("Error at {:?}: {}", pos, msg);
+        }
+        true
+    }
+}
+```
+
+---
+
+## 10. Notes for Advanced Plugins & Diagnostics
+
+- **Advanced Plugins:**
+    - Consider adding hooks for analytics (e.g., event counters, timing).
+    - Use filters/mappers to collect statistics, log events, or profile performance.
+- **Diagnostics Integration:**
+    - Integrate with `diagnostics.rs` to intercept error/warning events for reporting, logging, or custom handling.
+    - Use event stream hooks to monitor and respond to diagnostics in real time.
+
+---
+
 *For questions, plugin development, or advanced extension support, see the source code in `/src/editor/logic/` and the integration tests in each module.*
+
