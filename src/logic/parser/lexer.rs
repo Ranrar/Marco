@@ -1,5 +1,5 @@
 // Tokenizer: raw Markdown → Tokens (with SourcePos for tracking)
-use crate::logic::parser::attributes_parser;
+use crate::logic::parser::attributes::{self, parse_attributes_block};
 // For now, just move parse_phrases here
 use crate::logic::ast::inlines::Inline;
 
@@ -124,7 +124,7 @@ pub fn parse_phrases(input: &str) -> (Vec<(Inline, SourcePos)>, Vec<crate::logic
             }
             // Parse attributes and attach to previous inline if possible
             if let Some((last_inline, last_pos)) = result.pop() {
-                let attrs = attributes_parser::parse_attributes_block(&attr_block);
+                let attrs = parse_attributes_block(&attr_block);
                 let new_inline = match last_inline {
                     Inline::Text(s) => Inline::Text(s),
                     Inline::Code(mut code) => { code.attributes = Some(attrs); Inline::Code(code) },

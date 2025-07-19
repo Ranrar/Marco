@@ -1,4 +1,3 @@
-pub mod attributes_parser;
 pub mod event;
 pub mod emitter;
 pub mod parser;
@@ -7,3 +6,4 @@ pub mod diagnostics;
 pub use lexer::parse_phrases;
 pub use parser::EventIter;
 pub mod transform;
+pub mod attributes;

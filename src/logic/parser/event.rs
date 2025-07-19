@@ -72,7 +72,7 @@ impl TagEnd {
     }
 }
 // Core event types for Markdown event stream
-use crate::logic::attributes::Attributes;
+use crate::logic::parser::attributes::Attributes;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// Profiling/timing/memory usage event
