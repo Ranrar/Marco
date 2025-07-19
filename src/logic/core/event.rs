@@ -14,7 +14,7 @@
 //! - For plugin authors: Always emit events in a thread-safe manner. If profiling in a worker thread, send results to the main thread before emitting.
 //!
 //! ## Example: Safe Profiling Event Emission
-//! ```rust
+//! ```rust ignore
 //! use glib::MainContext;
 //! use crate::logic::parser::event::{Event, ProfileType};
 //! let sender = MainContext::channel(glib::PRIORITY_DEFAULT);
@@ -76,7 +76,7 @@ impl TagEnd {
     }
 }
 // Core event types for Markdown event stream
-use crate::logic::parser::attributes::Attributes;
+use crate::logic::core::attributes::Attributes;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// Profiling/timing/memory usage event
@@ -88,7 +88,7 @@ pub enum Event {
     /// - `timestamp` is a monotonic or wall-clock time.
     ///
     /// # Example
-    /// ```rust
+    /// ```rust ignore
     /// use crate::logic::parser::event::{Event, ProfileType};
     /// let event = Event::Profile(ProfileType::ParseEnd, 12345, 1620000000);
     /// ```

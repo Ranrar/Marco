@@ -1,8 +1,8 @@
-use crate::logic::parser::parse_phrases;
+use crate::logic::renderer::traits::Renderer;
+use crate::logic::core::parse_phrases;
 use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
-use crate::logic::renderer::renderer::render;
 use crate::viewer::html::wrap_html_document;
 /// Create a split editor with live HTML preview using WebKit6
 pub fn create_editor_with_preview(ast: &Block) -> Paned {
@@ -22,7 +22,9 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
     paned.set_end_child(Some(&webview));
 
     // Initial HTML preview
-    let initial_html = wrap_html_document(&render(ast));
+    // Use HtmlRenderer to render AST to HTML
+    let initial_blocks = [parse_markdown("# Title")];
+    let initial_html = wrap_html_document(crate::logic::renderer::html::HtmlRenderer::render(&initial_blocks).as_str());
     webview.load_html(&initial_html, None);
 
     // Live update: on buffer change, re-render and update WebView
@@ -32,7 +34,8 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
         // Use your real Markdown parser here:
         let ast = parse_markdown(&text); // <-- Implement this function!
         println!("[DEBUG] AST: {:#?}", ast);
-        let html = wrap_html_document(&render(&ast));
+        let blocks = [ast.clone()];
+        let html = wrap_html_document(crate::logic::renderer::html::HtmlRenderer::render(&blocks).as_str());
         println!("[DEBUG] HTML: {}", html);
         webview_clone.load_html(&html, None);
     });
@@ -40,13 +43,39 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
 // Dummy parser for now. Replace with your real Markdown parser implementation.
 fn parse_markdown(input: &str) -> Block {
     use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
-    if input.trim().is_empty() {
-        Block::Leaf(LeafBlock::Paragraph(vec![], None))
-    } else {
-        let (inlines, _events) = parse_phrases(input);
-        Block::Leaf(LeafBlock::Paragraph(inlines, None))
-        // TODO: handle diagnostics events if needed
+    let mut blocks = Vec::new();
+    for line in input.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let hashes = trimmed.chars().take_while(|&c| c == '#').count();
+        if hashes > 0 && trimmed.chars().nth(hashes) == Some(' ') {
+            // Heading
+            let level = hashes as u8;
+            let content = &trimmed[hashes+1..];
+            let (inlines, _events) = parse_phrases(content);
+            blocks.push(Block::Leaf(LeafBlock::Heading {
+                level,
+                content: inlines,
+                attributes: None,
+            }));
+            continue;
+        }
+        // Paragraph
+        let (inlines, _events) = parse_phrases(trimmed);
+        blocks.push(Block::Leaf(LeafBlock::Paragraph(inlines, None)));
     }
+    let ast = if blocks.is_empty() {
+        Block::Leaf(LeafBlock::Paragraph(vec![], None))
+    } else if blocks.len() == 1 {
+        blocks.remove(0)
+    } else {
+        use crate::logic::ast::blocks_and_inlines::ContainerBlock;
+        Block::Container(ContainerBlock::Document(blocks, None))
+    };
+    println!("[PARSE DEBUG] AST: {:#?}", ast);
+    ast
 }
 
     paned
@@ -73,6 +102,11 @@ pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
     source_view.set_vexpand(true);
     source_view.set_editable(true);
 
+    // Use GtkSourceViewRenderer for syntax highlighting and error annotation
+    let mut gtk_renderer = crate::logic::renderer::gtk::GtkSourceViewRenderer::new();
+    gtk_renderer.render(ast).unwrap();
+    // TODO: Use gtk_renderer to update SourceView with highlights/errors
+
     // Put the SourceView in a ScrolledWindow
     let scrolled = ScrolledWindow::new();
     scrolled.set_child(Some(&source_view));
@@ -82,7 +116,7 @@ pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
     container.append(&scrolled);
 
     // Use the event stream to display a label for each event (for debugging/demo)
-    let mut diagnostics = crate::logic::parser::diagnostics::Diagnostics::new();
+    let mut diagnostics = crate::logic::core::diagnostics::Diagnostics::new();
     for event in EventIter::new(ast, Some(&mut diagnostics)) {
         let label = Label::new(Some(&format!("{:?}", event)));
         container.append(&label);

@@ -50,8 +50,8 @@ mod tests {
 
     #[test]
     fn test_markdown_event_stream_with_attributes() {
-        use crate::logic::parser::lexer::parse_phrases;
-        use crate::logic::parser::emitter::push_inline_events;
+        use crate::logic::core::lexer::parse_phrases;
+        use crate::logic::core::emitter::push_inline_events;
         let md = "*emph*{.important} and **strong**{#main} and [link](url){.external}";
         let (inlines, _diag_events) = parse_phrases(md);
         let mut events = Vec::new();

@@ -1,4 +1,4 @@
 pub mod ast;
-pub mod parser;
-pub use parser::*;
+pub mod core;
+pub use core::*;
 pub mod renderer;

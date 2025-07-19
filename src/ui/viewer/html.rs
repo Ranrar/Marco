@@ -6,7 +6,7 @@ pub fn render_html(ast: &Block) -> String {
     let mut html = String::new();
     // TODO: Render custom attributes (classes, IDs, data-*) for each tag if present in attr
     // See parser and AST for propagation logic. This is not yet implemented.
-    let mut diagnostics = crate::logic::parser::diagnostics::Diagnostics::new();
+    let mut diagnostics = crate::logic::core::diagnostics::Diagnostics::new();
     for event in EventIter::new(ast, Some(&mut diagnostics)) {
         match event {
             Event::Profile(profile_type, value, timestamp) => {
@@ -17,9 +17,9 @@ pub fn render_html(ast: &Block) -> String {
             Event::GroupStart(group_type, _, _) => {
                 // Fallback: wrap group in a div with group type as class
                 let class = match group_type {
-                    crate::logic::parser::event::GroupType::List => "group-list",
-                    crate::logic::parser::event::GroupType::TableRow => "group-table-row",
-                    crate::logic::parser::event::GroupType::BlockGroup => "group-block",
+                    crate::logic::core::event::GroupType::List => "group-list",
+                    crate::logic::core::event::GroupType::TableRow => "group-table-row",
+                    crate::logic::core::event::GroupType::BlockGroup => "group-block",
                 };
                 html.push_str(&format!("<div class='{}'>", class));
             }

@@ -73,9 +73,9 @@ pub enum ContainerBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LeafBlock {
     /// Paragraph (contains inlines and source positions).
-    Paragraph(Vec<(crate::logic::ast::inlines::Inline, crate::logic::parser::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
+    Paragraph(Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
     /// Heading (contains inlines and source positions, with level).
-    Heading { level: u8, content: Vec<(crate::logic::ast::inlines::Inline, crate::logic::parser::event::SourcePos)>, attributes: Option<crate::logic::attributes::Attributes> },
+    Heading { level: u8, content: Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event::SourcePos)>, attributes: Option<crate::logic::attributes::Attributes> },
     /// ATX Heading (with level and raw content).
     AtxHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attributes::Attributes> },
     /// Setext Heading (with level and raw content).

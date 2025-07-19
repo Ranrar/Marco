@@ -1,9 +1,9 @@
 #[cfg(test)]
 mod tests {
     use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
-    use crate::logic::parser::event::Event;
-    use crate::logic::parser::transform::EventPipeline;
-    use crate::logic::parser::diagnostics::Diagnostics;
+    use crate::logic::core::event::Event;
+    use crate::logic::core::transform::EventPipeline;
+    use crate::logic::core::diagnostics::Diagnostics;
     use super::*;
 
     fn dummy_block() -> Block {
@@ -51,7 +51,7 @@ mod tests {
 // Main parser: Token stream → Event stream or AST (supports streaming)
 use super::event::Event;
 use crate::logic::ast::blocks_and_inlines::Block;
-use crate::logic::parser::transform::EventPipeline;
+use crate::logic::core::transform::EventPipeline;
 
 pub struct EventIter<'a> {
     stack: Vec<&'a Block>,
@@ -108,12 +108,12 @@ impl<'a> Iterator for EventIter<'a> {
                             }
                             // Use GroupType::List for all containers (simplified)
                             self.state.push(Event::GroupStart(
-                                crate::logic::parser::event::GroupType::List,
+                                crate::logic::core::event::GroupType::List,
                                 None,
                                 None,
                             ));
                             self.state.push(Event::GroupEnd(
-                                crate::logic::parser::event::GroupType::List,
+                                crate::logic::core::event::GroupType::List,
                                 None,
                                 None,
                             ));
@@ -123,12 +123,12 @@ impl<'a> Iterator for EventIter<'a> {
                                 self.stack.push(child);
                             }
                             self.state.push(Event::GroupStart(
-                                crate::logic::parser::event::GroupType::List,
+                                crate::logic::core::event::GroupType::List,
                                 None,
                                 None,
                             ));
                             self.state.push(Event::GroupEnd(
-                                crate::logic::parser::event::GroupType::List,
+                                crate::logic::core::event::GroupType::List,
                                 None,
                                 None,
                             ));
@@ -138,12 +138,12 @@ impl<'a> Iterator for EventIter<'a> {
                                 self.stack.push(item);
                             }
                             self.state.push(Event::GroupStart(
-                                crate::logic::parser::event::GroupType::List,
+                                crate::logic::core::event::GroupType::List,
                                 None,
                                 None,
                             ));
                             self.state.push(Event::GroupEnd(
-                                crate::logic::parser::event::GroupType::List,
+                                crate::logic::core::event::GroupType::List,
                                 None,
                                 None,
                             ));
@@ -152,7 +152,7 @@ impl<'a> Iterator for EventIter<'a> {
                 }
                 Block::Leaf(leaf) => {
                     use crate::logic::ast::blocks_and_inlines::LeafBlock;
-                    use crate::logic::parser::event::{Tag, TagEnd};
+                    use crate::logic::core::event::{Tag, TagEnd};
                     match leaf {
                         LeafBlock::Paragraph(_, attrs) => {
                             self.state.push(Event::End(TagEnd::Paragraph(attrs.clone()), None, attrs.clone()));

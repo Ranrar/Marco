@@ -19,7 +19,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Inline {
     /// 6.1 Code spans: Inline code delimited by backticks.
-    Code(CodeSpan),
+    CodeSpan(CodeSpan),
     /// 6.2 Emphasis and strong emphasis: *em*, **strong**, possibly nested.
     Emphasis(Emphasis),
     /// 6.3 Links: Inline, reference, shortcut, and collapsed links.
@@ -39,13 +39,13 @@ pub enum Inline {
     /// Math inline (GFM/LaTeX, e.g., $ ... $)
     Math(crate::logic::ast::math::MathInline),
     /// Emoji inline (e.g., :smile:)
-    Emoji(String, String, crate::logic::parser::event::SourcePos),
+    Emoji(String, String, crate::logic::core::event::SourcePos),
     /// Mention inline (e.g., @username)
-    Mention(String, crate::logic::parser::event::SourcePos),
+    Mention(String, crate::logic::core::event::SourcePos),
     /// Table caption inline
-    TableCaption(String, Option<crate::logic::attributes::Attributes>, crate::logic::parser::event::SourcePos),
+    TableCaption(String, Option<crate::logic::attributes::Attributes>, crate::logic::core::event::SourcePos),
     /// Task list metadata inline
-    TaskListMeta(Option<String>, Option<crate::logic::attributes::Attributes>, crate::logic::parser::event::SourcePos),
+    TaskListMeta(Option<String>, Option<crate::logic::attributes::Attributes>, crate::logic::core::event::SourcePos),
 }
 
 // === 6.1 Code spans ===
@@ -64,9 +64,9 @@ pub struct CodeSpan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Emphasis {
     /// Emphasized text (single * or _).
-    Emph(Vec<(Inline, crate::logic::parser::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
+    Emph(Vec<(Inline, crate::logic::core::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
     /// Strongly emphasized text (double ** or __).
-    Strong(Vec<(Inline, crate::logic::parser::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
+    Strong(Vec<(Inline, crate::logic::core::event::SourcePos)>, Option<crate::logic::attributes::Attributes>),
 }
 
 // === 6.3 Links ===
@@ -75,7 +75,7 @@ pub enum Emphasis {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Link {
     /// The link text (inline content inside [ ]).
-    pub label: Vec<(Inline, crate::logic::parser::event::SourcePos)>,
+    pub label: Vec<(Inline, crate::logic::core::event::SourcePos)>,
     /// The link destination (URL or reference label).
     pub destination: LinkDestination,
     /// Optional link title (from title attribute or reference definition).
@@ -98,7 +98,7 @@ pub enum LinkDestination {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     /// The alt text (inline content inside [ ]).
-    pub alt: Vec<(Inline, crate::logic::parser::event::SourcePos)>,
+    pub alt: Vec<(Inline, crate::logic::core::event::SourcePos)>,
     /// The image source (URL or reference label).
     pub destination: LinkDestination,
     /// Optional image title (from title attribute or reference definition).

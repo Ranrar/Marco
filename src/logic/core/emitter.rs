@@ -10,7 +10,7 @@ use super::event::{Event, Tag, SourcePos};
 use crate::logic::ast::inlines::Inline;
 
 // Helper to push inline events for all inline types
-use crate::logic::parser::transform::EventPipeline;
+use crate::logic::core::transform::EventPipeline;
 
 /// Push inline events, optionally processing each event through a pipeline.
 pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePos)>, pipeline: &mut Option<&mut EventPipeline>) {
@@ -18,7 +18,7 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
         let mut events = Vec::new();
         match inline {
             Inline::Text(s) => events.push(Event::Text(s.clone(), Some(pos.clone()), None)),
-            Inline::Code(code) => {
+            Inline::CodeSpan(code) => {
                 let attrs = code.attributes.clone();
                 events.push(Event::Code(code.content.clone(), Some(pos.clone()), attrs.clone()));
             }
@@ -135,7 +135,7 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
 mod tests {
     #[test]
     fn emitter_emits_custom_tag_events() {
-        use crate::logic::parser::event::{Tag, TagEnd, Event, SourcePos};
+        use crate::logic::core::event::{Tag, TagEnd, Event, SourcePos};
         let name = "callout".to_string();
         let data = Some("info".to_string());
         let attrs = None;
@@ -151,7 +151,7 @@ mod tests {
     }
     use crate::logic::ast::inlines::Inline;
     use crate::logic::ast::math::{MathInline, MathType};
-    use crate::logic::parser::event::SourcePos;
+    use crate::logic::core::event::SourcePos;
     #[test]
     fn emitter_emits_extension_events() {
         let math = Inline::Math(MathInline {
@@ -170,7 +170,7 @@ mod tests {
         match math {
             Inline::Math(ref m) => {
                 let attrs = m.attributes.clone();
-                state.push(crate::logic::parser::event::Event::Math {
+                state.push(crate::logic::core::event::Event::Math {
                     content: m.content.clone(),
                     pos: m.position.clone(),
                     attributes: attrs,
@@ -181,22 +181,22 @@ mod tests {
         // Emoji
         match emoji {
             Inline::Emoji(ref shortcode, ref unicode, ref pos) => {
-                state.push(crate::logic::parser::event::Event::Emoji(shortcode.clone(), unicode.clone(), Some(pos.clone())));
+                state.push(crate::logic::core::event::Event::Emoji(shortcode.clone(), unicode.clone(), Some(pos.clone())));
             },
             _ => {}
         }
         // Mention
         match mention {
             Inline::Mention(ref username, ref pos) => {
-                state.push(crate::logic::parser::event::Event::Mention(username.clone(), Some(pos.clone())));
+                state.push(crate::logic::core::event::Event::Mention(username.clone(), Some(pos.clone())));
             },
             _ => {}
         }
         // TableCaption
         match table_caption {
             Inline::TableCaption(ref content, ref attr, ref pos) => {
-                state.push(crate::logic::parser::event::Event::Start(
-                    crate::logic::parser::event::Tag::TableCaption(content.clone(), attr.clone()),
+                state.push(crate::logic::core::event::Event::Start(
+                    crate::logic::core::event::Tag::TableCaption(content.clone(), attr.clone()),
                     Some(pos.clone()),
                     attr.clone(),
                 ));
@@ -206,8 +206,8 @@ mod tests {
         // TaskListMeta
         match task_list_meta {
             Inline::TaskListMeta(ref group, ref attr, ref pos) => {
-                state.push(crate::logic::parser::event::Event::Start(
-                    crate::logic::parser::event::Tag::TaskListMeta(group.clone(), attr.clone()),
+                state.push(crate::logic::core::event::Event::Start(
+                    crate::logic::core::event::Tag::TaskListMeta(group.clone(), attr.clone()),
                     Some(pos.clone()),
                     attr.clone(),
                 ));
@@ -215,10 +215,10 @@ mod tests {
             _ => {}
         }
         // Check that all events are present
-        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Math { .. })), "Math event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Emoji(_, _, _))), "Emoji event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Mention(_, _))), "Mention event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Start(crate::logic::parser::event::Tag::TableCaption(_, _), _, _))), "TableCaption event missing");
-        assert!(state.iter().any(|e| matches!(e, crate::logic::parser::event::Event::Start(crate::logic::parser::event::Tag::TaskListMeta(_, _), _, _))), "TaskListMeta event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::core::event::Event::Math { .. })), "Math event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::core::event::Event::Emoji(_, _, _))), "Emoji event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::core::event::Event::Mention(_, _))), "Mention event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::core::event::Event::Start(crate::logic::core::event::Tag::TableCaption(_, _), _, _))), "TableCaption event missing");
+        assert!(state.iter().any(|e| matches!(e, crate::logic::core::event::Event::Start(crate::logic::core::event::Tag::TaskListMeta(_, _), _, _))), "TaskListMeta event missing");
     }
 }

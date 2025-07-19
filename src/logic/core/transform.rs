@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logic::parser::event::{Event, Tag};
+    use crate::logic::core::event::{Event, Tag};
 
     #[test]
     fn test_event_filtering_pipeline() {

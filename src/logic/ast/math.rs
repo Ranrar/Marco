@@ -1,7 +1,7 @@
 //! AST node definitions for Markdown math blocks and inline math (GFM/LaTeX).
 
 use crate::logic::attributes::Attributes;
-use crate::logic::parser::event::SourcePos;
+use crate::logic::core::event::SourcePos;
 
 /// Supported math types for Markdown math blocks and inline math
 #[derive(Debug, Clone, PartialEq, Eq)]
