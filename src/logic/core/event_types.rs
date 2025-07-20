@@ -121,6 +121,8 @@ pub enum Event {
     Error(String, Option<SourcePos>),
     Warning(String, Option<SourcePos>),
     Unsupported(String, Option<SourcePos>),
+    /// Inline content (used for table cells and other contexts)
+    Inline(crate::logic::ast::inlines::Inline, Option<SourcePos>, Option<Attributes>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -145,6 +147,9 @@ pub enum Tag {
         data: Option<String>,
         attributes: Option<Attributes>,
     },
+    Table(Option<Attributes>),
+    TableRow,
+    TableCell,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,10 +170,14 @@ pub enum TagEnd {
         name: String,
         attributes: Option<Attributes>,
     },
+    Table(Option<Attributes>),
+    TableRow,
+    TableCell,
+    TableCaption,
 }
 
 // Source position tracking for advanced features
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct SourcePos {
     pub line: usize,
     pub column: usize,

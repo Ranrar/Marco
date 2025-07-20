@@ -23,3 +23,5 @@ regex = "1.10.4"
 [dev-dependencies]
 # Basic testing
 criterion = "0.5"
+
+rand = "0.8"

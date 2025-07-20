@@ -60,6 +60,12 @@ impl HtmlRenderer {
                 };
                 format!("<{tag}>{}</{tag}>\n", Self::render_inlines(content), tag=tag)
             }
+            LeafBlock::IndentedCodeBlock { content, .. } => {
+                format!("<pre><code>{}</code></pre>\n", html_escape::encode_text(content))
+            }
+            LeafBlock::FencedCodeBlock { content, .. } => {
+                format!("<pre><code>{}</code></pre>\n", html_escape::encode_text(content))
+            }
             other => {
                 println!("[HTML DEBUG] Unknown leaf block: {:#?}", other);
                 String::new()
@@ -77,14 +83,20 @@ impl HtmlRenderer {
                 }
                 Inline::Emphasis(emph) => match emph {
                     crate::logic::ast::inlines::Emphasis::Emph(inner, _) => {
-                        html.push_str("<em>");
-                        html.push_str(&Self::render_inlines(inner));
-                        html.push_str("</em>");
+                        let inner_html = Self::render_inlines(inner);
+                        if !inner_html.is_empty() {
+                            html.push_str("<em>");
+                            html.push_str(&inner_html);
+                            html.push_str("</em>");
+                        }
                     }
                     crate::logic::ast::inlines::Emphasis::Strong(inner, _) => {
-                        html.push_str("<strong>");
-                        html.push_str(&Self::render_inlines(inner));
-                        html.push_str("</strong>");
+                        let inner_html = Self::render_inlines(inner);
+                        if !inner_html.is_empty() {
+                            html.push_str("<strong>");
+                            html.push_str(&inner_html);
+                            html.push_str("</strong>");
+                        }
                     }
                 },
                 Inline::Text(text) => {
@@ -92,13 +104,19 @@ impl HtmlRenderer {
                 }
                 Inline::Link(link) => {
                     let label = Self::render_inlines(&link.label);
-                    let dest = format!("{:?}", link.destination);
-                    html.push_str(&format!("<a href=\"{}\">{}</a>", dest, label));
+                    let dest = match &link.destination {
+                        crate::logic::ast::inlines::LinkDestination::Inline(s) => s,
+                        crate::logic::ast::inlines::LinkDestination::Reference(s) => s,
+                    };
+                    html.push_str(&format!("<a href=\"{}\">{}</a>", html_escape::encode_double_quoted_attribute(dest), label));
                 }
                 Inline::Image(image) => {
                     let alt = Self::render_inlines(&image.alt);
-                    let src = format!("{:?}", image.destination);
-                    html.push_str(&format!("<img src=\"{}\" alt=\"{}\">", src, alt));
+                    let src = match &image.destination {
+                        crate::logic::ast::inlines::LinkDestination::Inline(s) => s,
+                        crate::logic::ast::inlines::LinkDestination::Reference(s) => s,
+                    };
+                    html.push_str(&format!("<img src=\"{}\" alt=\"{}\">", html_escape::encode_double_quoted_attribute(src), alt));
                 }
                 _ => {
                     // TODO: handle more inline types
@@ -161,7 +179,7 @@ mod tests {
                 title: None,
                 attributes: None,
             }), SourcePos::default())
-        ], None))]), "<p><a href=\"Inline(\"url\")\">title</a></p>\n");
+        ], None))]), "<p><a href=\"url\">title</a></p>\n");
         assert_eq!(HtmlRenderer::render(&[Block::Leaf(LeafBlock::Paragraph(vec![
             (Inline::Image(Image {
                 alt: vec![(Inline::Text("alt".into()), SourcePos::default())],
@@ -169,7 +187,7 @@ mod tests {
                 title: None,
                 attributes: None,
             }), SourcePos::default())
-        ], None))]), "<p><img src=\"Inline(\"src\")\" alt=\"alt\"></p>\n");
+        ], None))]), "<p><img src=\"src\" alt=\"alt\"></p>\n");
     }
 
     #[test]

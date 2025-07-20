@@ -105,6 +105,22 @@ pub enum LeafBlock {
     BlankLine,
     /// Math block (GFM/LaTeX, e.g., $$ ... $$ or ```math ... ```)
     Math(crate::logic::ast::math::MathBlock),
+
+    /// Custom tag block (for :::custom ...::: and other extension containers)
+    CustomTagBlock {
+        name: String,
+        data: Option<String>,
+        content: Vec<Block>,
+        attributes: Option<crate::logic::attr_parser::Attributes>,
+    },
+    /// Table block (GFM extension)
+    Table {
+        header: crate::logic::ast::github::TableRow,
+        alignments: Vec<crate::logic::ast::github::TableAlignment>,
+        rows: Vec<crate::logic::ast::github::TableRow>,
+        caption: Option<String>,
+        attributes: Option<crate::logic::attr_parser::Attributes>,
+    },
 }
 
 /// List marker: bullet or ordered.

@@ -50,7 +50,7 @@ mod tests {
 
     #[test]
     fn test_markdown_event_stream_with_attributes() {
-        use crate::logic::core::lexer::parse_phrases;
+        use crate::logic::core::inline::parser::parse_phrases;
         use crate::logic::core::event_emitter::push_inline_events;
         let md = "*emph*{.important} and **strong**{#main} and [link](url){.external}";
         let (inlines, _diag_events) = parse_phrases(md);

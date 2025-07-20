@@ -1,5 +1,5 @@
-use crate::logic::parser::EventIter;
-use crate::logic::event::{Event, Tag, TagEnd};
+use crate::logic::core::block_parser::EventIter;
+use crate::logic::core::event_types::{Event, Tag, TagEnd, GroupType};
 use crate::logic::ast::blocks_and_inlines::Block;
 
 pub fn render_html(ast: &Block) -> String {
@@ -9,6 +9,13 @@ pub fn render_html(ast: &Block) -> String {
     let mut diagnostics = crate::logic::core::diagnostics::Diagnostics::new();
     for event in EventIter::new(ast, Some(&mut diagnostics)) {
         match event {
+            Event::End(TagEnd::TableCaption, _, _) => {},
+            Event::Start(Tag::Table(_), _, _) => html.push_str("<table>"),
+            Event::End(TagEnd::Table(_), _, _) => html.push_str("</table>\n"),
+            Event::Start(Tag::TableRow, _, _) => html.push_str("<tr>"),
+            Event::End(TagEnd::TableRow, _, _) => html.push_str("</tr>\n"),
+            Event::Start(Tag::TableCell, _, _) => html.push_str("<td>"),
+            Event::End(TagEnd::TableCell, _, _) => html.push_str("</td>"),
             Event::Profile(profile_type, value, timestamp) => {
                 // Profiling event: log, ignore, or provide plugin hook
                 // For now, add as HTML comment for diagnostics
@@ -17,11 +24,37 @@ pub fn render_html(ast: &Block) -> String {
             Event::GroupStart(group_type, _, _) => {
                 // Fallback: wrap group in a div with group type as class
                 let class = match group_type {
-                    crate::logic::core::event::GroupType::List => "group-list",
-                    crate::logic::core::event::GroupType::TableRow => "group-table-row",
-                    crate::logic::core::event::GroupType::BlockGroup => "group-block",
+                    GroupType::List => "group-list",
+                    GroupType::TableRow => "group-table-row",
+                    GroupType::BlockGroup => "group-block",
                 };
                 html.push_str(&format!("<div class='{}'>", class));
+            }
+            Event::Inline(inline, _, _) => {
+                // Render inline content (text, emphasis, code, etc.)
+                match inline {
+                    crate::logic::ast::inlines::Inline::Text(s) => html.push_str(&s),
+                    crate::logic::ast::inlines::Inline::Emphasis(emph) => match emph {
+                        crate::logic::ast::inlines::Emphasis::Emph(children, _) => {
+                            html.push_str("<em>");
+                            for (child, _) in children { html.push_str(&format!("{:?}", child)); }
+                            html.push_str("</em>");
+                        }
+                        crate::logic::ast::inlines::Emphasis::Strong(children, _) => {
+                            html.push_str("<strong>");
+                            for (child, _) in children { html.push_str(&format!("{:?}", child)); }
+                            html.push_str("</strong>");
+                        }
+                    },
+                    crate::logic::ast::inlines::Inline::CodeSpan(code_span) => {
+                        html.push_str(&format!("<code>{}</code>", code_span.content));
+                    }
+                    crate::logic::ast::inlines::Inline::RawHtml(html_raw) => {
+                        html.push_str(&html_raw);
+                    }
+                    // Add more inline variants as needed
+                    _ => {}
+                }
             }
             Event::GroupEnd(_, _, _) => {
                 // Fallback: close the group div
@@ -92,7 +125,7 @@ pub fn render_html(ast: &Block) -> String {
                 html.push_str(&format!("<span class='unsupported'>Unsupported: {} at {:?}</span>", msg, pos));
             },
             Event::Start(Tag::CustomTag { name, data, attributes }, _, _) => {
-                // Fallback: render as a div with data attributes, or call plugin hook
+                // Render custom tag block as a div with attributes
                 html.push_str(&format!(
                     "<div class='custom-tag' data-name='{}'{}{}>",
                     name,
@@ -101,8 +134,19 @@ pub fn render_html(ast: &Block) -> String {
                 ));
             }
             Event::End(TagEnd::CustomTagEnd { name, attributes }, _, _) => {
-                // Fallback: close the custom tag div
                 html.push_str("</div>");
+            }
+            // Handle direct CustomTagBlock AST node (for robustness)
+            Event::Text(text, _, _) if text.starts_with("CUSTOM_TAG_BLOCK:") => {
+                // Parse and render custom tag block from text marker
+                // (This is a fallback for direct AST emission)
+                // Example: CUSTOM_TAG_BLOCK:name:data:content
+                let parts: Vec<&str> = text.splitn(4, ':').collect();
+                if parts.len() == 4 {
+                    html.push_str(&format!("<div class='custom-tag' data-name='{}' data-data='{}'>{}</div>", parts[1], parts[2], parts[3]));
+                } else {
+                    html.push_str(&text);
+                }
             }
         }
     }

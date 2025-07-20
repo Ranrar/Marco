@@ -186,6 +186,37 @@ impl<'a> Iterator for EventIter<'a> {
                             self.state.push(Event::End(TagEnd::HtmlBlock(attributes.clone()), None, attributes.clone()));
                             self.state.push(Event::Start(Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
                         }
+                        LeafBlock::Table { header, alignments, rows, caption, attributes } => {
+                            self.state.push(Event::Start(Tag::Table(attributes.clone()), None, attributes.clone()));
+                            // Emit header row
+                            self.state.push(Event::Start(Tag::TableRow, None, attributes.clone()));
+                            for cell in &header.cells {
+                                self.state.push(Event::Start(Tag::TableCell, None, attributes.clone()));
+                                for (inline, pos) in &cell.content {
+                                    self.state.push(Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
+                                }
+                                self.state.push(Event::End(TagEnd::TableCell, None, attributes.clone()));
+                            }
+                            self.state.push(Event::End(TagEnd::TableRow, None, attributes.clone()));
+                            // Emit data rows
+                            for row in rows {
+                                self.state.push(Event::Start(Tag::TableRow, None, attributes.clone()));
+                                for cell in &row.cells {
+                                    self.state.push(Event::Start(Tag::TableCell, None, attributes.clone()));
+                                    for (inline, pos) in &cell.content {
+                                        self.state.push(Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
+                                    }
+                                    self.state.push(Event::End(TagEnd::TableCell, None, attributes.clone()));
+                                }
+                                self.state.push(Event::End(TagEnd::TableRow, None, attributes.clone()));
+                            }
+                            // Emit caption if present
+                            if let Some(caption_text) = caption {
+                                self.state.push(Event::Start(Tag::TableCaption(caption_text.clone(), attributes.clone()), None, attributes.clone()));
+                                self.state.push(Event::End(TagEnd::TableCaption, None, attributes.clone()));
+                            }
+                            self.state.push(Event::End(TagEnd::Table(attributes.clone()), None, attributes.clone()));
+                        }
                         LeafBlock::LinkReferenceDefinition { attributes, .. } => {
                             self.state.push(Event::End(TagEnd::HtmlBlock(attributes.clone()), None, attributes.clone()));
                             self.state.push(Event::Start(Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
@@ -200,6 +231,29 @@ impl<'a> Iterator for EventIter<'a> {
                                 pos: None,
                                 attributes: math_block.attributes.clone(),
                             });
+                        }
+                        LeafBlock::CustomTagBlock { name, data, content, attributes } => {
+                            self.state.push(Event::End(
+                                crate::logic::core::event_types::TagEnd::CustomTagEnd {
+                                    name: name.clone(),
+                                    attributes: attributes.clone(),
+                                },
+                                None,
+                                attributes.clone(),
+                            ));
+                            self.state.push(Event::Start(
+                                crate::logic::core::event_types::Tag::CustomTag {
+                                    name: name.clone(),
+                                    data: data.clone(),
+                                    attributes: attributes.clone(),
+                                },
+                                None,
+                                attributes.clone(),
+                            ));
+                            // Push children blocks to stack for traversal
+                            for child in content.iter().rev() {
+                                self.stack.push(child);
+                            }
                         }
                     }
                 }

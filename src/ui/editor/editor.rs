@@ -1,5 +1,5 @@
 use crate::logic::renderer::traits::Renderer;
-use crate::logic::core::parse_phrases;
+use crate::logic::core::inline::parser::parse_phrases;
 use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
@@ -87,7 +87,7 @@ use gtk4 as gtk;
 use gtk::{Box as GtkBox, Label, ScrolledWindow};
 use sourceview5 as gtk_sourceview5;
 use gtk_sourceview5::{Buffer as SourceBuffer, View as SourceView};
-use crate::logic::parser::EventIter;
+use crate::logic::core::block_parser::EventIter;
 use crate::logic::ast::blocks_and_inlines::Block;
 
 pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
