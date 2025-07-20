@@ -1,3 +1,5 @@
+/// this is the main html code viever
+
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, TextView, Widget};
 use std::cell::RefCell;

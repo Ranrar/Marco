@@ -1,6 +1,6 @@
-// UI module
+pub mod main_editor;
+pub mod code_viewer;
+pub mod html_viewer;
 pub mod splitview;
-pub mod viewer;
-pub mod editor;
 pub mod settings;
 pub use splitview::create_split_view;

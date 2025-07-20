@@ -8,18 +8,12 @@ mod settings {
 mod theme;
 mod toolbar;
 pub mod ui;
-pub mod editor {
-    pub use crate::ui::editor::*;
-}
-mod viewer {
-    pub use crate::ui::viewer::*;
-}
 pub mod logic;
 
 
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box, Orientation, HeaderBar, Button};
-use crate::ui::editor::editor::create_editor_with_preview;
+use crate::ui::main_editor::create_editor_with_preview;
 use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
 use gtk4::Align;
 

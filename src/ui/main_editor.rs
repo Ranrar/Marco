@@ -1,9 +1,11 @@
+/// This is the markdown editor
+
 use crate::logic::renderer::traits::Renderer;
 use crate::logic::core::inline::parser::parse_phrases;
 use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
-use crate::viewer::html::wrap_html_document;
+use crate::ui::html_viewer::wrap_html_document;
 /// Create a split editor with live HTML preview using WebKit6
 pub fn create_editor_with_preview(ast: &Block) -> Paned {
     let paned = Paned::new(gtk::Orientation::Horizontal);
@@ -16,27 +18,19 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
     paned.set_start_child(Some(&editor_widget));
 
     // WebView (right)
-    let webview = WebView::new();
-    webview.set_hexpand(true);
-    webview.set_vexpand(true);
-    paned.set_end_child(Some(&webview));
-
-    // Initial HTML preview
-    // Use HtmlRenderer to render AST to HTML
     let initial_blocks = [parse_markdown("# Title")];
     let initial_html = wrap_html_document(crate::logic::renderer::html::HtmlRenderer::render(&initial_blocks).as_str());
-    webview.load_html(&initial_html, None);
+    let webview = crate::ui::html_viewer::create_html_viewer(&initial_html);
+    paned.set_end_child(Some(&webview));
 
     // Live update: on buffer change, re-render and update WebView
     let webview_clone = webview.clone();
     buffer.connect_changed(move |buf| {
         let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
-        // Use your real Markdown parser here:
-        let ast = parse_markdown(&text); // <-- Implement this function!
+        let ast = parse_markdown(&text);
         println!("[DEBUG] AST: {:#?}", ast);
         let blocks = [ast.clone()];
         let html = wrap_html_document(crate::logic::renderer::html::HtmlRenderer::render(&blocks).as_str());
-        println!("[DEBUG] HTML: {}", html);
         webview_clone.load_html(&html, None);
     });
 
