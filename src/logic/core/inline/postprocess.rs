@@ -253,7 +253,7 @@ fn merge_tree(nodes: Vec<InlineNode>) -> Vec<InlineNode> {
         match node {
             InlineNode::Text { text: ref s, pos } => {
                 if let Some((ref mut acc, ref acc_pos)) = last_text {
-                    acc.push_str(s);
+                    (*acc).push_str(s);
                 } else {
                     last_text = Some((s.clone(), pos));
                 }

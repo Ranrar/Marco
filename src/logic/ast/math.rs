@@ -56,7 +56,7 @@ pub fn parse_math_block_safe(is_valid: bool) -> AstResult<MathBlock> {
     }
 }
 
-use crate::logic::attr_parser::Attributes;
+use crate::logic::core::attr_parser::Attributes;
 use crate::logic::core::event_types::SourcePos;
 
 /// Supported math types for Markdown math blocks and inline math

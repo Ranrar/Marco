@@ -231,7 +231,7 @@ mod tests {
     }
     #[test]
     fn custom_tag_event_works() {
-        use crate::logic::attr_parser::Attributes;
+use crate::logic::core::attr_parser::Attributes;
         let attrs = Some(Attributes::default());
         let tag = Tag::custom("callout", Some("info".to_string()), attrs.clone());
         let tag_end = TagEnd::custom("callout", attrs.clone());

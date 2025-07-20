@@ -23,15 +23,13 @@
 /// Implements the delimiter stack algorithm for emphasis, strong, and links/images.
 /// Maintains a stack of delimiters with metadata and performs pairing of opening/closing delimiters.
 
-use crate::logic::ast::inlines::Inline;
-use crate::logic::core::event_types::SourcePos;
-use super::types::Delim;
+use super::types::{Delim, InlineNode, SourcePos};
 
 /// Processes the delimiter stack for emphasis/strong pairing and returns updated result vector.
 /// Processes the delimiter stack for emphasis/strong pairing and returns updated result vector.
 pub fn process_delimiters(
     delim_stack: &mut Vec<Delim>,
-    result: &mut Vec<(Inline, SourcePos)>
+    result: &mut Vec<(InlineNode, SourcePos)>
 ) {
     // Track which delimiters have been paired/used
     let mut used = vec![false; delim_stack.len()];
@@ -81,16 +79,11 @@ pub fn process_delimiters(
                 Vec::new()
             };
             // Build AST node for emphasis or strong
+            let children: Vec<InlineNode> = inner_nodes_with_pos.into_iter().map(|(n, _)| n).collect();
             let ast = if emph_type == "strong" {
-                Inline::Emphasis(crate::logic::ast::inlines::Emphasis::Strong(
-                    inner_nodes_with_pos,
-                    None
-                ))
+                InlineNode::Strong { children, pos: opener.pos.clone() }
             } else {
-                Inline::Emphasis(crate::logic::ast::inlines::Emphasis::Emph(
-                    inner_nodes_with_pos,
-                    None
-                ))
+                InlineNode::Emphasis { children, pos: opener.pos.clone() }
             };
             // Insert AST node at correct position
             if start >= result.len() {
@@ -110,7 +103,7 @@ pub fn process_delimiters(
     for (idx, delim) in delim_stack.iter().enumerate() {
         if !used[idx] {
             let txt = delim.ch.to_string().repeat(delim.count);
-            result.push((Inline::Text(txt), delim.pos.clone()));
+            result.push((InlineNode::Text { text: txt, pos: delim.pos.clone() }, delim.pos.clone()));
         }
     }
 }

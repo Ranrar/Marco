@@ -155,9 +155,9 @@ pub enum Inline {
     /// Mention inline (e.g., @username)
     Mention(String, crate::logic::core::event_types::SourcePos),
     /// Table caption inline
-    TableCaption(String, Option<crate::logic::attr_parser::Attributes>, crate::logic::core::event_types::SourcePos),
+    TableCaption(String, Option<crate::logic::core::attr_parser::Attributes>, crate::logic::core::event_types::SourcePos),
     /// Task list metadata inline
-    TaskListMeta(Option<String>, Option<crate::logic::attr_parser::Attributes>, crate::logic::core::event_types::SourcePos),
+    TaskListMeta(Option<String>, Option<crate::logic::core::attr_parser::Attributes>, crate::logic::core::event_types::SourcePos),
 }
 
 
@@ -168,7 +168,7 @@ pub enum Inline {
 pub struct CodeSpan {
     /// The literal code content (spaces and line endings normalized as per spec).
     pub content: String,
-    pub attributes: Option<crate::logic::attr_parser::Attributes>,
+    pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
 }
 
 // === 6.2 Emphasis and strong emphasis ===
@@ -177,9 +177,9 @@ pub struct CodeSpan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Emphasis {
     /// Emphasized text (single * or _).
-    Emph(Vec<(Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::attr_parser::Attributes>),
+    Emph(Vec<(Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::core::attr_parser::Attributes>),
     /// Strongly emphasized text (double ** or __).
-    Strong(Vec<(Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::attr_parser::Attributes>),
+    Strong(Vec<(Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::core::attr_parser::Attributes>),
 }
 
 // === 6.3 Links ===
@@ -193,7 +193,7 @@ pub struct Link {
     pub destination: LinkDestination,
     /// Optional link title (from title attribute or reference definition).
     pub title: Option<String>,
-    pub attributes: Option<crate::logic::attr_parser::Attributes>,
+    pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
 }
 
 /// The destination of a link: either a direct URI or a reference label.
@@ -216,7 +216,7 @@ pub struct Image {
     pub destination: LinkDestination,
     /// Optional image title (from title attribute or reference definition).
     pub title: Option<String>,
-    pub attributes: Option<crate::logic::attr_parser::Attributes>,
+    pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
 }
 
 // === 6.5 Autolinks ===

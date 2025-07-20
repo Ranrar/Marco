@@ -155,9 +155,9 @@ impl Block {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerBlock {
     /// Document root (contains blocks).
-    Document(Vec<Block>, Option<crate::logic::attr_parser::Attributes>),
+    Document(Vec<Block>, Option<crate::logic::core::attr_parser::Attributes>),
     /// Block quote (can contain blocks).
-    BlockQuote(Vec<Block>, Option<crate::logic::attr_parser::Attributes>),
+    BlockQuote(Vec<Block>, Option<crate::logic::core::attr_parser::Attributes>),
     /// List item (can contain blocks, with marker and kind).
     /// GFM task list item support: `task_checked` is Some(true) for checked, Some(false) for unchecked, None for regular items.
     ListItem {
@@ -165,7 +165,7 @@ pub enum ContainerBlock {
         contents: Vec<Block>,
         /// If this is a GFM task list item, this is Some(true) for checked, Some(false) for unchecked, None for regular list items.
         task_checked: Option<bool>,
-        attributes: Option<crate::logic::attr_parser::Attributes>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// List (container for blocks, with kind, tight/loose, delimiter, start number).
     /// Now uses Vec<Block> for items, allowing safe traversal and transformation.
@@ -173,7 +173,7 @@ pub enum ContainerBlock {
         kind: ListKind,
         tight: bool,
         items: Vec<Block>,
-        attributes: Option<crate::logic::attr_parser::Attributes>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
 }
 
@@ -187,33 +187,33 @@ impl ContainerBlock {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LeafBlock {
     /// Paragraph (contains inlines and source positions).
-    Paragraph(Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::attr_parser::Attributes>),
+    Paragraph(Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::core::attr_parser::Attributes>),
     /// Heading (contains inlines and source positions, with level).
-    Heading { level: u8, content: Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>, attributes: Option<crate::logic::attr_parser::Attributes> },
+    Heading { level: u8, content: Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// ATX Heading (with level and raw content).
-    AtxHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
+    AtxHeading { level: u8, raw_content: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// Setext Heading (with level and raw content).
-    SetextHeading { level: u8, raw_content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
+    SetextHeading { level: u8, raw_content: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// Indented code block (literal text).
-    IndentedCodeBlock { content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
+    IndentedCodeBlock { content: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// Fenced code block (fence char, count, info string, content).
     FencedCodeBlock {
         fence_char: char,
         fence_count: usize,
         info_string: Option<String>,
         content: String,
-        attributes: Option<crate::logic::attr_parser::Attributes>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// Thematic break (horizontal rule, marker and count).
-    ThematicBreak { marker: char, count: usize, raw: String, attributes: Option<crate::logic::attr_parser::Attributes> },
+    ThematicBreak { marker: char, count: usize, raw: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// HTML block (raw HTML, block type).
-    HtmlBlock { block_type: HtmlBlockType, content: String, attributes: Option<crate::logic::attr_parser::Attributes> },
+    HtmlBlock { block_type: HtmlBlockType, content: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// Link reference definition ([label]: destination "title").
     LinkReferenceDefinition {
         label: String,
         destination: String,
         title: Option<String>,
-        attributes: Option<crate::logic::attr_parser::Attributes>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// Blank line (for block separation).
     BlankLine,
@@ -225,7 +225,7 @@ pub enum LeafBlock {
         name: String,
         data: Option<String>,
         content: Vec<Block>,
-        attributes: Option<crate::logic::attr_parser::Attributes>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// Table block (GFM extension)
     Table {
@@ -233,7 +233,7 @@ pub enum LeafBlock {
         alignments: Vec<crate::logic::ast::github::TableAlignment>,
         rows: Vec<crate::logic::ast::github::TableRow>,
         caption: Option<String>,
-        attributes: Option<crate::logic::attr_parser::Attributes>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
 }
 
