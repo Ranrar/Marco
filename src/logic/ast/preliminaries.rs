@@ -443,6 +443,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_character_safe() {
+        let result = super::parse_character_safe('a');
+        assert!(result.is_ok());
+        let result = super::parse_character_safe('\u{0000}');
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_line_traversal() {
+        let c = Character { codepoint: 'x' };
+        let line = Line {
+            chars: vec![c],
+            ending: Some(LineEnding::LineFeed),
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_line(&mut self, line: &Line) {
+                self.walk_line(line);
+            }
+            fn visit_character(&mut self, _character: &Character) {
+                assert!(true);
+            }
+            fn visit_line_ending(&mut self, _ending: &LineEnding) {
+                assert!(true);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_line(&line);
+    }
+
+    #[test]
     fn test_debug_printer_traversal() {
         let char_a = Character { codepoint: 'a' };
         let char_b = Character { codepoint: 'b' };

@@ -243,3 +243,56 @@ pub enum DisallowedHtmlTag {
     Script,
     Plaintext,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::ast::inlines::Inline;
+    use crate::logic::core::event_types::SourcePos;
+
+    #[test]
+    fn test_table_traversal() {
+        let cell = TableCell { content: vec![(Inline::Text("cell".to_string()), SourcePos { line: 1, column: 1 })] };
+        let row = TableRow { cells: vec![cell.clone()] };
+        let table = Table {
+            header: row.clone(),
+            alignments: vec![TableAlignment::Left],
+            rows: vec![row.clone()],
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_table(&mut self, table: &Table) {
+                assert!(table.rows.len() == 1);
+            }
+            fn visit_table_row(&mut self, row: &TableRow) {
+                assert!(row.cells.len() == 1);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_table(&table);
+    }
+
+    #[test]
+    fn test_table_alignment() {
+        let align = TableAlignment::Center;
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_table_alignment(&mut self, alignment: &TableAlignment) {
+                match alignment {
+                    TableAlignment::Center => assert!(true),
+                    _ => assert!(false),
+                }
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_table_alignment(&align);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let result = super::parse_table_row_safe(false);
+        assert!(result.is_err());
+        let result = super::parse_table_row_safe(true);
+        assert!(result.is_ok());
+    }
+}

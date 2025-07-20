@@ -148,3 +148,69 @@ pub enum Block {
     // Other block types (headings, code blocks, etc.) would be defined elsewhere.
     // ...
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_block_quote_traversal() {
+        let para = Block::BlockQuote(BlockQuote { contents: vec![] });
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_block_quote(&mut self, block_quote: &BlockQuote) {
+                assert!(block_quote.contents.len() <= 1);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_block_quote(&BlockQuote { contents: vec![para] });
+    }
+
+    #[test]
+    fn test_list_traversal() {
+        let item = Block::BlockQuote(BlockQuote { contents: vec![] });
+        let list = List {
+            kind: ListKind::Bullet { char: '-' },
+            tight: true,
+            items: vec![item.clone()],
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_list(&mut self, list: &List) {
+                assert!(list.items.len() == 1);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_list(&list);
+    }
+
+    #[test]
+    fn test_empty_list_and_block_quote() {
+        let bq = BlockQuote { contents: vec![] };
+        let list = List {
+            kind: ListKind::Bullet { char: '-' },
+            tight: false,
+            items: vec![],
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_block_quote(&mut self, block_quote: &BlockQuote) {
+                assert!(block_quote.contents.is_empty());
+            }
+            fn visit_list(&mut self, list: &List) {
+                assert!(list.items.is_empty());
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_block_quote(&bq);
+        printer.visit_list(&list);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let result = super::parse_container_block_safe(false);
+        assert!(result.is_err());
+        let result = super::parse_container_block_safe(true);
+        assert!(result.is_ok());
+    }
+}

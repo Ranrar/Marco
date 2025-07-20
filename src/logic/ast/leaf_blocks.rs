@@ -258,3 +258,46 @@ impl Paragraph {
 // --------------------------------------------------------------------------
 
 // Blank lines are represented by the LeafBlock::BlankLine variant (no data)
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::core::event_types::SourcePos;
+    use crate::logic::ast::inlines::Inline;
+
+    #[test]
+    fn test_paragraph_traversal() {
+        let para_struct = Paragraph {
+            raw_content: "para".to_string(),
+            inlines: vec![(Inline::Text("para".to_string()), SourcePos { line: 1, column: 1 })],
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_paragraph(&mut self, p: &Paragraph) {
+                self.walk_paragraph(p);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_paragraph(&para_struct);
+    }
+
+    #[test]
+    fn test_blank_line() {
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_blank_line(&mut self) {
+                assert!(true);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_blank_line();
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let result = super::parse_leaf_block_safe(false);
+        assert!(result.is_err());
+        let result = super::parse_leaf_block_safe(true);
+        assert!(result.is_ok());
+    }
+}

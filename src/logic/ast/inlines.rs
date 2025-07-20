@@ -245,3 +245,50 @@ pub enum Autolink {
 // === 6.9 Textual content ===
 
 // See Inline::Text(String) above.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::core::event_types::SourcePos;
+
+    #[test]
+    fn test_text_inline() {
+        let inline = Inline::Text("plain text".to_string());
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_text(&mut self, inline: &Inline) {
+                if let Inline::Text(s) = inline {
+                    assert_eq!(s, "plain text");
+                }
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_text(&inline);
+    }
+
+    #[test]
+    fn test_emphasis_traversal() {
+        let emph = Emphasis::Emph(vec![(Inline::Text("emph".to_string()), SourcePos { line: 1, column: 1 })], None);
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_emphasis(&mut self, emph: &Emphasis) {
+                self.walk_emphasis(emph);
+            }
+            fn visit_text(&mut self, inline: &Inline) {
+                if let Inline::Text(s) = inline {
+                    assert_eq!(s, "emph");
+                }
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_emphasis(&emph);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let result = super::parse_inline_safe(false);
+        assert!(result.is_err());
+        let result = super::parse_inline_safe(true);
+        assert!(result.is_ok());
+    }
+}

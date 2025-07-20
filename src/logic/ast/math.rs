@@ -143,4 +143,51 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn test_math_block_traversal() {
+        let math = MathBlock {
+            content: "x^2".to_string(),
+            display: true,
+            math_type: MathType::LaTeX,
+            position: None,
+            attributes: None,
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_math_block(&mut self, block: &MathBlock) {
+                assert_eq!(block.content, "x^2");
+                self.walk_math_block(block);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_math_block(&math);
+    }
+
+    #[test]
+    fn test_math_inline_traversal() {
+        let math = MathInline {
+            content: "y^2".to_string(),
+            math_type: MathType::TeX,
+            position: None,
+            attributes: None,
+        };
+        struct Printer;
+        impl AstVisitor for Printer {
+            fn visit_math_inline(&mut self, inline: &MathInline) {
+                assert_eq!(inline.content, "y^2");
+                self.walk_math_inline(inline);
+            }
+        }
+        let mut printer = Printer;
+        printer.visit_math_inline(&math);
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let result = super::parse_math_block_safe(false);
+        assert!(result.is_err());
+        let result = super::parse_math_block_safe(true);
+        assert!(result.is_ok());
+    }
 }

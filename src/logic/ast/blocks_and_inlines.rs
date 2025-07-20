@@ -18,6 +18,71 @@ mod tests {
         // Output should show traversal of Document, Paragraph, and Inline
         // (Manual verification: check stdout for expected print statements)
     }
+
+    #[test]
+    fn test_deeply_nested_blocks() {
+        // Document -> BlockQuote -> List -> ListItem -> Paragraph
+        let inline = Inline::Text("Nested".to_string());
+        let para = Block::Leaf(LeafBlock::Paragraph(vec![(inline, SourcePos { line: 2, column: 2 })], None));
+        let list_item = Block::Container(ContainerBlock::ListItem {
+            marker: ListMarker::Bullet { char: '-' },
+            contents: vec![para.clone()],
+            task_checked: None,
+            attributes: None,
+        });
+        let list = Block::Container(ContainerBlock::List {
+            kind: ListKind::Bullet { char: '-' },
+            tight: false,
+            items: vec![list_item.clone()],
+            attributes: None,
+        });
+        let bq = Block::Container(ContainerBlock::BlockQuote(vec![list.clone()], None));
+        let doc = Block::Container(ContainerBlock::Document(vec![bq.clone()], None));
+
+        let mut printer = DebugPrinter;
+        doc.accept(&mut printer);
+        // Should traverse all nested levels
+    }
+
+    #[test]
+    fn test_empty_blocks() {
+        let doc = Block::Container(ContainerBlock::Document(vec![], None));
+        let mut printer = DebugPrinter;
+        doc.accept(&mut printer);
+        // Should handle empty document gracefully
+    }
+
+    #[test]
+    fn test_table_and_math_blocks() {
+        use crate::logic::ast::github::{TableRow, TableAlignment};
+        use crate::logic::ast::math::MathBlock;
+        let table = Block::Leaf(LeafBlock::Table {
+            header: TableRow { cells: vec![] },
+            alignments: vec![TableAlignment::None],
+            rows: vec![],
+            caption: Some("caption".to_string()),
+            attributes: None,
+        });
+        let math = Block::Leaf(LeafBlock::Math(MathBlock {
+            content: "x^2".to_string(),
+            display: true,
+            math_type: crate::logic::ast::math::MathType::LaTeX,
+            position: None,
+            attributes: None,
+        }));
+        let doc = Block::Container(ContainerBlock::Document(vec![table, math], None));
+        let mut printer = DebugPrinter;
+        doc.accept(&mut printer);
+        // Should traverse table and math blocks
+    }
+
+    #[test]
+    fn test_error_handling() {
+        let result = super::parse_block_safe(false);
+        assert!(result.is_err());
+        let result = super::parse_block_safe(true);
+        assert!(result.is_ok());
+    }
 }
 // ============================================================================
 use anyhow::Error;
