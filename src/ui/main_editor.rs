@@ -1,8 +1,9 @@
 /// This is the markdown editor
 
 use crate::logic::renderer::traits::Renderer;
+use crate::logic::renderer::html_render::HtmlRenderer;
+use crate::logic::renderer::main_editor_render::GtkSourceViewRenderer;
 use crate::logic::core::inline::parser::parse_phrases;
-use webkit6::WebView;
 use webkit6::prelude::*;
 use gtk4::Paned;
 use crate::ui::html_viewer::wrap_html_document;
@@ -19,7 +20,7 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
 
     // WebView (right)
     let initial_blocks = [parse_markdown("# Title")];
-    let initial_html = wrap_html_document(crate::logic::renderer::html::HtmlRenderer::render(&initial_blocks).as_str());
+    let initial_html = wrap_html_document(HtmlRenderer::render(&initial_blocks).as_str());
     let webview = crate::ui::html_viewer::create_html_viewer(&initial_html);
     paned.set_end_child(Some(&webview));
 
@@ -30,7 +31,7 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
         let ast = parse_markdown(&text);
         println!("[DEBUG] AST: {:#?}", ast);
         let blocks = [ast.clone()];
-        let html = wrap_html_document(crate::logic::renderer::html::HtmlRenderer::render(&blocks).as_str());
+        let html = wrap_html_document(HtmlRenderer::render(&blocks).as_str());
         webview_clone.load_html(&html, None);
     });
 
@@ -97,7 +98,7 @@ pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
     source_view.set_editable(true);
 
     // Use GtkSourceViewRenderer for syntax highlighting and error annotation
-    let mut gtk_renderer = crate::logic::renderer::gtk::GtkSourceViewRenderer::new();
+    let mut gtk_renderer = GtkSourceViewRenderer::new();
     gtk_renderer.render(ast).unwrap();
     // TODO: Use gtk_renderer to update SourceView with highlights/errors
 

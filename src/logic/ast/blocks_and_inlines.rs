@@ -1,4 +1,38 @@
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::ast::inlines::Inline;
+    use crate::logic::core::event_types::SourcePos;
+    // use crate::logic::ast::github::{TableRow, TableAlignment};
+
+    #[test]
+    fn test_debug_printer_traversal() {
+        // Create a simple AST: Document -> Paragraph -> Inline
+        let inline = Inline::Text("Hello, world!".to_string());
+        let para = LeafBlock::Paragraph(vec![(inline, SourcePos { line: 1, column: 1 })], None);
+        let block = Block::Leaf(para);
+        let doc = Block::Container(ContainerBlock::Document(vec![block], None));
+
+        let mut printer = DebugPrinter;
+        doc.accept(&mut printer);
+        // Output should show traversal of Document, Paragraph, and Inline
+        // (Manual verification: check stdout for expected print statements)
+    }
+}
 // ============================================================================
+use anyhow::Error;
+
+/// Type alias for AST results with anyhow error handling.
+pub type AstResult<T> = Result<T, Error>;
+
+/// Example: minimal error-producing function for demonstration.
+pub fn parse_block_safe(is_valid: bool) -> AstResult<Block> {
+    if !is_valid {
+        Err(Error::msg("Invalid block"))
+    } else {
+        Ok(Block::Leaf(LeafBlock::BlankLine))
+    }
+}
 // CommonMark Spec Version 0.31.2
 // Section 3: Blocks and inlines
 //
@@ -46,6 +80,12 @@ pub enum Block {
     Leaf(LeafBlock),
 }
 
+impl Block {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_block(self);
+    }
+}
+
 /// Container blocks: blocks that can contain other blocks.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContainerBlock {
@@ -54,9 +94,12 @@ pub enum ContainerBlock {
     /// Block quote (can contain blocks).
     BlockQuote(Vec<Block>, Option<crate::logic::attr_parser::Attributes>),
     /// List item (can contain blocks, with marker and kind).
+    /// GFM task list item support: `task_checked` is Some(true) for checked, Some(false) for unchecked, None for regular items.
     ListItem {
         marker: ListMarker,
         contents: Vec<Block>,
+        /// If this is a GFM task list item, this is Some(true) for checked, Some(false) for unchecked, None for regular list items.
+        task_checked: Option<bool>,
         attributes: Option<crate::logic::attr_parser::Attributes>,
     },
     /// List (container for blocks, with kind, tight/loose, delimiter, start number).
@@ -67,6 +110,12 @@ pub enum ContainerBlock {
         items: Vec<Block>,
         attributes: Option<crate::logic::attr_parser::Attributes>,
     },
+}
+
+impl ContainerBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_container_block(self);
+    }
 }
 
 /// Leaf blocks: blocks that cannot contain other blocks.
@@ -123,6 +172,12 @@ pub enum LeafBlock {
     },
 }
 
+impl LeafBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_leaf_block(self);
+    }
+}
+
 /// List marker: bullet or ordered.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ListMarker {
@@ -154,5 +209,107 @@ pub enum HtmlBlockType {
     Type5, // <![CDATA[ ... ]]>
     Type6, // Block-level open/close tags
     Type7, // Any complete open/close tag on its own line
+}
+
+/// Trait for visiting AST nodes in the Markdown document.
+pub trait AstVisitor {
+    // Visit methods for each node type
+
+    fn visit_block(&mut self, block: &Block) {
+        self.walk_block(block);
+    }
+
+    fn walk_block(&mut self, block: &Block) {
+        match block {
+            Block::Container(container) => self.visit_container_block(container),
+            Block::Leaf(leaf) => self.visit_leaf_block(leaf),
+        }
+    }
+
+    fn visit_container_block(&mut self, container: &ContainerBlock) {
+        self.walk_container_block(container);
+    }
+
+    fn walk_container_block(&mut self, container: &ContainerBlock) {
+        match container {
+            ContainerBlock::Document(blocks, _) => {
+                for block in blocks {
+                    self.visit_block(block);
+                }
+            }
+            ContainerBlock::BlockQuote(blocks, _) => {
+                for block in blocks {
+                    self.visit_block(block);
+                }
+            }
+            ContainerBlock::ListItem { contents, .. } => {
+                for block in contents {
+                    self.visit_block(block);
+                }
+            }
+            ContainerBlock::List { items, .. } => {
+                for block in items {
+                    self.visit_block(block);
+                }
+            }
+        }
+    }
+
+    fn visit_leaf_block(&mut self, leaf: &LeafBlock) {
+        self.walk_leaf_block(leaf);
+    }
+
+    fn walk_leaf_block(&mut self, leaf: &LeafBlock) {
+        match leaf {
+            LeafBlock::Paragraph(inlines, _) => {
+                for (inline, _) in inlines {
+                    self.visit_inline(inline);
+                }
+            }
+            LeafBlock::Heading { content, .. } => {
+                for (inline, _) in content {
+                    self.visit_inline(inline);
+                }
+            }
+            LeafBlock::CustomTagBlock { content, .. } => {
+                for block in content {
+                    self.visit_block(block);
+                }
+            }
+            LeafBlock::Table { header, rows, .. } => {
+                self.visit_table_row(header);
+                for row in rows {
+                    self.visit_table_row(row);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Inline visitor stub (to be implemented in inlines.rs)
+    fn visit_inline(&mut self, _inline: &crate::logic::ast::inlines::Inline) {}
+
+    // Table row visitor stub (to be implemented in github.rs)
+    fn visit_table_row(&mut self, _row: &crate::logic::ast::github::TableRow) {}
+}
+
+/// Sample visitor that prints node types for debugging.
+pub struct DebugPrinter;
+
+impl AstVisitor for DebugPrinter {
+    fn visit_block(&mut self, block: &Block) {
+        println!("Visiting Block: {:?}", block);
+        self.walk_block(block);
+    }
+
+    fn visit_container_block(&mut self, container: &ContainerBlock) {
+        println!("Visiting ContainerBlock: {:?}", container);
+        self.walk_container_block(container);
+    }
+
+    fn visit_leaf_block(&mut self, leaf: &LeafBlock) {
+        println!("Visiting LeafBlock: {:?}", leaf);
+        self.walk_leaf_block(leaf);
+    }
 }
 

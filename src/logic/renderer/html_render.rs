@@ -1,77 +1,132 @@
 // HTML renderer for basic Markdown elements
 // Extensible design: add more elements as needed
 
-use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
+use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock, ContainerBlock, ListKind, AstVisitor};
 use crate::logic::ast::inlines::Inline;
 use crate::logic::core::event_types::SourcePos;
 
-pub struct HtmlRenderer;
+pub struct HtmlRenderer {
+    pub html: String,
+}
 
 impl HtmlRenderer {
-    /// Render a slice of Block AST nodes to HTML
+    pub fn new() -> Self {
+        HtmlRenderer { html: String::new() }
+    }
     pub fn render(blocks: &[Block]) -> String {
-        let mut html = String::new();
+        let mut renderer = HtmlRenderer::new();
         for block in blocks {
-            html.push_str(&Self::render_block(block));
+            block.accept(&mut renderer);
         }
-        html
+        renderer.html
+    }
+}
+
+impl AstVisitor for HtmlRenderer {
+    fn visit_block(&mut self, block: &Block) {
+        match block {
+            Block::Leaf(leaf) => self.visit_leaf_block(leaf),
+            Block::Container(container) => self.visit_container_block(container),
+        }
     }
 
-    /// Render a Block AST node to HTML
-    pub fn render_block(block: &Block) -> String {
-        match block {
-            Block::Leaf(leaf) => Self::render_leaf_block(leaf),
-            Block::Container(container) => {
-                println!("[HTML DEBUG] Block::Container encountered: {:#?}", container);
-                // For now, render all contained blocks recursively
-                use crate::logic::ast::blocks_and_inlines::ContainerBlock;
-                match container {
-                    ContainerBlock::Document(blocks, _) => {
-                        let mut html = String::new();
-                        for block in blocks {
-                            html.push_str(&Self::render_block(block));
-                        }
-                        html
-                    }
-                    _ => {
-                        println!("[HTML DEBUG] Unknown container block type");
-                        String::new()
-                    }
+    fn visit_container_block(&mut self, container: &ContainerBlock) {
+        match container {
+            ContainerBlock::Document(blocks, _) => {
+                for block in blocks {
+                    block.accept(self);
                 }
             }
+            ContainerBlock::List { kind, items, .. } => {
+                let tag = match kind {
+                    ListKind::Bullet { .. } => "ul",
+                    ListKind::Ordered { .. } => "ol",
+                };
+                self.html.push_str(&format!("<{tag}>", tag=tag));
+                for item in items {
+                    item.accept(self);
+                }
+                self.html.push_str(&format!("</{tag}>\n", tag=tag));
+            }
+            ContainerBlock::ListItem { contents, task_checked, .. } => {
+                if let Some(checked) = task_checked {
+                    self.html.push_str("<li class=\"task-list-item\">");
+                    self.html.push_str(&format!(
+                        "<input type=\"checkbox\" disabled{}> ",
+                        if *checked { " checked" } else { "" }
+                    ));
+                } else {
+                    self.html.push_str("<li>");
+                }
+                for block in contents {
+                    block.accept(self);
+                }
+                self.html.push_str("</li>\n");
+            }
+            _ => {}
         }
     }
 
-    /// Render a LeafBlock AST node to HTML
-    pub fn render_leaf_block(leaf: &LeafBlock) -> String {
+    fn visit_leaf_block(&mut self, leaf: &LeafBlock) {
         match leaf {
             LeafBlock::Paragraph(inlines, _) => {
-                format!("<p>{}</p>\n", Self::render_inlines(inlines))
+                self.html.push_str("<p>");
+                self.html.push_str(&HtmlRenderer::render_inlines(inlines));
+                self.html.push_str("</p>\n");
             }
             LeafBlock::Heading { level, content, .. } => {
-                let tag = match level {
-                    1 => "h1",
-                    2 => "h2",
-                    3 => "h3",
-                    4 => "h4",
-                    5 => "h5",
-                    6 => "h6",
-                    _ => "h1",
-                };
-                format!("<{tag}>{}</{tag}>\n", Self::render_inlines(content), tag=tag)
+                self.html.push_str(&format!("<h{lvl}>", lvl=level));
+                self.html.push_str(&HtmlRenderer::render_inlines(content));
+                self.html.push_str(&format!("</h{lvl}>\n", lvl=level));
             }
-            LeafBlock::IndentedCodeBlock { content, .. } => {
-                format!("<pre><code>{}</code></pre>\n", html_escape::encode_text(content))
+            LeafBlock::AtxHeading { level, raw_content, .. } => {
+                self.html.push_str(&format!("<h{lvl}>{}</h{lvl}>\n", html_escape::encode_text(raw_content), lvl=level));
             }
-            LeafBlock::FencedCodeBlock { content, .. } => {
-                format!("<pre><code>{}</code></pre>\n", html_escape::encode_text(content))
+            LeafBlock::SetextHeading { level, raw_content, .. } => {
+                self.html.push_str(&format!("<h{lvl}>{}</h{lvl}>\n", html_escape::encode_text(raw_content), lvl=level));
             }
-            other => {
-                println!("[HTML DEBUG] Unknown leaf block: {:#?}", other);
-                String::new()
+            LeafBlock::IndentedCodeBlock { content, .. } | LeafBlock::FencedCodeBlock { content, .. } => {
+                self.html.push_str("<pre><code>");
+                self.html.push_str(&html_escape::encode_text(content));
+                self.html.push_str("</code></pre>\n");
+            }
+            LeafBlock::ThematicBreak { .. } => {
+                self.html.push_str("<hr />\n");
+            }
+            LeafBlock::HtmlBlock { content, .. } => {
+                self.html.push_str(content);
+                self.html.push_str("\n");
+            }
+            LeafBlock::LinkReferenceDefinition { .. } => {
+                // No direct HTML output
+            }
+            LeafBlock::BlankLine => {
+                // No output for blank lines
+            }
+            LeafBlock::Math(math_block) => {
+                self.html.push_str("<div class=\"math\">");
+                self.html.push_str(&html_escape::encode_text(&math_block.content));
+                self.html.push_str("</div>\n");
+            }
+            LeafBlock::CustomTagBlock { name, data, content, .. } => {
+                self.html.push_str(&format!("<div class=\"custom-tag {}\">", html_escape::encode_text(name)));
+                if let Some(d) = data {
+                    self.html.push_str(&html_escape::encode_text(d));
+                }
+                for block in content {
+                    block.accept(self);
+                }
+                self.html.push_str("</div>\n");
+            }
+            LeafBlock::Table { .. } => {
+                // TODO: Implement table rendering
             }
         }
     }
+    // ...existing code...
+}
+
+impl HtmlRenderer {
 
     /// Render a slice of Inline AST nodes to HTML
     pub fn render_inlines(inlines: &[(Inline, SourcePos)]) -> String {
@@ -129,6 +184,40 @@ impl HtmlRenderer {
 
 #[cfg(test)]
 mod tests {
+    use crate::logic::ast::blocks_and_inlines::{ContainerBlock, ListMarker, ListKind};
+
+    #[test]
+    fn test_gfm_task_list_items() {
+        let checked_item = Block::Container(ContainerBlock::ListItem {
+            marker: ListMarker::Bullet { char: '-' },
+            contents: vec![Block::Leaf(LeafBlock::Paragraph(vec![(Inline::Text("checked item".into()), SourcePos::default())], None))],
+            task_checked: Some(true),
+            attributes: None,
+        });
+        let unchecked_item = Block::Container(ContainerBlock::ListItem {
+            marker: ListMarker::Bullet { char: '-' },
+            contents: vec![Block::Leaf(LeafBlock::Paragraph(vec![(Inline::Text("unchecked item".into()), SourcePos::default())], None))],
+            task_checked: Some(false),
+            attributes: None,
+        });
+        let regular_item = Block::Container(ContainerBlock::ListItem {
+            marker: ListMarker::Bullet { char: '-' },
+            contents: vec![Block::Leaf(LeafBlock::Paragraph(vec![(Inline::Text("regular item".into()), SourcePos::default())], None))],
+            task_checked: None,
+            attributes: None,
+        });
+        let list = Block::Container(ContainerBlock::List {
+            kind: ListKind::Bullet { char: '-' },
+            tight: true,
+            items: vec![checked_item, unchecked_item, regular_item],
+            attributes: None,
+        });
+        let html = HtmlRenderer::render(&[list]);
+        assert!(html.contains("<input type=\"checkbox\" disabled checked> "));
+        assert!(html.contains("<input type=\"checkbox\" disabled> "));
+        assert!(html.contains("regular item"));
+        assert!(html.contains("class=\"task-list-item\""));
+    }
     use super::*;
     use crate::logic::ast::inlines::{Inline, CodeSpan, Link, Image, LinkDestination};
     use crate::logic::core::event_types::SourcePos;

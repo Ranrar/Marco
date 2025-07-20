@@ -1,3 +1,122 @@
+use crate::logic::ast::blocks_and_inlines::{AstVisitor, ContainerBlock, LeafBlock};
+
+/// Visitor that emits events during AST traversal.
+pub struct EventEmitter {
+    pub events: Vec<super::event_types::Event>,
+}
+
+impl EventEmitter {
+    pub fn new() -> Self {
+        EventEmitter { events: Vec::new() }
+    }
+}
+
+impl AstVisitor for EventEmitter {
+    fn visit_block(&mut self, block: &Block) {
+        // Example: emit a generic event for each block
+        // (Replace with real event emission logic)
+        // Emit real events for Block node
+        match block {
+            crate::logic::ast::blocks_and_inlines::Block::Container(_) => {
+                // No direct event for generic container, handled in visit_container_block
+            }
+            crate::logic::ast::blocks_and_inlines::Block::Leaf(leaf) => {
+                match leaf {
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::Paragraph(_, attrs) => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::Paragraph(attrs.clone()), None, attrs.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::Heading { level, attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::Heading(*level, attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::AtxHeading { level, attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::Heading(*level, attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::SetextHeading { level, attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::Heading(*level, attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::IndentedCodeBlock { attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::CodeBlock(attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::FencedCodeBlock { attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::CodeBlock(attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::ThematicBreak { attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::HtmlBlock { attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::Table { header, rows, attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::Table(attributes.clone()), None, attributes.clone()));
+                        // Emit header row
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::TableRow, None, attributes.clone()));
+                        for cell in &header.cells {
+                            self.events.push(super::event_types::Event::Start(super::event_types::Tag::TableCell, None, attributes.clone()));
+                            for (inline, pos) in &cell.content {
+                                self.events.push(super::event_types::Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
+                            }
+                            self.events.push(super::event_types::Event::End(super::event_types::TagEnd::TableCell, None, attributes.clone()));
+                        }
+                        self.events.push(super::event_types::Event::End(super::event_types::TagEnd::TableRow, None, attributes.clone()));
+                        // Emit data rows
+                        for row in rows {
+                            self.events.push(super::event_types::Event::Start(super::event_types::Tag::TableRow, None, attributes.clone()));
+                            for cell in &row.cells {
+                                self.events.push(super::event_types::Event::Start(super::event_types::Tag::TableCell, None, attributes.clone()));
+                                for (inline, pos) in &cell.content {
+                                    self.events.push(super::event_types::Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
+                                }
+                                self.events.push(super::event_types::Event::End(super::event_types::TagEnd::TableCell, None, attributes.clone()));
+                            }
+                            self.events.push(super::event_types::Event::End(super::event_types::TagEnd::TableRow, None, attributes.clone()));
+                        }
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::LinkReferenceDefinition { attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::BlankLine => {
+                        // No event for blank line
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::Math(math_block) => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::MathBlock(math_block.content.clone(), Some(math_block.math_type.clone()), math_block.attributes.clone()), None, math_block.attributes.clone()));
+                    }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::CustomTagBlock { name, data, attributes, .. } => {
+                        self.events.push(super::event_types::Event::Start(super::event_types::Tag::CustomTag {
+                            name: name.clone(),
+                            data: data.clone(),
+                            attributes: attributes.clone(),
+                        }, None, attributes.clone()));
+                    }
+                }
+            }
+        }
+        self.walk_block(block);
+    }
+    fn visit_container_block(&mut self, container: &ContainerBlock) {
+        // Emit real events for ContainerBlock node
+        match container {
+            crate::logic::ast::blocks_and_inlines::ContainerBlock::Document(_, attrs) => {
+                self.events.push(super::event_types::Event::Start(super::event_types::Tag::BlockQuote(attrs.clone()), None, attrs.clone()));
+            }
+            crate::logic::ast::blocks_and_inlines::ContainerBlock::BlockQuote(_, attrs) => {
+                self.events.push(super::event_types::Event::Start(super::event_types::Tag::BlockQuote(attrs.clone()), None, attrs.clone()));
+            }
+            crate::logic::ast::blocks_and_inlines::ContainerBlock::ListItem { attributes, .. } => {
+                self.events.push(super::event_types::Event::Start(super::event_types::Tag::Item(attributes.clone()), None, attributes.clone()));
+            }
+            crate::logic::ast::blocks_and_inlines::ContainerBlock::List { attributes, .. } => {
+                self.events.push(super::event_types::Event::Start(super::event_types::Tag::List(attributes.clone()), None, attributes.clone()));
+            }
+        }
+        self.walk_container_block(container);
+    }
+    fn visit_leaf_block(&mut self, leaf: &LeafBlock) {
+        // Emit real events for LeafBlock node
+        // No generic event for LeafBlock, handled in visit_block above
+        self.walk_leaf_block(leaf);
+    }
+    // Add more visit methods for inlines, table rows, etc. as needed
+}
 #[cfg(test)]
 mod tests {
     use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
@@ -54,25 +173,29 @@ use crate::logic::ast::blocks_and_inlines::Block;
 use crate::logic::core::event_pipeline::EventPipeline;
 
 pub struct EventIter<'a> {
-    stack: Vec<&'a Block>,
-    state: Vec<Event>,
+    emitter: EventEmitter,
+    index: usize,
     pipeline: Option<EventPipeline>,
     diagnostics: Option<&'a mut super::diagnostics::Diagnostics>,
 }
 
 impl<'a> EventIter<'a> {
     pub fn new(root: &'a Block, diagnostics: Option<&'a mut super::diagnostics::Diagnostics>) -> Self {
+        let mut emitter = EventEmitter::new();
+        root.accept(&mut emitter);
         Self {
-            stack: vec![root],
-            state: vec![],
+            emitter,
+            index: 0,
             pipeline: None,
             diagnostics,
         }
     }
     pub fn with_pipeline(root: &'a Block, pipeline: EventPipeline, diagnostics: Option<&'a mut super::diagnostics::Diagnostics>) -> Self {
+        let mut emitter = EventEmitter::new();
+        root.accept(&mut emitter);
         Self {
-            stack: vec![root],
-            state: vec![],
+            emitter,
+            index: 0,
             pipeline: Some(pipeline),
             diagnostics,
         }
@@ -81,8 +204,9 @@ impl<'a> EventIter<'a> {
 impl<'a> Iterator for EventIter<'a> {
     type Item = Event;
     fn next(&mut self) -> Option<Self::Item> {
-        // Drain state first (for events generated by previous block)
-        if let Some(mut event) = self.state.pop() {
+        while self.index < self.emitter.events.len() {
+            let mut event = self.emitter.events[self.index].clone();
+            self.index += 1;
             if let Some(diag) = &mut self.diagnostics {
                 diag.collect(&event);
             }
@@ -90,176 +214,11 @@ impl<'a> Iterator for EventIter<'a> {
                 if pipeline.process(&mut event) {
                     return Some(event);
                 } else {
-                    return self.next();
+                    continue;
                 }
             } else {
                 return Some(event);
             }
-        }
-        // Traverse AST stack
-        while let Some(block) = self.stack.pop() {
-            match block {
-                Block::Container(container) => {
-                    match container {
-                        crate::logic::ast::blocks_and_inlines::ContainerBlock::Document(children, _) |
-                        crate::logic::ast::blocks_and_inlines::ContainerBlock::BlockQuote(children, _) => {
-                            for child in children.iter().rev() {
-                                self.stack.push(child);
-                            }
-                            // Use GroupType::List for all containers (simplified)
-                            self.state.push(Event::GroupStart(
-                                crate::logic::core::event_types::GroupType::List,
-                                None,
-                                None,
-                            ));
-                            self.state.push(Event::GroupEnd(
-                                crate::logic::core::event_types::GroupType::List,
-                                None,
-                                None,
-                            ));
-                        }
-                        crate::logic::ast::blocks_and_inlines::ContainerBlock::ListItem { contents, .. } => {
-                            for child in contents.iter().rev() {
-                                self.stack.push(child);
-                            }
-                            self.state.push(Event::GroupStart(
-                                crate::logic::core::event_types::GroupType::List,
-                                None,
-                                None,
-                            ));
-                            self.state.push(Event::GroupEnd(
-                                crate::logic::core::event_types::GroupType::List,
-                                None,
-                                None,
-                            ));
-                        }
-                        crate::logic::ast::blocks_and_inlines::ContainerBlock::List { items, .. } => {
-                            for item in items.iter().rev() {
-                                self.stack.push(item);
-                            }
-                            self.state.push(Event::GroupStart(
-                                crate::logic::core::event_types::GroupType::List,
-                                None,
-                                None,
-                            ));
-                            self.state.push(Event::GroupEnd(
-                                crate::logic::core::event_types::GroupType::List,
-                                None,
-                                None,
-                            ));
-                        }
-                    }
-                }
-                Block::Leaf(leaf) => {
-                    use crate::logic::ast::blocks_and_inlines::LeafBlock;
-                    use crate::logic::core::event_types::{Tag, TagEnd};
-                    match leaf {
-                        LeafBlock::Paragraph(_, attrs) => {
-                            self.state.push(Event::End(TagEnd::Paragraph(attrs.clone()), None, attrs.clone()));
-                            self.state.push(Event::Start(Tag::Paragraph(attrs.clone()), None, attrs.clone()));
-                        }
-                        LeafBlock::Heading { level, attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::Heading(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::Heading(*level, attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::AtxHeading { level, attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::Heading(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::Heading(*level, attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::SetextHeading { level, attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::Heading(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::Heading(*level, attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::IndentedCodeBlock { attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::CodeBlock(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::CodeBlock(attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::FencedCodeBlock { attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::CodeBlock(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::CodeBlock(attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::ThematicBreak { attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::HtmlBlock(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::HtmlBlock { attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::HtmlBlock(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::Table { header, alignments, rows, caption, attributes } => {
-                            self.state.push(Event::Start(Tag::Table(attributes.clone()), None, attributes.clone()));
-                            // Emit header row
-                            self.state.push(Event::Start(Tag::TableRow, None, attributes.clone()));
-                            for cell in &header.cells {
-                                self.state.push(Event::Start(Tag::TableCell, None, attributes.clone()));
-                                for (inline, pos) in &cell.content {
-                                    self.state.push(Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
-                                }
-                                self.state.push(Event::End(TagEnd::TableCell, None, attributes.clone()));
-                            }
-                            self.state.push(Event::End(TagEnd::TableRow, None, attributes.clone()));
-                            // Emit data rows
-                            for row in rows {
-                                self.state.push(Event::Start(Tag::TableRow, None, attributes.clone()));
-                                for cell in &row.cells {
-                                    self.state.push(Event::Start(Tag::TableCell, None, attributes.clone()));
-                                    for (inline, pos) in &cell.content {
-                                        self.state.push(Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
-                                    }
-                                    self.state.push(Event::End(TagEnd::TableCell, None, attributes.clone()));
-                                }
-                                self.state.push(Event::End(TagEnd::TableRow, None, attributes.clone()));
-                            }
-                            // Emit caption if present
-                            if let Some(caption_text) = caption {
-                                self.state.push(Event::Start(Tag::TableCaption(caption_text.clone(), attributes.clone()), None, attributes.clone()));
-                                self.state.push(Event::End(TagEnd::TableCaption, None, attributes.clone()));
-                            }
-                            self.state.push(Event::End(TagEnd::Table(attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::LinkReferenceDefinition { attributes, .. } => {
-                            self.state.push(Event::End(TagEnd::HtmlBlock(attributes.clone()), None, attributes.clone()));
-                            self.state.push(Event::Start(Tag::HtmlBlock(attributes.clone()), None, attributes.clone()));
-                        }
-                        LeafBlock::BlankLine => {
-                            // No event for blank line
-                        }
-                        LeafBlock::Math(math_block) => {
-                            self.state.push(Event::MathBlock {
-                                content: math_block.content.clone(),
-                                math_type: Some(math_block.math_type.clone()),
-                                pos: None,
-                                attributes: math_block.attributes.clone(),
-                            });
-                        }
-                        LeafBlock::CustomTagBlock { name, data, content, attributes } => {
-                            self.state.push(Event::End(
-                                crate::logic::core::event_types::TagEnd::CustomTagEnd {
-                                    name: name.clone(),
-                                    attributes: attributes.clone(),
-                                },
-                                None,
-                                attributes.clone(),
-                            ));
-                            self.state.push(Event::Start(
-                                crate::logic::core::event_types::Tag::CustomTag {
-                                    name: name.clone(),
-                                    data: data.clone(),
-                                    attributes: attributes.clone(),
-                                },
-                                None,
-                                attributes.clone(),
-                            ));
-                            // Push children blocks to stack for traversal
-                            for child in content.iter().rev() {
-                                self.stack.push(child);
-                            }
-                        }
-                    }
-                }
-            }
-            // After pushing new events, try to emit one
-            return self.next();
         }
         None
     }

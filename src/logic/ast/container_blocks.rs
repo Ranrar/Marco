@@ -1,4 +1,59 @@
+use anyhow::Error;
+
+/// Type alias for AST results with anyhow error handling.
+pub type AstResult<T> = Result<T, Error>;
+
+/// Example: minimal error-producing function for demonstration.
+pub fn parse_container_block_safe(is_valid: bool) -> AstResult<Block> {
+    if !is_valid {
+        Err(Error::msg("Invalid container block"))
+    } else {
+        Ok(Block::BlockQuote(BlockQuote { contents: vec![] }))
+    }
+}
+
+/// Trait for visiting AST nodes in container_blocks.rs
+pub trait AstVisitor {
+    fn visit_block(&mut self, block: &Block) {
+        match block {
+            Block::BlockQuote(bq) => self.visit_block_quote(bq),
+            Block::List(list) => self.visit_list(list),
+            // ...existing code for other block types...
+        }
+    }
+
+    fn visit_block_quote(&mut self, block_quote: &BlockQuote) {
+        self.walk_block_quote(block_quote);
+    }
+
+    fn walk_block_quote(&mut self, block_quote: &BlockQuote) {
+        for block in &block_quote.contents {
+            self.visit_block(block);
+        }
+    }
+
+    fn visit_list(&mut self, list: &List) {
+        self.walk_list(list);
+    }
+
+    fn walk_list(&mut self, list: &List) {
+        for block in &list.items {
+            self.visit_block(block);
+        }
+    }
+
+    fn visit_list_item(&mut self, list_item: &ListItem) {
+        self.walk_list_item(list_item);
+    }
+
+    fn walk_list_item(&mut self, list_item: &ListItem) {
+        for block in &list_item.contents {
+            self.visit_block(block);
+        }
+    }
+}
 // -----------------------------------------------------------------------------
+
 // CommonMark Spec Version 0.31.2
 // Section 5: Container blocks
 //

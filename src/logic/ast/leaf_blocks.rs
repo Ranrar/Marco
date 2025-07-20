@@ -1,3 +1,50 @@
+use anyhow::Error;
+
+/// Type alias for AST results with anyhow error handling.
+pub type AstResult<T> = Result<T, Error>;
+
+/// Example: minimal error-producing function for demonstration.
+pub fn parse_leaf_block_safe(is_valid: bool) -> AstResult<LeafBlock> {
+    if !is_valid {
+        Err(Error::msg("Invalid leaf block"))
+    } else {
+        Ok(LeafBlock::BlankLine)
+    }
+}
+
+/// Trait for visiting AST nodes in leaf_blocks.rs
+pub trait AstVisitor {
+    fn visit_leaf_block(&mut self, leaf: &LeafBlock) {
+        match leaf {
+            LeafBlock::ThematicBreak(tb) => self.visit_thematic_break(tb),
+            LeafBlock::AtxHeading(h) => self.visit_atx_heading(h),
+            LeafBlock::SetextHeading(h) => self.visit_setext_heading(h),
+            LeafBlock::IndentedCodeBlock(cb) => self.visit_indented_code_block(cb),
+            LeafBlock::FencedCodeBlock(cb) => self.visit_fenced_code_block(cb),
+            LeafBlock::HtmlBlock(hb) => self.visit_html_block(hb),
+            LeafBlock::LinkReferenceDefinition(lrd) => self.visit_link_reference_definition(lrd),
+            LeafBlock::Paragraph(p) => self.visit_paragraph(p),
+            LeafBlock::BlankLine => self.visit_blank_line(),
+        }
+    }
+
+    fn visit_thematic_break(&mut self, _tb: &ThematicBreak) {}
+    fn visit_atx_heading(&mut self, _h: &AtxHeading) {}
+    fn visit_setext_heading(&mut self, _h: &SetextHeading) {}
+    fn visit_indented_code_block(&mut self, _cb: &IndentedCodeBlock) {}
+    fn visit_fenced_code_block(&mut self, _cb: &FencedCodeBlock) {}
+    fn visit_html_block(&mut self, _hb: &HtmlBlock) {}
+    fn visit_link_reference_definition(&mut self, _lrd: &LinkReferenceDefinition) {}
+    fn visit_paragraph(&mut self, p: &Paragraph) {
+        self.walk_paragraph(p);
+    }
+    fn walk_paragraph(&mut self, p: &Paragraph) {
+        for (_inline, _) in &p.inlines {
+            // Traverse inlines (handled in inlines visitor)
+        }
+    }
+    fn visit_blank_line(&mut self) {}
+}
 // ============================================================================
 // CommonMark Spec Version 0.31.2 - Section 4: Leaf blocks
 //
@@ -149,6 +196,61 @@ pub struct LinkReferenceDefinition {
 pub struct Paragraph {
     /// Raw content (before inline parsing)
     pub raw_content: String,
+    /// Parsed inline content (for visitor traversal)
+    pub inlines: Vec<(crate::logic::ast::inlines::Inline, crate::logic::core::event_types::SourcePos)>,
+}
+impl LeafBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_leaf_block(self);
+    }
+}
+
+impl ThematicBreak {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_thematic_break(self);
+    }
+}
+
+impl AtxHeading {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_atx_heading(self);
+    }
+}
+
+impl SetextHeading {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_setext_heading(self);
+    }
+}
+
+impl IndentedCodeBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_indented_code_block(self);
+    }
+}
+
+impl FencedCodeBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_fenced_code_block(self);
+    }
+}
+
+impl HtmlBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_html_block(self);
+    }
+}
+
+impl LinkReferenceDefinition {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_link_reference_definition(self);
+    }
+}
+
+impl Paragraph {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_paragraph(self);
+    }
 }
 
 // --------------------------------------------------------------------------

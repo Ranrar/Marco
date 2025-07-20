@@ -1,3 +1,88 @@
+use anyhow::Error;
+
+/// Type alias for AST results with anyhow error handling.
+pub type AstResult<T> = Result<T, Error>;
+
+/// Example: minimal error-producing function for demonstration.
+pub fn parse_table_row_safe(is_valid: bool) -> AstResult<TableRow> {
+    if !is_valid {
+        Err(Error::msg("Invalid table row"))
+    } else {
+        Ok(TableRow { cells: vec![] })
+    }
+}
+impl Table {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_table(self);
+    }
+}
+
+impl TableRow {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_table_row(self);
+    }
+}
+
+impl TableCell {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_table_cell(self);
+    }
+}
+
+impl TableAlignment {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_table_alignment(self);
+    }
+}
+
+impl TaskListItem {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_task_list_item(self);
+    }
+}
+/// Trait for visiting AST nodes in github.rs
+pub trait AstVisitor {
+    fn visit_table(&mut self, table: &Table) {
+        self.walk_table(table);
+    }
+
+    fn walk_table(&mut self, table: &Table) {
+        self.visit_table_row(&table.header);
+        for row in &table.rows {
+            self.visit_table_row(row);
+        }
+    }
+
+    fn visit_table_row(&mut self, row: &TableRow) {
+        self.walk_table_row(row);
+    }
+
+    fn walk_table_row(&mut self, row: &TableRow) {
+        for cell in &row.cells {
+            self.visit_table_cell(cell);
+        }
+    }
+
+    fn visit_table_cell(&mut self, cell: &TableCell) {
+        self.walk_table_cell(cell);
+    }
+
+    fn walk_table_cell(&mut self, _cell: &TableCell) {
+        // Traverse inlines if needed (handled in inlines visitor)
+    }
+
+    fn visit_table_alignment(&mut self, _alignment: &TableAlignment) {
+        // No children to traverse
+    }
+
+    fn visit_task_list_item(&mut self, item: &TaskListItem) {
+        self.walk_task_list_item(item);
+    }
+
+    fn walk_task_list_item(&mut self, _item: &TaskListItem) {
+        // Traverse blocks (handled in blocks visitor)
+    }
+}
 use crate::logic::ast::blocks_and_inlines::Block;
 
 // -----------------------------------------------------------------------------

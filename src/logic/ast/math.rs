@@ -1,4 +1,60 @@
-//! AST node definitions for Markdown math blocks and inline math (GFM/LaTeX).
+impl MathBlock {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_math_block(self);
+    }
+}
+
+impl MathInline {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_math_inline(self);
+    }
+}
+
+impl MathType {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_math_type(self);
+    }
+}
+/// Trait for visiting AST nodes in math.rs
+pub trait AstVisitor {
+    fn visit_math_block(&mut self, block: &MathBlock) {
+        self.walk_math_block(block);
+    }
+    fn walk_math_block(&mut self, block: &MathBlock) {
+        self.visit_math_type(&block.math_type);
+        // MathBlock is a leaf node, no further recursion
+    }
+    fn visit_math_inline(&mut self, inline: &MathInline) {
+        self.walk_math_inline(inline);
+    }
+    fn walk_math_inline(&mut self, inline: &MathInline) {
+        self.visit_math_type(&inline.math_type);
+        // MathInline is a leaf node, no further recursion
+    }
+    fn visit_math_type(&mut self, _math_type: &MathType) {
+        // No children to traverse
+    }
+}
+/// AST node definitions for Markdown math blocks and inline math (GFM/LaTeX).
+use anyhow::Error;
+
+/// Type alias for AST results with anyhow error handling.
+pub type AstResult<T> = Result<T, Error>;
+
+/// Example: minimal error-producing function for demonstration.
+pub fn parse_math_block_safe(is_valid: bool) -> AstResult<MathBlock> {
+    if !is_valid {
+        Err(Error::msg("Invalid math block"))
+    } else {
+        Ok(MathBlock {
+            content: "dummy".to_string(),
+            display: true,
+            math_type: MathType::LaTeX,
+            position: None,
+            attributes: None,
+        })
+    }
+}
 
 use crate::logic::attr_parser::Attributes;
 use crate::logic::core::event_types::SourcePos;

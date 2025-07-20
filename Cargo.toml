@@ -19,9 +19,14 @@ gh-emoji = "1.0.8"
 rayon = "1.8"
 num_cpus = "1.16"
 regex = "1.10.4"
+anyhow = "1.0"
 
 [dev-dependencies]
 # Basic testing
 criterion = "0.5"
 
 rand = "0.8"
+
+[lib]
+name = "marco"
+path = "src/lib.rs"

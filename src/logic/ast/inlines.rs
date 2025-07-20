@@ -1,19 +1,131 @@
-//! # 6 Inlines (CommonMark 0.31.2)
-//
-//! This module defines the Abstract Syntax Tree (AST) node types for CommonMark section 6 (Inlines),
-//! covering all inline elements as described in the specification:
-//! # 6 inlines (CommonMark 0.31.2)
-//!   6.1 Code spans
-//!   6.2 Emphasis and strong emphasis
-//!   6.3 Links
-//!   6.4 Images
-//!   6.5 Autolinks
-//!   6.6 Raw HTML
-//!   6.7 Hard line breaks
-//!   6.8 Soft line breaks
-//!   6.9 Textual content
-//
-//! Each enum/struct is documented with its corresponding section and purpose.
+use anyhow::Error;
+
+/// Type alias for AST results with anyhow error handling.
+pub type AstResult<T> = Result<T, Error>;
+
+/// Example: minimal error-producing function for demonstration.
+pub fn parse_inline_safe(is_valid: bool) -> AstResult<Inline> {
+    if !is_valid {
+        Err(Error::msg("Invalid inline"))
+    } else {
+        Ok(Inline::Text("dummy".to_string()))
+    }
+}
+
+
+
+impl Inline {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_inline(self);
+    }
+}
+
+impl Emphasis {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_emphasis(self);
+    }
+}
+
+impl Link {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_link(self);
+    }
+}
+
+impl Image {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_image(self);
+    }
+}
+
+impl CodeSpan {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_code_span(self);
+    }
+}
+
+impl Autolink {
+    pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
+        visitor.visit_autolink(self);
+    }
+}
+/// Trait for visiting AST nodes in inlines.rs
+pub trait AstVisitor {
+    fn visit_inline(&mut self, inline: &Inline) {
+        match inline {
+            Inline::CodeSpan(cs) => self.visit_code_span(cs),
+            Inline::Emphasis(emph) => self.visit_emphasis(emph),
+            Inline::Link(link) => self.visit_link(link),
+            Inline::Image(image) => self.visit_image(image),
+            Inline::Autolink(autolink) => self.visit_autolink(autolink),
+            Inline::RawHtml(_) => self.visit_raw_html(inline),
+            Inline::HardBreak => self.visit_hard_break(inline),
+            Inline::SoftBreak => self.visit_soft_break(inline),
+            Inline::Text(_) => self.visit_text(inline),
+            Inline::Math(math) => self.visit_math_inline(math),
+            Inline::Emoji(_, _, _) => self.visit_emoji(inline),
+            Inline::Mention(_, _) => self.visit_mention(inline),
+            Inline::TableCaption(_, _, _) => self.visit_table_caption(inline),
+            Inline::TaskListMeta(_, _, _) => self.visit_task_list_meta(inline),
+        }
+    }
+
+    fn visit_code_span(&mut self, _cs: &CodeSpan) {}
+    fn visit_emphasis(&mut self, emph: &Emphasis) {
+        self.walk_emphasis(emph);
+    }
+    fn walk_emphasis(&mut self, emph: &Emphasis) {
+        match emph {
+            Emphasis::Emph(inlines, _) | Emphasis::Strong(inlines, _) => {
+                for (inline, _) in inlines {
+                    self.visit_inline(inline);
+                }
+            }
+        }
+    }
+    fn visit_link(&mut self, link: &Link) {
+        self.walk_link(link);
+    }
+    fn walk_link(&mut self, link: &Link) {
+        for (inline, _) in &link.label {
+            self.visit_inline(inline);
+        }
+    }
+    fn visit_image(&mut self, image: &Image) {
+        self.walk_image(image);
+    }
+    fn walk_image(&mut self, image: &Image) {
+        for (inline, _) in &image.alt {
+            self.visit_inline(inline);
+        }
+    }
+    fn visit_autolink(&mut self, _autolink: &Autolink) {}
+    fn visit_raw_html(&mut self, _inline: &Inline) {}
+    fn visit_hard_break(&mut self, _inline: &Inline) {}
+    fn visit_soft_break(&mut self, _inline: &Inline) {}
+    fn visit_text(&mut self, _inline: &Inline) {}
+    fn visit_math_inline(&mut self, _math: &crate::logic::ast::math::MathInline) {}
+    fn visit_emoji(&mut self, _inline: &Inline) {}
+    fn visit_mention(&mut self, _inline: &Inline) {}
+    fn visit_table_caption(&mut self, _inline: &Inline) {}
+    fn visit_task_list_meta(&mut self, _inline: &Inline) {}
+}
+/// # 6 Inlines (CommonMark 0.31.2)
+///
+/// This module defines the Abstract Syntax Tree (AST) node types for CommonMark section 6 (Inlines),
+/// covering all inline elements as described in the specification:
+/// # 6 inlines (CommonMark 0.31.2)
+///   6.1 Code spans
+///   6.2 Emphasis and strong emphasis
+///   6.3 Links
+///   6.4 Images
+///   6.5 Autolinks
+///   6.6 Raw HTML
+///   6.7 Hard line breaks
+///   6.8 Soft line breaks
+///   6.9 Textual content
+///
+/// Each enum/struct is documented with its corresponding section and purpose.
 
 /// The main enum representing any inline element (section 6).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +159,7 @@ pub enum Inline {
     /// Task list metadata inline
     TaskListMeta(Option<String>, Option<crate::logic::attr_parser::Attributes>, crate::logic::core::event_types::SourcePos),
 }
+
 
 // === 6.1 Code spans ===
 
