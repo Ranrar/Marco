@@ -38,7 +38,56 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
 // Dummy parser for now. Replace with your real Markdown parser implementation.
 fn parse_markdown(input: &str) -> Block {
     use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
+    use crate::logic::ast::inlines::Inline;
+    use crate::logic::core::inline::types::InlineNode;
     let mut blocks = Vec::new();
+
+    fn convert_inlines(nodes: Vec<InlineNode>) -> Vec<(Inline, crate::logic::core::event_types::SourcePos)> {
+        use crate::logic::ast::inlines::{Inline, Emphasis as EmphEnum, CodeSpan, Link as LinkStruct, LinkDestination, Image as ImageStruct};
+        use crate::logic::ast::math::MathInline;
+        nodes.into_iter().filter_map(|node| match node {
+            InlineNode::Text { text, pos } => Some((Inline::Text(text), pos)),
+            InlineNode::Emphasis { children, pos } => Some((
+                Inline::Emphasis(EmphEnum::Emph(convert_inlines(children), None)),
+                pos)),
+            InlineNode::Strong { children, pos } => Some((
+                Inline::Emphasis(EmphEnum::Strong(convert_inlines(children), None)),
+                pos)),
+            InlineNode::Code { text, pos } => Some((
+                Inline::CodeSpan(CodeSpan { content: text, attributes: None }),
+                pos)),
+            InlineNode::Link { href, title, children, pos } => Some((
+                Inline::Link(LinkStruct {
+                    label: convert_inlines(children),
+                    destination: LinkDestination::Inline(href),
+                    title: if title.is_empty() { None } else { Some(title) },
+                    attributes: None,
+                }),
+                pos)),
+            InlineNode::Image { src, alt, title, pos } => Some((
+                Inline::Image(ImageStruct {
+                    alt: convert_inlines(alt),
+                    destination: LinkDestination::Inline(src),
+                    title: if title.is_empty() { None } else { Some(title) },
+                    attributes: None,
+                }),
+                pos)),
+            InlineNode::Math { text, pos } => Some((
+                Inline::Math(MathInline {
+                    content: text,
+                    math_type: crate::logic::ast::math::MathType::LaTeX,
+                    position: Some(pos),
+                    attributes: None,
+                }),
+                pos)),
+            InlineNode::Html { text, pos } => Some((Inline::RawHtml(text), pos)),
+            InlineNode::SoftBreak { pos } => Some((Inline::SoftBreak, pos)),
+            InlineNode::LineBreak { pos } => Some((Inline::HardBreak, pos)),
+            // Entity and AttributeBlock are not directly supported in Inline; skip or map as needed
+            _ => None,
+        }).collect()
+    }
+
     for line in input.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
@@ -49,7 +98,8 @@ fn parse_markdown(input: &str) -> Block {
             // Heading
             let level = hashes as u8;
             let content = &trimmed[hashes+1..];
-            let (inlines, _events) = parse_phrases(content);
+            let inlines = parse_phrases(content);
+            let inlines = convert_inlines(inlines);
             blocks.push(Block::Leaf(LeafBlock::Heading {
                 level,
                 content: inlines,
@@ -58,7 +108,8 @@ fn parse_markdown(input: &str) -> Block {
             continue;
         }
         // Paragraph
-        let (inlines, _events) = parse_phrases(trimmed);
+        let inlines = parse_phrases(trimmed);
+        let inlines = convert_inlines(inlines);
         blocks.push(Block::Leaf(LeafBlock::Paragraph(inlines, None)));
     }
     let ast = if blocks.is_empty() {

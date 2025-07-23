@@ -1,8 +1,8 @@
+pub mod block_parser;
 pub mod event_types;
 pub mod event_emitter;
-pub mod block_parser;
 pub mod diagnostics;
-pub use block_parser::EventIter;
+pub use block_parser::{EventIter, EventEmitter};
 pub mod event_pipeline;
 pub mod attr_parser;
 pub mod parallel;

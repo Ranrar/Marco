@@ -5,6 +5,8 @@
 /// Handles punctuation, delimiters, backticks, brackets, escapes, and entities.
 
 use super::types::Token;
+use super::entities_map::HTML_ENTITIES;
+use htmlentity::entity::ICodedDataTrait;
 
 /// Tokenizes raw Markdown input into a stream of inline tokens.
 pub fn tokenize_inline(input: &str) -> Vec<Token> {
@@ -71,7 +73,35 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                     tokens.push(Token::Backslash(next));
                 }
             }
-            '&' => tokens.push(Token::Ampersand),
+            '&' => {
+                // Try to parse a valid entity: &name; or &#...;
+                let mut entity = String::from("&");
+                let mut found_semicolon = false;
+                while let Some(&next) = chars.peek() {
+                    entity.push(next);
+                    chars.next();
+                    if next == ';' {
+                        found_semicolon = true;
+                        break;
+                    }
+                    // Only allow alphanumerics, #, x, X, and ;
+                    if !(next.is_alphanumeric() || next == '#' || next == 'x' || next == 'X' || next == ';') {
+                        break;
+                    }
+                }
+                // Use htmlentity crate for robust entity validation
+                use htmlentity::entity::decode;
+                let decoded = decode(entity.as_bytes()).to_string().unwrap_or_default();
+                let is_valid_entity = found_semicolon && entity.len() > 2 && decoded != entity;
+                if is_valid_entity {
+                    tokens.push(Token::Entity(entity));
+                } else {
+                    // Not a valid entity, treat as text
+                    for ch in entity.chars() {
+                        tokens.push(Token::Text(ch.to_string()));
+                    }
+                }
+            }
             '\n' => tokens.push(Token::SoftBreak),
             '{' => {
                 buffer.clear();
@@ -93,13 +123,19 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
             '<' => {
                 buffer.clear();
                 buffer.push('<');
+                // Collect everything until the next '>' (greedy, includes all content)
+                let mut html_content = String::new();
+                html_content.push('<');
                 while let Some(next) = chars.next() {
-                    buffer.push(next);
+                    html_content.push(next);
                     if next == '>' {
-                        break;
+                        // Continue collecting until no more '>' in the sequence
+                        if !chars.clone().any(|c| c == '>') {
+                            break;
+                        }
                     }
                 }
-                tokens.push(Token::Html(buffer.clone()));
+                tokens.push(Token::Html(html_content));
             }
             _ => {
                 buffer.push(c);

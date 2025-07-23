@@ -18,23 +18,40 @@ pub fn parse_emphasis(token: &Token, nodes: &mut Vec<InlineNode>, line: usize, c
 }
 
 /// Handles parsing of code spans
-pub fn parse_code_span(token: &Token, nodes: &mut Vec<InlineNode>, line: usize, column: usize) {
-    if let Token::Backtick(_count) = token {
-        // For now, treat as a code span with empty content (to be improved)
-        nodes.push(InlineNode::Code { text: String::new(), pos: SourcePos { line, column } });
-    }
+pub fn parse_code_span(code_text: &str, nodes: &mut Vec<InlineNode>, line: usize, column: usize) {
+nodes.push(InlineNode::Code { text: code_text.to_string(), pos: SourcePos { line, column } });
 }
 
 /// Handles parsing of links and images
 pub fn parse_link(token: &Token, nodes: &mut Vec<InlineNode>, line: usize, column: usize) {
-    let s = match token {
-        Token::OpenBracket => "[".to_string(),
-        Token::Bang => "!".to_string(),
-        Token::CloseBracket => "]".to_string(),
-        _ => String::new(),
-    };
-    if !s.is_empty() {
-        nodes.push(InlineNode::Text { text: s, pos: SourcePos { line, column } });
+    match token {
+        Token::OpenBracket => nodes.push(InlineNode::Link {
+            href: String::new(),
+            title: String::new(),
+            children: vec![],
+            pos: SourcePos { line, column },
+        }),
+        Token::Bang => nodes.push(InlineNode::Image {
+            src: String::new(),
+            alt: vec![],
+            title: String::new(),
+            pos: SourcePos { line, column },
+        }),
+        Token::CloseBracket => nodes.push(InlineNode::Text { text: "]".to_string(), pos: SourcePos { line, column } }),
+        _ => {}
+    }
+}
+/// Handles parsing of entities
+pub fn parse_entity(token: &Token, nodes: &mut Vec<InlineNode>, line: usize, column: usize) {
+    if let Token::Entity(ref text) = token {
+        nodes.push(InlineNode::Entity { text: text.clone(), pos: SourcePos { line, column } });
+    }
+}
+
+/// Handles parsing of HTML tags
+pub fn parse_html(token: &Token, nodes: &mut Vec<InlineNode>, line: usize, column: usize) {
+    if let Token::Html(ref text) = token {
+        nodes.push(InlineNode::Html { text: text.clone(), pos: SourcePos { line, column } });
     }
 }
 

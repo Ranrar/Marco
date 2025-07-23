@@ -7,6 +7,7 @@ description = "Marco - A Markdown Composer"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+phf = { version = "0.11", features = ["macros"] }
 gtk4 = "0.9"
 glib = "0.20"
 sourceview5 = "0.9.0"
@@ -20,6 +21,8 @@ rayon = "1.8"
 num_cpus = "1.16"
 regex = "1.10.4"
 anyhow = "1.0"
+once_cell = "1.21.3"
+htmlentity = "1.3.2"
 
 [dev-dependencies]
 # Basic testing

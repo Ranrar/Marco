@@ -41,18 +41,25 @@ pub fn process_delimiters(
             continue;
         }
         let closer = &delim_stack[i];
+        // Exclude parsing inside code spans, links, images, HTML (context check)
+        if closer.in_code || closer.in_link || closer.in_image || closer.in_html {
+            i += 1;
+            continue;
+        }
         // Look back for matching opener
         let mut j = i;
         while j > 0 {
             j -= 1;
             let opener = &delim_stack[j];
-            // Skip if opener is used, can't open, or doesn't match delimiter char
-            if used[j] || !opener.can_open || opener.ch != closer.ch {
+            // Skip if opener is used, can't open, doesn't match delimiter char, or context exclusion
+            if used[j] || !opener.can_open || opener.ch != closer.ch || opener.in_code || opener.in_link || opener.in_image || opener.in_html {
+                continue;
+            }
+            // Left/right-flanking detection (spec-compliant)
+            if !opener.left_flanking || !closer.right_flanking {
                 continue;
             }
             // Multiples-of-3 rule (CommonMark spec)
-            // If either delimiter can both open and close, and the sum is a multiple of 3,
-            // and not both are multiples of 3, do not pair.
             let sum = opener.count + closer.count;
             let both_mult_3 = opener.count % 3 == 0 && closer.count % 3 == 0;
             let opener_both = opener.can_open && opener.can_close;
@@ -73,13 +80,19 @@ pub fn process_delimiters(
             };
             // Only extract inner nodes if indices are valid
             let inner_nodes_with_pos = if end > start && end <= result.len() {
-                // Use splice for in-place replacement, avoids extra allocation
                 result.splice(start..end, std::iter::empty()).collect::<Vec<_>>()
             } else {
                 Vec::new()
             };
-            // Build AST node for emphasis or strong
+            // Build AST node for emphasis or strong, skip empty nodes
             let children: Vec<InlineNode> = inner_nodes_with_pos.into_iter().map(|(n, _)| n).collect();
+            if children.is_empty() {
+                // Do not emit empty emphasis/strong nodes
+                used[j] = true;
+                used[i] = true;
+                break;
+            }
+            // Normalize AST: prefer minimal nesting, resolve overlaps non-greedily
             let ast = if emph_type == "strong" {
                 InlineNode::Strong { children, pos: opener.pos.clone() }
             } else {
@@ -87,7 +100,6 @@ pub fn process_delimiters(
             };
             // Insert AST node at correct position
             if start >= result.len() {
-                // Only clone SourcePos if necessary
                 result.push((ast, opener.pos.clone()));
             } else {
                 result.insert(start, (ast, opener.pos.clone()));

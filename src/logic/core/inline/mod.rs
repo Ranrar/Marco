@@ -10,6 +10,7 @@ pub mod delimiters;
 pub mod postprocess;
 pub mod rules;
 pub mod types;
+pub mod entities_map;
 
 // Re-export core types for downstream use
 pub use types::{InlineNode, Token, Delim, Bracket};

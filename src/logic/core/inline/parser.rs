@@ -1,5 +1,82 @@
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn test_entity_html_unicode_and_malformed() {
+        let ast = parse_phrases("foo &amp; bar &#x1F600; &notanentity; <b>html</b>");
+        println!("AST: {:?}", ast);
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Entity { text, .. } if text == "&amp;")), "Should parse &amp; as Entity");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Entity { text, .. } if text == "&#x1F600;")), "Should parse Unicode entity");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("&notanentity;"))), "Malformed entity should be text");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Html { text, .. } if text == "<b>html</b>")), "Should parse HTML as Html node");
+    }
+
+    #[test]
+    fn test_code_spans_nested_unclosed_mixed() {
+        // Simple code
+        let ast = parse_phrases("`code`");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Code { text, .. } if text == "code")), "Should parse code span");
+        // Nested backticks
+        let ast2 = parse_phrases("``code `inner` code``");
+        assert!(ast2.iter().any(|n| matches!(n, InlineNode::Code { text, .. } if text.contains("code `inner` code"))), "Should parse nested backtick code span");
+        // Unclosed code
+        let ast3 = parse_phrases("`unclosed");
+        assert!(ast3.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("`unclosed"))), "Unclosed code should be text");
+        // Mixed code and text
+        let ast4 = parse_phrases("foo `bar` baz");
+        assert!(ast4.iter().any(|n| matches!(n, InlineNode::Code { text, .. } if text == "bar")), "Should parse code span in mixed content");
+    }
+
+    #[test]
+    fn test_math_inline_block_malformed() {
+        // Inline math
+        let ast = parse_phrases("$x+1$");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Math { text, .. } if text == "x+1")), "Should parse inline math");
+        // Block math
+        let ast2 = parse_phrases("$$E=mc^2$$");
+        assert!(ast2.iter().any(|n| matches!(n, InlineNode::Math { text, .. } if text == "E=mc^2")), "Should parse block math");
+        // Unclosed math
+        let ast3 = parse_phrases("$unclosed");
+        assert!(ast3.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("$unclosed"))), "Unclosed math should be text");
+    }
+
+    #[test]
+    fn test_attribute_blocks_attached_lone_malformed() {
+        // Attached attribute block
+        let ast = parse_phrases("foo{.bar}");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::AttributeBlock { text, .. } if text == ".bar")), "Should parse attached attribute block");
+        // Lone attribute block
+        let ast2 = parse_phrases("{.baz}");
+        assert!(ast2.iter().any(|n| matches!(n, InlineNode::AttributeBlock { text, .. } if text == ".baz")), "Should parse lone attribute block");
+        // Malformed attribute block
+        let ast3 = parse_phrases("foo {.bad");
+        assert!(ast3.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("{.bad"))), "Malformed attribute block should be text");
+    }
+
+    #[test]
+    fn test_emphasis_strong_code_nesting_edge_cases() {
+        // Nested emphasis/strong
+        let ast = parse_phrases("**_nested_**");
+        let mut found_strong = false;
+        let mut found_emph = false;
+        for n in &ast {
+            if let InlineNode::Strong { children, .. } = n {
+                found_strong = true;
+                for c in children {
+                    if let InlineNode::Emphasis { .. } = c {
+                        found_emph = true;
+                    }
+                }
+            }
+        }
+        assert!(found_strong, "Should contain Strong node");
+        assert!(found_emph, "Should contain nested Emphasis node");
+        // Overlapping delimiters
+        let ast2 = parse_phrases("**bold *italic** text*");
+        assert!(!ast2.is_empty(), "AST should not be empty for overlapping delimiters");
+        // Emphasis inside code (should not parse as emphasis)
+        let ast3 = parse_phrases("`*not emph*`");
+        assert!(ast3.iter().any(|n| matches!(n, InlineNode::Code { text, .. } if text == "*not emph*")), "Emphasis inside code should be code");
+    }
     use super::*;
     use crate::logic::core::inline::types::{InlineNode, SourcePos};
 
@@ -62,18 +139,17 @@ mod tests {
 
     #[test]
     fn test_link_and_image_stub() {
-        let ast = parse_phrases("[link] ![img]");
-        // For now, links/images are text nodes, but should be present
-        assert!(ast.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("["))), "Should contain link text node");
-        assert!(ast.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("!"))), "Should contain image text node");
+        let ast = parse_phrases("[link](url) ![img](src)");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Link { .. })), "Should contain Link node");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::Image { .. })), "Should contain Image node");
     }
 
     #[test]
     fn test_attribute_block_handling() {
         let ast = parse_phrases("foo{.bar}");
-        assert!(ast.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("foo{.bar}"))), "Should attach attribute block to next inline node");
+        assert!(ast.iter().any(|n| matches!(n, InlineNode::AttributeBlock { text, .. } if text == ".bar")), "Should emit AttributeBlock node for {{.bar}}");
         let ast2 = parse_phrases("{.baz}");
-        assert!(ast2.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("{.baz}"))), "Should treat attribute block as text if no node to attach");
+        assert!(ast2.iter().any(|n| matches!(n, InlineNode::AttributeBlock { text, .. } if text == ".baz")), "Should emit AttributeBlock node for {{.baz}}");
     }
 
 /// parser.rs - Core inline parser: token stream → raw AST
@@ -91,17 +167,16 @@ pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
     let line = 1;
     let column = 1;
 
-    // Simple stack for brackets and links/images
+    // Improved stack for brackets and links/images, with title parsing
     let mut bracket_stack: Vec<(bool, usize)> = Vec::new(); // (is_image, start_idx)
     let mut temp_nodes: Vec<InlineNode> = Vec::new();
     let mut i = 0;
     while i < tokens.len() {
         match &tokens[i] {
             Token::Bang => {
-                // Start of image: push to stack, expect OpenBracket next
                 if i + 1 < tokens.len() && matches!(&tokens[i+1], Token::OpenBracket) {
                     bracket_stack.push((true, temp_nodes.len()));
-                    i += 1; // Skip OpenBracket
+                    i += 1;
                 } else {
                     temp_nodes.push(InlineNode::Text { text: "!".to_string(), pos: SourcePos { line, column } });
                 }
@@ -111,33 +186,72 @@ pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
             }
             Token::CloseBracket => {
                 if let Some((is_image, start_idx)) = bracket_stack.pop() {
-                    // Collect label nodes
                     let label_nodes = temp_nodes.drain(start_idx..).collect::<Vec<_>>();
-                    // Look ahead for (url)
-                    if i + 2 < tokens.len() && matches!(&tokens[i+1], Token::OpenParen) && matches!(&tokens[i+2], Token::Text(_)) {
-                        let url = if let Token::Text(ref s) = tokens[i+2] { s.clone() } else { String::new() };
-                        let title = None; // TODO: parse title if present
+                    // Look ahead for (url "title")
+                    if i + 2 < tokens.len() && matches!(&tokens[i+1], Token::OpenParen) {
+                        let mut url = String::new();
+                        let mut title = String::new();
+                        let mut j = i + 2;
+                        if j < tokens.len() {
+                            if let Token::Text(ref s) = tokens[j] {
+                                url = s.clone();
+                                j += 1;
+                            }
+                        }
+                        // Optional title in quotes
+                        if j < tokens.len() {
+                            if let Token::Text(ref s) = tokens[j] {
+                                if s.starts_with('"') && s.ends_with('"') && s.len() > 1 {
+                                    title = s[1..s.len()-1].to_string();
+                                    j += 1;
+                                }
+                            }
+                        }
                         let pos = SourcePos { line, column };
                         if is_image {
+                            let alt = label_nodes.iter().map(|n| match n {
+                                InlineNode::Text { text, .. } => text.clone(),
+                                InlineNode::Emphasis { children, .. } => children.iter().map(|c| match c {
+                                    InlineNode::Text { text, .. } => text.clone(),
+                                    _ => String::new(),
+                                }).collect::<Vec<_>>().join(" "),
+                                InlineNode::Code { text, .. } => text.clone(),
+                                InlineNode::Entity { text, .. } => text.clone(),
+                                InlineNode::Html { text, .. } => text.clone(),
+                                _ => String::new(),
+                            }).collect::<Vec<_>>().join(" ");
                             temp_nodes.push(InlineNode::Image {
                                 src: url,
-                                alt: label_nodes.iter().filter_map(|n| if let InlineNode::Text { text, .. } = n { Some(text.clone()) } else { None }).collect::<Vec<_>>().join(" "),
-                                title: title.unwrap_or_default(),
+                                alt: label_nodes.clone(),
+                                title,
                                 pos,
                             });
                         } else {
                             temp_nodes.push(InlineNode::Link {
                                 href: url,
-                                title: title.unwrap_or_default(),
+                                title,
                                 children: label_nodes,
                                 pos,
                             });
                         }
-                        i += 2; // Skip OpenParen and url
+                        i = j - 1;
                     } else {
-                        // Not a valid link/image, treat as text
-                        temp_nodes.extend(label_nodes);
-                        temp_nodes.push(InlineNode::Text { text: "]".to_string(), pos: SourcePos { line, column } });
+                        // Always emit Link/Image node, even if label is empty
+                        if is_image {
+                            temp_nodes.push(InlineNode::Image {
+                                src: String::new(),
+                                alt: label_nodes.clone(),
+                                title: String::new(),
+                                pos: SourcePos { line, column },
+                            });
+                        } else {
+                            temp_nodes.push(InlineNode::Link {
+                                href: String::new(),
+                                title: String::new(),
+                                children: label_nodes,
+                                pos: SourcePos { line, column },
+                            });
+                        }
                     }
                 } else {
                     temp_nodes.push(InlineNode::Text { text: "]".to_string(), pos: SourcePos { line, column } });
@@ -151,52 +265,87 @@ pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
                 temp_nodes.push(InlineNode::Text { text: ch.to_string().repeat(*count), pos: SourcePos { line, column } });
             }
             Token::Backtick(count) => {
-                // Extract code content between matching backtick runs
+                // Extract code content between matching backtick runs, do not split code content
                 let mut code_content = String::new();
                 let mut j = i + 1;
-                //
+                let mut found = false;
                 while j < tokens.len() {
                     match &tokens[j] {
                         Token::Backtick(c) if *c == *count => {
-                            i = j; // Move to closing backtick
-                            //
+                            i = j;
+                            found = true;
                             break;
                         }
                         Token::Text(s) => code_content.push_str(s),
+                        Token::Star(n) => code_content.push_str(&"*".repeat(*n)),
+                        Token::Underscore(n) => code_content.push_str(&"_".repeat(*n)),
+                        Token::Backtick(n) => code_content.push_str(&"`".repeat(*n)),
+                        Token::Dollar(n) => code_content.push_str(&"$".repeat(*n)),
+                        Token::OpenBracket => code_content.push('['),
+                        Token::CloseBracket => code_content.push(']'),
+                        Token::Bang => code_content.push('!'),
+                        Token::OpenParen => code_content.push('('),
+                        Token::CloseParen => code_content.push(')'),
+                        Token::Backslash(ch) => code_content.push(*ch),
+                        Token::Entity(entity) => code_content.push_str(entity),
+                        Token::Html(s) => code_content.push_str(s),
+                        Token::AttributeBlock(s) => code_content.push_str(s),
+                        Token::SoftBreak => code_content.push('\n'),
+                        Token::HardBreak => code_content.push_str("  \n"),
                         _ => {}
                     }
                     j += 1;
                 }
-                // CommonMark: trim one leading/trailing space if both exist
-                let trimmed = if code_content.starts_with(' ') && code_content.ends_with(' ') && code_content.len() > 1 {
-                    code_content[1..code_content.len()-1].to_string()
+                // Always emit Code node, even if content is empty
+                if found {
+                    let trimmed = if code_content.starts_with(' ') && code_content.ends_with(' ') && code_content.len() > 1 {
+                        code_content[1..code_content.len()-1].to_string()
+                    } else {
+                        code_content.clone()
+                    };
+                    temp_nodes.push(InlineNode::Code { text: trimmed, pos: SourcePos { line, column } });
                 } else {
-                    code_content.clone()
-                };
-                temp_nodes.push(InlineNode::Code { text: trimmed, pos: SourcePos { line, column } });
+                    temp_nodes.push(InlineNode::Text { text: format!("`{}{}", "`".repeat(*count - 1), code_content), pos: SourcePos { line, column } });
+                }
             }
             Token::Dollar(count) => {
                 // Extract math content between matching dollar runs
                 let mut math_content = String::new();
                 let mut j = i + 1;
+                let mut found = false;
                 let is_block = *count > 1;
                 while j < tokens.len() {
                     match &tokens[j] {
                         Token::Dollar(c) if *c == *count => {
                             i = j; // Move to closing dollar
+                            found = true;
                             break;
                         }
                         Token::Text(s) => math_content.push_str(s),
+                        Token::Star(n) => math_content.push_str(&"*".repeat(*n)),
+                        Token::Underscore(n) => math_content.push_str(&"_".repeat(*n)),
+                        Token::Backtick(n) => math_content.push_str(&"`".repeat(*n)),
+                        Token::Dollar(n) => math_content.push_str(&"$".repeat(*n)),
+                        Token::OpenBracket => math_content.push('['),
+                        Token::CloseBracket => math_content.push(']'),
+                        Token::Bang => math_content.push('!'),
+                        Token::OpenParen => math_content.push('('),
+                        Token::CloseParen => math_content.push(')'),
+                        Token::Backslash(ch) => math_content.push(*ch),
+                        Token::Entity(entity) => math_content.push_str(entity),
+                        Token::Html(s) => math_content.push_str(s),
+                        Token::AttributeBlock(s) => math_content.push_str(s),
+                        Token::SoftBreak => math_content.push('\n'),
+                        Token::HardBreak => math_content.push_str("  \n"),
                         _ => {}
                     }
                     j += 1;
                 }
-                if is_block {
-                    // For math blocks ($$...$$), wrap in block node if supported
+                if found {
                     temp_nodes.push(InlineNode::Math { text: math_content, pos: SourcePos { line, column } });
-                    // TODO: If block-level AST is available, use MathBlock node
                 } else {
-                    temp_nodes.push(InlineNode::Math { text: math_content, pos: SourcePos { line, column } });
+                    // Unclosed: treat as text
+                    temp_nodes.push(InlineNode::Text { text: format!("${}{}", "$".repeat(*count - 1), math_content), pos: SourcePos { line, column } });
                 }
             }
             Token::OpenParen | Token::CloseParen => {
@@ -210,147 +359,30 @@ pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
             Token::Backslash(ch) => {
                 temp_nodes.push(InlineNode::Text { text: ch.to_string(), pos: SourcePos { line, column } });
             }
-            Token::Ampersand => {
-                // Look ahead for entity name (e.g., &amp;, &#x27;, &#39;)
-                let mut entity = String::from("&");
-                let mut j = i + 1;
-                let mut found_semicolon = false;
-                while j < tokens.len() {
-                    match &tokens[j] {
-                        Token::Text(s) => {
-                            entity.push_str(s);
-                            if s.contains(';') {
-                                found_semicolon = true;
-                                i = j; // Move to semicolon
-                                break;
-                            }
-                        }
-                        _ => break,
-                    }
-                    j += 1;
-                }
-                // Only resolve if we found a semicolon
-                let resolved = if found_semicolon {
-                    match entity.as_str() {
-                        "&amp;" => "&".to_string(),
-                        "&lt;" => "<".to_string(),
-                        "&gt;" => ">".to_string(),
-                        "&quot;" => "\"".to_string(),
-                        "&apos;" => "'".to_string(),
-                        "&copy;" => "©".to_string(),
-                        _ => {
-                            // Numeric entities: &#...; or &#x...;
-                            if entity.starts_with("&#") && entity.ends_with(";") {
-                                let num = &entity[2..entity.len()-1];
-                                if num.starts_with('x') || num.starts_with('X') {
-                                    // Hex
-                                    if let Ok(v) = u32::from_str_radix(&num[1..], 16) {
-                                        if let Some(c) = std::char::from_u32(v) {
-                                            c.to_string()
-                                        } else {
-                                            entity.clone()
-                                        }
-                                    } else {
-                                        entity.clone()
-                                    }
-                                } else {
-                                    // Decimal
-                                    if let Ok(v) = num.parse::<u32>() {
-                                        if let Some(c) = std::char::from_u32(v) {
-                                            c.to_string()
-                                        } else {
-                                            entity.clone()
-                                        }
-                                    } else {
-                                        entity.clone()
-                                    }
-                                }
-                            } else {
-                                // Unknown entity, fallback to text
-                                entity.clone()
-                            }
-                        }
-                    }
+            Token::Entity(entity) => {
+                // Use htmlentity crate for robust entity validation
+                use htmlentity::entity::{decode, ICodedDataTrait};
+                let decoded = decode(entity.as_bytes()).to_string().unwrap_or_default();
+                let is_valid_entity = decoded != *entity;
+                if is_valid_entity {
+                    temp_nodes.push(InlineNode::Entity { text: entity.clone(), pos: SourcePos { line, column } });
                 } else {
-                    entity.clone()
-                };
-                temp_nodes.push(InlineNode::Text { text: resolved, pos: SourcePos { line, column } });
+                    // Fallback: treat as text
+                    temp_nodes.push(InlineNode::Text { text: entity.clone(), pos: SourcePos { line, column } });
+                }
             }
             Token::Html(s) => {
+                // Emit Html node for any Token::Html
                 temp_nodes.push(InlineNode::Html { text: s.clone(), pos: SourcePos { line, column } });
             }
             Token::AttributeBlock(s) => {
-                // Buffer attribute block to attach to next node
-                let mut attached = false;
-                let k_start = i + 1;
-                for k in k_start..tokens.len() {
-                    match &tokens[k] {
-                        Token::Text(t) => {
-                            temp_nodes.push(InlineNode::Text { text: t.clone() + &format!("{{{}}}", s), pos: SourcePos { line, column } });
-                            attached = true;
-                            i = k;
-                            break;
-                        }
-                        Token::Star(count) | Token::Underscore(count) => {
-                            let ch = if let Token::Star(_) = &tokens[k] { '*' } else { '_' };
-                            temp_nodes.push(InlineNode::Text { text: ch.to_string().repeat(*count) + &format!("{{{}}}", s), pos: SourcePos { line, column } });
-                            attached = true;
-                            i = k;
-                            break;
-                        }
-                        Token::Backtick(count) => {
-                            // Attach to code span
-                            let mut code_content = String::new();
-                            let mut j = k + 1;
-                            while j < tokens.len() {
-                                match &tokens[j] {
-                                    Token::Backtick(c) if *c == *count => {
-                                        //
-                                        break;
-                                    }
-                                    Token::Text(s) => code_content.push_str(s),
-                                    _ => {}
-                                }
-                                j += 1;
-                            }
-                            let trimmed = if code_content.starts_with(' ') && code_content.ends_with(' ') && code_content.len() > 1 {
-                                code_content[1..code_content.len()-1].to_string()
-                            } else {
-                                code_content.clone()
-                            };
-                            temp_nodes.push(InlineNode::Code { text: trimmed + &format!("{{{}}}", s), pos: SourcePos { line, column } });
-                            attached = true;
-                            i = k;
-                            break;
-                        }
-                        Token::Dollar(count) => {
-                            // Attach to math span
-                            let mut math_content = String::new();
-                            let mut j = k + 1;
-                            while j < tokens.len() {
-                                match &tokens[j] {
-                                    Token::Dollar(c) if *c == *count => {
-                                        //
-                                        break;
-                                    }
-                                    Token::Text(s) => math_content.push_str(s),
-                                    _ => {}
-                                }
-                                j += 1;
-                            }
-                            temp_nodes.push(InlineNode::Math { text: math_content + &format!("{{{}}}", s), pos: SourcePos { line, column } });
-                            attached = true;
-                            i = k;
-                            break;
-                        }
-                        // Extend for other node types as needed (links, images, etc.)
-                        _ => break,
-                    }
-                }
-                if !attached {
-                    // If no node to attach, treat as text
-                    temp_nodes.push(InlineNode::Text { text: s.clone(), pos: SourcePos { line, column } });
-                }
+                // Strip outer braces if present
+                let stripped = if s.starts_with('{') && s.ends_with('}') && s.len() > 2 {
+                    s[1..s.len()-1].to_string()
+                } else {
+                    s.clone()
+                };
+                temp_nodes.push(InlineNode::AttributeBlock { text: stripped, pos: SourcePos { line, column } });
             }
             Token::SoftBreak => {
                 temp_nodes.push(InlineNode::SoftBreak { pos: SourcePos { line, column } });
