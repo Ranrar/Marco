@@ -52,12 +52,13 @@ mod visitor_tests {
         println!("AST: {:?}", ast);
         assert!(ast.iter().any(|n| matches!(n, InlineNode::Emphasis { children, .. } if children.iter().any(|c| matches!(c, InlineNode::Text { text, .. } if text == "b")))), "Should parse *b* as emphasis");
 
-        // Multiples-of-3 rule
+        // Multiples-of-3 rule and partial consumption
         let ast2 = parse_phrases("***foo** bar*");
         println!("AST2: {:?}", ast2);
         // Should produce strong and emphasis, not triple nesting
         assert!(ast2.iter().any(|n| matches!(n, InlineNode::Strong { .. })), "Should parse strong");
         assert!(ast2.iter().any(|n| matches!(n, InlineNode::Emphasis { .. })), "Should parse emphasis");
+        assert!(ast2.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("*"))), "Should emit leftover delimiter as text");
 
         // No parsing inside code spans
         let ast3 = parse_phrases("`*not emph*`");
@@ -76,12 +77,32 @@ mod visitor_tests {
         // Intraword emphasis for * but not _
         let ast6 = parse_phrases("foo*bar* baz_baz_");
         assert!(ast6.iter().any(|n| matches!(n, InlineNode::Emphasis { .. })), "Should allow intraword emphasis for *");
-        assert!(!ast6.iter().any(|n| matches!(n, InlineNode::Emphasis { .. })), "Should not allow intraword emphasis for _");
+        // _ intraword should not parse as emphasis
+        let ast6b = parse_phrases("foo_bar_baz_");
+        assert!(!ast6b.iter().any(|n| matches!(n, InlineNode::Emphasis { .. })), "Should not allow intraword emphasis for _");
 
         // Minimal nesting and precedence
         let ast7 = parse_phrases("*em **strong** em*");
         // Should prefer <em><strong>...</strong></em>
         assert!(ast7.iter().any(|n| matches!(n, InlineNode::Emphasis { children, .. } if children.iter().any(|c| matches!(c, InlineNode::Strong { .. })))), "Should nest strong inside emphasis");
+
+        // Unmatched delimiters
+        let ast8 = parse_phrases("*unclosed");
+        assert!(ast8.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text.contains("*unclosed"))), "Unclosed emphasis should be text");
+
+        // Complex overlapping
+        let ast9 = parse_phrases("***foo* bar**");
+        assert!(ast9.iter().any(|n| matches!(n, InlineNode::Strong { children, .. } if children.iter().any(|c| matches!(c, InlineNode::Emphasis { .. })))), "Should nest Emphasis inside Strong for ***foo* bar**");
+
+        let ast10 = parse_phrases("**a *b***");
+        assert!(ast10.iter().any(|n| matches!(n, InlineNode::Strong { children, .. } if children.iter().any(|c| matches!(c, InlineNode::Emphasis { .. })))), "Should nest Emphasis inside Strong for **a *b***");
+
+        let ast11 = parse_phrases("*a **b* c**");
+        assert!(ast11.iter().any(|n| matches!(n, InlineNode::Emphasis { children, .. } if children.iter().any(|c| matches!(c, InlineNode::Strong { .. })))), "Should nest Strong inside Emphasis for *a **b* c**");
+
+        // Edge: only delimiters
+        let ast12 = parse_phrases("***");
+        assert!(ast12.iter().any(|n| matches!(n, InlineNode::Text { text, .. } if text == "***")), "Should emit unmatched triple delimiter as text");
     }
     #[test]
     fn test_edge_cases() {
@@ -183,6 +204,10 @@ pub struct Delim {
     pub left_flanking: bool,
     /// Is this delimiter right-flanking?
     pub right_flanking: bool,
+    /// Index of previous delimiter in the stack (if any)
+    pub prev: Option<usize>,
+    /// Index of next delimiter in the stack (if any)
+    pub next: Option<usize>,
 }
 
 /// Bracket stack entry for link/image parsing (CommonMark spec)
@@ -238,6 +263,8 @@ pub enum InlineNode {
     AttributeBlock { text: String, pos: SourcePos },
     SoftBreak { pos: SourcePos },
     LineBreak { pos: SourcePos },
+    Strikethrough { children: Vec<InlineNode>, pos: SourcePos },
+    TaskListItem { checked: bool, children: Vec<InlineNode>, pos: SourcePos },
     // Extend with more types as needed (emoji, mention, etc.)
 }
 
@@ -271,12 +298,26 @@ impl InlineNode {
             InlineNode::AttributeBlock { .. } => visitor.visit_inline_attribute_block(self),
             InlineNode::SoftBreak { .. } => visitor.visit_inline_softbreak(self),
             InlineNode::LineBreak { .. } => visitor.visit_inline_linebreak(self),
+            InlineNode::Strikethrough { children, .. } => {
+                visitor.visit_inline_strikethrough(self);
+                for child in children {
+                    child.accept(visitor);
+                }
+            }
+            InlineNode::TaskListItem { children, .. } => {
+                visitor.visit_inline_tasklistitem(self);
+                for child in children {
+                    child.accept(visitor);
+                }
+            }
         }
     }
 }
 
 /// Trait for visiting InlineNode AST nodes.
 pub trait InlineAstVisitor {
+    fn visit_inline_strikethrough(&mut self, _node: &InlineNode) {}
+    fn visit_inline_tasklistitem(&mut self, _node: &InlineNode) {}
     fn visit_inline_text(&mut self, _node: &InlineNode) {}
     fn visit_inline_emphasis(&mut self, _node: &InlineNode) {}
     fn visit_inline_strong(&mut self, _node: &InlineNode) {}

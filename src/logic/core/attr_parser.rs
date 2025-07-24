@@ -51,14 +51,41 @@ mod tests {
     #[test]
     fn test_markdown_event_stream_with_attributes() {
         use crate::logic::core::inline::parser::parse_phrases;
-        // use crate::logic::core::event_emitter::push_inline_events; // event_emitter does not exist, remove import
         let md = "*emph*{.important} and **strong**{#main} and [link](url){.external}";
         let inlines = parse_phrases(md);
-        // The following lines are commented out because push_inline_events is not available
-        // let mut events = Vec::new();
-        // push_inline_events(&mut events, inlines, &mut None);
-        // for event in &events {
-        //     println!("{:?}", event);
-        // }
+
+        // Find and assert attribute blocks for each inline type
+        let mut found_emph_attr = false;
+        let mut found_strong_attr = false;
+        let mut found_link_attr = false;
+        for n in &inlines {
+            match n {
+                crate::logic::core::inline::types::InlineNode::Emphasis { children, .. } => {
+                    if let Some(crate::logic::core::inline::types::InlineNode::AttributeBlock { text, .. }) = children.last() {
+                        if text == ".important" {
+                            found_emph_attr = true;
+                        }
+                    }
+                }
+                crate::logic::core::inline::types::InlineNode::Strong { children, .. } => {
+                    if let Some(crate::logic::core::inline::types::InlineNode::AttributeBlock { text, .. }) = children.last() {
+                        if text == "#main" {
+                            found_strong_attr = true;
+                        }
+                    }
+                }
+                crate::logic::core::inline::types::InlineNode::Link { children, .. } => {
+                    if let Some(crate::logic::core::inline::types::InlineNode::AttributeBlock { text, .. }) = children.last() {
+                        if text == ".external" {
+                            found_link_attr = true;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        assert!(found_emph_attr, "Should find attribute block .important on Emphasis");
+        assert!(found_strong_attr, "Should find attribute block #main on Strong");
+        assert!(found_link_attr, "Should find attribute block .external on Link");
     }
 }

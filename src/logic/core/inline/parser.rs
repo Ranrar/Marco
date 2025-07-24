@@ -80,6 +80,8 @@ mod tests {
     use super::*;
     use crate::logic::core::inline::types::{InlineNode, SourcePos};
 
+    /// Helper for constructing SourcePos in test assertions and helpers.
+    #[allow(dead_code)]
     fn pos(line: usize, col: usize) -> SourcePos {
         SourcePos { line, column: col }
     }
@@ -159,10 +161,16 @@ mod tests {
 
 use crate::logic::core::inline::types::{InlineNode, Token, SourcePos};
 use super::tokenizer::tokenize_inline;
-use super::postprocess::normalize_inlines;
+use crate::logic::core::inline::postprocess::normalize_inlines;
+use crate::logic::core::options::ParserOptions;
+use crate::logic::core::extensions::github::GithubExtension;
+use crate::logic::core::extensions::math::MathExtension;
+use crate::logic::core::extensions::MarkdownExtension;
 
 /// Parse a string into a sequence of nested InlineNode AST nodes.
-pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
+
+/// Parse phrases with configurable extensions
+pub fn parse_phrases_with_options(input: &str, options: &ParserOptions) -> Vec<InlineNode> {
     let tokens = tokenize_inline(input);
     let line = 1;
     let column = 1;
@@ -203,192 +211,91 @@ pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
                             if let Token::Text(ref s) = tokens[j] {
                                 if s.starts_with('"') && s.ends_with('"') && s.len() > 1 {
                                     title = s[1..s.len()-1].to_string();
-                                    j += 1;
                                 }
                             }
                         }
-                        let pos = SourcePos { line, column };
                         if is_image {
-                            let alt = label_nodes.iter().map(|n| match n {
-                                InlineNode::Text { text, .. } => text.clone(),
-                                InlineNode::Emphasis { children, .. } => children.iter().map(|c| match c {
-                                    InlineNode::Text { text, .. } => text.clone(),
-                                    _ => String::new(),
-                                }).collect::<Vec<_>>().join(" "),
-                                InlineNode::Code { text, .. } => text.clone(),
-                                InlineNode::Entity { text, .. } => text.clone(),
-                                InlineNode::Html { text, .. } => text.clone(),
-                                _ => String::new(),
-                            }).collect::<Vec<_>>().join(" ");
-                            temp_nodes.push(InlineNode::Image {
-                                src: url,
-                                alt: label_nodes.clone(),
-                                title,
-                                pos,
-                            });
+                            temp_nodes.push(InlineNode::Image { src: url, alt: label_nodes, title, pos: SourcePos { line, column } });
                         } else {
-                            temp_nodes.push(InlineNode::Link {
-                                href: url,
-                                title,
-                                children: label_nodes,
-                                pos,
-                            });
+                            temp_nodes.push(InlineNode::Link { href: url, title, children: label_nodes, pos: SourcePos { line, column } });
                         }
-                        i = j - 1;
+                        i = j;
                     } else {
-                        // Always emit Link/Image node, even if label is empty
-                        if is_image {
-                            temp_nodes.push(InlineNode::Image {
-                                src: String::new(),
-                                alt: label_nodes.clone(),
-                                title: String::new(),
-                                pos: SourcePos { line, column },
-                            });
-                        } else {
-                            temp_nodes.push(InlineNode::Link {
-                                href: String::new(),
-                                title: String::new(),
-                                children: label_nodes,
-                                pos: SourcePos { line, column },
-                            });
-                        }
+                        // Not a valid link/image, treat as text
+                        temp_nodes.extend(label_nodes);
+                        temp_nodes.push(InlineNode::Text { text: "]".to_string(), pos: SourcePos { line, column } });
                     }
                 } else {
                     temp_nodes.push(InlineNode::Text { text: "]".to_string(), pos: SourcePos { line, column } });
                 }
             }
-            Token::Text(s) => {
-                temp_nodes.push(InlineNode::Text { text: s.clone(), pos: SourcePos { line, column } });
-            }
-            Token::Star(count) | Token::Underscore(count) => {
-                let ch = if let Token::Star(_) = &tokens[i] { '*' } else { '_' };
-                temp_nodes.push(InlineNode::Text { text: ch.to_string().repeat(*count), pos: SourcePos { line, column } });
+            Token::HardBreak => {
+                temp_nodes.push(InlineNode::LineBreak { pos: SourcePos { line, column } });
             }
             Token::Backtick(count) => {
-                // Extract code content between matching backtick runs, do not split code content
-                let mut code_content = String::new();
-                let mut j = i + 1;
+                // Parse code span: collect text until matching backtick run
+                let mut code = String::new();
                 let mut found = false;
+                let mut j = i + 1;
                 while j < tokens.len() {
                     match &tokens[j] {
-                        Token::Backtick(c) if *c == *count => {
-                            i = j;
+                        Token::Backtick(c2) if c2 == count => {
                             found = true;
                             break;
                         }
-                        Token::Text(s) => code_content.push_str(s),
-                        Token::Star(n) => code_content.push_str(&"*".repeat(*n)),
-                        Token::Underscore(n) => code_content.push_str(&"_".repeat(*n)),
-                        Token::Backtick(n) => code_content.push_str(&"`".repeat(*n)),
-                        Token::Dollar(n) => code_content.push_str(&"$".repeat(*n)),
-                        Token::OpenBracket => code_content.push('['),
-                        Token::CloseBracket => code_content.push(']'),
-                        Token::Bang => code_content.push('!'),
-                        Token::OpenParen => code_content.push('('),
-                        Token::CloseParen => code_content.push(')'),
-                        Token::Backslash(ch) => code_content.push(*ch),
-                        Token::Entity(entity) => code_content.push_str(entity),
-                        Token::Html(s) => code_content.push_str(s),
-                        Token::AttributeBlock(s) => code_content.push_str(s),
-                        Token::SoftBreak => code_content.push('\n'),
-                        Token::HardBreak => code_content.push_str("  \n"),
+                        Token::Text(s) => code.push_str(s),
                         _ => {}
                     }
                     j += 1;
                 }
-                // Always emit Code node, even if content is empty
                 if found {
-                    let trimmed = if code_content.starts_with(' ') && code_content.ends_with(' ') && code_content.len() > 1 {
-                        code_content[1..code_content.len()-1].to_string()
-                    } else {
-                        code_content.clone()
-                    };
-                    temp_nodes.push(InlineNode::Code { text: trimmed, pos: SourcePos { line, column } });
+                    temp_nodes.push(InlineNode::Code { text: code, pos: SourcePos { line, column } });
+                    i = j; // skip to after closing backtick
                 } else {
-                    temp_nodes.push(InlineNode::Text { text: format!("`{}{}", "`".repeat(*count - 1), code_content), pos: SourcePos { line, column } });
+                    // Unclosed, treat as text
+                    temp_nodes.push(InlineNode::Text { text: "`".repeat(*count), pos: SourcePos { line, column } });
                 }
             }
             Token::Dollar(count) => {
-                // Extract math content between matching dollar runs
-                let mut math_content = String::new();
-                let mut j = i + 1;
+                // Parse math span: collect text until matching dollar run
+                let mut math = String::new();
                 let mut found = false;
-                let is_block = *count > 1;
+                let mut j = i + 1;
                 while j < tokens.len() {
                     match &tokens[j] {
-                        Token::Dollar(c) if *c == *count => {
-                            i = j; // Move to closing dollar
+                        Token::Dollar(c2) if c2 == count => {
                             found = true;
                             break;
                         }
-                        Token::Text(s) => math_content.push_str(s),
-                        Token::Star(n) => math_content.push_str(&"*".repeat(*n)),
-                        Token::Underscore(n) => math_content.push_str(&"_".repeat(*n)),
-                        Token::Backtick(n) => math_content.push_str(&"`".repeat(*n)),
-                        Token::Dollar(n) => math_content.push_str(&"$".repeat(*n)),
-                        Token::OpenBracket => math_content.push('['),
-                        Token::CloseBracket => math_content.push(']'),
-                        Token::Bang => math_content.push('!'),
-                        Token::OpenParen => math_content.push('('),
-                        Token::CloseParen => math_content.push(')'),
-                        Token::Backslash(ch) => math_content.push(*ch),
-                        Token::Entity(entity) => math_content.push_str(entity),
-                        Token::Html(s) => math_content.push_str(s),
-                        Token::AttributeBlock(s) => math_content.push_str(s),
-                        Token::SoftBreak => math_content.push('\n'),
-                        Token::HardBreak => math_content.push_str("  \n"),
+                        Token::Text(s) => math.push_str(s),
                         _ => {}
                     }
                     j += 1;
                 }
                 if found {
-                    temp_nodes.push(InlineNode::Math { text: math_content, pos: SourcePos { line, column } });
+                    temp_nodes.push(InlineNode::Math { text: math, pos: SourcePos { line, column } });
+                    i = j; // skip to after closing dollar
                 } else {
-                    // Unclosed: treat as text
-                    temp_nodes.push(InlineNode::Text { text: format!("${}{}", "$".repeat(*count - 1), math_content), pos: SourcePos { line, column } });
+                    // Unclosed, treat as text
+                    temp_nodes.push(InlineNode::Text { text: "$".repeat(*count), pos: SourcePos { line, column } });
                 }
-            }
-            Token::OpenParen | Token::CloseParen => {
-                let s = match &tokens[i] {
-                    Token::OpenParen => "(".to_string(),
-                    Token::CloseParen => ")".to_string(),
-                    _ => String::new(),
-                };
-                temp_nodes.push(InlineNode::Text { text: s, pos: SourcePos { line, column } });
-            }
-            Token::Backslash(ch) => {
-                temp_nodes.push(InlineNode::Text { text: ch.to_string(), pos: SourcePos { line, column } });
-            }
-            Token::Entity(entity) => {
-                // Use htmlentity crate for robust entity validation
-                use htmlentity::entity::{decode, ICodedDataTrait};
-                let decoded = decode(entity.as_bytes()).to_string().unwrap_or_default();
-                let is_valid_entity = decoded != *entity;
-                if is_valid_entity {
-                    temp_nodes.push(InlineNode::Entity { text: entity.clone(), pos: SourcePos { line, column } });
-                } else {
-                    // Fallback: treat as text
-                    temp_nodes.push(InlineNode::Text { text: entity.clone(), pos: SourcePos { line, column } });
-                }
-            }
-            Token::Html(s) => {
-                // Emit Html node for any Token::Html
-                temp_nodes.push(InlineNode::Html { text: s.clone(), pos: SourcePos { line, column } });
             }
             Token::AttributeBlock(s) => {
-                // Strip outer braces if present
-                let stripped = if s.starts_with('{') && s.ends_with('}') && s.len() > 2 {
-                    s[1..s.len()-1].to_string()
-                } else {
-                    s.clone()
-                };
-                temp_nodes.push(InlineNode::AttributeBlock { text: stripped, pos: SourcePos { line, column } });
+                // Remove outer braces if present
+                let text = s.trim_matches(|c| c == '{' || c == '}').to_string();
+                temp_nodes.push(InlineNode::AttributeBlock { text, pos: SourcePos { line, column } });
+            }
+            Token::Entity(s) => {
+                temp_nodes.push(InlineNode::Entity { text: s.clone(), pos: SourcePos { line, column } });
+            }
+            Token::Html(s) => {
+                temp_nodes.push(InlineNode::Html { text: s.clone(), pos: SourcePos { line, column } });
+            }
+            Token::Text(s) => {
+                temp_nodes.push(InlineNode::Text { text: s.clone(), pos: SourcePos { line, column } });
             }
             Token::SoftBreak => {
                 temp_nodes.push(InlineNode::SoftBreak { pos: SourcePos { line, column } });
-            }
-            Token::HardBreak => {
-                temp_nodes.push(InlineNode::LineBreak { pos: SourcePos { line, column } });
             }
             _ => {}
         }
@@ -396,6 +303,21 @@ pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
     }
 
     // Normalize to produce nested AST (emphasis, strong, links, etc.)
-    let ast = normalize_inlines(temp_nodes);
+    let mut ast = normalize_inlines(temp_nodes);
+
+    // Extension activation pattern
+    let extensions: Vec<Box<dyn MarkdownExtension>> = vec![
+        Box::new(GithubExtension),
+        Box::new(MathExtension),
+        // Add more extensions here
+    ];
+    for ext in extensions {
+        ext.apply(&mut ast, options);
+    }
     ast
+}
+
+/// Backwards compatibility: default to CommonMark only
+pub fn parse_phrases(input: &str) -> Vec<InlineNode> {
+    parse_phrases_with_options(input, &ParserOptions::default())
 }

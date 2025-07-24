@@ -165,7 +165,6 @@ mod tests {
         let table_caption = Inline::TableCaption("caption".to_string(), None, SourcePos { line: 4, column: 1 });
         let task_list_meta = Inline::TaskListMeta(Some("group1".to_string()), None, SourcePos { line: 5, column: 1 });
         let mut state = Vec::new();
-        let pos = SourcePos { line: 1, column: 1 };
         // Math
         match math {
             Inline::Math(ref m) => {

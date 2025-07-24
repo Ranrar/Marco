@@ -1,5 +1,14 @@
+/// Returns a HashMap containing all HTML entities and their values.
+pub fn html_entities_hashmap() -> HashMap<&'static str, &'static str> {
+    let mut map = HashMap::with_capacity(HTML_ENTITIES.len());
+    for (k, v) in HTML_ENTITIES.entries() {
+        map.insert(*k, *v);
+    }
+    map
+}
+
+use std::collections::{HashSet, HashMap};
 use once_cell::sync::Lazy;
-use std::collections::HashSet;
 
 pub static ENTITIES_JSON: Lazy<HashSet<&'static str>> = Lazy::new(|| {
     let mut set = HashSet::new();

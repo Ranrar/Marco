@@ -1,3 +1,4 @@
+// (moved below)
 //! Inline parsing core module
 //!
 //! This module provides the tokenizer, parser, delimiter stack logic, normalization pipeline,

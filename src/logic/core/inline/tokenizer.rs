@@ -6,7 +6,6 @@
 
 use super::types::Token;
 use super::entities_map::HTML_ENTITIES;
-use htmlentity::entity::ICodedDataTrait;
 
 /// Tokenizes raw Markdown input into a stream of inline tokens.
 pub fn tokenize_inline(input: &str) -> Vec<Token> {
@@ -89,10 +88,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                         break;
                     }
                 }
-                // Use htmlentity crate for robust entity validation
-                use htmlentity::entity::decode;
-                let decoded = decode(entity.as_bytes()).to_string().unwrap_or_default();
-                let is_valid_entity = found_semicolon && entity.len() > 2 && decoded != entity;
+                let is_valid_entity = found_semicolon && entity.len() > 2 && (HTML_ENTITIES.contains_key(entity.as_str()) || (entity.starts_with("&#") && entity.ends_with(';')));
                 if is_valid_entity {
                     tokens.push(Token::Entity(entity));
                 } else {

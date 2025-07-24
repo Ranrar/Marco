@@ -67,13 +67,20 @@ impl<'a> Iterator for EventIter<'a> {
     }
 }
 mod tests {
+    #[allow(unused_imports)]
+    use super::{EventIter, EventEmitter};
+    #[allow(unused_imports)]
     use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock, ContainerBlock};
+    #[allow(unused_imports)]
     use crate::logic::ast::inlines::Inline;
+    #[allow(unused_imports)]
     use crate::logic::ast::github::{TableRow, TableCell, TableAlignment};
+    #[allow(unused_imports)]
     use crate::logic::core::event_types::{Event, Tag, TagEnd, SourcePos};
+    #[allow(unused_imports)]
     use crate::logic::core::event_pipeline::EventPipeline;
+    #[allow(unused_imports)]
     use crate::logic::core::diagnostics::Diagnostics;
-    use super::*;
     #[test]
     fn test_table_event_emission() {
         // Create a simple table AST
@@ -102,6 +109,7 @@ mod tests {
         assert!(events.iter().any(|e| matches!(e, Event::End(TagEnd::TableCell, ..))));
     }
 
+    #[allow(dead_code)]
     fn dummy_block() -> Block {
         Block::Leaf(LeafBlock::Paragraph(vec![], None))
     }

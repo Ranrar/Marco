@@ -7,3 +7,5 @@ pub mod event_pipeline;
 pub mod attr_parser;
 pub mod parallel;
 pub mod inline;
+pub mod extensions;
+pub mod options;
