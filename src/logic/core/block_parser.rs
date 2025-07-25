@@ -36,7 +36,7 @@ impl<'a> EventIter<'a> {
     pub fn with_pipeline(root: &'a Block, pipeline: EventPipeline, diagnostics: Option<&'a mut super::diagnostics::Diagnostics>) -> Self {
         let mut emitter = EventEmitter::new();
         root.accept(&mut emitter);
-        Self {
+        EventIter {
             emitter,
             index: 0,
             pipeline: Some(pipeline),
@@ -74,7 +74,7 @@ mod tests {
     #[allow(unused_imports)]
     use crate::logic::ast::inlines::Inline;
     #[allow(unused_imports)]
-    use crate::logic::ast::github::{TableRow, TableCell, TableAlignment};
+    use crate::logic::ast::gfm::{TableRow, TableCell, TableAlignment};
     #[allow(unused_imports)]
     use crate::logic::core::event_types::{Event, Tag, TagEnd, SourcePos};
     #[allow(unused_imports)]
@@ -243,13 +243,22 @@ impl AstVisitor for EventEmitter {
                             attributes: attributes.clone(),
                         }, None, attributes.clone()));
                     }
+                    crate::logic::ast::blocks_and_inlines::LeafBlock::FootnoteDefinition { identifier, label, children, association, attributes } => {
+                        self.events.push(Event::Start(Tag::FootnoteDefinition(identifier.clone(), label.clone(), attributes.clone()), None, attributes.clone()));
+                        if let Some(assoc) = association {
+                            self.events.push(Event::Meta { key: "association", value: Some(assoc.identifier.clone()), attributes: attributes.clone() });
+                        }
+                        for block in children {
+                            self.visit_block(block);
+                        }
+                        self.events.push(Event::End(TagEnd::FootnoteDefinition(identifier.clone()), None, attributes.clone()));
+                    }
                 }
             }
         }
         self.walk_block(block);
     }
     fn visit_container_block(&mut self, container: &ContainerBlock) {
-        // Emit real events for ContainerBlock node
         match container {
             crate::logic::ast::blocks_and_inlines::ContainerBlock::Document(_, attrs) => {
                 self.events.push(Event::Start(Tag::BlockQuote(attrs.clone()), None, attrs.clone()));
@@ -257,19 +266,81 @@ impl AstVisitor for EventEmitter {
             crate::logic::ast::blocks_and_inlines::ContainerBlock::BlockQuote(_, attrs) => {
                 self.events.push(Event::Start(Tag::BlockQuote(attrs.clone()), None, attrs.clone()));
             }
-            crate::logic::ast::blocks_and_inlines::ContainerBlock::ListItem { attributes, .. } => {
+            crate::logic::ast::blocks_and_inlines::ContainerBlock::ListItem { attributes, spread, association, .. } => {
                 self.events.push(Event::Start(Tag::Item(attributes.clone()), None, attributes.clone()));
+                // Emit spread and association as event meta
+                if let Some(assoc) = association {
+                    self.events.push(Event::Meta { key: "association", value: Some(assoc.identifier.clone()), attributes: attributes.clone() });
+                }
+                self.events.push(Event::Meta { key: "spread", value: Some(spread.to_string()), attributes: attributes.clone() });
             }
-            crate::logic::ast::blocks_and_inlines::ContainerBlock::List { attributes, .. } => {
+            crate::logic::ast::blocks_and_inlines::ContainerBlock::List { attributes, spread, .. } => {
                 self.events.push(Event::Start(Tag::List(attributes.clone()), None, attributes.clone()));
+                self.events.push(Event::Meta { key: "spread", value: Some(spread.to_string()), attributes: attributes.clone() });
             }
         }
         self.walk_container_block(container);
     }
     fn visit_leaf_block(&mut self, leaf: &LeafBlock) {
-        // Emit real events for LeafBlock node
-        // No generic event for LeafBlock, handled in visit_block above
+        match leaf {
+            LeafBlock::IndentedCodeBlock { meta, attributes, .. } => {
+                self.events.push(Event::Start(Tag::CodeBlock(attributes.clone()), None, attributes.clone()));
+                if let Some(m) = meta {
+                    self.events.push(Event::Meta { key: "meta", value: Some(m.clone()), attributes: attributes.clone() });
+                }
+            }
+            LeafBlock::FencedCodeBlock { meta, attributes, .. } => {
+                self.events.push(Event::Start(Tag::CodeBlock(attributes.clone()), None, attributes.clone()));
+                if let Some(m) = meta {
+                    self.events.push(Event::Meta { key: "meta", value: Some(m.clone()), attributes: attributes.clone() });
+                }
+            }
+            LeafBlock::Table { header, rows, attributes, .. } => {
+                self.events.push(Event::Start(Tag::Table(attributes.clone()), None, attributes.clone()));
+                // Emit header row
+                self.events.push(Event::Start(Tag::TableRow, None, attributes.clone()));
+                for cell in &header.cells {
+                    self.events.push(Event::Start(Tag::TableCell, None, attributes.clone()));
+                    for (inline, pos) in &cell.content {
+                        self.events.push(Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
+                    }
+                    self.events.push(Event::End(TagEnd::TableCell, None, attributes.clone()));
+                }
+                self.events.push(Event::End(TagEnd::TableRow, None, attributes.clone()));
+                // Emit data rows
+                for row in rows {
+                    self.events.push(Event::Start(Tag::TableRow, None, attributes.clone()));
+                    for cell in &row.cells {
+                        self.events.push(Event::Start(Tag::TableCell, None, attributes.clone()));
+                        for (inline, pos) in &cell.content {
+                            self.events.push(Event::Inline(inline.clone(), Some(pos.clone()), attributes.clone()));
+                        }
+                        self.events.push(Event::End(TagEnd::TableCell, None, attributes.clone()));
+                    }
+                    self.events.push(Event::End(TagEnd::TableRow, None, attributes.clone()));
+                }
+            }
+            LeafBlock::FootnoteDefinition { identifier, label, children, association, attributes } => {
+                self.events.push(Event::Start(Tag::FootnoteDefinition(identifier.clone(), label.clone(), attributes.clone()), None, attributes.clone()));
+                if let Some(assoc) = association {
+                    self.events.push(Event::Meta { key: "association", value: Some(assoc.identifier.clone()), attributes: attributes.clone() });
+                }
+                for block in children {
+                    self.visit_block(block);
+                }
+                self.events.push(Event::End(TagEnd::FootnoteDefinition(identifier.clone()), None, attributes.clone()));
+            }
+            LeafBlock::Paragraph(_, _) => {},
+            LeafBlock::Heading { .. } => {},
+            LeafBlock::AtxHeading { .. } => {},
+            LeafBlock::SetextHeading { .. } => {},
+            LeafBlock::ThematicBreak { .. } => {},
+            LeafBlock::HtmlBlock { block_type: _, content: _, attributes: _ } => {},
+            LeafBlock::LinkReferenceDefinition { .. } => {},
+            LeafBlock::BlankLine => {},
+            LeafBlock::Math(_) => {},
+            LeafBlock::CustomTagBlock { .. } => {},
+        }
         self.walk_leaf_block(leaf);
     }
-    // Add more visit methods for inlines, table rows, etc. as needed
 }

@@ -163,7 +163,7 @@ use crate::logic::core::inline::types::{InlineNode, Token, SourcePos};
 use super::tokenizer::tokenize_inline;
 use crate::logic::core::inline::postprocess::normalize_inlines;
 use crate::logic::core::options::ParserOptions;
-use crate::logic::core::extensions::github::GithubExtension;
+use crate::logic::core::extensions::gfm::GithubExtension;
 use crate::logic::core::extensions::math::MathExtension;
 use crate::logic::core::extensions::MarkdownExtension;
 
@@ -181,7 +181,7 @@ pub fn parse_phrases_with_options(input: &str, options: &ParserOptions) -> Vec<I
     let mut i = 0;
     while i < tokens.len() {
         match &tokens[i] {
-            Token::Bang => {
+            Token::Bang => { // Handles image marker '!'
                 if i + 1 < tokens.len() && matches!(&tokens[i+1], Token::OpenBracket) {
                     bracket_stack.push((true, temp_nodes.len()));
                     i += 1;
@@ -189,10 +189,10 @@ pub fn parse_phrases_with_options(input: &str, options: &ParserOptions) -> Vec<I
                     temp_nodes.push(InlineNode::Text { text: "!".to_string(), pos: SourcePos { line, column } });
                 }
             }
-            Token::OpenBracket => {
+            Token::OpenBracket => { // Handles link/image open bracket '['
                 bracket_stack.push((false, temp_nodes.len()));
             }
-            Token::CloseBracket => {
+            Token::CloseBracket => { // Handles link/image close bracket ']'
                 if let Some((is_image, start_idx)) = bracket_stack.pop() {
                     let label_nodes = temp_nodes.drain(start_idx..).collect::<Vec<_>>();
                     // Look ahead for (url "title")
@@ -229,10 +229,10 @@ pub fn parse_phrases_with_options(input: &str, options: &ParserOptions) -> Vec<I
                     temp_nodes.push(InlineNode::Text { text: "]".to_string(), pos: SourcePos { line, column } });
                 }
             }
-            Token::HardBreak => {
+            Token::HardBreak => { // Handles hard line break
                 temp_nodes.push(InlineNode::LineBreak { pos: SourcePos { line, column } });
             }
-            Token::Backtick(count) => {
+            Token::Backtick(count) => { // Handles inline code span
                 // Parse code span: collect text until matching backtick run
                 let mut code = String::new();
                 let mut found = false;
@@ -256,7 +256,7 @@ pub fn parse_phrases_with_options(input: &str, options: &ParserOptions) -> Vec<I
                     temp_nodes.push(InlineNode::Text { text: "`".repeat(*count), pos: SourcePos { line, column } });
                 }
             }
-            Token::Dollar(count) => {
+            Token::Dollar(count) => { // Handles math span (inline/block)
                 // Parse math span: collect text until matching dollar run
                 let mut math = String::new();
                 let mut found = false;
@@ -280,24 +280,24 @@ pub fn parse_phrases_with_options(input: &str, options: &ParserOptions) -> Vec<I
                     temp_nodes.push(InlineNode::Text { text: "$".repeat(*count), pos: SourcePos { line, column } });
                 }
             }
-            Token::AttributeBlock(s) => {
+            Token::AttributeBlock(s) => { // Handles attribute block
                 // Remove outer braces if present
                 let text = s.trim_matches(|c| c == '{' || c == '}').to_string();
                 temp_nodes.push(InlineNode::AttributeBlock { text, pos: SourcePos { line, column } });
             }
-            Token::Entity(s) => {
+            Token::Entity(s) => { // Handles HTML entity
                 temp_nodes.push(InlineNode::Entity { text: s.clone(), pos: SourcePos { line, column } });
             }
-            Token::Html(s) => {
+            Token::Html(s) => { // Handles inline HTML
                 temp_nodes.push(InlineNode::Html { text: s.clone(), pos: SourcePos { line, column } });
             }
-            Token::Text(s) => {
+            Token::Text(s) => { // Handles plain text
                 temp_nodes.push(InlineNode::Text { text: s.clone(), pos: SourcePos { line, column } });
             }
-            Token::SoftBreak => {
+            Token::SoftBreak => { // Handles soft line break
                 temp_nodes.push(InlineNode::SoftBreak { pos: SourcePos { line, column } });
             }
-            _ => {}
+            _ => {} // Unknown or unsupported token
         }
         i += 1;
     }

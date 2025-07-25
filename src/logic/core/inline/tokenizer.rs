@@ -14,7 +14,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
     let mut buffer = String::new();
     while let Some(c) = chars.next() {
         match c {
-            '*' => {
+            '*' => { // Emphasis/strong delimiter (asterisk)
                 let mut count = 1;
                 while let Some(&next) = chars.peek() {
                     if next == '*' {
@@ -26,7 +26,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::Star(count));
             }
-            '_' => {
+            '_' => { // Emphasis/strong delimiter (underscore)
                 let mut count = 1;
                 while let Some(&next) = chars.peek() {
                     if next == '_' {
@@ -38,7 +38,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::Underscore(count));
             }
-            '`' => {
+            '`' => { // Inline code span
                 let mut count = 1;
                 while let Some(&next) = chars.peek() {
                     if next == '`' {
@@ -50,7 +50,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::Backtick(count));
             }
-            '$' => {
+            '$' => { // Math span (inline/block)
                 let mut count = 1;
                 while let Some(&next) = chars.peek() {
                     if next == '$' {
@@ -62,17 +62,17 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::Dollar(count));
             }
-            '[' => tokens.push(Token::OpenBracket),
-            ']' => tokens.push(Token::CloseBracket),
-            '!' => tokens.push(Token::Bang),
-            '(' => tokens.push(Token::OpenParen),
-            ')' => tokens.push(Token::CloseParen),
-            '\\' => {
+            '[' => tokens.push(Token::OpenBracket), // Link/image open bracket
+            ']' => tokens.push(Token::CloseBracket), // Link/image close bracket
+            '!' => tokens.push(Token::Bang), // Image marker
+            '(' => tokens.push(Token::OpenParen), // Link/image open paren
+            ')' => tokens.push(Token::CloseParen), // Link/image close paren
+            '\\' => { // Backslash escape
                 if let Some(next) = chars.next() {
                     tokens.push(Token::Backslash(next));
                 }
             }
-            '&' => {
+            '&' => { // HTML entity
                 // Try to parse a valid entity: &name; or &#...;
                 let mut entity = String::from("&");
                 let mut found_semicolon = false;
@@ -98,8 +98,8 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                     }
                 }
             }
-            '\n' => tokens.push(Token::SoftBreak),
-            '{' => {
+            '\n' => tokens.push(Token::SoftBreak), // Soft line break
+            '{' => { // Attribute block
                 buffer.clear();
                 buffer.push('{');
                 let mut depth = 1;
@@ -116,7 +116,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::AttributeBlock(buffer.clone()));
             }
-            '<' => {
+            '<' => { // Inline HTML
                 buffer.clear();
                 buffer.push('<');
                 // Collect everything until the next '>' (greedy, includes all content)
@@ -133,7 +133,7 @@ pub fn tokenize_inline(input: &str) -> Vec<Token> {
                 }
                 tokens.push(Token::Html(html_content));
             }
-            _ => {
+            _ => { // Plain text or unknown character
                 buffer.push(c);
                 // Flush buffer as text if next char is a token boundary
                 let is_boundary = match chars.peek() {

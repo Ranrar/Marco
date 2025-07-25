@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::logic::core::event_types::{Event, Tag};
+    use crate::logic::core::event_types::Event;
 
     #[test]
     fn test_event_filtering_pipeline() {
@@ -15,7 +15,7 @@ mod tests {
             }
         });
 
-        let mut events = vec![
+        let events = vec![
             Event::Text("hello".into(), None, None),
             Event::SoftBreak(None, None),
             Event::Text("world".into(), None, None),

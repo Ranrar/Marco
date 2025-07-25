@@ -9,6 +9,6 @@ pub trait MarkdownExtension {
 }
 
 // Example: GFM extension registration stub
-pub mod github;
+pub mod gfm;
 // Example: Math extension registration stub
 pub mod math;

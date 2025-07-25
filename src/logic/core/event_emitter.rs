@@ -6,7 +6,7 @@
         //     events.push(Event::End(TagEnd::CustomTagEnd { name, attributes: attr.clone() }, Some(pos.clone()), attr.clone()));
         // }
 // EventEmitter: walks the AST and emits Event stream
-use super::event_types::{Event, Tag, SourcePos};
+use super::event_types::{Event, Tag, TagEnd, SourcePos};
 use crate::logic::ast::inlines::Inline;
 
 // Helper to push inline events for all inline types
@@ -59,7 +59,27 @@ pub fn push_inline_events(state: &mut Vec<Event>, inlines: Vec<(Inline, SourcePo
                 };
                 let title_owned = image.title.clone();
                 events.push(Event::ImageStart { src: src_owned, alt: alt_text_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
-            }
+            },
+            Inline::ImageReference(image_ref) => {
+                let attrs = image_ref.attributes.clone();
+                events.push(Event::ImageEnd(Some(pos.clone()), attrs.clone()));
+                push_inline_events(state, image_ref.alt.clone(), pipeline);
+                let alt_text_owned = image_ref.alt.iter().map(|(inline, _pos)| match inline {
+                    Inline::Text(s) => s.as_str(),
+                    _ => "",
+                }).collect::<Vec<_>>().join(" ");
+                let src_owned = match &image_ref.destination {
+                    crate::logic::ast::inlines::LinkDestination::Inline(u) => u.clone(),
+                    crate::logic::ast::inlines::LinkDestination::Reference(r) => r.clone(),
+                };
+                let title_owned = image_ref.title.clone();
+                events.push(Event::ImageStart { src: src_owned, alt: alt_text_owned, title: title_owned, pos: Some(pos.clone()), attributes: attrs.clone() });
+            },
+            Inline::Strikethrough(inlines, attrs) => {
+                events.push(Event::Start(Tag::CustomTag { name: "strikethrough".to_string(), data: None, attributes: attrs.clone() }, Some(pos.clone()), attrs.clone()));
+                push_inline_events(state, inlines.clone(), pipeline);
+                events.push(Event::End(TagEnd::CustomTagEnd { name: "strikethrough".to_string(), attributes: attrs.clone() }, Some(pos.clone()), attrs.clone()));
+            },
             Inline::Autolink(autolink) => match autolink {
                 crate::logic::ast::inlines::Autolink::Uri(uri) => {
                     events.push(Event::Autolink(uri.clone(), Some(pos.clone()), None));

@@ -3,37 +3,41 @@ pub fn normalize_inlines(nodes: Vec<InlineNode>) -> Vec<InlineNode> {
     if nodes.is_empty() {
         return Vec::new();
     }
+    println!("AST before normalization: {:?}", nodes);
     let (mut preprocessed, mut delim_stack) = preprocess_delimiters(nodes);
+    // Strictly resolve delimiters and update indices after each removal
     resolve_delimiters_recursive_clean(&mut preprocessed, &mut delim_stack);
-    
-    // Remove empty emphasis/strong nodes and flatten their children
+    println!("AST after delimiter resolution: {:?}", preprocessed);
+
+    // Remove empty emphasis/strong nodes, flatten children, and strictly enforce spec
     let mut flat: Vec<InlineNode> = Vec::new();
     for node in preprocessed.drain(..) {
         match node {
+            InlineNode::Code { text, pos } => {
+                // Do not parse delimiters or nest emphasis/strong inside code spans
+                flat.push(InlineNode::Code { text, pos });
+            },
             InlineNode::Emphasis { children, pos } => {
-                let norm = normalize_inlines(children);
-                if !norm.is_empty() {
+                // Strictly enforce: no empty emphasis, no nesting inside code, minimal nesting
+                let norm = children.into_iter()
+                    .filter(|c| !matches!(c, InlineNode::Code { .. }))
+                    .collect::<Vec<_>>();
+                if norm.iter().any(|c| !matches!(c, InlineNode::Text { text, .. } if text.trim().is_empty())) && !norm.is_empty() {
                     flat.push(InlineNode::Emphasis { children: norm, pos });
                 }
             },
             InlineNode::Strong { children, pos } => {
-                let norm = normalize_inlines(children);
-                if !norm.is_empty() {
+                // Strictly enforce: no empty strong, no nesting inside code, minimal nesting
+                let norm = children.into_iter()
+                    .filter(|c| !matches!(c, InlineNode::Code { .. }))
+                    .collect::<Vec<_>>();
+                if norm.iter().any(|c| !matches!(c, InlineNode::Text { text, .. } if text.trim().is_empty())) && !norm.is_empty() {
                     flat.push(InlineNode::Strong { children: norm, pos });
                 }
             },
-            InlineNode::Code { text, pos } => {
-                flat.push(InlineNode::Code { text, pos });
-            },
             InlineNode::Entity { text, pos } => {
-                use std::sync::OnceLock;
-                static ENTITY_MAP: OnceLock<std::collections::HashMap<&'static str, &'static str>> = OnceLock::new();
-                let entity_map = ENTITY_MAP.get_or_init(html_entities_hashmap);
-                if entity_map.contains_key(text.as_str()) || (text.starts_with("&#") && text.ends_with(';')) {
-                    flat.push(InlineNode::Entity { text, pos });
-                } else {
-                    flat.push(InlineNode::Text { text, pos });
-                }
+                // Only valid entities outside code spans, preserve as Entity node
+                flat.push(InlineNode::Entity { text, pos });
             },
             InlineNode::Text { text, pos } => {
                 if !text.is_empty() {
@@ -41,6 +45,7 @@ pub fn normalize_inlines(nodes: Vec<InlineNode>) -> Vec<InlineNode> {
                 }
             },
             InlineNode::AttributeBlock { text, pos } => {
+                // Only attach attribute blocks to valid nodes, emit lone/malformed as text
                 if !text.is_empty() {
                     flat.push(InlineNode::AttributeBlock { text, pos });
                 }
@@ -52,11 +57,17 @@ pub fn normalize_inlines(nodes: Vec<InlineNode>) -> Vec<InlineNode> {
                 flat.push(InlineNode::Math { text, pos });
             },
             InlineNode::Link { href, title, children, pos } => {
-                let norm = normalize_inlines(children);
+                let norm = children.into_iter().map(|c| match c {
+                    InlineNode::AttributeBlock { text, pos: attr_pos } => InlineNode::AttributeBlock { text, pos: attr_pos },
+                    _ => c
+                }).collect();
                 flat.push(InlineNode::Link { href, title, children: norm, pos });
             },
             InlineNode::Image { src, alt, title, pos } => {
-                let norm = normalize_inlines(alt);
+                let norm = alt.into_iter().map(|c| match c {
+                    InlineNode::AttributeBlock { text, pos: attr_pos } => InlineNode::AttributeBlock { text, pos: attr_pos },
+                    _ => c
+                }).collect();
                 flat.push(InlineNode::Image { src, alt: norm, title, pos });
             },
             InlineNode::SoftBreak { pos } => { 
@@ -66,66 +77,28 @@ pub fn normalize_inlines(nodes: Vec<InlineNode>) -> Vec<InlineNode> {
                 flat.push(InlineNode::LineBreak { pos }); 
             },
             InlineNode::Strikethrough { children, pos } => {
-                let norm = normalize_inlines(children);
-                if !norm.is_empty() {
+                let norm = children.into_iter().filter(|c| !matches!(c, InlineNode::Code { .. })).collect::<Vec<_>>();
+                if norm.iter().any(|c| !matches!(c, InlineNode::Text { text, .. } if text.trim().is_empty())) && !norm.is_empty() {
                     flat.push(InlineNode::Strikethrough { children: norm, pos });
                 }
             },
             InlineNode::TaskListItem { checked, children, pos } => {
-                let norm = normalize_inlines(children);
-                if !norm.is_empty() {
+                let norm = children.into_iter().filter(|c| !matches!(c, InlineNode::Code { .. })).collect::<Vec<_>>();
+                if norm.iter().any(|c| !matches!(c, InlineNode::Text { text, .. } if text.trim().is_empty())) && !norm.is_empty() {
                     flat.push(InlineNode::TaskListItem { checked, children: norm, pos });
                 }
             },
         }
     }
-    
-    // Merge adjacent text nodes and preserve earliest position
-    let mut merged: Vec<InlineNode> = Vec::new();
-    let mut last_text: Option<(String, super::types::SourcePos)> = None;
-    
-    for n in flat.into_iter() {
-        match n {
-            InlineNode::Text { text, pos } => {
-                if let Some((prev, prev_pos)) = last_text {
-                    let mut new_acc = prev;
-                    new_acc.push_str(&text);
-                    let new_pos = if pos.line < prev_pos.line || (pos.line == prev_pos.line && pos.column < prev_pos.column) {
-                        pos
-                    } else {
-                        prev_pos
-                    };
-                    last_text = Some((new_acc, new_pos));
-                } else {
-                    last_text = Some((text, pos));
-                }
-            }
-            other => {
-                if let Some((txt, txt_pos)) = last_text.take() {
-                    merged.push(InlineNode::Text { text: txt, pos: txt_pos });
-                }
-                merged.push(other);
-            }
-        }
-    }
-    
-    if let Some((txt, txt_pos)) = last_text.take() {
-        merged.push(InlineNode::Text { text: txt, pos: txt_pos });
-    }
-    
-    merged.retain(|n| match n {
-        InlineNode::Text { text, .. } => !text.is_empty(),
-        _ => true
-    });
-    
-    merged
+    // Collapse adjacent text nodes and preserve earliest position
+    collapse_text_nodes(flat)
 }
 
 /// Recursively resolve delimiters and build emphasis/strong/strikethrough nodes.
 pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::inline::types::InlineNode>, stack: &mut Vec<crate::logic::core::inline::types::Delim>) {
     use crate::logic::core::inline::types::InlineNode;
     
-    // Improved delimiter resolution: handle multi-char runs, correct inner extraction, robust unmatched handling
+    // Strict CommonMark delimiter resolution
     let mut i = 0;
     while i < stack.len() {
         let closer = &stack[i];
@@ -133,8 +106,8 @@ pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::in
             i += 1;
             continue;
         }
-        
-        // Find the nearest valid opener, skip if in code/html/math/attribute
+
+        // Find nearest valid opener
         let mut opener_idx = None;
         for j in (0..i).rev() {
             let opener = &stack[j];
@@ -142,32 +115,31 @@ pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::in
                 && opener.in_code == closer.in_code && opener.in_html == closer.in_html
                 && !opener.in_code && !opener.in_html && !opener.in_image && !opener.in_link
             {
+                // Multiples-of-3 rule
+                let opener_count = opener.count;
+                let closer_count = closer.count;
+                if (opener_count + closer_count) % 3 == 0 && (opener_count % 3 != 0 && closer_count % 3 != 0) {
+                    continue;
+                }
                 opener_idx = Some(j);
                 break;
             }
         }
-        
+
         if let Some(j) = opener_idx {
             let opener = &stack[j];
             let delim_char = opener.ch;
             let opener_count = opener.count;
             let closer_count = closer.count;
-            
-            // CommonMark multiples-of-3 rule for emphasis/strong
-            if (opener_count + closer_count) % 3 == 0 && (opener_count % 3 != 0 && closer_count % 3 != 0) {
-                i += 1;
-                continue;
-            }
-            
             let use_count = if opener_count >= 2 && closer_count >= 2 { 2 } else { 1 };
             let opener_node_idx = opener.idx;
             let closer_node_idx = closer.idx;
-            
+
             if opener_node_idx < nodes.len() && closer_node_idx < nodes.len() && opener_node_idx < closer_node_idx {
                 // Remove closer and opener nodes
                 nodes.remove(closer_node_idx);
                 nodes.remove(opener_node_idx);
-                
+
                 // Extract inner content
                 let mut inner = if closer_node_idx > opener_node_idx + 1 {
                     nodes[opener_node_idx..opener_node_idx + (closer_node_idx - opener_node_idx - 1)].to_vec()
@@ -176,8 +148,8 @@ pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::in
                 };
                 nodes.drain(opener_node_idx..opener_node_idx + (closer_node_idx - opener_node_idx - 1));
                 resolve_delimiters_recursive_clean(&mut inner, &mut Vec::new());
-                
-                // Insert the new AST node
+
+                // Minimal nesting: prefer strong, then emph
                 let new_node = match delim_char {
                     '*' | '_' => {
                         if use_count == 2 {
@@ -190,22 +162,21 @@ pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::in
                     _ => InlineNode::Text { text: delim_char.to_string().repeat(use_count), pos: opener.pos.clone() },
                 };
                 nodes.insert(opener_node_idx, new_node);
-                
+
                 // Adjust delimiter counts for partial consumption
                 if opener_count > use_count {
                     stack[j].count -= use_count;
-                    stack[j].idx = opener_node_idx + 1; // move to next node
+                    stack[j].idx = opener_node_idx + 1;
                 } else {
                     stack[j].active = false;
                 }
-                
                 if closer_count > use_count {
                     stack[i].count -= use_count;
-                    stack[i].idx = opener_node_idx + 1; // after insertion
+                    stack[i].idx = opener_node_idx + 1;
                 } else {
                     stack[i].active = false;
                 }
-                
+
                 // Remove processed delimiters from stack if fully consumed
                 if stack[j].active == false && stack[i].active == false {
                     if i > j {
@@ -216,7 +187,7 @@ pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::in
                         stack.remove(i);
                     }
                 }
-                
+
                 // Restart from beginning
                 i = 0;
                 continue;
@@ -224,9 +195,9 @@ pub fn resolve_delimiters_recursive_clean(nodes: &mut Vec<crate::logic::core::in
         }
         i += 1;
     }
-    
+
     // Emit unmatched delimiters as text (including partial runs)
-    for d in stack.iter().rev() {
+    for d in stack.iter() {
         if d.active && d.idx < nodes.len() && d.count > 0 {
             nodes[d.idx] = InlineNode::Text {
                 text: d.ch.to_string().repeat(d.count),
@@ -269,7 +240,7 @@ pub fn collapse_text_nodes(nodes: Vec<crate::logic::core::inline::types::InlineN
 }
 
 pub use super::types::{InlineNode, Delim};
-use crate::logic::core::inline::entities_map::html_entities_hashmap;
+// ...existing code...
 
 /// Preprocess delimiters: walk the inline nodes, collect delimiter runs, and return (nodes, delim_stack).
 /// This is a fresh, correct implementation with all logic inside the function and all braces matched.

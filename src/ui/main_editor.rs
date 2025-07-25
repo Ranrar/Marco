@@ -54,13 +54,14 @@ fn parse_markdown(input: &str) -> Block {
                 Inline::Emphasis(EmphEnum::Strong(convert_inlines(children), None)),
                 pos)),
             InlineNode::Code { text, pos } => Some((
-                Inline::CodeSpan(CodeSpan { content: text, attributes: None }),
+                Inline::CodeSpan(CodeSpan { content: text, meta: None, attributes: None }),
                 pos)),
             InlineNode::Link { href, title, children, pos } => Some((
                 Inline::Link(LinkStruct {
                     label: convert_inlines(children),
                     destination: LinkDestination::Inline(href),
                     title: if title.is_empty() { None } else { Some(title) },
+                    reference_type: None,
                     attributes: None,
                 }),
                 pos)),
@@ -70,6 +71,8 @@ fn parse_markdown(input: &str) -> Block {
                     destination: LinkDestination::Inline(src),
                     title: if title.is_empty() { None } else { Some(title) },
                     attributes: None,
+                    alternative: None,
+                    resource: None,
                 }),
                 pos)),
             InlineNode::Math { text, pos } => Some((

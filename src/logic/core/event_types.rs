@@ -80,19 +80,9 @@ use crate::logic::core::attr_parser::Attributes;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Event {
     /// Profiling/timing/memory usage event
-    ///
-    /// # Usage
-    /// - Emit as: `Event::Profile(ProfileType::ParseStart, value, timestamp)`
-    /// - For plugins: Always emit from main thread or use message passing.
-    /// - `value` is typically a duration (ns/ms) or memory usage (bytes).
-    /// - `timestamp` is a monotonic or wall-clock time.
-    ///
-    /// # Example
-    /// ```rust ignore
-    /// use crate::logic::parser::event::{Event, ProfileType};
-    /// let event = Event::Profile(ProfileType::ParseEnd, 12345, 1620000000);
-    /// ```
     Profile(ProfileType, u64, u64), // (type, value, timestamp)
+    /// Arbitrary metadata event (spread, association, meta, etc.)
+    Meta { key: &'static str, value: Option<String>, attributes: Option<Attributes> },
     /// Marks the start of a logical group (e.g., list, table row)
     GroupStart(GroupType, Option<SourcePos>, Option<Attributes>),
     /// Marks the end of a logical group
@@ -150,6 +140,10 @@ pub enum Tag {
     Table(Option<Attributes>),
     TableRow,
     TableCell,
+    /// Footnote definition (GFM)
+    FootnoteDefinition(String, Option<String>, Option<Attributes>),
+    /// Footnote reference (GFM)
+    FootnoteReference(String, Option<String>, Option<Attributes>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -174,6 +168,10 @@ pub enum TagEnd {
     TableRow,
     TableCell,
     TableCaption,
+    /// Footnote definition end (GFM)
+    FootnoteDefinition(String),
+    /// Footnote reference end (GFM)
+    FootnoteReference(String),
 }
 
 // Source position tracking for advanced features

@@ -57,12 +57,14 @@ pub trait AstVisitor {
             Inline::Emphasis(emph) => self.visit_emphasis(emph),
             Inline::Link(link) => self.visit_link(link),
             Inline::Image(image) => self.visit_image(image),
+            Inline::ImageReference(image_ref) => self.visit_image_reference(image_ref),
             Inline::Autolink(autolink) => self.visit_autolink(autolink),
             Inline::RawHtml(_) => self.visit_raw_html(inline),
             Inline::HardBreak => self.visit_hard_break(inline),
             Inline::SoftBreak => self.visit_soft_break(inline),
             Inline::Text(_) => self.visit_text(inline),
             Inline::Math(math) => self.visit_math_inline(math),
+            Inline::Strikethrough(inlines, attrs) => self.visit_strikethrough(inlines, attrs),
             Inline::Emoji(_, _, _) => self.visit_emoji(inline),
             Inline::Mention(_, _) => self.visit_mention(inline),
             Inline::TableCaption(_, _, _) => self.visit_table_caption(inline),
@@ -99,6 +101,8 @@ pub trait AstVisitor {
             self.visit_inline(inline);
         }
     }
+    fn visit_image_reference(&mut self, _image_ref: &ImageReference) {}
+    fn visit_strikethrough(&mut self, _inlines: &Vec<(Inline, crate::logic::core::event_types::SourcePos)>, _attrs: &Option<crate::logic::core::attr_parser::Attributes>) {}
     fn visit_autolink(&mut self, _autolink: &Autolink) {}
     fn visit_raw_html(&mut self, _inline: &Inline) {}
     fn visit_hard_break(&mut self, _inline: &Inline) {}
@@ -138,6 +142,8 @@ pub enum Inline {
     Link(Link),
     /// 6.4 Images: Inline, reference, shortcut, and collapsed images.
     Image(Image),
+    /// 6.4 ImageReference: reference-style images.
+    ImageReference(ImageReference),
     /// 6.5 Autolinks: <scheme:...> and <email@...>.
     Autolink(Autolink),
     /// 6.6 Raw HTML: Inline HTML tags, comments, declarations, etc.
@@ -150,6 +156,8 @@ pub enum Inline {
     Text(String),
     /// Math inline (GFM/LaTeX, e.g., $ ... $)
     Math(crate::logic::ast::math::MathInline),
+    /// GFM Strikethrough/Delete: ~~text~~
+    Strikethrough(Vec<(Inline, crate::logic::core::event_types::SourcePos)>, Option<crate::logic::core::attr_parser::Attributes>),
     /// Emoji inline (e.g., :smile:)
     Emoji(String, String, crate::logic::core::event_types::SourcePos),
     /// Mention inline (e.g., @username)
@@ -168,6 +176,8 @@ pub enum Inline {
 pub struct CodeSpan {
     /// The literal code content (spaces and line endings normalized as per spec).
     pub content: String,
+    /// Optional meta string (for info, language, etc.)
+    pub meta: Option<String>,
     pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
 }
 
@@ -193,6 +203,7 @@ pub struct Link {
     pub destination: LinkDestination,
     /// Optional link title (from title attribute or reference definition).
     pub title: Option<String>,
+    pub reference_type: Option<crate::logic::ast::blocks_and_inlines::ReferenceType>,
     pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
 }
 
@@ -207,7 +218,7 @@ pub enum LinkDestination {
 
 // === 6.4 Images ===
 
-/// 6.4 Images: Inline, reference, shortcut, and collapsed images.
+/// 6.4 Images: Inline images with alt/resource mixins.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     /// The alt text (inline content inside [ ]).
@@ -217,6 +228,26 @@ pub struct Image {
     /// Optional image title (from title attribute or reference definition).
     pub title: Option<String>,
     pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
+    pub alternative: Option<crate::logic::ast::blocks_and_inlines::Alternative>,
+    pub resource: Option<crate::logic::ast::blocks_and_inlines::Resource>,
+}
+
+/// 6.4 ImageReference: reference-style images with alt/resource/association mixins.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImageReference {
+    /// The alt text (inline content inside [ ]).
+    pub alt: Vec<(Inline, crate::logic::core::event_types::SourcePos)>,
+    /// The image reference label.
+    pub label: String,
+    /// The image reference destination (URL or reference label).
+    pub destination: LinkDestination,
+    /// Optional image title (from title attribute or reference definition).
+    pub title: Option<String>,
+    pub reference_type: Option<crate::logic::ast::blocks_and_inlines::ReferenceType>,
+    pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
+    pub alternative: Option<crate::logic::ast::blocks_and_inlines::Alternative>,
+    pub resource: Option<crate::logic::ast::blocks_and_inlines::Resource>,
+    pub association: Option<crate::logic::ast::blocks_and_inlines::Association>,
 }
 
 // === 6.5 Autolinks ===

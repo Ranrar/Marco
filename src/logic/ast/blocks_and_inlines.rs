@@ -28,14 +28,25 @@ mod tests {
             marker: ListMarker::Bullet { char: '-' },
             contents: vec![para.clone()],
             task_checked: None,
+            spread: false,
+            association: None,
             attributes: None,
         });
         let list = Block::Container(ContainerBlock::List {
             kind: ListKind::Bullet { char: '-' },
             tight: false,
             items: vec![list_item.clone()],
+            spread: false,
             attributes: None,
         });
+/// Footnote reference (GFM extension)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FootnoteReference {
+    pub identifier: String,
+    pub label: Option<String>,
+    pub association: Option<Association>,
+    pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
+}
         let bq = Block::Container(ContainerBlock::BlockQuote(vec![list.clone()], None));
         let doc = Block::Container(ContainerBlock::Document(vec![bq.clone()], None));
 
@@ -54,7 +65,7 @@ mod tests {
 
     #[test]
     fn test_table_and_math_blocks() {
-        use crate::logic::ast::github::{TableRow, TableAlignment};
+        use crate::logic::ast::gfm::{TableRow, TableAlignment};
         use crate::logic::ast::math::MathBlock;
         let table = Block::Leaf(LeafBlock::Table {
             header: TableRow { cells: vec![] },
@@ -165,6 +176,8 @@ pub enum ContainerBlock {
         contents: Vec<Block>,
         /// If this is a GFM task list item, this is Some(true) for checked, Some(false) for unchecked, None for regular list items.
         task_checked: Option<bool>,
+        spread: bool, // Indicates if separated by blank lines
+        association: Option<Association>,
         attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// List (container for blocks, with kind, tight/loose, delimiter, start number).
@@ -173,6 +186,7 @@ pub enum ContainerBlock {
         kind: ListKind,
         tight: bool,
         items: Vec<Block>,
+        spread: bool, // Indicates if any item is separated by blank lines
         attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
 }
@@ -181,6 +195,15 @@ impl ContainerBlock {
     pub fn accept<V: AstVisitor>(&self, visitor: &mut V) {
         visitor.visit_container_block(self);
     }
+}
+
+/// Footnote reference (GFM extension)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FootnoteReference {
+    pub identifier: String,
+    pub label: Option<String>,
+    pub association: Option<Association>,
+    pub attributes: Option<crate::logic::core::attr_parser::Attributes>,
 }
 
 /// Leaf blocks: blocks that cannot contain other blocks.
@@ -195,13 +218,14 @@ pub enum LeafBlock {
     /// Setext Heading (with level and raw content).
     SetextHeading { level: u8, raw_content: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// Indented code block (literal text).
-    IndentedCodeBlock { content: String, attributes: Option<crate::logic::core::attr_parser::Attributes> },
+    IndentedCodeBlock { content: String, meta: Option<String>, attributes: Option<crate::logic::core::attr_parser::Attributes> },
     /// Fenced code block (fence char, count, info string, content).
     FencedCodeBlock {
         fence_char: char,
         fence_count: usize,
         info_string: Option<String>,
         content: String,
+        meta: Option<String>,
         attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// Thematic break (horizontal rule, marker and count).
@@ -213,6 +237,8 @@ pub enum LeafBlock {
         label: String,
         destination: String,
         title: Option<String>,
+        reference_type: Option<ReferenceType>,
+        association: Option<Association>,
         attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
     /// Blank line (for block separation).
@@ -229,12 +255,47 @@ pub enum LeafBlock {
     },
     /// Table block (GFM extension)
     Table {
-        header: crate::logic::ast::github::TableRow,
-        alignments: Vec<crate::logic::ast::github::TableAlignment>,
-        rows: Vec<crate::logic::ast::github::TableRow>,
+        header: crate::logic::ast::gfm::TableRow,
+        alignments: Vec<crate::logic::ast::gfm::TableAlignment>,
+        rows: Vec<crate::logic::ast::gfm::TableRow>,
         caption: Option<String>,
         attributes: Option<crate::logic::core::attr_parser::Attributes>,
     },
+    /// Footnote definition (GFM extension)
+    FootnoteDefinition {
+        identifier: String,
+        label: Option<String>,
+        children: Vec<Block>,
+        association: Option<Association>,
+        attributes: Option<crate::logic::core::attr_parser::Attributes>,
+    },
+}
+/// Reference type for LinkReference/ImageReference (shortcut, collapsed, full)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReferenceType {
+    Shortcut,
+    Collapsed,
+    Full,
+}
+
+/// Association mixin for identifier/label
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Association {
+    pub identifier: String,
+    pub label: Option<String>,
+}
+
+/// Resource mixin for url/title
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Resource {
+    pub url: String,
+    pub title: Option<String>,
+}
+
+/// Alternative mixin for alt text
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Alternative {
+    pub alt: Option<String>,
 }
 
 impl LeafBlock {
@@ -347,6 +408,11 @@ pub trait AstVisitor {
                     self.visit_table_row(row);
                 }
             }
+            LeafBlock::FootnoteDefinition { children, .. } => {
+                for block in children {
+                    self.visit_block(block);
+                }
+            }
             _ => {}
         }
     }
@@ -355,7 +421,10 @@ pub trait AstVisitor {
     fn visit_inline(&mut self, _inline: &crate::logic::ast::inlines::Inline) {}
 
     // Table row visitor stub (to be implemented in github.rs)
-    fn visit_table_row(&mut self, _row: &crate::logic::ast::github::TableRow) {}
+    fn visit_table_row(&mut self, _row: &crate::logic::ast::gfm::TableRow) {}
+
+    // Footnote reference visitor stub (to be implemented in inlines.rs)
+    fn visit_footnote_reference(&mut self, _reference: &FootnoteReference) {}
 }
 
 /// Sample visitor that prints node types for debugging.
