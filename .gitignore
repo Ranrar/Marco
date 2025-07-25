@@ -2,6 +2,5 @@
 /target
 /.vscode
 /dev
-/tests
 src/editor/logic/pharser.md
 Copilot-Processing.md
