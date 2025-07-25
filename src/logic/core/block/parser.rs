@@ -1,5 +1,4 @@
-
-    #[test]
+#[test]
     fn test_description_list_block() {
         // Simple description list
         let blocks = parse_blocks("Term\n: Definition");

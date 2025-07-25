@@ -1,3 +1,4 @@
+pub mod block;
 pub mod block_parser;
 pub mod event_types;
 pub mod event_emitter;
@@ -9,3 +10,4 @@ pub mod parallel;
 pub mod inline;
 pub mod extensions;
 pub mod options;
+pub use block::conversion::blocknode_to_block;
