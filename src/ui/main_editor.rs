@@ -19,12 +19,13 @@ pub fn create_editor_with_preview(ast: &Block) -> Paned {
     paned.set_start_child(Some(&editor_widget));
 
     // WebView (right)
-    let initial_blocks = [parse_markdown("# Title")];
+    let initial_blocks = [parse_markdown("")];
     let initial_html = wrap_html_document(HtmlRenderer::render(&initial_blocks).as_str());
     let webview = crate::ui::html_viewer::create_html_viewer(&initial_html);
     paned.set_end_child(Some(&webview));
 
     // Live update: on buffer change, re-render and update WebView
+    let paned_clone = paned.clone();
     let webview_clone = webview.clone();
     buffer.connect_changed(move |buf| {
         let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
@@ -136,6 +137,7 @@ use gtk4 as gtk;
 use gtk::{Box as GtkBox, Label, ScrolledWindow};
 use sourceview5 as gtk_sourceview5;
 use gtk_sourceview5::{Buffer as SourceBuffer, View as SourceView};
+use gtk_sourceview5::prelude::*; // Import traits for SourceView methods
 use crate::logic::core::block_parser::EventIter;
 use crate::logic::ast::blocks_and_inlines::Block;
 
@@ -144,12 +146,13 @@ pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
 
     // Create a SourceBuffer and SourceView
     let buffer = SourceBuffer::new(None);
-    buffer.set_text("Type here...");
+    buffer.set_text("");
     let source_view = SourceView::new();
     source_view.set_buffer(Some(&buffer));
     source_view.set_monospace(true);
     source_view.set_vexpand(true);
     source_view.set_editable(true);
+    source_view.set_show_line_numbers(true);
 
     // Use GtkSourceViewRenderer for syntax highlighting and error annotation
     let mut gtk_renderer = GtkSourceViewRenderer::new();
@@ -164,14 +167,5 @@ pub fn render_editor(ast: &Block) -> (GtkBox, SourceBuffer) {
     // Add the ScrolledWindow (with SourceView) to the top
     container.append(&scrolled);
 
-    // Use the event stream to display a label for each event (for debugging/demo)
-    let mut diagnostics = crate::logic::core::diagnostics::Diagnostics::new();
-    for event in EventIter::new(ast, Some(&mut diagnostics)) {
-        let label = Label::new(Some(&format!("{:?}", event)));
-        container.append(&label);
-    }
-
     (container, buffer)
 }
-
-// TODO: Implement flatten_text for BlockNode/Inline structure
