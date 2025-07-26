@@ -1,3 +1,4 @@
+mod tabs;
 // Settings module
 pub mod settings;
 
