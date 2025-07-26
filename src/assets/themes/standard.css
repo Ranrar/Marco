@@ -1,0 +1,627 @@
+/* Universal Markdown CSS with automatic light/dark theme support */
+
+/* CSS Custom Properties (Variables) for theming */
+:root {
+  /* Light theme colors (default) */
+  --text-color: #1a1a1a;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --bg-color: #fff;
+  --bg-secondary: #f9f9f9;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+  --border-color: #ddd;
+  --border-light: #eee;
+  --border-strong: #ccc;
+  --heading-color: #1a1a1a;
+  --strong-color: #1a1a1a;
+  --blockquote-bg: #f9f9f9;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f5f5f5;
+  --table-stripe-bg: #f9f9f9;
+  --link-color: #0066cc;
+  --link-hover: #0052a3;
+  
+  /* TOC-specific variables */
+  --toc-header-color: #0969da;
+  --toc-header-border: #d0d7de;
+  --toc-link-color: #24292f;
+  --toc-link-hover-bg: #f6f8fa;
+  --toc-link-hover-color: #0969da;
+  --toc-link-active-bg: #dbeafe;
+  --toc-link-active-color: #0550ae;
+  --toc-bg: #f8f9fa;
+  --toc-border: #d0d7de;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme colors using CSS media query */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-color: #e1e1e1;
+    --text-secondary: #ccc;
+    --text-muted: #999;
+    --bg-color: #1a1a1a;
+    --bg-secondary: #2a2a2a;
+    --bg-code: #2a2a2a;
+    --bg-pre: #1e1e1e;
+    --border-color: #333;
+    --border-light: #333;
+    --border-strong: #666;
+    --heading-color: #ffffff;
+    --strong-color: #ffffff;
+    --blockquote-bg: #2a2a2a;
+    --blockquote-border: #666;
+    --blockquote-text: #ccc;
+    --table-border: #333;
+    --table-header-bg: #2a2a2a;
+    --table-stripe-bg: #252525;
+    --link-color: #4da6ff;
+    --link-hover: #66b3ff;
+    
+    /* TOC-specific variables for dark theme */
+    --toc-header-color: #58a6ff;
+    --toc-header-border: #30363d;
+    --toc-link-color: #c9d1d9;
+    --toc-link-hover-bg: #21262d;
+    --toc-link-hover-color: #58a6ff;
+    --toc-link-active-bg: #1f6feb;
+    --toc-link-active-color: #ffffff;
+    --toc-bg: #0d1117;
+    --toc-border: #30363d;
+    --toc-shadow: rgba(0, 0, 0, 0.3);
+    
+    /* TOC-specific variables for dark theme */
+    --toc-header-color: #58a6ff;
+    --toc-header-border: #30363d;
+    --toc-link-color: #c9d1d9;
+    --toc-link-hover-bg: #21262d;
+    --toc-link-hover-color: #58a6ff;
+    --toc-link-active-bg: #1f6feb;
+    --toc-link-active-color: #ffffff;
+    --toc-bg: #0d1117;
+    --toc-border: #30363d;
+    --toc-shadow: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Force light theme class override */
+.theme-light {
+  --text-color: #1a1a1a;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --bg-color: #fff;
+  --bg-secondary: #f9f9f9;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+  --border-color: #ddd;
+  --border-light: #eee;
+  --border-strong: #ccc;
+  --heading-color: #1a1a1a;
+  --strong-color: #1a1a1a;
+  --blockquote-bg: #f9f9f9;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f5f5f5;
+  --table-stripe-bg: #f9f9f9;
+  --link-color: #0066cc;
+  --link-hover: #0052a3;
+  
+  /* TOC-specific variables */
+  --toc-header-color: #0969da;
+  --toc-header-border: #d0d7de;
+  --toc-link-color: #24292f;
+  --toc-link-hover-bg: #f6f8fa;
+  --toc-link-hover-color: #0969da;
+  --toc-link-active-bg: #dbeafe;
+  --toc-link-active-color: #0550ae;
+  --toc-bg: #f8f9fa;
+  --toc-border: #d0d7de;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Force dark theme class override */
+.theme-dark {
+  --text-color: #e1e1e1;
+  --text-secondary: #ccc;
+  --text-muted: #999;
+  --bg-color: #1a1a1a;
+  --bg-secondary: #2a2a2a;
+  --bg-code: #2a2a2a;
+  --bg-pre: #1e1e1e;
+  --border-color: #333;
+  --border-light: #333;
+  --border-strong: #666;
+  --heading-color: #ffffff;
+  --strong-color: #ffffff;
+  --blockquote-bg: #2a2a2a;
+  --blockquote-border: #666;
+  --blockquote-text: #ccc;
+  --table-border: #333;
+  --table-header-bg: #2a2a2a;
+  --table-stripe-bg: #252525;
+  --link-color: #4da6ff;
+  --link-hover: #66b3ff;
+  
+  /* TOC-specific variables for dark theme */
+  --toc-header-color: #58a6ff;
+  --toc-header-border: #30363d;
+  --toc-link-color: #c9d1d9;
+  --toc-link-hover-bg: #21262d;
+  --toc-link-hover-color: #58a6ff;
+  --toc-link-active-bg: #1f6feb;
+  --toc-link-active-color: #ffffff;
+  --toc-bg: #0d1117;
+  --toc-border: #30363d;
+  --toc-shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* Reset and base styles */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    margin: 2rem;
+    padding: 0;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: bold;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    line-height: 1.25;
+    color: var(--heading-color);
+    transition: color 0.3s ease;
+}
+
+h1 { font-size: 2rem; }
+h2 { font-size: 1.75rem; }
+h3 { font-size: 1.5rem; }
+h4 { font-size: 1.25rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.875rem; }
+
+/* Paragraph */
+p {
+    margin: 1rem 0;
+    color: var(--text-color);
+}
+
+/* Text formatting */
+strong, b {
+    font-weight: bold;
+    color: var(--strong-color);
+}
+
+em, i {
+    font-style: italic;
+    color: var(--text-color);
+}
+
+/* Links */
+a {
+    color: var(--link-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+a:hover {
+    color: var(--link-hover);
+    text-decoration: underline;
+}
+
+/* Inline code */
+code {
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    background-color: var(--bg-code);
+    color: var(--text-color);
+    padding: 0.2em 0.4em;
+    border-radius: 4px;
+    font-size: 0.95em;
+    transition: background-color 0.3s ease;
+}
+
+/* Code blocks */
+pre {
+    display: block;
+    padding: 1rem;
+    background-color: var(--bg-pre);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow-x: auto;
+    font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    font-size: 0.9em;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+pre code {
+    background-color: transparent;
+    color: var(--text-color);
+    padding: 0;
+    border-radius: 0;
+    border: none;
+}
+
+/* Lists */
+ul, ol {
+    padding-left: 2rem;
+    margin: 0.5rem 0;
+}
+
+li {
+    margin: 0.25rem 0;
+}
+
+/* Task lists */
+ul li.task-list-item {
+    list-style: none;
+    margin-left: -1.5rem;
+}
+
+input[type="checkbox"] {
+    margin-right: 0.5rem;
+}
+
+/* Blockquote */
+blockquote {
+    border-left: 4px solid var(--blockquote-border);
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    color: var(--blockquote-text);
+    background: var(--blockquote-bg);
+    font-style: italic;
+    transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+blockquote p {
+    color: var(--blockquote-text);
+}
+
+/* Horizontal rule */
+hr {
+    border: none;
+    border-top: 2px solid var(--border-light);
+    margin: 2rem 0;
+    transition: border-color 0.3s ease;
+}
+
+/* Images */
+img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 4px;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 1rem 0;
+}
+
+th, td {
+    border: 1px solid var(--table-border);
+    padding: 0.75rem;
+    text-align: left;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
+}
+
+th {
+    background-color: var(--table-header-bg);
+    font-weight: bold;
+    color: var(--heading-color);
+}
+
+tr:nth-child(even) {
+    background-color: var(--table-stripe-bg);
+}
+
+/* Strikethrough */
+del, s {
+    text-decoration: line-through;
+    color: var(--text-muted);
+}
+
+/* Mark/Highlight */
+mark {
+    background-color: #ffeb3b;
+    color: #000;
+    padding: 0.1em 0.2em;
+    border-radius: 2px;
+}
+
+
+
+.theme-dark mark {
+    background-color: #ffc107;
+    color: #000;
+}
+
+/* Footnotes */
+.footnote-ref {
+    font-size: 0.8em;
+    vertical-align: super;
+}
+
+.footnotes {
+    border-top: 1px solid var(--border-light);
+    margin-top: 2rem;
+    padding-top: 1rem;
+    font-size: 0.9em;
+}
+
+/* Definition lists */
+dt {
+    font-weight: bold;
+    margin-top: 1rem;
+}
+
+dd {
+    margin-left: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Keyboard keys */
+kbd {
+    background-color: var(--bg-code);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--border-color);
+    color: var(--text-color);
+    font-family: monospace;
+    font-size: 0.9em;
+    padding: 0.1em 0.3em;
+    vertical-align: baseline;
+}
+
+/* Abbreviations */
+abbr {
+    border-bottom: 1px dotted var(--border-strong);
+    cursor: help;
+    text-decoration: none;
+}
+
+/* Admonitions */
+.admonition {
+    margin: 1.5rem 0;
+    padding: 1rem;
+    border-left: 4px solid var(--border-strong);
+    background-color: var(--bg-secondary);
+    border-radius: 4px;
+}
+
+/* Standard admonition types with specific colors */
+.admonition-note {
+    border-left-color: #5bc0de; /* Blue */
+}
+
+.admonition-tip {
+    border-left-color: #5cb85c; /* Green */
+}
+
+.admonition-important {
+    border-left-color: #8e44ad; /* Purple */
+}
+
+.admonition-warning {
+    border-left-color: #f0ad4e; /* Yellow */
+}
+
+.admonition-caution {
+    border-left-color: #d9534f; /* Red */
+}
+
+/* Table of Contents (TOC) styles */
+.toc {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background-color: var(--toc-bg);
+    border: 1px solid var(--toc-border);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px var(--toc-shadow);
+    transition: all 0.3s ease;
+}
+
+.toc h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: var(--toc-header-color);
+    border-bottom: 2px solid var(--toc-header-border);
+    padding-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.toc ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.toc li {
+    margin: 0.25rem 0;
+    line-height: 1.4;
+}
+
+.toc a {
+    display: block;
+    padding: 0.4rem 0.8rem;
+    color: var(--toc-link-color);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.toc a:hover {
+    background-color: var(--toc-link-hover-bg);
+    color: var(--toc-link-hover-color);
+    text-decoration: none;
+    transform: translateX(2px);
+}
+
+.toc a:active,
+.toc a.active {
+    background-color: var(--toc-link-active-bg);
+    color: var(--toc-link-active-color);
+    font-weight: 500;
+}
+
+/* Nested TOC levels */
+.toc ul ul {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1.2rem;
+}
+
+.toc ul ul li {
+    margin: 0.15rem 0;
+}
+
+.toc ul ul a {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.6rem;
+    color: var(--text-secondary);
+}
+
+.toc ul ul a:hover {
+    color: var(--toc-link-hover-color);
+}
+
+/* Third level nesting */
+.toc ul ul ul {
+    padding-left: 1rem;
+}
+
+.toc ul ul ul a {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    color: var(--text-muted);
+}
+
+/* TOC for specific header detection */
+h4:has(+ ul li a[href^="#"]) {
+    color: var(--toc-header-color);
+    border-bottom: 2px solid var(--toc-header-border);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.8em;
+}
+
+/* Generic anchor links styling (for TOC generated by Marco) */
+ul li a[href^="#"] {
+    color: var(--toc-link-color);
+    text-decoration: none;
+    padding: 0.3em 0.6em;
+    display: block;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin: 0.1em 0;
+}
+
+ul li a[href^="#"]:hover {
+    background-color: var(--toc-link-hover-bg);
+    color: var(--toc-link-hover-color);
+    text-decoration: none;
+    transform: translateX(2px);
+}
+
+ul li a[href^="#"]:active {
+    background-color: var(--toc-link-active-bg);
+    color: var(--toc-link-active-color);
+}
+
+/* TOC nested list styling for Marco-generated TOC */
+ul li ul {
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    padding-left: 1.2em;
+}
+
+ul li ul li a[href^="#"] {
+    font-size: 0.9em;
+    padding: 0.2em 0.5em;
+    color: var(--text-secondary);
+}
+
+ul li ul li a[href^="#"]:hover {
+    color: var(--toc-link-hover-color);
+}
+
+/* Compact TOC variant */
+.toc-compact {
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.toc-compact h4 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.toc-compact a {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Print styles */
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    
+    a {
+        color: black;
+        text-decoration: underline;
+    }
+    
+    pre, code {
+        background: #f5f5f5;
+        border: 1px solid #ccc;
+    }
+    
+    .admonition {
+        background: #f9f9f9;
+        border: 1px solid #ccc;
+    }
+}
+
+/* Editor styling for plain text mode (when syntax highlighting is off) */
+.editor-theme-light {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.editor-theme-dark {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* SourceView editor styling that respects theme */
+textview {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 10px;
+}
+
+textview text {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Selection colors that work with both themes */
+textview text selection {
+    background-color: var(--link-color);
+    color: var(--bg-color);
+}

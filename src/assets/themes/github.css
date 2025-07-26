@@ -1,0 +1,577 @@
+/* GitHub-style CSS for Marco Markdown Editor Preview with Dark Mode Support */
+
+/* CSS Custom Properties (Variables) for theming */
+:root {
+  /* Light theme colors (GitHub style) */
+  --text-color: #24292f;
+  --text-secondary: #656d76;
+  --text-muted: #8c959f;
+  --heading-color: #1f2328;
+  --bg-color: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-code: #f6f8fa;
+  --bg-pre: #f6f8fa;
+  --border-color: #d0d7de;
+  --border-light: #d1d9e0;
+  --border-strong: #8c959f;
+  --blockquote-border: #d0d7de;
+  --blockquote-text: #656d76;
+  --table-border: #d0d7de;
+  --table-header-bg: #f6f8fa;
+  --table-stripe-bg: rgba(175, 184, 193, 0.2);
+  --link-color: #0969da;
+  --link-hover: #0550ae;
+  --mark-bg: #fff8c5;
+  --mark-color: #24292f;
+  
+  /* TOC-specific variables */
+  --toc-header-color: #0969da;
+  --toc-header-border: #d0d7de;
+  --toc-link-color: #24292f;
+  --toc-link-hover-bg: #f6f8fa;
+  --toc-link-hover-color: #0969da;
+  --toc-link-active-bg: #dbeafe;
+  --toc-link-active-color: #0550ae;
+  --toc-bg: #f8f9fa;
+  --toc-border: #d0d7de;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Dark theme colors using CSS media query */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --text-color: #f0f6fc;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --heading-color: #f0f6fc;
+    --bg-color: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-code: #161b22;
+    --bg-pre: #161b22;
+    --border-color: #30363d;
+    --border-light: #21262d;
+    --border-strong: #6e7681;
+    --blockquote-border: #30363d;
+    --blockquote-text: #8b949e;
+    --table-border: #30363d;
+    --table-header-bg: #161b22;
+    --table-stripe-bg: rgba(110, 118, 129, 0.1);
+    --link-color: #58a6ff;
+    --link-hover: #79c0ff;
+    --mark-bg: #ffd33d;
+    --mark-color: #24292f;
+    
+    /* TOC-specific variables for dark theme */
+    --toc-header-color: #58a6ff;
+    --toc-header-border: #30363d;
+    --toc-link-color: #f0f6fc;
+    --toc-link-hover-bg: #21262d;
+    --toc-link-hover-color: #58a6ff;
+    --toc-link-active-bg: #1f6feb;
+    --toc-link-active-color: #ffffff;
+    --toc-bg: #0d1117;
+    --toc-border: #30363d;
+    --toc-shadow: rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Force light theme class override */
+.theme-light {
+  --text-color: #24292f;
+  --text-secondary: #656d76;
+  --text-muted: #8c959f;
+  --heading-color: #1f2328;
+  --bg-color: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-code: #f6f8fa;
+  --bg-pre: #f6f8fa;
+  --border-color: #d0d7de;
+  --border-light: #d1d9e0;
+  --border-strong: #8c959f;
+  --blockquote-border: #d0d7de;
+  --blockquote-text: #656d76;
+  --table-border: #d0d7de;
+  --table-header-bg: #f6f8fa;
+  --table-stripe-bg: rgba(175, 184, 193, 0.2);
+  --link-color: #0969da;
+  --link-hover: #0550ae;
+  --mark-bg: #fff8c5;
+  --mark-color: #24292f;
+  
+  /* TOC-specific variables */
+  --toc-header-color: #0969da;
+  --toc-header-border: #d0d7de;
+  --toc-link-color: #24292f;
+  --toc-link-hover-bg: #f6f8fa;
+  --toc-link-hover-color: #0969da;
+  --toc-link-active-bg: #dbeafe;
+  --toc-link-active-color: #0550ae;
+  --toc-bg: #f8f9fa;
+  --toc-border: #d0d7de;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+}
+
+/* Force dark theme class override */
+.theme-dark {
+  --text-color: #f0f6fc;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --heading-color: #f0f6fc;
+  --bg-color: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-code: #161b22;
+  --bg-pre: #161b22;
+  --border-color: #30363d;
+  --border-light: #21262d;
+  --border-strong: #6e7681;
+  --blockquote-border: #30363d;
+  --blockquote-text: #8b949e;
+  --table-border: #30363d;
+  --table-header-bg: #161b22;
+  --table-stripe-bg: rgba(110, 118, 129, 0.1);
+  --link-color: #58a6ff;
+  --link-hover: #79c0ff;
+  --mark-bg: #ffd33d;
+  --mark-color: #24292f;
+  
+  /* TOC-specific variables for dark theme */
+  --toc-header-color: #58a6ff;
+  --toc-header-border: #30363d;
+  --toc-link-color: #f0f6fc;
+  --toc-link-hover-bg: #21262d;
+  --toc-link-hover-color: #58a6ff;
+  --toc-link-active-bg: #1f6feb;
+  --toc-link-active-color: #ffffff;
+  --toc-bg: #0d1117;
+  --toc-border: #30363d;
+  --toc-shadow: rgba(0, 0, 0, 0.3);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-color);
+    background-color: var(--bg-color);
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 32px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--heading-color);
+    transition: color 0.3s ease;
+}
+
+h1 {
+    font-size: 2em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+h2 {
+    font-size: 1.5em;
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--border-color);
+}
+
+h3 { font-size: 1.25em; }
+h4 { font-size: 1em; }
+h5 { font-size: 0.875em; }
+h6 { font-size: 0.85em; color: var(--text-secondary); }
+
+p {
+    margin-top: 0;
+    margin-bottom: 16px;
+}
+
+blockquote {
+    padding: 0 1em;
+    color: var(--blockquote-text);
+    border-left: 0.25em solid var(--blockquote-border);
+    margin: 0 0 16px 0;
+    transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+blockquote > :first-child {
+    margin-top: 0;
+}
+
+blockquote > :last-child {
+    margin-bottom: 0;
+}
+
+ul, ol {
+    margin-top: 0;
+    margin-bottom: 16px;
+    padding-left: 2em;
+}
+
+li + li {
+    margin-top: 0.25em;
+}
+
+code, tt {
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 85%;
+    background-color: rgba(175, 184, 193, 0.2);
+    border-radius: 6px;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+pre {
+    word-wrap: normal;
+    padding: 16px;
+    overflow: auto;
+    font-size: 85%;
+    line-height: 1.45;
+    background-color: #f6f8fa;
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+pre code {
+    display: inline;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    line-height: inherit;
+    word-wrap: normal;
+    background-color: transparent;
+    border: 0;
+}
+
+table {
+    border-spacing: 0;
+    border-collapse: collapse;
+    display: block;
+    width: max-content;
+    max-width: 100%;
+    overflow: auto;
+    margin-bottom: 16px;
+}
+
+table th,
+table td {
+    padding: 6px 13px;
+    border: 1px solid #d0d7de;
+}
+
+table tr {
+    background-color: #ffffff;
+    border-top: 1px solid #c6cbd1;
+}
+
+table tr:nth-child(2n) {
+    background-color: #f6f8fa;
+}
+
+table th {
+    font-weight: 600;
+    background-color: #f6f8fa;
+}
+
+img {
+    max-width: 100%;
+    box-sizing: content-box;
+}
+
+hr {
+    height: 0.25em;
+    padding: 0;
+    margin: 24px 0;
+    background-color: #d0d7de;
+    border: 0;
+}
+
+/* Task lists */
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item .task-list-item-checkbox {
+    margin: 0 0.2em 0.25em -1.4em;
+    vertical-align: middle;
+}
+
+/* GitHub-style alerts/admonitions */
+.markdown-alert {
+    padding: 0.5rem 1rem;
+    margin-bottom: 16px;
+    color: inherit;
+    border-left: 0.25em solid #d0d7de;
+}
+
+.markdown-alert > :first-child {
+    margin-top: 0;
+}
+
+.markdown-alert > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-alert .markdown-alert-title {
+    display: flex;
+    font-weight: 500;
+    align-items: center;
+    line-height: 1;
+}
+
+.markdown-alert.markdown-alert-note {
+    border-left-color: #0969da;
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+    color: #0969da;
+}
+
+.markdown-alert.markdown-alert-tip {
+    border-left-color: #1a7f37;
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+    color: #1a7f37;
+}
+
+.markdown-alert.markdown-alert-important {
+    border-left-color: #8250df;
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+    color: #8250df;
+}
+
+.markdown-alert.markdown-alert-warning {
+    border-left-color: #9a6700;
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+    color: #9a6700;
+}
+
+.markdown-alert.markdown-alert-caution {
+    border-left-color: #cf222e;
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+    color: #cf222e;
+}
+
+/* Standard admonitions for compatibility */
+.admonition {
+    padding: 0.5rem 1rem;
+    margin-bottom: 16px;
+    color: inherit;
+    border-left: 0.25em solid #d0d7de;
+}
+
+.admonition-note {
+    border-left-color: #5bc0de; /* Blue */
+}
+
+.admonition-tip {
+    border-left-color: #5cb85c; /* Green */
+}
+
+.admonition-important {
+    border-left-color: #8e44ad; /* Purple */
+}
+
+.admonition-warning {
+    border-left-color: #f0ad4e; /* Yellow */
+}
+
+.admonition-caution {
+    border-left-color: #d9534f; /* Red */
+}
+
+/* Table of Contents (TOC) styles */
+.toc {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background-color: var(--toc-bg);
+    border: 1px solid var(--toc-border);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px var(--toc-shadow);
+    transition: all 0.3s ease;
+}
+
+.toc h4 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: var(--toc-header-color);
+    border-bottom: 2px solid var(--toc-header-border);
+    padding-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.toc ul {
+    list-style: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.toc li {
+    margin: 0.25rem 0;
+    line-height: 1.4;
+}
+
+.toc a {
+    display: block;
+    padding: 0.4rem 0.8rem;
+    color: var(--toc-link-color);
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+    position: relative;
+}
+
+.toc a:hover {
+    background-color: var(--toc-link-hover-bg);
+    color: var(--toc-link-hover-color);
+    text-decoration: none;
+    transform: translateX(2px);
+}
+
+.toc a:active,
+.toc a.active {
+    background-color: var(--toc-link-active-bg);
+    color: var(--toc-link-active-color);
+    font-weight: 500;
+}
+
+/* Nested TOC levels */
+.toc ul ul {
+    margin-top: 0.25rem;
+    margin-bottom: 0.25rem;
+    padding-left: 1.2rem;
+}
+
+.toc ul ul li {
+    margin: 0.15rem 0;
+}
+
+.toc ul ul a {
+    font-size: 0.9rem;
+    padding: 0.3rem 0.6rem;
+    color: var(--text-secondary);
+}
+
+.toc ul ul a:hover {
+    color: var(--toc-link-hover-color);
+}
+
+/* Third level nesting */
+.toc ul ul ul {
+    padding-left: 1rem;
+}
+
+.toc ul ul ul a {
+    font-size: 0.85rem;
+    padding: 0.25rem 0.5rem;
+    color: var(--text-muted);
+}
+
+/* TOC for specific header detection */
+h4:has(+ ul li a[href^="#"]) {
+    color: var(--toc-header-color);
+    border-bottom: 2px solid var(--toc-header-border);
+    padding-bottom: 0.3em;
+    margin-bottom: 0.8em;
+}
+
+/* Generic anchor links styling (for TOC generated by Marco) */
+ul li a[href^="#"] {
+    color: var(--toc-link-color);
+    text-decoration: none;
+    padding: 0.3em 0.6em;
+    display: block;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    margin: 0.1em 0;
+}
+
+ul li a[href^="#"]:hover {
+    background-color: var(--toc-link-hover-bg);
+    color: var(--toc-link-hover-color);
+    text-decoration: none;
+    transform: translateX(2px);
+}
+
+ul li a[href^="#"]:active {
+    background-color: var(--toc-link-active-bg);
+    color: var(--toc-link-active-color);
+}
+
+/* TOC nested list styling for Marco-generated TOC */
+ul li ul {
+    margin-top: 0.2em;
+    margin-bottom: 0.2em;
+    padding-left: 1.2em;
+}
+
+ul li ul li a[href^="#"] {
+    font-size: 0.9em;
+    padding: 0.2em 0.5em;
+    color: var(--text-secondary);
+}
+
+ul li ul li a[href^="#"]:hover {
+    color: var(--toc-link-hover-color);
+}
+
+/* Compact TOC variant */
+.toc-compact {
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.toc-compact h4 {
+    font-size: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.toc-compact a {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
+}
+
+/* Editor styling for plain text mode (when syntax highlighting is off) */
+.editor-theme-light {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+.editor-theme-dark {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* SourceView editor styling that respects theme */
+textview {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 10px;
+}
+
+textview text {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+}
+
+/* Selection colors that work with both themes */
+textview text selection {
+    background-color: var(--link-color);
+    color: var(--bg-color);
+}

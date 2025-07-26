@@ -34,7 +34,6 @@ pub fn show_settings_dialog(parent: &Window) {
     notebook.append_page(&tabs::appearance::build_appearance_tab(), Some(&Label::new(Some("Appearance"))));
     notebook.append_page(&tabs::language::build_language_tab(), Some(&Label::new(Some("Language"))));
     notebook.append_page(&tabs::advanced::build_advanced_tab(), Some(&Label::new(Some("Advanced"))));
-    notebook.append_page(&tabs::plugins::build_plugin_tab(),     Some(&Label::new(Some("Plugins"))));
 
     // Layout: notebook + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
