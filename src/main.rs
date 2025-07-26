@@ -8,13 +8,11 @@ mod settings {
 mod theme;
 mod toolbar;
 pub mod ui;
-pub mod logic;
 
 
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box, Orientation, HeaderBar, Button};
 use crate::ui::main_editor::create_editor_with_preview;
-use crate::logic::ast::blocks_and_inlines::{Block, LeafBlock};
 use gtk4::Align;
 
 const APP_ID: &str = "com.example.Marco";
@@ -69,9 +67,7 @@ fn build_ui(app: &Application) {
     // Create basic UI components (structure only)
     let menu_bar = menu::main_menu_structure();
     let toolbar = toolbar::create_toolbar_structure();
-    // Create a dummy AST for initial display
-    let ast = Block::Leaf(LeafBlock::Paragraph(vec![], None));
-    let split = create_editor_with_preview(&ast);
+    let split = create_editor_with_preview();
     let footer = footer::create_footer_structure();
 
     // Add components to main layout
