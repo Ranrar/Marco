@@ -1,0 +1,104 @@
+/*
+GitHub Light High Contrast GTK4 Theme
+Palette: see https://github.com/primer/github-vscode-theme
+*/
+
+* {
+    background-color: #ffffff;
+    color: #1b1f23;
+    font-family: "Segoe UI", "Cantarell", "Arial", sans-serif;
+    font-size: 12pt;
+}
+
+.editor-area, .editor, .code-editor, .sourceview, .monospace {
+    font-family: "Fira Mono", "JetBrains Mono", Consolas, monospace;
+    font-size: 13pt;
+    line-height: 1.4;
+}
+
+button, .icon-btn {
+    background-color: #f6f8fa;
+    color: #1b1f23;
+    border-radius: 6px;
+    border: 1px solid #24292f;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s;
+}
+button:hover, .icon-btn:hover {
+    background-color: #eaeef2;
+    color: #1b1f23;
+}
+
+.accent, button.suggested-action {
+    background-color: #0969da;
+    color: #fff;
+}
+.accent:hover, button.suggested-action:hover {
+    background-color: #218bff;
+}
+
+headerbar, .titlebar, .windowhandle {
+    background-color: #f6f8fa;
+    color: #1b1f23;
+    border-bottom: 1px solid #24292f;
+}
+
+entry, textview, searchentry {
+    background-color: #ffffff;
+    color: #1b1f23;
+    border: 1px solid #24292f;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+entry:focus, textview:focus, searchentry:focus {
+    border-color: #0969da;
+    outline: none;
+}
+
+tooltip {
+    background-color: #24292f;
+    color: #fff;
+    border-radius: 4px;
+    border: 1px solid #24292f;
+    padding: 4px 8px;
+}
+
+*:selected, selection, treeview:selected, list:selected {
+    background-color: #218bff;
+    color: #fff;
+}
+
+scrollbar, scrollbar slider {
+    background-color: #f6f8fa;
+    border-radius: 8px;
+}
+scrollbar slider {
+    background-color: #218bff;
+    min-width: 8px;
+    min-height: 24px;
+}
+scrollbar slider:hover {
+    background-color: #0969da;
+}
+
+treeview, list, listview, columnview {
+    background-color: #ffffff;
+    color: #1b1f23;
+}
+
+scale, progressbar {
+    background-color: #f6f8fa;
+    color: #0969da;
+}
+progressbar progress {
+    background-color: #0969da;
+}
+
+menubar, popovermenubar {
+    background-color: #f6f8fa;
+    color: #1b1f23;
+}
+
+window, applicationwindow {
+    background-color: #ffffff;
+}

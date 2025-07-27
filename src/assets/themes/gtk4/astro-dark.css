@@ -1,0 +1,133 @@
+/* Settings dialog and popover backgrounds */
+/* Minimal dialog and popover backgrounds */
+.settings-dialog, dialog, popover, .popover {
+    background-color: #23232e;
+    border-radius: 4px;
+    border: 1px solid #393e4f;
+}
+
+/* Minimal toolbar background */
+.toolbar, headerbar, .titlebar, .windowhandle {
+    background-color: #23232e;
+    color: #a855f7;
+    border-bottom: 1px solid #2d3748;
+}
+
+/* Minimal button styles */
+button, .icon-btn {
+    background: #282a36;
+    color: #fff;
+    font-weight: 500;
+    border-radius: 4px;
+    border: 1px solid #393e4f;
+    transition: background 0.15s, color 0.15s, border 0.15s;
+    font-size: 1em;
+}
+button:hover, .icon-btn:hover {
+    background: #23232e;
+    color: #fff;
+    border: 1.5px solid #a855f7;
+}
+button:focus, .icon-btn:focus, button:active, .icon-btn:active {
+    outline: none;
+    border: 1.5px solid #a855f7;
+}
+
+/* Minimal entry/input focus/active state */
+entry:focus, textview:focus, searchentry:focus {
+    border-color: #a855f7;
+}
+switch {
+    background-color: #222;
+    border: 1px solid #2d3748;
+}
+switch:checked {
+    background-color: #a855f7;
+    border-color: #a855f7;
+}
+
+
+checkbutton, radiobutton {
+    background-color: #1a1a1a;
+    color: #f5f5f5;
+    border: 1px solid #2d3748;
+}
+
+/*
+Astro Dark GTK4 Theme
+Palette: matches html_viewer/astro.css dark theme
+Refined for clarity, contrast, and modern polish
+*/
+
+* {
+    background-color: #222222;
+    color: #f5f5f5;
+    font-family: "Segoe UI", "Cantarell", "Arial", sans-serif;
+    font-size: 12pt;
+}
+window, applicationwindow {
+    background-color: #222222;
+}
+.toolbar, headerbar, .titlebar, .windowhandle {
+    background-color: #23232e;
+    color: #a855f7;
+    border-bottom: 1px solid #2d3748;
+}
+
+.editor-area, .editor, .code-editor, .sourceview, .monospace {
+    background-color: #23232e;
+    color: #e0def4;
+    font-family: 'Monaco', 'Consolas', 'SF Mono', 'Inconsolata', 'Fira Code', 'Droid Sans Mono', 'Source Code Pro', monospace;
+    font-size: 13pt;
+    line-height: 1.4;
+}
+
+button, .icon-btn {
+    background: #282a36;
+    color: #fff;
+    font-weight: bold;
+    border-radius: 8px;
+    border: 1px solid #393e4f;
+    box-shadow: 0 1px 4px #18182044;
+    transition: background 0.15s, color 0.15s, box-shadow 0.2s;
+    font-size: 1.05em;
+}
+button:hover, .icon-btn:hover {
+    background: linear-gradient(180deg, #393e4f 0%, #282a36 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px #18182066;
+}
+
+.icon-btn svg {
+    fill: #fff;
+    transition: fill 0.15s;
+}
+.icon-btn:hover svg {
+    fill: #a855f7;
+}
+
+.accent, button.suggested-action {
+    background-color: #a855f7;
+    color: #fff;
+}
+.accent:hover, button.suggested-action:hover {
+    background-color: #ec4899;
+}
+
+
+entry, textview, searchentry {
+    background-color: #1a1a1a;
+    color: #f5f5f5;
+    border: 1px solid #2d3748;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+entry:focus, textview:focus, searchentry:focus {
+
+    background-color: #1a1a1a;
+    color: #f5f5f5;
+}
+
+window, applicationwindow {
+    background-color: #282a36;
+}

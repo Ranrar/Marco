@@ -1,4 +1,4 @@
-mod tabs;
+pub mod tabs;
 // Settings module
 pub mod settings;
 

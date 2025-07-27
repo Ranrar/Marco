@@ -63,58 +63,56 @@ code {
 <h2>Compatibility Matrix</h2>
 <table>
   <tr><th>Variant</th><th>Can be toggled with...</th></tr>
-  <tr><td class="variant">CommonMark</td><td>GFM, Markdig, Marco</td></tr>
-  <tr><td class="variant">GFM</td><td>CommonMark, Markdig, Marco</td></tr>
-  <tr><td class="variant">Pandoc</td><td>Obsidian, Typora, Markdown Extra, Marco</td></tr>
-  <tr><td class="variant">Obsidian</td><td>Pandoc, Typora, Markdown Extra, Marco</td></tr>
-  <tr><td class="variant">Typora</td><td>Pandoc, Obsidian, Markdown Extra, Markdig, Marco</td></tr>
-  <tr><td class="variant">Markdown Extra</td><td>Pandoc, Obsidian, Typora, Marco</td></tr>
-  <tr><td class="variant">Markdig</td><td>CommonMark, GFM, Typora, Marco</td></tr>
+  <tr><td class="variant">CommonMark</td><td>GFM, Marco</td></tr>
+  <tr><td class="variant">GFM</td><td>CommonMark, Marco</td></tr>
+  <tr><td class="variant">Pandoc</td><td>Obsidian, Typora, Marco</td></tr>
+  <tr><td class="variant">Obsidian</td><td>Pandoc, Typora, Marco</td></tr>
+  <tr><td class="variant">Typora</td><td>Pandoc, Obsidian, Marco</td></tr>
   <tr><td class="variant">Marco</td><td><b>All variants</b></td></tr>
 </table>
 </table>
 <h2>Feature Support Table</h2>
 <table>
   <tr>
-    <th>Feature</th><th>CommonMark</th><th>GFM</th><th>Marco</th><th>Obsidian</th><th>Pandoc</th><th>Typora</th><th>Markdown Extra</th><th>Markdig</th>
+    <th>Feature</th><th>CommonMark</th><th>GFM</th><th>Marco</th><th>Obsidian</th><th>Pandoc</th><th>Typora</th>
   </tr>
-  <tr><td><b>Tables</b></td>                           <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Task Lists</b></td>                       <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Strikethrough</b></td>                    <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Frontmatter (YAML)</b></td>               <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Footnotes</b></td>                        <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Wiki Links (<code>[[Page]]</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
-  <tr><td><b>Math / LaTeX (<code>$x^2$</code>, <code>$$</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>Auto-links</b></td>                       <td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Attribute Lists (<code>{#id .class}</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Definition Lists</b></td>                 <td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Abbreviations</b></td>                    <td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Highlight (<code>==text==</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>Inline HTML</b></td>                      <td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>TOC (auto gen headings)</b></td>          <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Underline (<code>_text_</code>)</b></td>  <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Superscript (<code>^text</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Subscript (<code>~text</code>)</b></td>   <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Callouts / Admonitions</b></td>           <td>❌</td><td>❌</td><td>🧩</td><td>✅</td><td>🧩</td><td>✅</td><td>❌</td><td>🧩</td></tr>
-  <tr><td><b>Diagrams (Mermaid, Graphviz)</b></td>     <td>❌</td><td>❌</td><td>🧩</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>🧩</td></tr>
-  <tr><td><b>Emoji Shortcodes (<code>:smile:</code>)</b></td> <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>Inline Comments</b></td>                  <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>Custom Containers</b></td>                <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>Line Breaks on Return</b></td>            <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>Escaped Pipes in Tables</b></td>          <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>Smart Punctuation</b></td>                <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>HTML Entity Expansion</b></td>            <td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
-  <tr><td><b>HTML Sanitization</b></td>                <td>❌</td><td>Partial</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>@include(file.md)</b></td>                <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>🧩</td></tr>
-  <tr><td><b>@toc (Auto TOC)</b></td>                  <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>🧩</td><td>🧩</td><td>❌</td><td>🧩</td></tr>
-  <tr><td><b>@lint (markdown spellcheck)</b></td>      <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td></tr>
-  <tr><td><b>@mail (mailto: + subject)</b></td>        <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
-  <tr><td><b>@if (conditional content)</b></td>        <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>❌</td></tr>
-  <tr><td><b>@run (terminal command)</b></td>          <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td><td>❌</td></tr>
-  <tr><td><b>MathJax (advanced math)</b></td>          <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>KaTeX (fast math rendering)</b></td>      <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
-  <tr><td><b>PlantUML (UML diagrams)</b></td>          <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>🧩</td><td>❌</td><td>❌</td><td>🧩</td></tr>
-  <tr><td><b>Graphviz/Dot Graphs</b></td>              <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>✅</td><td>❌</td><td>❌</td><td>🧩</td></tr>
+  <tr><td><b>Tables</b></td>                           <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Task Lists</b></td>                       <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td></tr>
+  <tr><td><b>Strikethrough</b></td>                    <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td><td>✅</td></tr>
+  <tr><td><b>Frontmatter (YAML)</b></td>               <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Footnotes</b></td>                        <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Wiki Links (<code>[[Page]]</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>❌</td></tr>
+  <tr><td><b>Math / LaTeX (<code>$x^2$</code>, <code>$$</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Auto-links</b></td>                       <td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Attribute Lists (<code>{#id .class}</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Definition Lists</b></td>                 <td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Abbreviations</b></td>                    <td>❌</td><td>❌</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Highlight (<code>==text==</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Inline HTML</b></td>                      <td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>TOC (auto gen headings)</b></td>          <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Underline (<code>_text_</code>)</b></td>  <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Superscript (<code>^text</code>)</b></td> <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Subscript (<code>~text</code>)</b></td>   <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Callouts / Admonitions</b></td>           <td>❌</td><td>❌</td><td>🧩</td><td>✅</td><td>🧩</td><td>✅</td></tr>
+  <tr><td><b>Diagrams (Mermaid, Graphviz)</b></td>     <td>❌</td><td>❌</td><td>🧩</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Emoji Shortcodes (<code>:smile:</code>)</b></td> <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Inline Comments</b></td>                  <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Custom Containers</b></td>                <td>❌</td><td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Line Breaks on Return</b></td>            <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td></tr>
+  <tr><td><b>Escaped Pipes in Tables</b></td>          <td>❌</td><td>✅</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>Smart Punctuation</b></td>                <td>❌</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>HTML Entity Expansion</b></td>            <td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>HTML Sanitization</b></td>                <td>❌</td><td>Partial</td><td>✅</td><td>❌</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>@include(file.md)</b></td>                <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>🧩</td><td>❌</td></tr>
+  <tr><td><b>@toc (Auto TOC)</b></td>                  <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>🧩</td><td>🧩</td></tr>
+  <tr><td><b>@lint (markdown spellcheck)</b></td>      <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>🧩</td></tr>
+  <tr><td><b>@mail (mailto: + subject)</b></td>        <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>❌</td></tr>
+  <tr><td><b>@if (conditional content)</b></td>        <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>🧩</td><td>❌</td></tr>
+  <tr><td><b>@run (terminal command)</b></td>          <td>❌</td><td>❌</td><td>🧩</td><td>❌</td><td>❌</td><td>❌</td></tr>
+  <tr><td><b>MathJax (advanced math)</b></td>          <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>KaTeX (fast math rendering)</b></td>      <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>✅</td><td>✅</td></tr>
+  <tr><td><b>PlantUML (UML diagrams)</b></td>          <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>🧩</td><td>❌</td></tr>
+  <tr><td><b>Graphviz/Dot Graphs</b></td>              <td>❌</td><td>❌</td><td>🧩</td><td>🧩</td><td>✅</td><td>❌</td></tr>
 </table>
 <p style="margin-top:1em;font-size:0.98em;">
 ✅ = Standard Support<br />

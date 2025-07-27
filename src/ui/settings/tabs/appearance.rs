@@ -1,7 +1,18 @@
-use gtk4::prelude::*;
-use gtk4::Box;
 
-pub fn build_appearance_tab() -> Box {
+use gtk4::prelude::*;
+use gtk4::Box as GtkBox;
+use std::rc::Rc;
+use std::cell::RefCell;
+
+// Import your theme manager
+use crate::theme::{ThemeManager};
+use crate::logic::theme_list::{list_app_themes, find_theme_by_label};
+
+pub fn build_appearance_tab(
+    theme_manager: Rc<RefCell<ThemeManager>>,
+    settings_path: std::path::PathBuf,
+    on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
+) -> GtkBox {
     use gtk4::{Label, ComboBoxText, Scale, Adjustment, Button, Box as GtkBox, Orientation, Align};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -49,34 +60,77 @@ pub fn build_appearance_tab() -> Box {
         vbox
     };
 
-    // Application Theme (Dropdown)
+    // Application Theme (Dropdown, dynamic)
     let app_theme_combo = ComboBoxText::new();
-    app_theme_combo.append_text("Light");
-    app_theme_combo.append_text("Dark");
-    app_theme_combo.append_text("System Default");
-    app_theme_combo.set_active(Some(2));
+    let theme_dir = std::path::Path::new("src/assets/themes/gtk4");
+    let app_themes = list_app_themes(theme_dir);
+    for entry in &app_themes {
+        app_theme_combo.append_text(&entry.label);
+    }
+    // Set active based on current theme filename in settings
+    let current_theme = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.app_theme.clone());
+    let current_theme_str = current_theme.as_deref().unwrap_or("standard-light.css");
+    let active_idx = app_themes.iter().position(|t| t.filename == current_theme_str).unwrap_or(0);
+    app_theme_combo.set_active(Some(active_idx as u32));
     let app_theme_row = add_row(
         "Application Theme",
-        "Choose between light and dark modes for the user interface.",
+        "Choose a theme for the user interface.",
         app_theme_combo.upcast_ref(),
     );
     container.append(&app_theme_row);
 
     // HTML Preview Theme (Dropdown)
     let preview_theme_combo = ComboBoxText::new();
-    preview_theme_combo.append_text("GitHub");
-    preview_theme_combo.append_text("Minimal");
-    preview_theme_combo.append_text("Typora");
-    preview_theme_combo.append_text("Dracula");
-    preview_theme_combo.append_text("Paper");
-    preview_theme_combo.append_text("Custom");
-    preview_theme_combo.set_active(Some(0));
+    use crate::logic::theme_list::list_html_view_themes;
+    let html_theme_dir = std::path::Path::new("src/assets/themes/html_viever");
+    let html_themes = list_html_view_themes(html_theme_dir);
+    for entry in &html_themes {
+        preview_theme_combo.append_text(&entry.label);
+    }
+    // Set active based on current preview_theme filename in settings
+    let current_preview = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.preview_theme.clone());
+    let current_preview_str = current_preview.as_deref().unwrap_or("standard.css");
+    let preview_active_idx = html_themes.iter().position(|t| t.filename == current_preview_str).unwrap_or(0);
+    preview_theme_combo.set_active(Some(preview_active_idx as u32));
     let preview_theme_row = add_row(
         "HTML Preview Theme",
         "Select a CSS theme for rendered Markdown preview.",
         preview_theme_combo.upcast_ref(),
     );
     container.append(&preview_theme_row);
+
+    // --- SIGNALS ---
+    // Application Theme change
+    {
+        let theme_manager = Rc::clone(&theme_manager);
+        let settings_path = settings_path.clone();
+        let app_themes = app_themes.clone();
+        app_theme_combo.connect_changed(move |combo| {
+            let idx = combo.active().unwrap_or(0) as usize;
+            if let Some(theme) = app_themes.get(idx) {
+                // Save theme filename to settings, apply CSS, set color mode
+                theme_manager.borrow_mut().set_app_theme(theme.filename.clone(), &settings_path);
+            }
+        });
+    }
+    // Preview Theme change
+    {
+        let theme_manager = Rc::clone(&theme_manager);
+        let settings_path = settings_path.clone();
+        let html_themes = html_themes.clone();
+        let on_preview_theme_changed = on_preview_theme_changed;
+        preview_theme_combo.connect_changed(move |combo| {
+            let idx = combo.active().unwrap_or(0) as usize;
+            if let Some(theme_entry) = html_themes.get(idx) {
+                println!("Saving preview_theme: {} to {:?}", theme_entry.filename, settings_path);
+                theme_manager.borrow_mut().set_preview_theme(theme_entry.filename.clone(), &settings_path);
+                // Apply the new preview theme live
+                (on_preview_theme_changed)(theme_entry.filename.clone());
+            }
+        });
+    }
+
+    // ...existing code for custom CSS, font, etc...
 
     // Custom CSS for Preview (Button)
     let custom_css_button = Button::with_label("Open CSS Themes Folder");
@@ -127,18 +181,6 @@ pub fn build_appearance_tab() -> Box {
     ui_font_size_vbox.set_spacing(2);
     ui_font_size_vbox.set_margin_bottom(24);
     container.append(&ui_font_size_vbox);
-
-    // Border & Contrast Style (Dropdown)
-    let border_combo = ComboBoxText::new();
-    border_combo.append_text("Default");
-    border_combo.append_text("High Contrast");
-    border_combo.set_active(Some(0));
-    let border_row = add_row(
-        "Border & Contrast Style",
-        "Choose between subtle or high-contrast borders for accessibility.",
-        border_combo.upcast_ref(),
-    );
-    container.append(&border_row);
 
     container
 }

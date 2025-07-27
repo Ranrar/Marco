@@ -2,7 +2,7 @@ use gtk4::prelude::*;
 use gtk4::Box;
 
 pub fn build_editor_tab() -> Box {
-    use gtk4::{Label, ComboBoxText, Scale, Adjustment, Switch, Box as GtkBox, Orientation, Align, SpinButton, Separator};
+    use gtk4::{Label, ComboBoxText, Scale, Adjustment, Switch, Box as GtkBox, Orientation, Align, SpinButton};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.set_margin_top(24);

@@ -18,7 +18,17 @@ impl Settings {
     }
 }
 
-pub fn show_settings_dialog(parent: &Window) {
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::path::PathBuf;
+use crate::theme::ThemeManager;
+
+pub fn show_settings_dialog(
+    parent: &Window,
+    theme_manager: Rc<RefCell<ThemeManager>>,
+    settings_path: PathBuf,
+    on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
+) {
     let dialog = Dialog::builder()
         .transient_for(parent)
         .modal(true)
@@ -31,7 +41,19 @@ pub fn show_settings_dialog(parent: &Window) {
     // Add each tab
     notebook.append_page(&tabs::editor::build_editor_tab(),     Some(&Label::new(Some("Editor"))));
     notebook.append_page(&tabs::layout::build_layout_tab(),     Some(&Label::new(Some("Layout"))));
-    notebook.append_page(&tabs::appearance::build_appearance_tab(), Some(&Label::new(Some("Appearance"))));
+    if let Some(cb) = on_preview_theme_changed {
+        notebook.append_page(&tabs::appearance::build_appearance_tab(
+            theme_manager.clone(),
+            settings_path.clone(),
+            cb,
+        ), Some(&Label::new(Some("Appearance"))));
+    } else {
+        notebook.append_page(&tabs::appearance::build_appearance_tab(
+            theme_manager.clone(),
+            settings_path.clone(),
+            Box::new(|_| {}),
+        ), Some(&Label::new(Some("Appearance"))));
+    }
     notebook.append_page(&tabs::language::build_language_tab(), Some(&Label::new(Some("Language"))));
     notebook.append_page(&tabs::advanced::build_advanced_tab(), Some(&Label::new(Some("Advanced"))));
 

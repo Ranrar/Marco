@@ -5,7 +5,7 @@ use gtk4::Paned;
 use crate::ui::html_viewer::wrap_html_document;
 use markdown::to_html;
 /// Create a split editor with live HTML preview using WebKit6
-pub fn create_editor_with_preview() -> Paned {
+pub fn create_editor_with_preview() -> (Paned, webkit6::WebView) {
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
 
@@ -28,7 +28,7 @@ pub fn create_editor_with_preview() -> Paned {
         webview_clone.load_html(&html, None);
     });
 
-    paned
+    (paned, webview)
 }
 // src/markdown/edit.rs
 

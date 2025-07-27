@@ -1,0 +1,122 @@
+// Marco Editor Settings File (RON format)
+// All settings are grouped by UI tab/section. Adjust as needed.
+//
+// The `static_defaults` group below contains the canonical default for every setting.
+// Use this for "reset all" operations or to audit the default state.
+static_defaults: (
+    editor: (
+        font: "Monospace",
+        font_size: 14,
+        line_height: 1.4,
+        line_wrapping: true,
+        auto_pairing: true,
+        show_invisibles: false,
+        tabs_to_spaces: true,
+        syntax_colors: true,
+        linting: true,
+    ),
+    appearance: (
+        color_mode: "System default"
+        app_theme: "standard-light.css",
+        preview_theme: "standard,css",
+        ui_font: "System Default",
+        ui_font_size: 14,
+    ),
+    layout: (
+        view_mode: "HTML Preview",
+        sync_scrolling: true,
+        editor_view_split: 60,
+        show_line_numbers: true,
+        text_direction: "LTR",
+    ),
+    language: (
+        language: "System Default",
+    ),
+    advanced: (
+        enabled_variants: ["CommonMark", "GFM"],
+        plugins: [],
+    ),
+    // Window geometry and state
+    window: (
+        // Window width in pixels (400-5000)
+        width: 1200,
+        // Window height in pixels (300-3000)
+        height: 800,
+        // Window X position on screen (-10000 to 10000)
+        x: 0,
+        // Window Y position on screen (-10000 to 10000)
+        y: 0,
+        // Start maximized (true/false)
+        maximized: false,
+    ),
+),
+// ---- User/active settings below ----
+(
+    editor: (
+        // Font used in the editor ("Monospace" or "Proportional")
+        font: "Monospace",
+        // Font size for the editor (10-24)
+        font_size: 14,
+        // Line height (1.0-2.0, step 0.05)
+        line_height: 1.4,
+        // Line wrapping (wrap long lines in editor)
+        line_wrapping: true,
+        // Auto pairing (auto-close brackets, quotes, etc.)
+        auto_pairing: true,
+        // Show invisible characters (tabs, spaces, newlines)
+        show_invisibles: false,
+        // Convert tabs to spaces
+        tabs_to_spaces: true,
+        // Syntax colors (enable syntax highlighting)
+        syntax_colors: true,
+        // Enable Markdown linting
+        linting: true,
+    ),
+    appearance: (
+        // Application theme ("Light", "Dark", "System Default")
+        color_mode: "System default"
+        // Application theme (css file)
+        app_theme: "standard-light.css",
+        // HTML preview theme (css file)
+        preview_theme: "standard,css",
+        // UI font (menus, sidebars)
+        ui_font: "System Default",
+        // UI font size (10-24)
+        ui_font_size: 14,
+    ),
+    layout: (
+        // Default view mode ("HTML Preview" or "Source Code")
+        view_mode: "HTML Preview",
+        // Synchronize scrolling between editor and preview
+        sync_scrolling: true,
+        // Editor/view split percentage (10-90)
+        editor_view_split: 60,
+        // Show line numbers in editor gutter
+        show_line_numbers: true,
+        // Text direction ("LTR" or "RTL")
+        text_direction: "LTR",
+    ),
+    language: (
+        // UI language ("System Default", "English", "Dansk", "Deutsch", "Français", "العربية", "日本語")
+        language: "System Default",
+    ),
+    // Window geometry and state
+    window: (
+        // Window width in pixels (400-5000)
+        width: 1200,
+        // Window height in pixels (300-3000)
+        height: 800,
+        // Window X position on screen (-10000 to 10000)
+        x: 0,
+        // Window Y position on screen (-10000 to 10000)
+        y: 0,
+        // Start maximized (true/false)
+        maximized: false,
+    ),
+    advanced: (
+        // Enabled Markdown variants (default fallback: ["CommonMark", "GFM"])
+        enabled_variants: ["CommonMark", "GFM"],
+        // Plugins/extensions (future: list of plugin configs)
+        plugins: [],
+    ),
+)

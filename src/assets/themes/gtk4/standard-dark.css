@@ -1,0 +1,104 @@
+/*
+GitHub Dark Default GTK4 Theme (Markdown/Document palette)
+Palette: matches html_viewer/standard.css dark theme
+*/
+
+* {
+    background-color: #1a1a1a;
+    color: #e1e1e1;
+    font-family: "Segoe UI", "Cantarell", "Arial", sans-serif;
+    font-size: 12pt;
+}
+
+.editor-area, .editor, .code-editor, .sourceview, .monospace {
+    font-family: "Fira Mono", "JetBrains Mono", Consolas, monospace;
+    font-size: 13pt;
+    line-height: 1.4;
+}
+
+button, .icon-btn {
+    background-color: #2a2a2a;
+    color: #e1e1e1;
+    border-radius: 6px;
+    border: 1px solid #333;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s;
+}
+button:hover, .icon-btn:hover {
+    background-color: #252525;
+    color: #e1e1e1;
+}
+
+.accent, button.suggested-action {
+    background-color: #4da6ff;
+    color: #fff;
+}
+.accent:hover, button.suggested-action:hover {
+    background-color: #66b3ff;
+}
+
+headerbar, .titlebar, .windowhandle {
+    background-color: #2a2a2a;
+    color: #e1e1e1;
+    border-bottom: 1px solid #333;
+}
+
+entry, textview, searchentry {
+    background-color: #2a2a2a;
+    color: #e1e1e1;
+    border: 1px solid #333;
+    border-radius: 4px;
+    padding: 2px 6px;
+}
+entry:focus, textview:focus, searchentry:focus {
+    border-color: #4da6ff;
+    outline: none;
+}
+
+tooltip {
+    background-color: #2a2a2a;
+    color: #e1e1e1;
+    border-radius: 4px;
+    border: 1px solid #666;
+    padding: 4px 8px;
+}
+
+*:selected, selection, treeview:selected, list:selected {
+    background-color: #1f6feb;
+    color: #ffffff;
+}
+
+scrollbar, scrollbar slider {
+    background-color: #2a2a2a;
+    border-radius: 8px;
+}
+scrollbar slider {
+    background-color: #1f6feb;
+    min-width: 8px;
+    min-height: 24px;
+}
+scrollbar slider:hover {
+    background-color: #66b3ff;
+}
+
+treeview, list, listview, columnview {
+    background-color: #1a1a1a;
+    color: #e1e1e1;
+}
+
+scale, progressbar {
+    background-color: #2a2a2a;
+    color: #4da6ff;
+}
+progressbar progress {
+    background-color: #4da6ff;
+}
+
+menubar, popovermenubar {
+    background-color: #2a2a2a;
+    color: #e1e1e1;
+}
+
+window, applicationwindow {
+    background-color: #1a1a1a;
+}

@@ -1,4 +1,3 @@
-use gtk4::prelude::*;
 use gtk4::Box;
 
 use crate::ui::settings::tabs::window::flavor_info::FLAVOR_INFO_HTML;
@@ -42,13 +41,11 @@ use webkit6::prelude::*;
     use gtk4::CheckButton;
     // List of variants and their compatibilities
     let variants = [
-        ("CommonMark", &["GFM", "Markdig", "Marco"] as &[&str]),
-        ("GFM", &["CommonMark", "Markdig", "Marco"]),
-        ("Pandoc", &["Obsidian", "Typora", "Markdown Extra", "Marco"]),
-        ("Obsidian", &["Pandoc", "Typora", "Markdown Extra", "Marco"]),
-        ("Typora", &["Pandoc", "Obsidian", "Markdown Extra", "Markdig", "Marco"]),
-        ("Markdown Extra", &["Pandoc", "Obsidian", "Typora", "Marco"]),
-        ("Markdig", &["CommonMark", "GFM", "Typora", "Marco"]),
+        ("CommonMark", &["GFM", "Marco"] as &[&str]),
+        ("GFM", &["CommonMark", "Marco"]),
+        ("Pandoc", &["Obsidian", "Typora", "Marco"]),
+        ("Obsidian", &["Pandoc", "Typora", "Marco"]),
+        ("Typora", &["Pandoc", "Obsidian", "Marco"]),
         ("Marco", &["All variants (Marco is compatible with everything)"])
     ];
 
