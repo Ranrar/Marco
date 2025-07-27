@@ -3,7 +3,7 @@
     appearance: Some((
         color_mode: None,
         app_theme: Some("astro-dark.css"),
-        preview_theme: Some("academic.css"),
+        preview_theme: Some("astro.css"),
         ui_font: None,
         ui_font_size: None,
     )),

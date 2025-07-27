@@ -61,7 +61,9 @@ pub fn main_menu_structure() -> PopoverMenuBar {
     let help_menu = gio::Menu::new();
     help_menu.append(Some("About"), Some("app.about"));
     menu_model.append_submenu(Some("Help"), &help_menu);
-    PopoverMenuBar::from_model(Some(&menu_model))
+    let menubar = PopoverMenuBar::from_model(Some(&menu_model));
+    menubar.add_css_class("menubar");
+    menubar
 }
 
 /// Returns a WindowHandle containing the custom VS Code–like titlebar, including the menu bar and all controls.
@@ -78,6 +80,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     }
     let handle = WindowHandle::new();
     let titlebar = GtkBox::new(Orientation::Horizontal, 0);
+    titlebar.add_css_class("titlebar");
     titlebar.set_spacing(0);
     titlebar.set_margin_top(0);
     titlebar.set_margin_bottom(0);
@@ -98,6 +101,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     // --- Menu bar (next to title) ---
     let menu_bar = main_menu_structure();
     menu_bar.set_valign(Align::Center);
+    menu_bar.add_css_class("menubar");
     titlebar.append(&menu_bar);
 
 
@@ -132,12 +136,18 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     btn_detach.set_child(Some(&img_detach));
     btn_detach.set_tooltip_text(Some("Open view in a new window"));
 
-    for btn in [&btn_split, &btn_editor, &btn_preview, &btn_detach] {
+    for (btn, class) in [
+        (&btn_split, "titlebar-btn-split"),
+        (&btn_editor, "titlebar-btn-editor"),
+        (&btn_preview, "titlebar-btn-preview"),
+        (&btn_detach, "titlebar-btn-detach")
+    ] {
         btn.set_valign(Align::Center);
         btn.set_margin_start(2);
         btn.set_margin_end(2);
         btn.set_focusable(false);
         btn.add_css_class("icon-btn");
+        btn.add_css_class(class);
         titlebar.append(btn);
     }
 
@@ -162,6 +172,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     btn_min.set_margin_end(2);
     btn_min.set_focusable(false);
     btn_min.add_css_class("icon-btn");
+    btn_min.add_css_class("titlebar-btn-minimize");
     let img_min_clone = img_min.clone();
     let motion_min = EventControllerMotion::new();
     {
@@ -197,6 +208,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     btn_max.set_margin_end(2);
     btn_max.set_focusable(false);
     btn_max.add_css_class("icon-btn");
+    btn_max.add_css_class("titlebar-btn-maximize");
     let img_max_clone = img_max.clone();
     let motion_max = EventControllerMotion::new();
     {
@@ -232,6 +244,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     btn_close.set_margin_end(12); // Match favicon's left margin
     btn_close.set_focusable(false);
     btn_close.add_css_class("icon-btn");
+    btn_close.add_css_class("titlebar-btn-close");
     let img_close_clone = img_close.clone();
     let motion_close = EventControllerMotion::new();
     {

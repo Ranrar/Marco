@@ -28,30 +28,38 @@ pub fn show_settings_dialog(
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: PathBuf,
     on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
+    theme_mode: Option<Rc<RefCell<String>>>,
+    refresh_preview: Option<Rc<RefCell<Box<dyn Fn()>>>>,
 ) {
     let dialog = Dialog::builder()
         .transient_for(parent)
         .modal(true)
         .title("Settings")
         .build();
+    dialog.add_css_class("settings-dialog");
 
     let notebook = Notebook::new();
     notebook.set_tab_pos(gtk4::PositionType::Top);
+    notebook.add_css_class("settings-notebook");
 
     // Add each tab
     notebook.append_page(&tabs::editor::build_editor_tab(),     Some(&Label::new(Some("Editor"))));
     notebook.append_page(&tabs::layout::build_layout_tab(),     Some(&Label::new(Some("Layout"))));
-    if let Some(cb) = on_preview_theme_changed {
+    if let (Some(cb), Some(theme_mode), Some(refresh_preview)) = (on_preview_theme_changed, theme_mode.clone(), refresh_preview.clone()) {
         notebook.append_page(&tabs::appearance::build_appearance_tab(
             theme_manager.clone(),
             settings_path.clone(),
             cb,
+            theme_mode,
+            refresh_preview,
         ), Some(&Label::new(Some("Appearance"))));
     } else {
         notebook.append_page(&tabs::appearance::build_appearance_tab(
             theme_manager.clone(),
             settings_path.clone(),
             Box::new(|_| {}),
+            Rc::new(RefCell::new(String::from("theme-light"))),
+            Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
         ), Some(&Label::new(Some("Appearance"))));
     }
     notebook.append_page(&tabs::language::build_language_tab(), Some(&Label::new(Some("Language"))));
@@ -59,11 +67,14 @@ pub fn show_settings_dialog(
 
     // Layout: notebook + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
+    content_box.add_css_class("settings-content-box");
     content_box.append(&notebook);
 
     let button_box = GtkBox::new(Orientation::Horizontal, 0);
     button_box.set_halign(Align::End);
+    button_box.add_css_class("settings-button-box");
     let close_button = Button::with_label("Close");
+    close_button.add_css_class("settings-close-button");
     let dialog_clone = dialog.clone();
     close_button.connect_clicked(move |_| dialog_clone.close());
     button_box.append(&close_button);

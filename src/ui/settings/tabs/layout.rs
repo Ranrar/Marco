@@ -5,6 +5,7 @@ pub fn build_layout_tab() -> Box {
     use gtk4::{Label, ComboBoxText, Scale, Adjustment, Switch, Box as GtkBox, Orientation, Align};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
+    container.add_css_class("settings-tab-layout");
     container.set_margin_top(24);
     container.set_margin_bottom(24);
     container.set_margin_start(32);

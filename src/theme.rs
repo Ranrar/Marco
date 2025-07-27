@@ -2,7 +2,6 @@ use gtk4::gdk;
 use gtk4::CssProvider;
 use gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION;
 use std::cell::RefCell;
-use std::rc::Rc;
 
 thread_local! {
     static LAST_CSS_PROVIDER: RefCell<Option<CssProvider>> = RefCell::new(None);

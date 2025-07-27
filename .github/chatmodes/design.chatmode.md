@@ -12,4 +12,8 @@ Each concept should stand alone with a concise description, explain its intended
 
 The final output should reflect a refined, forward-thinking design language that not only supports markdown editing but also provides a welcoming, professional environment for serious writing and documentation work. The system should strike a balance between creative expression and technical structure, setting the editor apart from traditional markdown tools in both form and function.
 
-Read: https://ssalewski.de/gtkprogramming.html 
+Refrence files:
+https://ssalewski.de/gtkprogramming.html 
+https://gtk-rs.org/gtk4-rs/stable/latest/book/css.html
+https://jamesbenner.hashnode.dev/how-to-style-your-gtk4-rust-app-with-css
+https://docs.gtk.org/gtk4/css-properties.html

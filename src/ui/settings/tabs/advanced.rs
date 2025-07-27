@@ -8,6 +8,7 @@ use webkit6::prelude::*;
     use gtk4::{Label, Box as GtkBox, Orientation, Align};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
+    container.add_css_class("settings-tab-advanced");
     container.set_margin_top(24);
     container.set_margin_bottom(24);
     container.set_margin_start(32);
@@ -34,6 +35,7 @@ use webkit6::prelude::*;
 
     // Markdown Variant Toggle Compatibility List
     let variants_vbox = GtkBox::new(Orientation::Vertical, 8);
+    variants_vbox.add_css_class("advanced-variants-list");
     let variants_title = bold_label("Markdown Variant Toggle Compatibility List");
     variants_vbox.append(&variants_title);
 
@@ -75,6 +77,7 @@ use webkit6::prelude::*;
 
     // Info button and dialog
     let info_button = Button::with_label("Info");
+    info_button.add_css_class("advanced-info-button");
     info_button.set_halign(Align::End);
     info_button.set_margin_bottom(12);
     // Handler for info button
@@ -297,6 +300,7 @@ use webkit6::prelude::*;
 
     // Your own plugins/extensions (info only)
     let plugins_vbox = GtkBox::new(Orientation::Vertical, 2);
+    plugins_vbox.add_css_class("advanced-plugins-list");
     let plugins_title = bold_label("Your own plugins/extensions");
     let plugins_desc = desc_label("Add, remove, or configure custom Markdown plugins and extensions here. (Coming soon)");
     plugins_vbox.append(&plugins_title);

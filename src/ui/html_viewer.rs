@@ -16,16 +16,20 @@ pub fn create_html_viewer(html: &str) -> WebView {
     webview
 }
 
-pub fn wrap_html_document(body: &str) -> String {
+/// Wraps the HTML body with a full HTML document, injecting the provided CSS string into the <head>.
+pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
     format!(
         r#"<!DOCTYPE html>
-<html>
+<html class="{}">
   <head>
-    <meta charset="utf-8">
-    <style>body {{ font-family: sans-serif; }}</style>
+    <meta charset=\"utf-8\">
+    <style>body {{ font-family: sans-serif; }}
+{}</style>
   </head>
   <body>{}</body>
 </html>"#,
+        theme_mode,
+        css,
         body
     )
 }

@@ -12,10 +12,13 @@ pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: std::path::PathBuf,
     on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
+    theme_mode: Rc<RefCell<String>>,
+    refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
 ) -> GtkBox {
     use gtk4::{Label, ComboBoxText, Scale, Adjustment, Button, Box as GtkBox, Orientation, Align};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
+    container.add_css_class("settings-tab-appearance");
     container.set_margin_top(24);
     container.set_margin_bottom(24);
     container.set_margin_start(32);
@@ -60,6 +63,8 @@ pub fn build_appearance_tab(
         vbox
     };
 
+    use std::rc::Rc;
+    let on_preview_theme_changed = Rc::new(on_preview_theme_changed);
     // Application Theme (Dropdown, dynamic)
     let app_theme_combo = ComboBoxText::new();
     let theme_dir = std::path::Path::new("src/assets/themes/gtk4");
@@ -100,16 +105,40 @@ pub fn build_appearance_tab(
     container.append(&preview_theme_row);
 
     // --- SIGNALS ---
+    // Track if the user has made a manual selection of the HTML preview theme
+    use std::cell::Cell;
+    let user_selected_preview_theme = Rc::new(Cell::new(false));
+
     // Application Theme change
     {
         let theme_manager = Rc::clone(&theme_manager);
         let settings_path = settings_path.clone();
         let app_themes = app_themes.clone();
+        let html_themes = html_themes.clone();
+        let preview_theme_combo = preview_theme_combo.clone();
+        let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
+        let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
+        let theme_mode = Rc::clone(&theme_mode);
+        let refresh_preview = refresh_preview.clone();
         app_theme_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0) as usize;
             if let Some(theme) = app_themes.get(idx) {
                 // Save theme filename to settings, apply CSS, set color mode
                 theme_manager.borrow_mut().set_app_theme(theme.filename.clone(), &settings_path);
+
+                // Update theme_mode for preview
+                *theme_mode.borrow_mut() = if theme.is_dark { "theme-dark".to_string() } else { "theme-light".to_string() };
+                (refresh_preview.borrow())();
+
+                // Only auto-sync HTML preview theme if user hasn't made a manual selection
+                if !user_selected_preview_theme.get() {
+                    if let Some(matching_html_theme_idx) = html_themes.iter().position(|t| t.is_dark == theme.is_dark) {
+                        preview_theme_combo.set_active(Some(matching_html_theme_idx as u32));
+                        let html_theme = &html_themes[matching_html_theme_idx];
+                        theme_manager.borrow_mut().set_preview_theme(html_theme.filename.clone(), &settings_path);
+                        (on_preview_theme_changed)(html_theme.filename.clone());
+                    }
+                }
             }
         });
     }
@@ -118,10 +147,13 @@ pub fn build_appearance_tab(
         let theme_manager = Rc::clone(&theme_manager);
         let settings_path = settings_path.clone();
         let html_themes = html_themes.clone();
-        let on_preview_theme_changed = on_preview_theme_changed;
+        let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
+        let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
         preview_theme_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0) as usize;
             if let Some(theme_entry) = html_themes.get(idx) {
+                // Mark that the user has made a manual selection
+                user_selected_preview_theme.set(true);
                 println!("Saving preview_theme: {} to {:?}", theme_entry.filename, settings_path);
                 theme_manager.borrow_mut().set_preview_theme(theme_entry.filename.clone(), &settings_path);
                 // Apply the new preview theme live
