@@ -1,5 +1,4 @@
 //! Robust settings loader/saver using RON and Serde
-use serde::{Deserialize, Serialize};
 use crate::logic::settings_struct::Settings;
 use std::fs;
 use std::path::Path;

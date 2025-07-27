@@ -58,7 +58,7 @@ impl ThemeManager {
 // Removed duplicate save_appearance_settings; use Swanson.rs only
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::logic::Swanson::{load_settings, save_settings};
+use crate::logic::swanson::{load_settings, save_settings};
 use crate::logic::settings_struct::{Settings, AppearanceSettings};
 use crate::logic::crossplatforms::is_dark_mode_supported;
 use dark_light::Mode as SystemMode;

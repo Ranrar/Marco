@@ -6,7 +6,7 @@ use std::cell::RefCell;
 
 // Import your theme manager
 use crate::theme::{ThemeManager};
-use crate::logic::theme_list::{list_app_themes, find_theme_by_label};
+use crate::logic::theme_list::{list_app_themes};
 
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<ThemeManager>>,
