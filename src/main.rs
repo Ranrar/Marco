@@ -129,7 +129,7 @@ fn build_ui(app: &Application) {
             }
         }
     }
-    let (split, _webview, preview_css_rc, _preview_theme_mode_rc, refresh_preview) = create_editor_with_preview(
+    let (split, _webview, preview_css_rc, refresh_preview) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         Rc::clone(&theme_mode)
@@ -152,13 +152,13 @@ fn build_ui(app: &Application) {
     // --- Live HTML preview theme switching ---
     // Store refresh_preview closure for use on theme changes
     let refresh_preview_rc = Rc::new(RefCell::new(refresh_preview));
+    let preview_css_for_settings = preview_css_rc.clone();
     // Register 'app.settings' action to show the settings dialog with the callback
     let settings_action = gtk4::gio::SimpleAction::new("settings", None);
     let win_clone = window.clone();
     let theme_manager_clone = theme_manager.clone();
     let settings_path_clone = settings_path.clone();
     let refresh_preview_for_settings = refresh_preview_rc.clone();
-    let preview_css_for_settings = preview_css_rc.clone();
     let theme_mode_for_settings = theme_mode.clone();
     let refresh_preview_for_settings2 = refresh_preview_rc.clone();
     settings_action.connect_activate(move |_, _| {

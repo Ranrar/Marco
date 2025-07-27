@@ -7,17 +7,7 @@ use markdown::to_html;
 /// Create a split editor with live HTML preview using WebKit6
 use std::rc::Rc;
 use std::cell::RefCell;
-pub fn create_editor_with_preview(
-    preview_theme_filename: &str,
-    preview_theme_dir: &str,
-    theme_mode: Rc<RefCell<String>>,
-) -> (
-    Paned,
-    webkit6::WebView,
-    Rc<RefCell<String>>, // css
-    Rc<RefCell<String>>, // theme_mode
-    Box<dyn Fn()>,
-) {
+pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_dir: &str, theme_mode: Rc<RefCell<String>>) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>) {
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.add_css_class("editor-split-view");
     paned.set_position(600);
@@ -70,7 +60,7 @@ pub fn create_editor_with_preview(
     });
 
     // Return the paned, webview, and refresh closure (boxed)
-    (paned, webview, css_rc, theme_mode_rc, Box::new(refresh_preview) as Box<dyn Fn()>)
+    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>)
 }
 // src/markdown/edit.rs
 
