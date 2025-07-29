@@ -1,10 +1,5 @@
-use gtk4::gdk;
-use gtk4::CssProvider;
-use gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION;
-use std::cell::RefCell;
 
 thread_local! {
-    static LAST_CSS_PROVIDER: RefCell<Option<CssProvider>> = RefCell::new(None);
 }
 
 impl ThemeManager {
@@ -27,27 +22,7 @@ impl ThemeManager {
         // Print the full path being checked for the theme
         if let Some(css_path) = self.current_ui_theme_path() {
             println!("[ThemeManager] Applying GTK4 UI theme: {:?}", css_path);
-            if let Ok(css) = std::fs::read_to_string(&css_path) {
-                let provider = CssProvider::new();
-                provider.load_from_data(&css);
-                if let Some(display) = gdk::Display::default() {
-                    // Remove the previous provider if it exists
-                    LAST_CSS_PROVIDER.with(|last| {
-                        if let Some(old) = last.borrow_mut().take() {
-                            gtk4::style_context_remove_provider_for_display(
-                                &display,
-                                &old,
-                            );
-                        }
-                        gtk4::style_context_add_provider_for_display(
-                            &display,
-                            &provider,
-                            STYLE_PROVIDER_PRIORITY_APPLICATION,
-                        );
-                        *last.borrow_mut() = Some(provider);
-                    });
-                }
-            } else {
+            if let Err(_e) = std::fs::read_to_string(&css_path) {
                 eprintln!("[ThemeManager] Failed to read CSS file: {:?}", css_path);
             }
         } else {

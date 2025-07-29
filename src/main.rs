@@ -32,6 +32,15 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(app: &Application) {
+    // Load flat button and window control CSS
+    use gtk4::{CssProvider, gdk::Display};
+    let provider = CssProvider::new();
+    provider.load_from_path("src/assets/themes/style.css");
+    gtk4::style_context_add_provider_for_display(
+        &Display::default().unwrap(),
+        &provider,
+        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)

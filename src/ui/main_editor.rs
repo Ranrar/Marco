@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_dir: &str, theme_mode: Rc<RefCell<String>>) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>) {
     let paned = Paned::new(gtk4::Orientation::Horizontal);
-    paned.add_css_class("editor-split-view");
     paned.set_position(600);
 
     // Editor (left)
@@ -70,13 +69,11 @@ use sourceview5::prelude::*; // For set_show_line_numbers
 
 pub fn render_editor() -> (gtk4::Box, sourceview5::Buffer) {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
-    container.add_css_class("editor-container");
 
     // Create a SourceBuffer and SourceView
     let buffer = sourceview5::Buffer::new(None);
     buffer.set_text("");
     let source_view = sourceview5::View::new();
-    source_view.add_css_class("editor-sourceview");
     source_view.set_buffer(Some(&buffer));
     source_view.set_monospace(true);
     source_view.set_vexpand(true);
@@ -85,7 +82,6 @@ pub fn render_editor() -> (gtk4::Box, sourceview5::Buffer) {
 
     // Put the SourceView in a ScrolledWindow
     let scrolled = gtk4::ScrolledWindow::new();
-    scrolled.add_css_class("editor-scroll");
     scrolled.set_child(Some(&source_view));
     scrolled.set_vexpand(true);
 

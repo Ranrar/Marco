@@ -36,11 +36,9 @@ pub fn show_settings_dialog(
         .modal(true)
         .title("Settings")
         .build();
-    dialog.add_css_class("settings-dialog");
 
     let notebook = Notebook::new();
     notebook.set_tab_pos(gtk4::PositionType::Top);
-    notebook.add_css_class("settings-notebook");
 
     // Add each tab
     notebook.append_page(&tabs::editor::build_editor_tab(),     Some(&Label::new(Some("Editor"))));
@@ -67,14 +65,11 @@ pub fn show_settings_dialog(
 
     // Layout: notebook + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
-    content_box.add_css_class("settings-content-box");
     content_box.append(&notebook);
 
     let button_box = GtkBox::new(Orientation::Horizontal, 0);
     button_box.set_halign(Align::End);
-    button_box.add_css_class("settings-button-box");
     let close_button = Button::with_label("Close");
-    close_button.add_css_class("settings-close-button");
     let dialog_clone = dialog.clone();
     close_button.connect_clicked(move |_| dialog_clone.close());
     button_box.append(&close_button);

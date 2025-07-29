@@ -15,7 +15,6 @@ pub struct RenderHtmlCode {
 impl RenderHtmlCode {
     pub fn new() -> Self {
         let text_view = TextView::new();
-        text_view.add_css_class("code-viewer-text");
         text_view.set_editable(false);
         text_view.set_cursor_visible(false);
         text_view.set_monospace(true);
@@ -27,7 +26,6 @@ impl RenderHtmlCode {
         text_view.set_bottom_margin(15);
 
         let scrolled = ScrolledWindow::new();
-        scrolled.add_css_class("code-viewer-scroll");
         scrolled.set_child(Some(&text_view));
         scrolled.set_vexpand(true);
         scrolled.set_hexpand(true);
