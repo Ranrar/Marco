@@ -12,7 +12,7 @@ pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_di
     paned.set_position(600);
 
     // Editor (left)
-    let (editor_widget, buffer) = render_editor();
+    let (editor_widget, buffer, source_view) = render_editor_with_view();
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
@@ -34,16 +34,35 @@ pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_di
     let webview_rc = Rc::new(webview.clone());
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    // Closure to refresh preview
+    // Closure to refresh preview and update SourceView colors
     let refresh_preview = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
+        let source_view = source_view.clone();
         move || {
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
             let html = wrap_html_document(&to_html(&text), &css.borrow(), &theme_mode.borrow());
             webview.load_html(&html, None);
+
+            // Apply palette to SourceView
+            use crate::theme::{LIGHT_PALETTE, DARK_PALETTE};
+            let palette = match theme_mode.borrow().to_lowercase().as_str() {
+                "dark" => &DARK_PALETTE,
+                _ => &LIGHT_PALETTE,
+            };
+            use gtk4::CssProvider;
+            let css_string = format!(
+                ".sourceview {{ background-color: {}; color: {}; }}",
+                palette.background, palette.text
+            );
+            let provider = CssProvider::new();
+            provider.load_from_data(css_string.as_str());
+            source_view.style_context().add_provider(
+                &provider,
+                gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
         }
     };
 
@@ -63,13 +82,10 @@ pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_di
 }
 // src/markdown/edit.rs
 
-
-
 use sourceview5::prelude::*; // For set_show_line_numbers
 
-pub fn render_editor() -> (gtk4::Box, sourceview5::Buffer) {
+pub fn render_editor_with_view() -> (gtk4::Box, sourceview5::Buffer, sourceview5::View) {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
-
     // Create a SourceBuffer and SourceView
     let buffer = sourceview5::Buffer::new(None);
     buffer.set_text("");
@@ -79,6 +95,8 @@ pub fn render_editor() -> (gtk4::Box, sourceview5::Buffer) {
     source_view.set_vexpand(true);
     source_view.set_editable(true);
     source_view.set_show_line_numbers(true);
+    source_view.set_highlight_current_line(false);
+    source_view.set_show_line_marks(true); //TODO for bookmarks
 
     // Put the SourceView in a ScrolledWindow
     let scrolled = gtk4::ScrolledWindow::new();
@@ -88,5 +106,5 @@ pub fn render_editor() -> (gtk4::Box, sourceview5::Buffer) {
     // Add the ScrolledWindow (with SourceView) to the top
     container.append(&scrolled);
 
-    (container, buffer)
+    (container, buffer, source_view)
 }

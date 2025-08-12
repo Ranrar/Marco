@@ -85,15 +85,14 @@ fn build_ui(app: &Application) {
     let win_clone = window.clone();
     let theme_manager_clone = theme_manager.clone();
     let settings_path_clone = settings_path.clone();
-    settings_action.connect_activate(move |_, _| {
-        settings::show_settings_dialog(
-            win_clone.upcast_ref(),
-            theme_manager_clone.clone(),
-            settings_path_clone.clone(),
-            None,
-            None,
-            None,
-        );
+        settings_action.connect_activate(move |_, _| {
+            settings::show_settings_dialog(
+                win_clone.upcast_ref(),
+                theme_manager_clone.clone(),
+                settings_path_clone.clone(),
+                None,
+                None,
+            );
     });
     app.add_action(&settings_action);
 
@@ -167,34 +166,38 @@ fn build_ui(app: &Application) {
     let win_clone = window.clone();
     let theme_manager_clone = theme_manager.clone();
     let settings_path_clone = settings_path.clone();
-    let refresh_preview_for_settings = refresh_preview_rc.clone();
-    let theme_mode_for_settings = theme_mode.clone();
     let refresh_preview_for_settings2 = refresh_preview_rc.clone();
-    settings_action.connect_activate(move |_, _| {
-        use crate::ui::settings::settings::show_settings_dialog;
-        let refresh_preview_for_settings = refresh_preview_for_settings.clone();
-        let preview_css_for_settings = preview_css_for_settings.clone();
-        let theme_mode_for_settings = theme_mode_for_settings.clone();
-        let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
-        let theme_manager_clone = theme_manager_clone.clone();
-        show_settings_dialog(
-            win_clone.upcast_ref(),
-            theme_manager_clone.clone(),
-            settings_path_clone.clone(),
-            Some(Box::new(move |theme_filename: String| {
-                // On preview theme change, update CSS and call refresh
-                use std::fs;
-                let theme_manager = theme_manager_clone.borrow();
-                let preview_theme_dir = theme_manager.preview_theme_dir.clone();
-                let css_path = preview_theme_dir.join(&theme_filename);
-                let css = fs::read_to_string(&css_path).unwrap_or_default();
-                *preview_css_for_settings.borrow_mut() = css;
-                (refresh_preview_for_settings.borrow())();
-            })),
-            Some(theme_mode_for_settings),
-            Some(refresh_preview_for_settings2),
-        );
-    });
+        settings_action.connect_activate({
+            let win_clone = win_clone.clone();
+            let theme_manager_clone = theme_manager_clone.clone();
+            let settings_path_clone = settings_path_clone.clone();
+            let preview_css_for_settings = preview_css_for_settings.clone();
+            let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
+            move |_, _| {
+                use crate::ui::settings::settings::show_settings_dialog;
+                show_settings_dialog(
+                    win_clone.upcast_ref(),
+                    theme_manager_clone.clone(),
+                    settings_path_clone.clone(),
+                    Some(Box::new({
+                        let theme_manager_clone = theme_manager_clone.clone();
+                        let preview_css_for_settings = preview_css_for_settings.clone();
+                        let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
+                        move |theme_filename: String| {
+                            // On preview theme change, update CSS and call refresh
+                            use std::fs;
+                            let theme_manager = theme_manager_clone.borrow();
+                            let preview_theme_dir = theme_manager.preview_theme_dir.clone();
+                            let css_path = preview_theme_dir.join(&theme_filename);
+                            let css = fs::read_to_string(&css_path).unwrap_or_default();
+                            *preview_css_for_settings.borrow_mut() = css;
+                            (refresh_preview_for_settings2.borrow())();
+                        }
+                    })),
+                    Some(refresh_preview_for_settings2.clone()),
+                );
+            }
+        });
     app.add_action(&settings_action);
 
     // Present the window

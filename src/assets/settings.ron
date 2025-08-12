@@ -1,8 +1,8 @@
 (
     editor: None,
     appearance: Some((
-        color_mode: None,
-        app_theme: Some("astro-dark.css"),
+        color_mode: Some("dark"),
+        app_theme: Some("astro.css"),
         preview_theme: Some("astro.css"),
         ui_font: None,
         ui_font_size: None,

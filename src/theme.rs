@@ -40,6 +40,25 @@ use dark_light::Mode as SystemMode;
 
 // All settings logic now uses robust struct from Swanson.rs
 
+/// Color palette for SourceView and HTML Preview
+#[derive(Debug, Clone, PartialEq)]
+pub struct Palette {
+    pub background: &'static str,
+    pub text: &'static str,
+}
+
+/// Light palette: very light background, dark text
+pub const LIGHT_PALETTE: Palette = Palette {
+    background: "#FAFAFA",
+    text: "#24292E",
+};
+
+/// Dark palette: very dark background, light text
+pub const DARK_PALETTE: Palette = Palette {
+    background: "#1E1E1E",
+    text: "#D4D4D4",
+};
+
 /// List all available HTML preview themes (*.css) in /themes/
 pub fn list_preview_themes(theme_dir: &Path) -> Vec<String> {
     fs::read_dir(theme_dir)
@@ -161,11 +180,6 @@ impl ThemeManager {
         let tm = ThemeManager { settings, ui_theme_dir, preview_theme_dir };
         tm.apply_ui_theme();
         tm
-    }
-
-    /// List available UI themes
-    pub fn available_ui_themes(&self) -> Vec<String> {
-        crate::logic::theme_list::list_app_themes(&self.ui_theme_dir).into_iter().map(|t| t.filename).collect()
     }
 
     /// List available preview themes

@@ -1,20 +1,21 @@
 
+
 use gtk4::prelude::*;
 use gtk4::Box as GtkBox;
 use std::rc::Rc;
 use std::cell::RefCell;
 
 // Import your theme manager
-use crate::theme::{ThemeManager};
-use crate::logic::theme_list::{list_app_themes};
+use crate::theme::ThemeManager;
+use crate::logic::theme_list::{list_html_view_themes};
 
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: std::path::PathBuf,
     on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
-    theme_mode: Rc<RefCell<String>>,
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
 ) -> GtkBox {
+
     use gtk4::{Label, ComboBoxText, Scale, Adjustment, Button, Box as GtkBox, Orientation, Align};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -63,107 +64,97 @@ pub fn build_appearance_tab(
         vbox
     };
 
+    // --- Split Functions ---
+
+
+    let build_html_preview_theme_row = |theme_manager: Rc<RefCell<ThemeManager>>,
+        settings_path: std::path::PathBuf,
+        on_preview_theme_changed: Rc<Box<dyn Fn(String)>>,
+        user_selected_preview_theme: Rc<std::cell::Cell<bool>>,
+        html_themes: Vec<crate::logic::theme_list::ThemeEntry>| -> (gtk4::Box, ComboBoxText) {
+        let preview_theme_combo = ComboBoxText::new();
+        for entry in &html_themes {
+            preview_theme_combo.append_text(&entry.label);
+        }
+        let current_preview = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.preview_theme.clone());
+        let current_preview_str = current_preview.as_deref().unwrap_or("standard.css");
+        let preview_active_idx = html_themes.iter().position(|t| t.filename == current_preview_str).unwrap_or(0);
+        preview_theme_combo.set_active(Some(preview_active_idx as u32));
+        // Signal
+        {
+            let theme_manager = Rc::clone(&theme_manager);
+            let settings_path = settings_path.clone();
+            let html_themes = html_themes.clone();
+            let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
+            let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
+            preview_theme_combo.connect_changed(move |combo| {
+                let idx = combo.active().unwrap_or(0) as usize;
+                if let Some(theme_entry) = html_themes.get(idx) {
+                    user_selected_preview_theme.set(true);
+                    println!("Saving preview_theme: {} to {:?}", theme_entry.filename, settings_path);
+                    theme_manager.borrow_mut().set_preview_theme(theme_entry.filename.clone(), &settings_path);
+                    (on_preview_theme_changed)(theme_entry.filename.clone());
+                }
+            });
+        }
+        let row = add_row(
+            "HTML Preview Theme",
+            "Select a CSS theme for rendered Markdown preview.",
+            preview_theme_combo.upcast_ref(),
+        );
+        (row, preview_theme_combo)
+    };
+
+    // --- Compose Tab ---
+    // Light/Dark Mode Dropdown
+    let color_mode_combo = ComboBoxText::new();
+    color_mode_combo.append_text("Light");
+    color_mode_combo.append_text("Dark");
+    let current_mode = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.color_mode.clone()).unwrap_or("Light".to_string());
+    let active_idx = match current_mode.to_lowercase().as_str() {
+        "dark" => 1,
+        _ => 0,
+    };
+    color_mode_combo.set_active(Some(active_idx));
+    let color_mode_row = add_row(
+        "Light/Dark Mode",
+        "Choose between light or dark user interface.",
+        color_mode_combo.upcast_ref(),
+    );
+    container.append(&color_mode_row);
+    // Wire dropdown to update theme state and persist user preference
+    {
+        let theme_manager = Rc::clone(&theme_manager);
+        let settings_path = settings_path.clone();
+        let refresh_preview = Rc::clone(&refresh_preview);
+        color_mode_combo.connect_changed(move |combo| {
+            let idx = combo.active().unwrap_or(0);
+            let mode = if idx == 1 { "Dark" } else { "Light" };
+            println!("Switching color mode to: {}", mode);
+            theme_manager.borrow_mut().set_color_mode(mode, &settings_path);
+            // Refresh preview and UI
+            (refresh_preview.borrow())();
+        });
+    }
     use std::rc::Rc;
     let on_preview_theme_changed = Rc::new(on_preview_theme_changed);
-    // Application Theme (Dropdown, dynamic)
-    let app_theme_combo = ComboBoxText::new();
-    let theme_dir = std::path::Path::new("src/assets/themes/gtk4");
-    let app_themes = list_app_themes(theme_dir);
-    for entry in &app_themes {
-        app_theme_combo.append_text(&entry.label);
-    }
-    // Set active based on current theme filename in settings
-    let current_theme = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.app_theme.clone());
-    let current_theme_str = current_theme.as_deref().unwrap_or("standard-light.css");
-    let active_idx = app_themes.iter().position(|t| t.filename == current_theme_str).unwrap_or(0);
-    app_theme_combo.set_active(Some(active_idx as u32));
-    let app_theme_row = add_row(
-        "Application Theme",
-        "Choose a theme for the user interface.",
-        app_theme_combo.upcast_ref(),
-    );
-    container.append(&app_theme_row);
-
-    // HTML Preview Theme (Dropdown)
-    let preview_theme_combo = ComboBoxText::new();
-    use crate::logic::theme_list::list_html_view_themes;
-    let html_theme_dir = std::path::Path::new("src/assets/themes/html_viever");
-    let html_themes = list_html_view_themes(html_theme_dir);
-    for entry in &html_themes {
-        preview_theme_combo.append_text(&entry.label);
-    }
-    // Set active based on current preview_theme filename in settings
-    let current_preview = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.preview_theme.clone());
-    let current_preview_str = current_preview.as_deref().unwrap_or("standard.css");
-    let preview_active_idx = html_themes.iter().position(|t| t.filename == current_preview_str).unwrap_or(0);
-    preview_theme_combo.set_active(Some(preview_active_idx as u32));
-    let preview_theme_row = add_row(
-        "HTML Preview Theme",
-        "Select a CSS theme for rendered Markdown preview.",
-        preview_theme_combo.upcast_ref(),
-    );
-    container.append(&preview_theme_row);
-
-    // --- SIGNALS ---
-    // Track if the user has made a manual selection of the HTML preview theme
     use std::cell::Cell;
     let user_selected_preview_theme = Rc::new(Cell::new(false));
+    let html_theme_dir = std::path::Path::new("src/assets/themes/html_viever");
+    let html_themes = list_html_view_themes(html_theme_dir);
 
-    // Application Theme change
-    {
-        let theme_manager = Rc::clone(&theme_manager);
-        let settings_path = settings_path.clone();
-        let app_themes = app_themes.clone();
-        let html_themes = html_themes.clone();
-        let preview_theme_combo = preview_theme_combo.clone();
-        let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
-        let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
-        let theme_mode = Rc::clone(&theme_mode);
-        let refresh_preview = refresh_preview.clone();
-        app_theme_combo.connect_changed(move |combo| {
-            let idx = combo.active().unwrap_or(0) as usize;
-            if let Some(theme) = app_themes.get(idx) {
-                // Save theme filename to settings, apply CSS, set color mode
-                theme_manager.borrow_mut().set_app_theme(theme.filename.clone(), &settings_path);
-
-                // Update theme_mode for preview
-                *theme_mode.borrow_mut() = if theme.is_dark { "theme-dark".to_string() } else { "theme-light".to_string() };
-                (refresh_preview.borrow())();
-
-                // Only auto-sync HTML preview theme if user hasn't made a manual selection
-                if !user_selected_preview_theme.get() {
-                    if let Some(matching_html_theme_idx) = html_themes.iter().position(|t| t.is_dark == theme.is_dark) {
-                        preview_theme_combo.set_active(Some(matching_html_theme_idx as u32));
-                        let html_theme = &html_themes[matching_html_theme_idx];
-                        theme_manager.borrow_mut().set_preview_theme(html_theme.filename.clone(), &settings_path);
-                        (on_preview_theme_changed)(html_theme.filename.clone());
-                    }
-                }
-            }
-        });
-    }
-    // Preview Theme change
-    {
-        let theme_manager = Rc::clone(&theme_manager);
-        let settings_path = settings_path.clone();
-        let html_themes = html_themes.clone();
-        let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
-        let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
-        preview_theme_combo.connect_changed(move |combo| {
-            let idx = combo.active().unwrap_or(0) as usize;
-            if let Some(theme_entry) = html_themes.get(idx) {
-                // Mark that the user has made a manual selection
-                user_selected_preview_theme.set(true);
-                println!("Saving preview_theme: {} to {:?}", theme_entry.filename, settings_path);
-                theme_manager.borrow_mut().set_preview_theme(theme_entry.filename.clone(), &settings_path);
-                // Apply the new preview theme live
-                (on_preview_theme_changed)(theme_entry.filename.clone());
-            }
-        });
-    }
+    // Build HTML Preview Theme row
+    let (preview_theme_row, _preview_theme_combo) = build_html_preview_theme_row(
+        Rc::clone(&theme_manager),
+        settings_path.clone(),
+        Rc::clone(&on_preview_theme_changed),
+        Rc::clone(&user_selected_preview_theme),
+        html_themes.clone(),
+    );
+    container.append(&preview_theme_row);
+    // You can use refresh_preview here for future preview refresh logic if needed.
 
     // ...existing code for custom CSS, font, etc...
-
     // Custom CSS for Preview (Button)
     let custom_css_button = Button::with_label("Open CSS Themes Folder");
     let custom_css_row = add_row(
