@@ -91,27 +91,21 @@ fn build_ui(app: &Application) {
         prod_preview_theme_dir
     };
 
+    // Use src/assets/themes/editor for editor style schemes in dev, /themes/editor in prod
+    let dev_editor_theme_dir = config_dir.join("src/assets/themes/editor");
+    let prod_editor_theme_dir = config_dir.join("themes/editor");
+    let editor_theme_dir = if dev_editor_theme_dir.exists() {
+        dev_editor_theme_dir
+    } else {
+        prod_editor_theme_dir
+    };
+
     let theme_manager = Rc::new(RefCell::new(ThemeManager::new(
         &settings_path,
         ui_theme_dir,
         preview_theme_dir.clone(),
+        editor_theme_dir,
     )));
-
-    // Register 'app.settings' action to show the settings dialog
-    let settings_action = gtk4::gio::SimpleAction::new("settings", None);
-    let win_clone = window.clone();
-    let theme_manager_clone = theme_manager.clone();
-    let settings_path_clone = settings_path.clone();
-        settings_action.connect_activate(move |_, _| {
-            settings::show_settings_dialog(
-                win_clone.upcast_ref(),
-                theme_manager_clone.clone(),
-                settings_path_clone.clone(),
-                None,
-                None,
-            );
-    });
-    app.add_action(&settings_action);
 
     // Create main vertical box layout
     let main_box = GtkBox::new(Orientation::Vertical, 0);
@@ -133,11 +127,16 @@ fn build_ui(app: &Application) {
             }
         }
     }
-    // Initialize theme_mode before creating the editor/preview
-    let theme_mode = Rc::new(RefCell::new(String::from("theme-light")));
-    let (split, _webview, preview_css_rc, refresh_preview) = create_editor_with_preview(
+    // Initialize theme_mode based on current editor scheme setting
+    let initial_theme_mode = {
+        let current_scheme = theme_manager.borrow().current_editor_scheme_id();
+        theme_manager.borrow().preview_theme_mode_from_scheme(&current_scheme)
+    };
+    let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
+    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
+        theme_manager.clone(),
         Rc::clone(&theme_mode)
     );
     split.add_css_class("split-view");
@@ -165,14 +164,29 @@ fn build_ui(app: &Application) {
     let theme_manager_clone = theme_manager.clone();
     let settings_path_clone = settings_path.clone();
     let refresh_preview_for_settings2 = refresh_preview_rc.clone();
+    let update_editor_theme_clone = Rc::new(update_editor_theme);
+    let update_preview_theme_clone = Rc::new(update_preview_theme);
         settings_action.connect_activate({
             let win_clone = win_clone.clone();
             let theme_manager_clone = theme_manager_clone.clone();
             let settings_path_clone = settings_path_clone.clone();
             let preview_css_for_settings = preview_css_for_settings.clone();
             let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
+            let update_editor_theme_clone = update_editor_theme_clone.clone();
+            let update_preview_theme_clone = update_preview_theme_clone.clone();
             move |_, _| {
                 use crate::ui::settings::settings::show_settings_dialog;
+                
+                // Create editor theme callback that updates both editor and preview
+                let editor_callback = {
+                    let update_editor = update_editor_theme_clone.clone();
+                    let update_preview = update_preview_theme_clone.clone();
+                    Box::new(move |scheme_id: String| {
+                        update_editor(&scheme_id);
+                        update_preview(&scheme_id);
+                    }) as Box<dyn Fn(String) + 'static>
+                };
+                
                 show_settings_dialog(
                     win_clone.upcast_ref(),
                     theme_manager_clone.clone(),
@@ -193,6 +207,7 @@ fn build_ui(app: &Application) {
                         }
                     })),
                     Some(refresh_preview_for_settings2.clone()),
+                    Some(editor_callback),
                 );
             }
         });

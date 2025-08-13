@@ -7,12 +7,31 @@ use markdown::to_html;
 /// Create a split editor with live HTML preview using WebKit6
 use std::rc::Rc;
 use std::cell::RefCell;
-pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_dir: &str, theme_mode: Rc<RefCell<String>>) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>) {
+pub fn create_editor_with_preview(
+    preview_theme_filename: &str,
+    preview_theme_dir: &str,
+    theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
+    theme_mode: Rc<RefCell<String>>
+) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>, Box<dyn Fn(&str)>, Box<dyn Fn(&str)>) {
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
 
+    // Get style scheme and font settings from ThemeManager
+    let (style_scheme, font_family, font_size_pt) = {
+        let tm = theme_manager.borrow();
+        let style_scheme = tm.current_editor_scheme();
+        let font_family = tm.settings.appearance.as_ref()
+            .and_then(|a| a.ui_font.as_deref())
+            .unwrap_or("Fira Mono").to_string();
+        let font_size_pt = tm.settings.appearance.as_ref()
+            .and_then(|a| a.ui_font_size)
+            .map(|v| v as f64)
+            .unwrap_or(14.0);
+        (style_scheme, font_family, font_size_pt)
+    };
+
     // Editor (left)
-    let (editor_widget, buffer, source_view) = render_editor_with_view();
+    let (editor_widget, buffer, source_view) = render_editor_with_view(style_scheme.as_ref(), &font_family, font_size_pt);
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
@@ -34,40 +53,16 @@ pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_di
     let webview_rc = Rc::new(webview.clone());
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    // Closure to refresh preview and update SourceView colors
+    // Closure to refresh preview
     let refresh_preview = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
-        let source_view = source_view.clone();
         move || {
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
             let html = wrap_html_document(&to_html(&text), &css.borrow(), &theme_mode.borrow());
             webview.load_html(&html, None);
-
-            // Apply palette to SourceView
-            use crate::theme::{LIGHT_PALETTE, DARK_PALETTE};
-            let palette = match theme_mode.borrow().to_lowercase().as_str() {
-                "dark" => &DARK_PALETTE,
-                _ => &LIGHT_PALETTE,
-            };
-            use gtk4::CssProvider;
-            let css_string = format!(
-                ".sourceview {{ background-color: {}; color: {}; }}",
-                palette.background, palette.text
-            );
-            let provider = CssProvider::new();
-            // Log CSS parsing errors
-            provider.connect_parsing_error(|_provider, section, error| {
-                eprintln!("CSS parsing error in SourceView: {:?} at {:?}", error, section);
-            });
-            provider.load_from_data(css_string.as_str());
-            // Note: Providers stack; consider managing them if you extend theming
-            source_view.style_context().add_provider(
-                &provider,
-                gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-            );
         }
     };
 
@@ -82,14 +77,50 @@ pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_di
         webview_clone.load_html(&html, None);
     });
 
-    // Return the paned, webview, and refresh closure (boxed)
-    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>)
-}
-// src/markdown/edit.rs
+    // Create theme update function for editor
+    let buffer_for_theme = Rc::clone(&buffer_rc);
+    let theme_manager_clone = Rc::clone(&theme_manager);
+    let update_theme = Box::new(move |scheme_id: &str| {
+        if let Some(scheme) = theme_manager_clone.borrow().get_editor_scheme(scheme_id) {
+            buffer_for_theme.set_style_scheme(Some(&scheme));
+            println!("Applied theme '{}' to editor buffer", scheme_id);
+        } else {
+            eprintln!("Failed to find style scheme: {}", scheme_id);
+        }
+    }) as Box<dyn Fn(&str)>;
 
+    // Create HTML preview theme update function
+    let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+    let theme_manager_for_preview = Rc::clone(&theme_manager);
+    let refresh_for_preview = {
+        let buffer = Rc::clone(&buffer_rc);
+        let css = Rc::clone(&css_rc);
+        let webview = Rc::clone(&webview_rc);
+        let theme_mode = Rc::clone(&theme_mode_rc);
+        move || {
+            let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
+            let html = wrap_html_document(&to_html(&text), &css.borrow(), &theme_mode.borrow());
+            webview.load_html(&html, None);
+        }
+    };
+    let update_preview_theme = Box::new(move |scheme_id: &str| {
+        let new_theme_mode = theme_manager_for_preview.borrow().preview_theme_mode_from_scheme(scheme_id);
+        *theme_mode_for_preview.borrow_mut() = new_theme_mode;
+        // Trigger refresh to apply the new theme mode
+        refresh_for_preview();
+        println!("Applied preview theme mode for scheme '{}'", scheme_id);
+    }) as Box<dyn Fn(&str)>;
+
+    // Return the paned, webview, refresh closure, editor theme update, and preview theme update
+    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>, update_theme, update_preview_theme)
+}
 use sourceview5::prelude::*; // For set_show_line_numbers
 
-pub fn render_editor_with_view() -> (gtk4::Box, sourceview5::Buffer, sourceview5::View) {
+pub fn render_editor_with_view(
+    style_scheme: Option<&sourceview5::StyleScheme>,
+    font_family: &str,
+    font_size_pt: f64
+) -> (gtk4::Box, sourceview5::Buffer, sourceview5::View) {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
     // Create a SourceBuffer and SourceView
     let buffer = sourceview5::Buffer::new(None);
@@ -102,30 +133,30 @@ pub fn render_editor_with_view() -> (gtk4::Box, sourceview5::Buffer, sourceview5
     source_view.set_show_line_numbers(true);
     source_view.set_highlight_current_line(false);
     source_view.set_show_line_marks(true); //TODO for bookmarks
-    // Ensure the .sourceview CSS class is set for styling
-    source_view.add_css_class("sourceview");
+    
+    // Apply the style scheme if available
+    if let Some(scheme) = style_scheme {
+        use sourceview5::prelude::*;
+        buffer.set_style_scheme(Some(scheme));
+    }
+    
+    // Apply font settings via CSS (style schemes don't control font)
+    use gtk4::CssProvider;
+    let css = format!(
+        ".sourceview {{ font-family: '{}', 'monospace'; font-size: {}pt; }}",
+        font_family,
+        font_size_pt
+    );
+    let provider = CssProvider::new();
+    provider.connect_parsing_error(|_provider, section, error| {
+        eprintln!("[Theme] CSS parsing error in SourceView: {:?} at {:?}", error, section);
+    });
+    provider.load_from_data(&css);
+    source_view.style_context().add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
     // Make sure CSS can override background
     use sourceview5::BackgroundPatternType;
     source_view.set_background_pattern(BackgroundPatternType::None);
-
-
-    // Robust CSS injection: visually obvious style for testing
-    use gtk4::CssProvider;
-    let test_css = r#"
-    .sourceview {
-        background: #ffeb3b;
-        color: #1a237e;
-        border: 3px solid red;
-        font-family: 'Fira Mono', 'monospace';
-        font-size: 18px;
-    }
-    "#;
-    let provider = CssProvider::new();
-    provider.connect_parsing_error(|_provider, section, error| {
-        eprintln!("[TEST] CSS parsing error in SourceView: {:?} at {:?}", error, section);
-    });
-    provider.load_from_data(test_css);
-    source_view.style_context().add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     // Optionally style the ScrolledWindow for visibility (no border for clarity)
     let scrolled = gtk4::ScrolledWindow::new();
@@ -134,19 +165,12 @@ pub fn render_editor_with_view() -> (gtk4::Box, sourceview5::Buffer, sourceview5
     scrolled.add_css_class("sourceview-scroll");
     let scrolled_css = r#"
     .sourceview-scroll {
-        background: #ffe0e0;
+        background: transparent;
     }
     "#;
     let scrolled_provider = CssProvider::new();
     scrolled_provider.load_from_data(scrolled_css);
     scrolled.style_context().add_provider(&scrolled_provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
-
-    // Programmatic verification: log class presence
-    if source_view.style_context().has_class("sourceview") {
-        println!("[TEST] SourceView has .sourceview class for CSS injection");
-    } else {
-        eprintln!("[TEST] SourceView missing .sourceview class; CSS may not apply");
-    }
 
     // Add the ScrolledWindow (with SourceView) to the top
     container.append(&scrolled);

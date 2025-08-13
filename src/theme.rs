@@ -9,27 +9,16 @@ use crate::logic::swanson::{load_settings, save_settings};
 use crate::logic::settings_struct::{Settings, AppearanceSettings};
 use crate::logic::crossplatforms::is_dark_mode_supported;
 use dark_light::Mode as SystemMode;
+use sourceview5::{StyleSchemeManager, StyleScheme};
 
 // All settings logic now uses robust struct from Swanson.rs
 
-/// Color palette for SourceView
+/// Color palette for SourceView (deprecated - kept for backwards compatibility)
 #[derive(Debug, Clone, PartialEq)]
 pub struct Palette {
     pub background: &'static str,
     pub text: &'static str,
 }
-
-/// Light palette: very light background, dark text
-pub const LIGHT_PALETTE: Palette = Palette {
-    background: "#FAFAFA",
-    text: "#24292E",
-};
-
-/// Dark palette: very dark background, light text
-pub const DARK_PALETTE: Palette = Palette {
-    background: "#1E1E1E",
-    text: "#D4D4D4",
-};
 
 /// List all available HTML preview themes (*.css) in /themes/
 pub fn list_preview_themes(theme_dir: &Path) -> Vec<String> {
@@ -84,15 +73,28 @@ pub struct ThemeManager {
     pub settings: Settings,
     pub ui_theme_dir: PathBuf,
     pub preview_theme_dir: PathBuf,
+    pub editor_theme_dir: PathBuf,
+    style_scheme_manager: StyleSchemeManager,
 }
 
 impl ThemeManager {
-    pub fn new(settings_path: &Path, ui_theme_dir: PathBuf, preview_theme_dir: PathBuf) -> Self {
+    pub fn new(settings_path: &Path, ui_theme_dir: PathBuf, preview_theme_dir: PathBuf, editor_theme_dir: PathBuf) -> Self {
         let mut settings = load_settings(settings_path).unwrap_or_default();
+        
+        // Initialize StyleSchemeManager and add our custom themes directory
+        let style_scheme_manager = StyleSchemeManager::new();
+        
+        // Add our custom editor themes directory to the search path
+        let current_paths = style_scheme_manager.search_path();
+        let editor_path_str = editor_theme_dir.to_string_lossy();
+        let mut paths: Vec<&str> = current_paths.iter().map(|s| s.as_str()).collect();
+        paths.push(&editor_path_str);
+        style_scheme_manager.set_search_path(&paths);
+        
         // Print settings in a human-readable, multi-line format
         println!("Loaded settings:");
         if let Some(appearance) = &settings.appearance {
-            println!("  color_mode: {}", appearance.editor_mode.as_deref().unwrap_or("None"));
+            println!("  editor_scheme: {}", appearance.editor_mode.as_deref().unwrap_or("None"));
             println!("  preview_theme: {}", appearance.preview_theme.as_deref().map(|s| format!("\"{}\"", s)).unwrap_or("None".to_string()));
             println!("  ui_font: {}", appearance.ui_font.as_deref().unwrap_or("None"));
             println!("  ui_font_size: {}", appearance.ui_font_size.map(|s| s.to_string()).unwrap_or("None".to_string()));
@@ -116,22 +118,52 @@ impl ThemeManager {
             println!("  advanced.plugins: {}", advanced.plugins.as_ref().map(|v| format!("{:?}", v)).unwrap_or("None".to_string()));
         }
 
-        // If color_mode is System default, detect system theme and set effective mode
+        // Convert legacy editor_mode to style scheme if needed
         if let Some(appearance) = settings.appearance.as_mut() {
-            let color_mode = appearance.editor_mode.as_deref().unwrap_or("System default");
-            if color_mode == "System default" && is_dark_mode_supported() {
-                // Use dark_light crate for actual system theme detection
-                let sys_mode = match dark_light::detect() {
-                    Ok(SystemMode::Dark) => "dark",
-                    Ok(SystemMode::Light) => "light",
-                    _ => "light",
-                };
-                // Set the effective color mode for this session (do not persist)
-                println!("System color_mode detected: {} mode", sys_mode);
-                appearance.editor_mode = Some(sys_mode.to_string());
+            // If we have an old editor_mode setting but no style scheme, convert it
+            if let Some(editor_mode) = &appearance.editor_mode {
+                match editor_mode.as_str() {
+                    "light" => {
+                        appearance.editor_mode = Some("marco-light".to_string());
+                        println!("Converted legacy 'light' mode to 'marco-light' style scheme");
+                    },
+                    "dark" => {
+                        appearance.editor_mode = Some("marco-dark".to_string());
+                        println!("Converted legacy 'dark' mode to 'marco-dark' style scheme");
+                    },
+                    "System default" => {
+                        // Detect system theme and set appropriate scheme
+                        if is_dark_mode_supported() {
+                            let sys_mode = match dark_light::detect() {
+                                Ok(SystemMode::Dark) => "marco-dark",
+                                Ok(SystemMode::Light) => "marco-light",
+                                _ => "marco-light",
+                            };
+                            appearance.editor_mode = Some(sys_mode.to_string());
+                            println!("System theme detected: {} mode, using {}", sys_mode.replace("marco-", ""), sys_mode);
+                        } else {
+                            appearance.editor_mode = Some("marco-light".to_string());
+                        }
+                    },
+                    _ => {
+                        // Keep as-is if it's already a style scheme ID
+                        println!("Using style scheme: {}", editor_mode);
+                    }
+                }
+            } else {
+                // Default to light theme if nothing is set
+                appearance.editor_mode = Some("marco-light".to_string());
+                println!("No theme set, defaulting to marco-light");
             }
         }
-        let tm = ThemeManager { settings, ui_theme_dir, preview_theme_dir };
+
+        let tm = ThemeManager { 
+            settings, 
+            ui_theme_dir, 
+            preview_theme_dir, 
+            editor_theme_dir,
+            style_scheme_manager 
+        };
         tm
     }
 
@@ -140,10 +172,38 @@ impl ThemeManager {
         list_preview_themes(&self.preview_theme_dir)
     }
 
-    /// Get the effective color mode (light/dark)
+    /// List available editor style schemes
+    pub fn available_editor_schemes(&self) -> Vec<crate::logic::theme_list::ThemeEntry> {
+        crate::logic::theme_list::list_editor_style_schemes(&self.editor_theme_dir)
+    }
+
+    /// Get the current editor style scheme ID
+    pub fn current_editor_scheme_id(&self) -> String {
+        self.settings.appearance.as_ref()
+            .and_then(|a| a.editor_mode.as_ref())
+            .cloned()
+            .unwrap_or_else(|| "marco-light".to_string())
+    }
+
+    /// Get the current editor style scheme object
+    pub fn current_editor_scheme(&self) -> Option<StyleScheme> {
+        let scheme_id = self.current_editor_scheme_id();
+        self.style_scheme_manager.scheme(&scheme_id)
+    }
+
+    /// Get editor style scheme by ID
+    pub fn get_editor_scheme(&self, scheme_id: &str) -> Option<StyleScheme> {
+        self.style_scheme_manager.scheme(scheme_id)
+    }
+
+    /// Get the effective color mode (light/dark) - deprecated but kept for HTML preview
     pub fn effective_mode(&self) -> String {
-        let color_mode = self.settings.appearance.as_ref().and_then(|a| a.editor_mode.as_ref()).map(|s| s.as_str()).unwrap_or("System default");
-        resolve_effective_mode(color_mode)
+        let scheme_id = self.current_editor_scheme_id();
+        if scheme_id.contains("dark") {
+            "dark".to_string()
+        } else {
+            "light".to_string()
+        }
     }
 
     /// Get the path to the current preview theme CSS file
@@ -158,26 +218,55 @@ impl ThemeManager {
         get_preview_data_theme(color_mode)
     }
 
-    /// Change color mode (Light, Dark, System) and update themes
-    pub fn set_color_mode(&mut self, mode: &str, settings_path: &Path) {
+    /// Get preview theme mode from scheme ID
+    pub fn preview_theme_mode_from_scheme(&self, scheme_id: &str) -> String {
+        let theme_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
+        format!("theme-{}", theme_mode)
+    }
+
+    /// Change editor style scheme and update themes
+    pub fn set_editor_scheme(&mut self, scheme_id: &str, settings_path: &Path) {
         let mut settings = load_settings(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
         let old = appearance.editor_mode.clone().unwrap_or_else(|| "<unset>".to_string());
-        println!("set_color_mode: {} => {}", old, mode);
-        let mode_lc = mode.to_lowercase();
-        appearance.editor_mode = Some(mode_lc.clone());
+        println!("set_editor_scheme: {} => {}", old, scheme_id);
+        appearance.editor_mode = Some(scheme_id.to_string());
         settings.appearance = Some(appearance);
-        // Set GTK global theme property using correct API
+        
+        // Set GTK global theme property based on scheme
         use gtk4::Settings;
-        let prefer_dark = mode_lc == "dark";
+        let prefer_dark = scheme_id.contains("dark");
         if let Some(settings_obj) = Settings::default() {
             settings_obj.set_gtk_application_prefer_dark_theme(prefer_dark);
         }
+        
         if let Err(e) = save_settings(settings_path, &settings) {
-            eprintln!("[ERROR] Failed to save color_mode to {:?}: {}", settings_path, e);
+            eprintln!("[ERROR] Failed to save editor_scheme to {:?}: {}", settings_path, e);
         } else {
             self.settings = settings;
         }
+    }
+
+    /// Change color mode (Light, Dark, System) and update themes - deprecated but kept for compatibility
+    pub fn set_color_mode(&mut self, mode: &str, settings_path: &Path) {
+        // Convert legacy color mode to style scheme
+        let scheme_id = match mode.to_lowercase().as_str() {
+            "light" => "marco-light",
+            "dark" => "marco-dark",
+            "system default" | "system" => {
+                if is_dark_mode_supported() {
+                    match dark_light::detect() {
+                        Ok(SystemMode::Dark) => "marco-dark",
+                        Ok(SystemMode::Light) => "marco-light",
+                        _ => "marco-light",
+                    }
+                } else {
+                    "marco-light"
+                }
+            },
+            _ => mode, // Assume it's already a scheme ID
+        };
+        self.set_editor_scheme(scheme_id, settings_path);
     }
 
     /// Change preview theme (filename)

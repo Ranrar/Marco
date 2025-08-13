@@ -1,0 +1,12 @@
+pub mod core;
+pub mod render;
+pub mod a4;
+pub mod undo;
+pub mod clipboard;
+pub mod navigation;
+pub mod selection;
+pub mod fileio;
+pub mod editing;
+pub mod search;
+pub mod bracket;
+pub mod indent;

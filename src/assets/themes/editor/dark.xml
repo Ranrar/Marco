@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dark theme for Marco Editor
+  Based on DARK_PALETTE: background: "#1E1E1E", text: "#D4D4D4"
+-->
+<style-scheme id="marco-dark" name="Marco Dark" version="1.0" kind="dark">
+  <author>Marco Editor</author>
+  <description>Dark theme with clean appearance</description>
+
+  <!-- Color definitions -->
+  <color name="white"              value="#FFFFFF"/>
+  <color name="dark-bg"           value="#1E1E1E"/>
+  <color name="dark-text"         value="#D4D4D4"/>
+  <color name="dark-selection"    value="#0078D4"/>
+  <color name="dark-selection-bg" value="#264F78"/>
+  <color name="dark-cursor"       value="#79B8FF"/>
+  <color name="dark-line-num"     value="#858585"/>
+  <color name="dark-line-num-bg"  value="#2D2D30"/>
+  <color name="dark-current-line" value="#2A2D2E"/>
+  <color name="dark-bracket"      value="#79B8FF"/>
+  <color name="dark-comment"      value="#6A9955"/>
+  <color name="dark-keyword"      value="#569CD6"/>
+  <color name="dark-string"       value="#CE9178"/>
+  <color name="dark-number"       value="#B5CEA8"/>
+
+  <!-- Base text appearance -->
+  <style name="text"                  foreground="dark-text" background="dark-bg"/>
+  <style name="selection"             foreground="white" background="dark-selection"/>
+  <style name="selection-unfocused"   background="dark-selection-bg"/>
+  <style name="cursor"                foreground="dark-cursor"/>
+  <style name="secondary-cursor"      foreground="dark-cursor"/>
+  <style name="current-line"          background="dark-current-line"/>
+  
+  <!-- Line numbers and margin -->
+  <style name="line-numbers"          foreground="dark-line-num" background="dark-line-num-bg"/>
+  <style name="current-line-number"   foreground="dark-text" background="dark-current-line" bold="true"/>
+  <style name="line-numbers-border"   background="dark-line-num-bg"/>
+  
+  <!-- Brackets -->
+  <style name="bracket-match"         foreground="dark-bracket" bold="true"/>
+  <style name="bracket-mismatch"      foreground="#F44747" background="#5A1D1D"/>
+  
+  <!-- Right margin -->
+  <style name="right-margin"          foreground="dark-line-num" background="dark-bg"/>
+  
+  <!-- Spaces and whitespace -->
+  <style name="draw-spaces"           foreground="dark-line-num"/>
+
+  <!-- Syntax highlighting for common languages -->
+  <!-- Comments -->
+  <style name="def:comment"           foreground="dark-comment" italic="true"/>
+  <style name="def:shebang"           foreground="dark-comment" italic="true"/>
+  <style name="def:doc-comment-element" foreground="dark-comment" italic="true"/>
+
+  <!-- Keywords -->
+  <style name="def:keyword"           foreground="dark-keyword" bold="true"/>
+  <style name="def:type"              foreground="dark-keyword" bold="true"/>
+  <style name="def:statement"         foreground="dark-keyword" bold="true"/>
+
+  <!-- Strings and characters -->
+  <style name="def:string"            foreground="dark-string"/>
+  <style name="def:character"         foreground="dark-string"/>
+  <style name="def:special-char"      foreground="dark-string"/>
+
+  <!-- Numbers -->
+  <style name="def:decimal"           foreground="dark-number"/>
+  <style name="def:base-n-integer"    foreground="dark-number"/>
+  <style name="def:floating-point"    foreground="dark-number"/>
+
+  <!-- Other elements -->
+  <style name="def:preprocessor"      foreground="#C586C0"/>
+  <style name="def:identifier"        foreground="dark-text"/>
+  <style name="def:function"          foreground="#DCDCAA"/>
+  <style name="def:builtin"           foreground="#4EC9B0"/>
+  <style name="def:constant"          foreground="#4FC1FF"/>
+  <style name="def:operator"          foreground="dark-text"/>
+  <style name="def:error"             foreground="#F44747" background="#5A1D1D"/>
+  <style name="def:warning"           foreground="#FFCC02" background="#433B00"/>
+  <style name="def:note"              foreground="#79B8FF" background="#264F78"/>
+
+  <!-- Markdown specific -->
+  <style name="markdown:header"       foreground="dark-keyword" bold="true" scale="1.2"/>
+  <style name="markdown:emphasis"     italic="true"/>
+  <style name="markdown:strong-emphasis" bold="true"/>
+  <style name="markdown:code"         foreground="dark-string" background="#2D2D30"/>
+  <style name="markdown:link"         foreground="dark-selection" underline="single"/>
+</style-scheme>

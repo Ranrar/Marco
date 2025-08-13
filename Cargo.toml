@@ -15,7 +15,7 @@ regex = "1.10"
 markdown = "1.0.0"
 icondata = "0.6.0"
 phf = { version = "0.11", features = ["macros"] }
-gtk4 = "0.9"
+gtk4 = "0.9.0"
 glib = "0.20"
 sourceview5 = "0.9.0"
 webkit6 = "0.4.0"

@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Light theme for Marco Editor
+  Based on LIGHT_PALETTE: background: "#FAFAFA", text: "#24292E"
+-->
+<style-scheme id="marco-light" name="Marco Light" version="1.0" kind="light">
+  <author>Marco Editor</author>
+  <description>Light theme with clean appearance</description>
+
+  <!-- Color definitions -->
+  <color name="white"              value="#FFFFFF"/>
+  <color name="light-bg"           value="#FAFAFA"/>
+  <color name="light-text"         value="#24292E"/>
+  <color name="light-selection"    value="#0366D6"/>
+  <color name="light-selection-bg" value="#C8E1FF"/>
+  <color name="light-cursor"       value="#0969DA"/>
+  <color name="light-line-num"     value="#6E7781"/>
+  <color name="light-line-num-bg"  value="#F6F8FA"/>
+  <color name="light-current-line" value="#F6F8FA"/>
+  <color name="light-bracket"      value="#0969DA"/>
+  <color name="light-comment"      value="#6E7781"/>
+  <color name="light-keyword"      value="#CF222E"/>
+  <color name="light-string"       value="#0A3069"/>
+  <color name="light-number"       value="#0550AE"/>
+
+  <!-- Base text appearance -->
+  <style name="text"                  foreground="light-text" background="light-bg"/>
+  <style name="selection"             foreground="white" background="light-selection"/>
+  <style name="selection-unfocused"   background="light-selection-bg"/>
+  <style name="cursor"                foreground="light-cursor"/>
+  <style name="secondary-cursor"      foreground="light-cursor"/>
+  <style name="current-line"          background="light-current-line"/>
+  
+  <!-- Line numbers and margin -->
+  <style name="line-numbers"          foreground="light-line-num" background="light-line-num-bg"/>
+  <style name="current-line-number"   foreground="light-text" background="light-current-line" bold="true"/>
+  <style name="line-numbers-border"   background="light-line-num-bg"/>
+  
+  <!-- Brackets -->
+  <style name="bracket-match"         foreground="light-bracket" bold="true"/>
+  <style name="bracket-mismatch"      foreground="#CF222E" background="#FFEBE9"/>
+  
+  <!-- Right margin -->
+  <style name="right-margin"          foreground="light-line-num" background="light-bg"/>
+  
+  <!-- Spaces and whitespace -->
+  <style name="draw-spaces"           foreground="light-line-num"/>
+
+  <!-- Syntax highlighting for common languages -->
+  <!-- Comments -->
+  <style name="def:comment"           foreground="light-comment" italic="true"/>
+  <style name="def:shebang"           foreground="light-comment" italic="true"/>
+  <style name="def:doc-comment-element" foreground="light-comment" italic="true"/>
+
+  <!-- Keywords -->
+  <style name="def:keyword"           foreground="light-keyword" bold="true"/>
+  <style name="def:type"              foreground="light-keyword" bold="true"/>
+  <style name="def:statement"         foreground="light-keyword" bold="true"/>
+
+  <!-- Strings and characters -->
+  <style name="def:string"            foreground="light-string"/>
+  <style name="def:character"         foreground="light-string"/>
+  <style name="def:special-char"      foreground="light-string"/>
+
+  <!-- Numbers -->
+  <style name="def:decimal"           foreground="light-number"/>
+  <style name="def:base-n-integer"    foreground="light-number"/>
+  <style name="def:floating-point"    foreground="light-number"/>
+
+  <!-- Other elements -->
+  <style name="def:preprocessor"      foreground="#8250DF"/>
+  <style name="def:identifier"        foreground="light-text"/>
+  <style name="def:function"          foreground="#8250DF"/>
+  <style name="def:builtin"           foreground="#0550AE"/>
+  <style name="def:constant"          foreground="#0550AE"/>
+  <style name="def:operator"          foreground="light-text"/>
+  <style name="def:error"             foreground="#CF222E" background="#FFEBE9"/>
+  <style name="def:warning"           foreground="#9A6700" background="#FFF8C5"/>
+  <style name="def:note"              foreground="#0969DA" background="#DDF4FF"/>
+
+  <!-- Markdown specific -->
+  <style name="markdown:header"       foreground="light-keyword" bold="true" scale="1.2"/>
+  <style name="markdown:emphasis"     italic="true"/>
+  <style name="markdown:strong-emphasis" bold="true"/>
+  <style name="markdown:code"         foreground="light-string" background="#F6F8FA"/>
+  <style name="markdown:link"         foreground="light-selection" underline="single"/>
+</style-scheme>

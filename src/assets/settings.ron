@@ -1,7 +1,7 @@
 (
     editor: None,
     appearance: Some((
-        editor_mode: Some("light"),
+        editor_mode: Some("marco-dark"),
         preview_theme: Some("astro.css"),
         ui_font: None,
         ui_font_size: None,

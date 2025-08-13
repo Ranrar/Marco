@@ -1,5 +1,6 @@
 
 
+use std::path::PathBuf;
 use gtk4::prelude::*;
 use gtk4::Box as GtkBox;
 use std::rc::Rc;
@@ -10,13 +11,12 @@ use crate::theme::ThemeManager;
 use crate::logic::theme_list::{list_html_view_themes};
 
 pub fn build_appearance_tab(
-    theme_manager: Rc<RefCell<ThemeManager>>,
-    settings_path: std::path::PathBuf,
+    theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
+    settings_path: PathBuf,
     on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
-) -> GtkBox {
-
-    use gtk4::{Label, ComboBoxText, Scale, Adjustment, Button, Box as GtkBox, Orientation, Align};
+    on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
+) -> gtk4::Box {    use gtk4::{Label, ComboBoxText, Scale, Adjustment, Button, Box as GtkBox, Orientation, Align};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-appearance");
@@ -110,10 +110,10 @@ pub fn build_appearance_tab(
     let color_mode_combo = ComboBoxText::new();
     color_mode_combo.append_text("light");
     color_mode_combo.append_text("dark");
-    let current_mode = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.editor_mode.clone()).unwrap_or("light".to_string());
+    let current_mode = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.editor_mode.clone()).unwrap_or("marco-light".to_string());
     let active_idx = match current_mode.as_str() {
-        "dark" => 1,
-        _ => 0,
+        "marco-dark" | "dark" => 1,
+        "marco-light" | "light" | _ => 0,
     };
     color_mode_combo.set_active(Some(active_idx));
     let color_mode_row = add_row(
@@ -127,11 +127,20 @@ pub fn build_appearance_tab(
         let theme_manager = Rc::clone(&theme_manager);
         let settings_path = settings_path.clone();
         let refresh_preview = Rc::clone(&refresh_preview);
+        let on_editor_theme_changed = on_editor_theme_changed.map(|cb| Rc::new(cb));
         color_mode_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0);
             let mode = if idx == 1 { "dark" } else { "light" };
             println!("Switching color mode to: {}", mode);
             theme_manager.borrow_mut().set_color_mode(mode, &settings_path);
+            
+            // Call editor theme change callback if provided
+            if let Some(ref callback) = on_editor_theme_changed {
+                // Convert mode to scheme ID for the callback
+                let scheme_id = if idx == 1 { "marco-dark" } else { "marco-light" };
+                callback(scheme_id.to_string());
+            }
+            
             // Refresh preview and UI
             (refresh_preview.borrow())();
         });

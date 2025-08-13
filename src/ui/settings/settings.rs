@@ -29,6 +29,7 @@ pub fn show_settings_dialog(
     settings_path: PathBuf,
     on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
     refresh_preview: Option<Rc<RefCell<Box<dyn Fn()>>>>,
+    on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) {
     let dialog = Dialog::builder()
         .transient_for(parent)
@@ -48,6 +49,7 @@ pub fn show_settings_dialog(
             settings_path.clone(),
             cb,
             refresh_preview,
+            on_editor_theme_changed,
         ), Some(&Label::new(Some("Appearance"))));
     } else {
         notebook.append_page(&tabs::appearance::build_appearance_tab(
@@ -55,6 +57,7 @@ pub fn show_settings_dialog(
             settings_path.clone(),
             Box::new(|_| {}),
             Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
+            on_editor_theme_changed,
         ), Some(&Label::new(Some("Appearance"))));
     }
     notebook.append_page(&tabs::language::build_language_tab(), Some(&Label::new(Some("Language"))));
