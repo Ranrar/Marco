@@ -108,10 +108,10 @@ pub fn build_appearance_tab(
     // --- Compose Tab ---
     // Light/Dark Mode Dropdown
     let color_mode_combo = ComboBoxText::new();
-    color_mode_combo.append_text("Light");
-    color_mode_combo.append_text("Dark");
-    let current_mode = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.color_mode.clone()).unwrap_or("Light".to_string());
-    let active_idx = match current_mode.to_lowercase().as_str() {
+    color_mode_combo.append_text("light");
+    color_mode_combo.append_text("dark");
+    let current_mode = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.editor_mode.clone()).unwrap_or("light".to_string());
+    let active_idx = match current_mode.as_str() {
         "dark" => 1,
         _ => 0,
     };
@@ -129,7 +129,7 @@ pub fn build_appearance_tab(
         let refresh_preview = Rc::clone(&refresh_preview);
         color_mode_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0);
-            let mode = if idx == 1 { "Dark" } else { "Light" };
+            let mode = if idx == 1 { "dark" } else { "light" };
             println!("Switching color mode to: {}", mode);
             theme_manager.borrow_mut().set_color_mode(mode, &settings_path);
             // Refresh preview and UI

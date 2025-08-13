@@ -21,11 +21,9 @@ pub fn list_html_view_themes(theme_dir: &Path) -> Vec<ThemeEntry> {
                         })
                         .collect::<Vec<_>>()
                         .join(" ");
-                    let is_dark = fname.to_lowercase().contains("dark");
                     entries.push(ThemeEntry {
                         filename: fname.to_string(),
                         label,
-                        is_dark,
                     });
                 }
             }
@@ -38,9 +36,4 @@ pub fn list_html_view_themes(theme_dir: &Path) -> Vec<ThemeEntry> {
 pub struct ThemeEntry {
     pub filename: String,
     pub label: String,
-    pub is_dark: bool,
-}
-/// Find a theme entry by label
-pub fn find_theme_by_label<'a>(themes: &'a [ThemeEntry], label: &str) -> Option<&'a ThemeEntry> {
-    themes.iter().find(|t| t.label == label)
 }

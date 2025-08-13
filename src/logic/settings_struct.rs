@@ -25,8 +25,7 @@ pub struct EditorSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppearanceSettings {
-    pub color_mode: Option<String>,
-    pub app_theme: Option<String>,
+    pub editor_mode: Option<String>,
     pub preview_theme: Option<String>,
     pub ui_font: Option<String>,
     pub ui_font_size: Option<u8>,

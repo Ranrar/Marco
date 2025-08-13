@@ -22,20 +22,37 @@ use crate::theme::ThemeManager;
 const APP_ID: &str = "com.example.Marco";
 
 fn main() -> glib::ExitCode {
+    // Try to use Vulkan renderer first
+    std::env::set_var("GSK_RENDERER", "vulkan");
+    eprintln!("[DEBUG] Trying GSK_RENDERER=vulkan");
+
     // Initialize GTK4 application
     let app = Application::builder().application_id(APP_ID).build();
 
     app.connect_activate(|app| build_ui(app));
 
     let no_args: [&str; 0] = [];
-    app.run_with_args(&no_args)
+    let exit_code = app.run_with_args(&no_args);
+
+    // If Vulkan failed, fallback to OpenGL and restart
+    if exit_code != 0.into() {
+        eprintln!("[DEBUG] Vulkan renderer failed, retrying with GSK_RENDERER=gl");
+        std::env::set_var("GSK_RENDERER", "gl");
+        let app = Application::builder().application_id(APP_ID).build();
+        app.connect_activate(|app| build_ui(app));
+        let gl_exit_code = app.run_with_args(&no_args);
+    eprintln!("[DEBUG] OpenGL renderer exit code: {:?}", gl_exit_code);
+    gl_exit_code.into()
+    } else {
+        eprintln!("[DEBUG] Vulkan renderer succeeded");
+        exit_code
+    }
 }
 
 fn build_ui(app: &Application) {
     // Load flat button and window control CSS
     use gtk4::{CssProvider, gdk::Display};
     let provider = CssProvider::new();
-    provider.load_from_path("src/assets/themes/style.css");
     gtk4::style_context_add_provider_for_display(
         &Display::default().unwrap(),
         &provider,
@@ -104,39 +121,20 @@ fn build_ui(app: &Application) {
     let toolbar = toolbar::create_toolbar_structure();
     toolbar.add_css_class("toolbar");
     // --- Determine correct HTML preview theme based on settings and app theme ---
-    use crate::logic::theme_list::{list_html_view_themes, find_theme_by_label};
+    use crate::logic::theme_list::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
     let settings = &theme_manager.borrow().settings;
     let mut preview_theme_filename = "standard.css".to_string();
     if let Some(appearance) = &settings.appearance {
-        // Try to use the preview_theme from settings, else match app_theme's is_dark
         if let Some(ref preview_theme) = appearance.preview_theme {
-            // Try to find by filename
             if html_themes.iter().any(|t| &t.filename == preview_theme) {
                 preview_theme_filename = preview_theme.clone();
-            } else {
-                // Try to match app_theme's is_dark
-                if let Some(ref app_theme) = appearance.app_theme {
-                    if let Some(app_theme_entry) = find_theme_by_label(&html_themes, app_theme) {
-                        let is_dark = app_theme_entry.is_dark;
-                        if let Some(matching) = html_themes.iter().find(|t| t.is_dark == is_dark) {
-                            preview_theme_filename = matching.filename.clone();
-                        }
-                    }
-                }
             }
         }
     }
     // Initialize theme_mode before creating the editor/preview
     let theme_mode = Rc::new(RefCell::new(String::from("theme-light")));
-    if let Some(appearance) = &settings.appearance {
-        if let Some(ref app_theme) = appearance.app_theme {
-            if app_theme.ends_with("-dark.css") {
-                theme_mode.replace("theme-dark".to_string());
-            }
-        }
-    }
     let (split, _webview, preview_css_rc, refresh_preview) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),

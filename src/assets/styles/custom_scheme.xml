@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style-scheme id="custom-yellow-bg" name="Custom Yellow Background" version="1.0">
+  <style name="background" background="#ffeb3b"/>
+  <style name="text" foreground="#1a237e"/>
+  <style name="current-line" background="#fffde7"/>
+  <style name="line-numbers" foreground="#bdbdbd" background="#fffde7"/>
+</style-scheme>

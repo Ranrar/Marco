@@ -58,7 +58,12 @@ pub fn create_editor_with_preview(preview_theme_filename: &str, preview_theme_di
                 palette.background, palette.text
             );
             let provider = CssProvider::new();
+            // Log CSS parsing errors
+            provider.connect_parsing_error(|_provider, section, error| {
+                eprintln!("CSS parsing error in SourceView: {:?} at {:?}", error, section);
+            });
             provider.load_from_data(css_string.as_str());
+            // Note: Providers stack; consider managing them if you extend theming
             source_view.style_context().add_provider(
                 &provider,
                 gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
@@ -97,11 +102,51 @@ pub fn render_editor_with_view() -> (gtk4::Box, sourceview5::Buffer, sourceview5
     source_view.set_show_line_numbers(true);
     source_view.set_highlight_current_line(false);
     source_view.set_show_line_marks(true); //TODO for bookmarks
+    // Ensure the .sourceview CSS class is set for styling
+    source_view.add_css_class("sourceview");
+    // Make sure CSS can override background
+    use sourceview5::BackgroundPatternType;
+    source_view.set_background_pattern(BackgroundPatternType::None);
 
-    // Put the SourceView in a ScrolledWindow
+
+    // Robust CSS injection: visually obvious style for testing
+    use gtk4::CssProvider;
+    let test_css = r#"
+    .sourceview {
+        background: #ffeb3b;
+        color: #1a237e;
+        border: 3px solid red;
+        font-family: 'Fira Mono', 'monospace';
+        font-size: 18px;
+    }
+    "#;
+    let provider = CssProvider::new();
+    provider.connect_parsing_error(|_provider, section, error| {
+        eprintln!("[TEST] CSS parsing error in SourceView: {:?} at {:?}", error, section);
+    });
+    provider.load_from_data(test_css);
+    source_view.style_context().add_provider(&provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+    // Optionally style the ScrolledWindow for visibility (no border for clarity)
     let scrolled = gtk4::ScrolledWindow::new();
     scrolled.set_child(Some(&source_view));
     scrolled.set_vexpand(true);
+    scrolled.add_css_class("sourceview-scroll");
+    let scrolled_css = r#"
+    .sourceview-scroll {
+        background: #ffe0e0;
+    }
+    "#;
+    let scrolled_provider = CssProvider::new();
+    scrolled_provider.load_from_data(scrolled_css);
+    scrolled.style_context().add_provider(&scrolled_provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
+    // Programmatic verification: log class presence
+    if source_view.style_context().has_class("sourceview") {
+        println!("[TEST] SourceView has .sourceview class for CSS injection");
+    } else {
+        eprintln!("[TEST] SourceView missing .sourceview class; CSS may not apply");
+    }
 
     // Add the ScrolledWindow (with SourceView) to the top
     container.append(&scrolled);
