@@ -50,6 +50,12 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(app: &Application) {
+    // --- Load settings from settings.ron ---
+    use crate::logic::swanson::Settings;
+    let config_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let settings_path = config_dir.join("src/assets/settings.ron");
+    let settings = Settings::load_from_file(settings_path.to_str().unwrap())
+        .unwrap_or_default();
     // Load flat button and window control CSS
     use gtk4::{CssProvider, gdk::Display};
     let provider = CssProvider::new();
@@ -106,6 +112,7 @@ fn build_ui(app: &Application) {
         preview_theme_dir.clone(),
         editor_theme_dir,
     )));
+    // Pass settings struct to modules as needed
 
     // Create main vertical box layout
     let main_box = GtkBox::new(Orientation::Vertical, 0);
@@ -115,7 +122,7 @@ fn build_ui(app: &Application) {
     let toolbar = toolbar::create_toolbar_structure();
     toolbar.add_css_class("toolbar");
     // --- Determine correct HTML preview theme based on settings and app theme ---
-    use crate::logic::theme_list::list_html_view_themes;
+    use crate::logic::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
     let settings = &theme_manager.borrow().settings;

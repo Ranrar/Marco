@@ -1,5 +1,6 @@
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
+use crate::logic::parser::{parse_line_syntax, MarkdownSyntaxMap};
 
 pub struct FooterLabels {
     pub word_count: Label,
@@ -8,6 +9,16 @@ pub struct FooterLabels {
     pub formatting: Label,
 }
 
+/// Updates the formatting label with the Markdown syntax trace for the active line
+pub fn update_syntax_trace(labels: &FooterLabels, line: &str, syntax_map: &MarkdownSyntaxMap) {
+    let chain = parse_line_syntax(line, syntax_map);
+    let display = if chain.is_empty() {
+        "Plain text".to_string()
+    } else {
+        chain.join(" → ")
+    };
+    labels.formatting.set_text(&display);
+}
 pub fn create_footer_structure() -> Box {
     let footer_box = Box::new(Orientation::Horizontal, 10);
     footer_box.set_margin_top(5);

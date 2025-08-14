@@ -1,23 +1,84 @@
 //! Robust settings loader/saver using RON and Serde
-use crate::logic::settings_struct::Settings;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use anyhow::{Result, Context};
 
-// AppearanceSettings is now a sub-struct of Settings
-
-pub fn load_settings<P: AsRef<Path>>(settings_path: P) -> Result<Settings> {
-    let contents = fs::read_to_string(&settings_path)
-        .with_context(|| format!("Failed to read settings file: {:?}", settings_path.as_ref()))?;
-    let settings: Settings = ron::from_str(&contents)
-        .with_context(|| "Failed to parse settings.ron as RON")?;
-    Ok(settings)
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Settings {
+    pub editor: Option<EditorSettings>,
+    pub appearance: Option<AppearanceSettings>,
+    pub layout: Option<LayoutSettings>,
+    pub language: Option<LanguageSettings>,
+    pub window: Option<WindowSettings>,
+    pub advanced: Option<AdvancedSettings>,
+    // --- Markdown schema selection ---
+    pub active_schema: Option<String>,
+    pub schema_disabled: Option<bool>,
 }
 
-pub fn save_settings<P: AsRef<Path>>(settings_path: P, settings: &Settings) -> Result<()> {
-    let ron = ron::ser::to_string_pretty(settings, ron::ser::PrettyConfig::default())
-        .context("Failed to serialize settings to RON")?;
-    fs::write(&settings_path, ron)
-        .with_context(|| format!("Failed to write settings file: {:?}", settings_path.as_ref()))?;
-    Ok(())
+impl Settings {
+    /// Load settings from a RON file
+    pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+        let content = fs::read_to_string(&path)?;
+        let settings: Self = ron::de::from_str(&content)?;
+        Ok(settings)
+    }
+
+    /// Save settings to a RON file
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+        let ron = ron::ser::to_string(self)?;
+        fs::write(path, ron)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EditorSettings {
+    pub font: Option<String>,
+    pub font_size: Option<u8>,
+    pub line_height: Option<f32>,
+    pub line_wrapping: Option<bool>,
+    pub auto_pairing: Option<bool>,
+    pub show_invisibles: Option<bool>,
+    pub tabs_to_spaces: Option<bool>,
+    pub syntax_colors: Option<bool>,
+    pub linting: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppearanceSettings {
+    pub editor_mode: Option<String>,
+    pub preview_theme: Option<String>,
+    pub ui_font: Option<String>,
+    pub ui_font_size: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LayoutSettings {
+    pub view_mode: Option<String>,
+    pub sync_scrolling: Option<bool>,
+    pub editor_view_split: Option<u8>,
+    pub show_line_numbers: Option<bool>,
+    pub text_direction: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct LanguageSettings {
+    pub language: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct WindowSettings {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub maximized: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AdvancedSettings {
+    pub enabled_variants: Option<Vec<String>>,
+    pub plugins: Option<Vec<String>>,
 }

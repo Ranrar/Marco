@@ -5,8 +5,8 @@ thread_local! {
 // Removed duplicate save_appearance_settings; use Swanson.rs only
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::logic::swanson::{load_settings, save_settings};
-use crate::logic::settings_struct::{Settings, AppearanceSettings};
+use crate::logic::swanson::{Settings, AppearanceSettings};
+use gtk4::Settings as GtkSettings;
 use crate::logic::crossplatforms::is_dark_mode_supported;
 use dark_light::Mode as SystemMode;
 use sourceview5::{StyleSchemeManager, StyleScheme};
@@ -79,7 +79,7 @@ pub struct ThemeManager {
 
 impl ThemeManager {
     pub fn new(settings_path: &Path, ui_theme_dir: PathBuf, preview_theme_dir: PathBuf, editor_theme_dir: PathBuf) -> Self {
-        let mut settings = load_settings(settings_path).unwrap_or_default();
+    let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         
         // Initialize StyleSchemeManager and add our custom themes directory
         let style_scheme_manager = StyleSchemeManager::new();
@@ -173,8 +173,8 @@ impl ThemeManager {
     }
 
     /// List available editor style schemes
-    pub fn available_editor_schemes(&self) -> Vec<crate::logic::theme_list::ThemeEntry> {
-        crate::logic::theme_list::list_editor_style_schemes(&self.editor_theme_dir)
+    pub fn available_editor_schemes(&self) -> Vec<crate::logic::theme_loader::ThemeEntry> {
+        crate::logic::theme_loader::list_editor_style_schemes(&self.editor_theme_dir)
     }
 
     /// Get the current editor style scheme ID
@@ -226,7 +226,7 @@ impl ThemeManager {
 
     /// Change editor style scheme and update themes
     pub fn set_editor_scheme(&mut self, scheme_id: &str, settings_path: &Path) {
-        let mut settings = load_settings(settings_path).unwrap_or_default();
+    let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
         let old = appearance.editor_mode.clone().unwrap_or_else(|| "<unset>".to_string());
         println!("set_editor_scheme: {} => {}", old, scheme_id);
@@ -234,13 +234,12 @@ impl ThemeManager {
         settings.appearance = Some(appearance);
         
         // Set GTK global theme property based on scheme
-        use gtk4::Settings;
         let prefer_dark = scheme_id.contains("dark");
-        if let Some(settings_obj) = Settings::default() {
+        if let Some(settings_obj) = GtkSettings::default() {
             settings_obj.set_gtk_application_prefer_dark_theme(prefer_dark);
         }
         
-        if let Err(e) = save_settings(settings_path, &settings) {
+        if let Err(e) = settings.save_to_file(settings_path) {
             eprintln!("[ERROR] Failed to save editor_scheme to {:?}: {}", settings_path, e);
         } else {
             self.settings = settings;
@@ -271,13 +270,13 @@ impl ThemeManager {
 
     /// Change preview theme (filename)
     pub fn set_preview_theme(&mut self, theme: String, settings_path: &Path) {
-        let mut settings = load_settings(settings_path).unwrap_or_default();
+    let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
         let old = appearance.preview_theme.clone().unwrap_or_else(|| "<unset>".to_string());
         println!("set_preview_theme: {} => {}", old, theme);
         appearance.preview_theme = Some(theme.clone());
         settings.appearance = Some(appearance);
-        if let Err(e) = save_settings(settings_path, &settings) {
+        if let Err(e) = settings.save_to_file(settings_path) {
             eprintln!("[ERROR] Failed to save preview_theme to {:?}: {}", settings_path, e);
         } else {
             self.settings = settings;

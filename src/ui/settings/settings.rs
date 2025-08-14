@@ -1,3 +1,5 @@
+// IMPORTANT: When updating settings.ron, always preserve all existing settings and only modify the relevant fields.
+// This ensures user preferences are not lost when changing schema or other options.
 // Settings structure
 use gtk4::prelude::*;
 use gtk4::{Dialog, Window, Notebook, Button, Box as GtkBox, Orientation, Align, Label};
@@ -60,6 +62,40 @@ pub fn show_settings_dialog(
             on_editor_theme_changed,
         ), Some(&Label::new(Some("Appearance"))));
     }
+        // --- Markdown Schema Tab ---
+        use crate::logic::schema_loader::list_available_schemas;
+        use crate::ui::settings::tabs::schema::build_schema_tab;
+        use std::fs;
+        let schema_root = "src/assets/markdown_schema";
+        // Load settings using Settings struct
+        use crate::logic::swanson::Settings as AppSettings;
+        let app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+        let active_schema = app_settings.active_schema.clone();
+        let schema_disabled = app_settings.schema_disabled.unwrap_or(false);
+        // Handler for schema change
+        let settings_path_clone = settings_path.clone();
+        let on_schema_changed = Rc::new(move |selected: Option<String>| {
+            // Update settings using Settings struct
+            use crate::logic::swanson::Settings as AppSettings;
+            let mut app_settings = AppSettings::load_from_file(settings_path_clone.to_str().unwrap()).unwrap_or_default();
+            app_settings.active_schema = selected.clone();
+            app_settings.schema_disabled = Some(selected.is_none());
+            app_settings.save_to_file(settings_path_clone.to_str().unwrap()).ok();
+            // Reload parser and update UI
+            let schema_root = "src/assets/markdown_schema";
+            let parser = crate::logic::parser::MarkdownSyntaxMap::load_active_schema(
+                settings_path_clone.to_str().unwrap(),
+                schema_root
+            ).ok().flatten();
+            // TODO: update footer/editor with new parser
+        });
+        notebook.append_page(&build_schema_tab(
+            &settings_path.to_string_lossy(),
+            schema_root,
+            active_schema,
+            schema_disabled,
+            on_schema_changed,
+        ), Some(&Label::new(Some("Markdown Schema"))));
     notebook.append_page(&tabs::language::build_language_tab(), Some(&Label::new(Some("Language"))));
 
     // Layout: notebook + close button at bottom right

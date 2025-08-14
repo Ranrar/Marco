@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 // Import your theme manager
 use crate::theme::ThemeManager;
-use crate::logic::theme_list::{list_html_view_themes};
+use crate::logic::theme_loader::{list_html_view_themes};
 
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
@@ -71,7 +71,7 @@ pub fn build_appearance_tab(
         settings_path: std::path::PathBuf,
         on_preview_theme_changed: Rc<Box<dyn Fn(String)>>,
         user_selected_preview_theme: Rc<std::cell::Cell<bool>>,
-        html_themes: Vec<crate::logic::theme_list::ThemeEntry>| -> (gtk4::Box, ComboBoxText) {
+        html_themes: Vec<crate::logic::theme_loader::ThemeEntry>| -> (gtk4::Box, ComboBoxText) {
         let preview_theme_combo = ComboBoxText::new();
         for entry in &html_themes {
             preview_theme_combo.append_text(&entry.label);
@@ -107,10 +107,12 @@ pub fn build_appearance_tab(
 
     // --- Compose Tab ---
     // Light/Dark Mode Dropdown
+    use crate::logic::swanson::Settings as AppSettings;
+    let app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+    let current_mode = app_settings.appearance.as_ref().and_then(|a| a.editor_mode.clone()).unwrap_or("marco-light".to_string());
     let color_mode_combo = ComboBoxText::new();
     color_mode_combo.append_text("light");
     color_mode_combo.append_text("dark");
-    let current_mode = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.editor_mode.clone()).unwrap_or("marco-light".to_string());
     let active_idx = match current_mode.as_str() {
         "marco-dark" | "dark" => 1,
         "marco-light" | "light" | _ => 0,
@@ -124,7 +126,6 @@ pub fn build_appearance_tab(
     container.append(&color_mode_row);
     // Wire dropdown to update theme state and persist user preference
     {
-        let theme_manager = Rc::clone(&theme_manager);
         let settings_path = settings_path.clone();
         let refresh_preview = Rc::clone(&refresh_preview);
         let on_editor_theme_changed = on_editor_theme_changed.map(|cb| Rc::new(cb));
@@ -132,15 +133,22 @@ pub fn build_appearance_tab(
             let idx = combo.active().unwrap_or(0);
             let mode = if idx == 1 { "dark" } else { "light" };
             println!("Switching color mode to: {}", mode);
-            theme_manager.borrow_mut().set_color_mode(mode, &settings_path);
-            
+            // Update settings struct and persist
+            let mut app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+            if let Some(ref mut appearance) = app_settings.appearance {
+                appearance.editor_mode = Some(mode.to_string());
+            } else {
+                app_settings.appearance = Some(crate::logic::swanson::AppearanceSettings {
+                    editor_mode: Some(mode.to_string()),
+                    ..Default::default()
+                });
+            }
+            app_settings.save_to_file(settings_path.to_str().unwrap()).ok();
             // Call editor theme change callback if provided
             if let Some(ref callback) = on_editor_theme_changed {
-                // Convert mode to scheme ID for the callback
                 let scheme_id = if idx == 1 { "marco-dark" } else { "marco-light" };
                 callback(scheme_id.to_string());
             }
-            
             // Refresh preview and UI
             (refresh_preview.borrow())();
         });

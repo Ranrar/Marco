@@ -1,0 +1,24 @@
+# CommonMark Syntax Mapping
+
+Heading1 { node_type: "heading", depth: 1, markdown_syntax: "#" }
+Heading2 { node_type: "heading", depth: 2, markdown_syntax: "##" }
+Heading3 { node_type: "heading", depth: 3, markdown_syntax: "###" }
+Heading4 { node_type: "heading", depth: 4, markdown_syntax: "####" }
+Heading5 { node_type: "heading", depth: 5, markdown_syntax: "#####" }
+Heading6 { node_type: "heading", depth: 6, markdown_syntax: "######" }
+
+Paragraph { node_type: "paragraph", markdown_syntax: "" }
+Strong { node_type: "strong", markdown_syntax: "**" }
+Emphasis { node_type: "emphasis", markdown_syntax: "*" }
+BlockQuote { node_type: "blockquote", markdown_syntax: ">" }
+
+ListUnordered { node_type: "list", ordered: false, markdown_syntax: "-" }
+ListOrdered { node_type: "list", ordered: true, markdown_syntax: "1." }
+ListItem { node_type: "listItem", markdown_syntax: "-" }
+
+CodeBlock { node_type: "codeBlock", markdown_syntax: "```" }
+InlineCode { node_type: "inlineCode", markdown_syntax: "`" }
+
+HorizontalRule { node_type: "thematicBreak", markdown_syntax: "---" }
+Link { node_type: "link", markdown_syntax: "[text](url)" }
+Image { node_type: "image", markdown_syntax: "![alt](url)" }
