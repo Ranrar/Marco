@@ -31,7 +31,7 @@ pub fn create_editor_with_preview(
     };
 
     // Editor (left)
-    let (editor_widget, buffer, source_view) = render_editor_with_view(style_scheme.as_ref(), &font_family, font_size_pt);
+        let (editor_widget, buffer, _) = render_editor_with_view(style_scheme.as_ref(), &font_family, font_size_pt);
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
