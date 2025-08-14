@@ -1,13 +1,13 @@
 //! Markdown Schema settings tab
 use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, Orientation, Label, ComboBoxText, Align, Widget};
+use gtk4::{Box as GtkBox, Orientation, Label, ComboBoxText, Align};
 use std::path::Path;
 use crate::logic::schema_loader::list_available_schemas;
 use std::rc::Rc;
 
 
 /// Builds the Markdown Schema tab UI
-pub fn build_schema_tab(settings_path: &str, schema_root: &str, active_schema: Option<String>, schema_disabled: bool, on_schema_changed: Rc<dyn Fn(Option<String>)>) -> GtkBox {
+pub fn build_schema_tab(schema_root: &str, active_schema: Option<String>, schema_disabled: bool, on_schema_changed: Rc<dyn Fn(Option<String>)>) -> GtkBox {
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-schema");
     container.set_margin_top(24);
@@ -34,6 +34,15 @@ pub fn build_schema_tab(settings_path: &str, schema_root: &str, active_schema: O
     for schema in &schemas {
         combo.append_text(&schema.name);
     }
+    // Debug: print the first schema's folder/ast/syntax paths to the terminal
+    if let Some(first) = schemas.get(0) {
+        eprintln!(
+            "[schema] folder: {}\nast: {}\nsyntax: {}",
+            first.path.display(),
+            first.ast_path.display(),
+            first.syntax_path.display()
+        );
+    }
     let active_idx = if schema_disabled {
         0
     } else {
@@ -53,6 +62,7 @@ pub fn build_schema_tab(settings_path: &str, schema_root: &str, active_schema: O
     spacer.set_hexpand(true);
     row.append(&spacer);
     row.append(&combo);
+    // no inline info box; debug output goes to terminal instead
     row.set_hexpand(true);
     row.set_margin_bottom(24);
 
@@ -60,9 +70,20 @@ pub fn build_schema_tab(settings_path: &str, schema_root: &str, active_schema: O
     combo.connect_changed(move |c| {
         let idx = c.active().unwrap_or(0) as usize;
         if idx == 0 {
+            // nothing selected -> debug clear
+            eprintln!("[schema] selection: disabled");
             on_schema_changed(None);
         } else {
-            on_schema_changed(Some(schemas[idx - 1].name.clone()));
+            let selected = schemas[idx - 1].name.clone();
+            // Debug print selected schema paths and call callback
+            eprintln!(
+                "[schema] selected: {}\nfolder: {}\nast: {}\nsyntax: {}",
+                selected,
+                schemas[idx - 1].path.display(),
+                schemas[idx - 1].ast_path.display(),
+                schemas[idx - 1].syntax_path.display()
+            );
+            on_schema_changed(Some(selected));
         }
     });
 

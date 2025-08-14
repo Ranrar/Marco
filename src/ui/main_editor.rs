@@ -1,42 +1,33 @@
-use crate::footer::{FooterLabels, update_cursor_pos, update_line_count, update_encoding, update_insert_mode};
+use crate::footer::{FooterLabels, FooterUpdate};
+use crate::logic::parser::MarkdownSyntaxMap;
 // No need to import source_remove; use SourceId::remove()
 use glib::ControlFlow;
-/// Wires up debounced footer updates to buffer and view events
-pub fn wire_footer_updates(buffer: &sourceview5::Buffer, view: &sourceview5::View, labels: Rc<FooterLabels>) {
+/// Wires up debounced footer updates to buffer events
+pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels>, syntax_map: Rc<std::cell::RefCell<Option<MarkdownSyntaxMap>>>) {
     use std::cell::Cell;
     let debounce_ms = 300;
-    let timeout_id: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
+    
+    // Separate timeout IDs for each event type to avoid conflicts
+    let buffer_timeout_id: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
+    let cursor_timeout_id: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
 
     let update_footer = {
         let buffer = buffer.clone();
-        let view = view.clone();
-        let labels = Rc::clone(&labels);
+        let syntax_map = Rc::clone(&syntax_map);
         move || {
-            // Get cursor position
+            eprintln!("[wire_footer_updates] update_footer closure called");
+            // Gather snapshot of footer data
             let offset = buffer.cursor_position();
             let iter = buffer.iter_at_offset(offset);
-            let row = iter.line() + 1;
-            let col = iter.line_offset() + 1;
-            update_cursor_pos(&labels, row as usize, col as usize);
-
-            // Get line count
-            let lines = buffer.line_count();
-            update_line_count(&labels, lines as usize);
-
-            // Encoding (assume UTF-8 for now)
-            update_encoding(&labels, "UTF-8");
-
-            // Insert/overwrite mode (assume insert for now, can be wired to actual mode)
-            update_insert_mode(&labels, true);
-
-            // Get buffer text for word/char count
+            let row = (iter.line() + 1) as usize;
+            let col = (iter.line_offset() + 1) as usize;
+            let lines = buffer.line_count() as usize;
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
             let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
             let char_count = text.chars().count();
-            crate::footer::update_word_count(&labels, word_count);
-            crate::footer::update_char_count(&labels, char_count);
-
-            // Syntax trace for current line (dummy map for now)
+            eprintln!("[wire_footer_updates] Calculated stats - Row: {}, Col: {}, Lines: {}, Words: {}, Chars: {}", 
+                row, col, lines, word_count, char_count);
+            // Syntax trace for current line
             let current_line = iter.line();
             let start_iter_opt = buffer.iter_at_line(current_line);
             let end_iter_opt = buffer.iter_at_line(current_line + 1);
@@ -45,43 +36,64 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, view: &sourceview5::Vie
                 (Some(ref start), None) => buffer.text(start, &buffer.end_iter(), false).to_string(),
                 _ => String::new(),
             };
-            let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new() };
-            crate::footer::update_syntax_trace(&labels, &line_text, &dummy_map);
+            let syntax_display = if let Some(ref map) = *syntax_map.borrow() {
+                crate::footer::format_syntax_trace(&line_text, map)
+            } else {
+                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new() };
+                crate::footer::format_syntax_trace(&line_text, &dummy_map)
+            };
+
+            let msg = FooterUpdate::Snapshot { row, col, lines, words: word_count, chars: char_count, syntax_display, encoding: "UTF-8".to_string(), is_insert: true };
+            eprintln!("[wire_footer_updates] About to call apply_footer_update with: {:?}", msg);
+            // Apply directly on the main context: wire_footer_updates runs in main-loop callbacks
+            crate::footer::apply_footer_update(&labels, msg);
         }
     };
 
     // Debounce logic for buffer changes
-    let buffer_clone = buffer.clone();
-    let timeout_id_clone: Rc<Cell<Option<glib::SourceId>>> = Rc::clone(&timeout_id);
+    let buffer_timeout_clone = Rc::clone(&buffer_timeout_id);
     let update_footer_clone = update_footer.clone();
     buffer.connect_changed(move |_| {
-        if let Some(id) = timeout_id_clone.take() {
-            id.remove();
+        eprintln!("[wire_footer_updates] Buffer changed event triggered");
+        // Cancel existing timeout if any (safe - ignore errors if already removed)
+        if let Some(id) = buffer_timeout_clone.replace(None) {
+            let _ = id.remove();
         }
+        let buffer_timeout_clone_inner = Rc::clone(&buffer_timeout_clone);
         let update_footer_clone = update_footer_clone.clone();
         let id = glib::timeout_add_local(std::time::Duration::from_millis(debounce_ms), move || {
+            eprintln!("[wire_footer_updates] Debounced buffer change timeout executing");
+            // Clear the timeout ID since we're executing now
+            buffer_timeout_clone_inner.set(None);
             update_footer_clone();
             ControlFlow::Break
         });
-        timeout_id_clone.set(Some(id));
+        buffer_timeout_clone.set(Some(id));
     });
 
-    // Debounce logic for cursor movement
-    let timeout_id_clone2: Rc<Cell<Option<glib::SourceId>>> = Rc::clone(&timeout_id);
+    // Debounce logic for cursor position changes using buffer notify signal
+    let cursor_timeout_clone = Rc::clone(&cursor_timeout_id);
     let update_footer_clone2 = update_footer.clone();
-    view.connect_move_cursor(move |_, _, _, _| {
-        if let Some(id) = timeout_id_clone2.take() {
-            id.remove();
+    buffer.connect_notify_local(Some("cursor-position"), move |_, _| {
+        eprintln!("[wire_footer_updates] Cursor position change event triggered");
+        // Cancel existing timeout if any (safe - ignore errors if already removed)
+        if let Some(id) = cursor_timeout_clone.replace(None) {
+            let _ = id.remove();
         }
+        let cursor_timeout_clone_inner = Rc::clone(&cursor_timeout_clone);
         let update_footer_clone2 = update_footer_clone2.clone();
         let id = glib::timeout_add_local(std::time::Duration::from_millis(debounce_ms), move || {
+            eprintln!("[wire_footer_updates] Debounced cursor position timeout executing");
+            // Clear the timeout ID since we're executing now
+            cursor_timeout_clone_inner.set(None);
             update_footer_clone2();
             ControlFlow::Break
         });
-        timeout_id_clone2.set(Some(id));
+        cursor_timeout_clone.set(Some(id));
     });
 
-    // Initial update
+    // Initial update (send snapshot)
+    eprintln!("[wire_footer_updates] Calling initial footer update");
     update_footer();
 }
 /// This is the markdown editor
@@ -98,7 +110,7 @@ pub fn create_editor_with_preview(
     preview_theme_dir: &str,
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     theme_mode: Rc<RefCell<String>>
-) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>, Box<dyn Fn(&str)>, Box<dyn Fn(&str)>) {
+) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>, Box<dyn Fn(&str)>, Box<dyn Fn(&str)>, sourceview5::Buffer) {
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
 
@@ -197,8 +209,8 @@ pub fn create_editor_with_preview(
         println!("Applied preview theme mode for scheme '{}'", scheme_id);
     }) as Box<dyn Fn(&str)>;
 
-    // Return the paned, webview, refresh closure, editor theme update, and preview theme update
-    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>, update_theme, update_preview_theme)
+    // Return the paned, webview, refresh closure, editor theme update, preview theme update, and buffer
+    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>, update_theme, update_preview_theme, buffer_rc.as_ref().clone())
 }
 use sourceview5::prelude::*; // For set_show_line_numbers
 

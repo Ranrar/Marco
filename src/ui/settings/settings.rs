@@ -32,6 +32,7 @@ pub fn show_settings_dialog(
     on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
     refresh_preview: Option<Rc<RefCell<Box<dyn Fn()>>>>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
+    on_schema_changed_callback: Option<Box<dyn Fn(Option<String>) + 'static>>,
 ) {
     let dialog = Dialog::builder()
         .transient_for(parent)
@@ -62,11 +63,9 @@ pub fn show_settings_dialog(
             on_editor_theme_changed,
         ), Some(&Label::new(Some("Appearance"))));
     }
-        // --- Markdown Schema Tab ---
-        use crate::logic::schema_loader::list_available_schemas;
-        use crate::ui::settings::tabs::schema::build_schema_tab;
-        use std::fs;
-        let schema_root = "src/assets/markdown_schema";
+    // --- Markdown Schema Tab ---
+    use crate::ui::settings::tabs::schema::build_schema_tab;
+    let schema_root = "src/assets/markdown_schema";
         // Load settings using Settings struct
         use crate::logic::swanson::Settings as AppSettings;
         let app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
@@ -81,16 +80,13 @@ pub fn show_settings_dialog(
             app_settings.active_schema = selected.clone();
             app_settings.schema_disabled = Some(selected.is_none());
             app_settings.save_to_file(settings_path_clone.to_str().unwrap()).ok();
-            // Reload parser and update UI
-            let schema_root = "src/assets/markdown_schema";
-            let parser = crate::logic::parser::MarkdownSyntaxMap::load_active_schema(
-                settings_path_clone.to_str().unwrap(),
-                schema_root
-            ).ok().flatten();
-            // TODO: update footer/editor with new parser
+            // Reload parser and update UI (handled by on_schema_changed_callback in caller)
+            // Invoke optional external callback so callers can update shared state
+            if let Some(ref cb) = on_schema_changed_callback {
+                cb(selected.clone());
+            }
         });
         notebook.append_page(&build_schema_tab(
-            &settings_path.to_string_lossy(),
             schema_root,
             active_schema,
             schema_disabled,

@@ -2,7 +2,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use anyhow::{Result, Context};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {

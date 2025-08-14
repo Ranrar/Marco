@@ -14,11 +14,12 @@ pub mod ui;
 
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use sourceview5::Buffer;
-use crate::ui::main_editor::create_editor_with_preview;
+use crate::ui::main_editor::{create_editor_with_preview, wire_footer_updates};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use crate::theme::ThemeManager;
+use crate::logic::parser::MarkdownSyntaxMap;
 
 const APP_ID: &str = "com.example.Marco";
 
@@ -141,25 +142,79 @@ fn build_ui(app: &Application) {
         theme_manager.borrow().preview_theme_mode_from_scheme(&current_scheme)
     };
     let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
-    let (footer, footer_labels) = footer::create_footer();
+    let (footer, footer_labels_rc) = footer::create_footer();
 
-    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme) = create_editor_with_preview(
+    // Load active markdown schema from settings (if available)
+    let schema_root = config_dir.join("src/assets/markdown_schema");
+    let active_schema_map: Rc<RefCell<Option<MarkdownSyntaxMap>>> = Rc::new(RefCell::new(None));
+    if let Ok(Some(map)) = MarkdownSyntaxMap::load_active_schema(settings_path.to_str().unwrap(), schema_root.to_str().unwrap()) {
+        *active_schema_map.borrow_mut() = Some(map);
+    }
+
+    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         theme_manager.clone(),
         Rc::clone(&theme_mode)
     );
 
-    // Wire up live footer updates using buffer and view from editor
-    use crate::ui::main_editor::{wire_footer_updates, render_editor_with_view};
-    // Recreate editor to get buffer and view
-    let (editor_widget, buffer, source_view) = render_editor_with_view(
-        theme_manager.borrow().current_editor_scheme().as_ref(),
-        &theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.ui_font.as_deref()).unwrap_or("Fira Mono"),
-        theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.ui_font_size).map(|v| v as f64).unwrap_or(14.0)
-    );
-    wire_footer_updates(&buffer, &source_view, std::rc::Rc::new(footer_labels.clone()));
+    // Wire up live footer updates using the actual editor buffer
+    // Wire footer updates directly: wire_footer_updates will run callbacks on
+    // the main loop and call `apply_footer_update` directly.
+    wire_footer_updates(&editor_buffer, footer_labels_rc.clone(), active_schema_map.clone());
     split.add_css_class("split-view");
+
+    // Closure to trigger an immediate footer syntax update using the active schema map
+    let trigger_footer_update: std::rc::Rc<dyn Fn()> = std::rc::Rc::new({
+        let buffer = editor_buffer.clone();
+        let labels = footer_labels_rc.clone();
+        let active_schema_map = active_schema_map.clone();
+        let test_counter = std::rc::Rc::new(std::cell::Cell::new(0));
+        move || {
+            eprintln!("[main] Manual footer trigger called!");
+            
+            // Increment test counter for obvious visual changes
+            let count = test_counter.get() + 1;
+            test_counter.set(count);
+            
+            // Update with test values to make changes obvious
+            crate::footer::update_cursor_pos(&labels, count + 10, count + 20);
+            crate::footer::update_line_count(&labels, count + 5);
+            crate::footer::update_word_count(&labels, count * 10);
+            crate::footer::update_char_count(&labels, count * 50);
+            crate::footer::update_encoding(&labels, &format!("TEST-{}", count));
+            crate::footer::update_insert_mode(&labels, count % 2 == 0);
+            
+            // Also do the original syntax trace logic
+            let offset = buffer.cursor_position();
+            let iter = buffer.iter_at_offset(offset);
+            let current_line = iter.line();
+            let start_iter_opt = buffer.iter_at_line(current_line);
+            let end_iter_opt = buffer.iter_at_line(current_line + 1);
+            let line_text = match (start_iter_opt, end_iter_opt) {
+                (Some(ref start), Some(ref end)) => buffer.text(start, end, false).to_string(),
+                (Some(ref start), None) => buffer.text(start, &buffer.end_iter(), false).to_string(),
+                _ => String::new(),
+            };
+            if let Some(ref map) = *active_schema_map.borrow() {
+                crate::footer::update_syntax_trace(&labels, &line_text, map);
+            } else {
+                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new() };
+                crate::footer::update_syntax_trace(&labels, &line_text, &dummy_map);
+            }
+        }
+    });
+
+    // Add a small test button to manually trigger the footer update for debugging
+    let test_footer_btn = gtk4::Button::with_label("Trigger Footer Update");
+    {
+        let tf = trigger_footer_update.clone();
+        test_footer_btn.connect_clicked(move |_| {
+            (tf)();
+        });
+    }
+    // Put the button into the toolbar so it's visible for manual testing
+    toolbar.append(&test_footer_btn);
 
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);
@@ -168,6 +223,17 @@ fn build_ui(app: &Application) {
 
     // Set editor area to expand
     split.set_vexpand(true);
+    
+    // Ensure footer is visible and properly positioned
+    footer.set_vexpand(false); // Footer should not expand vertically
+    footer.set_hexpand(true);  // Footer should expand horizontally
+    footer.set_visible(true);  // Explicitly ensure footer is visible
+    
+    // Debug output to confirm footer creation
+    eprintln!("[main] Footer created and added to layout");
+    eprintln!("[main] Footer visible: {}", footer.is_visible());
+    eprintln!("[main] Footer height request: {}", footer.height_request());
+    
     // Optionally, assign classes to editor/preview if accessible here
 
     // Add main box to window
@@ -227,6 +293,26 @@ fn build_ui(app: &Application) {
                     })),
                     Some(refresh_preview_for_settings2.clone()),
                     Some(editor_callback),
+                    Some(Box::new({
+                        let active_schema_map = active_schema_map.clone();
+                        let config_dir = config_dir.clone();
+                        let settings_path_clone = settings_path_clone.clone();
+                        let trigger = trigger_footer_update.clone();
+                        move |_selected: Option<String>| {
+                            // Reload parser and update shared map
+                            let schema_root = config_dir.join("src/assets/markdown_schema");
+                            if let Ok(Some(map)) = crate::logic::parser::MarkdownSyntaxMap::load_active_schema(
+                                settings_path_clone.to_str().unwrap(),
+                                schema_root.to_str().unwrap(),
+                            ) {
+                                *active_schema_map.borrow_mut() = Some(map);
+                            } else {
+                                *active_schema_map.borrow_mut() = None;
+                            }
+                            // Trigger immediate footer update
+                            (trigger)();
+                        }
+                    }) as Box<dyn Fn(Option<String>) + 'static>),
                 );
             }
         });
