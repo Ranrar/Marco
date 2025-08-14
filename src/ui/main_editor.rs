@@ -1,3 +1,89 @@
+use crate::footer::{FooterLabels, update_cursor_pos, update_line_count, update_encoding, update_insert_mode};
+// No need to import source_remove; use SourceId::remove()
+use glib::ControlFlow;
+/// Wires up debounced footer updates to buffer and view events
+pub fn wire_footer_updates(buffer: &sourceview5::Buffer, view: &sourceview5::View, labels: Rc<FooterLabels>) {
+    use std::cell::Cell;
+    let debounce_ms = 300;
+    let timeout_id: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
+
+    let update_footer = {
+        let buffer = buffer.clone();
+        let view = view.clone();
+        let labels = Rc::clone(&labels);
+        move || {
+            // Get cursor position
+            let offset = buffer.cursor_position();
+            let iter = buffer.iter_at_offset(offset);
+            let row = iter.line() + 1;
+            let col = iter.line_offset() + 1;
+            update_cursor_pos(&labels, row as usize, col as usize);
+
+            // Get line count
+            let lines = buffer.line_count();
+            update_line_count(&labels, lines as usize);
+
+            // Encoding (assume UTF-8 for now)
+            update_encoding(&labels, "UTF-8");
+
+            // Insert/overwrite mode (assume insert for now, can be wired to actual mode)
+            update_insert_mode(&labels, true);
+
+            // Get buffer text for word/char count
+            let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
+            let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
+            let char_count = text.chars().count();
+            crate::footer::update_word_count(&labels, word_count);
+            crate::footer::update_char_count(&labels, char_count);
+
+            // Syntax trace for current line (dummy map for now)
+            let current_line = iter.line();
+            let start_iter_opt = buffer.iter_at_line(current_line);
+            let end_iter_opt = buffer.iter_at_line(current_line + 1);
+            let line_text = match (start_iter_opt, end_iter_opt) {
+                (Some(ref start), Some(ref end)) => buffer.text(start, end, false).to_string(),
+                (Some(ref start), None) => buffer.text(start, &buffer.end_iter(), false).to_string(),
+                _ => String::new(),
+            };
+            let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new() };
+            crate::footer::update_syntax_trace(&labels, &line_text, &dummy_map);
+        }
+    };
+
+    // Debounce logic for buffer changes
+    let buffer_clone = buffer.clone();
+    let timeout_id_clone: Rc<Cell<Option<glib::SourceId>>> = Rc::clone(&timeout_id);
+    let update_footer_clone = update_footer.clone();
+    buffer.connect_changed(move |_| {
+        if let Some(id) = timeout_id_clone.take() {
+            id.remove();
+        }
+        let update_footer_clone = update_footer_clone.clone();
+        let id = glib::timeout_add_local(std::time::Duration::from_millis(debounce_ms), move || {
+            update_footer_clone();
+            ControlFlow::Break
+        });
+        timeout_id_clone.set(Some(id));
+    });
+
+    // Debounce logic for cursor movement
+    let timeout_id_clone2: Rc<Cell<Option<glib::SourceId>>> = Rc::clone(&timeout_id);
+    let update_footer_clone2 = update_footer.clone();
+    view.connect_move_cursor(move |_, _, _, _| {
+        if let Some(id) = timeout_id_clone2.take() {
+            id.remove();
+        }
+        let update_footer_clone2 = update_footer_clone2.clone();
+        let id = glib::timeout_add_local(std::time::Duration::from_millis(debounce_ms), move || {
+            update_footer_clone2();
+            ControlFlow::Break
+        });
+        timeout_id_clone2.set(Some(id));
+    });
+
+    // Initial update
+    update_footer();
+}
 /// This is the markdown editor
 
 use webkit6::prelude::*;

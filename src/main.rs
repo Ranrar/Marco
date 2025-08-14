@@ -5,7 +5,7 @@ mod logic;
 mod footer;
 mod menu;
 mod settings {
-    pub use crate::ui::settings::*;
+    // pub use crate::ui::settings::*; // unused import removed
 }
 mod theme;
 mod toolbar;
@@ -13,6 +13,7 @@ pub mod ui;
 
 
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
+use sourceview5::Buffer;
 use crate::ui::main_editor::create_editor_with_preview;
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -140,14 +141,25 @@ fn build_ui(app: &Application) {
         theme_manager.borrow().preview_theme_mode_from_scheme(&current_scheme)
     };
     let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
+    let (footer, footer_labels) = footer::create_footer();
+
     let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         theme_manager.clone(),
         Rc::clone(&theme_mode)
     );
+
+    // Wire up live footer updates using buffer and view from editor
+    use crate::ui::main_editor::{wire_footer_updates, render_editor_with_view};
+    // Recreate editor to get buffer and view
+    let (editor_widget, buffer, source_view) = render_editor_with_view(
+        theme_manager.borrow().current_editor_scheme().as_ref(),
+        &theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.ui_font.as_deref()).unwrap_or("Fira Mono"),
+        theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.ui_font_size).map(|v| v as f64).unwrap_or(14.0)
+    );
+    wire_footer_updates(&buffer, &source_view, std::rc::Rc::new(footer_labels.clone()));
     split.add_css_class("split-view");
-    let footer = footer::create_footer_structure();
 
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);
