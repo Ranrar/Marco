@@ -1,0 +1,110 @@
+
+/* Toolbar Button Styling for GTK4 - Compatible Version */
+
+/* Unified toolbar button styling */
+.toolbar-btn,
+.toolbar-headings-btn,
+.toolbar-headings-popover-btn,
+.toolbar-btn-bold,
+.toolbar-btn-italic,
+.toolbar-btn-code,
+.toolbar-btn-strikethrough,
+.toolbar-btn-bullet,
+.toolbar-btn-number {
+    min-width: 16px;
+    max-width: 32px;
+    min-height: 16px;
+    max-height: 32px;
+    padding: 2px 6px;
+    margin: 2px;
+    border-radius: 6px;
+    border: 0px solid #444;
+    color: #e0e0e0;
+    font-size: 14px;
+    font-family: "Segoe UI", "Cantarell", "Arial", sans-serif;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s, border 0.15s;
+    opacity: 1;
+}
+
+/* Unified hover state for all toolbar buttons */
+.toolbar-btn:hover,
+.toolbar-headings-btn:hover,
+.toolbar-headings-popover-btn:hover,
+.toolbar-btn-bold:hover,
+.toolbar-btn-italic:hover,
+.toolbar-btn-code:hover,
+.toolbar-btn-strikethrough:hover,
+.toolbar-btn-bullet:hover,
+.toolbar-btn-number:hover {
+    background: #3a3f4b;
+    color: #4f8cff;
+    border-color: #4f8cff;
+    opacity: 1;
+}
+
+/* Unified active state for all toolbar buttons */
+.toolbar-btn:active,
+.toolbar-headings-btn:active,
+.toolbar-headings-popover-btn:active,
+.toolbar-btn-bold:active,
+.toolbar-btn-italic:active,
+.toolbar-btn-code:active,
+.toolbar-btn-strikethrough:active,
+.toolbar-btn-bullet:active,
+.toolbar-btn-number:active {
+    background: #4f8cff;
+    color: #fff;
+    border-color: #4f8cff;
+    opacity: 1;
+}
+
+/* Unified disabled state for all toolbar buttons */
+.toolbar-btn:disabled,
+.toolbar-headings-btn:disabled,
+.toolbar-headings-popover-btn:disabled,
+.toolbar-btn-bold:disabled,
+.toolbar-btn-italic:disabled,
+.toolbar-btn-code:disabled,
+.toolbar-btn-strikethrough:disabled,
+.toolbar-btn-bullet:disabled,
+.toolbar-btn-number:disabled {
+    background: #555;
+    color: #aaa;
+    border-color: #555;
+    opacity: 0.6;
+}
+
+/* Icon styling for buttons (if using icons) */
+.toolbar-btn .icon,
+.toolbar-headings-btn .icon,
+.toolbar-headings-popover-btn .icon {
+    margin-right: 4px;
+    width: 16px;
+    height: 16px;
+}
+
+/* Toolbar container styling */
+.toolbar {
+    padding: 2px 0px 2px 10px;
+    border-bottom: 0px solid #444;
+    display: flex;
+    gap: 5px;
+}
+
+/* Separator styling */
+.toolbar-separator {
+    width: 2px;
+    background: #444;
+    margin: 0 4px;
+}
+
+/* Popover styling */
+.toolbar-popover {
+    background: #23272e;
+    border: 1px solid #444;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+/* Add more rules for advanced control as needed */

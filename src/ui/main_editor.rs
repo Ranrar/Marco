@@ -4,7 +4,7 @@ use crate::logic::parser::MarkdownSyntaxMap;
 use glib::ControlFlow;
 /// Wires up debounced footer updates to buffer events
 pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels>, syntax_map: Rc<std::cell::RefCell<Option<MarkdownSyntaxMap>>>, insert_mode_state: Rc<RefCell<bool>>) {
-    use std::cell::{Cell, RefCell};
+    use std::cell::{Cell};
     let debounce_ms = 300;
 
     // State variable for insert/overwrite mode (true = insert, false = overwrite)
@@ -125,11 +125,11 @@ pub fn create_editor_with_preview(
         let style_scheme = tm.current_editor_scheme();
         let font_family = tm.settings.appearance.as_ref()
             .and_then(|a| a.ui_font.as_deref())
-            .unwrap_or("Fira Mono").to_string();
+            .unwrap_or("Fira Mono").to_string(); // default font name
         let font_size_pt = tm.settings.appearance.as_ref()
             .and_then(|a| a.ui_font_size)
             .map(|v| v as f64)
-            .unwrap_or(14.0);
+            .unwrap_or(12.0);       // default font size
         (style_scheme, font_family, font_size_pt)
     };
 

@@ -1,3 +1,7 @@
+/// Sets the height of the menu widget (Box or similar)
+pub fn set_menu_height(menu_box: &gtk4::Box, height: i32) {
+    menu_box.set_height_request(height);
+}
 // Helper to convert LayoutState to a human-readable string
 fn layout_state_label(state: LayoutState) -> &'static str {
     match state {
@@ -102,7 +106,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     titlebar.set_margin_bottom(0);
     titlebar.set_margin_start(0);
     titlebar.set_margin_end(0);
-    titlebar.set_height_request(32);
+    set_menu_height(&titlebar, 0); // Minimum height, matches footer
 
     // App icon (left)
     let icon = Image::from_file("src/assets/graphies/favicon.png");

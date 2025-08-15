@@ -58,14 +58,8 @@ fn build_ui(app: &Application) {
     let settings_path = config_dir.join("src/assets/settings.ron");
     let settings = Settings::load_from_file(settings_path.to_str().unwrap())
         .unwrap_or_default();
-    // Load flat button and window control CSS
-    use gtk4::{CssProvider, gdk::Display};
-    let provider = CssProvider::new();
-    gtk4::style_context_add_provider_for_display(
-        &Display::default().unwrap(),
-        &provider,
-        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
+    // Load toolbar CSS from external file
+    toolbar::load_toolbar_css_from_file();
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)
@@ -123,6 +117,7 @@ fn build_ui(app: &Application) {
     // Create basic UI components (structure only)
     let toolbar = toolbar::create_toolbar_structure();
     toolbar.add_css_class("toolbar");
+    toolbar::set_toolbar_height(&toolbar, 0); // Minimum height, matches footer
     // --- Determine correct HTML preview theme based on settings and app theme ---
     use crate::logic::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
