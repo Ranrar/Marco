@@ -151,17 +151,18 @@ fn build_ui(app: &Application) {
         *active_schema_map.borrow_mut() = Some(map);
     }
 
-    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer) = create_editor_with_preview(
+    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer, insert_mode_state) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         theme_manager.clone(),
-        Rc::clone(&theme_mode)
+        Rc::clone(&theme_mode),
+        footer_labels_rc.clone()
     );
 
     // Wire up live footer updates using the actual editor buffer
     // Wire footer updates directly: wire_footer_updates will run callbacks on
     // the main loop and call `apply_footer_update` directly.
-    wire_footer_updates(&editor_buffer, footer_labels_rc.clone(), active_schema_map.clone());
+    wire_footer_updates(&editor_buffer, footer_labels_rc.clone(), active_schema_map.clone(), insert_mode_state.clone());
     split.add_css_class("split-view");
 
     // Closure to trigger an immediate footer syntax update using the active schema map
@@ -178,8 +179,8 @@ fn build_ui(app: &Application) {
             test_counter.set(count);
             
             // Update with test values to make changes obvious
-            crate::footer::update_cursor_pos(&labels, count + 10, count + 20);
-            crate::footer::update_line_count(&labels, count + 5);
+            crate::footer::update_cursor_row(&labels, count + 10);
+            crate::footer::update_cursor_col(&labels, count + 20);
             crate::footer::update_word_count(&labels, count * 10);
             crate::footer::update_char_count(&labels, count * 50);
             crate::footer::update_encoding(&labels, &format!("TEST-{}", count));
@@ -205,16 +206,7 @@ fn build_ui(app: &Application) {
         }
     });
 
-    // Add a small test button to manually trigger the footer update for debugging
-    let test_footer_btn = gtk4::Button::with_label("Trigger Footer Update");
-    {
-        let tf = trigger_footer_update.clone();
-        test_footer_btn.connect_clicked(move |_| {
-            (tf)();
-        });
-    }
-    // Put the button into the toolbar so it's visible for manual testing
-    toolbar.append(&test_footer_btn);
+    // test footer update button removed
 
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);

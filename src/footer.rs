@@ -31,7 +31,7 @@ pub enum FooterUpdate {
     Snapshot {
         row: usize,
         col: usize,
-        lines: usize,
+    // lines removed
         words: usize,
         chars: usize,
         syntax_display: String,
@@ -42,8 +42,8 @@ pub enum FooterUpdate {
 
 #[derive(Clone)]
 pub struct FooterLabels {
-    pub cursor_pos: Label,
-    pub line_count: Label,
+    pub cursor_row: Label,
+    pub cursor_col: Label,
     pub encoding: Label,
     pub insert_mode: Label,
     pub formatting: Label,
@@ -71,19 +71,21 @@ pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String
     }
 }
 
-/// Updates the row and column label
-pub fn update_cursor_pos(labels: &FooterLabels, row: usize, col: usize) {
-    let text = format!("Row {}, Column {}", row, col);
-    eprintln!("[footer] update_cursor_pos called: {}", text);
-    set_label_text(&labels.cursor_pos, text);
+/// Update the row label independently
+pub fn update_cursor_row(labels: &FooterLabels, row: usize) {
+    let text = format!("Row: {}", row);
+    eprintln!("[footer] update_cursor_row called: {}", text);
+    set_label_text(&labels.cursor_row, text);
 }
 
-/// Updates the line count label
-pub fn update_line_count(labels: &FooterLabels, lines: usize) {
-    let text = format!("{} line{}", lines, if lines == 1 { "" } else { "s" });
-    eprintln!("[footer] update_line_count called: {}", text);
-    set_label_text(&labels.line_count, text);
+/// Update the column label independently
+pub fn update_cursor_col(labels: &FooterLabels, col: usize) {
+    let text = format!("Column: {}", col);
+    eprintln!("[footer] update_cursor_col called: {}", text);
+    set_label_text(&labels.cursor_col, text);
 }
+
+// line count removed: no-op omitted
 
 /// Updates the encoding label
 pub fn update_encoding(labels: &FooterLabels, encoding: &str) {
@@ -122,9 +124,9 @@ pub fn update_char_count(labels: &FooterLabels, chars: usize) {
 /// Apply a FooterUpdate snapshot to the labels. Must be called on main context.
 pub fn apply_footer_update(labels: &FooterLabels, update: FooterUpdate) {
     match update {
-        FooterUpdate::Snapshot { row, col, lines, words, chars, syntax_display, encoding, is_insert } => {
-            update_cursor_pos(labels, row, col);
-            update_line_count(labels, lines);
+    FooterUpdate::Snapshot { row, col, /*lines,*/ words, chars, syntax_display, encoding, is_insert } => {
+            update_cursor_row(labels, row);
+            update_cursor_col(labels, col);
             update_word_count(labels, words);
             update_char_count(labels, chars);
             // Use consistent pattern: call the proper update function instead of set_label_text directly
@@ -201,7 +203,7 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     footer_box.set_can_focus(false);
     footer_box.set_vexpand(false);
     footer_box.set_hexpand(true);
-    footer_box.set_height_request(30); // Minimum height to ensure visibility
+    footer_box.set_height_request(0); // Minimum height
     
     // Add CSS class for potential styling
     footer_box.add_css_class("footer");
@@ -228,13 +230,14 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     char_count_label.set_visible(true);
     footer_box.append(&char_count_label);
 
-    let cursor_pos_label = Label::new(Some("Row 1, Column 1"));
-    cursor_pos_label.set_visible(true);
-    footer_box.append(&cursor_pos_label);
+    let cursor_row_label = Label::new(Some("Row 1"));
+    cursor_row_label.set_visible(true);
+    footer_box.append(&cursor_row_label);
 
-    let line_count_label = Label::new(Some("1 line"));
-    line_count_label.set_visible(true);
-    footer_box.append(&line_count_label);
+    let cursor_col_label = Label::new(Some("Column 1"));
+    cursor_col_label.set_visible(true);
+    footer_box.append(&cursor_col_label);
+
 
     let encoding_label = Label::new(Some("UTF-8"));
     encoding_label.set_visible(true);
@@ -245,8 +248,8 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     footer_box.append(&insert_mode_label);
 
     let labels = FooterLabels {
-        cursor_pos: cursor_pos_label,
-        line_count: line_count_label,
+        cursor_row: cursor_row_label,
+        cursor_col: cursor_col_label,
         encoding: encoding_label,
         insert_mode: insert_mode_label,
         formatting: formatting_label,
@@ -324,17 +327,18 @@ mod tests {
         }
 
         // Create Label widgets and a FooterLabels instance
-        let formatting_label = gtk4::Label::new(Some(""));
-        let word_count_label = gtk4::Label::new(Some(""));
-        let char_count_label = gtk4::Label::new(Some(""));
-        let cursor_pos_label = gtk4::Label::new(Some(""));
-        let line_count_label = gtk4::Label::new(Some(""));
+    let formatting_label = gtk4::Label::new(Some(""));
+    let word_count_label = gtk4::Label::new(Some(""));
+    let char_count_label = gtk4::Label::new(Some(""));
+    let cursor_row_label = gtk4::Label::new(Some(""));
+    let cursor_col_label = gtk4::Label::new(Some(""));
+    // line_count removed
         let encoding_label = gtk4::Label::new(Some(""));
         let insert_mode_label = gtk4::Label::new(Some(""));
 
         let labels = FooterLabels {
-            cursor_pos: cursor_pos_label.clone(),
-            line_count: line_count_label.clone(),
+            cursor_row: cursor_row_label.clone(),
+            cursor_col: cursor_col_label.clone(),
             encoding: encoding_label.clone(),
             insert_mode: insert_mode_label.clone(),
             formatting: formatting_label.clone(),
@@ -343,8 +347,9 @@ mod tests {
         };
 
         // Call update helpers
-        update_cursor_pos(&labels, 3, 7);
-        update_line_count(&labels, 42);
+    update_cursor_row(&labels, 3);
+    update_cursor_col(&labels, 7);
+    // update_line_count removed
         update_encoding(&labels, "UTF-16");
         update_insert_mode(&labels, false);
         update_word_count(&labels, 123);
@@ -355,9 +360,9 @@ mod tests {
         update_syntax_trace(&labels, "plain text", &map);
 
         // Verify Label texts
-        assert!(cursor_pos_label.text().contains("Row 3"));
-        assert!(cursor_pos_label.text().contains("Column 7"));
-        assert_eq!(line_count_label.text().as_str(), "42 lines" .to_string().as_str(), "line count text mismatch");
+    assert!(cursor_row_label.text().contains("Row: 3"));
+    assert!(cursor_col_label.text().contains("Column: 7"));
+    // line count assertions removed
         assert_eq!(encoding_label.text().as_str(), "UTF-16");
         assert_eq!(insert_mode_label.text().as_str(), "OVR");
         assert_eq!(word_count_label.text().as_str(), "Words: 123");
@@ -377,14 +382,15 @@ mod tests {
         let formatting_label = gtk4::Label::new(Some(""));
         let word_count_label = gtk4::Label::new(Some(""));
         let char_count_label = gtk4::Label::new(Some(""));
-        let cursor_pos_label = gtk4::Label::new(Some(""));
-        let line_count_label = gtk4::Label::new(Some(""));
+        let cursor_row_label = gtk4::Label::new(Some(""));
+        let cursor_col_label = gtk4::Label::new(Some(""));
+    // line_count removed
         let encoding_label = gtk4::Label::new(Some(""));
         let insert_mode_label = gtk4::Label::new(Some(""));
 
         let labels = FooterLabels {
-            cursor_pos: cursor_pos_label.clone(),
-            line_count: line_count_label.clone(),
+            cursor_row: cursor_row_label.clone(),
+            cursor_col: cursor_col_label.clone(),
             encoding: encoding_label.clone(),
             insert_mode: insert_mode_label.clone(),
             formatting: formatting_label.clone(),
@@ -395,7 +401,7 @@ mod tests {
         let update = FooterUpdate::Snapshot {
             row: 5,
             col: 10,
-            lines: 25,
+            // lines removed
             words: 200,
             chars: 1000,
             syntax_display: "Format: Test syntax".to_string(),
@@ -405,10 +411,9 @@ mod tests {
 
         apply_footer_update(&labels, update);
 
-        // Verify all labels were updated via the snapshot
-        assert!(cursor_pos_label.text().contains("Row 5"));
-        assert!(cursor_pos_label.text().contains("Column 10"));
-        assert!(line_count_label.text().contains("25 lines"));
+    // Verify all labels were updated via the snapshot
+    assert!(cursor_row_label.text().contains("Row: 5"));
+    assert!(cursor_col_label.text().contains("Column: 10"));
         assert!(word_count_label.text().contains("Words: 200"));
         assert!(char_count_label.text().contains("Characters: 1000"));
         assert!(formatting_label.text().contains("Format: Test syntax"));

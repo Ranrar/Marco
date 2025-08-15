@@ -3,30 +3,33 @@ use crate::logic::parser::MarkdownSyntaxMap;
 // No need to import source_remove; use SourceId::remove()
 use glib::ControlFlow;
 /// Wires up debounced footer updates to buffer events
-pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels>, syntax_map: Rc<std::cell::RefCell<Option<MarkdownSyntaxMap>>>) {
-    use std::cell::Cell;
+pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels>, syntax_map: Rc<std::cell::RefCell<Option<MarkdownSyntaxMap>>>, insert_mode_state: Rc<RefCell<bool>>) {
+    use std::cell::{Cell, RefCell};
     let debounce_ms = 300;
-    
+
+    // State variable for insert/overwrite mode (true = insert, false = overwrite)
+    // Accept insert_mode_state as an argument instead of creating it here
+
     // Separate timeout IDs for each event type to avoid conflicts
     let buffer_timeout_id: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
     let cursor_timeout_id: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
 
     let update_footer = {
-        let buffer = buffer.clone();
-        let syntax_map = Rc::clone(&syntax_map);
-        move || {
+    let buffer = buffer.clone();
+    let syntax_map = Rc::clone(&syntax_map);
+    let insert_mode_state = Rc::clone(&insert_mode_state);
+    move || {
             eprintln!("[wire_footer_updates] update_footer closure called");
             // Gather snapshot of footer data
             let offset = buffer.cursor_position();
             let iter = buffer.iter_at_offset(offset);
             let row = (iter.line() + 1) as usize;
             let col = (iter.line_offset() + 1) as usize;
-            let lines = buffer.line_count() as usize;
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
             let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
             let char_count = text.chars().count();
-            eprintln!("[wire_footer_updates] Calculated stats - Row: {}, Col: {}, Lines: {}, Words: {}, Chars: {}", 
-                row, col, lines, word_count, char_count);
+            eprintln!("[wire_footer_updates] Calculated stats - Row: {}, Col: {}, Words: {}, Chars: {}", 
+                row, col, word_count, char_count);
             // Syntax trace for current line
             let current_line = iter.line();
             let start_iter_opt = buffer.iter_at_line(current_line);
@@ -43,7 +46,8 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
                 crate::footer::format_syntax_trace(&line_text, &dummy_map)
             };
 
-            let msg = FooterUpdate::Snapshot { row, col, lines, words: word_count, chars: char_count, syntax_display, encoding: "UTF-8".to_string(), is_insert: true };
+            let is_insert = *insert_mode_state.borrow();
+            let msg = FooterUpdate::Snapshot { row, col, words: word_count, chars: char_count, syntax_display, encoding: "UTF-8".to_string(), is_insert };
             eprintln!("[wire_footer_updates] About to call apply_footer_update with: {:?}", msg);
             // Apply directly on the main context: wire_footer_updates runs in main-loop callbacks
             crate::footer::apply_footer_update(&labels, msg);
@@ -109,8 +113,9 @@ pub fn create_editor_with_preview(
     preview_theme_filename: &str,
     preview_theme_dir: &str,
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
-    theme_mode: Rc<RefCell<String>>
-) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>, Box<dyn Fn(&str)>, Box<dyn Fn(&str)>, sourceview5::Buffer) {
+    theme_mode: Rc<RefCell<String>>,
+    labels: Rc<FooterLabels>
+) -> (Paned, webkit6::WebView, Rc<RefCell<String>>, Box<dyn Fn()>, Box<dyn Fn(&str)>, Box<dyn Fn(&str)>, sourceview5::Buffer, Rc<RefCell<bool>>) {
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
 
@@ -129,10 +134,33 @@ pub fn create_editor_with_preview(
     };
 
     // Editor (left)
-        let (editor_widget, buffer, _) = render_editor_with_view(style_scheme.as_ref(), &font_family, font_size_pt);
+    let (editor_widget, buffer, source_view) = render_editor_with_view(style_scheme.as_ref(), &font_family, font_size_pt);
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
+
+    // Insert/overwrite mode state
+    let insert_mode_state: Rc<RefCell<bool>> = Rc::new(RefCell::new(true));
+
+    // Wire up key event handler for Insert key using EventControllerKey
+    use gtk4::gdk::Key;
+    use glib::Propagation;
+    let event_controller = gtk4::EventControllerKey::new();
+    let insert_mode_state_clone = Rc::clone(&insert_mode_state);
+    let labels_clone = Rc::clone(&labels);
+    let source_view_clone = source_view.clone();
+    event_controller.connect_key_pressed(move |_controller, keyval, _keycode, _state| {
+        if keyval == Key::Insert {
+            let mut mode = insert_mode_state_clone.borrow_mut();
+            *mode = !*mode;
+            // Set overwrite mode in the editor view
+            source_view_clone.set_overwrite(!*mode); // overwrite=true when mode==false
+            crate::footer::update_insert_mode(&labels_clone, *mode);
+            return Propagation::Stop;
+        }
+        Propagation::Proceed
+    });
+    source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
     // Load the current HTML preview theme CSS
     use std::fs;
@@ -210,7 +238,7 @@ pub fn create_editor_with_preview(
     }) as Box<dyn Fn(&str)>;
 
     // Return the paned, webview, refresh closure, editor theme update, preview theme update, and buffer
-    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>, update_theme, update_preview_theme, buffer_rc.as_ref().clone())
+    (paned, webview, css_rc, Box::new(refresh_preview) as Box<dyn Fn()>, update_theme, update_preview_theme, buffer_rc.as_ref().clone(), insert_mode_state)
 }
 use sourceview5::prelude::*; // For set_show_line_numbers
 
