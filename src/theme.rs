@@ -11,15 +11,6 @@ use crate::logic::crossplatforms::is_dark_mode_supported;
 use dark_light::Mode as SystemMode;
 use sourceview5::{StyleSchemeManager, StyleScheme};
 
-// All settings logic now uses robust struct from Swanson.rs
-
-/// Color palette for SourceView (deprecated - kept for backwards compatibility)
-#[derive(Debug, Clone, PartialEq)]
-pub struct Palette {
-    pub background: &'static str,
-    pub text: &'static str,
-}
-
 /// List all available HTML preview themes (*.css) in /themes/
 pub fn list_preview_themes(theme_dir: &Path) -> Vec<String> {
     fs::read_dir(theme_dir)

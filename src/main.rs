@@ -13,7 +13,6 @@ pub mod ui;
 
 
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
-use sourceview5::Buffer;
 use crate::ui::main_editor::{create_editor_with_preview, wire_footer_updates};
 use std::rc::Rc;
 use std::cell::RefCell;

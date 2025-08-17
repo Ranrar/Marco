@@ -22,33 +22,6 @@ enum LayoutState {
     EditorAndWin,   // D: Editor + view in separate window
     ViewWinOnly,    // E: View in separate window only
 }
-// Removed icondata imports
-use gtk4::gdk_pixbuf;
-use gtk4::gdk::Texture;
-use gtk4::prelude::PixbufLoaderExt;
-
-/// Helper to create a GTK4 Image from icondata SVG with a given fill color
-fn svg_icon_image(icon: &'static icondata_core::IconData) -> gtk4::Image {
-    // Compose SVG string from IconData fields
-    let width = icon.width.unwrap_or("24");
-    let height = icon.height.unwrap_or("24");
-    let view_box = icon.view_box.unwrap_or("0 0 24 24");
-    // Replace all fill attributes in the path data with fill="currentColor"
-    let re = regex::Regex::new(r#"fill=\"[^\"]*\""#).unwrap();
-    let data_colored = re.replace_all(icon.data, "fill=\"currentColor\"").to_string();
-    let svg = format!(
-        "<svg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}' viewBox='{vb}' fill='currentColor'>{data}</svg>",
-        w=width, h=height, vb=view_box, data=data_colored
-    );
-    let loader = gdk_pixbuf::PixbufLoader::with_type("svg").unwrap();
-    loader.write(svg.as_bytes()).unwrap();
-    loader.close().unwrap();
-    let pixbuf = loader.pixbuf().unwrap();
-    let texture = Texture::for_pixbuf(&pixbuf);
-    gtk4::Image::from_paintable(Some(&texture))
-}
-// use gtk4::prelude::*;
-
 
 use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle};
 use gtk4::gio;
@@ -109,7 +82,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     set_menu_height(&titlebar, 0); // Minimum height, matches footer
 
     // App icon (left)
-    let icon = Image::from_file("src/assets/graphies/favicon.png");
+    let icon = Image::from_file("src/assets/icons/favicon.png");
     icon.set_pixel_size(20);
     icon.set_halign(Align::Start);
     icon.set_margin_start(6);
@@ -160,9 +133,9 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
         // IoEyeSharp: filled only (fill, no stroke)
         let sharp_path = "M12 4.5C7.11 4.5 2.73 7.61 1 12c1.73 4.39 6.11 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6.11-7.5-11-7.5zm0 13a5 5 0 1 1 0-10 5 5 0 0 1 0 10z";
         let doc = if outline {
-            // IoEyeOutline: three paths, all stroke, no fill, extra thin lines
+            // Use outline_path for the outer shape, and split the other paths as before
             let outer = Path::new()
-                .set("d", "M1 12C2.73 7.61 7.11 4.5 12 4.5s9.27 3.11 11 7.5c-1.73 4.39-6.11 7.5-11 7.5S2.73 16.39 1 12z")
+                .set("d", outline_path)
                 .set("fill", "none")
                 .set("stroke", color)
                 .set("stroke-width", 0.8);
@@ -182,9 +155,9 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
                 .add(eye)
                 .add(pupil)
         } else {
-            // IoEyeSharp: outline only (stroke, no fill), using its own path
+            // Use sharp_path for the filled shape
             let path = Path::new()
-                .set("d", "M12 4.5C7.11 4.5 2.73 7.61 1 12c1.73 4.39 6.11 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6.11-7.5-11-7.5zm0 13a5 5 0 1 1 0-10 5 5 0 0 1 0 10z")
+                .set("d", sharp_path)
                 .set("fill", "none")
                 .set("stroke", color)
                 .set("stroke-width", 0.8);

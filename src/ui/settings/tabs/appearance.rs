@@ -2,7 +2,6 @@
 
 use std::path::PathBuf;
 use gtk4::prelude::*;
-use gtk4::Box as GtkBox;
 use std::rc::Rc;
 use std::cell::RefCell;
 
