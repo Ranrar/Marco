@@ -11,10 +11,9 @@
 .toolbar-btn-strikethrough,
 .toolbar-btn-bullet,
 .toolbar-btn-number {
+    /* Use minimum sizes; avoid max-* which is not supported by GTK CSS */
     min-width: 16px;
-    max-width: 32px;
     min-height: 16px;
-    max-height: 32px;
     padding: 2px 6px;
     margin: 2px;
     border-radius: 6px;
@@ -80,21 +79,22 @@
 .toolbar-headings-btn .icon,
 .toolbar-headings-popover-btn .icon {
     margin-right: 4px;
-    width: 16px;
-    height: 16px;
+    /* prefer min-size for GTK compatibility */
+    min-width: 16px;
+    min-height: 16px;
 }
 
 /* Toolbar container styling */
 .toolbar {
     padding: 2px 0px 2px 10px;
     border-bottom: 0px solid #444;
-    display: flex;
-    gap: 5px;
+    /* GTK CSS does not support `display: flex` or `gap`; use spacing on the container in code if needed */
 }
 
 /* Separator styling */
 .toolbar-separator {
-    width: 2px;
+    /* Use min-width for compatibility with GTK CSS */
+    min-width: 2px;
     background: #444;
     margin: 0 4px;
 }

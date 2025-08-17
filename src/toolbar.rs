@@ -48,7 +48,6 @@ pub fn create_toolbar_structure() -> Box {
         popover_ref.popup();
     });
     toolbar.append(&headings_button);
-    toolbar.append(&headings_popover);
 
     // Separator
     let sep1 = Separator::new(Orientation::Vertical);
