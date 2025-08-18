@@ -1,3 +1,29 @@
+/* Icon font for window control buttons */
+/* Icon font for window control buttons (IcoMoon) */
+.icon-font {
+    font-family: 'icomoon', 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    font-size: 18px;
+    font-weight: normal;
+    color: #ffd700; /* gold for normal state */
+    letter-spacing: 0;
+    vertical-align: middle;
+    padding: 0 4px;
+    transition: color 0.2s;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    user-select: none;
+    cursor: pointer;
+}
+.window-control-btn:hover .icon-font {
+    color: #2196f3;
+}
+.window-control-btn:active .icon-font {
+    color: #ff1744;
+}
+.window-control-btn:disabled .icon-font {
+    color: #888;
+    opacity: 0.5;
+}
 /* menu.css - Styles for menu bar, fonts, and custom icons (normal, hover, active, disabled) */
 
 /* Menu bar container */

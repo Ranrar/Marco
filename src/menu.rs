@@ -8,7 +8,6 @@ use std::rc::{Rc, Weak};
 use crate::ui::menu_items::layoutstate::{LayoutState, layout_state_label};
 
 use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle};
-use glib::ControlFlow;
 use gtk4::gio;
 use gtk4::PopoverMenuBar;
 
@@ -244,90 +243,55 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
 
     // --- Window controls (rightmost) ---
 
-    // Minimize button using provided minimize SVG asset
-    let btn_min = Button::new();
-    btn_min.set_tooltip_text(Some("Minimize"));
-    btn_min.set_valign(Align::Center);
-    btn_min.set_margin_start(1);
-    btn_min.set_margin_end(1);
-    btn_min.set_focusable(false);
-    btn_min.set_can_focus(false);
-    btn_min.set_has_frame(false);
-    btn_min.add_css_class("topright-btn");
-    btn_min.add_css_class("window-control-btn");
-    let img_min = gtk4::Image::from_file("src/assets/icons/minimize.svg");
-    img_min.set_pixel_size(16);
-    btn_min.set_child(Some(&img_min));
-    titlebar.append(&btn_min);
 
-    // Maximize/Exit-maximize button with dynamic icon
-    let btn_max = Button::new();
-    btn_max.set_tooltip_text(Some("Maximize"));
-    btn_max.set_valign(Align::Center);
-    btn_max.set_margin_start(1);
-    btn_max.set_margin_end(1);
-    btn_max.set_focusable(false);
-    btn_max.set_can_focus(false);
-    btn_max.set_has_frame(false);
-    btn_max.add_css_class("topright-btn");
-    btn_max.add_css_class("window-control-btn");
+    use gtk4::Label;
 
-    // Helper to set icon based on window state (always create a new Image)
-    fn update_max_icon(window: &gtk4::ApplicationWindow, btn: &Button) {
-        if window.is_maximized() {
-            btn.set_tooltip_text(Some("Exit Fullscreen"));
-            let img_exit = gtk4::Image::from_file("src/assets/icons/fullscreen_exit.svg");
-            img_exit.set_pixel_size(16);
-            btn.set_child(Some(&img_exit));
-        } else {
-            btn.set_tooltip_text(Some("Maximize"));
-            let img_full = gtk4::Image::from_file("src/assets/icons/fullscreen.svg");
-            img_full.set_pixel_size(16);
-            btn.set_child(Some(&img_full));
-        }
+    // Helper to create a button with icon font
+    fn icon_button(label_text: &str, tooltip: &str) -> Button {
+    let markup = format!("<span font_family='icomoon'>{}</span>", label_text);
+    let label = Label::new(None);
+    label.set_markup(&markup);
+    label.set_valign(Align::Center);
+    label.add_css_class("icon-font");
+    let btn = Button::new();
+    btn.set_child(Some(&label));
+    btn.set_tooltip_text(Some(tooltip));
+    btn.set_valign(Align::Center);
+    btn.set_margin_start(1);
+    btn.set_margin_end(1);
+    btn.set_focusable(false);
+    btn.set_can_focus(false);
+    btn.set_has_frame(false);
+    btn.add_css_class("topright-btn");
+    btn.add_css_class("window-control-btn");
+    btn
     }
 
-    // Initial icon
-    update_max_icon(window, &btn_max);
+    // IcoMoon Unicode glyphs for window controls
+    // | Unicode | Icon Name             | Description   |
+    // |---------|-----------------------|--------------|
+    // | \u{34}  | marco-minimize        | Minimize      |
+    // | \u{36}  | marco-fullscreen      | Maximize      |
+    // | \u{35}  | marco-fullscreen_exit | Exit maximize |
+    // | \u{39}  | marco-close           | Close         |
 
-    // Toggle maximize/unmaximize and update icon after state change
-    let window_clone = window.clone();
-    let btn_max_clone2 = btn_max.clone();
-    btn_max.connect_clicked(move |_| {
-        if window_clone.is_maximized() {
-            window_clone.unmaximize();
-        } else {
-            window_clone.maximize();
-        }
-        // Defer icon update to allow window state to change
-        let win = window_clone.clone();
-        let btn = btn_max_clone2.clone();
-        glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
-            update_max_icon(&win, &btn);
-            ControlFlow::Break
-        });
-    });
+    let btn_min = icon_button("\u{34}", "Minimize");
+    let btn_max = icon_button("\u{36}", "Maximize");
+    let btn_exit_max = icon_button("\u{35}", "Exit Fullscreen");
+    let btn_close = icon_button("\u{39}", "Close");
+
+    titlebar.append(&btn_min);
     titlebar.append(&btn_max);
-
-    // Close button using provided SVG asset
-    let btn_close = Button::new();
-    btn_close.set_tooltip_text(Some("Close"));
-    btn_close.set_valign(Align::Center);
-    btn_close.set_margin_start(1);
-    btn_close.set_margin_end(10);
-    btn_close.set_focusable(false);
-    btn_close.set_can_focus(false);
-    btn_close.set_has_frame(false);
-    btn_close.add_css_class("topright-btn");
-    btn_close.add_css_class("window-control-btn");
-    let img_close = gtk4::Image::from_file("src/assets/icons/close.svg");
-    img_close.set_pixel_size(16);
-    btn_close.set_child(Some(&img_close));
+    titlebar.append(&btn_exit_max);
     titlebar.append(&btn_close);
 
     // Connect window control actions
     let win_clone = window.clone();
     btn_min.connect_clicked(move |_| { win_clone.minimize(); });
+    let win_clone = window.clone();
+    btn_max.connect_clicked(move |_| { win_clone.maximize(); });
+    let win_clone = window.clone();
+    btn_exit_max.connect_clicked(move |_| { win_clone.unmaximize(); });
     let win_clone = window.clone();
     btn_close.connect_clicked(move |_| { win_clone.close(); });
 

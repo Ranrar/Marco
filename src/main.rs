@@ -23,6 +23,31 @@ use crate::logic::parser::MarkdownSyntaxMap;
 const APP_ID: &str = "com.example.Marco";
 
 fn main() -> glib::ExitCode {
+    // Asset path detection and environment setup
+    use crate::logic::asset_path::{get_asset_dir_checked, get_font_path, get_settings_path};
+    let asset_dir = match get_asset_dir_checked() {
+        Ok(asset_dir) => {
+            println!("Asset directory set: {}", asset_dir.display());
+            asset_dir
+        }
+        Err(e) => {
+            eprintln!("Error detecting asset directory: {}", e);
+            std::process::exit(1);
+        }
+    };
+    // Set local font dir for Fontconfig/Pango
+    crate::logic::icon_loader::set_local_font_dir(asset_dir.to_str().unwrap());
+
+    // Example: Load font and settings paths
+    match get_font_path("ui_menu.ttf") {
+        Ok(font_path) => println!("Font path: {}", font_path.display()),
+        Err(e) => eprintln!("Font error: {}", e),
+    }
+    match get_settings_path() {
+        Ok(settings_path) => println!("Settings path: {}", settings_path.display()),
+        Err(e) => eprintln!("Settings error: {}", e),
+    }
+
     // Try to use Vulkan renderer first
     std::env::set_var("GSK_RENDERER", "vulkan");
     eprintln!("[DEBUG] Trying GSK_RENDERER=vulkan");
@@ -42,8 +67,8 @@ fn main() -> glib::ExitCode {
         let app = Application::builder().application_id(APP_ID).build();
         app.connect_activate(|app| build_ui(app));
         let gl_exit_code = app.run_with_args(&no_args);
-    eprintln!("[DEBUG] OpenGL renderer exit code: {:?}", gl_exit_code);
-    gl_exit_code.into()
+        eprintln!("[DEBUG] OpenGL renderer exit code: {:?}", gl_exit_code);
+        gl_exit_code.into()
     } else {
         eprintln!("[DEBUG] Vulkan renderer succeeded");
         exit_code
@@ -59,15 +84,16 @@ fn build_ui(app: &Application) {
         .unwrap_or_default();
 
     // Load and apply menu.css for menu and titlebar styling
-    use gtk4::{CssProvider, StyleContext};
+    use gtk4::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
+    use gtk4 as gtk;
     use gtk4::gdk::Display;
     let css_provider = CssProvider::new();
     css_provider.load_from_path("src/assets/themes/ui_elements/menu.css");
     if let Some(display) = Display::default() {
-        StyleContext::add_provider_for_display(
+        gtk::style_context_add_provider_for_display(
             &display,
             &css_provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
     }
 
@@ -75,10 +101,10 @@ fn build_ui(app: &Application) {
     let toolbar_css_provider = CssProvider::new();
     toolbar_css_provider.load_from_path("src/assets/themes/ui_elements/toolbar.css");
     if let Some(display) = Display::default() {
-        StyleContext::add_provider_for_display(
+        gtk::style_context_add_provider_for_display(
             &display,
             &toolbar_css_provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
     }
     // Create the main window
