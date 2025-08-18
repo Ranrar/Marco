@@ -97,21 +97,3 @@ pub fn create_toolbar_structure() -> Box {
 
     toolbar
 }
-
-/// Loads toolbar button CSS from external file
-pub fn load_toolbar_css_from_file() {
-    use gtk4::{CssProvider, gdk::Display};
-    use std::path::Path;
-    let provider = CssProvider::new();
-    let css_path = "src/assets/themes/ui_elements/toolbar.css";
-    if Path::new(css_path).exists() {
-        provider.load_from_path(css_path);
-        gtk4::style_context_add_provider_for_display(
-            &Display::default().unwrap(),
-            &provider,
-            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
-    } else {
-        eprintln!("[toolbar] CSS file not found: {}", css_path);
-    }
-}

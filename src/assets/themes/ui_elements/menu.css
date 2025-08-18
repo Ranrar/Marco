@@ -1,0 +1,115 @@
+/* menu.css - Styles for menu bar, fonts, and custom icons (normal, hover, active, disabled) */
+
+/* Menu bar container */
+.menubar, .titlebar {
+    min-height: 32px;
+    max-height: 32px;
+    background: #23272e;
+    border-bottom: 0px solid #444;
+    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    font-size: 15px;
+    color: #e0e0e0;
+}
+
+/* Menu item base style */
+.menuitem {
+    padding: 0 12px;
+    border-radius: 4px;
+    background: transparent;
+    color: #e0e0e0;
+    transition: background 0.2s, color 0.2s;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* Menu item hover */
+.menuitem:hover {
+    background: #2c313a;
+    color: #ffffff;
+}
+
+/* Menu item active (pressed) */
+.menuitem:active {
+    background: #3a3f4b;
+    color: #ffd700;
+}
+
+/* Menu item disabled */
+.menuitem:disabled, .menuitem[disabled] {
+    background: transparent;
+    color: #888;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* Custom icon base style */
+
+.icon-svg {
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+    margin-right: 6px;
+    color: #ffd700; /* default gold for window controls */
+    transition: color 0.2s, filter 0.2s;
+    filter: none;
+}
+
+/* Icon hover */
+
+.menuitem:hover .icon-svg,
+.window-control-btn:hover .icon-svg {
+    color: #2196f3; /* blue on hover */
+    filter: brightness(1.2) drop-shadow(0 0 2px #2196f3);
+}
+
+/* Icon active */
+.menuitem:active .icon-svg,
+.window-control-btn:active .icon-svg {
+    color: #ff1744; /* red on active */
+    filter: brightness(1.4) drop-shadow(0 0 2px #ff1744) grayscale(20%);
+}
+
+/* Icon disabled */
+.menuitem:disabled .icon-svg,
+.menuitem[disabled] .icon-svg,
+.window-control-btn:disabled .icon-svg {
+    color: #888;
+    filter: grayscale(80%) opacity(0.5);
+}
+
+/* Window control buttons */
+.window-control-btn {
+    color: #ffd700; /* gold for normal state */
+    background: transparent;
+    border: none;
+    padding: 0 6px;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+}
+.window-control-btn:hover {
+    color: #2196f3; /* blue on hover */
+    background: transparent;
+}
+.window-control-btn:active {
+    color: #ff1744; /* red on active */
+    background: transparent;
+}
+.window-control-btn:disabled {
+    color: #888;
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Top right button style */
+.topright-btn {
+    margin-left: 2px;
+    margin-right: 2px;
+}
+
+/* Documentation:
+- .menubar, .titlebar: main menu/title bar container
+- .menuitem: menu item buttons
+- .menuicon: SVG or image icons inside menu items
+- .window-control-btn: minimize/maximize/close buttons
+- .topright-btn: spacing for top right controls
+*/

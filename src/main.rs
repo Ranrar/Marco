@@ -57,8 +57,30 @@ fn build_ui(app: &Application) {
     let settings_path = config_dir.join("src/assets/settings.ron");
     let settings = Settings::load_from_file(settings_path.to_str().unwrap())
         .unwrap_or_default();
-    // Load toolbar CSS from external file
-    toolbar::load_toolbar_css_from_file();
+
+    // Load and apply menu.css for menu and titlebar styling
+    use gtk4::{CssProvider, StyleContext};
+    use gtk4::gdk::Display;
+    let css_provider = CssProvider::new();
+    css_provider.load_from_path("src/assets/themes/ui_elements/menu.css");
+    if let Some(display) = Display::default() {
+        StyleContext::add_provider_for_display(
+            &display,
+            &css_provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
+
+    // Load and apply toolbar.css for toolbar styling
+    let toolbar_css_provider = CssProvider::new();
+    toolbar_css_provider.load_from_path("src/assets/themes/ui_elements/toolbar.css");
+    if let Some(display) = Display::default() {
+        StyleContext::add_provider_for_display(
+            &display,
+            &toolbar_css_provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)
