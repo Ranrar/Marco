@@ -1,54 +1,18 @@
 
-//! Utility for loading a local TTF icon font for GTK4 widgets using Fontconfig/Pango workaround.
-//! # IcoMoon Font Details
+//! Utilities for using a bundled IcoMoon TTF icon font with GTK/Pango.
 //!
-//! Font Family: "icomoon"
-//! Glyphs: Unicode 0x31–0x39 (characters '1'–'9')
+//! Font family: `icomoon` (glyphs U+31..U+39 map to the app icons):
+//! - U+31: split_scene_left (layout)
+//! - U+32: only_preview
+//! - U+33: only_editor
+//! - U+34: minimize
+//! - U+35: fullscreen_exit (restore)
+//! - U+36: fullscreen (maximize)
+//! - U+37: editor_preview (split)
+//! - U+38: detatch
+//! - U+39: close
 //!
-//! | Unicode | Icon Name                | Description           |
-//! |---------|--------------------------|----------------------|
-//! | 0x31    | marco-split_scene_left   | Show layout options   |
-//! | 0x32    | marco-only_preview       | Only preview          |
-//! | 0x33    | marco-only_editor        | Only editor           |
-//! | 0x34    | marco-minimize           | Minimize              |
-//! | 0x35    | marco-fullscreen_exit    | Exit maximize         |
-//! | 0x36    | marco-fullscreen         | Maximize              |
-//! | 0x37    | marco-editor_preview     | Standard layout       |
-//! | 0x38    | marco-detatch            | Detatch               |
-//! | 0x39    | marco-close              | Close                 |
-//!
-//! Usage Example:
-//! ```rust
-//! use pango::FontDescription;
-//! let font_desc = FontDescription::from_string("icomoon 16");
-//! label.set_font_desc(&font_desc);
-//! label.set_text("\u{31}"); // marco-split_scene_left
-//! ```
-//!
-//! This allows you to use a TTF icon font without installing it system-wide.
-//!
-//! Make sure to call these functions before initializing GTK.
-//!
-//! For more info, see: https://docs.rs/pango/latest/pango/struct.FontDescription.html
-//!
-//! Future helpers: font name extraction, reload, etc.
-//! For each font, specify its purpose, icon set, or usage notes. You can reference each by its name in `FontDescription::from_string("<font_name> <size>")`.
-//!
-//! Example for using font 3:
-//! ```rust
-//! let font_desc = FontDescription::from_string("ui_menu3 16");
-//! label.set_font_desc(&font_desc);
-//! ```
-//! ```
-//!
-//! This allows you to use a TTF icon font without installing it system-wide.
-//!
-//! Make sure to call these functions before initializing GTK.
-//!
-//! For more info, see: https://docs.rs/pango/latest/pango/struct.FontDescription.html
-//!
-//! Future helpers: font name extraction, reload, etc.
-// ...existing code...
+//! Call `set_local_font_dir` before initializing GTK so Fontconfig can find the bundled TTF.
 
 use std::env;
 

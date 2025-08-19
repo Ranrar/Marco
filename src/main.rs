@@ -48,31 +48,11 @@ fn main() -> glib::ExitCode {
         Err(e) => eprintln!("Settings error: {}", e),
     }
 
-    // Try to use Vulkan renderer first
-    std::env::set_var("GSK_RENDERER", "vulkan");
-    eprintln!("[DEBUG] Trying GSK_RENDERER=vulkan");
-
-    // Initialize GTK4 application
     let app = Application::builder().application_id(APP_ID).build();
-
     app.connect_activate(|app| build_ui(app));
-
     let no_args: [&str; 0] = [];
     let exit_code = app.run_with_args(&no_args);
-
-    // If Vulkan failed, fallback to OpenGL and restart
-    if exit_code != 0.into() {
-        eprintln!("[DEBUG] Vulkan renderer failed, retrying with GSK_RENDERER=gl");
-        std::env::set_var("GSK_RENDERER", "gl");
-        let app = Application::builder().application_id(APP_ID).build();
-        app.connect_activate(|app| build_ui(app));
-        let gl_exit_code = app.run_with_args(&no_args);
-        eprintln!("[DEBUG] OpenGL renderer exit code: {:?}", gl_exit_code);
-        gl_exit_code.into()
-    } else {
-        eprintln!("[DEBUG] Vulkan renderer succeeded");
-        exit_code
-    }
+    exit_code
 }
 
 fn build_ui(app: &Application) {

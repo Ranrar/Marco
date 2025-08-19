@@ -91,21 +91,26 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     let layout_menu_btn = Button::new();
     layout_menu_btn.set_tooltip_text(Some("Layout options"));
     layout_menu_btn.set_valign(Align::Center);
-    layout_menu_btn.set_margin_start(2);
-    layout_menu_btn.set_margin_end(2);
+    layout_menu_btn.set_margin_start(0);
+    layout_menu_btn.set_margin_end(0);
     layout_menu_btn.set_focusable(false);
     layout_menu_btn.set_can_focus(false);
     layout_menu_btn.set_has_frame(false);
     layout_menu_btn.add_css_class("topright-btn");
+    // Use same visual style as window control buttons
+    layout_menu_btn.add_css_class("window-control-btn");
 
     // State management (single shared instance)
     let layout_state = Rc::new(RefCell::new(LayoutState::Split));
 
 
-    // Use provided SVG for layout button icon
-    let img_menu = gtk4::Image::from_file("src/assets/icons/split_scene_left.svg");
-    img_menu.set_pixel_size(16);
-    layout_menu_btn.set_child(Some(&img_menu));
+    // Use icon font glyph for layout button (IcoMoon '1' = split_scene_left)
+    let layout_label = gtk4::Label::new(None);
+    layout_label.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{31}"));
+    layout_label.set_valign(Align::Center);
+    layout_label.add_css_class("icon-font");
+    layout_menu_btn.add_css_class("window-control-btn");
+    layout_menu_btn.set_child(Some(&layout_label));
 
     // Helper to (re)build the popover content based on state
     let popover = Popover::new();
@@ -129,9 +134,13 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
         // Button 1: Close view (show only editor)
         if matches!(state, LayoutState::Split | LayoutState::ViewOnly | LayoutState::ViewWinOnly) {
             let btn1 = Button::new();
-            let img = gtk4::Image::from_file("src/assets/icons/only_editor.svg");
-            img.set_pixel_size(16);
-            btn1.set_child(Some(&img));
+            btn1.add_css_class("layout-btn");
+            // IcoMoon '3' = only_editor
+            let lbl = gtk4::Label::new(None);
+            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{33}"));
+            lbl.set_valign(Align::Center);
+            lbl.add_css_class("layout-state");
+            btn1.set_child(Some(&lbl));
             btn1.set_tooltip_text(Some("Close view (show only editor)"));
             btn1.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
@@ -151,9 +160,13 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
         // Button 2: Close editor (show only view)
         if matches!(state, LayoutState::Split | LayoutState::EditorOnly | LayoutState::EditorAndWin) {
             let btn2 = Button::new();
-            let img = gtk4::Image::from_file("src/assets/icons/only_preview.svg");
-            img.set_pixel_size(16);
-            btn2.set_child(Some(&img));
+            btn2.add_css_class("layout-btn");
+            // IcoMoon '2' = only_preview
+            let lbl = gtk4::Label::new(None);
+            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{32}"));
+            lbl.set_valign(Align::Center);
+            lbl.add_css_class("layout-state");
+            btn2.set_child(Some(&lbl));
             btn2.set_tooltip_text(Some("Close editor (show only view)"));
             btn2.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
@@ -173,9 +186,13 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
         // Button 3: Close view (open view in separate window)
         if matches!(state, LayoutState::Split | LayoutState::ViewOnly) {
             let btn3 = Button::new();
-            let img = gtk4::Image::from_file("src/assets/icons/detatch.svg");
-            img.set_pixel_size(16);
-            btn3.set_child(Some(&img));
+            btn3.add_css_class("layout-btn");
+            // IcoMoon '8' = detatch
+            let lbl = gtk4::Label::new(None);
+            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{38}"));
+            lbl.set_valign(Align::Center);
+            lbl.add_css_class("layout-state");
+            btn3.set_child(Some(&lbl));
             btn3.set_tooltip_text(Some("Open view in separate window"));
             btn3.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
@@ -195,9 +212,13 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
         // Button 4: Restore default split view
         if !matches!(state, LayoutState::Split) {
             let btn4 = Button::new();
-            let img = gtk4::Image::from_file("src/assets/icons/editor_preview.svg");
-            img.set_pixel_size(16);
-            btn4.set_child(Some(&img));
+            btn4.add_css_class("layout-btn");
+            // IcoMoon '7' = editor_preview
+            let lbl = gtk4::Label::new(None);
+            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{37}"));
+            lbl.set_valign(Align::Center);
+            lbl.add_css_class("layout-state");
+            btn4.set_child(Some(&lbl));
             btn4.set_tooltip_text(Some("Restore default split view"));
             btn4.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
@@ -276,24 +297,59 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     // | \u{39}  | marco-close           | Close         |
 
     let btn_min = icon_button("\u{34}", "Minimize");
-    let btn_max = icon_button("\u{36}", "Maximize");
-    let btn_exit_max = icon_button("\u{35}", "Exit Fullscreen");
     let btn_close = icon_button("\u{39}", "Close");
 
+    // Create a single toggle button for maximize/restore and keep its label so we can update it
+    let max_label = gtk4::Label::new(None);
+    let initial_glyph = if window.is_maximized() { "\u{35}" } else { "\u{36}" };
+    max_label.set_markup(&format!("<span font_family='icomoon'>{}</span>", initial_glyph));
+    max_label.set_valign(Align::Center);
+    max_label.add_css_class("icon-font");
+    let btn_max_toggle = Button::new();
+    btn_max_toggle.set_child(Some(&max_label));
+    btn_max_toggle.set_tooltip_text(Some("Maximize / Restore"));
+    btn_max_toggle.set_valign(Align::Center);
+    btn_max_toggle.set_margin_start(1);
+    btn_max_toggle.set_margin_end(1);
+    btn_max_toggle.set_focusable(false);
+    btn_max_toggle.set_can_focus(false);
+    btn_max_toggle.set_has_frame(false);
+    btn_max_toggle.add_css_class("topright-btn");
+    btn_max_toggle.add_css_class("window-control-btn");
+
+    // Append controls
     titlebar.append(&btn_min);
-    titlebar.append(&btn_max);
-    titlebar.append(&btn_exit_max);
+    titlebar.append(&btn_max_toggle);
     titlebar.append(&btn_close);
 
-    // Connect window control actions
+    // Minimize and close actions
     let win_clone = window.clone();
     btn_min.connect_clicked(move |_| { win_clone.minimize(); });
     let win_clone = window.clone();
-    btn_max.connect_clicked(move |_| { win_clone.maximize(); });
-    let win_clone = window.clone();
-    btn_exit_max.connect_clicked(move |_| { win_clone.unmaximize(); });
-    let win_clone = window.clone();
     btn_close.connect_clicked(move |_| { win_clone.close(); });
+
+    // Click toggles window state and updates glyph immediately
+    let label_for_toggle = max_label.clone();
+    let window_for_toggle = window.clone();
+    btn_max_toggle.connect_clicked(move |_| {
+        if window_for_toggle.is_maximized() {
+            window_for_toggle.unmaximize();
+            label_for_toggle.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
+        } else {
+            window_for_toggle.maximize();
+            label_for_toggle.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
+        }
+    });
+
+    // Keep glyph in sync if window is maximized/unmaximized externally
+    let label_for_notify = max_label.clone();
+    window.connect_notify_local(Some("is-maximized"), move |w, _| {
+        if w.is_maximized() {
+            label_for_notify.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
+        } else {
+            label_for_notify.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
+        }
+    });
 
     // Add the titlebar to the WindowHandle
     handle.set_child(Some(&titlebar));
