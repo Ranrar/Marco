@@ -173,6 +173,13 @@ fn build_ui(app: &Application) {
         *active_schema_map.borrow_mut() = Some(map);
     }
 
+    // Debug: report whether an active schema was found and how many rules it contains
+    if let Some(ref map) = *active_schema_map.borrow() {
+        eprintln!("[main] Active markdown schema loaded: {} rules", map.rules.len());
+    } else {
+        eprintln!("[main] No active markdown schema loaded (footer will show Plain text)");
+    }
+
     let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer, insert_mode_state) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
@@ -222,7 +229,7 @@ fn build_ui(app: &Application) {
             if let Some(ref map) = *active_schema_map.borrow() {
                 crate::footer::update_syntax_trace(&labels, &line_text, map);
             } else {
-                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new() };
+                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
                 crate::footer::update_syntax_trace(&labels, &line_text, &dummy_map);
             }
         }

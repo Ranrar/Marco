@@ -19,7 +19,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
     let syntax_map = Rc::clone(&syntax_map);
     let insert_mode_state = Rc::clone(&insert_mode_state);
     move || {
-            eprintln!("[wire_footer_updates] update_footer closure called");
+            crate::footer_dbg!("[wire_footer_updates] update_footer closure called");
             // Gather snapshot of footer data
             let offset = buffer.cursor_position();
             let iter = buffer.iter_at_offset(offset);
@@ -28,7 +28,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
             let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
             let char_count = text.chars().count();
-            eprintln!("[wire_footer_updates] Calculated stats - Row: {}, Col: {}, Words: {}, Chars: {}", 
+            crate::footer_dbg!("[wire_footer_updates] Calculated stats - Row: {}, Col: {}, Words: {}, Chars: {}", 
                 row, col, word_count, char_count);
             // Syntax trace for current line
             let current_line = iter.line();
@@ -42,13 +42,13 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
             let syntax_display = if let Some(ref map) = *syntax_map.borrow() {
                 crate::footer::format_syntax_trace(&line_text, map)
             } else {
-                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new() };
+                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
                 crate::footer::format_syntax_trace(&line_text, &dummy_map)
             };
 
             let is_insert = *insert_mode_state.borrow();
             let msg = FooterUpdate::Snapshot { row, col, words: word_count, chars: char_count, syntax_display, encoding: "UTF-8".to_string(), is_insert };
-            eprintln!("[wire_footer_updates] About to call apply_footer_update with: {:?}", msg);
+            crate::footer_dbg!("[wire_footer_updates] About to call apply_footer_update with: {:?}", msg);
             // Apply directly on the main context: wire_footer_updates runs in main-loop callbacks
             crate::footer::apply_footer_update(&labels, msg);
         }
@@ -58,7 +58,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
     let buffer_timeout_clone = Rc::clone(&buffer_timeout_id);
     let update_footer_clone = update_footer.clone();
     buffer.connect_changed(move |_| {
-        eprintln!("[wire_footer_updates] Buffer changed event triggered");
+    crate::footer_dbg!("[wire_footer_updates] Buffer changed event triggered");
         // Cancel existing timeout if any (safe - ignore errors if already removed)
         if let Some(id) = buffer_timeout_clone.replace(None) {
             let _ = id.remove();
@@ -66,7 +66,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
         let buffer_timeout_clone_inner = Rc::clone(&buffer_timeout_clone);
         let update_footer_clone = update_footer_clone.clone();
         let id = glib::timeout_add_local(std::time::Duration::from_millis(debounce_ms), move || {
-            eprintln!("[wire_footer_updates] Debounced buffer change timeout executing");
+            crate::footer_dbg!("[wire_footer_updates] Debounced buffer change timeout executing");
             // Clear the timeout ID since we're executing now
             buffer_timeout_clone_inner.set(None);
             update_footer_clone();
@@ -79,7 +79,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
     let cursor_timeout_clone = Rc::clone(&cursor_timeout_id);
     let update_footer_clone2 = update_footer.clone();
     buffer.connect_notify_local(Some("cursor-position"), move |_, _| {
-        eprintln!("[wire_footer_updates] Cursor position change event triggered");
+    crate::footer_dbg!("[wire_footer_updates] Cursor position change event triggered");
         // Cancel existing timeout if any (safe - ignore errors if already removed)
         if let Some(id) = cursor_timeout_clone.replace(None) {
             let _ = id.remove();
@@ -87,7 +87,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
         let cursor_timeout_clone_inner = Rc::clone(&cursor_timeout_clone);
         let update_footer_clone2 = update_footer_clone2.clone();
         let id = glib::timeout_add_local(std::time::Duration::from_millis(debounce_ms), move || {
-            eprintln!("[wire_footer_updates] Debounced cursor position timeout executing");
+            crate::footer_dbg!("[wire_footer_updates] Debounced cursor position timeout executing");
             // Clear the timeout ID since we're executing now
             cursor_timeout_clone_inner.set(None);
             update_footer_clone2();
@@ -97,7 +97,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
     });
 
     // Initial update (send snapshot)
-    eprintln!("[wire_footer_updates] Calling initial footer update");
+    crate::footer_dbg!("[wire_footer_updates] Calling initial footer update");
     update_footer();
 }
 /// This is the markdown editor
@@ -105,7 +105,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
 use webkit6::prelude::*;
 use gtk4::Paned;
 use crate::ui::html_viewer::wrap_html_document;
-use markdown::to_html;
+use comrak::{markdown_to_html, ComrakOptions};
 /// Create a split editor with live HTML preview using WebKit6
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -129,7 +129,7 @@ pub fn create_editor_with_preview(
         let font_size_pt = tm.settings.appearance.as_ref()
             .and_then(|a| a.ui_font_size)
             .map(|v| v as f64)
-            .unwrap_or(12.0);       // default font size
+            .unwrap_or(10.0);       // default font size
         (style_scheme, font_family, font_size_pt)
     };
 
@@ -179,15 +179,28 @@ pub fn create_editor_with_preview(
     let webview_rc = Rc::new(webview.clone());
     let theme_mode_rc = Rc::clone(&theme_mode);
 
+    // Prepare comrak options with GFM extensions enabled
+    let mut comrak_opts = ComrakOptions::default();
+    comrak_opts.extension.table = true;
+    comrak_opts.extension.autolink = true;
+    comrak_opts.extension.strikethrough = true;
+    comrak_opts.extension.tasklist = true;
+    comrak_opts.extension.footnotes = true;
+    comrak_opts.extension.tagfilter = true;
+    // Share options across closures
+    let comrak_opts_rc = std::rc::Rc::new(comrak_opts);
+
     // Closure to refresh preview
     let refresh_preview = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
+        let comrak_opts = std::rc::Rc::clone(&comrak_opts_rc);
         move || {
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
-            let html = wrap_html_document(&to_html(&text), &css.borrow(), &theme_mode.borrow());
+            let html_body = markdown_to_html(&text, &*comrak_opts);
+            let html = wrap_html_document(&html_body, &css.borrow(), &theme_mode.borrow());
             webview.load_html(&html, None);
         }
     };
@@ -197,11 +210,15 @@ pub fn create_editor_with_preview(
     let theme_mode = Rc::clone(&theme_mode_rc);
     let webview_clone = Rc::clone(&webview_rc);
     let buffer_for_signal = Rc::clone(&buffer_rc);
-    buffer_for_signal.connect_changed(move |buf| {
-        let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
-        let html = wrap_html_document(&to_html(&text), &css_clone.borrow(), &theme_mode.borrow());
-        webview_clone.load_html(&html, None);
-    });
+    {
+        let comrak_opts = std::rc::Rc::clone(&comrak_opts_rc);
+        buffer_for_signal.connect_changed(move |buf| {
+            let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
+            let html_body = markdown_to_html(&text, &*comrak_opts);
+            let html = wrap_html_document(&html_body, &css_clone.borrow(), &theme_mode.borrow());
+            webview_clone.load_html(&html, None);
+        });
+    }
 
     // Create theme update function for editor
     let buffer_for_theme = Rc::clone(&buffer_rc);
@@ -223,9 +240,11 @@ pub fn create_editor_with_preview(
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
+        let comrak_opts = std::rc::Rc::clone(&comrak_opts_rc);
         move || {
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
-            let html = wrap_html_document(&to_html(&text), &css.borrow(), &theme_mode.borrow());
+            let html_body = markdown_to_html(&text, &*comrak_opts);
+            let html = wrap_html_document(&html_body, &css.borrow(), &theme_mode.borrow());
             webview.load_html(&html, None);
         }
     };

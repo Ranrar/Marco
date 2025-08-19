@@ -66,7 +66,7 @@ pub fn create_toolbar_structure() -> Box {
     italic_button.add_css_class("toolbar-btn-italic");
     toolbar.append(&italic_button);
 
-    let code_button = Button::with_label("< >");
+    let code_button = Button::with_label("{ }");
     code_button.set_size_request(16, 16);
     code_button.set_tooltip_text(Some("Code"));
     code_button.add_css_class("toolbar-btn-code");

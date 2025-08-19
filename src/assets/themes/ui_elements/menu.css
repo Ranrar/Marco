@@ -35,6 +35,13 @@
     background: transparent;
 }
 
+.layout-state:active {
+    font-size: 24px;
+    color: #fff;
+    padding: 0px;
+    background: transparent;
+}
+
 /* Buttons inside the layout popover - keep transparent background on hover
    but allow the glyph color to change */
 .layout-btn {
@@ -93,7 +100,7 @@
 }
 .window-control-btn .icon-font {color:#f0f5f1}
 .window-control-btn:hover .icon-font { color: #9198a1; transform: translateY(0); }
-.window-control-btn:active .icon-font { color: #0d1117; transform: translateY(0); }
+.window-control-btn:active .icon-font { color: #fff; transform: translateY(0); }
 
 /* Window control button base */
 .window-control-btn { background: transparent; border: none; padding: 0 2px; border-radius: 0px; }

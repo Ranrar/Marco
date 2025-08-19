@@ -1,5 +1,5 @@
-# CommonMark Syntax Mapping
 
+# Cleaned CommonMark + Extended Syntax Mapping
 Heading1 { node_type: "heading", depth: 1, markdown_syntax: "#" }
 Heading2 { node_type: "heading", depth: 2, markdown_syntax: "##" }
 Heading3 { node_type: "heading", depth: 3, markdown_syntax: "###" }
@@ -22,3 +22,53 @@ InlineCode { node_type: "inlineCode", markdown_syntax: "`" }
 HorizontalRule { node_type: "thematicBreak", markdown_syntax: "---" }
 Link { node_type: "link", markdown_syntax: "[text](url)" }
 Image { node_type: "image", markdown_syntax: "![alt](url)" }
+
+# Extended / GitHub-Flavored / Hacks
+Strikethrough { node_type: "delete", markdown_syntax: "~~" }
+TaskList { node_type: "list", markdown_syntax: "- [ ] / - [x]" }
+Table { node_type: "table", markdown_syntax: "| col |" }
+Footnote { node_type: "footnote", markdown_syntax: "[^1]" }
+Autolink { node_type: "link", markdown_syntax: "<https://example.com>" }
+Emoji { node_type: "emoji", markdown_syntax: ":smile:" }
+Mention { node_type: "mention", markdown_syntax: "@username" }
+MathInline { node_type: "mathInline", markdown_syntax: "$inline$" }
+MathBlock { node_type: "mathBlock", markdown_syntax: "$$block$$" }
+HTMLIns { node_type: "htmlInline", markdown_syntax: "<ins>...</ins>" }
+HTMLNbsp { node_type: "htmlInline", markdown_syntax: "&nbsp;" }
+HTMLCenter { node_type: "htmlBlock", markdown_syntax: "<center>...</center>" }
+HTMLPStyle { node_type: "htmlBlock", markdown_syntax: "<p style=...>" }
+HTMLFont { node_type: "htmlInline", markdown_syntax: "<font color=...>" }
+CommentHack { node_type: "comment", markdown_syntax: "[comment]: #" }
+Admonition { node_type: "admonition", markdown_syntax: "> :warning:" }
+ImageSize { node_type: "htmlBlock", markdown_syntax: "re:<img\s+[^>]*width=[\"']?\d+[\"']?[^>]*>" }
+FigureCaption { node_type: "figure", markdown_syntax: "re:<figure[\s\S]*?<figcaption[\s\S]*?>[\s\S]*?</figcaption>" }
+LinkTarget { node_type: "link", markdown_syntax: "re:<a\s+[^>]*href=\"[^\"]+\"[^>]*target=\"[^\"]+\"[^>]*>" }
+SymbolEntity { node_type: "symbol", markdown_syntax: "&copy;|&reg;|&trade;" }
+TOCPlaceholder { node_type: "toc", markdown_syntax: "#### Table of Contents" }
+VideoEmbed { node_type: "video", markdown_syntax: "re:\[!\[.*?\]\(https?://img\.youtube\.com/vi/[A-Za-z0-9_-]+/0\.jpg\)\]\(https?://(www\.)?youtube\.com/watch\?v=[A-Za-z0-9_-]+.*?\)" }
+
+# Additional constructs from Markdown basics and common extensions
+# Setext headings (underlines using === or --- on the next line)
+SetextUnderline { node_type: "setext_underline", markdown_syntax: "re:^(?:=+|-+)\s*$" }
+
+# Reference-style link definition (e.g. [id]: url "title")
+LinkDefinition { node_type: "link_def", markdown_syntax: "re:^\s*\[(?P<id>[^\]]+)\]:\s*(?P<url>\S+)(?:\s+\"(?P<title>.+?)\")?" }
+LinkReference { node_type: "link_reference", markdown_syntax: "re:\[(?P<text>.*?)\]\[(?P<id>[^\]]*)\]" }
+
+# Shortcut/collapsed link reference forms
+LinkShortcut { node_type: "link_shortcut", markdown_syntax: "re:\[(?P<text>[^\]]+)\]\s*\[\]" }
+
+# Hard break (two trailing spaces) and explicit <br>
+HardBreak { node_type: "hardbreak", markdown_syntax: "re:\s{2}$" }
+HTMLBr { node_type: "hardbreak", markdown_syntax: "re:^<br\\s*/?>\\s*$" }
+
+# Indented code block detection (4 space or tab)
+IndentedCode { node_type: "codeBlock", markdown_syntax: "re:^(?: {4}|\\t).+" }
+
+# Frontmatter (YAML style) start/end markers
+FrontMatterStart { node_type: "frontmatter_start", markdown_syntax: "re:^---\\s*$" }
+FrontMatterEnd { node_type: "frontmatter_end", markdown_syntax: "re:^---\\s*$" }
+
+# Definition list (common extension)
+DefListTerm { node_type: "def_term", markdown_syntax: "re:^(?P<term>[^\n].+)\\n(?=:\s)" }
+DefListDef { node_type: "def_description", markdown_syntax: "re:^:\s+(?P<desc>.+)" }

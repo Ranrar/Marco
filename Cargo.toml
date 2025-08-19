@@ -14,6 +14,7 @@ serde = { version = "1.0", features = ["derive"] }
 dark-light = "2.0.0"
 regex = "1.10"
 markdown = "1.0.0"
+comrak = "0.17"
 phf = { version = "0.11", features = ["macros"] }
 gtk4 = "0.9.0"
 glib = "0.20"

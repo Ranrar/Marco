@@ -18,7 +18,7 @@
     margin: 2px;
     border-radius: 6px;
     border: 0px solid #444;
-    color: #e0e0e0;
+    color: #f0f5f1;
     font-size: 12px;
     font-family: "Segoe UI", "Cantarell", "Arial", sans-serif;
     box-shadow: none;
@@ -36,8 +36,8 @@
 .toolbar-btn-strikethrough:hover,
 .toolbar-btn-bullet:hover,
 .toolbar-btn-number:hover {
-    background: #3a3f4b;
-    color: #4f8cff;
+    background: transparent;
+    color: #9198a1;
     border-color: #4f8cff;
     opacity: 1;
 }
@@ -52,7 +52,7 @@
 .toolbar-btn-strikethrough:active,
 .toolbar-btn-bullet:active,
 .toolbar-btn-number:active {
-    background: #4f8cff;
+    background: transparent;
     color: #fff;
     border-color: #4f8cff;
     opacity: 1;

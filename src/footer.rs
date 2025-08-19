@@ -19,11 +19,21 @@
 
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
-use crate::logic::parser::{parse_line_syntax, MarkdownSyntaxMap, SyntaxToken};
+use crate::logic::parser::{parse_document_blocks, MarkdownSyntaxMap};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static UPDATE_VIS_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+// Gate footer debug output behind an env var so normal runs are quiet.
+#[macro_export]
+macro_rules! footer_dbg {
+    ($($arg:tt)*) => {{
+        if std::env::var("MARCO_DEBUG_FOOTER").is_ok() {
+            eprintln!($($arg)*);
+        }
+    }};
+}
 
 /// Message type used to update the footer from any thread via a MainContext channel
 #[derive(Debug)]
@@ -54,34 +64,125 @@ pub struct FooterLabels {
 /// Updates the formatting label with the Markdown syntax trace for the active line
 /// Pure helper: produce the display string for a line given a syntax map
 pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String {
-    let chain: Vec<SyntaxToken> = parse_line_syntax(line, syntax_map);
+    // Run a small block-level pre-pass so Setext, frontmatter and link-defs
+    // are detected even when only a single line is passed. We ignore the
+    // aggregated link definitions for the footer display, but calling the
+    // function ensures `collect_link_definitions` and friends are exercised
+    // and avoids dead-code warnings.
+    let (chain, _link_defs) = parse_document_blocks(line, syntax_map);
+
+    // Debug-only: if MARCO_DEBUG_FOOTER_TRACE is set, print detailed token info to stderr.
+    if std::env::var("MARCO_DEBUG_FOOTER_TRACE").is_ok() {
+        eprintln!("[footer trace] input line: {:?}", line);
+        for (i, t) in chain.iter().enumerate() {
+            // Print core fields we care about. Use Debug formatting for Options.
+            eprintln!(
+                "[footer trace] token {}: node_type='{}', depth={:?}, ordered={:?}'",
+                i, t.node_type, t.depth, t.ordered
+            );
+        }
+    }
+
     if chain.is_empty() {
         "Format: Plain text".to_string()
     } else {
-        let parts: Vec<String> = chain.into_iter().map(|t| {
+        // Build a more informative node trace using display hints from the schema
+        let hints_map = syntax_map.build_display_hints();
+        let parts: Vec<String> = chain.iter().map(|t| {
+            // Helper to fetch a capture value if present
+            let cap = |name: &str| -> Option<String> {
+                t.captures.as_ref().and_then(|c| c.get(name)).cloned()
+            };
+
+            if let Some(hints) = hints_map.get(&t.node_type) {
+                for hint in hints {
+                    if let Some(val) = cap(hint) {
+                        // For link hints, include target if present
+                        if hint == "h" {
+                            let tval = cap("t").unwrap_or_default();
+                            return format!("{} → {}", val, tval);
+                        }
+                        return val;
+                    }
+                }
+            }
+
+            // Fallbacks for structured tokens
             if let Some(d) = t.depth {
                 format!("{}({})", t.node_type, d)
             } else if let Some(ord) = t.ordered {
                 format!("{}({})", t.node_type, if ord { "ordered" } else { "unordered" })
             } else {
-                t.node_type
+                t.node_type.clone()
             }
         }).collect();
-        format!("Format: {}", parts.join(" → "))
+
+        // If frontmatter was captured, extract top-level key:value pairs (first 3)
+        let mut extras: Vec<String> = Vec::new();
+        for t in &chain {
+            if t.node_type == "frontmatter" {
+                if let Some(caps) = &t.captures {
+                    if let Some(value) = caps.get("value") {
+                        // Collect key:value pairs like `title: Value` from the frontmatter
+                        let kv_re = regex::Regex::new(r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$").unwrap();
+                        let mut pairs: Vec<String> = Vec::new();
+                        for kc in kv_re.captures_iter(value).take(3) {
+                            if let (Some(k), Some(v)) = (kc.name("key"), kc.name("val")) {
+                                // Truncate long values for footer readability
+                                let mut val = v.as_str().trim().to_string();
+                                if val.len() > 30 {
+                                    val.truncate(27);
+                                    val.push_str("...");
+                                }
+                                pairs.push(format!("{}: {}", k.as_str(), val));
+                            }
+                        }
+                        if !pairs.is_empty() {
+                            extras.push(format!("Frontmatter: {}", pairs.join(", ")));
+                        } else {
+                            extras.push("Frontmatter".to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Append up to 3 link id->url examples from the aggregated defs
+        if !_link_defs.is_empty() {
+            let mut examples: Vec<String> = Vec::new();
+            for (id, (url, _title)) in _link_defs.iter().take(3) {
+                let mut short = url.clone();
+                if short.len() > 40 {
+                    short.truncate(37);
+                    short.push_str("...");
+                }
+                examples.push(format!("{} → {}", id, short));
+            }
+            if !examples.is_empty() {
+                extras.push(format!("Links: {}", examples.join(", ")));
+            }
+        }
+
+        let base = format!("Format: {}", parts.join(" → "));
+        if extras.is_empty() {
+            base
+        } else {
+            format!("{} — {}", base, extras.join("; "))
+        }
     }
 }
 
 /// Update the row label independently
 pub fn update_cursor_row(labels: &FooterLabels, row: usize) {
     let text = format!("Row: {}", row);
-    eprintln!("[footer] update_cursor_row called: {}", text);
+    footer_dbg!("[footer] update_cursor_row called: {}", text);
     set_label_text(&labels.cursor_row, text);
 }
 
 /// Update the column label independently
 pub fn update_cursor_col(labels: &FooterLabels, col: usize) {
     let text = format!("Column: {}", col);
-    eprintln!("[footer] update_cursor_col called: {}", text);
+    footer_dbg!("[footer] update_cursor_col called: {}", text);
     set_label_text(&labels.cursor_col, text);
 }
 
@@ -90,34 +191,34 @@ pub fn update_cursor_col(labels: &FooterLabels, col: usize) {
 /// Updates the encoding label
 pub fn update_encoding(labels: &FooterLabels, encoding: &str) {
     let enc = encoding.to_string();
-    eprintln!("[footer] update_encoding called: {}", enc);
+    footer_dbg!("[footer] update_encoding called: {}", enc);
     set_label_text(&labels.encoding, enc);
 }
 
 /// Updates the insert/overwrite mode label
 pub fn update_insert_mode(labels: &FooterLabels, is_insert: bool) {
     let text = if is_insert { "INS" } else { "OVR" };
-    eprintln!("[footer] update_insert_mode called: {}", text);
+    footer_dbg!("[footer] update_insert_mode called: {}", text);
     set_label_text(&labels.insert_mode, text.to_string());
 }
 
 /// Updates the formatting label with the Markdown syntax trace for the active line
 pub fn update_syntax_trace(labels: &FooterLabels, line: &str, syntax_map: &MarkdownSyntaxMap) {
     let display = format_syntax_trace(line, syntax_map);
-    eprintln!("[footer] update_syntax_trace called: {}", display);
+    footer_dbg!("[footer] update_syntax_trace called: {}", display);
     set_label_text(&labels.formatting, display);
 }
 /// Updates the word count label
 pub fn update_word_count(labels: &FooterLabels, words: usize) {
     let text = format!("Words: {}", words);
-    eprintln!("[footer] update_word_count called: {}", text);
+    footer_dbg!("[footer] update_word_count called: {}", text);
     set_label_text(&labels.word_count, text);
 }
 
 /// Updates the character count label
 pub fn update_char_count(labels: &FooterLabels, chars: usize) {
     let text = format!("Characters: {}", chars);
-    eprintln!("[footer] update_char_count called: {}", text);
+    footer_dbg!("[footer] update_char_count called: {}", text);
     set_label_text(&labels.char_count, text);
 }
 
@@ -130,7 +231,7 @@ pub fn apply_footer_update(labels: &FooterLabels, update: FooterUpdate) {
             update_word_count(labels, words);
             update_char_count(labels, chars);
             // Use consistent pattern: call the proper update function instead of set_label_text directly
-            eprintln!("[footer] apply_footer_update called for syntax_display: {}", syntax_display);
+            footer_dbg!("[footer] apply_footer_update called for syntax_display: {}", syntax_display);
             set_label_text(&labels.formatting, syntax_display);
             update_encoding(labels, &encoding);
             update_insert_mode(labels, is_insert);
@@ -175,19 +276,19 @@ fn update_label_immediate(label: &Label, text: &str, use_markup: bool) {
         label.set_text(text);
     }
     
-    eprintln!("[footer] set_label_text immediate -> {}", label.text());
-    eprintln!("[footer] label visible: {}, parent visible: {}", 
+    footer_dbg!("[footer] set_label_text immediate -> {}", label.text());
+    footer_dbg!("[footer] label visible: {}, parent visible: {}", 
         label.is_visible(), 
         label.parent().map(|p| p.is_visible()).unwrap_or(false));
     
     // Ensure widget is visible and request a redraw for better reliability
     label.set_visible(true);
-    label.queue_draw();
+    // Avoid calling queue_draw() directly here; GTK may issue warnings when widgets
+    // are not yet allocated. Rely on set_visible and normal GTK redraw scheduling.
     
     // Also ensure parent is visible
     if let Some(parent) = label.parent() {
         parent.set_visible(true);
-        parent.queue_draw();
     }
 }
 
@@ -265,13 +366,13 @@ mod tests {
     use super::*;
     fn make_test_map() -> MarkdownSyntaxMap {
         let mut rules = std::collections::HashMap::new();
-        rules.insert("**".to_string(), crate::logic::parser::SyntaxRule { node_type: "bold".to_string(), depth: None, ordered: None, markdown_syntax: "**".to_string() });
-        rules.insert("#".to_string(), crate::logic::parser::SyntaxRule { node_type: "heading".to_string(), depth: Some(1), ordered: None, markdown_syntax: "#".to_string() });
-        rules.insert("##".to_string(), crate::logic::parser::SyntaxRule { node_type: "heading".to_string(), depth: Some(2), ordered: None, markdown_syntax: "##".to_string() });
-        rules.insert("*".to_string(), crate::logic::parser::SyntaxRule { node_type: "italic".to_string(), depth: None, ordered: None, markdown_syntax: "*".to_string() });
-        rules.insert("-".to_string(), crate::logic::parser::SyntaxRule { node_type: "list".to_string(), depth: None, ordered: Some(false), markdown_syntax: "-".to_string() });
-        rules.insert("1.".to_string(), crate::logic::parser::SyntaxRule { node_type: "list".to_string(), depth: None, ordered: Some(true), markdown_syntax: "1.".to_string() });
-        MarkdownSyntaxMap { rules }
+    rules.insert("**".to_string(), crate::logic::parser::SyntaxRule { node_type: "bold".to_string(), depth: None, ordered: None, markdown_syntax: "**".to_string(), is_regex: false, regex: None });
+    rules.insert("#".to_string(), crate::logic::parser::SyntaxRule { node_type: "heading".to_string(), depth: Some(1), ordered: None, markdown_syntax: "#".to_string(), is_regex: false, regex: None });
+    rules.insert("##".to_string(), crate::logic::parser::SyntaxRule { node_type: "heading".to_string(), depth: Some(2), ordered: None, markdown_syntax: "##".to_string(), is_regex: false, regex: None });
+    rules.insert("*".to_string(), crate::logic::parser::SyntaxRule { node_type: "italic".to_string(), depth: None, ordered: None, markdown_syntax: "*".to_string(), is_regex: false, regex: None });
+    rules.insert("-".to_string(), crate::logic::parser::SyntaxRule { node_type: "list".to_string(), depth: None, ordered: Some(false), markdown_syntax: "-".to_string(), is_regex: false, regex: None });
+    rules.insert("1.".to_string(), crate::logic::parser::SyntaxRule { node_type: "list".to_string(), depth: None, ordered: Some(true), markdown_syntax: "1.".to_string(), is_regex: false, regex: None });
+    MarkdownSyntaxMap { rules, display_hints: None }
     }
 
     #[test]
@@ -321,7 +422,7 @@ mod tests {
         // this is a no-op. If GTK cannot be initialized (e.g., no display), skip the test
         if gtk4::is_initialized() == false {
             if let Err(_) = gtk4::init() {
-                eprintln!("Skipping GTK test - no display available");
+                footer_dbg!("Skipping GTK test - no display available");
                 return;
             }
         }
@@ -374,7 +475,7 @@ mod tests {
     fn test_apply_footer_update_snapshot() {
         if gtk4::is_initialized() == false {
             if let Err(_) = gtk4::init() {
-                eprintln!("Skipping GTK test - no display available");
+                footer_dbg!("Skipping GTK test - no display available");
                 return;
             }
         }

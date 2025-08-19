@@ -1,8 +1,8 @@
 //! Helper for detecting the asset directory ("marco/") at runtime.
 //!
 //! Usage:
-//! ```rust
-//! use crate::logic::asset_path::get_asset_dir;
+//! ```no_run
+//! use marco::logic::asset_path::get_asset_dir;
 //!
 //! let asset_dir = get_asset_dir();
 //! let font_path = asset_dir.join("fonts/ui_menu.ttf");

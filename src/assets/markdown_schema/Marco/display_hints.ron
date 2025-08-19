@@ -1,0 +1,10 @@
+(
+    // Map node_type -> ordered list of preferred capture names
+    "frontmatter": ["value"],
+    "heading": ["text"],
+    "image-size": ["w"],
+    "video": ["id1", "id2"],
+    "link-target": ["h", "t"],
+    "definition": ["desc"],
+    "def_description": ["desc"],
+)
