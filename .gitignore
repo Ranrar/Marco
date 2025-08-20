@@ -1,4 +1,13 @@
+# Rust
 /Cargo.lock
 /target
+
+#internal dev code
 /.vscode
 /dev
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env/
