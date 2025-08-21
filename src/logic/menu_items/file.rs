@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::Arc;
 use std::path::Path;
-use anyhow::{Result, Context};
+use anyhow::{Result};
 use crate::logic::{DocumentBuffer, RecentFiles};
 
 /// File operations manager for handling document lifecycle
@@ -72,124 +72,6 @@ impl FileOperations {
     fn add_recent_file<P: AsRef<Path>>(&self, path: P) {
     self.recent_files.borrow_mut().add_file(path);
     self.invoke_recent_changed_callbacks();
-    }
-
-    /// Creates a new untitled document
-    /// 
-    /// This will prompt to save if the current document has unsaved changes.
-    /// 
-    /// # Arguments
-    /// * `parent_window` - Parent window for dialogs
-    /// * `editor_buffer` - GTK TextBuffer to clear
-    /// 
-    /// # Returns
-    /// * `Ok(())` - New document created successfully
-    /// * `Err(anyhow::Error)` - Operation failed or was cancelled
-    pub fn new_document<W: IsA<gtk4::Window>>(
-        &self,
-        parent_window: &W,
-        editor_buffer: &gtk4::TextBuffer,
-    ) -> Result<()> {
-        // Check for unsaved changes
-        if self.buffer.borrow().has_unsaved_changes() {
-            match self.prompt_save_changes(parent_window, "starting a new document")? {
-                SaveChangesResult::Save => {
-                    self.save_document(parent_window, editor_buffer)?;
-                }
-                SaveChangesResult::Discard => {
-                    // Continue with new document
-                }
-                SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("New document cancelled by user"));
-                }
-            }
-        }
-
-        // Reset buffer and clear editor
-        self.buffer.borrow_mut().reset_to_untitled();
-        editor_buffer.set_text("");
-
-        eprintln!("[FileOps] Created new untitled document");
-        Ok(())
-    }
-
-    /// Opens a file using a file chooser dialog
-    /// 
-    /// This will prompt to save if the current document has unsaved changes.
-    /// 
-    /// # Arguments
-    /// * `parent_window` - Parent window for dialogs
-    /// * `editor_buffer` - GTK TextBuffer to populate with file content
-    /// 
-    /// # Returns
-    /// * `Ok(())` - File opened successfully
-    /// * `Err(anyhow::Error)` - Operation failed or was cancelled
-    pub fn open_file<W: IsA<gtk4::Window>>(
-        &self,
-        parent_window: &W,
-        editor_buffer: &gtk4::TextBuffer,
-    ) -> Result<()> {
-        // Check for unsaved changes
-        if self.buffer.borrow().has_unsaved_changes() {
-            match self.prompt_save_changes(parent_window, "opening a file")? {
-                SaveChangesResult::Save => {
-                    self.save_document(parent_window, editor_buffer)?;
-                }
-                SaveChangesResult::Discard => {
-                    // Continue with open
-                }
-                SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("Open file cancelled by user"));
-                }
-            }
-        }
-
-        // Show file chooser dialog
-        let file_path = self.show_open_dialog(parent_window)?;
-        self.load_file_into_editor(&file_path, editor_buffer)?;
-
-        eprintln!("[FileOps] Opened file: {}", file_path.display());
-        Ok(())
-    }
-
-    /// Opens a specific file by path
-    /// 
-    /// This is used for recent files and command-line arguments.
-    /// 
-    /// # Arguments
-    /// * `path` - Path to the file to open
-    /// * `parent_window` - Parent window for error dialogs
-    /// * `editor_buffer` - GTK TextBuffer to populate
-    /// 
-    /// # Returns
-    /// * `Ok(())` - File opened successfully
-    /// * `Err(anyhow::Error)` - Operation failed
-    pub fn open_file_by_path<P: AsRef<Path>, W: IsA<gtk4::Window>>(
-        &self,
-        path: P,
-        parent_window: &W,
-        editor_buffer: &gtk4::TextBuffer,
-    ) -> Result<()> {
-        let path = path.as_ref();
-
-        // Check for unsaved changes
-        if self.buffer.borrow().has_unsaved_changes() {
-            match self.prompt_save_changes(parent_window, "opening a file")? {
-                SaveChangesResult::Save => {
-                    self.save_document(parent_window, editor_buffer)?;
-                }
-                SaveChangesResult::Discard => {
-                    // Continue with open
-                }
-                SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("Open file cancelled by user"));
-                }
-            }
-        }
-
-        self.load_file_into_editor(path, editor_buffer)?;
-        eprintln!("[FileOps] Opened file by path: {}", path.display());
-        Ok(())
     }
 
     /// Opens a specific file by path (async version with proper Save dialog support)
@@ -332,40 +214,6 @@ impl FileOperations {
         Ok(())
     }
 
-    /// Handles application quit with unsaved changes check
-    /// 
-    /// # Arguments
-    /// * `parent_window` - Parent window for dialogs
-    /// * `editor_buffer` - GTK TextBuffer to save if needed
-    /// * `app` - GTK Application to quit
-    /// 
-    /// # Returns
-    /// * `Ok(())` - Application can quit safely
-    /// * `Err(anyhow::Error)` - Quit cancelled by user
-    pub fn quit_application<W: IsA<gtk4::Window>>(
-        &self,
-        parent_window: &W,
-        editor_buffer: &gtk4::TextBuffer,
-        app: &gtk4::Application,
-    ) -> Result<()> {
-        if self.buffer.borrow().has_unsaved_changes() {
-            match self.prompt_save_changes(parent_window, "quitting")? {
-                SaveChangesResult::Save => {
-                    self.save_document(parent_window, editor_buffer)?;
-                }
-                SaveChangesResult::Discard => {
-                    // Continue with quit
-                }
-                SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("Quit cancelled by user"));
-                }
-            }
-        }
-
-        app.quit();
-        Ok(())
-    }
-
     /// Gets the list of recent files for menu display
     /// 
     /// # Returns
@@ -379,15 +227,6 @@ impl FileOperations {
     self.recent_files.borrow_mut().clear();
     // Notify listeners so menus update
     self.invoke_recent_changed_callbacks();
-    }
-
-    /// Marks the current document as modified
-    /// 
-    /// This should be called when the editor content changes.
-    pub fn mark_document_modified(&self) {
-        // Keep compatibility: previously blindly set modified flag.
-        // Prefer callers to use mark_document_modified_from_content when possible.
-        self.buffer.borrow_mut().mark_modified();
     }
 
     /// Update modified flag by comparing current editor content to baseline
@@ -591,72 +430,6 @@ impl FileOperations {
             Ok(())
         }
 
-/// Registers all file-related GTK actions with the application
-/// 
-/// This is a standalone function that creates GTK actions for file operations.
-/// The actual UI dialogs need to be handled by the calling code (main.rs)
-/// to maintain architecture separation.
-pub fn register_file_actions(
-    app: &gtk4::Application,
-    file_operations: Rc<RefCell<FileOperations>>,
-    window: &gtk4::ApplicationWindow,
-    editor_buffer: &sourceview5::Buffer,
-    modification_tracking: Rc<RefCell<bool>>,
-) {
-    // Create weak references to avoid strong reference cycles
-    let window_weak = window.downgrade();
-    let editor_buffer_weak = editor_buffer.downgrade();
-
-    // New document action
-    let new_action = gio::SimpleAction::new("new", None);
-    new_action.connect_activate({
-        let file_ops = file_operations.clone();
-        let tracking = modification_tracking.clone();
-        let window_weak = window_weak.clone();
-        let editor_buffer_weak = editor_buffer_weak.clone();
-        move |_, _| {
-            if let (Some(window), Some(buffer)) = (window_weak.upgrade(), editor_buffer_weak.upgrade()) {
-                *tracking.borrow_mut() = false;
-                let file_ops = file_ops.borrow();
-                let text_buffer: &gtk4::TextBuffer = buffer.upcast_ref();
-                if let Err(e) = file_ops.new_document(&window, text_buffer) {
-                    eprintln!("Error creating new document: {}", e);
-                }
-                *tracking.borrow_mut() = true;
-            }
-        }
-    });
-
-    // Save document action
-    let save_action = gio::SimpleAction::new("save", None);
-    save_action.connect_activate({
-        let file_ops = file_operations.clone();
-        let window_weak = window_weak.clone();
-        let editor_buffer_weak = editor_buffer_weak.clone();
-        move |_, _| {
-            if let (Some(window), Some(buffer)) = (window_weak.upgrade(), editor_buffer_weak.upgrade()) {
-                let file_ops = file_ops.borrow();
-                let text_buffer: &gtk4::TextBuffer = buffer.upcast_ref();
-                if let Err(e) = file_ops.save_document(&window, text_buffer) {
-                    eprintln!("Error saving document: {}", e);
-                }
-            }
-        }
-    });
-
-    // Add actions to application
-    app.add_action(&new_action);
-    app.add_action(&save_action);
-
-    // Note: open, save_as, and quit actions require async dialogs 
-    // and will be handled directly in main.rs for now
-    // TODO: Add open_action, save_as_action, quit_action when async callbacks are resolved
-
-    // Set keyboard shortcuts for implemented actions
-    app.set_accels_for_action("app.new", &["<Control>n"]);
-    app.set_accels_for_action("app.save", &["<Control>s"]);
-}
-
     // Private helper methods
 
     /// Loads a file into the editor buffer
@@ -692,55 +465,13 @@ pub fn register_file_actions(
         editor_buffer.text(&start_iter, &end_iter, false).to_string()
     }
 
-    /// Shows an open file dialog
-    fn show_open_dialog<W: IsA<gtk4::Window>>(&self, _parent_window: &W) -> Result<std::path::PathBuf> {
-        // For now, let's use a simple approach - look for any .md files in the current directory
-        // and let the user select from existing files
-        let current_dir = std::env::current_dir()
-            .context("Failed to get current directory")?;
-        
-        // Find all .md files in the current directory
-        let mut md_files = Vec::new();
-        if let Ok(entries) = std::fs::read_dir(&current_dir) {
-            for entry in entries.flatten() {
-                if let Some(extension) = entry.path().extension() {
-                    if extension == "md" {
-                        md_files.push(entry.path());
-                    }
-                }
-            }
-        }
-        
-        if md_files.is_empty() {
-            return Err(anyhow::anyhow!("No .md files found in current directory. Create a .md file first."));
-        }
-        
-        // For now, just return the first .md file found
-        // TODO: Implement proper file selection dialog
-        let selected_file = &md_files[0];
-        eprintln!("[FileOps] Auto-selecting file: {}", selected_file.display());
-        eprintln!("[FileOps] Available .md files: {:?}", md_files.iter().map(|p| p.file_name().unwrap_or_default()).collect::<Vec<_>>());
-        
-        Ok(selected_file.clone())
-    }
+
 
     /// Shows a save file dialog  
     fn show_save_dialog<W: IsA<gtk4::Window>>(&self, _parent_window: &W) -> Result<std::path::PathBuf> {
         // For initial implementation, use a hardcoded save location
         // TODO: Implement actual file dialog integration
         Ok(std::path::PathBuf::from("saved_document.md"))
-    }
-
-    /// Prompts user to save changes
-    fn prompt_save_changes<W: IsA<gtk4::Window>>(
-        &self,
-        _parent_window: &W,
-        action: &str,
-    ) -> Result<SaveChangesResult> {
-        // For initial implementation, always discard changes
-        // TODO: Implement actual save changes dialog
-        eprintln!("[FileOps] Would prompt to save changes before {}, auto-discarding for now", action);
-        Ok(SaveChangesResult::Discard)
     }
 
     /// Confirms file overwrite
@@ -765,40 +496,6 @@ pub enum SaveChangesResult {
     Discard,
     /// User cancelled the operation
     Cancel,
-}
-
-/// Creates a basic file menu model
-/// 
-/// This creates the basic structure for the file menu.
-/// The actual actions will be wired up in main.rs.
-pub fn create_file_menu() -> gio::Menu {
-    let menu = gio::Menu::new();
-    
-    // Basic file operations
-    menu.append(Some("New"), Some("app.new"));
-    menu.append(Some("Open"), Some("app.open"));
-    
-    // Separator
-    menu.append(None, None);
-    
-    menu.append(Some("Save"), Some("app.save"));
-    menu.append(Some("Save As"), Some("app.save_as"));
-    
-    // Separator
-    menu.append(None, None);
-    
-    // Recent files submenu will be added dynamically
-    let recent_menu = gio::Menu::new();
-    recent_menu.append(Some("No recent files"), None);
-    menu.append_submenu(Some("Recent Files"), &recent_menu);
-    
-    // Separator
-    menu.append(None, None);
-    
-    menu.append(Some("Settings"), Some("app.settings"));
-    menu.append(Some("Quit"), Some("app.quit"));
-    
-    menu
 }
 
 /// Updates the recent files submenu

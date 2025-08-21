@@ -232,10 +232,6 @@ impl DocumentBuffer {
     /// buffer.mark_modified();
     /// assert!(buffer.is_modified);
     /// ```
-    pub fn mark_modified(&mut self) {
-        // Deprecated: prefer comparing against baseline via `update_modified_from_content`.
-        self.is_modified = true;
-    }
 
     /// Update modification state by comparing the provided editor content with the baseline.
     pub fn update_modified_from_content(&mut self, current_content: &str) {
@@ -265,17 +261,6 @@ impl DocumentBuffer {
     /// * `None` - Document is untitled/unsaved
     pub fn get_file_path(&self) -> Option<&Path> {
         self.file_path.as_deref()
-    }
-
-    /// Gets the display name for the document
-    /// 
-    /// This returns the filename if associated with a file,
-    /// or "Untitled.md" for new documents.
-    /// 
-    /// # Returns
-    /// String suitable for display in window title or tabs
-    pub fn get_display_name(&self) -> &str {
-        &self.display_name
     }
 
     /// Gets the full display title including modification indicator
@@ -395,11 +380,6 @@ impl RecentFiles {
         settings.get_recent_files()
     }
 
-    /// Checks if the recent files list is empty
-    pub fn is_empty(&self) -> bool {
-        self.get_files().is_empty()
-    }
-
     /// Clears all recent files
     pub fn clear(&self) {
         let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
@@ -428,15 +408,6 @@ mod tests {
         assert!(!buffer.is_modified);
         assert_eq!(buffer.display_name, "Untitled.md");
         assert_eq!(buffer.get_full_title(), "Untitled.md");
-    }
-
-    #[test]
-    fn test_mark_modified() {
-        let mut buffer = DocumentBuffer::new_untitled();
-        buffer.mark_modified();
-        assert!(buffer.is_modified);
-        assert!(buffer.has_unsaved_changes());
-        assert_eq!(buffer.get_full_title(), "*Untitled.md");
     }
 
     #[test]
