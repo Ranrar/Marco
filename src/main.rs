@@ -92,7 +92,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use crate::theme::ThemeManager;
 use crate::logic::parser::MarkdownSyntaxMap;
-use crate::logic::buffer::{DocumentBuffer, RecentFiles};
+use crate::logic::{DocumentBuffer, RecentFiles};
 use crate::logic::menu_items::file::{FileOperations, SaveChangesResult};
 use crate::ui::menu_items::files::FileDialogs;
 

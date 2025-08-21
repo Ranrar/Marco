@@ -4,4 +4,3 @@ pub mod logic;
 
 // Re-export commonly used types
 pub use logic::buffer::{DocumentBuffer, RecentFiles};
-pub use logic::menu_items::FileOperations;

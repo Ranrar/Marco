@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::path::Path;
 use anyhow::{Result, Context};
-use crate::logic::buffer::{DocumentBuffer, RecentFiles};
+use crate::logic::{DocumentBuffer, RecentFiles};
 
 /// File operations manager for handling document lifecycle
 /// 
