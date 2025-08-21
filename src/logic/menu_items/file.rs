@@ -192,6 +192,78 @@ impl FileOperations {
         Ok(())
     }
 
+    /// Opens a specific file by path (async version with proper Save dialog support)
+    /// 
+    /// This is used for recent files and command-line arguments.
+    /// 
+    /// # Arguments
+    /// * `path` - Path to the file to open
+    /// * `parent_window` - Parent window for error dialogs
+    /// * `editor_buffer` - GTK TextBuffer to populate
+    /// * `show_save_changes_dialog` - Callback for save changes dialog
+    /// * `show_save_dialog` - Callback for save as dialog
+    /// 
+    /// # Returns
+    /// * `Ok(())` - File opened successfully
+    /// * `Err(anyhow::Error)` - Operation failed
+    pub async fn open_file_by_path_async<'a, P, W, F, G>(
+        &self,
+        path: P,
+        parent_window: &'a W,
+        editor_buffer: &'a gtk4::TextBuffer,
+        show_save_changes_dialog: F,
+        show_save_dialog: G,
+    ) -> Result<()> 
+    where
+        P: AsRef<Path>,
+        W: IsA<gtk4::Window>,
+        F: for<'b> Fn(&'b gtk4::Window, &'b str, &'b str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>>,
+        G: for<'b> Fn(&'b gtk4::Window, &'b str, Option<&'b str>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>>,
+    {
+        let path = path.as_ref();
+
+        // Check for unsaved changes and prompt user
+        if self.buffer.borrow().has_unsaved_changes() {
+            let document_title = self.get_document_title();
+            match show_save_changes_dialog(parent_window.upcast_ref(), &document_title, "opening a file").await? {
+                SaveChangesResult::Save => {
+                    // If the document already has a file path, do a normal save
+                    if self.buffer.borrow().get_file_path().is_some() {
+                        self.save_document(parent_window.upcast_ref(), editor_buffer)?;
+                    } else {
+                        // Show Save As dialog for new/untitled files
+                        let suggested_name = if self.get_document_title().contains("Untitled") {
+                            "Untitled.md"
+                        } else {
+                            &format!("{}.md", self.get_document_title().replace("*", "").trim())
+                        };
+                        
+                        let file_path = show_save_dialog(parent_window.upcast_ref(), "Save Markdown File", Some(suggested_name)).await?;
+                        if let Some(save_path) = file_path {
+                            let content = self.get_editor_content(editor_buffer);
+                            self.buffer.borrow_mut().save_as_content(&save_path, &content)?;
+                            self.buffer.borrow_mut().set_baseline(&content);
+                            self.add_recent_file(&save_path);
+                        } else {
+                            // User cancelled Save As dialog, cancel the entire open operation
+                            return Err(anyhow::anyhow!("Save As cancelled, open operation aborted"));
+                        }
+                    }
+                }
+                SaveChangesResult::Discard => {
+                    // Continue with open operation
+                }
+                SaveChangesResult::Cancel => {
+                    return Err(anyhow::anyhow!("Open file cancelled by user"));
+                }
+            }
+        }
+
+        self.load_file_into_editor(path, editor_buffer)?;
+        eprintln!("[FileOps] Opened file by path: {}", path.display());
+        Ok(())
+    }
+
     /// Saves the current document
     /// 
     /// If the document is untitled, this will show a Save As dialog.
@@ -332,16 +404,18 @@ impl FileOperations {
     }
 
         /// Async open file operation using dialog callbacks
-        pub async fn open_file_async<'a, F, G>(
+        pub async fn open_file_async<'a, F, G, H>(
             &self,
             parent_window: &'a gtk4::Window,
             editor_buffer: &'a gtk4::TextBuffer,
             show_open_dialog: F,
             show_save_changes_dialog: G,
+            show_save_dialog: H,
         ) -> Result<()> 
         where
             F: for<'b> Fn(&'b gtk4::Window, &'b str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>>,
             G: for<'b> Fn(&'b gtk4::Window, &'b str, &'b str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>>,
+            H: for<'b> Fn(&'b gtk4::Window, &'b str, Option<&'b str>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>>,
         {
             // Check for unsaved changes and prompt user
             if self.buffer.borrow().has_unsaved_changes() {
@@ -352,13 +426,23 @@ impl FileOperations {
                         if self.buffer.borrow().get_file_path().is_some() {
                             self.save_document(parent_window, editor_buffer)?;
                         } else {
-                            // Need Save As - for simplicity, save as "untitled.md" for now
-                            // TODO: Add save_as dialog callback parameter if needed
-                            let content = self.get_editor_content(editor_buffer);
-                            let untitled_path = std::path::PathBuf::from("untitled.md");
-                            self.buffer.borrow_mut().save_as_content(&untitled_path, &content)?;
-                            self.buffer.borrow_mut().set_baseline(&content);
-                            self.add_recent_file(&untitled_path);
+                            // Show Save As dialog for new/untitled files
+                            let suggested_name = if self.get_document_title().contains("Untitled") {
+                                "Untitled.md"
+                            } else {
+                                &format!("{}.md", self.get_document_title().replace("*", "").trim())
+                            };
+                            
+                            let file_path = show_save_dialog(parent_window, "Save Markdown File", Some(suggested_name)).await?;
+                            if let Some(path) = file_path {
+                                let content = self.get_editor_content(editor_buffer);
+                                self.buffer.borrow_mut().save_as_content(&path, &content)?;
+                                self.buffer.borrow_mut().set_baseline(&content);
+                                self.add_recent_file(&path);
+                            } else {
+                                // User cancelled Save As dialog, cancel the entire open operation
+                                return Err(anyhow::anyhow!("Save As cancelled, open operation aborted"));
+                            }
                         }
                     }
                     SaveChangesResult::Discard => {
@@ -380,14 +464,16 @@ impl FileOperations {
         }
 
         /// Async new document operation using dialog callback
-        pub async fn new_document_async<'a, F>(
+        pub async fn new_document_async<'a, F, G>(
             &self,
             parent_window: &'a gtk4::Window,
             editor_buffer: &'a gtk4::TextBuffer,
             show_save_changes_dialog: F,
+            show_save_dialog: G,
         ) -> Result<()> 
         where
             F: for<'b> Fn(&'b gtk4::Window, &'b str, &'b str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>>,
+            G: for<'b> Fn(&'b gtk4::Window, &'b str, Option<&'b str>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>>,
         {
             // Check for unsaved changes and prompt user
             if self.buffer.borrow().has_unsaved_changes() {
@@ -398,13 +484,23 @@ impl FileOperations {
                         if self.buffer.borrow().get_file_path().is_some() {
                             self.save_document(parent_window, editor_buffer)?;
                         } else {
-                            // Need Save As - for simplicity, save as "untitled.md" for now
-                            // TODO: Add save_as dialog callback parameter if needed
-                            let content = self.get_editor_content(editor_buffer);
-                            let untitled_path = std::path::PathBuf::from("untitled.md");
-                            self.buffer.borrow_mut().save_as_content(&untitled_path, &content)?;
-                            self.buffer.borrow_mut().set_baseline(&content);
-                            self.add_recent_file(&untitled_path);
+                            // Show Save As dialog for new/untitled files
+                            let suggested_name = if self.get_document_title().contains("Untitled") {
+                                "Untitled.md"
+                            } else {
+                                &format!("{}.md", self.get_document_title().replace("*", "").trim())
+                            };
+                            
+                            let file_path = show_save_dialog(parent_window, "Save Markdown File", Some(suggested_name)).await?;
+                            if let Some(path) = file_path {
+                                let content = self.get_editor_content(editor_buffer);
+                                self.buffer.borrow_mut().save_as_content(&path, &content)?;
+                                self.buffer.borrow_mut().set_baseline(&content);
+                                self.add_recent_file(&path);
+                            } else {
+                                // User cancelled Save As dialog, cancel the new document operation
+                                return Err(anyhow::anyhow!("Save As cancelled, new document operation aborted"));
+                            }
                         }
                     }
                     SaveChangesResult::Discard => {
@@ -794,8 +890,9 @@ pub fn register_file_actions_async(
         let window = window.clone();
         let editor_buffer = editor_buffer.clone();
         let title_label = title_label.clone();
-    let show_open_dialog = Arc::clone(&show_open_dialog);
-    let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
+        let show_open_dialog = Arc::clone(&show_open_dialog);
+        let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
+        let show_save_dialog = Arc::clone(&show_save_dialog);
         move |_, _| {
             let file_ops = file_ops.clone();
             let window = window.clone();
@@ -803,6 +900,7 @@ pub fn register_file_actions_async(
             let title_label = title_label.clone();
             let show_open_dialog = Arc::clone(&show_open_dialog);
             let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
+            let show_save_dialog = Arc::clone(&show_save_dialog);
             glib::MainContext::default().spawn_local(async move {
                 let file_ops_ref = file_ops.borrow();
                 let gtk_window: &gtk4::Window = window.upcast_ref();
@@ -812,8 +910,42 @@ pub fn register_file_actions_async(
                     text_buffer,
                     |w, title| (show_open_dialog)(w, title),
                     |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
+                    |w, title, suggested| (show_save_dialog)(w, title, suggested),
                 ).await;
                 // Update title label after open completes
+                let title = file_ops.borrow().get_document_title();
+                title_label.set_text(&title);
+            });
+        }
+    });
+
+    // New document action (async)
+    let new_action = gio::SimpleAction::new("new", None);
+    new_action.connect_activate({
+        let file_ops = file_operations.clone();
+        let window = window.clone();
+        let editor_buffer = editor_buffer.clone();
+        let title_label = title_label.clone();
+        let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
+        let show_save_dialog = Arc::clone(&show_save_dialog);
+        move |_, _| {
+            let file_ops = file_ops.clone();
+            let window = window.clone();
+            let editor_buffer = editor_buffer.clone();
+            let title_label = title_label.clone();
+            let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
+            let show_save_dialog = Arc::clone(&show_save_dialog);
+            glib::MainContext::default().spawn_local(async move {
+                let file_ops_ref = file_ops.borrow();
+                let gtk_window: &gtk4::Window = window.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                let _ = file_ops_ref.new_document_async(
+                    gtk_window,
+                    text_buffer,
+                    |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
+                    |w, title, suggested| (show_save_dialog)(w, title, suggested),
+                ).await;
+                // Update title label after new document is created
                 let title = file_ops.borrow().get_document_title();
                 title_label.set_text(&title);
             });
@@ -878,6 +1010,7 @@ pub fn register_file_actions_async(
     });
 
     // Add actions to application
+    app.add_action(&new_action);
     app.add_action(&open_action);
     app.add_action(&save_as_action);
     app.add_action(&quit_action);
@@ -904,6 +1037,8 @@ pub fn setup_recent_actions(
     window: &gtk4::ApplicationWindow,
     editor_buffer: &sourceview5::Buffer,
     title_label: &gtk4::Label,
+    show_save_changes_dialog: Arc<dyn for<'b> Fn(&'b gtk4::Window, &'b str, &'b str) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>> + Send + Sync + 'static>,
+    show_save_dialog: Arc<dyn for<'b> Fn(&'b gtk4::Window, &'b str, Option<&'b str>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>> + Send + Sync + 'static>,
 ) {
     // Initialize menu using provided recent_menu from UI
     crate::logic::menu_items::file::update_recent_files_menu(recent_menu, &file_operations.borrow().get_recent_files());
@@ -949,21 +1084,36 @@ pub fn setup_recent_actions(
             let window_for_action = window_owned.clone();
             let editor_for_action = editor_buffer_owned.clone();
             let title_label_for_action = title_label_owned.clone();
+            let show_save_changes_for_action = Arc::clone(&show_save_changes_dialog);
+            let show_save_for_action = Arc::clone(&show_save_dialog);
             let path_clone = path.clone();
             app_action.connect_activate(move |_, _| {
                 let file_ops = file_ops_for_action.clone();
                 let win = window_for_action.clone();
                 let editor = editor_for_action.clone();
                 let title_label_async = title_label_for_action.clone();
+                let show_save_changes_dialog = Arc::clone(&show_save_changes_for_action);
+                let show_save_dialog = Arc::clone(&show_save_for_action);
                 let path_to_open = path_clone.clone();
                 glib::MainContext::default().spawn_local(async move {
                     let gtk_window: &gtk4::Window = win.upcast_ref();
                     let text_buffer: &gtk4::TextBuffer = editor.upcast_ref();
-                    if let Err(e) = file_ops.borrow().open_file_by_path(&path_to_open, gtk_window, text_buffer) {
-                        eprintln!("Failed to open recent file: {} -> {}", path_to_open.display(), e);
-                    } else {
-                        let title = file_ops.borrow().get_document_title();
-                        title_label_async.set_text(&title);
+                    let result = file_ops.borrow().open_file_by_path_async(
+                        &path_to_open,
+                        gtk_window,
+                        text_buffer,
+                        |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
+                        |w, title, suggested| (show_save_dialog)(w, title, suggested),
+                    ).await;
+                    
+                    match result {
+                        Ok(_) => {
+                            let title = file_ops.borrow().get_document_title();
+                            title_label_async.set_text(&title);
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to open recent file: {} -> {}", path_to_open.display(), e);
+                        }
                     }
                 });
             });

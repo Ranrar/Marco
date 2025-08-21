@@ -437,6 +437,8 @@ fn build_ui(app: &Application) {
         &window,
         &editor_buffer,
         &title_label,
+        std::sync::Arc::new(|w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))),
+        std::sync::Arc::new(|w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested))),
     );
 
     // Set up buffer change tracking - delegated to logic/menu_items/file.rs
@@ -475,6 +477,7 @@ fn build_ui(app: &Application) {
                     gtk_window,
                     text_buffer,
                     |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
+                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
                 ).await;
                 // Update title label to reflect new untitled document
                 let title = file_operations.borrow().get_document_title();
@@ -531,6 +534,7 @@ fn build_ui(app: &Application) {
                     text_buffer,
                     |w, title| Box::pin(FileDialogs::show_open_dialog(w, title)),
                     |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
+                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
                 ).await;
                 // Update title label after open completes
                 let title = file_operations.borrow().get_document_title();

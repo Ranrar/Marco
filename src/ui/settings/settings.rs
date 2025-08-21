@@ -103,10 +103,14 @@ pub fn show_settings_dialog(
     let close_button = Button::with_label("Close");
     let dialog_clone = dialog.clone();
     close_button.connect_clicked(move |_| dialog_clone.close());
+    close_button.set_margin_start(0);
+    close_button.set_margin_end(8);
+    close_button.set_margin_bottom(8);
+    close_button.set_margin_top(8);
     button_box.append(&close_button);
     content_box.append(&button_box);
 
-    dialog.set_default_size(700, 600); // Make dialog wider
+    dialog.set_default_size(700, 600);
     dialog.set_child(Some(&content_box));
     dialog.present();
 }
