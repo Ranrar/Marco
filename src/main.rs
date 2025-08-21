@@ -93,7 +93,7 @@ use std::path::PathBuf;
 use crate::theme::ThemeManager;
 use crate::logic::parser::MarkdownSyntaxMap;
 use crate::logic::{DocumentBuffer, RecentFiles};
-use crate::logic::menu_items::file::{FileOperations, SaveChangesResult};
+use crate::logic::menu_items::file::FileOperations;
 use crate::ui::menu_items::files::FileDialogs;
 
 const APP_ID: &str = "com.example.Marco";
@@ -166,8 +166,8 @@ fn build_ui(app: &Application) {
     window.add_css_class("main-window");
 
     // --- Custom VS Code–like draggable titlebar from menu.rs ---
-    let titlebar = menu::create_custom_titlebar(&window);
-    window.set_titlebar(Some(&titlebar));
+    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(&window);
+    window.set_titlebar(Some(&titlebar_handle));
 
     // --- ThemeManager and settings.ron path ---
     let config_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
@@ -411,93 +411,130 @@ fn build_ui(app: &Application) {
     // Create file operations handler
     let file_operations = FileOperations::new(
         Rc::new(RefCell::new(DocumentBuffer::new_untitled())),
-        Rc::new(RefCell::new(RecentFiles::new(5)))
+        Rc::new(RefCell::new(RecentFiles::new(&settings_path)))
     );
     let file_operations_rc = Rc::new(RefCell::new(file_operations));
 
+    // Populate the Recent Files submenu from FileOperations' recent list
+    // If empty, leave the submenu with its placeholder (no entries) so it appears inactive.
+    // Register remaining file actions (open, save_as, quit, recent-file handling)
+    crate::logic::menu_items::file::register_file_actions_async(
+        app.clone(),
+        file_operations_rc.clone(),
+        &window,
+        &editor_buffer,
+        &title_label,
+        std::sync::Arc::new(|w, title| Box::pin(FileDialogs::show_open_dialog(w, title))),
+        std::sync::Arc::new(|w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))),
+        std::sync::Arc::new(|w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested))),
+    );
 
+    // Wire dynamic recent-file actions using the recent_menu from the UI
+    crate::logic::menu_items::file::setup_recent_actions(
+        app,
+        file_operations_rc.clone(),
+        &recent_menu,
+        &window,
+        &editor_buffer,
+        &title_label,
+    );
 
-    // Set up buffer change tracking - mark document as modified when editor content changes
+    // Set up buffer change tracking - delegated to logic/menu_items/file.rs
     // We need to use a flag to prevent infinite recursion during programmatic changes
     let modification_tracking_enabled = Rc::new(RefCell::new(true));
-    editor_buffer.connect_changed({
-        let file_operations = file_operations_rc.clone();
-        let tracking_enabled = modification_tracking_enabled.clone();
-        move |_| {
-            // Only track changes when not loading a file programmatically
-            if *tracking_enabled.borrow() {
-                if let Ok(file_ops) = file_operations.try_borrow() {
-                    file_ops.mark_document_modified();
-                }
-            }
-        }
-    });
+    crate::logic::menu_items::file::attach_change_tracker(
+        file_operations_rc.clone(),
+        &editor_buffer,
+        modification_tracking_enabled.clone(),
+        &title_label,
+    );
 
-    // File menu actions
+    // Register simple file actions using FileOperations business logic  
+    // TODO: Move to FileOperations::register_actions when module visibility is fixed
+    
+    // New document action - using async version with save changes dialog
     let new_action = gtk4::gio::SimpleAction::new("new", None);
-    let open_action = gtk4::gio::SimpleAction::new("open", None);
-    let save_action = gtk4::gio::SimpleAction::new("save", None);
-    let save_as_action = gtk4::gio::SimpleAction::new("save_as", None);
-    let quit_action = gtk4::gio::SimpleAction::new("quit", None);
-
-    // New document action
     new_action.connect_activate({
         let window = window.clone();
         let file_operations = file_operations_rc.clone();
         let editor_buffer = editor_buffer.clone();
         let tracking_enabled = modification_tracking_enabled.clone();
-        move |_, _| {
-            // Temporarily disable modification tracking during new document creation
-            *tracking_enabled.borrow_mut() = false;
-            
-            let file_ops = file_operations.borrow();
-            // Convert sourceview5::Buffer to gtk4::TextBuffer
-            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-            if let Err(e) = file_ops.new_document(&window, text_buffer) {
-                eprintln!("Error creating new document: {}", e);
-            }
-            
-            // Re-enable modification tracking
-            *tracking_enabled.borrow_mut() = true;
-        }
-    });
-
-    // Open file action
-    open_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-        let editor_buffer = editor_buffer.clone();
-        let tracking_enabled = modification_tracking_enabled.clone();
+        let title_label = title_label.clone();
         move |_, _| {
             let window = window.clone();
             let file_operations = file_operations.clone();
             let editor_buffer = editor_buffer.clone();
             let tracking_enabled = tracking_enabled.clone();
-            
-            // Spawn async dialog operation on main context
-            let ctx = glib::MainContext::default();
-            ctx.spawn_local(async move {
-                match FileDialogs::show_open_dialog(&window, "Open Markdown File").await {
-                    Ok(Some(path)) => {
-                        // Temporarily disable modification tracking during file loading
-                        *tracking_enabled.borrow_mut() = false;
-                        
-                        let file_ops = file_operations.borrow();
-                        let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                        if let Err(e) = file_ops.open_file_by_path(&path, &window, text_buffer) {
-                            eprintln!("Error opening file: {}", e);
-                        }
-                        
-                        // Re-enable modification tracking
-                        *tracking_enabled.borrow_mut() = true;
-                    }
-                    Ok(None) => {
-                        eprintln!("[FileDialog] Open dialog cancelled by user");
-                    }
-                    Err(e) => {
-                        eprintln!("Error showing open dialog: {}", e);
-                    }
-                }
+            let title_label_async = title_label.clone();
+            glib::MainContext::default().spawn_local(async move {
+                *tracking_enabled.borrow_mut() = false;
+                let file_ops = file_operations.borrow();
+                let gtk_window: &gtk4::Window = window.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                let _ = file_ops.new_document_async(
+                    gtk_window,
+                    text_buffer,
+                    |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
+                ).await;
+                // Update title label to reflect new untitled document
+                let title = file_operations.borrow().get_document_title();
+                title_label_async.set_text(&title);
+                *tracking_enabled.borrow_mut() = true;
+            });
+        }
+    });
+
+    // Save document action - moved logic to FileOperations  
+    let save_action = gtk4::gio::SimpleAction::new("save", None);
+    save_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        let title_label = title_label.clone();
+        move |_, _| {
+            let file_ops_ref = file_operations.borrow();
+            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+            if let Err(e) = file_ops_ref.save_document(&window, text_buffer) {
+                eprintln!("Error saving document: {}", e);
+            } else {
+                // Update title after successful save
+                let title = file_operations.borrow().get_document_title();
+                title_label.set_text(&title);
+            }
+        }
+    });
+
+    // TODO: Remaining async file actions to be moved to FileOperations  
+    // These require async UI dialog integration
+    
+    let open_action = gtk4::gio::SimpleAction::new("open", None);
+    let save_as_action = gtk4::gio::SimpleAction::new("save_as", None);
+    let quit_action = gtk4::gio::SimpleAction::new("quit", None);
+
+    // Open file action (async helper)
+    open_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+    let editor_buffer = editor_buffer.clone();
+    let title_label = title_label.clone();
+        move |_, _| {
+            let window = window.clone();
+            let file_operations = file_operations.clone();
+            let editor_buffer = editor_buffer.clone();
+            let title_label_async = title_label.clone();
+            glib::MainContext::default().spawn_local(async move {
+                let file_ops = file_operations.borrow();
+                let gtk_window: &gtk4::Window = window.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                let _ = file_ops.open_file_async(
+                    gtk_window,
+                    text_buffer,
+                    |w, title| Box::pin(FileDialogs::show_open_dialog(w, title)),
+                    |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
+                ).await;
+                // Update title label after open completes
+                let title = file_operations.borrow().get_document_title();
+                title_label_async.set_text(&title);
             });
         }
     });
@@ -516,59 +553,34 @@ fn build_ui(app: &Application) {
         }
     });
 
-    // Save As action
+    // Save As action (async helper)
     save_as_action.connect_activate({
         let window = window.clone();
         let file_operations = file_operations_rc.clone();
         let editor_buffer = editor_buffer.clone();
-        move |_, _| {
+    let title_label = title_label.clone();
+    move |_, _| {
             let window = window.clone();
             let file_operations = file_operations.clone();
             let editor_buffer = editor_buffer.clone();
-            
-            // Spawn async dialog operation on main context
-            let ctx = glib::MainContext::default();
-            ctx.spawn_local(async move {
-                let suggested_name = {
-                    let file_ops = file_operations.borrow();
-                    file_ops.get_document_title()
-                };
-                
-                match FileDialogs::show_save_dialog(&window, "Save Markdown File", Some(&suggested_name)).await {
-                    Ok(Some(path)) => {
-                        // Get content from editor
-                        let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                        let start_iter = text_buffer.start_iter();
-                        let end_iter = text_buffer.end_iter();
-                        let content = text_buffer.text(&start_iter, &end_iter, false).to_string();
-                        
-                        // Save the content
-                        let file_ops = file_operations.borrow();
-                        let mut buffer = file_ops.buffer.borrow_mut();
-                        let result = buffer.save_as_content(&path, &content);
-                        drop(buffer);
-                        
-                        if let Err(e) = result {
-                            eprintln!("Error saving file: {}", e);
-                            return;
-                        }
-                        
-                        // Add to recent files (separate borrow)
-                        file_ops.recent_files.borrow_mut().add_file(&path);
-                        eprintln!("[FileDialog] Saved file: {}", path.display());
-                    }
-                    Ok(None) => {
-                        eprintln!("[FileDialog] Save dialog cancelled by user");
-                    }
-                    Err(e) => {
-                        eprintln!("Error showing save dialog: {}", e);
-                    }
-                }
+            let title_label_async = title_label.clone();
+            glib::MainContext::default().spawn_local(async move {
+                let file_ops = file_operations.borrow();
+                let gtk_window: &gtk4::Window = window.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                let _ = file_ops.save_as_async(
+                    gtk_window,
+                    text_buffer,
+                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
+                ).await;
+                // Update title label after Save As completes
+                let title = file_operations.borrow().get_document_title();
+                title_label_async.set_text(&title);
             });
         }
     });
 
-    // Quit application action
+    // Quit application action (async helper)
     quit_action.connect_activate({
         let window = window.clone();
         let file_operations = file_operations_rc.clone();
@@ -579,90 +591,17 @@ fn build_ui(app: &Application) {
             let file_operations = file_operations.clone();
             let editor_buffer = editor_buffer.clone();
             let app = app.clone();
-            
-            // Spawn async dialog operation on main context
-            let ctx = glib::MainContext::default();
-            ctx.spawn_local(async move {
-                let is_modified = {
-                    let file_ops = file_operations.borrow();
-                    let buffer = file_ops.buffer.borrow();
-                    buffer.has_unsaved_changes()
-                };
-                
-                let document_title = {
-                    let file_ops = file_operations.borrow();
-                    file_ops.get_document_title()
-                };
-
-                if is_modified {
-                    match FileDialogs::show_save_changes_dialog(&window, &document_title, "quitting").await {
-                        Ok(SaveChangesResult::Save) => {
-                            // Try to save first, then quit if successful
-                            let has_file_path = {
-                                let file_ops = file_operations.borrow();
-                                let buffer = file_ops.buffer.borrow();
-                                buffer.get_file_path().is_some()
-                            };
-                            
-                            if !has_file_path {
-                                // Show save dialog first for untitled documents
-                                let suggested_name = {
-                                    let file_ops = file_operations.borrow();
-                                    file_ops.get_document_title()
-                                };
-                                
-                                match FileDialogs::show_save_dialog(&window, "Save Markdown File", Some(&suggested_name)).await {
-                                    Ok(Some(path)) => {
-                                        // Get content from editor and save
-                                        let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                                        let start_iter = text_buffer.start_iter();
-                                        let end_iter = text_buffer.end_iter();
-                                        let content = text_buffer.text(&start_iter, &end_iter, false).to_string();
-                                        
-                                        let file_ops = file_operations.borrow();
-                                        let mut buffer = file_ops.buffer.borrow_mut();
-                                        let result = buffer.save_as_content(&path, &content);
-                                        drop(buffer);
-                                        
-                                        if result.is_err() {
-                                            eprintln!("Error saving file before quit");
-                                            return;
-                                        }
-                                        
-                                        file_ops.recent_files.borrow_mut().add_file(&path);
-                                        app.quit();
-                                    }
-                                    Ok(None) => {
-                                        eprintln!("[FileDialog] Save dialog cancelled, not quitting");
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Error showing save dialog: {}", e);
-                                    }
-                                }
-                            } else {
-                                // Save existing file
-                                let file_ops = file_operations.borrow();
-                                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                                if let Err(e) = file_ops.save_document(&window, text_buffer) {
-                                    eprintln!("Error saving before quit: {}", e);
-                                    return; // Don't quit if save failed
-                                }
-                                app.quit();
-                            }
-                        }
-                        Ok(SaveChangesResult::Discard) => {
-                            app.quit();
-                        }
-                        Ok(SaveChangesResult::Cancel) => {
-                            eprintln!("[FileDialog] Quit cancelled by user");
-                        }
-                        Err(e) => {
-                            eprintln!("Error showing save changes dialog: {}", e);
-                        }
-                    }
-                } else {
-                    app.quit();
-                }
+            glib::MainContext::default().spawn_local(async move {
+                let file_ops = file_operations.borrow();
+                let gtk_window: &gtk4::Window = window.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                let _ = file_ops.quit_async(
+                    gtk_window,
+                    text_buffer,
+                    &app,
+                    |w, title, action| Box::pin(FileDialogs::show_save_changes_dialog(w, title, action)),
+                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
+                ).await;
             });
         }
     });

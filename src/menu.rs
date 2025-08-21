@@ -7,16 +7,29 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use crate::logic::layoutstate::{LayoutState, layout_state_label};
 
-use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle};
+use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle, Label};
 use gtk4::gio;
 use gtk4::PopoverMenuBar;
 
-pub fn main_menu_structure() -> PopoverMenuBar {
+pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     // ...existing code for menu structure...
     let menu_model = gio::Menu::new();
     let file_menu = gio::Menu::new();
     file_menu.append(Some("New"), Some("app.new"));
     file_menu.append(Some("Open"), Some("app.open"));
+    // Recent Files submenu: the application can populate this at runtime.
+    // Create the submenu model that will be mutated at runtime.
+    let recent_menu = gio::Menu::new();
+    // Placeholder disabled entry shown when there are no recent files
+    let placeholder = gio::MenuItem::new(Some("(No recent files)"), None::<&str>);
+    recent_menu.append_item(&placeholder);
+    // Create a MenuItem that references the application action "app.recent"
+    // so enabling/disabling that action will also affect the top-level menu item.
+    let recent_menu_item = gio::MenuItem::new(Some("Recent Files"), Some("app.recent"));
+    // Attach the submenu to the menu item
+    recent_menu_item.set_submenu(Some(&recent_menu));
+    // Append the menu item to the File menu
+    file_menu.append_item(&recent_menu_item);
     file_menu.append(Some("Save"), Some("app.save"));
     file_menu.append(Some("Save As"), Some("app.save_as"));
     file_menu.append(Some("Settings"), Some("app.settings"));
@@ -43,11 +56,13 @@ pub fn main_menu_structure() -> PopoverMenuBar {
     menu_model.append_submenu(Some("Help"), &help_menu);
     let menubar = PopoverMenuBar::from_model(Some(&menu_model));
     menubar.add_css_class("menubar");
-    menubar
+    (menubar, recent_menu)
 }
 
 /// Returns a WindowHandle containing the custom menu bar and all controls.
-pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle {
+/// Returns a WindowHandle and the central title `Label` so callers can update the
+/// document title (and modification marker) dynamically.
+pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle, Label, gio::Menu) {
 
     use gtk4::gdk::Display;
     if Display::default().is_some() {
@@ -73,11 +88,20 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     titlebar.append(&icon);
 
     // --- Menu bar (next to title) ---
-    let menu_bar = main_menu_structure();
+    let (menu_bar, recent_menu) = main_menu_structure();
     menu_bar.set_valign(Align::Center);
     menu_bar.add_css_class("menubar");
     titlebar.append(&menu_bar);
 
+    // Centered document title label
+    let title_label = Label::new(None);
+    title_label.set_valign(Align::Center);
+    title_label.add_css_class("title-label");
+    title_label.set_hexpand(true);
+    title_label.set_halign(Align::Center);
+    // Start with placeholder
+    title_label.set_text("Untitled.md");
+    titlebar.append(&title_label);
 
     // Spacer (expand to push controls to right)
     let spacer = GtkBox::new(Orientation::Horizontal, 0);
@@ -325,8 +349,23 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
     // Minimize and close actions
     let win_clone = window.clone();
     btn_min.connect_clicked(move |_| { win_clone.minimize(); });
-    let win_clone = window.clone();
-    btn_close.connect_clicked(move |_| { win_clone.close(); });
+    // When close is pressed, activate the application's quit action so
+    // the unified quit flow (including FileOperations::quit_async) runs.
+    let win_for_close = window.clone();
+    btn_close.connect_clicked(move |_| {
+        if let Some(app) = win_for_close.application() {
+            // Activate the app-level action 'app.quit' which is registered in main.rs
+            if let Some(action) = app.lookup_action("quit") {
+                action.activate(None);
+            } else {
+                // Fallback: close the window if action not found
+                win_for_close.close();
+            }
+        } else {
+            // Fallback: close the window if no application is associated
+            win_for_close.close();
+        }
+    });
 
     // Click toggles window state and updates glyph immediately
     let label_for_toggle = max_label.clone();
@@ -353,5 +392,5 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> WindowHandle 
 
     // Add the titlebar to the WindowHandle
     handle.set_child(Some(&titlebar));
-    handle
+    (handle, title_label, recent_menu)
 }

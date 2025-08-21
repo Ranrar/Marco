@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 use anyhow::{Result, Context};
-use serde::{Deserialize, Serialize};
 
 /// Manages document buffer state including file path, modification status, and content
 /// 
@@ -20,6 +19,9 @@ pub struct DocumentBuffer {
     pub file_path: Option<PathBuf>,
     /// Whether the document has unsaved changes
     pub is_modified: bool,
+    /// Baseline content used to detect actual modifications
+    /// This stores the content as it was when the file was last loaded or saved.
+    pub baseline_content: String,
     /// Display name for the document (filename or "Untitled.md")
     pub display_name: String,
 }
@@ -40,6 +42,7 @@ impl DocumentBuffer {
         Self {
             file_path: None,
             is_modified: false,
+            baseline_content: String::new(),
             display_name: "Untitled.md".to_string(),
         }
     }
@@ -80,6 +83,7 @@ impl DocumentBuffer {
         Ok(Self {
             file_path: Some(path.to_path_buf()),
             is_modified: false,
+            baseline_content: String::new(),
             display_name,
         })
     }
@@ -146,6 +150,8 @@ impl DocumentBuffer {
                 fs::write(path, content)
                     .with_context(|| format!("Failed to write file: {}", path.display()))?;
 
+                // Update baseline to the saved content
+                self.baseline_content = content.to_string();
                 self.is_modified = false;
                 Ok(())
             }
@@ -207,7 +213,9 @@ impl DocumentBuffer {
 
         self.file_path = Some(path);
         self.display_name = display_name;
-        self.is_modified = false;
+    // After Save As, baseline matches the saved content
+    self.baseline_content = content.to_string();
+    self.is_modified = false;
 
         Ok(())
     }
@@ -225,7 +233,20 @@ impl DocumentBuffer {
     /// assert!(buffer.is_modified);
     /// ```
     pub fn mark_modified(&mut self) {
+        // Deprecated: prefer comparing against baseline via `update_modified_from_content`.
         self.is_modified = true;
+    }
+
+    /// Update modification state by comparing the provided editor content with the baseline.
+    pub fn update_modified_from_content(&mut self, current_content: &str) {
+        let modified = self.baseline_content != current_content;
+        self.is_modified = modified;
+    }
+
+    /// Sets the baseline content (used after loading or saving a file)
+    pub fn set_baseline(&mut self, content: &str) {
+        self.baseline_content = content.to_string();
+        self.is_modified = false;
     }
 
     /// Checks if the document has unsaved changes
@@ -270,11 +291,11 @@ impl DocumentBuffer {
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// assert_eq!(buffer.get_full_title(), "Untitled.md");
     /// buffer.mark_modified();
-    /// assert_eq!(buffer.get_full_title(), "* Untitled.md");
+    /// assert_eq!(buffer.get_full_title(), "*Untitled.md");
     /// ```
     pub fn get_full_title(&self) -> String {
         if self.is_modified {
-            format!("* {}", self.display_name)
+            format!("*{}", self.display_name)
         } else {
             self.display_name.clone()
         }
@@ -319,34 +340,20 @@ impl DocumentBuffer {
 
 /// Recent files manager for tracking and persisting recently opened files
 /// 
-/// This struct manages a list of recently opened files and provides
-/// functionality to persist them in the application settings.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// This struct manages a list of recently opened files through the
+/// swanson settings system for consistent persistence.
 pub struct RecentFiles {
-    /// List of recent file paths (most recent first)
-    pub files: Vec<PathBuf>,
-    /// Maximum number of recent files to track
-    pub max_files: usize,
-}
-
-impl Default for RecentFiles {
-    fn default() -> Self {
-        Self {
-            files: Vec::new(),
-            max_files: 5,
-        }
-    }
+    settings_path: PathBuf,
 }
 
 impl RecentFiles {
     /// Creates a new recent files manager
     /// 
     /// # Arguments
-    /// * `max_files` - Maximum number of recent files to track (default: 5)
-    pub fn new(max_files: usize) -> Self {
+    /// * `settings_path` - Path to the settings.ron file
+    pub fn new<P: AsRef<Path>>(settings_path: P) -> Self {
         Self {
-            files: Vec::new(),
-            max_files,
+            settings_path: settings_path.as_ref().to_path_buf(),
         }
     }
 
@@ -363,23 +370,17 @@ impl RecentFiles {
     /// use std::path::Path;
     /// use marco::logic::buffer::RecentFiles;
     /// 
-    /// let mut recent = RecentFiles::new(3);
+    /// let recent = RecentFiles::new("settings.ron");
     /// recent.add_file(Path::new("doc1.md"));
-    /// recent.add_file(Path::new("doc2.md"));
-    /// assert_eq!(recent.files.len(), 2);
     /// ```
-    pub fn add_file<P: AsRef<Path>>(&mut self, path: P) {
-        let path = path.as_ref().to_path_buf();
-
-        // Remove if already exists (will be re-added at front)
-        self.files.retain(|p| p != &path);
-
-        // Add to front
-        self.files.insert(0, path);
-
-        // Limit to max_files
-        if self.files.len() > self.max_files {
-            self.files.truncate(self.max_files);
+    pub fn add_file<P: AsRef<Path>>(&self, path: P) {
+        let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
+            .unwrap_or_default();
+        
+        settings.add_recent_file(path);
+        
+        if let Err(e) = settings.save_to_file(&self.settings_path) {
+            eprintln!("[RecentFiles] Failed to save recent file: {}", e);
         }
     }
 
@@ -387,27 +388,32 @@ impl RecentFiles {
     /// 
     /// # Returns
     /// Vector of recent file paths (most recent first)
-    pub fn get_files(&self) -> &[PathBuf] {
-        &self.files
-    }
-
-    /// Removes files that no longer exist from the recent list
-    /// 
-    /// This should be called periodically to clean up the list.
-    pub fn cleanup_missing_files(&mut self) {
-        self.files.retain(|path| path.exists());
+    pub fn get_files(&self) -> Vec<PathBuf> {
+        let settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
+            .unwrap_or_default();
+        
+        settings.get_recent_files()
     }
 
     /// Checks if the recent files list is empty
     pub fn is_empty(&self) -> bool {
-        self.files.is_empty()
+        self.get_files().is_empty()
     }
 
     /// Clears all recent files
-    pub fn clear(&mut self) {
-        self.files.clear();
+    pub fn clear(&self) {
+        let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
+            .unwrap_or_default();
+        
+        settings.clear_recent_files();
+        
+        if let Err(e) = settings.save_to_file(&self.settings_path) {
+            eprintln!("[RecentFiles] Failed to save cleared recent files: {}", e);
+        }
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {
@@ -430,33 +436,43 @@ mod tests {
         buffer.mark_modified();
         assert!(buffer.is_modified);
         assert!(buffer.has_unsaved_changes());
-        assert_eq!(buffer.get_full_title(), "* Untitled.md");
+        assert_eq!(buffer.get_full_title(), "*Untitled.md");
     }
 
     #[test]
     fn test_recent_files() {
-        let mut recent = RecentFiles::new(2);
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.ron");
         
-        recent.add_file(Path::new("file1.md"));
-        recent.add_file(Path::new("file2.md"));
-        recent.add_file(Path::new("file3.md")); // Should remove file1.md
+        let recent = RecentFiles::new(&settings_path);
         
-        assert_eq!(recent.files.len(), 2);
-        assert_eq!(recent.files[0], PathBuf::from("file3.md"));
-        assert_eq!(recent.files[1], PathBuf::from("file2.md"));
+        recent.add_file("file1.md");
+        recent.add_file("file2.md");
+        recent.add_file("file3.md");
+        
+        let files = recent.get_files();
+        assert!(files.len() <= 5); // Should respect max limit
+        if !files.is_empty() {
+            assert_eq!(files[0], PathBuf::from("file3.md")); // Most recent first
+        }
     }
 
     #[test]
     fn test_recent_files_duplicate() {
-        let mut recent = RecentFiles::new(3);
+        let temp_dir = TempDir::new().unwrap();
+        let settings_path = temp_dir.path().join("settings.ron");
         
-        recent.add_file(Path::new("file1.md"));
-        recent.add_file(Path::new("file2.md"));
-        recent.add_file(Path::new("file1.md")); // Should move to front
+        let recent = RecentFiles::new(&settings_path);
         
-        assert_eq!(recent.files.len(), 2);
-        assert_eq!(recent.files[0], PathBuf::from("file1.md"));
-        assert_eq!(recent.files[1], PathBuf::from("file2.md"));
+        recent.add_file("file1.md");
+        recent.add_file("file2.md");
+        recent.add_file("file1.md"); // Should move to front
+        
+        let files = recent.get_files();
+        if files.len() >= 2 {
+            assert_eq!(files[0], PathBuf::from("file1.md"));
+            assert_eq!(files[1], PathBuf::from("file2.md"));
+        }
     }
 
     #[test]

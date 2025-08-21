@@ -111,6 +111,18 @@
     margin-right: 0px;
 }
 
+/* Centered document title shown in the custom titlebar */
+.title-label {
+    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    font-size: 14px;
+    color: #e0e0e0;
+    font-weight: 600;
+    padding: 0 0px;
+    margin: 0 0px;
+    text-align: center;
+    vertical-align: middle;
+}
+
 /*
  * Documentation:
  * - .menubar, .titlebar  : main menu / custom titlebar container
