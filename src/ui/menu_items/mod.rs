@@ -1,4 +1,4 @@
-// Module declarations
-pub mod format;
-pub mod view;
-pub mod layoutstate;
+pub mod files;
+
+// Re-export commonly used types
+pub use files::FileDialogs;

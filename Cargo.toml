@@ -26,6 +26,7 @@ once_cell = "1.21.3"
 gio = "0.20"
 cairo-rs = "0.21"
 syntect = "5.2"
+tempfile = "3.21.0"
 
 [dev-dependencies]
 # Basic testing

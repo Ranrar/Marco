@@ -11,6 +11,79 @@ mod theme;
 mod toolbar;
 pub mod ui;
 
+/*
+╔══════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                                    MARCO ARCHITECTURE GUIDELINES                                 ║
+║                                                                                                  ║
+║    CRITICAL: This file (main.rs) serves ONLY as an APPLICATION GATEWAY                           ║
+║                                                                                                  ║
+║    DO NOT ADD:                           ║    ALLOWED IN main.rs:                                ║
+║     • Business logic                     ║     • Module imports and declarations                 ║
+║     • UI component implementations       ║     • Application initialization                      ║
+║     • File operations                    ║     • Window setup and basic layout                   ║
+║     • Complex algorithms                 ║     • Async context bridging (spawn_local)            ║
+║     • Data processing                    ║                                                       ║
+║     • Theme logic                        ║                                                       ║
+║     • Parser implementations             ║                                                       ║
+║                                          ║                                                       ║
+║                                                                                                  ║
+║    FILE ORGANIZATION GUIDE:                                                                      ║
+║                                                                                                  ║
+║    src/logic/                          - All business logic and core functionality               ║
+║     ├── buffer.rs                       - Document state management                              ║
+║     ├── parser.rs                       - Markdown parsing and syntax analysis                   ║
+║     ├── asset_path.rs                   - Asset detection and path resolution                    ║
+║     ├── theme_loader.rs                 - Theme discovery and loading                            ║
+║     ├── schema_loader.rs                - Schema loading and validation                          ║
+║     ├── crossplatforms.rs               - Cross-platform compatibility                           ║
+║     ├── swanson.rs                      - Settings management                                    ║
+║     └── menu_items/                     - File operation business logic                          ║
+║         ├── file.rs                     - File operations (open, save, etc.)                     ║
+║         ├── edit.rs                     - Edit operations                                        ║
+║         ├── format.rs                   - Format operations                                      ║
+║         ├── view.rs                     - View state management                                  ║
+║         └── help.rs                     - Help system logic                                      ║
+║                                                                                                  ║
+║    src/ui/                             - All user interface components                           ║
+║     ├── main_editor.rs                  - Main editor UI with preview                            ║
+║     ├── code_viewer.rs                  - Code editor component                                  ║
+║     ├── html_viewer.rs                  - HTML preview component                                 ║
+║     ├── splitview.rs                    - Split view management                                  ║
+║     ├── menu_items/                     - UI dialogs and interactions                            ║
+║     │   └── files.rs                    - File dialogs (FileChooserNative, etc.)                 ║
+║     └── settings/                       - Settings UI components                                 ║
+║         ├── settings.rs                 - Settings dialog                                        ║
+║         └── tabs/                       - Settings tab components                                ║
+║                                                                                                  ║
+║    src/ (root level)                   - Application structure and integration                   ║
+║     ├── main.rs                         - THIS FILE: Application gateway only                    ║
+║     ├── lib.rs                          - Library exports for testing                            ║
+║     ├── footer.rs                       - Footer component integration                           ║
+║     ├── menu.rs                         - Menu bar and titlebar                                  ║
+║     ├── toolbar.rs                      - Toolbar component                                      ║
+║     └── theme.rs                        - Theme management integration                           ║
+║                                                                                                  ║
+║    INTEGRATION PATTERN:                                                                          ║
+║     main.rs → UI layer → Logic layer                                                             ║
+║     • main.rs sets up window and actions                                                         ║
+║     • UI components handle user interactions                                                     ║
+║     • Logic components process business rules                                                    ║
+║     • Async bridging happens in main.rs via spawn_local                                          ║
+║                                                                                                  ║
+║    WHEN ADDING NEW FEATURES:                                                                     ║
+║     1. Business logic → src/logic/                                                               ║
+║     2. UI components → src/ui/                                                                   ║
+║     3. Integration only → main.rs                                                                ║
+║     4. Keep layers separate and well-defined                                                     ║
+║                                                                                                  ║
+║    PRINCIPLES:                                                                                   ║
+║     • Separation of Concerns: Logic ≠ UI ≠ Integration                                           ║
+║     • Single Responsibility: Each file has one clear purpose                                     ║
+║     • Dependency Direction: main.rs → ui → logic (never reverse)                                 ║
+║     • Clean Architecture: Outer layers depend on inner layers                                    ║
+║                                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
+*/
 
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use crate::ui::main_editor::{create_editor_with_preview, wire_footer_updates};
@@ -19,6 +92,9 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use crate::theme::ThemeManager;
 use crate::logic::parser::MarkdownSyntaxMap;
+use crate::logic::buffer::{DocumentBuffer, RecentFiles};
+use crate::logic::menu_items::file::{FileOperations, SaveChangesResult};
+use crate::ui::menu_items::files::FileDialogs;
 
 const APP_ID: &str = "com.example.Marco";
 
@@ -36,7 +112,7 @@ fn main() -> glib::ExitCode {
         }
     };
     // Set local font dir for Fontconfig/Pango
-    crate::logic::icon_loader::set_local_font_dir(asset_dir.to_str().unwrap());
+    crate::logic::loaders::icon_loader::set_local_font_dir(asset_dir.to_str().unwrap());
 
     // Example: Load font and settings paths
     match get_font_path("ui_menu.ttf") {
@@ -56,13 +132,6 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(app: &Application) {
-    // --- Load settings from settings.ron ---
-    use crate::logic::swanson::Settings;
-    let config_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let settings_path = config_dir.join("src/assets/settings.ron");
-    let settings = Settings::load_from_file(settings_path.to_str().unwrap())
-        .unwrap_or_default();
-
     // Load and apply menu.css for menu and titlebar styling
     use gtk4::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
     use gtk4 as gtk;
@@ -146,7 +215,7 @@ fn build_ui(app: &Application) {
     toolbar.add_css_class("toolbar");
     toolbar::set_toolbar_height(&toolbar, 0); // Minimum height, matches footer
     // --- Determine correct HTML preview theme based on settings and app theme ---
-    use crate::logic::theme_loader::list_html_view_themes;
+    use crate::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
     let settings = &theme_manager.borrow().settings;
@@ -338,6 +407,279 @@ fn build_ui(app: &Application) {
             }
         });
     app.add_action(&settings_action);
+
+    // Create file operations handler
+    let file_operations = FileOperations::new(
+        Rc::new(RefCell::new(DocumentBuffer::new_untitled())),
+        Rc::new(RefCell::new(RecentFiles::new(5)))
+    );
+    let file_operations_rc = Rc::new(RefCell::new(file_operations));
+
+
+
+    // Set up buffer change tracking - mark document as modified when editor content changes
+    // We need to use a flag to prevent infinite recursion during programmatic changes
+    let modification_tracking_enabled = Rc::new(RefCell::new(true));
+    editor_buffer.connect_changed({
+        let file_operations = file_operations_rc.clone();
+        let tracking_enabled = modification_tracking_enabled.clone();
+        move |_| {
+            // Only track changes when not loading a file programmatically
+            if *tracking_enabled.borrow() {
+                if let Ok(file_ops) = file_operations.try_borrow() {
+                    file_ops.mark_document_modified();
+                }
+            }
+        }
+    });
+
+    // File menu actions
+    let new_action = gtk4::gio::SimpleAction::new("new", None);
+    let open_action = gtk4::gio::SimpleAction::new("open", None);
+    let save_action = gtk4::gio::SimpleAction::new("save", None);
+    let save_as_action = gtk4::gio::SimpleAction::new("save_as", None);
+    let quit_action = gtk4::gio::SimpleAction::new("quit", None);
+
+    // New document action
+    new_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        let tracking_enabled = modification_tracking_enabled.clone();
+        move |_, _| {
+            // Temporarily disable modification tracking during new document creation
+            *tracking_enabled.borrow_mut() = false;
+            
+            let file_ops = file_operations.borrow();
+            // Convert sourceview5::Buffer to gtk4::TextBuffer
+            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+            if let Err(e) = file_ops.new_document(&window, text_buffer) {
+                eprintln!("Error creating new document: {}", e);
+            }
+            
+            // Re-enable modification tracking
+            *tracking_enabled.borrow_mut() = true;
+        }
+    });
+
+    // Open file action
+    open_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        let tracking_enabled = modification_tracking_enabled.clone();
+        move |_, _| {
+            let window = window.clone();
+            let file_operations = file_operations.clone();
+            let editor_buffer = editor_buffer.clone();
+            let tracking_enabled = tracking_enabled.clone();
+            
+            // Spawn async dialog operation on main context
+            let ctx = glib::MainContext::default();
+            ctx.spawn_local(async move {
+                match FileDialogs::show_open_dialog(&window, "Open Markdown File").await {
+                    Ok(Some(path)) => {
+                        // Temporarily disable modification tracking during file loading
+                        *tracking_enabled.borrow_mut() = false;
+                        
+                        let file_ops = file_operations.borrow();
+                        let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                        if let Err(e) = file_ops.open_file_by_path(&path, &window, text_buffer) {
+                            eprintln!("Error opening file: {}", e);
+                        }
+                        
+                        // Re-enable modification tracking
+                        *tracking_enabled.borrow_mut() = true;
+                    }
+                    Ok(None) => {
+                        eprintln!("[FileDialog] Open dialog cancelled by user");
+                    }
+                    Err(e) => {
+                        eprintln!("Error showing open dialog: {}", e);
+                    }
+                }
+            });
+        }
+    });
+
+    // Save document action
+    save_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        move |_, _| {
+            let file_ops = file_operations.borrow();
+            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+            if let Err(e) = file_ops.save_document(&window, text_buffer) {
+                eprintln!("Error saving document: {}", e);
+            }
+        }
+    });
+
+    // Save As action
+    save_as_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        move |_, _| {
+            let window = window.clone();
+            let file_operations = file_operations.clone();
+            let editor_buffer = editor_buffer.clone();
+            
+            // Spawn async dialog operation on main context
+            let ctx = glib::MainContext::default();
+            ctx.spawn_local(async move {
+                let suggested_name = {
+                    let file_ops = file_operations.borrow();
+                    file_ops.get_document_title()
+                };
+                
+                match FileDialogs::show_save_dialog(&window, "Save Markdown File", Some(&suggested_name)).await {
+                    Ok(Some(path)) => {
+                        // Get content from editor
+                        let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                        let start_iter = text_buffer.start_iter();
+                        let end_iter = text_buffer.end_iter();
+                        let content = text_buffer.text(&start_iter, &end_iter, false).to_string();
+                        
+                        // Save the content
+                        let file_ops = file_operations.borrow();
+                        let mut buffer = file_ops.buffer.borrow_mut();
+                        let result = buffer.save_as_content(&path, &content);
+                        drop(buffer);
+                        
+                        if let Err(e) = result {
+                            eprintln!("Error saving file: {}", e);
+                            return;
+                        }
+                        
+                        // Add to recent files (separate borrow)
+                        file_ops.recent_files.borrow_mut().add_file(&path);
+                        eprintln!("[FileDialog] Saved file: {}", path.display());
+                    }
+                    Ok(None) => {
+                        eprintln!("[FileDialog] Save dialog cancelled by user");
+                    }
+                    Err(e) => {
+                        eprintln!("Error showing save dialog: {}", e);
+                    }
+                }
+            });
+        }
+    });
+
+    // Quit application action
+    quit_action.connect_activate({
+        let window = window.clone();
+        let file_operations = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        let app = app.clone();
+        move |_, _| {
+            let window = window.clone();
+            let file_operations = file_operations.clone();
+            let editor_buffer = editor_buffer.clone();
+            let app = app.clone();
+            
+            // Spawn async dialog operation on main context
+            let ctx = glib::MainContext::default();
+            ctx.spawn_local(async move {
+                let is_modified = {
+                    let file_ops = file_operations.borrow();
+                    let buffer = file_ops.buffer.borrow();
+                    buffer.has_unsaved_changes()
+                };
+                
+                let document_title = {
+                    let file_ops = file_operations.borrow();
+                    file_ops.get_document_title()
+                };
+
+                if is_modified {
+                    match FileDialogs::show_save_changes_dialog(&window, &document_title, "quitting").await {
+                        Ok(SaveChangesResult::Save) => {
+                            // Try to save first, then quit if successful
+                            let has_file_path = {
+                                let file_ops = file_operations.borrow();
+                                let buffer = file_ops.buffer.borrow();
+                                buffer.get_file_path().is_some()
+                            };
+                            
+                            if !has_file_path {
+                                // Show save dialog first for untitled documents
+                                let suggested_name = {
+                                    let file_ops = file_operations.borrow();
+                                    file_ops.get_document_title()
+                                };
+                                
+                                match FileDialogs::show_save_dialog(&window, "Save Markdown File", Some(&suggested_name)).await {
+                                    Ok(Some(path)) => {
+                                        // Get content from editor and save
+                                        let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                                        let start_iter = text_buffer.start_iter();
+                                        let end_iter = text_buffer.end_iter();
+                                        let content = text_buffer.text(&start_iter, &end_iter, false).to_string();
+                                        
+                                        let file_ops = file_operations.borrow();
+                                        let mut buffer = file_ops.buffer.borrow_mut();
+                                        let result = buffer.save_as_content(&path, &content);
+                                        drop(buffer);
+                                        
+                                        if result.is_err() {
+                                            eprintln!("Error saving file before quit");
+                                            return;
+                                        }
+                                        
+                                        file_ops.recent_files.borrow_mut().add_file(&path);
+                                        app.quit();
+                                    }
+                                    Ok(None) => {
+                                        eprintln!("[FileDialog] Save dialog cancelled, not quitting");
+                                    }
+                                    Err(e) => {
+                                        eprintln!("Error showing save dialog: {}", e);
+                                    }
+                                }
+                            } else {
+                                // Save existing file
+                                let file_ops = file_operations.borrow();
+                                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                                if let Err(e) = file_ops.save_document(&window, text_buffer) {
+                                    eprintln!("Error saving before quit: {}", e);
+                                    return; // Don't quit if save failed
+                                }
+                                app.quit();
+                            }
+                        }
+                        Ok(SaveChangesResult::Discard) => {
+                            app.quit();
+                        }
+                        Ok(SaveChangesResult::Cancel) => {
+                            eprintln!("[FileDialog] Quit cancelled by user");
+                        }
+                        Err(e) => {
+                            eprintln!("Error showing save changes dialog: {}", e);
+                        }
+                    }
+                } else {
+                    app.quit();
+                }
+            });
+        }
+    });
+
+    // Add file actions to application
+    app.add_action(&new_action);
+    app.add_action(&open_action);
+    app.add_action(&save_action);
+    app.add_action(&save_as_action);
+    app.add_action(&quit_action);
+
+    // Set keyboard shortcuts for file actions
+    app.set_accels_for_action("app.new", &["<Control>n"]);
+    app.set_accels_for_action("app.open", &["<Control>o"]);
+    app.set_accels_for_action("app.save", &["<Control>s"]);
+    app.set_accels_for_action("app.save_as", &["<Control><Shift>s"]);
+    app.set_accels_for_action("app.quit", &["<Control>q"]);
 
     // Present the window
     window.present();

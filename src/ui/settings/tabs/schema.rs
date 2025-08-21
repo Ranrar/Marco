@@ -2,7 +2,7 @@
 use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, Orientation, Label, ComboBoxText, Align};
 use std::path::Path;
-use crate::logic::schema_loader::list_available_schemas;
+use crate::logic::loaders::schema_loader::list_available_schemas;
 use std::rc::Rc;
 
 

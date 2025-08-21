@@ -7,7 +7,7 @@ use std::cell::RefCell;
 
 // Import your theme manager
 use crate::theme::ThemeManager;
-use crate::logic::theme_loader::{list_html_view_themes};
+use crate::logic::loaders::theme_loader::{list_html_view_themes};
 
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
@@ -70,7 +70,7 @@ pub fn build_appearance_tab(
         settings_path: std::path::PathBuf,
         on_preview_theme_changed: Rc<Box<dyn Fn(String)>>,
         user_selected_preview_theme: Rc<std::cell::Cell<bool>>,
-        html_themes: Vec<crate::logic::theme_loader::ThemeEntry>| -> (gtk4::Box, ComboBoxText) {
+        html_themes: Vec<crate::logic::loaders::theme_loader::ThemeEntry>| -> (gtk4::Box, ComboBoxText) {
         let preview_theme_combo = ComboBoxText::new();
         for entry in &html_themes {
             preview_theme_combo.append_text(&entry.label);

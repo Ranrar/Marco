@@ -2,4 +2,6 @@
 // Re-export the internal modules needed by tests.
 pub mod logic;
 
-// Optionally re-export other modules as needed.
+// Re-export commonly used types
+pub use logic::buffer::{DocumentBuffer, RecentFiles};
+pub use logic::menu_items::FileOperations;

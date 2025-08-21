@@ -164,8 +164,8 @@ impl ThemeManager {
     }
 
     /// List available editor style schemes
-    pub fn available_editor_schemes(&self) -> Vec<crate::logic::theme_loader::ThemeEntry> {
-        crate::logic::theme_loader::list_editor_style_schemes(&self.editor_theme_dir)
+    pub fn available_editor_schemes(&self) -> Vec<crate::logic::loaders::theme_loader::ThemeEntry> {
+        crate::logic::loaders::theme_loader::list_editor_style_schemes(&self.editor_theme_dir)
     }
 
     /// Get the current editor style scheme ID

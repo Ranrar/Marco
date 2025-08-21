@@ -3,6 +3,7 @@
 /target
 
 #internal dev code
+/.VSCodeCounter
 /.vscode
 /dev
 

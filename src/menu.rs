@@ -5,7 +5,7 @@ pub fn set_menu_height(menu_box: &gtk4::Box, height: i32) {
 // Helper to convert LayoutState to a human-readable string
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use crate::ui::menu_items::layoutstate::{LayoutState, layout_state_label};
+use crate::logic::menu_items::layoutstate::{LayoutState, layout_state_label};
 
 use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle};
 use gtk4::gio;

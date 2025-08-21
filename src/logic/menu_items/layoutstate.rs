@@ -19,8 +19,8 @@
 //! - Use `layout_state_label(state)` to get a human-readable description for logging, tooltips, or debugging.
 //!
 //! ## Example
-//! ```rust
-//! use crate::ui::menu_items::layoutstate::{LayoutState, layout_state_label};
+//! ```no_run
+//! use marco::logic::menu_items::layoutstate::{LayoutState, layout_state_label};
 //! let state = LayoutState::Split;
 //! println!("Current layout: {}", layout_state_label(state));
 //! ```
