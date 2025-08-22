@@ -3,6 +3,8 @@
 /target
 
 #internal dev code
+/.github/chatmodes
+/.github/instructions
 /.VSCodeCounter
 /.vscode
 /dev
