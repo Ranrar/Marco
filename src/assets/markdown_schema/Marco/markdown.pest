@@ -1,0 +1,274 @@
+// =============================================================================
+// Marco Markdown Grammar - Comprehensive PEG Grammar for CommonMark + Extensions
+// Based on AST specification in ast.ron and syntax.ron
+// =============================================================================
+
+WHITESPACE = _{ " " | "\t" }
+NEWLINE    = _{ "\n" | "\r\n" }
+
+// =============================================================================
+// DOCUMENT STRUCTURE
+// =============================================================================
+
+document = { SOI ~ frontmatter? ~ content ~ EOI }
+content = { (block ~ NEWLINE*)* ~ block? }
+
+blank_line = { NEWLINE }
+
+// =============================================================================
+// BLOCK ELEMENTS (ordered by specificity)
+// =============================================================================
+
+block = {
+    frontmatter          // Frontmatter blocks (YAML/TOML)
+    | fenced_code_block  // ```code``` (must be before thematic_break)
+    | thematic_break     // Horizontal rule: --- *** ___
+    | atx_heading        // # Heading (must be before setext_heading)
+    | indented_code_block // 4+ spaces code
+    | blockquote         // > Quote
+    | list               // Lists (ordered/unordered/task)
+    | table              // | Table | Header |
+    | math_block         // $$ math $$
+    | html_block         // <div>HTML</div>
+    | definition         // [id]: url "title"
+    | footnote_definition // [^id]: content
+    | setext_heading     // Heading\n====== (must be after more specific rules)
+    | paragraph          // Regular paragraph (must be last)
+}
+
+// =============================================================================
+// HEADINGS
+// =============================================================================
+
+atx_heading = @{ "#"{1,6} ~ " " ~ (!NEWLINE ~ ANY)* }
+setext_heading = @{ (!NEWLINE ~ ANY)+ ~ NEWLINE ~ (("="{3,} | "-"{3,})) }
+setext_underline = { ("="{3,} | "-"{3,}) }
+heading_content = @{ inline_content }
+heading_text = @{ (!NEWLINE ~ ANY)* }
+
+// =============================================================================
+// CODE BLOCKS
+// =============================================================================
+
+fenced_code_block = { code_fence ~ language_info? ~ NEWLINE ~ code_content ~ NEWLINE ~ code_fence }
+code_fence = @{ "```" | "~~~" }
+language_info = @{ (!NEWLINE ~ !WHITESPACE ~ ANY)+ }
+code_content = @{ (!(NEWLINE ~ code_fence) ~ ANY)* }
+
+indented_code_block = { (indent_4 ~ code_line ~ NEWLINE)+ }
+indent_4 = @{ "    " | "\t" }
+code_line = @{ (!NEWLINE ~ ANY)* }
+
+// =============================================================================
+// BLOCKQUOTES
+// =============================================================================
+
+blockquote = { blockquote_line+ }
+blockquote_line = { ">" ~ " "? ~ line_content ~ NEWLINE? }
+
+// =============================================================================
+// LISTS  
+// =============================================================================
+
+list = { (unordered_list | ordered_list | task_list) }
+
+unordered_list = { unordered_list_item+ }
+unordered_list_item = @{ unordered_marker ~ " "+ ~ list_item_content ~ NEWLINE }
+unordered_marker = { "-" | "*" | "+" }
+
+ordered_list = { ordered_list_item+ }
+ordered_list_item = @{ ordered_marker ~ " "+ ~ list_item_content ~ NEWLINE }
+ordered_marker = @{ ASCII_DIGIT+ ~ ("." | ")") }
+
+task_list = { task_list_item+ }
+task_list_item = @{ task_marker ~ " "+ ~ list_item_content ~ NEWLINE }
+task_marker = { "- " ~ checkbox }
+checkbox = { "[" ~ checkbox_state ~ "]" }
+checkbox_state = { "x" | "X" | " " }
+
+list_item_content = @{ inline_content }
+
+// =============================================================================
+// TABLES
+// =============================================================================
+
+table = { table_header ~ table_separator ~ table_row* }
+table_header = { table_row }
+table_separator = { "|"? ~ table_sep_cell ~ ("|" ~ table_sep_cell)* ~ "|"? ~ NEWLINE }
+table_sep_cell = @{ " "* ~ ":"? ~ "-"+ ~ ":"? ~ " "* }
+table_row = { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|"? ~ NEWLINE }
+table_cell = @{ (!"|" ~ !NEWLINE ~ ANY)* }
+
+// =============================================================================
+// THEMATIC BREAKS
+// =============================================================================
+
+thematic_break = { hr_stars | hr_dashes | hr_underscores }
+hr_stars = @{ "*"{3,} }
+hr_dashes = @{ "-"{3,} }
+hr_underscores = @{ "_"{3,} }
+
+// =============================================================================
+// FRONTMATTER
+// =============================================================================
+
+frontmatter = { yaml_frontmatter | toml_frontmatter }
+yaml_frontmatter = { "---" ~ NEWLINE ~ yaml_content ~ NEWLINE ~ "---" ~ NEWLINE }
+toml_frontmatter = { "+++" ~ NEWLINE ~ toml_content ~ NEWLINE ~ "+++" ~ NEWLINE }
+yaml_content = @{ (!(NEWLINE ~ "---") ~ ANY)* }
+toml_content = @{ (!(NEWLINE ~ "+++") ~ ANY)* }
+
+// =============================================================================
+// MATH BLOCKS
+// =============================================================================
+
+math_block = { math_block_dollars }
+math_block_dollars = { "$$" ~ NEWLINE ~ math_content ~ NEWLINE ~ "$$" }
+math_content = @{ (!(NEWLINE ~ "$$") ~ ANY)* }
+
+// =============================================================================
+// HTML BLOCKS
+// =============================================================================
+
+html_block = { html_tag_block | html_comment_block | html_cdata_block }
+html_tag_block = @{ "<" ~ html_tag_name ~ (!NEWLINE ~ ANY)* ~ ">" ~ (!("</" ~ html_tag_name ~ ">") ~ ANY)* ~ "</" ~ html_tag_name ~ ">" }
+html_comment_block = @{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
+html_cdata_block = @{ "<![CDATA[" ~ (!"]]>" ~ ANY)* ~ "]]>" }
+html_tag_name = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-")* }
+
+// =============================================================================
+// DEFINITIONS & REFERENCES
+// =============================================================================
+
+definition = { link_definition | footnote_definition }
+link_definition = { "[" ~ link_label ~ "]:" ~ " "* ~ link_destination ~ (" " ~ link_title)? }
+footnote_definition = { "[^" ~ footnote_label ~ "]:" ~ " "+ ~ footnote_content }
+link_label = @{ (!"]" ~ !NEWLINE ~ ANY)+ }
+footnote_label = @{ (!"]" ~ !NEWLINE ~ ANY)+ }
+link_destination = @{ (!WHITESPACE ~ !NEWLINE ~ ANY)+ }
+link_title = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+footnote_content = @{ (!NEWLINE ~ ANY)+ }
+
+// =============================================================================
+// PARAGRAPHS
+// =============================================================================
+
+paragraph = { paragraph_content }
+paragraph_content = { 
+    !(thematic_break | atx_heading | setext_heading | fenced_code_block | blockquote | list | table | html_block | definition)
+    ~ inline_content
+}
+
+// =============================================================================
+// INLINE ELEMENTS
+// =============================================================================
+
+inline_content = { (!NEWLINE ~ (inline_element | ANY))+ }
+
+inline_element = {
+    strong_emphasis      // **bold** __bold__
+    | emphasis           // *italic* _italic_
+    | strikethrough      // ~~strike~~
+    | inline_code        // `code`
+    | inline_math        // $math$
+    | autolink          // <https://example.com>
+    | link              // [text](url) or [text][ref]
+    | image             // ![alt](url) or ![alt][ref]
+    | html_inline       // <tag>
+    | hard_break        // \\\n or two spaces + \n
+    | soft_break        // \n
+    | entity            // &nbsp; &#123;
+    | emoji             // :smile:
+    | mention           // @username
+}
+
+// =============================================================================
+// INLINE FORMATTING
+// =============================================================================
+
+strong_emphasis = { strong_asterisk | strong_underscore }
+strong_asterisk = { "**" ~ (!"**" ~ (inline_element | ANY))+ ~ "**" }
+strong_underscore = { "__" ~ (!"__" ~ (inline_element | ANY))+ ~ "__" }
+
+emphasis = { emphasis_asterisk | emphasis_underscore }
+emphasis_asterisk = { "*" ~ (!"*" ~ !WHITESPACE ~ (inline_element | ANY))+ ~ "*" }
+emphasis_underscore = { "_" ~ (!"_" ~ !WHITESPACE ~ (inline_element | ANY))+ ~ "_" }
+
+strikethrough = { "~~" ~ (!"~~" ~ (inline_element | ANY))+ ~ "~~" }
+
+inline_code = { "`" ~ inline_code_content ~ "`" }
+inline_code_content = @{ (!"`" ~ ANY)+ }
+
+inline_math = { "$" ~ inline_math_content ~ "$" }
+inline_math_content = @{ (!"$" ~ !NEWLINE ~ ANY)+ }
+
+// =============================================================================
+// LINKS & IMAGES  
+// =============================================================================
+
+link = { link_inline | link_reference | link_shortcut }
+link_inline = { "[" ~ link_text ~ "](" ~ link_url ~ (")" | " " ~ link_title ~ ")") }
+link_reference = { "[" ~ link_text ~ "][" ~ link_ref ~ "]" }
+link_shortcut = { "[" ~ link_text ~ "]" }
+
+image = { image_inline | image_reference | image_shortcut }
+image_inline = { "![" ~ image_alt ~ "](" ~ image_url ~ (")" | " " ~ image_title ~ ")") }
+image_reference = { "![" ~ image_alt ~ "][" ~ image_ref ~ "]" }
+image_shortcut = { "![" ~ image_alt ~ "]" }
+
+autolink = { autolink_url | autolink_email }
+autolink_url = { "<" ~ url_scheme ~ "://" ~ url_content ~ ">" }
+autolink_email = { "<" ~ email_content ~ ">" }
+
+link_text = @{ (!"]" ~ (inline_element | ANY))+ }
+link_url = @{ (!")" ~ !WHITESPACE ~ ANY)+ }
+link_ref = @{ (!"]" ~ ANY)+ }
+
+image_alt = @{ (!"]" ~ ANY)* }
+image_url = @{ (!")" ~ !WHITESPACE ~ ANY)+ }
+image_title = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+image_ref = @{ (!"]" ~ ANY)+ }
+
+url_scheme = @{ ("http" | "https" | "ftp" | "mailto") }
+url_content = @{ (!">" ~ ANY)+ }
+email_content = @{ (!(">" | WHITESPACE) ~ ANY)+ }
+
+// =============================================================================
+// HTML INLINE
+// =============================================================================
+
+html_inline = { html_tag | html_entity }
+html_tag = @{ "<" ~ "/"? ~ html_tag_name ~ html_attributes? ~ "/"? ~ ">" }
+html_attributes = @{ (" " ~ html_attribute)* }
+html_attribute = @{ html_attr_name ~ ("=" ~ html_attr_value)? }
+html_attr_name = @{ (ASCII_ALPHA | "-" | "_") ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
+html_attr_value = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" | (!WHITESPACE ~ !">" ~ ANY)+ }
+
+html_entity = @{ "&" ~ (html_named_entity | html_numeric_entity) ~ ";" }
+html_named_entity = @{ ASCII_ALPHA+ }
+html_numeric_entity = @{ "#" ~ (ASCII_DIGIT+ | "x" ~ ASCII_HEX_DIGIT+) }
+
+// =============================================================================
+// LINE BREAKS
+// =============================================================================
+
+hard_break = { ("\\" ~ NEWLINE) | (WHITESPACE{2,} ~ NEWLINE) }
+soft_break = { NEWLINE }
+
+// =============================================================================
+// EXTENDED ELEMENTS
+// =============================================================================
+
+emoji = { ":" ~ emoji_name ~ ":" }
+emoji_name = @{ ASCII_ALPHA+ }
+
+mention = { "@" ~ mention_username }
+mention_username = @{ (ASCII_ALPHANUMERIC | "_" | "-")+ }
+
+// =============================================================================
+// UTILITY RULES
+// =============================================================================
+
+line_content = @{ (!NEWLINE ~ ANY)* }
+entity = @{ "&" ~ entity_name ~ ";" }
+entity_name = @{ (ASCII_ALPHA | ASCII_DIGIT)+ }

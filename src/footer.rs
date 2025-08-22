@@ -19,7 +19,7 @@
 
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
-use crate::logic::parser::{parse_document_blocks, MarkdownSyntaxMap};
+use crate::components::marco_engine::parser::{parse_document_blocks, MarkdownSyntaxMap};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -94,16 +94,14 @@ pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String
                 t.captures.as_ref().and_then(|c| c.get(name)).cloned()
             };
 
-            if let Some(hints) = hints_map.get(&t.node_type) {
-                for hint in hints {
-                    if let Some(val) = cap(hint) {
-                        // For link hints, include target if present
-                        if hint == "h" {
-                            let tval = cap("t").unwrap_or_default();
-                            return format!("{} → {}", val, tval);
-                        }
-                        return val;
+            if let Some(hint) = hints_map.get(&t.node_type) {
+                if let Some(val) = cap(hint) {
+                    // For link hints, include target if present
+                    if hint == "h" {
+                        let tval = cap("t").unwrap_or_default();
+                        return format!("{} → {}", val, tval);
                     }
+                    return val;
                 }
             }
 
@@ -150,7 +148,7 @@ pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String
         // Append up to 3 link id->url examples from the aggregated defs
         if !_link_defs.is_empty() {
             let mut examples: Vec<String> = Vec::new();
-            for (id, (url, _title)) in _link_defs.iter().take(3) {
+            for (id, url) in _link_defs.iter().take(3) {
                 let mut short = url.clone();
                 if short.len() > 40 {
                     short.truncate(37);
@@ -364,15 +362,41 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::marco_engine::parser::SyntaxRule;
+    
     fn make_test_map() -> MarkdownSyntaxMap {
         let mut rules = std::collections::HashMap::new();
-    rules.insert("**".to_string(), crate::logic::parser::SyntaxRule { node_type: "bold".to_string(), depth: None, ordered: None, markdown_syntax: "**".to_string(), is_regex: false, regex: None });
-    rules.insert("#".to_string(), crate::logic::parser::SyntaxRule { node_type: "heading".to_string(), depth: Some(1), ordered: None, markdown_syntax: "#".to_string(), is_regex: false, regex: None });
-    rules.insert("##".to_string(), crate::logic::parser::SyntaxRule { node_type: "heading".to_string(), depth: Some(2), ordered: None, markdown_syntax: "##".to_string(), is_regex: false, regex: None });
-    rules.insert("*".to_string(), crate::logic::parser::SyntaxRule { node_type: "italic".to_string(), depth: None, ordered: None, markdown_syntax: "*".to_string(), is_regex: false, regex: None });
-    rules.insert("-".to_string(), crate::logic::parser::SyntaxRule { node_type: "list".to_string(), depth: None, ordered: Some(false), markdown_syntax: "-".to_string(), is_regex: false, regex: None });
-    rules.insert("1.".to_string(), crate::logic::parser::SyntaxRule { node_type: "list".to_string(), depth: None, ordered: Some(true), markdown_syntax: "1.".to_string(), is_regex: false, regex: None });
-    MarkdownSyntaxMap { rules, display_hints: None }
+        rules.insert("**".to_string(), SyntaxRule { 
+            name: "bold".to_string(), 
+            pattern: "**".to_string(), 
+            description: "Bold text".to_string() 
+        });
+        rules.insert("#".to_string(), SyntaxRule { 
+            name: "heading".to_string(), 
+            pattern: "#".to_string(), 
+            description: "Heading 1".to_string() 
+        });
+        rules.insert("##".to_string(), SyntaxRule { 
+            name: "heading".to_string(), 
+            pattern: "##".to_string(), 
+            description: "Heading 2".to_string() 
+        });
+        rules.insert("*".to_string(), SyntaxRule { 
+            name: "italic".to_string(), 
+            pattern: "*".to_string(), 
+            description: "Italic text".to_string() 
+        });
+        rules.insert("-".to_string(), SyntaxRule { 
+            name: "list".to_string(), 
+            pattern: "-".to_string(), 
+            description: "Unordered list".to_string() 
+        });
+        rules.insert("1.".to_string(), SyntaxRule { 
+            name: "list".to_string(), 
+            pattern: "1.".to_string(), 
+            description: "Ordered list".to_string() 
+        });
+        MarkdownSyntaxMap { rules, display_hints: None }
     }
 
     #[test]

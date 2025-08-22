@@ -1774,8 +1774,9 @@ def main():
     """Main entry point for the CLI application."""
     # Determine the base path for markdown schemas
     script_dir = Path(__file__).parent
-    project_root = script_dir.parent.parent.parent  # Go up to project root
-    schema_path = project_root / "assets" / "markdown_schema"
+    # Use workspace root: /home/ranrar/Code/projects/marco2
+    project_root = script_dir.parent.parent
+    schema_path = project_root / "src" / "assets" / "markdown_schema"
     
     print(f"🔍 Looking for schemas in: {schema_path}")
     

@@ -1,8 +1,11 @@
-# CommonMark AST Template
+// CommonMark AST Template in RON
 
 RootNode {
     type: "root",
     children: [
+        // -------------------
+        // Headings
+        // -------------------
         Heading {
             type: "heading",
             depth: 1,
@@ -13,6 +16,30 @@ RootNode {
             depth: 2,
             children: [ TextNode { type: "text", value: "Heading 2" } ]
         },
+        Heading {
+            type: "heading",
+            depth: 3,
+            children: [ TextNode { type: "text", value: "Heading 3" } ]
+        },
+        Heading {
+            type: "heading",
+            depth: 5,
+            children: [ TextNode { type: "text", value: "Heading 5" } ]
+        },
+        Heading {
+            type: "heading",
+            depth: 6,
+            children: [ TextNode { type: "text", value: "Heading 6" } ]
+        },
+        SetextHeading {
+            type: "heading",
+            depth: 1,
+            children: [ TextNode { type: "text", value: "Setext Title" } ]
+        },
+
+        // -------------------
+        // Paragraphs & Inline
+        // -------------------
         Paragraph {
             type: "paragraph",
             children: [
@@ -23,12 +50,33 @@ RootNode {
                 TextNode { type: "text", value: " text." }
             ]
         },
+        InlineCode {
+            type: "inlineCode",
+            value: "let x = 5;"
+        },
+        Strikethrough {
+            type: "delete",
+            children: [ TextNode { type: "text", value: "struck" } ]
+        },
+        HardBreak { type: "hardbreak" },
+        SoftBreak { type: "softbreak" },
+
+        // -------------------
+        // Block Elements
+        // -------------------
         BlockQuote {
             type: "blockquote",
             children: [
                 Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "A blockquote." } ] }
             ]
         },
+        CodeBlock {
+            type: "codeBlock",
+            language: Some("rust"),
+            value: "fn main() {\n    println!(\"Hello World\");\n}"
+        },
+        HorizontalRule { type: "thematicBreak" },
+
         List {
             type: "list",
             ordered: false,
@@ -37,14 +85,29 @@ RootNode {
                 ListItem { type: "listItem", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Second item" } ] } ] }
             ]
         },
-        CodeBlock {
-            type: "codeBlock",
-            language: Some("rust"),
-            value: "fn main() {\n    println!(\"Hello World\");\n}"
+        List {
+            type: "list",
+            ordered: false,
+            children: [
+                ListItem { type: "listItem", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Task incomplete" } ] } ], checked: Some(false) },
+                ListItem { type: "listItem", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Task done" } ] } ], checked: Some(true) }
+            ]
         },
-        HorizontalRule {
-            type: "thematicBreak"
+        Table {
+            type: "table",
+            children: [
+                TableRow { type: "tableRow", children: [ TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "A" } ] }, TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "B" } ] } ] },
+                TableRow { type: "tableRow", children: [ TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "1" } ] }, TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "2" } ] } ] }
+            ]
         },
+        Footnote {
+            type: "footnote",
+            children: [ TextNode { type: "text", value: "See note" } ]
+        },
+
+        // -------------------
+        // Links & Images
+        // -------------------
         Link {
             type: "link",
             url: "https://example.com",
@@ -57,111 +120,85 @@ RootNode {
             title: "Example Image",
             alt: "Alt text"
         },
-        InlineCode {
-            type: "inlineCode",
-            value: "let x = 5;"
-        }
-        , HardBreak {
-            type: "hardbreak"
-        }
-        , SoftBreak {
-            type: "softbreak"
-        }
-        , Strikethrough {
-            type: "delete",
-            children: [ TextNode { type: "text", value: "struck" } ]
-        }
-        , List {
-            type: "list",
-            ordered: false,
-            children: [
-                ListItem { type: "listItem", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Task incomplete" } ] } ], checked: Some(false) },
-                ListItem { type: "listItem", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Task done" } ] } ], checked: Some(true) }
-            ]
-        }
-        , Table {
-            type: "table",
-            children: [
-                TableRow { type: "tableRow", children: [ TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "A" } ] }, TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "B" } ] } ] },
-                TableRow { type: "tableRow", children: [ TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "1" } ] }, TableCell { type: "tableCell", children: [ TextNode { type: "text", value: "2" } ] } ] }
-            ]
-        }
-        , Footnote {
-            type: "footnote",
-            children: [ TextNode { type: "text", value: "See note" } ]
-        }
-        , Autolink {
+        Autolink {
             type: "link",
             url: "https://example.com",
             children: [ TextNode { type: "text", value: "https://example.com" } ]
-        }
-        , HTMLIns {
-            type: "htmlInline",
-            value: "<ins>underlined</ins>"
-        }
-        , HTMLNbsp {
-            type: "htmlInline",
-            value: "&nbsp;&nbsp;&nbsp;&nbsp;Indented"
-        }
-        , HTMLCenter {
-            type: "htmlBlock",
-            value: "<center>Centered text</center>"
-        }
-        , HTMLFont {
-            type: "htmlInline",
-            value: "<font color=\"red\">Red text</font>"
-        }
-        , CommentHack {
-            type: "comment",
-            value: "[This is a comment]: #"
-        }
-        , Definition {
+        },
+
+        // -------------------
+        // References / Definitions
+        // -------------------
+        Definition {
             type: "definition",
             identifier: "ref-id",
             url: "https://example.com",
             title: Some("Optional title")
-        }
-        , FrontMatter {
-            type: "frontmatter",
-            value: "---\ntitle: Example\n---"
-        }
-        , FigureCaption {
-            type: "figure",
-            children: [ Image { type: "image", url: "/assets/images/albuquerque.jpg", title: "Albuquerque", alt: "Albuquerque" }, TextNode { type: "text", value: "A single track trail outside of Albuquerque, New Mexico." } ]
-        }
-        , SetextHeading {
-            type: "heading",
-            depth: 1,
-            children: [ TextNode { type: "text", value: "Setext Title" } ]
-        }
-        , LinkReference {
+        },
+        LinkReference {
             type: "linkReference",
             identifier: "ref-id",
             children: [ TextNode { type: "text", value: "Reference Link" } ]
-        }
-        , DefinitionList {
+        },
+        LinkShortcut {
+            type: "link_shortcut",
+            children: [ TextNode { type: "text", value: "Shortcut Link" } ]
+        },
+        LinkDefinition {
+            type: "link_def",
+            identifier: "ref-id",
+            url: "https://example.com",
+            title: Some("Optional title")
+        },
+        DefinitionList {
             type: "definitionList",
-            children: [ DefinitionTerm { type: "term", children: [ TextNode { type: "text", value: "Term" } ] }, DefinitionDescription { type: "description", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Definition text." } ] } ] } ]
-        }
-        , TOCPlaceholder {
+            children: [
+                DefinitionTerm { type: "term", children: [ TextNode { type: "text", value: "Term" } ] },
+                DefinitionDescription { type: "description", children: [ Paragraph { type: "paragraph", children: [ TextNode { type: "text", value: "Definition text." } ] } ] }
+            ]
+        },
+
+        // -------------------
+        // Metadata / FrontMatter
+        // -------------------
+        FrontMatter {
+            type: "frontmatter",
+            value: "---\ntitle: Example\n---"
+        },
+        FrontMatterStart { type: "frontmatter_start", value: "---" },
+        FrontMatterEnd { type: "frontmatter_end", value: "---" },
+
+        // -------------------
+        // HTML & Misc
+        // -------------------
+        HTMLIns { type: "htmlInline", value: "<ins>underlined</ins>" },
+        HTMLNbsp { type: "htmlInline", value: "&nbsp;&nbsp;&nbsp;&nbsp;Indented" },
+        HTMLCenter { type: "htmlBlock", value: "<center>Centered text</center>" },
+        HTMLFont { type: "htmlInline", value: "<font color=\"red\">Red text</font>" },
+        CommentHack { type: "comment", value: "[This is a comment]: #" },
+        SymbolEntity { type: "symbol", value: "&copy;" },
+        TOCPlaceholder {
             type: "toc",
-            children: [ Heading { type: "heading", depth: 4, children: [ TextNode { type: "text", value: "Table of Contents" } ] } ]
-        }
-        , VideoEmbed {
-            type: "video",
-            value: "[![Image alt text](https://img.youtube.com/vi/YOUTUBE-ID/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE-ID)"
-        }
-        , InlineMath {
-            type: "mathInline",
-            value: "x^2 + y^2"
-        }
-        , BlockMath {
-            type: "mathBlock",
-            value: "\\int_0^1 x dx"
-        }
-        , Emoji {
-            type: "emoji",
-            value: ":smile:"
-        }
+            children: [
+                Heading { type: "heading", depth: 4, children: [ TextNode { type: "text", value: "Table of Contents" } ] }
+            ]
+        },
+
+        // -------------------
+        // Extended / Custom Nodes
+        // -------------------
+        FigureCaption {
+            type: "figure",
+            children: [
+                Image { type: "image", url: "/assets/images/albuquerque.jpg", title: "Albuquerque", alt: "Albuquerque" },
+                TextNode { type: "text", value: "A single track trail outside of Albuquerque, New Mexico." }
+            ]
+        },
+        VideoEmbed { type: "video", value: "[![Image alt text](https://img.youtube.com/vi/YOUTUBE-ID/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE-ID)" },
+        InlineMath { type: "mathInline", value: "x^2 + y^2" },
+        BlockMath { type: "mathBlock", value: "\\int_0^1 x dx" },
+        Emoji { type: "emoji", value: ":smile:" },
+        Mention { type: "mention", value: "@username" },
+        Admonition { type: "admonition", value: "Warning: Something important." }
     ]
 }

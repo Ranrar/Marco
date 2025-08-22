@@ -1,5 +1,6 @@
 use webkit6::prelude::*;
 mod logic;
+mod components;
 // Stripped-down UI structure modules
 
 mod footer;
@@ -91,7 +92,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use crate::theme::ThemeManager;
-use crate::logic::parser::MarkdownSyntaxMap;
+use crate::components::marco_engine::parser::MarkdownSyntaxMap;
 use crate::logic::{DocumentBuffer, RecentFiles};
 use crate::logic::menu_items::file::FileOperations;
 use crate::ui::menu_items::files::FileDialogs;
@@ -124,14 +125,31 @@ fn main() -> glib::ExitCode {
         Err(e) => eprintln!("Settings error: {}", e),
     }
 
-    let app = Application::builder().application_id(APP_ID).build();
-    app.connect_activate(|app| build_ui(app));
-    let no_args: [&str; 0] = [];
-    let exit_code = app.run_with_args(&no_args);
+    let app = Application::builder()
+        .application_id(APP_ID)
+        .flags(gtk4::gio::ApplicationFlags::HANDLES_OPEN)
+        .build();
+    
+    // Handle file opening via command line or file manager
+    app.connect_open(|app, files, _hint| {
+        let file_path = if !files.is_empty() {
+            Some(files[0].path().unwrap().to_string_lossy().to_string())
+        } else {
+            None
+        };
+        build_ui(app, file_path);
+    });
+    
+    // Handle normal activation (no files)
+    app.connect_activate(|app| {
+        build_ui(app, None);
+    });
+    
+    let exit_code = app.run();
     exit_code
 }
 
-fn build_ui(app: &Application) {
+fn build_ui(app: &Application, initial_file: Option<String>) {
     // Load and apply menu.css for menu and titlebar styling
     use gtk4::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
     use gtk4 as gtk;
@@ -298,7 +316,7 @@ fn build_ui(app: &Application) {
             if let Some(ref map) = *active_schema_map.borrow() {
                 crate::footer::update_syntax_trace(&labels, &line_text, map);
             } else {
-                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
+                let dummy_map = crate::components::marco_engine::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
                 crate::footer::update_syntax_trace(&labels, &line_text, &dummy_map);
             }
         }
@@ -391,7 +409,7 @@ fn build_ui(app: &Application) {
                         move |_selected: Option<String>| {
                             // Reload parser and update shared map
                             let schema_root = config_dir.join("src/assets/markdown_schema");
-                            if let Ok(Some(map)) = crate::logic::parser::MarkdownSyntaxMap::load_active_schema(
+                            if let Ok(Some(map)) = crate::components::marco_engine::parser::MarkdownSyntaxMap::load_active_schema(
                                 settings_path_clone.to_str().unwrap(),
                                 schema_root.to_str().unwrap(),
                             ) {
@@ -623,6 +641,41 @@ fn build_ui(app: &Application) {
     app.set_accels_for_action("app.save", &["<Control>s"]);
     app.set_accels_for_action("app.save_as", &["<Control><Shift>s"]);
     app.set_accels_for_action("app.quit", &["<Control>q"]);
+
+    // Open initial file if provided via command line
+    if let Some(file_path) = initial_file {
+        let file_operations_initial = file_operations_rc.clone();
+        let window_initial = window.clone();
+        let editor_buffer_initial = editor_buffer.clone();
+        let title_label_initial = title_label.clone();
+        
+        glib::MainContext::default().spawn_local(async move {
+            let file_ops = file_operations_initial.borrow();
+            let gtk_window: &gtk4::Window = window_initial.upcast_ref();
+            let text_buffer: &gtk4::TextBuffer = editor_buffer_initial.upcast_ref();
+            
+            // Try to open the specified file
+            let result = file_ops.open_file_by_path_async(
+                &file_path,
+                gtk_window,
+                text_buffer,
+                |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
+                |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
+            ).await;
+            
+            match result {
+                Ok(_) => {
+                    // Update title label after successful open
+                    let title = file_operations_initial.borrow().get_document_title();
+                    title_label_initial.set_text(&title);
+                    eprintln!("Successfully opened file: {}", file_path);
+                }
+                Err(e) => {
+                    eprintln!("Failed to open file {}: {}", file_path, e);
+                }
+            }
+        });
+    }
 
     // Present the window
     window.present();

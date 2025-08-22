@@ -1,6 +1,5 @@
 use std::fs;
-use regex::Regex;
-use marco::logic::parser::{parse_document_blocks, MarkdownSyntaxMap, SyntaxRule};
+use marco::components::marco_engine::parser::{parse_document_blocks, MarkdownSyntaxMap, SyntaxRule};
 
 #[test]
 fn test_footer_syntax_tree_from_file() {
@@ -10,16 +9,25 @@ fn test_footer_syntax_tree_from_file() {
     let mut rules = std::collections::HashMap::new();
 
     // Video pattern
-    let video_re = Regex::new(r"^(?:\[!\[.*?\]\(https?://img\.youtube\.com/vi/(?P<id1>[A-Za-z0-9_-]+)/0\.jpg\)\]\(https?://(?:www\.)?youtube\.com/watch\?v=(?P<id2>[A-Za-z0-9_-]+)\))").unwrap();
-    rules.insert("re:youtube-video".to_string(), SyntaxRule { node_type: "video".to_string(), depth: None, ordered: None, markdown_syntax: "re:youtube-video".to_string(), is_regex: true, regex: Some(video_re) });
+    rules.insert("re:youtube-video".to_string(), SyntaxRule { 
+        name: "video".to_string(), 
+        pattern: "re:youtube-video".to_string(), 
+        description: "YouTube video".to_string() 
+    });
 
     // Image width pattern
-    let img_re = Regex::new(r#"^(?:<img\s+[^>]*width=['"]?(?P<w>\d+)['"]?[^>]*>)"#).unwrap();
-    rules.insert("re:img-width".to_string(), SyntaxRule { node_type: "image-size".to_string(), depth: None, ordered: None, markdown_syntax: "re:img-width".to_string(), is_regex: true, regex: Some(img_re) });
+    rules.insert("re:img-width".to_string(), SyntaxRule { 
+        name: "image-size".to_string(), 
+        pattern: "re:img-width".to_string(), 
+        description: "Image width".to_string() 
+    });
 
     // Anchor with target
-    let link_re = Regex::new(r#"^(?:<a\s+[^>]*href="(?P<h>[^"]+)"[^>]*target="(?P<t>[^"]+)"[^>]*>)"#).unwrap();
-    rules.insert("re:link-target".to_string(), SyntaxRule { node_type: "link-target".to_string(), depth: None, ordered: None, markdown_syntax: "re:link-target".to_string(), is_regex: true, regex: Some(link_re) });
+    rules.insert("re:link-target".to_string(), SyntaxRule { 
+        name: "link-target".to_string(), 
+        pattern: "re:link-target".to_string(), 
+        description: "Link with target".to_string() 
+    });
 
     let map = MarkdownSyntaxMap { rules, display_hints: None };
 

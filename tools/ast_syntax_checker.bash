@@ -11,7 +11,7 @@ set -e  # Exit immediately if a command fails
 # Determine script directory
 # ----------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-VALIDATOR_DIR="$SCRIPT_DIR/tools/ast_syntax_checker"
+VALIDATOR_DIR="$SCRIPT_DIR/ast_syntax_checker"
 VENV_DIR="$VALIDATOR_DIR/.venv"
 
 # ----------------------------
@@ -26,8 +26,8 @@ fi
 # Activate virtual environment and install dependencies
 # ----------------------------
 source "$VENV_DIR/bin/activate"
-pip install --upgrade pip
-pip install -r "$VALIDATOR_DIR/requirements.txt"
+pip install --upgrade pip --break-system-packages
+pip install --break-system-packages -r "$VALIDATOR_DIR/requirements.txt"
 
 # ----------------------------
 # Run the validator

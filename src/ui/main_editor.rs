@@ -1,5 +1,5 @@
 use crate::footer::{FooterLabels, FooterUpdate};
-use crate::logic::parser::MarkdownSyntaxMap;
+use crate::components::marco_engine::parser::MarkdownSyntaxMap;
 // No need to import source_remove; use SourceId::remove()
 use glib::ControlFlow;
 /// Wires up debounced footer updates to buffer events
@@ -42,7 +42,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
             let syntax_display = if let Some(ref map) = *syntax_map.borrow() {
                 crate::footer::format_syntax_trace(&line_text, map)
             } else {
-                let dummy_map = crate::logic::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
+                let dummy_map = crate::components::marco_engine::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
                 crate::footer::format_syntax_trace(&line_text, &dummy_map)
             };
 
@@ -105,7 +105,7 @@ pub fn wire_footer_updates(buffer: &sourceview5::Buffer, labels: Rc<FooterLabels
 use webkit6::prelude::*;
 use gtk4::Paned;
 use crate::ui::html_viewer::wrap_html_document;
-use comrak::{markdown_to_html, ComrakOptions};
+use crate::components::marco_engine::render::{markdown_to_html, MarkdownOptions};
 /// Create a split editor with live HTML preview using WebKit6
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -179,16 +179,16 @@ pub fn create_editor_with_preview(
     let webview_rc = Rc::new(webview.clone());
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    // Prepare comrak options with GFM extensions enabled
-    let mut comrak_opts = ComrakOptions::default();
-    comrak_opts.extension.table = true;
-    comrak_opts.extension.autolink = true;
-    comrak_opts.extension.strikethrough = true;
-    comrak_opts.extension.tasklist = true;
-    comrak_opts.extension.footnotes = true;
-    comrak_opts.extension.tagfilter = true;
+    // Prepare markdown options with GFM extensions enabled
+    let mut markdown_opts = MarkdownOptions::default();
+    markdown_opts.extension.table = true;
+    markdown_opts.extension.autolink = true;
+    markdown_opts.extension.strikethrough = true;
+    markdown_opts.extension.tasklist = true;
+    markdown_opts.extension.footnotes = true;
+    markdown_opts.extension.tagfilter = true;
     // Share options across closures
-    let comrak_opts_rc = std::rc::Rc::new(comrak_opts);
+    let markdown_opts_rc = std::rc::Rc::new(markdown_opts);
 
     // Closure to refresh preview
     let refresh_preview = {
@@ -196,10 +196,10 @@ pub fn create_editor_with_preview(
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
-        let comrak_opts = std::rc::Rc::clone(&comrak_opts_rc);
+        let markdown_opts = std::rc::Rc::clone(&markdown_opts_rc);
         move || {
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
-            let html_body = markdown_to_html(&text, &*comrak_opts);
+            let html_body = markdown_to_html(&text, &*markdown_opts);
             let html = wrap_html_document(&html_body, &css.borrow(), &theme_mode.borrow());
             webview.load_html(&html, None);
         }
@@ -211,10 +211,10 @@ pub fn create_editor_with_preview(
     let webview_clone = Rc::clone(&webview_rc);
     let buffer_for_signal = Rc::clone(&buffer_rc);
     {
-        let comrak_opts = std::rc::Rc::clone(&comrak_opts_rc);
+        let markdown_opts = std::rc::Rc::clone(&markdown_opts_rc);
         buffer_for_signal.connect_changed(move |buf| {
             let text = buf.text(&buf.start_iter(), &buf.end_iter(), false).to_string();
-            let html_body = markdown_to_html(&text, &*comrak_opts);
+            let html_body = markdown_to_html(&text, &*markdown_opts);
             let html = wrap_html_document(&html_body, &css_clone.borrow(), &theme_mode.borrow());
             webview_clone.load_html(&html, None);
         });
@@ -240,10 +240,10 @@ pub fn create_editor_with_preview(
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
-        let comrak_opts = std::rc::Rc::clone(&comrak_opts_rc);
+        let markdown_opts = std::rc::Rc::clone(&markdown_opts_rc);
         move || {
             let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
-            let html_body = markdown_to_html(&text, &*comrak_opts);
+            let html_body = markdown_to_html(&text, &*markdown_opts);
             let html = wrap_html_document(&html_body, &css.borrow(), &theme_mode.borrow());
             webview.load_html(&html, None);
         }

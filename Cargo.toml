@@ -6,6 +6,10 @@ authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
 license = "MIT OR Apache-2.0"
 
+[[bin]]
+name = "marco"
+path = "src/main.rs"
+
 [dependencies]
 pangocairo = "0.19"
 pango = "0.15"
@@ -13,8 +17,6 @@ ron = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 dark-light = "2.0.0"
 regex = "1.10"
-markdown = "1.0.0"
-comrak = "0.17"
 phf = { version = "0.11", features = ["macros"] }
 gtk4 = "0.9.0"
 glib = "0.20"
@@ -27,6 +29,8 @@ gio = "0.20"
 cairo-rs = "0.21"
 syntect = "5.2"
 tempfile = "3.21.0"
+pest = "2.8.1"
+pest_derive = "2.8.1"
 
 [dev-dependencies]
 # Basic testing
