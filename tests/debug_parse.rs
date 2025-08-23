@@ -4,8 +4,7 @@ use pest::Parser;
 use marco::components::marco_engine::parser::{MarkdownParser, Rule};
 
 fn main() {
-    println!("=== Testing space patterns ===");
-    
+    // Tests converted to assertions to avoid terminal output from prints.
     // Test different space patterns
     let test_cases = [
         "1. test\n",      // single space
@@ -13,43 +12,20 @@ fn main() {
         "1.\ttest\n",     // tab
         "1. \ttest\n",    // space + tab
     ];
-    
+
     for test_case in test_cases {
-        println!("\nTesting: {:?}", test_case);
-        match MarkdownParser::parse(Rule::ordered_list_item, test_case) {
-            Ok(pairs) => {
-                println!("✅ Success:");
-                for pair in pairs {
-                    println!("  {:?}", pair);
-                }
-            }
-            Err(e) => println!("❌ Failed: {}", e),
-        }
+        assert!(MarkdownParser::parse(Rule::ordered_list_item, test_case).is_ok());
     }
-    
-    println!("\n=== Testing parts manually ===");
-    
+
     // Test ordered_marker
-    match MarkdownParser::parse(Rule::ordered_marker, "1.") {
-        Ok(_) => println!("✅ ordered_marker works"),
-        Err(e) => println!("❌ ordered_marker failed: {}", e),
-    }
-    
+    assert!(MarkdownParser::parse(Rule::ordered_marker, "1.").is_ok());
+
     // Test space
-    match MarkdownParser::parse(Rule::WHITESPACE, " ") {
-        Ok(_) => println!("✅ WHITESPACE works"),
-        Err(e) => println!("❌ WHITESPACE failed: {}", e),
-    }
-    
+    assert!(MarkdownParser::parse(Rule::WHITESPACE, " ").is_ok());
+
     // Test list_item_content
-    match MarkdownParser::parse(Rule::list_item_content, "test") {
-        Ok(_) => println!("✅ list_item_content works"),
-        Err(e) => println!("❌ list_item_content failed: {}", e),
-    }
-    
+    assert!(MarkdownParser::parse(Rule::list_item_content, "test").is_ok());
+
     // Test NEWLINE
-    match MarkdownParser::parse(Rule::NEWLINE, "\n") {
-        Ok(_) => println!("✅ NEWLINE works"),
-        Err(e) => println!("❌ NEWLINE failed: {}", e),
-    }
+    assert!(MarkdownParser::parse(Rule::NEWLINE, "\n").is_ok());
 }

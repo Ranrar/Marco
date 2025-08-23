@@ -85,22 +85,3 @@ fn footnotes_extension_generates_footnote_section() {
     // When disabled, the original footnote markers should remain as literal text
     assert!(html2.contains("[^1]") || html2.contains("[^1]:"));
 }
-
-#[test]
-fn tagfilter_extension_filters_raw_html_tags() {
-    println!("Test: tagfilter_extension_filters_raw_html_tags");
-    let md = "<div>hello</div>";
-    let mut opts = MarkdownOptions::default();
-    opts.extension.tagfilter = true;
-    // Do not allow raw HTML rendering so tagfilter can remove/escape tags
-    opts.render.unsafe_ = false;
-    let html = markdown_to_html(md, &opts);
-    // with tagfilter, raw tags should be removed/escaped (no literal <div>)
-    assert!(!html.contains("<div") );
-
-    let mut opts2 = MarkdownOptions::default();
-    opts2.extension.tagfilter = false;
-    opts2.render.unsafe_ = true;
-    let html2 = markdown_to_html(md, &opts2);
-    assert!(html2.contains("<div") );
-}

@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::path::Path;
 use anyhow::{Result};
 use crate::logic::{DocumentBuffer, RecentFiles};
+use log::trace;
 
 /// File operations manager for handling document lifecycle
 /// 
@@ -141,8 +142,9 @@ impl FileOperations {
             }
         }
 
-        self.load_file_into_editor(path, editor_buffer)?;
-        eprintln!("[FileOps] Opened file by path: {}", path.display());
+    self.load_file_into_editor(path, editor_buffer)?;
+    trace!("audit: opened file_by_path: {}", path.display());
+    eprintln!("[FileOps] Opened file by path: {}", path.display());
         Ok(())
     }
 
@@ -171,6 +173,7 @@ impl FileOperations {
             // Update baseline after successful save
             self.buffer.borrow_mut().set_baseline(&content);
             
+            trace!("audit: saved document to existing path");
             eprintln!("[FileOps] Saved document");
             Ok(())
         } else {
@@ -202,7 +205,7 @@ impl FileOperations {
             }
         }
 
-        let content = self.get_editor_content(editor_buffer);
+    let content = self.get_editor_content(editor_buffer);
         self.buffer.borrow_mut().save_as_content(&file_path, &content)?;
     // After Save As, baseline has been updated inside save_as_content but also set here for safety
     self.buffer.borrow_mut().set_baseline(&content);
@@ -210,7 +213,8 @@ impl FileOperations {
         // Add to recent files
     self.add_recent_file(&file_path);
         
-        eprintln!("[FileOps] Saved document as: {}", file_path.display());
+    trace!("audit: saved document as: {}", file_path.display());
+    eprintln!("[FileOps] Saved document as: {}", file_path.display());
         Ok(())
     }
 
@@ -227,6 +231,7 @@ impl FileOperations {
     self.recent_files.borrow_mut().clear();
     // Notify listeners so menus update
     self.invoke_recent_changed_callbacks();
+    trace!("audit: cleared recent files");
     }
 
     /// Update modified flag by comparing current editor content to baseline
@@ -297,6 +302,7 @@ impl FileOperations {
             if let Some(path) = file_path {
                 self.load_file_into_editor(&path, editor_buffer)?;
                 self.add_recent_file(&path);
+                trace!("audit: opened file via dialog: {}", path.display());
                 eprintln!("[FileOps] Opened file: {}", path.display());
             }
             Ok(())
@@ -354,7 +360,7 @@ impl FileOperations {
             // Reset buffer and clear editor
             self.buffer.borrow_mut().reset_to_untitled();
             editor_buffer.set_text("");
-
+            trace!("audit: created new untitled document");
             eprintln!("[FileOps] Created new untitled document");
             Ok(())
         }
@@ -529,7 +535,7 @@ pub fn update_recent_files_menu(recent_menu: &gio::Menu, recent_files: &[std::pa
         recent_menu.append(Some("Clear Recent Files"), Some("app.clear_recent"));
     }
 
-    eprintln!("[FileOps] Recent files menu updated with {} files", recent_files.len());
+    // Recent files menu updated (debug output suppressed).
 }
 
 /// Attach change tracker to the editor buffer so document modified state
@@ -560,6 +566,10 @@ pub fn attach_change_tracker(
                     // Update visible title label
                     let title = file_ops.get_document_title();
                     title_label.set_text(&title);
+                    trace!("audit: editor buffer changed (user edit detected)");
+                    if std::env::var("MARCO_DEBUG_POINTERS").is_ok() {
+                        eprintln!("[file_ops] title_label ptr={:p} set_text='{}'", title_label.as_ptr(), title);
+                    }
                 }
             }
         }
@@ -718,6 +728,7 @@ pub fn register_file_actions_async(
     clear_recent_action.set_enabled(!recent_list.is_empty());
     let file_ops_for_clear = file_operations.clone();
     clear_recent_action.connect_activate(move |_, _| {
+        trace!("audit: clear recent files action triggered");
         file_ops_for_clear.borrow().clear_recent_files();
         eprintln!("[main] Cleared recent files");
     });

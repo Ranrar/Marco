@@ -96,17 +96,41 @@ use crate::components::marco_engine::parser::MarkdownSyntaxMap;
 use crate::logic::{DocumentBuffer, RecentFiles};
 use crate::logic::menu_items::file::FileOperations;
 use crate::ui::menu_items::files::FileDialogs;
+use log::trace;
 
 const APP_ID: &str = "com.example.Marco";
 
 fn main() -> glib::ExitCode {
+    // Very early audit: record entering main (before initialization)
+    log::trace!("audit: main() entry - very early");
+
+    // Install panic hook to ensure panics are logged and logger is flushed
+    let default_panic = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        // Attempt to log panic info (may be no logger yet)
+        let panic_msg = match info.payload().downcast_ref::<&str>() {
+            Some(s) => *s,
+            None => match info.payload().downcast_ref::<String>() {
+                Some(s) => s.as_str(),
+                None => "Unknown panic payload",
+            },
+        };
+        let location = if let Some(location) = info.location() {
+            format!("{}:{}", location.file(), location.line())
+        } else {
+            "unknown:0".to_string()
+        };
+        log::error!("PANIC at {}: {}", location, panic_msg);
+        // Try to flush and shutdown the file logger cleanly
+        crate::logic::logger::shutdown_file_logger();
+        // Call the default hook so we preserve existing behavior (printing to stderr)
+        default_panic(info);
+    }));
+
     // Asset path detection and environment setup
     use crate::logic::asset_path::{get_asset_dir_checked, get_font_path, get_settings_path};
     let asset_dir = match get_asset_dir_checked() {
-        Ok(asset_dir) => {
-            println!("Asset directory set: {}", asset_dir.display());
-            asset_dir
-        }
+        Ok(asset_dir) => asset_dir,
         Err(e) => {
             eprintln!("Error detecting asset directory: {}", e);
             std::process::exit(1);
@@ -117,11 +141,11 @@ fn main() -> glib::ExitCode {
 
     // Example: Load font and settings paths
     match get_font_path("ui_menu.ttf") {
-        Ok(font_path) => println!("Font path: {}", font_path.display()),
+        Ok(_font_path) => {}
         Err(e) => eprintln!("Font error: {}", e),
     }
     match get_settings_path() {
-        Ok(settings_path) => println!("Settings path: {}", settings_path.display()),
+        Ok(_settings_path) => {}
         Err(e) => eprintln!("Settings error: {}", e),
     }
 
@@ -145,7 +169,11 @@ fn main() -> glib::ExitCode {
         build_ui(app, None);
     });
     
+    trace!("audit: app starting");
     let exit_code = app.run();
+    trace!("audit: app exiting with code {:?}", exit_code);
+    // Ensure file logger is flushed and closed on normal exit
+    crate::logic::logger::shutdown_file_logger();
     exit_code
 }
 
@@ -222,6 +250,18 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         preview_theme_dir.clone(),
         editor_theme_dir,
     )));
+
+    // Initialize file logger according to settings (runtime)
+    {
+        let app_settings = crate::logic::swanson::Settings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+    let enabled = app_settings.log_to_file.unwrap_or(false);
+    // We control the runtime log level in the program; always initialize to Trace so
+    // the file logger captures all levels. The settings no longer contain log_level.
+    let level = log::LevelFilter::Trace;
+    if let Err(e) = crate::logic::logger::init_file_logger(enabled, level) {
+            eprintln!("Failed to initialize file logger: {}", e);
+        }
+    }
     // Pass settings struct to modules as needed
 
     // Create main vertical box layout
@@ -261,10 +301,10 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     }
 
     // Debug: report whether an active schema was found and how many rules it contains
-    if let Some(ref map) = *active_schema_map.borrow() {
-        eprintln!("[main] Active markdown schema loaded: {} rules", map.rules.len());
+    if let Some(ref _map) = *active_schema_map.borrow() {
+        // schema loaded; intentionally silent in normal startup
     } else {
-        eprintln!("[main] No active markdown schema loaded (footer will show Plain text)");
+        // no schema found; intentionally silent in normal startup
     }
 
     let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer, insert_mode_state) = create_editor_with_preview(
@@ -288,7 +328,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         let active_schema_map = active_schema_map.clone();
         let test_counter = std::rc::Rc::new(std::cell::Cell::new(0));
         move || {
-            eprintln!("[main] Manual footer trigger called!");
+            // Manual footer trigger invoked; terminal output suppressed.
             
             // Increment test counter for obvious visual changes
             let count = test_counter.get() + 1;
@@ -337,10 +377,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     footer.set_hexpand(true);  // Footer should expand horizontally
     footer.set_visible(true);  // Explicitly ensure footer is visible
     
-    // Debug output to confirm footer creation
-    eprintln!("[main] Footer created and added to layout");
-    eprintln!("[main] Footer visible: {}", footer.is_visible());
-    eprintln!("[main] Footer height request: {}", footer.height_request());
+    // Footer creation completed (silent in normal startup)
     
     // Optionally, assign classes to editor/preview if accessible here
 
@@ -380,6 +417,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     }) as Box<dyn Fn(String) + 'static>
                 };
                 
+                trace!("audit: opened settings dialog");
                 show_settings_dialog(
                     win_clone.upcast_ref(),
                     theme_manager_clone.clone(),
@@ -487,6 +525,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             let tracking_enabled = tracking_enabled.clone();
             let title_label_async = title_label.clone();
             glib::MainContext::default().spawn_local(async move {
+                trace!("audit: action new document triggered");
                 *tracking_enabled.borrow_mut() = false;
                 let file_ops = file_operations.borrow();
                 let gtk_window: &gtk4::Window = window.upcast_ref();
@@ -544,6 +583,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             let editor_buffer = editor_buffer.clone();
             let title_label_async = title_label.clone();
             glib::MainContext::default().spawn_local(async move {
+                trace!("audit: open action triggered by user");
                 let file_ops = file_operations.borrow();
                 let gtk_window: &gtk4::Window = window.upcast_ref();
                 let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
@@ -668,7 +708,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     // Update title label after successful open
                     let title = file_operations_initial.borrow().get_document_title();
                     title_label_initial.set_text(&title);
-                    eprintln!("Successfully opened file: {}", file_path);
+                    // Successful open - terminal output suppressed.
                 }
                 Err(e) => {
                     eprintln!("Failed to open file {}: {}", file_path, e);

@@ -3,6 +3,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use log::info;
 
 #[derive(Debug, Clone)]
 pub struct MarkdownSchema {
@@ -22,12 +23,21 @@ pub fn list_available_schemas(root: &Path) -> Vec<MarkdownSchema> {
                 let ast = path.join("ast.ron");
                 let syntax = path.join("syntax.ron");
                 if ast.exists() && syntax.exists() {
-                    schemas.push(MarkdownSchema {
+                    let schema = MarkdownSchema {
                         name: path.file_name().unwrap().to_string_lossy().to_string(),
                         path: path.clone(),
-                        ast_path: ast,
-                        syntax_path: syntax,
-                    });
+                        ast_path: ast.clone(),
+                        syntax_path: syntax.clone(),
+                    };
+                    // Log the discovered schema so the fields are actually read and recorded.
+                    info!(
+                        "Found markdown schema: name={} path={:?} ast={:?} syntax={:?}",
+                        schema.name,
+                        schema.path,
+                        schema.ast_path,
+                        schema.syntax_path
+                    );
+                    schemas.push(schema);
                 }
             }
         }

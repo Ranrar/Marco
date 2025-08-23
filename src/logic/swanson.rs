@@ -2,6 +2,7 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use log::trace;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -12,6 +13,10 @@ pub struct Settings {
     pub window: Option<WindowSettings>,
     pub advanced: Option<AdvancedSettings>,
     pub files: Option<FileSettings>,
+    // Toggle to enable debug features in the UI
+    pub debug: Option<bool>,
+    // Logging to file configuration
+    pub log_to_file: Option<bool>,
     // --- Markdown schema selection ---
     pub active_schema: Option<String>,
     pub schema_disabled: Option<bool>,
@@ -27,8 +32,20 @@ impl Settings {
 
     /// Save settings to a RON file
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
-        let ron = ron::ser::to_string(self)?;
-        fs::write(path, ron)?;
+        // Use a pretty RON serializer to make the settings file human-readable.
+    let pretty = ron::ser::PrettyConfig::new();
+    let ron = ron::ser::to_string_pretty(self, pretty)?;
+        // Resolve path as string for later audit message without moving `path`
+        let path_ref = path.as_ref().to_path_buf();
+        fs::write(&path_ref, ron)?;
+        // Audit: record that settings were saved (don't log sensitive content)
+        // We log the path and a Debug representation of the settings for auditing
+        // purposes. Use trace level so it's filtered unless enabled.
+        if let Some(p) = path_ref.to_str() {
+            trace!("audit: settings saved to {} -> {:?}", p, self);
+        } else {
+            trace!("audit: settings saved -> {:?}", self);
+        }
         Ok(())
     }
 

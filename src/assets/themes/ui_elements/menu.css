@@ -14,7 +14,6 @@
 .icon-font {
     font-family: 'icomoon';
     font-size: 16px;
-    vertical-align: middle;
     padding: 0 2px;
     background: transparent;
     border: none;
@@ -55,7 +54,6 @@
 /* Menu bar container */
 .menubar, .titlebar {
     min-height: 32px;
-    max-height: 32px;
     background: #23272e;
     border-bottom: 0px solid #444;
     font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
@@ -69,7 +67,6 @@
     border-radius: 4px;
     background: transparent;
     color: #e0e0e0;
-    cursor: pointer;
     font-weight: 500;
 }
 
@@ -84,10 +81,9 @@
 }
 
 /* Menu item disabled */
-.menuitem:disabled, .menuitem[disabled] {
+.menuitem:disabled {
     background: transparent;
     color: #888;
-    cursor: not-allowed;
     opacity: 0.6;
 }
 
@@ -98,7 +94,7 @@
 .topright-btn .icon-font {
     transition: color 0.12s, transform 0.08s;
 }
-.window-control-btn .icon-font {color:#f0f5f1}
+.window-control-btn .icon-font { color:#f0f5f1; }
 .window-control-btn:hover .icon-font { color: #9198a1; transform: translateY(0); }
 .window-control-btn:active .icon-font { color: #fff; transform: translateY(0); }
 
@@ -119,8 +115,6 @@
     font-weight: 600;
     padding: 0 0px;
     margin: 0 0px;
-    text-align: center;
-    vertical-align: middle;
 }
 
 /*

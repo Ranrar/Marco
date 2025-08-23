@@ -9,8 +9,16 @@ use webkit6::WebView;
 
 /// Create a WebView widget and load the provided HTML string.
 pub fn create_html_viewer(html: &str) -> WebView {
-    let webview = WebView::new();
-    webview.load_html(html, None);
+  let webview = WebView::new();
+  // Defer loading HTML until the main loop is idle to ensure the widget
+  // has been allocated and avoid 'trying to snapshot GtkGizmo without a current allocation' warnings.
+  let html_string = html.to_string();
+  let webview_clone = webview.clone();
+  glib::idle_add_local(move || {
+    webview_clone.load_html(&html_string, None);
+    // Stop the idle source after one run
+    glib::ControlFlow::Break
+  });
     webview.set_vexpand(true);
     webview.set_hexpand(true);
     webview

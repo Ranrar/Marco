@@ -2,12 +2,16 @@
 /Cargo.lock
 /target
 
-#internal dev code
+# internal dev code
+marco2.code-workspace
 /.github/chatmodes
 /.github/instructions
 /.VSCodeCounter
 /.vscode
 /dev
+
+# Program specefik
+/log
 
 # Python
 __pycache__/

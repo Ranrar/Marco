@@ -10,10 +10,15 @@ NEWLINE    = _{ "\n" | "\r\n" }
 // DOCUMENT STRUCTURE
 // =============================================================================
 
-document = { SOI ~ frontmatter? ~ content ~ EOI }
-content = { (block ~ NEWLINE*)* ~ block? }
+// Design note: This grammar treats NEWLINE as an explicit block-level
+// separator. Inline parsing does not treat a plain NEWLINE as an inline
+// soft-break token; soft breaks are handled at the rendering / inline-pass
+// stage. This simplifies block detection in a single-pass PEG grammar.
+// For full CommonMark behavior (soft breaks & nested link parsing), a
+// two-phase approach (block parse then inline parse) is recommended.
 
-blank_line = { NEWLINE }
+document = { SOI ~ NEWLINE* ~ frontmatter? ~ content ~ EOI }
+content = { (block ~ NEWLINE*)* ~ block? }
 
 // =============================================================================
 // BLOCK ELEMENTS (ordered by specificity)
@@ -42,9 +47,8 @@ block = {
 
 atx_heading = @{ "#"{1,6} ~ " " ~ (!NEWLINE ~ ANY)* }
 setext_heading = @{ (!NEWLINE ~ ANY)+ ~ NEWLINE ~ (("="{3,} | "-"{3,})) }
-setext_underline = { ("="{3,} | "-"{3,}) }
-heading_content = @{ inline_content }
-heading_text = @{ (!NEWLINE ~ ANY)* }
+// setext underline and heading helper rules were removed; heading
+// content is parsed using `inline_content` directly.
 
 // =============================================================================
 // CODE BLOCKS
@@ -169,14 +173,15 @@ inline_element = {
     strong_emphasis      // **bold** __bold__
     | emphasis           // *italic* _italic_
     | strikethrough      // ~~strike~~
-    | inline_code        // `code`
+    | inline_code        // `code` (supports 1..6 backtick delimiters)
     | inline_math        // $math$
     | autolink          // <https://example.com>
     | link              // [text](url) or [text][ref]
     | image             // ![alt](url) or ![alt][ref]
     | html_inline       // <tag>
     | hard_break        // \\\n or two spaces + \n
-    | soft_break        // \n
+    // soft_break is intentionally not included here; NEWLINE handling is
+    // treated at block level or in a later inline pass.
     | entity            // &nbsp; &#123;
     | emoji             // :smile:
     | mention           // @username
@@ -187,17 +192,30 @@ inline_element = {
 // =============================================================================
 
 strong_emphasis = { strong_asterisk | strong_underscore }
-strong_asterisk = { "**" ~ (!"**" ~ (inline_element | ANY))+ ~ "**" }
-strong_underscore = { "__" ~ (!"__" ~ (inline_element | ANY))+ ~ "__" }
+// Use atomic forms for strong emphasis to reduce backtracking and prevent
+// implicit whitespace insertion inside the matched span.
+strong_asterisk = @{ "**" ~ (!"**" ~ ANY)* ~ "**" }
+strong_underscore = @{ "__" ~ (!"__" ~ ANY)* ~ "__" }
 
 emphasis = { emphasis_asterisk | emphasis_underscore }
-emphasis_asterisk = { "*" ~ (!"*" ~ !WHITESPACE ~ (inline_element | ANY))+ ~ "*" }
-emphasis_underscore = { "_" ~ (!"_" ~ !WHITESPACE ~ (inline_element | ANY))+ ~ "_" }
+// Atomic emphasis forms; avoid embedding inline_element inside the
+// repetition to reduce recursive backtracking. The !WHITESPACE guard is
+// preserved to avoid intraword emphasis for '_' variants.
+emphasis_asterisk = @{ "*" ~ (!"*" ~ !WHITESPACE ~ ANY)* ~ "*" }
+emphasis_underscore = @{ "_" ~ (!"_" ~ !WHITESPACE ~ ANY)* ~ "_" }
 
-strikethrough = { "~~" ~ (!"~~" ~ (inline_element | ANY))+ ~ "~~" }
+// Atomic strikethrough to reduce backtracking
+strikethrough = @{ "~~" ~ (!"~~" ~ ANY)* ~ "~~" }
 
-inline_code = { "`" ~ inline_code_content ~ "`" }
-inline_code_content = @{ (!"`" ~ ANY)+ }
+// Code spans: support variable-length backtick delimiters (1..6).
+// Each variant requires the same number of backticks to open and close.
+inline_code = { code_span1 | code_span2 | code_span3 | code_span4 | code_span5 | code_span6 }
+code_span1 = @{ "`"  ~ (!"`" ~ ANY)*                                ~ "`"  }
+code_span2 = @{ "`"{2} ~ (!"`"{2} ~ ANY)*                             ~ "`"{2} }
+code_span3 = @{ "`"{3} ~ (!"`"{3} ~ ANY)*                             ~ "`"{3} }
+code_span4 = @{ "`"{4} ~ (!"`"{4} ~ ANY)*                             ~ "`"{4} }
+code_span5 = @{ "`"{5} ~ (!"`"{5} ~ ANY)*                             ~ "`"{5} }
+code_span6 = @{ "`"{6} ~ (!"`"{6} ~ ANY)*                             ~ "`"{6} }
 
 inline_math = { "$" ~ inline_math_content ~ "$" }
 inline_math_content = @{ (!"$" ~ !NEWLINE ~ ANY)+ }
@@ -220,18 +238,20 @@ autolink = { autolink_url | autolink_email }
 autolink_url = { "<" ~ url_scheme ~ "://" ~ url_content ~ ">" }
 autolink_email = { "<" ~ email_content ~ ">" }
 
-link_text = @{ (!"]" ~ (inline_element | ANY))+ }
-link_url = @{ (!")" ~ !WHITESPACE ~ ANY)+ }
-link_ref = @{ (!"]" ~ ANY)+ }
+// Tighten link_text to avoid consuming the closing bracket; complex
+// nested bracket handling should be done in a second inline parsing pass.
+link_text = @{ (!"]" ~ !NEWLINE ~ ANY)+ }
+link_url = @{ (!")" ~ !WHITESPACE ~ !NEWLINE ~ ANY)+ }
+link_ref = @{ (!"]" ~ !NEWLINE ~ ANY)+ }
 
-image_alt = @{ (!"]" ~ ANY)* }
-image_url = @{ (!")" ~ !WHITESPACE ~ ANY)+ }
+image_alt = @{ (!"]" ~ !NEWLINE ~ ANY)* }
+image_url = @{ (!")" ~ !WHITESPACE ~ !NEWLINE ~ ANY)+ }
 image_title = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
-image_ref = @{ (!"]" ~ ANY)+ }
+image_ref = @{ (!"]" ~ !NEWLINE ~ ANY)+ }
 
 url_scheme = @{ ("http" | "https" | "ftp" | "mailto") }
-url_content = @{ (!">" ~ ANY)+ }
-email_content = @{ (!(">" | WHITESPACE) ~ ANY)+ }
+url_content = @{ (!">" ~ !NEWLINE ~ ANY)+ }
+email_content = @{ (!(">" | WHITESPACE | NEWLINE) ~ ANY)+ }
 
 // =============================================================================
 // HTML INLINE
@@ -253,7 +273,6 @@ html_numeric_entity = @{ "#" ~ (ASCII_DIGIT+ | "x" ~ ASCII_HEX_DIGIT+) }
 // =============================================================================
 
 hard_break = { ("\\" ~ NEWLINE) | (WHITESPACE{2,} ~ NEWLINE) }
-soft_break = { NEWLINE }
 
 // =============================================================================
 // EXTENDED ELEMENTS

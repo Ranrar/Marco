@@ -18,7 +18,7 @@ VENV_DIR="$VALIDATOR_DIR/.venv"
 # Create virtual environment if missing
 # ----------------------------
 if [ ! -d "$VENV_DIR" ]; then
-    echo "Creating virtual environment at $VENV_DIR..."
+    # Create virtual environment (silent)
     python3 -m venv "$VENV_DIR"
 fi
 
@@ -33,7 +33,6 @@ pip install --break-system-packages -r "$VALIDATOR_DIR/requirements.txt"
 # Run the validator
 # ----------------------------
 # run main.py in interactive mode (no argument passed)
-echo "Launching AST + Syntax Validator in interactive mode..."
 "$VENV_DIR/bin/python" "$VALIDATOR_DIR/main.py"
 
 
@@ -41,4 +40,3 @@ echo "Launching AST + Syntax Validator in interactive mode..."
 # Deactivate virtual environment
 # ----------------------------
 deactivate 2>/dev/null || true
-echo "Done."

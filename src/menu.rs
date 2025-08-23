@@ -5,9 +5,10 @@ pub fn set_menu_height(menu_box: &gtk4::Box, height: i32) {
 // Helper to convert LayoutState to a human-readable string
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use crate::logic::layoutstate::{LayoutState, layout_state_label};
+use crate::logic::layoutstate::LayoutState;
 
 use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle, Label};
+use log::trace;
 use gtk4::gio;
 use gtk4::PopoverMenuBar;
 
@@ -101,6 +102,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
     title_label.set_halign(Align::Center);
     // Start with placeholder
     title_label.set_text("Untitled.md");
+    // Pointer debug suppressed; enable a proper logger if needed.
     titlebar.append(&title_label);
 
     // Spacer (expand to push controls to right)
@@ -170,9 +172,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
             btn1.connect_clicked(move |_| {
-                let prev = *layout_state.borrow();
                 let next = LayoutState::EditorOnly;
-                println!("app state {} -> app state {}", layout_state_label(prev), layout_state_label(next));
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
@@ -196,9 +196,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
             btn2.connect_clicked(move |_| {
-                let prev = *layout_state.borrow();
                 let next = LayoutState::ViewOnly;
-                println!("app state {} -> app state {}", layout_state_label(prev), layout_state_label(next));
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
@@ -222,9 +220,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
             btn3.connect_clicked(move |_| {
-                let prev = *layout_state.borrow();
                 let next = LayoutState::EditorAndWin;
-                println!("app state {} -> app state {}", layout_state_label(prev), layout_state_label(next));
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
@@ -248,9 +244,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
             btn4.connect_clicked(move |_| {
-                let prev = *layout_state.borrow();
                 let next = LayoutState::Split;
-                println!("app state {} -> app state {}", layout_state_label(prev), layout_state_label(next));
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
@@ -278,6 +272,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
         let alloc = btn.allocation();
         popover_for_btn.set_pointing_to(Some(&alloc));
         popover_for_btn.popup();
+        trace!("audit: layout menu opened");
     });
     titlebar.append(&layout_menu_btn);
 
@@ -348,7 +343,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
 
     // Minimize and close actions
     let win_clone = window.clone();
-    btn_min.connect_clicked(move |_| { win_clone.minimize(); });
+    btn_min.connect_clicked(move |_| { win_clone.minimize(); trace!("audit: window minimize clicked"); });
     // When close is pressed, activate the application's quit action so
     // the unified quit flow (including FileOperations::quit_async) runs.
     let win_for_close = window.clone();
@@ -365,6 +360,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
             // Fallback: close the window if no application is associated
             win_for_close.close();
         }
+        trace!("audit: window close clicked");
     });
 
     // Click toggles window state and updates glyph immediately
@@ -378,6 +374,7 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
             window_for_toggle.maximize();
             label_for_toggle.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
         }
+        trace!("audit: window maximize/restore clicked");
     });
 
     // Keep glyph in sync if window is maximized/unmaximized externally

@@ -4,6 +4,7 @@ pub fn set_toolbar_height(toolbar_box: &gtk4::Box, height: i32) {
 }
 use gtk4::prelude::*;
 use gtk4::{Box, Button, DropDown, Orientation, Separator};
+use log::trace;
 
 /// Toolbar button references for updating active states
 // TODO: This struct is not currently used, but may be useful for managing toolbar state (e.g., enabling/disabling buttons, updating active states, or connecting signals) in the future.
@@ -46,6 +47,7 @@ pub fn create_toolbar_structure() -> Box {
     let popover_ref = headings_popover.clone();
     headings_button.connect_clicked(move |_| {
         popover_ref.popup();
+        trace!("audit: headings button clicked (popover opened)");
     });
     toolbar.append(&headings_button);
 

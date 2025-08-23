@@ -22,6 +22,9 @@
   <color name="dark-keyword"      value="#569CD6"/>
   <color name="dark-string"       value="#CE9178"/>
   <color name="dark-number"       value="#B5CEA8"/>
+  <!-- Scrollbar styling for GTK editor matching webview preview -->
+  <color name="scrollbar-thumb"   value="#3A3F44"/>
+  <color name="scrollbar-track"   value="#252526"/>
 
   <!-- Base text appearance -->
   <style name="text"                  foreground="dark-text" background="dark-bg"/>

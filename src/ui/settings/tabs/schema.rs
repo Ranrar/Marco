@@ -34,15 +34,16 @@ pub fn build_schema_tab(schema_root: &str, active_schema: Option<String>, schema
     for schema in &schemas {
         combo.append_text(&schema.name);
     }
-    // Debug: print the first schema's folder/ast/syntax paths to the terminal
-    if let Some(first) = schemas.get(0) {
-        eprintln!(
-            "[schema] folder: {}\nast: {}\nsyntax: {}",
-            first.path.display(),
-            first.ast_path.display(),
-            first.syntax_path.display()
-        );
-    }
+    // Optionally print the first schema's paths for debugging; suppressed in normal startup.
+    // To enable, temporarily uncomment the block below.
+    // if let Some(first) = schemas.get(0) {
+    //     eprintln!(
+    //         "[schema] folder: {}\nast: {}\nsyntax: {}",
+    //         first.path.display(),
+    //         first.ast_path.display(),
+    //         first.syntax_path.display()
+    //     );
+    // }
     let active_idx = if schema_disabled {
         0
     } else {
@@ -70,19 +71,19 @@ pub fn build_schema_tab(schema_root: &str, active_schema: Option<String>, schema
     combo.connect_changed(move |c| {
         let idx = c.active().unwrap_or(0) as usize;
         if idx == 0 {
-            // nothing selected -> debug clear
-            eprintln!("[schema] selection: disabled");
+            // selection disabled; suppressed debug output
             on_schema_changed(None);
         } else {
             let selected = schemas[idx - 1].name.clone();
-            // Debug print selected schema paths and call callback
-            eprintln!(
-                "[schema] selected: {}\nfolder: {}\nast: {}\nsyntax: {}",
-                selected,
-                schemas[idx - 1].path.display(),
-                schemas[idx - 1].ast_path.display(),
-                schemas[idx - 1].syntax_path.display()
-            );
+            // Selection occurred; detailed debug output is suppressed in normal startup.
+            // To debug, uncomment the eprintln! block below.
+            // eprintln!(
+            //     "[schema] selected: {}\nfolder: {}\nast: {}\nsyntax: {}",
+            //     selected,
+            //     schemas[idx - 1].path.display(),
+            //     schemas[idx - 1].ast_path.display(),
+            //     schemas[idx - 1].syntax_path.display()
+            // );
             on_schema_changed(Some(selected));
         }
     });

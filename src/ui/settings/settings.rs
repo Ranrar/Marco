@@ -5,6 +5,7 @@ use gtk4::prelude::*;
 use gtk4::{Dialog, Window, Notebook, Button, Box as GtkBox, Orientation, Align, Label};
 
 use crate::ui::settings::tabs;
+use log::trace;
 
 pub struct Settings {
     pub theme: String,
@@ -94,6 +95,17 @@ pub fn show_settings_dialog(
         ), Some(&Label::new(Some("Markdown Schema"))));
     notebook.append_page(&tabs::language::build_language_tab(), Some(&Label::new(Some("Language"))));
 
+    // Optionally show Debug tab when `debug` is enabled in settings.ron
+    {
+        use crate::logic::swanson::Settings as AppSettings;
+        let app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+        if app_settings.debug.unwrap_or(false) {
+            // Pass settings path as string to debug tab builder so it can save changes
+            let settings_path_str = settings_path.to_string_lossy().to_string();
+            notebook.append_page(&tabs::debug::build_debug_tab(&settings_path_str), Some(&Label::new(Some("Debug"))));
+        }
+    }
+
     // Layout: notebook + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
     content_box.append(&notebook);
@@ -102,7 +114,10 @@ pub fn show_settings_dialog(
     button_box.set_halign(Align::End);
     let close_button = Button::with_label("Close");
     let dialog_clone = dialog.clone();
-    close_button.connect_clicked(move |_| dialog_clone.close());
+    close_button.connect_clicked(move |_| {
+        trace!("audit: settings dialog closed");
+        dialog_clone.close();
+    });
     close_button.set_margin_start(0);
     close_button.set_margin_end(8);
     close_button.set_margin_bottom(8);

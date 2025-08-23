@@ -5,10 +5,6 @@ pub struct MarkdownRenderer {
 }
 
 impl MarkdownRenderer {
-    pub fn new() -> Self {
-        Self {}
-    }
-
     /// Main function to convert markdown to HTML
     pub fn markdown_to_html(input: &str) -> Result<String, Box<dyn std::error::Error>> {
         let ast = parse_markdown(input)?;
@@ -122,19 +118,36 @@ impl MarkdownRenderer {
             }
             
             "listItem" => {
-                let content = node.children.iter().map(|child| Self::render_node(child)).collect::<String>();
-                
-                // Handle task list items
+                // Render children to find task markers or content
+                let rendered_children = node.children.iter().map(|child| Self::render_node(child)).collect::<Vec<_>>();
+                let mut content = rendered_children.join("");
+
+                // If the parser set a 'checked' attribute, honor it first
                 if let Some(checked_attr) = node.attributes.get("checked") {
                     let checked = checked_attr == "true";
                     if checked {
-                        format!("<li><input type=\"checkbox\" checked disabled> {}</li>", content)
+                        return format!("<li><input type=\"checkbox\" checked disabled> {}</li>", content);
                     } else {
-                        format!("<li><input type=\"checkbox\" disabled> {}</li>", content)
+                        return format!("<li><input type=\"checkbox\" disabled> {}</li>", content);
                     }
-                } else {
-                    format!("<li>{}</li>", content)
                 }
+
+                // Otherwise, detect leading task marker in the raw text (e.g., "[ ] " or "[x] ")
+                // Look at the first child rendered string
+                if let Some(first) = rendered_children.first() {
+                    let raw = first.trim_start();
+                    if raw.starts_with("[ ] ") || raw.starts_with("[ ]") {
+                        // remove the marker from content
+                        content = raw.replacen("[ ]", "", 1).trim_start().to_string() + &rendered_children[1..].join("");
+                        return format!("<li><input type=\"checkbox\" disabled> {}</li>", content);
+                    } else if raw.to_lowercase().starts_with("[x] ") || raw.to_lowercase().starts_with("[x]") {
+                        content = raw.replacen("[x]", "", 1).trim_start().to_string() + &rendered_children[1..].join("");
+                        return format!("<li><input type=\"checkbox\" checked disabled> {}</li>", content);
+                    }
+                }
+
+                // Default list item rendering
+                format!("<li>{}</li>", content)
             }
             
             "table" => {
@@ -164,25 +177,29 @@ impl MarkdownRenderer {
                 format!("<img src=\"{}\" alt=\"{}\">", html_escape(url), html_escape(alt))
             }
             
-            "hardBreak" => {
+            // Accept multiple naming variants for breaks (parser may produce different names)
+            "hardBreak" | "hard_break" | "break" => {
                 "<br>".to_string()
             }
-            
-            "softBreak" => {
+
+            // Soft break variants map to a single newline or space depending on rendering policy
+            "softBreak" | "soft_break" => {
                 "\n".to_string()
             }
             
-            "html" => {
+            // Accept HTML node variants produced by parser
+            "html" | "htmlBlock" | "html_inline" | "htmlInline" | "htmlTag" | "html_tag" => {
                 // Pass through HTML directly (be cautious about security in real applications)
                 node.attributes.get("value").map_or("", |v| v).to_string()
             }
             
-            "yaml" => {
-                // Skip frontmatter in HTML output
+            // Frontmatter / yaml / toml nodes - skip in HTML output
+            "yaml" | "frontmatter" | "yaml_frontmatter" | "toml_frontmatter" | "toml" => {
                 String::new()
             }
             
-            "inlineMath" => {
+            // Math node variants
+            "inlineMath" | "mathInline" | "math_inline" => {
                 if let Some(value) = node.attributes.get("value") {
                     format!("<span class=\"math-inline\">\\({}\\)</span>", html_escape(value))
                 } else {
@@ -190,7 +207,7 @@ impl MarkdownRenderer {
                 }
             }
             
-            "math" => {
+            "math" | "mathBlock" | "math_block" => {
                 if let Some(value) = node.attributes.get("value") {
                     format!("<div class=\"math-block\">\\[{}\\]</div>", html_escape(value))
                 } else {
@@ -228,7 +245,6 @@ pub fn markdown_to_html(input: &str, _options: &MarkdownOptions) -> String {
 #[derive(Default)]
 pub struct MarkdownOptions {
     pub extension: MarkdownExtensions,
-    pub render: MarkdownRender,
 }
 
 #[derive(Default)]
@@ -239,11 +255,6 @@ pub struct MarkdownExtensions {
     pub tasklist: bool,
     pub footnotes: bool,
     pub tagfilter: bool,
-}
-
-#[derive(Default)]
-pub struct MarkdownRender {
-    pub unsafe_: bool,
 }
 
 #[cfg(test)]

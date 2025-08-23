@@ -598,11 +598,6 @@ fn parse_pair(pair: pest::iterators::Pair<Rule>) -> Option<Node> {
             Some(Node::new("break"))
         }
         
-        Rule::soft_break => {
-            // Soft breaks are usually converted to spaces in the final output
-            Some(Node::text_node(" "))
-        }
-        
         // =============================================================================
         // EXTENDED ELEMENTS
         // =============================================================================
@@ -653,7 +648,7 @@ fn parse_pair(pair: pest::iterators::Pair<Rule>) -> Option<Node> {
         // UTILITY RULES (usually not processed directly)
         // =============================================================================
         
-        Rule::paragraph_content | Rule::inline_content => {
+    Rule::paragraph_content | Rule::inline_content => {
             // Store the text content before processing
             let text_content = pair.as_str();
             
@@ -689,17 +684,17 @@ fn parse_pair(pair: pest::iterators::Pair<Rule>) -> Option<Node> {
             }
             None
         }
-        
-        Rule::heading_content | Rule::code_content | Rule::language_info | Rule::line_content | 
-        Rule::list_item_content | Rule::setext_underline | Rule::code_fence |
+
+    Rule::code_content | Rule::language_info | Rule::line_content |
+    Rule::list_item_content | Rule::code_fence |
         Rule::blockquote_line | Rule::unordered_marker | Rule::ordered_marker |
         Rule::task_marker | Rule::checkbox | Rule::checkbox_state | Rule::indent_4 |
-        Rule::code_line | Rule::table_separator | Rule::table_cell | Rule::table_sep_cell => {
+    Rule::code_line | Rule::table_separator | Rule::table_cell | Rule::table_sep_cell => {
             // These are handled by their parent rules
             None
         }
-        
-        Rule::blank_line | Rule::NEWLINE | Rule::WHITESPACE => {
+
+        Rule::NEWLINE | Rule::WHITESPACE => {
             // Skip whitespace and blank lines
             None
         }

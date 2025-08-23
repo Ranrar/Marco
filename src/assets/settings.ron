@@ -1,1 +1,21 @@
-(editor:None,appearance:Some((editor_mode:Some("dark"),preview_theme:Some("astro.css"),ui_font:None,ui_font_size:None)),layout:None,language:None,window:None,advanced:None,files:Some((recent_files:Some(["/home/ranrar/Code/projects/marco2/CONTRIBUTING.md","/home/ranrar/Code/projects/marco2/test.md","/home/ranrar/Code/projects/marco2/documentation/AST_Syntax_Guide.md","/home/ranrar/Code/projects/marco2/README.md","/home/ranrar/Code/projects/marco2/documentation/user guide/user_guide.md"]),max_recent_files:Some(5))),active_schema:Some("Marco"),schema_disabled:Some(false))
+(
+    editor: None,
+    appearance: Some((
+        editor_mode: Some("dark"),
+        preview_theme: Some("astro.css"),
+        ui_font: None,
+        ui_font_size: None,
+    )),
+    layout: None,
+    language: None,
+    window: None,
+    advanced: None,
+    files: Some((
+        recent_files: Some([]),
+        max_recent_files: Some(5),
+    )),
+    debug: Some(true),
+    log_to_file: Some(true),
+    active_schema: Some("Marco"),
+    schema_disabled: Some(false),
+)

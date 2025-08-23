@@ -22,6 +22,9 @@
   <color name="light-keyword"      value="#CF222E"/>
   <color name="light-string"       value="#0A3069"/>
   <color name="light-number"       value="#0550AE"/>
+  <!-- Scrollbar styling for GTK editor matching webview preview -->
+  <color name="scrollbar-thumb"   value="#D0D4D8"/>
+  <color name="scrollbar-track"   value="#F0F0F0"/>
 
   <!-- Base text appearance -->
   <style name="text"                  foreground="light-text" background="light-bg"/>

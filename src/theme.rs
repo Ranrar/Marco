@@ -82,32 +82,9 @@ impl ThemeManager {
         paths.push(&editor_path_str);
         style_scheme_manager.set_search_path(&paths);
         
-        // Print settings in a human-readable, multi-line format
-        println!("Loaded settings:");
-        if let Some(appearance) = &settings.appearance {
-            println!("  editor_scheme: {}", appearance.editor_mode.as_deref().unwrap_or("None"));
-            println!("  preview_theme: {}", appearance.preview_theme.as_deref().map(|s| format!("\"{}\"", s)).unwrap_or("None".to_string()));
-            println!("  ui_font: {}", appearance.ui_font.as_deref().unwrap_or("None"));
-            println!("  ui_font_size: {}", appearance.ui_font_size.map(|s| s.to_string()).unwrap_or("None".to_string()));
-        }
-        if let Some(editor) = &settings.editor {
-            println!("  editor.font: {}", editor.font.as_deref().unwrap_or("None"));
-            println!("  editor.font_size: {}", editor.font_size.map(|s| s.to_string()).unwrap_or("None".to_string()));
-        }
-        if let Some(layout) = &settings.layout {
-            println!("  layout.view_mode: {}", layout.view_mode.as_deref().unwrap_or("None"));
-        }
-        if let Some(language) = &settings.language {
-            println!("  language: {}", language.language.as_deref().unwrap_or("None"));
-        }
-        if let Some(window) = &settings.window {
-            println!("  window.width: {}", window.width.map(|w| w.to_string()).unwrap_or("None".to_string()));
-            println!("  window.height: {}", window.height.map(|h| h.to_string()).unwrap_or("None".to_string()));
-        }
-        if let Some(advanced) = &settings.advanced {
-            println!("  advanced.enabled_variants: {}", advanced.enabled_variants.as_ref().map(|v| format!("{:?}", v)).unwrap_or("None".to_string()));
-            println!("  advanced.plugins: {}", advanced.plugins.as_ref().map(|v| format!("{:?}", v)).unwrap_or("None".to_string()));
-        }
+    // Loaded settings (verbose output suppressed in normal startup).
+    // If you need to debug settings locally, temporarily enable the prints below.
+    // e.g. println!("Loaded settings: {:?}", settings);
 
         // Convert legacy editor_mode to style scheme if needed
         if let Some(appearance) = settings.appearance.as_mut() {
@@ -116,11 +93,11 @@ impl ThemeManager {
                 match editor_mode.as_str() {
                     "light" => {
                         appearance.editor_mode = Some("marco-light".to_string());
-                        println!("Converted legacy 'light' mode to 'marco-light' style scheme");
+                        // legacy conversion applied (silent)
                     },
                     "dark" => {
                         appearance.editor_mode = Some("marco-dark".to_string());
-                        println!("Converted legacy 'dark' mode to 'marco-dark' style scheme");
+                        // legacy conversion applied (silent)
                     },
                     "System default" => {
                         // Detect system theme and set appropriate scheme
@@ -131,20 +108,19 @@ impl ThemeManager {
                                 _ => "marco-light",
                             };
                             appearance.editor_mode = Some(sys_mode.to_string());
-                            println!("System theme detected: {} mode, using {}", sys_mode.replace("marco-", ""), sys_mode);
+                            // System theme detected; applied silently
                         } else {
                             appearance.editor_mode = Some("marco-light".to_string());
                         }
                     },
                     _ => {
                         // Keep as-is if it's already a style scheme ID
-                        println!("Using style scheme: {}", editor_mode);
+                        // Debug output suppressed.
                     }
                 }
             } else {
-                // Default to light theme if nothing is set
+                // Default to light theme if nothing is set (silent)
                 appearance.editor_mode = Some("marco-light".to_string());
-                println!("No theme set, defaulting to marco-light");
             }
         }
 
@@ -219,8 +195,7 @@ impl ThemeManager {
     pub fn set_editor_scheme(&mut self, scheme_id: &str, settings_path: &Path) {
     let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
-        let old = appearance.editor_mode.clone().unwrap_or_else(|| "<unset>".to_string());
-        println!("set_editor_scheme: {} => {}", old, scheme_id);
+    // Debug: set_editor_scheme changed - terminal output suppressed.
         appearance.editor_mode = Some(scheme_id.to_string());
         settings.appearance = Some(appearance);
         
@@ -263,8 +238,7 @@ impl ThemeManager {
     pub fn set_preview_theme(&mut self, theme: String, settings_path: &Path) {
     let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
-        let old = appearance.preview_theme.clone().unwrap_or_else(|| "<unset>".to_string());
-        println!("set_preview_theme: {} => {}", old, theme);
+    // Debug: set_preview_theme changed - terminal output suppressed.
         appearance.preview_theme = Some(theme.clone());
         settings.appearance = Some(appearance);
         if let Err(e) = settings.save_to_file(settings_path) {
