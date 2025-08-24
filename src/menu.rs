@@ -3,7 +3,7 @@ pub fn set_menu_height(menu_box: &gtk4::Box, height: i32) {
     menu_box.set_height_request(height);
 }
 // Helper to convert LayoutState to a human-readable string
-use crate::logic::layoutstate::LayoutState;
+use crate::logic::layoutstate::{layout_state_label, LayoutState};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
@@ -118,7 +118,7 @@ pub fn create_custom_titlebar(
     // --- actions layout button ---
     use gtk4::{Orientation, Popover};
     let layout_menu_btn = Button::new();
-    layout_menu_btn.set_tooltip_text(Some("Layout options"));
+    // Tooltip will be set after state is created (below)
     layout_menu_btn.set_valign(Align::Center);
     layout_menu_btn.set_margin_start(0);
     layout_menu_btn.set_margin_end(0);
@@ -131,6 +131,8 @@ pub fn create_custom_titlebar(
 
     // State management (single shared instance)
     let layout_state = Rc::new(RefCell::new(LayoutState::Split));
+    // Set initial tooltip to the human-readable current layout label
+    layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
 
     // Use icon font glyph for layout button (IcoMoon '1' = split_scene_left)
     let layout_label = gtk4::Label::new(None);
@@ -151,8 +153,12 @@ pub fn create_custom_titlebar(
     let weak_rebuild_popover: WeakRebuildPopover = Rc::downgrade(&rebuild_popover);
     let layout_state_clone2 = layout_state.clone(); // Used for popover logic
     let popover_clone = popover.clone();
+    // Clone the layout menu button so the rebuild closure can update its tooltip
+    let layout_menu_btn_for_rebuild = layout_menu_btn.clone();
     *rebuild_popover.borrow_mut() = Some(Box::new(move || {
         let state = *layout_state_clone2.borrow();
+        // Update the layout button tooltip to reflect the current state
+        layout_menu_btn_for_rebuild.set_tooltip_text(Some(layout_state_label(state)));
         let popover_box = GtkBox::new(Orientation::Horizontal, 6);
         popover_box.set_margin_top(8);
         popover_box.set_margin_bottom(8);

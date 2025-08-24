@@ -509,11 +509,11 @@ pub fn create_editor_with_preview(
         let new_css = format!(
             r#"
     .editor-scrolled scrollbar {{ background-color: {track}; padding: 0px; }}
-    .editor-scrolled scrollbar.vertical {{ min-width: 12px; max-width: 12px; }}
-    .editor-scrolled scrollbar.horizontal {{ min-height: 12px; max-height: 12px; }}
+    .editor-scrolled scrollbar.vertical {{ min-width: 12px;}}
+    .editor-scrolled scrollbar.horizontal {{ min-height: 12px;}}
     .editor-scrolled scrollbar slider {{ background-color: {thumb}; border-radius: 0px; margin: 0px; border: none; }}
-    .editor-scrolled scrollbar.vertical slider {{ min-width: 12px; max-width: 12px; }}
-    .editor-scrolled scrollbar.horizontal slider {{ min-height: 12px; max-height: 12px; }}
+    .editor-scrolled scrollbar.vertical slider {{ min-width: 12px;}}
+    .editor-scrolled scrollbar.horizontal slider {{ min-height: 12px;}}
     .editor-scrolled scrollbar slider:hover {{ background-color: {thumb}; opacity: 0.95; }}
     "#,
             thumb = thumb,

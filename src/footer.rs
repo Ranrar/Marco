@@ -17,7 +17,7 @@
 //! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
-use crate::components::marco_engine::parser::{parse_document_blocks, MarkdownSyntaxMap};
+use crate::components::marco_engine::parser::{parse_markdown, MarkdownSyntaxMap};
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 use std::rc::Rc;
@@ -63,125 +63,160 @@ pub struct FooterLabels {
 
 /// Updates the formatting label with the Markdown syntax trace for the active line
 /// Pure helper: produce the display string for a line given a syntax map
-pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String {
-    // Run a small block-level pre-pass so Setext, frontmatter and link-defs
-    // are detected even when only a single line is passed. We ignore the
-    // aggregated link definitions for the footer display, but calling the
-    // function ensures `collect_link_definitions` and friends are exercised
-    // and avoids dead-code warnings.
-    let (chain, _link_defs) = parse_document_blocks(line, syntax_map);
+pub fn format_syntax_trace(line: &str, _syntax_map: &MarkdownSyntaxMap) -> String {
+    // Parse the full AST for the line and derive friendly labels directly from nodes.
+    // Many block-level rules expect a trailing newline to match (ATX headings, lists,
+    // etc). Ensure we include a trailing newline when parsing single-line inputs so
+    // the parser treats '# heading' and '- item' as block elements rather than inline
+    // text.
+    let mut to_parse = line.to_string();
+    if !to_parse.ends_with('\n') {
+        to_parse.push('\n');
+    }
 
-    // Debug-only: if MARCO_DEBUG_FOOTER_TRACE is set, print detailed token info to stderr.
-    if std::env::var("MARCO_DEBUG_FOOTER_TRACE").is_ok() {
-        eprintln!("[footer trace] input line: {:?}", line);
-        for (i, t) in chain.iter().enumerate() {
-            // Print core fields we care about. Use Debug formatting for Options.
-            eprintln!(
-                "[footer trace] token {}: node_type='{}', depth={:?}, ordered={:?}'",
-                i, t.node_type, t.depth, t.ordered
-            );
+    let ast = match parse_markdown(&to_parse) {
+        Ok(a) => a,
+        Err(_) => {
+            // If parsing fails, fall back to a minimal text label
+            return "Format: text".to_string();
+        }
+    };
+
+    // Walk AST and produce concise descriptors. Descend through structural nodes.
+    let mut parts: Vec<String> = Vec::new();
+
+    fn collect_desc(n: &crate::components::marco_engine::parser::Node, parts: &mut Vec<String>) {
+        match n.node_type.as_str() {
+            // structural containers - descend
+            "root" | "content" => {
+                for c in &n.children {
+                    collect_desc(c, parts);
+                }
+            }
+            "heading" => {
+                let depth = n
+                    .attributes
+                    .get("depth")
+                    .and_then(|d| d.parse::<usize>().ok())
+                    .unwrap_or(1);
+                parts.push(format!("heading({})", depth));
+            }
+            "paragraph" => {
+                // inspect paragraph children for inline features
+                let mut labels: Vec<String> = Vec::new();
+                fn collect_inline(
+                    m: &crate::components::marco_engine::parser::Node,
+                    out: &mut Vec<String>,
+                ) {
+                    for c in &m.children {
+                        match c.node_type.as_str() {
+                            "strong" => out.push("bold".to_string()),
+                            "emphasis" => out.push("italic".to_string()),
+                            "link" => out.push("link".to_string()),
+                            "image" => out.push("image".to_string()),
+                            "emoji" => out.push("emoji".to_string()),
+                            "mention" => out.push("mention".to_string()),
+                            "delete" => out.push("strikethrough".to_string()),
+                            "inlineCode" => out.push("code".to_string()),
+                            "autolink" => out.push("link".to_string()),
+                            _ => collect_inline(c, out),
+                        }
+                    }
+                }
+                collect_inline(n, &mut labels);
+                labels.sort();
+                labels.dedup();
+                if labels.is_empty() {
+                    parts.push("text".to_string());
+                } else {
+                    let mapped: Vec<String> = labels
+                        .into_iter()
+                        .map(|l| match l.as_str() {
+                            "bold" => "bold".to_string(),
+                            "italic" => "italic".to_string(),
+                            "link" => "link".to_string(),
+                            "image" => "image".to_string(),
+                            "emoji" => "emoji".to_string(),
+                            "mention" => "mention".to_string(),
+                            "strikethrough" => "strike".to_string(),
+                            "code" => "code".to_string(),
+                            other => other.to_string(),
+                        })
+                        .collect();
+                    parts.push(mapped.join(" → "));
+                }
+            }
+            "list" => {
+                let ordered = n
+                    .attributes
+                    .get("ordered")
+                    .map(|v| v == "true")
+                    .unwrap_or(false);
+                parts.push(format!(
+                    "list({})",
+                    if ordered { "ordered" } else { "unordered" }
+                ));
+                // Inspect list items to detect inline features (e.g., emphasis, links)
+                for c in &n.children {
+                    collect_desc(c, parts);
+                }
+            }
+            "listItem" => {
+                // Descend into list item children for inline markers
+                for c in &n.children {
+                    collect_desc(c, parts);
+                }
+            }
+
+            "codeBlock" | "code_block" => {
+                let lang = n.attributes.get("language").cloned();
+                if let Some(l) = lang {
+                    parts.push(format!("💻 {}", l));
+                } else {
+                    parts.push("💻 code".to_string());
+                }
+            }
+            "frontmatter" => {
+                if let Some(v) = n.attributes.get("value") {
+                    static KV_RE: once_cell::sync::Lazy<regex::Regex> =
+                        once_cell::sync::Lazy::new(|| {
+                            regex::Regex::new(
+                                r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$",
+                            )
+                            .unwrap()
+                        });
+                    let mut pairs: Vec<String> = Vec::new();
+                    for kc in KV_RE.captures_iter(v).take(3) {
+                        if let (Some(k), Some(val)) = (kc.name("key"), kc.name("val")) {
+                            let mut vs = val.as_str().trim().to_string();
+                            if vs.len() > 30 {
+                                vs.truncate(27);
+                                vs.push_str("...");
+                            }
+                            pairs.push(format!("{}: {}", k.as_str(), vs));
+                        }
+                    }
+                    if !pairs.is_empty() {
+                        parts.push(format!("📦 {}", pairs.join(", ")));
+                    } else {
+                        parts.push("📦 frontmatter".to_string());
+                    }
+                } else {
+                    parts.push("📦 frontmatter".to_string());
+                }
+            }
+            other => {
+                parts.push(other.to_string());
+            }
         }
     }
 
-    // Treat a single paragraph token as plain text for footer brevity
-    if chain.is_empty() || (chain.len() == 1 && chain[0].node_type == "paragraph") {
-        "Format: Plain text".to_string()
+    collect_desc(&ast, &mut parts);
+
+    if parts.is_empty() {
+        "Format: text".to_string()
     } else {
-        // Build a more informative node trace using display hints from the schema
-        let hints_map = syntax_map.build_display_hints();
-        let parts: Vec<String> = chain
-            .iter()
-            .map(|t| {
-                // Helper to fetch a capture value if present
-                let cap = |name: &str| -> Option<String> {
-                    t.captures.as_ref().and_then(|c| c.get(name)).cloned()
-                };
-
-                if let Some(hint) = hints_map.get(&t.node_type) {
-                    if let Some(val) = cap(hint) {
-                        // For link hints, include target if present
-                        if hint == "h" {
-                            let tval = cap("t").unwrap_or_default();
-                            return format!("{} → {}", val, tval);
-                        }
-                        return val;
-                    }
-                }
-
-                // Fallbacks for structured tokens
-                if let Some(d) = t.depth {
-                    format!("{}({})", t.node_type, d)
-                } else if let Some(ord) = t.ordered {
-                    format!(
-                        "{}({})",
-                        t.node_type,
-                        if ord { "ordered" } else { "unordered" }
-                    )
-                } else {
-                    t.node_type.clone()
-                }
-            })
-            .collect();
-
-        // If frontmatter was captured, extract top-level key:value pairs (first 3)
-        let mut extras: Vec<String> = Vec::new();
-        for t in &chain {
-            if t.node_type == "frontmatter" {
-                if let Some(caps) = &t.captures {
-                    if let Some(value) = caps.get("value") {
-                        // Collect key:value pairs like `title: Value` from the frontmatter
-                        // Precompiled regex outside the loop for performance and to satisfy clippy
-                        static KV_RE: once_cell::sync::Lazy<regex::Regex> =
-                            once_cell::sync::Lazy::new(|| {
-                                regex::Regex::new(
-                                    r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$",
-                                )
-                                .unwrap()
-                            });
-                        let mut pairs: Vec<String> = Vec::new();
-                        for kc in KV_RE.captures_iter(value).take(3) {
-                            if let (Some(k), Some(v)) = (kc.name("key"), kc.name("val")) {
-                                // Truncate long values for footer readability
-                                let mut val = v.as_str().trim().to_string();
-                                if val.len() > 30 {
-                                    val.truncate(27);
-                                    val.push_str("...");
-                                }
-                                pairs.push(format!("{}: {}", k.as_str(), val));
-                            }
-                        }
-                        if !pairs.is_empty() {
-                            extras.push(format!("Frontmatter: {}", pairs.join(", ")));
-                        } else {
-                            extras.push("Frontmatter".to_string());
-                        }
-                    }
-                }
-            }
-        }
-
-        // Append up to 3 link id->url examples from the aggregated defs
-        if !_link_defs.is_empty() {
-            let mut examples: Vec<String> = Vec::new();
-            for (id, url) in _link_defs.iter().take(3) {
-                let mut short = url.clone();
-                if short.len() > 40 {
-                    short.truncate(37);
-                    short.push_str("...");
-                }
-                examples.push(format!("{} → {}", id, short));
-            }
-            if !examples.is_empty() {
-                extras.push(format!("Links: {}", examples.join(", ")));
-            }
-        }
-
-        let base = format!("Format: {}", parts.join(" → "));
-        if extras.is_empty() {
-            base
-        } else {
-            format!("{} — {}", base, extras.join("; "))
-        }
+        format!("Format: {}", parts.join(" → "))
     }
 }
 
@@ -450,8 +485,8 @@ mod tests {
     #[test]
     fn test_format_syntax_trace_plain() {
         let map = make_test_map();
-        let out = format_syntax_trace("plain text", &map);
-        assert_eq!(out, "Format: Plain text");
+        let out = format_syntax_trace("text", &map);
+        assert_eq!(out, "Format: text");
     }
 
     #[test]
@@ -465,6 +500,7 @@ mod tests {
 
         // Test list with italic
         let out2 = format_syntax_trace("- *italic item*", &map);
+        eprintln!("DEBUG footer out2='{}'", out2);
         assert!(out2.starts_with("Format: "));
         assert!(out2.contains("list") || out2.contains("italic"));
 
@@ -485,7 +521,7 @@ mod tests {
     fn test_format_syntax_trace_empty() {
         let map = make_test_map();
         let out = format_syntax_trace("", &map);
-        assert_eq!(out, "Format: Plain text");
+        assert_eq!(out, "Format: text");
     }
 
     #[test]
@@ -526,9 +562,9 @@ mod tests {
         update_word_count(&labels, 123);
         update_char_count(&labels, 456);
 
-        // Formatting update uses parse helper; test for plain text behavior
+        // Formatting update uses parse helper; test for text behavior
         let map = make_test_map();
-        update_syntax_trace(&labels, "plain text", &map);
+        update_syntax_trace(&labels, "text", &map);
 
         // Verify Label texts
         assert!(cursor_row_label.text().contains("Row: 3"));

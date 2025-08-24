@@ -1,0 +1,18 @@
+(
+    editor: None,
+    appearance: None,
+    layout: None,
+    language: None,
+    window: None,
+    advanced: None,
+    files: Some((
+        recent_files: Some([
+            "doc1.md",
+        ]),
+        max_recent_files: None,
+    )),
+    debug: None,
+    log_to_file: None,
+    active_schema: None,
+    schema_disabled: None,
+)

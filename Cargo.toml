@@ -1,4 +1,4 @@
- [package]
+[package]
 name = "marco"
 version = "0.1.0"
 edition = "2021"
@@ -32,6 +32,7 @@ syntect = "5.2"
 tempfile = "3.21.0"
 pest = "2.8.1"
 pest_derive = "2.8.1"
+emojis = "0.7.2"
 
 [dev-dependencies]
 # Basic testing
