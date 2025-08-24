@@ -1,29 +1,29 @@
-
-thread_local! {
-}
+thread_local! {}
 
 // Removed duplicate save_appearance_settings; use Swanson.rs only
+use crate::logic::crossplatforms::is_dark_mode_supported;
+use crate::logic::swanson::{AppearanceSettings, Settings};
+use dark_light::Mode as SystemMode;
+use gtk4::Settings as GtkSettings;
+use sourceview5::{StyleScheme, StyleSchemeManager};
 use std::fs;
 use std::path::{Path, PathBuf};
-use crate::logic::swanson::{Settings, AppearanceSettings};
-use gtk4::Settings as GtkSettings;
-use crate::logic::crossplatforms::is_dark_mode_supported;
-use dark_light::Mode as SystemMode;
-use sourceview5::{StyleSchemeManager, StyleScheme};
 
 /// List all available HTML preview themes (*.css) in /themes/
 pub fn list_preview_themes(theme_dir: &Path) -> Vec<String> {
     fs::read_dir(theme_dir)
         .map(|entries| {
-            entries.filter_map(|e| {
-                let e = e.ok()?;
-                let path = e.path();
-                if path.extension().map_or(false, |ext| ext == "css") {
-                    path.file_name()?.to_str().map(|s| s.to_string())
-                } else {
-                    None
-                }
-            }).collect()
+            entries
+                .filter_map(|e| {
+                    let e = e.ok()?;
+                    let path = e.path();
+                    if path.extension().is_some_and(|ext| ext == "css") {
+                        path.file_name()?.to_str().map(|s| s.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect()
         })
         .unwrap_or_default()
 }
@@ -31,12 +31,10 @@ pub fn list_preview_themes(theme_dir: &Path) -> Vec<String> {
 /// Determines the effective color mode (light/dark) based on settings and system.
 pub fn resolve_effective_mode(color_mode: &str) -> String {
     match color_mode.to_lowercase().as_str() {
-        "system default" => {
-            match dark_light::detect() {
-                Ok(SystemMode::Dark) => "dark".to_string(),
-                Ok(SystemMode::Light) => "light".to_string(),
-                _ => "light".to_string(),
-            }
+        "system default" => match dark_light::detect() {
+            Ok(SystemMode::Dark) => "dark".to_string(),
+            Ok(SystemMode::Light) => "light".to_string(),
+            _ => "light".to_string(),
         },
         other => other.to_lowercase(),
     }
@@ -47,7 +45,11 @@ pub fn resolve_effective_mode(color_mode: &str) -> String {
 pub fn select_preview_theme(settings: &AppearanceSettings, theme_dir: &Path) -> Option<PathBuf> {
     let theme_file = settings.preview_theme.as_deref().unwrap_or("standard.css");
     let path = theme_dir.join(theme_file);
-    if path.exists() { Some(path) } else { None }
+    if path.exists() {
+        Some(path)
+    } else {
+        None
+    }
 }
 
 /// Synchronizes the HTML preview theme context (e.g., sets data-theme attribute)
@@ -69,22 +71,27 @@ pub struct ThemeManager {
 }
 
 impl ThemeManager {
-    pub fn new(settings_path: &Path, ui_theme_dir: PathBuf, preview_theme_dir: PathBuf, editor_theme_dir: PathBuf) -> Self {
-    let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
-        
+    pub fn new(
+        settings_path: &Path,
+        ui_theme_dir: PathBuf,
+        preview_theme_dir: PathBuf,
+        editor_theme_dir: PathBuf,
+    ) -> Self {
+        let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
+
         // Initialize StyleSchemeManager and add our custom themes directory
         let style_scheme_manager = StyleSchemeManager::new();
-        
+
         // Add our custom editor themes directory to the search path
         let current_paths = style_scheme_manager.search_path();
         let editor_path_str = editor_theme_dir.to_string_lossy();
         let mut paths: Vec<&str> = current_paths.iter().map(|s| s.as_str()).collect();
         paths.push(&editor_path_str);
         style_scheme_manager.set_search_path(&paths);
-        
-    // Loaded settings (verbose output suppressed in normal startup).
-    // If you need to debug settings locally, temporarily enable the prints below.
-    // e.g. println!("Loaded settings: {:?}", settings);
+
+        // Loaded settings (verbose output suppressed in normal startup).
+        // If you need to debug settings locally, temporarily enable the prints below.
+        // e.g. println!("Loaded settings: {:?}", settings);
 
         // Convert legacy editor_mode to style scheme if needed
         if let Some(appearance) = settings.appearance.as_mut() {
@@ -94,11 +101,11 @@ impl ThemeManager {
                     "light" => {
                         appearance.editor_mode = Some("marco-light".to_string());
                         // legacy conversion applied (silent)
-                    },
+                    }
                     "dark" => {
                         appearance.editor_mode = Some("marco-dark".to_string());
                         // legacy conversion applied (silent)
-                    },
+                    }
                     "System default" => {
                         // Detect system theme and set appropriate scheme
                         if is_dark_mode_supported() {
@@ -112,7 +119,7 @@ impl ThemeManager {
                         } else {
                             appearance.editor_mode = Some("marco-light".to_string());
                         }
-                    },
+                    }
                     _ => {
                         // Keep as-is if it's already a style scheme ID
                         // Debug output suppressed.
@@ -124,14 +131,13 @@ impl ThemeManager {
             }
         }
 
-        let tm = ThemeManager { 
-            settings, 
-            ui_theme_dir, 
-            preview_theme_dir, 
+        ThemeManager {
+            settings,
+            ui_theme_dir,
+            preview_theme_dir,
             editor_theme_dir,
-            style_scheme_manager 
-        };
-        tm
+            style_scheme_manager,
+        }
     }
 
     /// List available preview themes
@@ -146,7 +152,9 @@ impl ThemeManager {
 
     /// Get the current editor style scheme ID
     pub fn current_editor_scheme_id(&self) -> String {
-        self.settings.appearance.as_ref()
+        self.settings
+            .appearance
+            .as_ref()
             .and_then(|a| a.editor_mode.as_ref())
             .cloned()
             .unwrap_or_else(|| "marco-light".to_string())
@@ -181,32 +189,45 @@ impl ThemeManager {
 
     /// Get the data-theme value for the HTML preview ("light" or "dark")
     pub fn preview_data_theme(&self) -> &'static str {
-        let color_mode = self.settings.appearance.as_ref().and_then(|a| a.editor_mode.as_ref()).map(|s| s.as_str()).unwrap_or("System default");
+        let color_mode = self
+            .settings
+            .appearance
+            .as_ref()
+            .and_then(|a| a.editor_mode.as_ref())
+            .map(|s| s.as_str())
+            .unwrap_or("System default");
         get_preview_data_theme(color_mode)
     }
 
     /// Get preview theme mode from scheme ID
     pub fn preview_theme_mode_from_scheme(&self, scheme_id: &str) -> String {
-        let theme_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
+        let theme_mode = if scheme_id.contains("dark") {
+            "dark"
+        } else {
+            "light"
+        };
         format!("theme-{}", theme_mode)
     }
 
     /// Change editor style scheme and update themes
     pub fn set_editor_scheme(&mut self, scheme_id: &str, settings_path: &Path) {
-    let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
+        let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
-    // Debug: set_editor_scheme changed - terminal output suppressed.
+        // Debug: set_editor_scheme changed - terminal output suppressed.
         appearance.editor_mode = Some(scheme_id.to_string());
         settings.appearance = Some(appearance);
-        
+
         // Set GTK global theme property based on scheme
         let prefer_dark = scheme_id.contains("dark");
         if let Some(settings_obj) = GtkSettings::default() {
             settings_obj.set_gtk_application_prefer_dark_theme(prefer_dark);
         }
-        
+
         if let Err(e) = settings.save_to_file(settings_path) {
-            eprintln!("[ERROR] Failed to save editor_scheme to {:?}: {}", settings_path, e);
+            eprintln!(
+                "[ERROR] Failed to save editor_scheme to {:?}: {}",
+                settings_path, e
+            );
         } else {
             self.settings = settings;
         }
@@ -228,7 +249,7 @@ impl ThemeManager {
                 } else {
                     "marco-light"
                 }
-            },
+            }
             _ => mode, // Assume it's already a scheme ID
         };
         self.set_editor_scheme(scheme_id, settings_path);
@@ -236,13 +257,16 @@ impl ThemeManager {
 
     /// Change preview theme (filename)
     pub fn set_preview_theme(&mut self, theme: String, settings_path: &Path) {
-    let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
+        let mut settings = Settings::load_from_file(settings_path).unwrap_or_default();
         let mut appearance = settings.appearance.clone().unwrap_or_default();
-    // Debug: set_preview_theme changed - terminal output suppressed.
+        // Debug: set_preview_theme changed - terminal output suppressed.
         appearance.preview_theme = Some(theme.clone());
         settings.appearance = Some(appearance);
         if let Err(e) = settings.save_to_file(settings_path) {
-            eprintln!("[ERROR] Failed to save preview_theme to {:?}: {}", settings_path, e);
+            eprintln!(
+                "[ERROR] Failed to save preview_theme to {:?}: {}",
+                settings_path, e
+            );
         } else {
             self.settings = settings;
         }

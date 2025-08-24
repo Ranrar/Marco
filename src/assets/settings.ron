@@ -11,7 +11,9 @@
     window: None,
     advanced: None,
     files: Some((
-        recent_files: Some([]),
+        recent_files: Some([
+            "/home/ranrar/Code/projects/marco2/CONTRIBUTING.md",
+        ]),
         max_recent_files: Some(5),
     )),
     debug: Some(true),

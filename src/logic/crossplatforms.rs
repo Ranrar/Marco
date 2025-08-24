@@ -1,4 +1,3 @@
-
 //! Cross-platform OS helpers for Marco
 
 #[cfg(test)]
@@ -41,8 +40,8 @@ pub fn detect_platform() -> Platform {
 }
 
 pub fn is_dark_mode_supported() -> bool {
-    match detect_platform() {
-        Platform::Linux | Platform::Windows | Platform::MacOS => true,
-        _ => false,
-    }
+    matches!(
+        detect_platform(),
+        Platform::Linux | Platform::Windows | Platform::MacOS
+    )
 }

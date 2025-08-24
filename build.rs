@@ -22,16 +22,14 @@ fn main() {
             fs::create_dir_all(dst).expect("Failed to create target directory");
         }
         if let Ok(entries) = fs::read_dir(src) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
-                    let dest_path = dst.join(entry.file_name());
-                    if path.is_dir() {
-                        copy_dir_recursive(&path, &dest_path);
-                    } else {
-                        fs::copy(&path, &dest_path).expect("Failed to copy file");
-                        println!("cargo:rerun-if-changed={}", path.display());
-                    }
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let dest_path = dst.join(entry.file_name());
+                if path.is_dir() {
+                    copy_dir_recursive(&path, &dest_path);
+                } else {
+                    fs::copy(&path, &dest_path).expect("Failed to copy file");
+                    println!("cargo:rerun-if-changed={}", path.display());
                 }
             }
         }

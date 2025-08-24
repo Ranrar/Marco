@@ -1,25 +1,25 @@
 //! Footer module for Marco markdown editor
-//! 
+//!
 //! This module provides footer functionality for displaying various editor states including:
 //! - Cursor position (row and column)
-//! - Line count 
+//! - Line count
 //! - Word and character counts
 //! - Current encoding
 //! - Insert/overwrite mode
 //! - Markdown syntax trace for the current line
 //!
 //! ## Threading Safety
-//! All footer update functions are designed to be thread-safe. They use `set_label_text` 
-//! helper which automatically detects whether it's running on the main GTK thread and 
+//! All footer update functions are designed to be thread-safe. They use `set_label_text`
+//! helper which automatically detects whether it's running on the main GTK thread and
 //! schedules updates using `glib::idle_add_local` if necessary.
 //!
 //! ## Usage
-//! Footer updates can be triggered individually using specific update functions, or in 
+//! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
+use crate::components::marco_engine::parser::{parse_document_blocks, MarkdownSyntaxMap};
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
-use crate::components::marco_engine::parser::{parse_document_blocks, MarkdownSyntaxMap};
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -41,7 +41,7 @@ pub enum FooterUpdate {
     Snapshot {
         row: usize,
         col: usize,
-    // lines removed
+        // lines removed
         words: usize,
         chars: usize,
         syntax_display: String,
@@ -83,37 +83,45 @@ pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String
         }
     }
 
-    if chain.is_empty() {
+    // Treat a single paragraph token as plain text for footer brevity
+    if chain.is_empty() || (chain.len() == 1 && chain[0].node_type == "paragraph") {
         "Format: Plain text".to_string()
     } else {
         // Build a more informative node trace using display hints from the schema
         let hints_map = syntax_map.build_display_hints();
-        let parts: Vec<String> = chain.iter().map(|t| {
-            // Helper to fetch a capture value if present
-            let cap = |name: &str| -> Option<String> {
-                t.captures.as_ref().and_then(|c| c.get(name)).cloned()
-            };
+        let parts: Vec<String> = chain
+            .iter()
+            .map(|t| {
+                // Helper to fetch a capture value if present
+                let cap = |name: &str| -> Option<String> {
+                    t.captures.as_ref().and_then(|c| c.get(name)).cloned()
+                };
 
-            if let Some(hint) = hints_map.get(&t.node_type) {
-                if let Some(val) = cap(hint) {
-                    // For link hints, include target if present
-                    if hint == "h" {
-                        let tval = cap("t").unwrap_or_default();
-                        return format!("{} → {}", val, tval);
+                if let Some(hint) = hints_map.get(&t.node_type) {
+                    if let Some(val) = cap(hint) {
+                        // For link hints, include target if present
+                        if hint == "h" {
+                            let tval = cap("t").unwrap_or_default();
+                            return format!("{} → {}", val, tval);
+                        }
+                        return val;
                     }
-                    return val;
                 }
-            }
 
-            // Fallbacks for structured tokens
-            if let Some(d) = t.depth {
-                format!("{}({})", t.node_type, d)
-            } else if let Some(ord) = t.ordered {
-                format!("{}({})", t.node_type, if ord { "ordered" } else { "unordered" })
-            } else {
-                t.node_type.clone()
-            }
-        }).collect();
+                // Fallbacks for structured tokens
+                if let Some(d) = t.depth {
+                    format!("{}({})", t.node_type, d)
+                } else if let Some(ord) = t.ordered {
+                    format!(
+                        "{}({})",
+                        t.node_type,
+                        if ord { "ordered" } else { "unordered" }
+                    )
+                } else {
+                    t.node_type.clone()
+                }
+            })
+            .collect();
 
         // If frontmatter was captured, extract top-level key:value pairs (first 3)
         let mut extras: Vec<String> = Vec::new();
@@ -122,9 +130,16 @@ pub fn format_syntax_trace(line: &str, syntax_map: &MarkdownSyntaxMap) -> String
                 if let Some(caps) = &t.captures {
                     if let Some(value) = caps.get("value") {
                         // Collect key:value pairs like `title: Value` from the frontmatter
-                        let kv_re = regex::Regex::new(r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$").unwrap();
+                        // Precompiled regex outside the loop for performance and to satisfy clippy
+                        static KV_RE: once_cell::sync::Lazy<regex::Regex> =
+                            once_cell::sync::Lazy::new(|| {
+                                regex::Regex::new(
+                                    r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$",
+                                )
+                                .unwrap()
+                            });
                         let mut pairs: Vec<String> = Vec::new();
-                        for kc in kv_re.captures_iter(value).take(3) {
+                        for kc in KV_RE.captures_iter(value).take(3) {
                             if let (Some(k), Some(v)) = (kc.name("key"), kc.name("val")) {
                                 // Truncate long values for footer readability
                                 let mut val = v.as_str().trim().to_string();
@@ -223,13 +238,24 @@ pub fn update_char_count(labels: &FooterLabels, chars: usize) {
 /// Apply a FooterUpdate snapshot to the labels. Must be called on main context.
 pub fn apply_footer_update(labels: &FooterLabels, update: FooterUpdate) {
     match update {
-    FooterUpdate::Snapshot { row, col, /*lines,*/ words, chars, syntax_display, encoding, is_insert } => {
+        FooterUpdate::Snapshot {
+            row,
+            col,
+            /*lines,*/ words,
+            chars,
+            syntax_display,
+            encoding,
+            is_insert,
+        } => {
             update_cursor_row(labels, row);
             update_cursor_col(labels, col);
             update_word_count(labels, words);
             update_char_count(labels, chars);
             // Use consistent pattern: call the proper update function instead of set_label_text directly
-            footer_dbg!("[footer] apply_footer_update called for syntax_display: {}", syntax_display);
+            footer_dbg!(
+                "[footer] apply_footer_update called for syntax_display: {}",
+                syntax_display
+            );
             set_label_text(&labels.formatting, syntax_display);
             update_encoding(labels, &encoding);
             update_insert_mode(labels, is_insert);
@@ -241,7 +267,7 @@ pub fn apply_footer_update(labels: &FooterLabels, update: FooterUpdate) {
 /// This function ensures thread safety and provides consistent label updating.
 fn set_label_text(label: &Label, text: String) {
     let mut final_text = text.clone();
-    
+
     // If debug env var set, append a small counter so updates are visually detectable
     if std::env::var("MARCO_DEBUG_FOOTER_VIS").is_ok() {
         let n = UPDATE_VIS_COUNTER.fetch_add(1, Ordering::SeqCst) + 1;
@@ -249,7 +275,7 @@ fn set_label_text(label: &Label, text: String) {
     }
 
     let use_markup = std::env::var("MARCO_DEBUG_FOOTER_VIS").is_ok();
-    
+
     // Check if we're on the main thread
     if glib::MainContext::default().is_owner() {
         // We're on the main thread, update immediately
@@ -273,17 +299,19 @@ fn update_label_immediate(label: &Label, text: &str, use_markup: bool) {
     } else {
         label.set_text(text);
     }
-    
+
     footer_dbg!("[footer] set_label_text immediate -> {}", label.text());
-    footer_dbg!("[footer] label visible: {}, parent visible: {}", 
-        label.is_visible(), 
-        label.parent().map(|p| p.is_visible()).unwrap_or(false));
-    
+    footer_dbg!(
+        "[footer] label visible: {}, parent visible: {}",
+        label.is_visible(),
+        label.parent().map(|p| p.is_visible()).unwrap_or(false)
+    );
+
     // Ensure widget is visible and request a redraw for better reliability
     label.set_visible(true);
     // Avoid calling queue_draw() directly here; GTK may issue warnings when widgets
     // are not yet allocated. Rely on set_visible and normal GTK redraw scheduling.
-    
+
     // Also ensure parent is visible
     if let Some(parent) = label.parent() {
         parent.set_visible(true);
@@ -296,14 +324,14 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     footer_box.set_margin_bottom(5);
     footer_box.set_margin_start(10);
     footer_box.set_margin_end(10);
-    
+
     // Ensure footer is visible and properly allocated
     footer_box.set_visible(true);
     footer_box.set_can_focus(false);
     footer_box.set_vexpand(false);
     footer_box.set_hexpand(true);
     footer_box.set_height_request(0); // Minimum height
-    
+
     // Add CSS class for potential styling
     footer_box.add_css_class("footer");
 
@@ -337,7 +365,6 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     cursor_col_label.set_visible(true);
     footer_box.append(&cursor_col_label);
 
-
     let encoding_label = Label::new(Some("UTF-8"));
     encoding_label.set_visible(true);
     footer_box.append(&encoding_label);
@@ -363,40 +390,61 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
 mod tests {
     use super::*;
     use crate::components::marco_engine::parser::SyntaxRule;
-    
+
     fn make_test_map() -> MarkdownSyntaxMap {
         let mut rules = std::collections::HashMap::new();
-        rules.insert("**".to_string(), SyntaxRule { 
-            name: "bold".to_string(), 
-            pattern: "**".to_string(), 
-            description: "Bold text".to_string() 
-        });
-        rules.insert("#".to_string(), SyntaxRule { 
-            name: "heading".to_string(), 
-            pattern: "#".to_string(), 
-            description: "Heading 1".to_string() 
-        });
-        rules.insert("##".to_string(), SyntaxRule { 
-            name: "heading".to_string(), 
-            pattern: "##".to_string(), 
-            description: "Heading 2".to_string() 
-        });
-        rules.insert("*".to_string(), SyntaxRule { 
-            name: "italic".to_string(), 
-            pattern: "*".to_string(), 
-            description: "Italic text".to_string() 
-        });
-        rules.insert("-".to_string(), SyntaxRule { 
-            name: "list".to_string(), 
-            pattern: "-".to_string(), 
-            description: "Unordered list".to_string() 
-        });
-        rules.insert("1.".to_string(), SyntaxRule { 
-            name: "list".to_string(), 
-            pattern: "1.".to_string(), 
-            description: "Ordered list".to_string() 
-        });
-        MarkdownSyntaxMap { rules, display_hints: None }
+        rules.insert(
+            "**".to_string(),
+            SyntaxRule {
+                name: "bold".to_string(),
+                pattern: "**".to_string(),
+                description: "Bold text".to_string(),
+            },
+        );
+        rules.insert(
+            "#".to_string(),
+            SyntaxRule {
+                name: "heading".to_string(),
+                pattern: "#".to_string(),
+                description: "Heading 1".to_string(),
+            },
+        );
+        rules.insert(
+            "##".to_string(),
+            SyntaxRule {
+                name: "heading".to_string(),
+                pattern: "##".to_string(),
+                description: "Heading 2".to_string(),
+            },
+        );
+        rules.insert(
+            "*".to_string(),
+            SyntaxRule {
+                name: "italic".to_string(),
+                pattern: "*".to_string(),
+                description: "Italic text".to_string(),
+            },
+        );
+        rules.insert(
+            "-".to_string(),
+            SyntaxRule {
+                name: "list".to_string(),
+                pattern: "-".to_string(),
+                description: "Unordered list".to_string(),
+            },
+        );
+        rules.insert(
+            "1.".to_string(),
+            SyntaxRule {
+                name: "list".to_string(),
+                pattern: "1.".to_string(),
+                description: "Ordered list".to_string(),
+            },
+        );
+        MarkdownSyntaxMap {
+            rules,
+            display_hints: None,
+        }
     }
 
     #[test]
@@ -409,26 +457,26 @@ mod tests {
     #[test]
     fn test_format_syntax_trace_complex() {
         let map = make_test_map();
-        
+
         // Test heading with bold
         let out = format_syntax_trace("# **Bold heading**", &map);
         assert!(out.starts_with("Format: "));
         assert!(out.contains("heading(1)") || out.contains("bold"));
-        
+
         // Test list with italic
         let out2 = format_syntax_trace("- *italic item*", &map);
         assert!(out2.starts_with("Format: "));
         assert!(out2.contains("list") || out2.contains("italic"));
-        
+
         // Test heading depth
         let out3 = format_syntax_trace("## Level 2 heading", &map);
         assert!(out3.contains("heading(2)"));
-        
+
         // Test ordered list
         let out4 = format_syntax_trace("1. ordered item", &map);
         assert!(out4.contains("list(ordered)"));
-        
-        // Test unordered list  
+
+        // Test unordered list
         let out5 = format_syntax_trace("- unordered item", &map);
         assert!(out5.contains("list(unordered)"));
     }
@@ -444,20 +492,18 @@ mod tests {
     fn test_footer_update_functions_update_labels() {
         // Initialize GTK for tests that create widgets. If GTK is already initialized,
         // this is a no-op. If GTK cannot be initialized (e.g., no display), skip the test
-        if gtk4::is_initialized() == false {
-            if let Err(_) = gtk4::init() {
-                footer_dbg!("Skipping GTK test - no display available");
-                return;
-            }
+        if !gtk4::is_initialized() && gtk4::init().is_err() {
+            footer_dbg!("Skipping GTK test - no display available");
+            return;
         }
 
         // Create Label widgets and a FooterLabels instance
-    let formatting_label = gtk4::Label::new(Some(""));
-    let word_count_label = gtk4::Label::new(Some(""));
-    let char_count_label = gtk4::Label::new(Some(""));
-    let cursor_row_label = gtk4::Label::new(Some(""));
-    let cursor_col_label = gtk4::Label::new(Some(""));
-    // line_count removed
+        let formatting_label = gtk4::Label::new(Some(""));
+        let word_count_label = gtk4::Label::new(Some(""));
+        let char_count_label = gtk4::Label::new(Some(""));
+        let cursor_row_label = gtk4::Label::new(Some(""));
+        let cursor_col_label = gtk4::Label::new(Some(""));
+        // line_count removed
         let encoding_label = gtk4::Label::new(Some(""));
         let insert_mode_label = gtk4::Label::new(Some(""));
 
@@ -472,9 +518,9 @@ mod tests {
         };
 
         // Call update helpers
-    update_cursor_row(&labels, 3);
-    update_cursor_col(&labels, 7);
-    // update_line_count removed
+        update_cursor_row(&labels, 3);
+        update_cursor_col(&labels, 7);
+        // update_line_count removed
         update_encoding(&labels, "UTF-16");
         update_insert_mode(&labels, false);
         update_word_count(&labels, 123);
@@ -485,9 +531,9 @@ mod tests {
         update_syntax_trace(&labels, "plain text", &map);
 
         // Verify Label texts
-    assert!(cursor_row_label.text().contains("Row: 3"));
-    assert!(cursor_col_label.text().contains("Column: 7"));
-    // line count assertions removed
+        assert!(cursor_row_label.text().contains("Row: 3"));
+        assert!(cursor_col_label.text().contains("Column: 7"));
+        // line count assertions removed
         assert_eq!(encoding_label.text().as_str(), "UTF-16");
         assert_eq!(insert_mode_label.text().as_str(), "OVR");
         assert_eq!(word_count_label.text().as_str(), "Words: 123");
@@ -497,11 +543,9 @@ mod tests {
 
     #[test]
     fn test_apply_footer_update_snapshot() {
-        if gtk4::is_initialized() == false {
-            if let Err(_) = gtk4::init() {
-                footer_dbg!("Skipping GTK test - no display available");
-                return;
-            }
+        if !gtk4::is_initialized() && gtk4::init().is_err() {
+            footer_dbg!("Skipping GTK test - no display available");
+            return;
         }
 
         let formatting_label = gtk4::Label::new(Some(""));
@@ -509,7 +553,7 @@ mod tests {
         let char_count_label = gtk4::Label::new(Some(""));
         let cursor_row_label = gtk4::Label::new(Some(""));
         let cursor_col_label = gtk4::Label::new(Some(""));
-    // line_count removed
+        // line_count removed
         let encoding_label = gtk4::Label::new(Some(""));
         let insert_mode_label = gtk4::Label::new(Some(""));
 
@@ -536,9 +580,9 @@ mod tests {
 
         apply_footer_update(&labels, update);
 
-    // Verify all labels were updated via the snapshot
-    assert!(cursor_row_label.text().contains("Row: 5"));
-    assert!(cursor_col_label.text().contains("Column: 10"));
+        // Verify all labels were updated via the snapshot
+        assert!(cursor_row_label.text().contains("Row: 5"));
+        assert!(cursor_col_label.text().contains("Column: 10"));
         assert!(word_count_label.text().contains("Words: 200"));
         assert!(char_count_label.text().contains("Characters: 1000"));
         assert!(formatting_label.text().contains("Format: Test syntax"));

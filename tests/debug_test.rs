@@ -10,7 +10,7 @@ fn debug_heading_parsing() {
     
     // Test if we get a heading and paragraph
     assert!(html.contains("<h1>Hello World</h1>"));
-    assert!(html.contains("<p>This is a **bold** text.</p>"));
+    assert!(html.contains("<p>This is a <strong>bold</strong> text.</p>"));
 }
 
 #[test]

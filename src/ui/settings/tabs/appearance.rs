@@ -1,13 +1,11 @@
-
-
-use std::path::PathBuf;
 use gtk4::prelude::*;
-use std::rc::Rc;
 use std::cell::RefCell;
+use std::path::PathBuf;
+use std::rc::Rc;
 
 // Import your theme manager
+use crate::logic::loaders::theme_loader::list_html_view_themes;
 use crate::theme::ThemeManager;
-use crate::logic::loaders::theme_loader::{list_html_view_themes};
 
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
@@ -15,7 +13,8 @@ pub fn build_appearance_tab(
     on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
-) -> gtk4::Box {    use gtk4::{Label, ComboBoxText, Scale, Adjustment, Button, Box as GtkBox, Orientation, Align};
+) -> gtk4::Box {
+    use gtk4::{Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-appearance");
@@ -65,56 +64,75 @@ pub fn build_appearance_tab(
 
     // --- Split Functions ---
 
-
-    let build_html_preview_theme_row = |theme_manager: Rc<RefCell<ThemeManager>>,
-        settings_path: std::path::PathBuf,
-        on_preview_theme_changed: Rc<Box<dyn Fn(String)>>,
-        user_selected_preview_theme: Rc<std::cell::Cell<bool>>,
-        html_themes: Vec<crate::logic::loaders::theme_loader::ThemeEntry>| -> (gtk4::Box, ComboBoxText) {
-        let preview_theme_combo = ComboBoxText::new();
-        for entry in &html_themes {
-            preview_theme_combo.append_text(&entry.label);
-        }
-        let current_preview = theme_manager.borrow().settings.appearance.as_ref().and_then(|a| a.preview_theme.clone());
-        let current_preview_str = current_preview.as_deref().unwrap_or("standard.css");
-        let preview_active_idx = html_themes.iter().position(|t| t.filename == current_preview_str).unwrap_or(0);
-        preview_theme_combo.set_active(Some(preview_active_idx as u32));
-        // Signal
-        {
-            let theme_manager = Rc::clone(&theme_manager);
-            let settings_path = settings_path.clone();
-            let html_themes = html_themes.clone();
-            let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
-            let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
-            preview_theme_combo.connect_changed(move |combo| {
-                let idx = combo.active().unwrap_or(0) as usize;
-                if let Some(theme_entry) = html_themes.get(idx) {
-                    user_selected_preview_theme.set(true);
-                    println!("Saving preview_theme: {} to {:?}", theme_entry.filename, settings_path);
-                    theme_manager.borrow_mut().set_preview_theme(theme_entry.filename.clone(), &settings_path);
-                    (on_preview_theme_changed)(theme_entry.filename.clone());
-                }
-            });
-        }
-        let row = add_row(
-            "HTML Preview Theme",
-            "Select a CSS theme for rendered Markdown preview.",
-            preview_theme_combo.upcast_ref(),
-        );
-        (row, preview_theme_combo)
-    };
+    let build_html_preview_theme_row =
+        |theme_manager: Rc<RefCell<ThemeManager>>,
+         settings_path: std::path::PathBuf,
+         on_preview_theme_changed: Rc<Box<dyn Fn(String)>>,
+         user_selected_preview_theme: Rc<std::cell::Cell<bool>>,
+         html_themes: Vec<crate::logic::loaders::theme_loader::ThemeEntry>|
+         -> (gtk4::Box, ComboBoxText) {
+            let preview_theme_combo = ComboBoxText::new();
+            for entry in &html_themes {
+                preview_theme_combo.append_text(&entry.label);
+            }
+            let current_preview = theme_manager
+                .borrow()
+                .settings
+                .appearance
+                .as_ref()
+                .and_then(|a| a.preview_theme.clone());
+            let current_preview_str = current_preview.as_deref().unwrap_or("standard.css");
+            let preview_active_idx = html_themes
+                .iter()
+                .position(|t| t.filename == current_preview_str)
+                .unwrap_or(0);
+            preview_theme_combo.set_active(Some(preview_active_idx as u32));
+            // Signal
+            {
+                let theme_manager = Rc::clone(&theme_manager);
+                let settings_path = settings_path.clone();
+                let html_themes = html_themes.clone();
+                let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
+                let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
+                preview_theme_combo.connect_changed(move |combo| {
+                    let idx = combo.active().unwrap_or(0) as usize;
+                    if let Some(theme_entry) = html_themes.get(idx) {
+                        user_selected_preview_theme.set(true);
+                        println!(
+                            "Saving preview_theme: {} to {:?}",
+                            theme_entry.filename, settings_path
+                        );
+                        theme_manager
+                            .borrow_mut()
+                            .set_preview_theme(theme_entry.filename.clone(), &settings_path);
+                        (on_preview_theme_changed)(theme_entry.filename.clone());
+                    }
+                });
+            }
+            let row = add_row(
+                "HTML Preview Theme",
+                "Select a CSS theme for rendered Markdown preview.",
+                preview_theme_combo.upcast_ref(),
+            );
+            (row, preview_theme_combo)
+        };
 
     // --- Compose Tab ---
     // Light/Dark Mode Dropdown
     use crate::logic::swanson::Settings as AppSettings;
-    let app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
-    let current_mode = app_settings.appearance.as_ref().and_then(|a| a.editor_mode.clone()).unwrap_or("marco-light".to_string());
+    let app_settings =
+        AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+    let current_mode = app_settings
+        .appearance
+        .as_ref()
+        .and_then(|a| a.editor_mode.clone())
+        .unwrap_or("marco-light".to_string());
     let color_mode_combo = ComboBoxText::new();
     color_mode_combo.append_text("light");
     color_mode_combo.append_text("dark");
     let active_idx = match current_mode.as_str() {
         "marco-dark" | "dark" => 1,
-        "marco-light" | "light" | _ => 0,
+        _ => 0, // Default to light mode for "marco-light", "light", or any other value
     };
     color_mode_combo.set_active(Some(active_idx));
     let color_mode_row = add_row(
@@ -127,13 +145,14 @@ pub fn build_appearance_tab(
     {
         let settings_path = settings_path.clone();
         let refresh_preview = Rc::clone(&refresh_preview);
-        let on_editor_theme_changed = on_editor_theme_changed.map(|cb| Rc::new(cb));
+        let on_editor_theme_changed = on_editor_theme_changed.map(Rc::new);
         color_mode_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0);
             let mode = if idx == 1 { "dark" } else { "light" };
             println!("Switching color mode to: {}", mode);
             // Update settings struct and persist
-            let mut app_settings = AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+            let mut app_settings =
+                AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
             if let Some(ref mut appearance) = app_settings.appearance {
                 appearance.editor_mode = Some(mode.to_string());
             } else {
@@ -142,10 +161,16 @@ pub fn build_appearance_tab(
                     ..Default::default()
                 });
             }
-            app_settings.save_to_file(settings_path.to_str().unwrap()).ok();
+            app_settings
+                .save_to_file(settings_path.to_str().unwrap())
+                .ok();
             // Call editor theme change callback if provided
             if let Some(ref callback) = on_editor_theme_changed {
-                let scheme_id = if idx == 1 { "marco-dark" } else { "marco-light" };
+                let scheme_id = if idx == 1 {
+                    "marco-dark"
+                } else {
+                    "marco-light"
+                };
                 callback(scheme_id.to_string());
             }
             // Refresh preview and UI
@@ -202,7 +227,11 @@ pub fn build_appearance_tab(
     ui_font_size_slider.set_round_digits(0);
     ui_font_size_slider.set_width_request(300);
     for size in 10..=24 {
-        ui_font_size_slider.add_mark(size as f64, gtk4::PositionType::Bottom, Some(&size.to_string()));
+        ui_font_size_slider.add_mark(
+            size as f64,
+            gtk4::PositionType::Bottom,
+            Some(&size.to_string()),
+        );
     }
     let ui_font_size_vbox = GtkBox::new(Orientation::Vertical, 2);
     let ui_font_size_hbox = GtkBox::new(Orientation::Horizontal, 0);
@@ -214,7 +243,9 @@ pub fn build_appearance_tab(
     // No spinbutton for now
     ui_font_size_hbox.set_hexpand(true);
     ui_font_size_vbox.append(&ui_font_size_hbox);
-    ui_font_size_vbox.append(&desc_label("Customize the font size used in the application's user interface (menus, sidebars)."));
+    ui_font_size_vbox.append(&desc_label(
+        "Customize the font size used in the application's user interface (menus, sidebars).",
+    ));
     ui_font_size_slider.set_halign(Align::Start);
     ui_font_size_vbox.append(&ui_font_size_slider);
     ui_font_size_vbox.set_spacing(2);

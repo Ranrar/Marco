@@ -1,5 +1,5 @@
 pub mod tabs;
-// Settings module
-pub mod settings;
+// Settings dialog module
+pub mod dialog;
 
-pub use settings::show_settings_dialog;
+pub use dialog::show_settings_dialog;

@@ -1,12 +1,9 @@
 use webkit6::prelude::*;
 mod logic;
 mod components;
-// Stripped-down UI structure modules
-
 mod footer;
 mod menu;
 mod settings {
-    // pub use crate::ui::settings::*; // unused import removed
 }
 mod theme;
 mod toolbar;
@@ -362,8 +359,6 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         }
     });
 
-    // test footer update button removed
-
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);
     main_box.append(&split);
@@ -376,11 +371,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     footer.set_vexpand(false); // Footer should not expand vertically
     footer.set_hexpand(true);  // Footer should expand horizontally
     footer.set_visible(true);  // Explicitly ensure footer is visible
-    
-    // Footer creation completed (silent in normal startup)
-    
-    // Optionally, assign classes to editor/preview if accessible here
-
+        
     // Add main box to window
     window.set_child(Some(&main_box));
 
@@ -405,7 +396,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             let update_editor_theme_clone = update_editor_theme_clone.clone();
             let update_preview_theme_clone = update_preview_theme_clone.clone();
             move |_, _| {
-                use crate::ui::settings::settings::show_settings_dialog;
+                use crate::ui::settings::dialog::show_settings_dialog;
                 
                 // Create editor theme callback that updates both editor and preview
                 let editor_callback = {
@@ -497,224 +488,17 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         std::sync::Arc::new(|w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested))),
     );
 
-    // Set up buffer change tracking - delegated to logic/menu_items/file.rs
-    // We need to use a flag to prevent infinite recursion during programmatic changes
-    let modification_tracking_enabled = Rc::new(RefCell::new(true));
-    crate::logic::menu_items::file::attach_change_tracker(
-        file_operations_rc.clone(),
-        &editor_buffer,
-        modification_tracking_enabled.clone(),
-        &title_label,
-    );
-
-    // Register simple file actions using FileOperations business logic  
-    // TODO: Move to FileOperations::register_actions when module visibility is fixed
-    
-    // New document action - using async version with save changes dialog
-    let new_action = gtk4::gio::SimpleAction::new("new", None);
-    new_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-        let editor_buffer = editor_buffer.clone();
-        let tracking_enabled = modification_tracking_enabled.clone();
-        let title_label = title_label.clone();
-        move |_, _| {
-            let window = window.clone();
-            let file_operations = file_operations.clone();
-            let editor_buffer = editor_buffer.clone();
-            let tracking_enabled = tracking_enabled.clone();
-            let title_label_async = title_label.clone();
-            glib::MainContext::default().spawn_local(async move {
-                trace!("audit: action new document triggered");
-                *tracking_enabled.borrow_mut() = false;
-                let file_ops = file_operations.borrow();
-                let gtk_window: &gtk4::Window = window.upcast_ref();
-                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                let _ = file_ops.new_document_async(
-                    gtk_window,
-                    text_buffer,
-                    |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
-                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
-                ).await;
-                // Update title label to reflect new untitled document
-                let title = file_operations.borrow().get_document_title();
-                title_label_async.set_text(&title);
-                *tracking_enabled.borrow_mut() = true;
-            });
-        }
-    });
-
-    // Save document action - moved logic to FileOperations  
-    let save_action = gtk4::gio::SimpleAction::new("save", None);
-    save_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-        let editor_buffer = editor_buffer.clone();
-        let title_label = title_label.clone();
-        move |_, _| {
-            let file_ops_ref = file_operations.borrow();
-            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-            if let Err(e) = file_ops_ref.save_document(&window, text_buffer) {
-                eprintln!("Error saving document: {}", e);
-            } else {
-                // Update title after successful save
-                let title = file_operations.borrow().get_document_title();
-                title_label.set_text(&title);
-            }
-        }
-    });
-
-    // TODO: Remaining async file actions to be moved to FileOperations  
-    // These require async UI dialog integration
-    
-    let open_action = gtk4::gio::SimpleAction::new("open", None);
-    let save_as_action = gtk4::gio::SimpleAction::new("save_as", None);
-    let quit_action = gtk4::gio::SimpleAction::new("quit", None);
-
-    // Open file action (async helper)
-    open_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-    let editor_buffer = editor_buffer.clone();
-    let title_label = title_label.clone();
-        move |_, _| {
-            let window = window.clone();
-            let file_operations = file_operations.clone();
-            let editor_buffer = editor_buffer.clone();
-            let title_label_async = title_label.clone();
-            glib::MainContext::default().spawn_local(async move {
-                trace!("audit: open action triggered by user");
-                let file_ops = file_operations.borrow();
-                let gtk_window: &gtk4::Window = window.upcast_ref();
-                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                let _ = file_ops.open_file_async(
-                    gtk_window,
-                    text_buffer,
-                    |w, title| Box::pin(FileDialogs::show_open_dialog(w, title)),
-                    |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
-                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
-                ).await;
-                // Update title label after open completes
-                let title = file_operations.borrow().get_document_title();
-                title_label_async.set_text(&title);
-            });
-        }
-    });
-
-    // Save document action
-    save_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-        let editor_buffer = editor_buffer.clone();
-        move |_, _| {
-            let file_ops = file_operations.borrow();
-            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-            if let Err(e) = file_ops.save_document(&window, text_buffer) {
-                eprintln!("Error saving document: {}", e);
-            }
-        }
-    });
-
-    // Save As action (async helper)
-    save_as_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-        let editor_buffer = editor_buffer.clone();
-    let title_label = title_label.clone();
-    move |_, _| {
-            let window = window.clone();
-            let file_operations = file_operations.clone();
-            let editor_buffer = editor_buffer.clone();
-            let title_label_async = title_label.clone();
-            glib::MainContext::default().spawn_local(async move {
-                let file_ops = file_operations.borrow();
-                let gtk_window: &gtk4::Window = window.upcast_ref();
-                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                let _ = file_ops.save_as_async(
-                    gtk_window,
-                    text_buffer,
-                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
-                ).await;
-                // Update title label after Save As completes
-                let title = file_operations.borrow().get_document_title();
-                title_label_async.set_text(&title);
-            });
-        }
-    });
-
-    // Quit application action (async helper)
-    quit_action.connect_activate({
-        let window = window.clone();
-        let file_operations = file_operations_rc.clone();
-        let editor_buffer = editor_buffer.clone();
-        let app = app.clone();
-        move |_, _| {
-            let window = window.clone();
-            let file_operations = file_operations.clone();
-            let editor_buffer = editor_buffer.clone();
-            let app = app.clone();
-            glib::MainContext::default().spawn_local(async move {
-                let file_ops = file_operations.borrow();
-                let gtk_window: &gtk4::Window = window.upcast_ref();
-                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                let _ = file_ops.quit_async(
-                    gtk_window,
-                    text_buffer,
-                    &app,
-                    |w, title, action| Box::pin(FileDialogs::show_save_changes_dialog(w, title, action)),
-                    |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
-                ).await;
-            });
-        }
-    });
-
-    // Add file actions to application
-    app.add_action(&new_action);
-    app.add_action(&open_action);
-    app.add_action(&save_action);
-    app.add_action(&save_as_action);
-    app.add_action(&quit_action);
-
-    // Set keyboard shortcuts for file actions
-    app.set_accels_for_action("app.new", &["<Control>n"]);
-    app.set_accels_for_action("app.open", &["<Control>o"]);
-    app.set_accels_for_action("app.save", &["<Control>s"]);
-    app.set_accels_for_action("app.save_as", &["<Control><Shift>s"]);
-    app.set_accels_for_action("app.quit", &["<Control>q"]);
-
     // Open initial file if provided via command line
     if let Some(file_path) = initial_file {
-        let file_operations_initial = file_operations_rc.clone();
-        let window_initial = window.clone();
-        let editor_buffer_initial = editor_buffer.clone();
-        let title_label_initial = title_label.clone();
-        
-        glib::MainContext::default().spawn_local(async move {
-            let file_ops = file_operations_initial.borrow();
-            let gtk_window: &gtk4::Window = window_initial.upcast_ref();
-            let text_buffer: &gtk4::TextBuffer = editor_buffer_initial.upcast_ref();
-            
-            // Try to open the specified file
-            let result = file_ops.open_file_by_path_async(
-                &file_path,
-                gtk_window,
-                text_buffer,
-                |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
-                |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
-            ).await;
-            
-            match result {
-                Ok(_) => {
-                    // Update title label after successful open
-                    let title = file_operations_initial.borrow().get_document_title();
-                    title_label_initial.set_text(&title);
-                    // Successful open - terminal output suppressed.
-                }
-                Err(e) => {
-                    eprintln!("Failed to open file {}: {}", file_path, e);
-                }
-            }
-        });
+        crate::logic::menu_items::file::FileOperations::load_initial_file_async(
+            file_operations_rc.clone(),
+            file_path,
+            window.clone(),
+            editor_buffer.clone(),
+            title_label.clone(),
+            |w, doc_name, action| Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)),
+            |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
+        );
     }
 
     // Present the window

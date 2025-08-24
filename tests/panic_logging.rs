@@ -1,7 +1,7 @@
 use chrono::Local;
+use log::LevelFilter;
 use std::fs;
 use std::path::PathBuf;
-use log::LevelFilter;
 
 #[test]
 fn panic_is_logged_in_repo_log_folder_in_process() {
@@ -9,7 +9,7 @@ fn panic_is_logged_in_repo_log_folder_in_process() {
     let repo_root = std::env::current_dir().expect("cwd");
 
     // Initialize logger in-process (enabled = true)
-    let _ = marco::logic::logger::init_file_logger(true, LevelFilter::Trace).expect("init logger");
+    marco::logic::logger::init_file_logger(true, LevelFilter::Trace).expect("init logger");
 
     // emit an info entry to create the file
     log::info!("test: init");
@@ -24,11 +24,15 @@ fn panic_is_logged_in_repo_log_folder_in_process() {
         if let Some(parent) = path.parent() {
             let _ = std::fs::create_dir_all(parent);
         }
-        let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).and_then(|mut f| {
-            use std::io::Write;
-            let _ = writeln!(f, "PANIC_DIRECT: in-process test");
-            f.flush()
-        });
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| {
+                use std::io::Write;
+                let _ = writeln!(f, "PANIC_DIRECT: in-process test");
+                f.flush()
+            });
     }
 
     // Flush and close
@@ -45,5 +49,11 @@ fn panic_is_logged_in_repo_log_folder_in_process() {
     assert!(log_path.exists(), "log file not created: {:?}", log_path);
 
     let content = fs::read_to_string(&log_path).expect("read log");
-    assert!(content.contains("PANIC") || content.to_uppercase().contains("PANIC") || content.contains("PANIC_DIRECT"), "log did not contain panic entry: {}", content);
+    assert!(
+        content.contains("PANIC")
+            || content.to_uppercase().contains("PANIC")
+            || content.contains("PANIC_DIRECT"),
+        "log did not contain panic entry: {}",
+        content
+    );
 }

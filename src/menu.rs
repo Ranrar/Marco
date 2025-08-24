@@ -3,14 +3,19 @@ pub fn set_menu_height(menu_box: &gtk4::Box, height: i32) {
     menu_box.set_height_request(height);
 }
 // Helper to convert LayoutState to a human-readable string
+use crate::logic::layoutstate::LayoutState;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use crate::logic::layoutstate::LayoutState;
 
-use gtk4::{self, prelude::*, Box as GtkBox, Button, Align, WindowHandle, Label};
-use log::trace;
 use gtk4::gio;
 use gtk4::PopoverMenuBar;
+use gtk4::{self, prelude::*, Align, Box as GtkBox, Button, Label, WindowHandle};
+use log::trace;
+
+// Type alias for the complex rebuild callback type
+type RebuildCallback = Box<dyn Fn()>;
+type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
+type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 
 pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     // ...existing code for menu structure...
@@ -63,11 +68,9 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
 /// Returns a WindowHandle containing the custom menu bar and all controls.
 /// Returns a WindowHandle and the central title `Label` so callers can update the
 /// document title (and modification marker) dynamically.
-pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle, Label, gio::Menu) {
-
-    use gtk4::gdk::Display;
-    if Display::default().is_some() {
-    }
+pub fn create_custom_titlebar(
+    window: &gtk4::ApplicationWindow,
+) -> (WindowHandle, Label, gio::Menu) {
     let handle = WindowHandle::new();
     let titlebar = GtkBox::new(Orientation::Horizontal, 0);
     titlebar.add_css_class("titlebar");
@@ -112,8 +115,8 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
 
     use gtk4::Image;
 
-     // --- actions layout button ---
-    use gtk4::{Popover, Orientation};
+    // --- actions layout button ---
+    use gtk4::{Orientation, Popover};
     let layout_menu_btn = Button::new();
     layout_menu_btn.set_tooltip_text(Some("Layout options"));
     layout_menu_btn.set_valign(Align::Center);
@@ -129,7 +132,6 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
     // State management (single shared instance)
     let layout_state = Rc::new(RefCell::new(LayoutState::Split));
 
-
     // Use icon font glyph for layout button (IcoMoon '1' = split_scene_left)
     let layout_label = gtk4::Label::new(None);
     layout_label.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{31}"));
@@ -144,21 +146,24 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
     popover.set_parent(window);
     // Remove unused duplicate clone
 
-    let rebuild_popover: Rc<RefCell<Option<Box<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    let rebuild_popover: RebuildPopover = Rc::new(RefCell::new(None));
 
-    let weak_rebuild_popover: Weak<RefCell<Option<Box<dyn Fn()>>>> = Rc::downgrade(&rebuild_popover);
+    let weak_rebuild_popover: WeakRebuildPopover = Rc::downgrade(&rebuild_popover);
     let layout_state_clone2 = layout_state.clone(); // Used for popover logic
     let popover_clone = popover.clone();
     *rebuild_popover.borrow_mut() = Some(Box::new(move || {
         let state = *layout_state_clone2.borrow();
-    let popover_box = GtkBox::new(Orientation::Horizontal, 6);
+        let popover_box = GtkBox::new(Orientation::Horizontal, 6);
         popover_box.set_margin_top(8);
         popover_box.set_margin_bottom(8);
         popover_box.set_margin_start(8);
         popover_box.set_margin_end(8);
 
         // Button 1: Close view (show only editor)
-        if matches!(state, LayoutState::Split | LayoutState::ViewOnly | LayoutState::ViewWinOnly) {
+        if matches!(
+            state,
+            LayoutState::Split | LayoutState::ViewOnly | LayoutState::ViewWinOnly
+        ) {
             let btn1 = Button::new();
             btn1.add_css_class("layout-btn");
             // IcoMoon '3' = only_editor
@@ -175,14 +180,19 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
                 let next = LayoutState::EditorOnly;
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
+                    if let Some(ref rebuild) = *rc.borrow() {
+                        rebuild();
+                    }
                 }
             });
             popover_box.append(&btn1);
         }
 
         // Button 2: Close editor (show only view)
-        if matches!(state, LayoutState::Split | LayoutState::EditorOnly | LayoutState::EditorAndWin) {
+        if matches!(
+            state,
+            LayoutState::Split | LayoutState::EditorOnly | LayoutState::EditorAndWin
+        ) {
             let btn2 = Button::new();
             btn2.add_css_class("layout-btn");
             // IcoMoon '2' = only_preview
@@ -199,7 +209,9 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
                 let next = LayoutState::ViewOnly;
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
+                    if let Some(ref rebuild) = *rc.borrow() {
+                        rebuild();
+                    }
                 }
             });
             popover_box.append(&btn2);
@@ -223,7 +235,9 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
                 let next = LayoutState::EditorAndWin;
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
+                    if let Some(ref rebuild) = *rc.borrow() {
+                        rebuild();
+                    }
                 }
             });
             popover_box.append(&btn3);
@@ -247,27 +261,33 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
                 let next = LayoutState::Split;
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() { rebuild(); }
+                    if let Some(ref rebuild) = *rc.borrow() {
+                        rebuild();
+                    }
                 }
             });
             popover_box.append(&btn4);
         }
 
-    // Set the new child; GTK4 will replace the old one automatically
-    popover_clone.set_child(Some(&popover_box));
-    popover_clone.set_has_arrow(true);
-    popover_clone.set_position(gtk4::PositionType::Bottom);
-    popover_clone.set_autohide(true);
+        // Set the new child; GTK4 will replace the old one automatically
+        popover_clone.set_child(Some(&popover_box));
+        popover_clone.set_has_arrow(true);
+        popover_clone.set_position(gtk4::PositionType::Bottom);
+        popover_clone.set_autohide(true);
     }) as Box<dyn Fn()>);
 
     // Initial build
-    if let Some(ref rebuild) = *rebuild_popover.borrow() { rebuild(); }
+    if let Some(ref rebuild) = *rebuild_popover.borrow() {
+        rebuild();
+    }
 
     let popover_ref = Rc::new(popover);
     let rebuild_popover_for_btn = rebuild_popover.clone();
     let popover_for_btn = popover_ref.clone();
     layout_menu_btn.connect_clicked(move |btn| {
-        if let Some(ref rebuild) = *rebuild_popover_for_btn.borrow() { rebuild(); }
+        if let Some(ref rebuild) = *rebuild_popover_for_btn.borrow() {
+            rebuild();
+        }
         // Anchor the popover to the button's allocation
         let alloc = btn.allocation();
         popover_for_btn.set_pointing_to(Some(&alloc));
@@ -283,28 +303,27 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
 
     // --- Window controls (rightmost) ---
 
-
     use gtk4::Label;
 
     // Helper to create a button with icon font
     fn icon_button(label_text: &str, tooltip: &str) -> Button {
-    let markup = format!("<span font_family='icomoon'>{}</span>", label_text);
-    let label = Label::new(None);
-    label.set_markup(&markup);
-    label.set_valign(Align::Center);
-    label.add_css_class("icon-font");
-    let btn = Button::new();
-    btn.set_child(Some(&label));
-    btn.set_tooltip_text(Some(tooltip));
-    btn.set_valign(Align::Center);
-    btn.set_margin_start(1);
-    btn.set_margin_end(1);
-    btn.set_focusable(false);
-    btn.set_can_focus(false);
-    btn.set_has_frame(false);
-    btn.add_css_class("topright-btn");
-    btn.add_css_class("window-control-btn");
-    btn
+        let markup = format!("<span font_family='icomoon'>{}</span>", label_text);
+        let label = Label::new(None);
+        label.set_markup(&markup);
+        label.set_valign(Align::Center);
+        label.add_css_class("icon-font");
+        let btn = Button::new();
+        btn.set_child(Some(&label));
+        btn.set_tooltip_text(Some(tooltip));
+        btn.set_valign(Align::Center);
+        btn.set_margin_start(1);
+        btn.set_margin_end(1);
+        btn.set_focusable(false);
+        btn.set_can_focus(false);
+        btn.set_has_frame(false);
+        btn.add_css_class("topright-btn");
+        btn.add_css_class("window-control-btn");
+        btn
     }
 
     // IcoMoon Unicode glyphs for window controls
@@ -320,8 +339,15 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
 
     // Create a single toggle button for maximize/restore and keep its label so we can update it
     let max_label = gtk4::Label::new(None);
-    let initial_glyph = if window.is_maximized() { "\u{35}" } else { "\u{36}" };
-    max_label.set_markup(&format!("<span font_family='icomoon'>{}</span>", initial_glyph));
+    let initial_glyph = if window.is_maximized() {
+        "\u{35}"
+    } else {
+        "\u{36}"
+    };
+    max_label.set_markup(&format!(
+        "<span font_family='icomoon'>{}</span>",
+        initial_glyph
+    ));
     max_label.set_valign(Align::Center);
     max_label.add_css_class("icon-font");
     let btn_max_toggle = Button::new();
@@ -343,7 +369,10 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
 
     // Minimize and close actions
     let win_clone = window.clone();
-    btn_min.connect_clicked(move |_| { win_clone.minimize(); trace!("audit: window minimize clicked"); });
+    btn_min.connect_clicked(move |_| {
+        win_clone.minimize();
+        trace!("audit: window minimize clicked");
+    });
     // When close is pressed, activate the application's quit action so
     // the unified quit flow (including FileOperations::quit_async) runs.
     let win_for_close = window.clone();
@@ -369,10 +398,12 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
     btn_max_toggle.connect_clicked(move |_| {
         if window_for_toggle.is_maximized() {
             window_for_toggle.unmaximize();
-            label_for_toggle.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
+            label_for_toggle
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
         } else {
             window_for_toggle.maximize();
-            label_for_toggle.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
+            label_for_toggle
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
         }
         trace!("audit: window maximize/restore clicked");
     });
@@ -381,9 +412,11 @@ pub fn create_custom_titlebar(window: &gtk4::ApplicationWindow) -> (WindowHandle
     let label_for_notify = max_label.clone();
     window.connect_notify_local(Some("is-maximized"), move |w, _| {
         if w.is_maximized() {
-            label_for_notify.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
+            label_for_notify
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
         } else {
-            label_for_notify.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
+            label_for_notify
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
         }
     });
 

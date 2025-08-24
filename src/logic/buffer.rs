@@ -1,17 +1,17 @@
-use std::path::{Path, PathBuf};
+use anyhow::{Context, Result};
 use std::fs;
-use anyhow::{Result, Context};
+use std::path::{Path, PathBuf};
 
 /// Manages document buffer state including file path, modification status, and content
-/// 
+///
 /// This struct provides functionality for:
 /// - Tracking the current file path (if any)
 /// - Managing the is_modified flag to detect unsaved changes
 /// - Handling file I/O operations with proper error handling
 /// - Supporting "Untitled" documents that haven't been saved yet
-/// 
+///
 /// # Thread Safety
-/// This struct is designed to be used with Rc<RefCell<DocumentBuffer>> for 
+/// This struct is designed to be used with Rc<RefCell<DocumentBuffer>> for
 /// shared ownership in GTK applications running on the main thread.
 #[derive(Debug, Clone)]
 pub struct DocumentBuffer {
@@ -28,11 +28,11 @@ pub struct DocumentBuffer {
 
 impl DocumentBuffer {
     /// Creates a new empty document buffer for an "Untitled" document
-    /// 
+    ///
     /// # Example
     /// ```
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// let buffer = DocumentBuffer::new_untitled();
     /// assert!(buffer.file_path.is_none());
     /// assert_eq!(buffer.display_name, "Untitled.md");
@@ -48,19 +48,19 @@ impl DocumentBuffer {
     }
 
     /// Creates a document buffer for an existing file
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Path to the existing file
-    /// 
+    ///
     /// # Returns
     /// * `Ok(DocumentBuffer)` - Buffer initialized with the file path
     /// * `Err(anyhow::Error)` - If the path is invalid or the file doesn't exist
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// use std::path::Path;
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// # fn main() -> anyhow::Result<()> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("document.md"))?;
     /// assert!(buffer.file_path.is_some());
@@ -89,15 +89,15 @@ impl DocumentBuffer {
     }
 
     /// Reads the content of the file associated with this buffer
-    /// 
+    ///
     /// # Returns
     /// * `Ok(String)` - Content of the file
     /// * `Err(anyhow::Error)` - If no file is associated or read fails
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// # fn main() -> anyhow::Result<()> {
     /// let buffer = DocumentBuffer::new_untitled();
     /// let content = buffer.read_content()?;
@@ -107,30 +107,28 @@ impl DocumentBuffer {
     /// ```
     pub fn read_content(&self) -> Result<String> {
         match &self.file_path {
-            Some(path) => {
-                fs::read_to_string(path)
-                    .with_context(|| format!("Failed to read file: {}", path.display()))
-            }
+            Some(path) => fs::read_to_string(path)
+                .with_context(|| format!("Failed to read file: {}", path.display())),
             None => Ok(String::new()), // Empty content for untitled documents
         }
     }
 
     /// Saves content to the file associated with this buffer
-    /// 
+    ///
     /// # Arguments
     /// * `content` - Text content to save
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - Save operation succeeded
     /// * `Err(anyhow::Error)` - If no file is associated or write fails
-    /// 
+    ///
     /// # Side Effects
     /// - Sets `is_modified` to `false` on successful save
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// # fn main() -> anyhow::Result<()> {
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.save_content("# My Document\n\nHello world!")?;
@@ -143,8 +141,9 @@ impl DocumentBuffer {
             Some(path) => {
                 // Create parent directories if they don't exist
                 if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent)
-                        .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+                    fs::create_dir_all(parent).with_context(|| {
+                        format!("Failed to create directory: {}", parent.display())
+                    })?;
                 }
 
                 fs::write(path, content)
@@ -155,31 +154,33 @@ impl DocumentBuffer {
                 self.is_modified = false;
                 Ok(())
             }
-            None => Err(anyhow::anyhow!("Cannot save: no file path set. Use save_as_content() instead.")),
+            None => Err(anyhow::anyhow!(
+                "Cannot save: no file path set. Use save_as_content() instead."
+            )),
         }
     }
 
     /// Saves content to a new file path (Save As operation)
-    /// 
+    ///
     /// # Arguments
     /// * `path` - New file path to save to
     /// * `content` - Text content to save
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - Save operation succeeded
     /// * `Err(anyhow::Error)` - If write fails
-    /// 
+    ///
     /// # Side Effects
     /// - Updates `file_path` to the new path
     /// - Updates `display_name` to the new filename
     /// - Sets `is_modified` to `false` on successful save
     /// - Automatically appends `.md` extension if missing
-    /// 
+    ///
     /// # Example
     /// ```no_run
     /// use std::path::Path;
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// # fn main() -> anyhow::Result<()> {
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.save_as_content(Path::new("new_document"), "# Content")?;
@@ -213,26 +214,25 @@ impl DocumentBuffer {
 
         self.file_path = Some(path);
         self.display_name = display_name;
-    // After Save As, baseline matches the saved content
-    self.baseline_content = content.to_string();
-    self.is_modified = false;
+        // After Save As, baseline matches the saved content
+        self.baseline_content = content.to_string();
+        self.is_modified = false;
 
         Ok(())
     }
 
     /// Marks the document as modified (has unsaved changes)
-    /// 
+    ///
     /// This should be called whenever the editor content changes.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.mark_modified();
     /// assert!(buffer.is_modified);
     /// ```
-
     /// Update modification state by comparing the provided editor content with the baseline.
     pub fn update_modified_from_content(&mut self, current_content: &str) {
         let modified = self.baseline_content != current_content;
@@ -246,7 +246,7 @@ impl DocumentBuffer {
     }
 
     /// Checks if the document has unsaved changes
-    /// 
+    ///
     /// # Returns
     /// * `true` - Document has been modified since last save
     /// * `false` - Document is in sync with file
@@ -255,7 +255,7 @@ impl DocumentBuffer {
     }
 
     /// Gets the file path if this document is associated with a file
-    /// 
+    ///
     /// # Returns
     /// * `Some(PathBuf)` - Path to the associated file
     /// * `None` - Document is untitled/unsaved
@@ -264,15 +264,15 @@ impl DocumentBuffer {
     }
 
     /// Gets the full display title including modification indicator
-    /// 
+    ///
     /// # Returns
     /// * For modified files: "* filename.md"
     /// * For unmodified files: "filename.md"
-    /// 
+    ///
     /// # Example
     /// ```
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// assert_eq!(buffer.get_full_title(), "Untitled.md");
     /// buffer.mark_modified();
@@ -287,14 +287,14 @@ impl DocumentBuffer {
     }
 
     /// Resets to a new untitled document
-    /// 
+    ///
     /// This clears the file path and resets the modification state,
     /// effectively creating a fresh document.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use marco::logic::buffer::DocumentBuffer;
-    /// 
+    ///
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.reset_to_untitled();
     /// assert!(buffer.file_path.is_none());
@@ -308,13 +308,13 @@ impl DocumentBuffer {
     }
 
     /// Checks if a file exists at the given path
-    /// 
+    ///
     /// This is a utility function for checking file existence
     /// before overwriting in Save As operations.
-    /// 
+    ///
     /// # Arguments
     /// * `path` - Path to check
-    /// 
+    ///
     /// # Returns
     /// * `true` - File exists
     /// * `false` - File does not exist
@@ -324,7 +324,7 @@ impl DocumentBuffer {
 }
 
 /// Recent files manager for tracking and persisting recently opened files
-/// 
+///
 /// This struct manages a list of recently opened files through the
 /// swanson settings system for consistent persistence.
 pub struct RecentFiles {
@@ -333,7 +333,7 @@ pub struct RecentFiles {
 
 impl RecentFiles {
     /// Creates a new recent files manager
-    /// 
+    ///
     /// # Arguments
     /// * `settings_path` - Path to the settings.ron file
     pub fn new<P: AsRef<Path>>(settings_path: P) -> Self {
@@ -343,40 +343,40 @@ impl RecentFiles {
     }
 
     /// Adds a file to the recent files list
-    /// 
+    ///
     /// If the file is already in the list, it's moved to the front.
     /// If the list exceeds max_files, the oldest entry is removed.
-    /// 
+    ///
     /// # Arguments
     /// * `path` - File path to add
-    /// 
+    ///
     /// # Example
     /// ```
     /// use std::path::Path;
     /// use marco::logic::buffer::RecentFiles;
-    /// 
+    ///
     /// let recent = RecentFiles::new("settings.ron");
     /// recent.add_file(Path::new("doc1.md"));
     /// ```
     pub fn add_file<P: AsRef<Path>>(&self, path: P) {
         let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
             .unwrap_or_default();
-        
+
         settings.add_recent_file(path);
-        
+
         if let Err(e) = settings.save_to_file(&self.settings_path) {
             eprintln!("[RecentFiles] Failed to save recent file: {}", e);
         }
     }
 
     /// Gets the list of recent files
-    /// 
+    ///
     /// # Returns
     /// Vector of recent file paths (most recent first)
     pub fn get_files(&self) -> Vec<PathBuf> {
         let settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
             .unwrap_or_default();
-        
+
         settings.get_recent_files()
     }
 
@@ -384,16 +384,14 @@ impl RecentFiles {
     pub fn clear(&self) {
         let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
             .unwrap_or_default();
-        
+
         settings.clear_recent_files();
-        
+
         if let Err(e) = settings.save_to_file(&self.settings_path) {
             eprintln!("[RecentFiles] Failed to save cleared recent files: {}", e);
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -414,13 +412,13 @@ mod tests {
     fn test_recent_files() {
         let temp_dir = TempDir::new().unwrap();
         let settings_path = temp_dir.path().join("settings.ron");
-        
+
         let recent = RecentFiles::new(&settings_path);
-        
+
         recent.add_file("file1.md");
         recent.add_file("file2.md");
         recent.add_file("file3.md");
-        
+
         let files = recent.get_files();
         assert!(files.len() <= 5); // Should respect max limit
         if !files.is_empty() {
@@ -432,13 +430,13 @@ mod tests {
     fn test_recent_files_duplicate() {
         let temp_dir = TempDir::new().unwrap();
         let settings_path = temp_dir.path().join("settings.ron");
-        
+
         let recent = RecentFiles::new(&settings_path);
-        
+
         recent.add_file("file1.md");
         recent.add_file("file2.md");
         recent.add_file("file1.md"); // Should move to front
-        
+
         let files = recent.get_files();
         if files.len() >= 2 {
             assert_eq!(files[0], PathBuf::from("file1.md"));
@@ -450,15 +448,17 @@ mod tests {
     fn test_save_as_adds_md_extension() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("test_file");
-        
+
         let mut buffer = DocumentBuffer::new_untitled();
-        buffer.save_as_content(&file_path, "# Test content").unwrap();
-        
+        buffer
+            .save_as_content(&file_path, "# Test content")
+            .unwrap();
+
         assert!(buffer.file_path.is_some());
         let saved_path = buffer.file_path.unwrap();
         assert_eq!(saved_path.extension().unwrap(), "md");
         assert!(saved_path.exists());
-        
+
         let content = fs::read_to_string(&saved_path).unwrap();
         assert_eq!(content, "# Test content");
     }

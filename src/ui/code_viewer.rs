@@ -1,5 +1,4 @@
 /// this is the main html code viever
-
 use gtk4::prelude::*;
 use gtk4::{ScrolledWindow, TextView, Widget};
 use std::cell::RefCell;
@@ -53,5 +52,11 @@ impl RenderHtmlCode {
 
     pub fn grab_focus(&self) {
         self.text_view.grab_focus();
+    }
+}
+
+impl Default for RenderHtmlCode {
+    fn default() -> Self {
+        Self::new()
     }
 }
