@@ -5,7 +5,7 @@ use gtk4::prelude::*;
 use webkit6::prelude::*;
 
 use webkit6::WebView;
-
+/// TODO change open link polici to onnly allow open target when klicking
 /// Create a WebView widget and load the provided HTML string.
 pub fn create_html_viewer(html: &str) -> WebView {
     let webview = WebView::new();
@@ -37,4 +37,31 @@ pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
 </html>"#,
         theme_mode, css, body
     )
+}
+
+/// Create a scrollable, read-only viewer that displays the raw HTML source.
+/// For show source code.
+pub fn create_html_source_viewer(html: &str) -> gtk4::ScrolledWindow {
+    use gtk4::{PolicyType, ScrolledWindow, TextBuffer, TextView};
+
+    let sw = ScrolledWindow::new();
+    sw.set_policy(PolicyType::Automatic, PolicyType::Automatic);
+    sw.set_min_content_width(200);
+    sw.set_min_content_height(200);
+
+    let tv = TextView::new();
+    tv.set_editable(false);
+    tv.set_cursor_visible(false);
+    tv.set_wrap_mode(gtk4::WrapMode::None);
+
+    // Use a monospace style class for better readability (CSS must define .monospace)
+    let ctx = tv.style_context();
+    ctx.add_class("monospace");
+
+    let buffer = TextBuffer::new(None::<&gtk4::TextTagTable>);
+    buffer.set_text(html);
+    tv.set_buffer(Some(&buffer));
+
+    sw.set_child(Some(&tv));
+    sw
 }

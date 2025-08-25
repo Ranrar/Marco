@@ -42,7 +42,7 @@ pub fn show_settings_dialog(
     on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
     refresh_preview: Option<RefreshPreviewCallback>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
-    on_schema_changed_callback: Option<Box<dyn Fn(Option<String>) + 'static>>,
+    _on_schema_changed_callback: Option<Box<dyn Fn(Option<String>) + 'static>>,
 ) {
     let dialog = Dialog::builder()
         .transient_for(parent)
@@ -85,7 +85,13 @@ pub fn show_settings_dialog(
             Some(&Label::new(Some("Appearance"))),
         );
     }
-    // --- Markdown Schema Tab ---
+    // --- Markdown Schema Tab (disabled) ---
+    // The Markdown Schema tab has been temporarily hidden from the Settings dialog.
+    // The original implementation is preserved below for easy re-enabling.
+    // To re-enable, uncomment the lines and restore `pub mod schema;` in
+    // `src/ui/settings/tabs/mod.rs`.
+
+    /*
     use crate::ui::settings::tabs::schema::build_schema_tab;
     let schema_root = "src/assets/markdown_schema";
     // Load settings using Settings struct
@@ -121,6 +127,7 @@ pub fn show_settings_dialog(
         ),
         Some(&Label::new(Some("Markdown Schema"))),
     );
+    */
     notebook.append_page(
         &tabs::language::build_language_tab(),
         Some(&Label::new(Some("Language"))),

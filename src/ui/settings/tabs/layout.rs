@@ -2,7 +2,7 @@ use gtk4::prelude::*;
 use gtk4::Box;
 
 pub fn build_layout_tab() -> Box {
-    use gtk4::{Label, ComboBoxText, Scale, Adjustment, Switch, Box as GtkBox, Orientation, Align};
+    use gtk4::{Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, Switch};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-layout");
@@ -80,7 +80,11 @@ pub fn build_layout_tab() -> Box {
     split_slider.set_width_request(300);
     // Add marks for common splits
     for mark in [10, 25, 40, 50, 60, 75, 90].iter() {
-        split_slider.add_mark(*mark as f64, gtk4::PositionType::Bottom, Some(&format!("{}%", mark)));
+        split_slider.add_mark(
+            *mark as f64,
+            gtk4::PositionType::Bottom,
+            Some(&format!("{}%", mark)),
+        );
     }
     let split_vbox = GtkBox::new(Orientation::Vertical, 2);
     let split_hbox = GtkBox::new(Orientation::Horizontal, 0);
@@ -92,7 +96,9 @@ pub fn build_layout_tab() -> Box {
     // No spinbutton for now, just slider
     split_hbox.set_hexpand(true);
     split_vbox.append(&split_hbox);
-    split_vbox.append(&desc_label("Adjust how much horizontal space the editor takes."));
+    split_vbox.append(&desc_label(
+        "Adjust how much horizontal space the editor takes.",
+    ));
     split_slider.set_halign(Align::Start);
     split_vbox.append(&split_slider);
     split_vbox.set_spacing(2);

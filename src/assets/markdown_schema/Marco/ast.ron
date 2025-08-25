@@ -1,4 +1,4 @@
-// CommonMark AST Template in RON
+// Macro AST Template in RON
 
 RootNode {
     type: "root",

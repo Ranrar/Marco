@@ -1,6 +1,8 @@
-pub mod editor;
-pub mod layout;
 pub mod appearance;
-pub mod language;
-pub mod schema;
 pub mod debug;
+pub mod editor;
+pub mod language;
+pub mod layout;
+// The Markdown Schema tab is temporarily disabled. Keep the module file in place
+// so it can be re-enabled easily by uncommenting the line below.
+// pub mod schema;

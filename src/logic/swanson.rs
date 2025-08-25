@@ -1,8 +1,8 @@
 //! Robust settings loader/saver using RON and Serde
+use log::trace;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use log::trace;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -33,8 +33,8 @@ impl Settings {
     /// Save settings to a RON file
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         // Use a pretty RON serializer to make the settings file human-readable.
-    let pretty = ron::ser::PrettyConfig::new();
-    let ron = ron::ser::to_string_pretty(self, pretty)?;
+        let pretty = ron::ser::PrettyConfig::new();
+        let ron = ron::ser::to_string_pretty(self, pretty)?;
         // Resolve path as string for later audit message without moving `path`
         let path_ref = path.as_ref().to_path_buf();
         fs::write(&path_ref, ron)?;
@@ -67,30 +67,30 @@ impl Settings {
     /// Add a file to recent files list
     pub fn add_recent_file<P: AsRef<Path>>(&mut self, path: P) {
         let path = path.as_ref().to_path_buf();
-        
+
         // Get max files before borrowing mutably
         let max_files = self.get_max_recent_files();
-        
+
         // Ensure files settings exists
         if self.files.is_none() {
             self.files = Some(FileSettings::default());
         }
-        
+
         let files_settings = self.files.as_mut().unwrap();
-        
+
         // Ensure recent_files vec exists
         if files_settings.recent_files.is_none() {
             files_settings.recent_files = Some(Vec::new());
         }
-        
+
         let recent_files = files_settings.recent_files.as_mut().unwrap();
-        
+
         // Remove if already exists (to move to front)
         recent_files.retain(|p| p != &path);
-        
+
         // Add to front
         recent_files.insert(0, path);
-        
+
         // Limit to max files
         if recent_files.len() > max_files {
             recent_files.truncate(max_files);

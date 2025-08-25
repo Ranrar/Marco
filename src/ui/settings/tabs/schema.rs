@@ -1,13 +1,17 @@
 //! Markdown Schema settings tab
-use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, Orientation, Label, ComboBoxText, Align};
-use std::path::Path;
 use crate::logic::loaders::schema_loader::list_available_schemas;
+use gtk4::prelude::*;
+use gtk4::{Align, Box as GtkBox, ComboBoxText, Label, Orientation};
+use std::path::Path;
 use std::rc::Rc;
 
-
 /// Builds the Markdown Schema tab UI
-pub fn build_schema_tab(schema_root: &str, active_schema: Option<String>, schema_disabled: bool, on_schema_changed: Rc<dyn Fn(Option<String>)>) -> GtkBox {
+pub fn build_schema_tab(
+    schema_root: &str,
+    active_schema: Option<String>,
+    schema_disabled: bool,
+    on_schema_changed: Rc<dyn Fn(Option<String>)>,
+) -> GtkBox {
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-schema");
     container.set_margin_top(24);
@@ -47,7 +51,11 @@ pub fn build_schema_tab(schema_root: &str, active_schema: Option<String>, schema
     let active_idx = if schema_disabled {
         0
     } else {
-        schemas.iter().position(|s| active_schema.as_deref() == Some(&s.name)).map(|i| i + 1).unwrap_or(0)
+        schemas
+            .iter()
+            .position(|s| active_schema.as_deref() == Some(&s.name))
+            .map(|i| i + 1)
+            .unwrap_or(0)
     };
     combo.set_active(Some(active_idx as u32));
     let schemas = schemas.clone();
