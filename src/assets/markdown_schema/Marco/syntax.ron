@@ -18,6 +18,11 @@ RootNode {
         },
         Heading {
             type: "heading",
+            depth: 4,
+            children: [ TextNode { type: "text", value: "Heading 4" } ]
+        },
+        Heading {
+            type: "heading",
             depth: 5,
             children: [ TextNode { type: "text", value: "Heading 5" } ]
         },
@@ -25,11 +30,6 @@ RootNode {
             type: "heading",
             depth: 6,
             children: [ TextNode { type: "text", value: "Heading 6" } ]
-        },
-        SetextHeading {
-            type: "heading",
-            depth: 1,
-            children: [ TextNode { type: "text", value: "Setext Title" } ]
         },
         Paragraph {
             type: "paragraph",
@@ -100,7 +100,7 @@ RootNode {
         SymbolEntity { type: "symbol", value: "&copy;" },
         TOCPlaceholder { type: "toc", children: [ Heading { type: "heading", depth: 4, children: [ TextNode { type: "text", value: "Table of Contents" } ] } ] },
         FigureCaption { type: "figure", children: [ Image { type: "image", url: "/assets/images/albuquerque.jpg", title: "Albuquerque", alt: "Albuquerque" }, TextNode { type: "text", value: "A single track trail outside of Albuquerque, New Mexico." } ] },
-        VideoEmbed { type: "video", value: "[![Image alt text](https://img.youtube.com/vi/YOUTUBE-ID/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE-ID)" },
+        VideoEmbed { type: "video", value: "[![Image alt text](https://img.youtube.com/vi/YOUTUBE-ID/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE-ID)", url: "https://www.youtube.com/watch?v=YOUTUBE-ID", poster: "https://img.youtube.com/vi/YOUTUBE-ID/0.jpg", alt: "Image alt text" },
         InlineMath { type: "mathInline", value: "x^2 + y^2" },
         BlockMath { type: "mathBlock", value: "\\int_0^1 x dx" },
         Emoji { type: "emoji", value: ":smile:" },

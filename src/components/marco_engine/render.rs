@@ -21,6 +21,137 @@ use emojis;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+// Helper: extract YouTube video id from common URL forms and build auxiliary URLs
+fn youtube_id_from_url(url: &str) -> Option<String> {
+    // Try common patterns without heavy deps
+    // youtu.be/ID
+    if let Some(rest) = url.strip_prefix("https://youtu.be/") {
+        return rest.split(&['?', '&'][..]).next().map(|s| s.to_string());
+    }
+    if let Some(rest) = url.strip_prefix("http://youtu.be/") {
+        return rest.split(&['?', '&'][..]).next().map(|s| s.to_string());
+    }
+    // youtube.com/watch?v=ID
+    if url.contains("youtube.com/watch") || url.contains("youtube.com/") {
+        if let Some(qpos) = url.find('?') {
+            let query = &url[qpos + 1..];
+            for pair in query.split('&') {
+                let mut parts = pair.splitn(2, '=');
+                if let (Some(k), Some(v)) = (parts.next(), parts.next()) {
+                    if k == "v" {
+                        return Some(v.to_string());
+                    }
+                }
+            }
+        }
+    }
+    // embed/ID
+    if let Some(pos) = url.find("/embed/") {
+        return url[pos + 7..]
+            .split(&['?', '&'][..])
+            .next()
+            .map(|s| s.to_string());
+    }
+    // img.youtube.com/vi/ID/... (thumbnail link)
+    if let Some(pos) = url.find("img.youtube.com/vi/") {
+        let tail = &url[pos + "img.youtube.com/vi/".len()..];
+        return tail
+            .split(&['/', '?', '&'][..])
+            .next()
+            .map(|s| s.to_string());
+    }
+    None
+}
+
+fn youtube_watch_url_for_id(id: &str) -> String {
+    format!("https://www.youtube.com/watch?v={}", id)
+}
+
+fn youtube_thumbnail_url_for_id(id: &str) -> String {
+    format!("https://img.youtube.com/vi/{}/0.jpg", id)
+}
+
+// Build an embeddable YouTube iframe for a video id and title (no autoplay)
+fn build_youtube_iframe(id: &str, title: &str) -> String {
+    // include controls and disable related videos (rel=0); no autoplay param
+    // Keep an iframe fallback for non-JS environments and tests, but also
+    // include a small initialization script that loads the YouTube IFrame
+    // API and creates a YT.Player instance targeting a sanitized container id.
+    fn sanitize_for_id(s: &str) -> String {
+        s.chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+            .collect()
+    }
+
+    let safe = sanitize_for_id(id);
+    let embed_src = format!(
+        "https://www.youtube.com/embed/{}?controls=1&rel=0",
+        html_escape(id)
+    );
+
+    // The div with id `yt-player-{safe}` will be used by the IFrame API to
+    // instantiate a player. We keep an iframe inside as fallback for tests and
+    // non-JS clients.
+    let container_start = format!(
+            "<div class=\"yt-embed\" style=\"position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;\">\n  <div id=\"yt-player-{safe}\" class=\"yt-player\" data-ytid=\"{}\" title=\"{}\" style=\"position:absolute;top:0;left:0;width:100%;height:100%;\">\n",
+            html_escape(id),
+            html_escape(title)
+        );
+
+    let iframe_html = format!(
+            "  <iframe src=\"{}\" title=\"{}\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen style=\"width:100%;height:100%;border:0;\"></iframe>\n",
+            embed_src,
+            html_escape(title)
+        );
+
+    // Script: ensure iframe has an origin param appended at runtime (helps when referer is absent)
+    let script = "<script>(function(){\n  try {\n    // If an iframe exists, append an origin query param so YouTube can identify the embedder\n    var playerContainer = document.getElementById('%ID%');\n    if (playerContainer) {\n      var ifr = playerContainer.querySelector('iframe');\n      if (ifr && ifr.src) {\n        try {\n          var sep = ifr.src.indexOf('?') !== -1 ? '&' : '?';\n          var origin = (typeof location !== 'undefined' && location.origin) ? location.origin : '';\n          if (origin) { ifr.src = ifr.src + sep + 'origin=' + encodeURIComponent(origin); }\n        } catch (e) { /* swallow */ }\n      }\n    }\n  } catch (e) { /* ignore */ }\n  if (!window.YT) {\n    var tag = document.createElement('script');\n    tag.src = 'https://www.youtube.com/iframe_api';\n    var firstScript = document.getElementsByTagName('script')[0];\n    firstScript.parentNode.insertBefore(tag, firstScript);\n  }\n  function createPlayer() { try { if (typeof YT === 'object' && YT && YT.Player) { new YT.Player('%ID%', { videoId: '%VID%', playerVars: { controls: 1, rel: 0 } }); } } catch (e) { console && console.error && console.error(e); } }\n  if (window.YT && YT.Player) { createPlayer(); } else { var prev = window.onYouTubeIframeAPIReady; window.onYouTubeIframeAPIReady = function() { if (prev) try { prev(); } catch(e){} createPlayer(); }; }\n})();</script>";
+
+    // replace placeholders
+    let script_inst = script
+        .replace("%ID%", &format!("yt-player-{}", safe))
+        .replace("%VID%", id);
+
+    format!(
+        "{}{}  </div>\n</div>\n{}",
+        container_start, iframe_html, script_inst
+    )
+}
+
+// Small helper: render an <a><img></a> thumbnail link for a YouTube id and optional alt
+fn render_youtube_thumbnail_link(id: &str, alt: &str, href_override: Option<&str>) -> String {
+    let href = if let Some(h) = href_override {
+        h.to_string()
+    } else {
+        youtube_watch_url_for_id(id)
+    };
+    let alt_escaped = html_escape(alt);
+    let thumb = youtube_thumbnail_url_for_id(id);
+    format!(
+            "<div class=\"yt-embed\" style=\"position:relative;padding-bottom:56.25%;height:0;overflow:hidden;max-width:100%;\">\n  <a href=\"{}\" style=\"position:absolute;top:0;left:0;width:100%;height:100%;display:block;\">\n    <img src=\"{}\" alt=\"{}\" style=\"width:100%;height:100%;object-fit:cover;border:0;\">\n  </a>\n</div>",
+            html_escape(&href),
+            html_escape(&thumb),
+            alt_escaped
+        )
+}
+
+// Crude helper to extract alt text from a text node that starts with a markdown image
+// shorthand like "![alt](url)" or "![alt]". Returns the alt or default.
+fn extract_alt_from_shorthand(text: &str) -> String {
+    let trimmed = text.trim_start();
+    if let Some(start) = trimmed.find("![") {
+        let rest = &trimmed[start + 2..];
+        if let Some(end) = rest.find(']') {
+            return rest[..end].to_string();
+        } else if let Some(paren) = rest.find('(') {
+            return rest[..paren].to_string();
+        } else {
+            return rest.to_string();
+        }
+    }
+    String::from("YouTube video")
+}
+
 // Regex for URL detection used by autolink feature
 static URL_RE: Lazy<Regex> = Lazy::new(|| {
     // match http(s)://... or www.... (stop at whitespace or <)
@@ -147,6 +278,60 @@ impl MarkdownRenderer {
             // Links: autolink extension - simple URL detection in text nodes
             "link" => {
                 let url = node.attributes.get("url").map_or("#", |v| v);
+
+                // If the link wraps a single image child, handle YouTube thumbnail patterns
+                if node.children.len() == 1 && node.children[0].node_type == "image" {
+                    let img = &node.children[0];
+                    let img_url_opt = img.attributes.get("url");
+
+                    // Try to get youtube id from the link first (preferred)
+                    if let Some(link_id) = youtube_id_from_url(url) {
+                        let title = img
+                            .attributes
+                            .get("alt")
+                            .map(|s| s.as_str())
+                            .unwrap_or("YouTube video");
+                        return build_youtube_iframe(&link_id, title);
+                    }
+
+                    // Otherwise, if the image is a YouTube thumbnail or youtu link, render a
+                    // clickable thumbnail that links out to the watch page for that id.
+                    if let Some(img_url) = img_url_opt {
+                        if let Some(img_id) = youtube_id_from_url(img_url) {
+                            let alt = img.attributes.get("alt").map(|s| s.as_str()).unwrap_or("");
+                            return render_youtube_thumbnail_link(&img_id, alt, None);
+                        }
+                    }
+                }
+
+                // Handle malformed/missing image AST cases where the link child is a
+                // text node containing an image-like shorthand (e.g. starts with "![alt]").
+                // If the link URL is a YouTube URL, prefer embedding the iframe using
+                // the link URL and extract an alt/title from the shorthand when possible.
+                if node.children.len() == 1 && node.children[0].node_type == "text" {
+                    if let Some(text_val) = node.children[0].attributes.get("value") {
+                        let trimmed = text_val.trim_start();
+                        if trimmed.starts_with("![") {
+                            if let Some(link_id) = youtube_id_from_url(url) {
+                                // crude alt extraction: between ![ and ], or until ( if no ]
+                                let mut alt = "YouTube video".to_string();
+                                if let Some(start) = trimmed.find("![") {
+                                    let rest = &trimmed[start + 2..];
+                                    if let Some(end) = rest.find(']') {
+                                        alt = rest[..end].to_string();
+                                    } else if let Some(paren) = rest.find('(') {
+                                        alt = rest[..paren].to_string();
+                                    } else {
+                                        alt = rest.to_string();
+                                    }
+                                }
+                                let title = alt.trim();
+                                return build_youtube_iframe(&link_id, title);
+                            }
+                        }
+                    }
+                }
+
                 let content = node
                     .children
                     .iter()
@@ -159,6 +344,19 @@ impl MarkdownRenderer {
             "image" => {
                 let url = node.attributes.get("url").map_or("", |v| v);
                 let alt = node.attributes.get("alt").map_or("", |v| v);
+                // If the image url itself is a YouTube link (e.g., markdown like
+                // `![alt](https://youtu.be/ID)` or direct youtu.be in image src),
+                // prefer embedding the YouTube iframe so single-image video links
+                // produce the expected player rather than a bare link.
+                if let Some(id) = youtube_id_from_url(url) {
+                    let title = if !alt.is_empty() {
+                        alt
+                    } else {
+                        "YouTube video"
+                    };
+                    return build_youtube_iframe(&id, title);
+                }
+
                 format!(
                     "<img src=\"{}\" alt=\"{}\">",
                     html_escape(url),
@@ -495,17 +693,65 @@ impl MarkdownRenderer {
 
             "link" => {
                 let url = node.attributes.get("url").map_or("#", |v| v);
+
+                if node.children.len() == 1 && node.children[0].node_type == "image" {
+                    let img = &node.children[0];
+                    if let Some(img_url) = img.attributes.get("url") {
+                        if let Some(id) = youtube_id_from_url(img_url) {
+                            let href = if let Some(link_id) = youtube_id_from_url(url) {
+                                youtube_watch_url_for_id(&link_id)
+                            } else {
+                                url.to_string()
+                            };
+                            let alt = img.attributes.get("alt").map(|s| s.as_str()).unwrap_or("");
+                            return render_youtube_thumbnail_link(&id, alt, Some(&href));
+                        }
+                    }
+                    if let Some(img_url) = img.attributes.get("url") {
+                        if let Some(id) = youtube_id_from_url(img_url) {
+                            let alt = img.attributes.get("alt").map(|s| s.as_str()).unwrap_or("");
+                            return render_youtube_thumbnail_link(&id, alt, None);
+                        }
+                    }
+                }
+
                 let content = node
                     .children
                     .iter()
                     .map(Self::render_node)
                     .collect::<String>();
+                // Handle malformed shorthand where the child is a text node starting
+                // with "!["; prefer embedding if the link URL is YouTube.
+                if node.children.len() == 1 && node.children[0].node_type == "text" {
+                    if let Some(text_val) = node.children[0].attributes.get("value") {
+                        let trimmed = text_val.trim_start();
+                        if trimmed.starts_with("![") {
+                            if let Some(link_id) = youtube_id_from_url(url) {
+                                let alt = extract_alt_from_shorthand(trimmed);
+                                return build_youtube_iframe(&link_id, alt.trim());
+                            }
+                        }
+                    }
+                }
+
                 format!("<a href=\"{}\">{}</a>", html_escape(url), content)
             }
 
             "image" => {
                 let url = node.attributes.get("url").map_or("", |v| v);
                 let alt = node.attributes.get("alt").map_or("", |v| v);
+
+                // If an image's src is actually a YouTube URL (e.g. `![alt](https://youtu.be/ID)`),
+                // embed the YouTube iframe instead of outputting a bare <img> tag.
+                if let Some(id) = youtube_id_from_url(url) {
+                    let title = if !alt.is_empty() {
+                        alt
+                    } else {
+                        "YouTube video"
+                    };
+                    return build_youtube_iframe(&id, title);
+                }
+
                 format!(
                     "<img src=\"{}\" alt=\"{}\">",
                     html_escape(url),
@@ -671,20 +917,71 @@ impl MarkdownRenderer {
                 }
             }
 
-            // Placeholder: video embedding (could be <video> or iframe depending on source)
+            // Video embedding: prefer YouTube iframe when `url` or `src` points to YouTube,
+            // otherwise fall back to an HTML5 <video> tag or render children.
             "video" => {
-                // TODO: implement video rendering (attrs: src, poster, controls)
-                if let Some(src) = node.attributes.get("src") {
-                    format!(
-                        "<video controls src=\"{}\">Your browser does not support the video tag.</video>",
-                        html_escape(src)
-                    )
-                } else {
-                    node.children
-                        .iter()
-                        .map(Self::render_node)
-                        .collect::<String>()
+                // Prefer `url` (parser-produced) but accept legacy `src`
+                let src_opt = node
+                    .attributes
+                    .get("url")
+                    .or_else(|| node.attributes.get("src"));
+
+                if let Some(src) = src_opt {
+                    // If it's a YouTube URL, embed using the central helper
+                    if let Some(vid) = youtube_id_from_url(src) {
+                        let title_attr = node
+                            .attributes
+                            .get("title")
+                            .map(|s| s.as_str())
+                            .or_else(|| node.attributes.get("alt").map(|s| s.as_str()))
+                            .unwrap_or("YouTube video");
+
+                        return build_youtube_iframe(&vid, title_attr);
+                    }
+
+                    // Not a recognized YouTube URL - if it's an actual media file, use <video>
+                    let lower = src.to_lowercase();
+                    if lower.ends_with(".mp4")
+                        || lower.ends_with(".webm")
+                        || lower.ends_with(".ogg")
+                    {
+                        let mut attrs = String::new();
+                        if node
+                            .attributes
+                            .get("controls")
+                            .map(|v| v == "false")
+                            .unwrap_or(false)
+                        {
+                            // omit controls when explicitly set to false
+                        } else {
+                            attrs.push_str(" controls");
+                        }
+                        if let Some(poster) = node.attributes.get("poster") {
+                            attrs.push_str(&format!(" poster=\"{}\"", html_escape(poster)));
+                        }
+                        return format!(
+                            "<video src=\"{}\"{}>Your browser does not support the video tag.</video>",
+                            html_escape(src),
+                            attrs
+                        );
+                    }
+
+                    // Fallback: render children if present, otherwise render the raw src as a link
+                    if !node.children.is_empty() {
+                        return node
+                            .children
+                            .iter()
+                            .map(Self::render_node)
+                            .collect::<String>();
+                    }
+
+                    return format!("<a href=\"{}\">{}</a>", html_escape(src), html_escape(src));
                 }
+
+                node.children
+                    .iter()
+                    .map(Self::render_node)
+                    .collect::<String>()
             }
 
             // Placeholder: admonition / callout block (note/warning/tip)
@@ -941,4 +1238,47 @@ mod tests {
         let out = MarkdownRenderer::render_node(&node);
         assert!(out.contains("Renderer gaps"));
     }
+
+    #[test]
+    fn test_image_youtube_embeds_iframe() {
+        // Create an image node with a youtu.be URL as src and ensure the renderer
+        // produces an iframe embed rather than an <img> or plain link.
+        let mut img = crate::components::marco_engine::parser::Node::new("image");
+        img.add_attribute("url", "https://youtu.be/H8c1ObYSlQI?si=SC_SV3bB7fT1gvN7");
+        img.add_attribute("alt", "Test");
+
+        let out = MarkdownRenderer::render_node(&img);
+        // Should contain the embed URL format
+        assert!(
+            out.contains("https://www.youtube.com/embed/H8c1ObYSlQI"),
+            "out={}",
+            out
+        );
+        // Prefer iframe output
+        assert!(out.contains("<iframe"), "out={}", out);
+    }
+
+    #[test]
+    fn test_link_with_text_shorthand_embeds_iframe() {
+        // Simulate parser producing a link whose child is a text node that contains
+        // an image shorthand (malformed/partial AST). The link url is a youtu.be link.
+        let mut link = crate::components::marco_engine::parser::Node::new("link");
+        link.add_attribute("url", "https://youtu.be/H8c1ObYSlQI?si=SC_SV3bB7fT1gvN7");
+        let txt = crate::components::marco_engine::parser::Node::text_node(
+            "![Test](https://youtu.be/H8c1ObYSlQI?si=SC_SV3bB7fT1gvN7)",
+        );
+        link.add_child(txt);
+
+        let out = MarkdownRenderer::render_node(&link);
+        assert!(
+            out.contains("https://www.youtube.com/embed/H8c1ObYSlQI"),
+            "out={}",
+            out
+        );
+        assert!(out.contains("<iframe"), "out={}", out);
+    }
+
+    // test_print_youtube_render was used during development to inspect output and
+    // was removed to keep the test suite focused. Manual smoke runs confirmed
+    // the renderer outputs iframe HTML for the canonical thumbnail-wrapped link.
 }

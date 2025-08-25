@@ -184,24 +184,6 @@ fn parse_pair(pair: pest::iterators::Pair<Rule>) -> Option<Node> {
             Some(node)
         }
 
-        Rule::setext_heading => {
-            let content = pair.as_str();
-            let lines: Vec<&str> = content.lines().collect();
-
-            if lines.len() >= 2 {
-                let heading_text = lines[0].trim().to_string();
-                let underline = lines[1];
-                let depth = if underline.starts_with('=') { 1 } else { 2 };
-
-                let mut node = Node::new("heading");
-                node.add_attribute("depth", &depth.to_string());
-                node.add_child(Node::text_node(&heading_text));
-                Some(node)
-            } else {
-                None
-            }
-        }
-
         // =============================================================================
         // CODE BLOCKS
         // =============================================================================
@@ -567,6 +549,52 @@ fn parse_pair(pair: pest::iterators::Pair<Rule>) -> Option<Node> {
             None
         }
 
+        // Recognize a linked image pattern used as a video embed (e.g. YouTube
+        // thumbnail wrapped in a link). Capture alt, image url (poster), and
+        // link url (video target) and produce a `video` node to match fixtures.
+        Rule::video_embed => {
+            let raw = pair.as_str();
+
+            // crude parse: find the inner alt, image url and link url
+            // pattern: [![ALT](IMGURL)](LINKURL)
+            if let Some(start_alt) = raw.find("[![") {
+                if let Some(mid) = raw.find("](") {
+                    // find the end of the image url
+                    if let Some(end_img_paren) = raw[mid + 2..].find(')') {
+                        let alt_start = start_alt + 3; // position after "[!["
+                        let alt = &raw[alt_start..mid];
+                        let img_url_start = mid + 2;
+                        let img_url_end = mid + 2 + end_img_paren;
+                        let img_url = &raw[img_url_start..img_url_end];
+
+                        // now find the outer link url after the image closing paren
+                        if let Some(open_outer) = raw[img_url_end + 1..].find('(') {
+                            let link_start = img_url_end + 1 + open_outer + 1;
+                            if let Some(link_end_rel) = raw[link_start..].find(')') {
+                                let link_end = link_start + link_end_rel;
+                                let link = &raw[link_start..link_end];
+
+                                // Trim extracted parts to avoid incidental surrounding whitespace
+                                let alt = alt.trim();
+                                let img_url = img_url.trim();
+                                let link = link.trim();
+
+                                let mut node = Node::new("video");
+                                node.add_attribute("value", raw);
+                                node.add_attribute("url", link);
+                                node.add_attribute("poster", img_url);
+                                node.add_attribute("alt", alt);
+                                return Some(node);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // fallback to none if parsing fails
+            None
+        }
+
         Rule::autolink | Rule::autolink_url | Rule::autolink_email => {
             let url = pair.as_str().trim_start_matches('<').trim_end_matches('>');
             let mut node = Node::new("link");
@@ -720,5 +748,43 @@ fn parse_pair(pair: pest::iterators::Pair<Rule>) -> Option<Node> {
 
         // Skip other rules that don't need direct processing
         _ => None,
+    }
+}
+
+// Unit tests for parser behavior
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_video_embed() {
+        let s = "[![Image alt text](https://img.youtube.com/vi/YOUTUBE-ID/0.jpg)](https://www.youtube.com/watch?v=YOUTUBE-ID)";
+        let root = parse_markdown(s).expect("parse_markdown failed");
+        // Search the AST for a `video` node (parser may wrap document with a root node)
+        fn find_video(n: &Node) -> Option<&Node> {
+            if n.node_type == "video" {
+                return Some(n);
+            }
+            for c in &n.children {
+                if let Some(found) = find_video(c) {
+                    return Some(found);
+                }
+            }
+            None
+        }
+
+        let node = find_video(&root).expect("video node not found in AST");
+        assert_eq!(
+            node.attributes.get("url").map(|s| s.as_str()),
+            Some("https://www.youtube.com/watch?v=YOUTUBE-ID")
+        );
+        assert_eq!(
+            node.attributes.get("poster").map(|s| s.as_str()),
+            Some("https://img.youtube.com/vi/YOUTUBE-ID/0.jpg")
+        );
+        assert_eq!(
+            node.attributes.get("alt").map(|s| s.as_str()),
+            Some("Image alt text")
+        );
     }
 }

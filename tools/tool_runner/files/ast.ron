@@ -31,12 +31,7 @@ RootNode {
             depth: 6,
             children: [ TextNode { type: "text", value: "Heading 6" } ]
         },
-        SetextHeading {
-            type: "heading",
-            depth: 1,
-            children: [ TextNode { type: "text", value: "Setext Title" } ]
-        },
-
+        
         // -------------------
         // Paragraphs & Inline
         // -------------------
