@@ -1,9 +1,9 @@
 # Rust
-/Cargo.lock
-/target
+Cargo.lock
+target
 
 # internal dev code
-marco2.code-workspace
+*.code-workspace
 /.github/chatmodes
 /.github/instructions
 /.VSCodeCounter
