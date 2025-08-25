@@ -98,9 +98,10 @@ pub fn build_appearance_tab(
                     let idx = combo.active().unwrap_or(0) as usize;
                     if let Some(theme_entry) = html_themes.get(idx) {
                         user_selected_preview_theme.set(true);
-                        println!(
+                        log::info!(
                             "Saving preview_theme: {} to {:?}",
-                            theme_entry.filename, settings_path
+                            theme_entry.filename,
+                            settings_path
                         );
                         theme_manager
                             .borrow_mut()
@@ -149,7 +150,7 @@ pub fn build_appearance_tab(
         color_mode_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0);
             let mode = if idx == 1 { "dark" } else { "light" };
-            println!("Switching color mode to: {}", mode);
+            log::info!("Switching color mode to: {}", mode);
             // Update settings struct and persist
             let mut app_settings =
                 AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();

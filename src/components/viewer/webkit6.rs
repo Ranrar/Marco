@@ -25,19 +25,41 @@ pub fn create_html_viewer(html: &str) -> WebView {
 
 /// Wraps the HTML body with a full HTML document, injecting the provided CSS string into the <head>.
 pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
-    format!(
+    // Include a named <style> element and small JS helpers so the host can
+    // update CSS and theme class without reloading the whole document.
+    let doc = format!(
         r#"<!DOCTYPE html>
 <html class="{}">
-  <head>
-    <meta charset=\"utf-8\">
-    <style>body {{ font-family: sans-serif; }}
+    <head>
+        <meta charset=\"utf-8\">
+        <style id=\"marco-preview-style\">body {{ font-family: sans-serif; }}
 {}</style>
-  </head>
-  <body>{}</body>
+        <script>
+            function setPreviewCSS(css) {{
+                try {{
+                    var el = document.getElementById('marco-preview-style');
+                    if (el) el.innerHTML = css;
+                }} catch(e){{}}
+            }}
+            function setPreviewTheme(mode) {{
+                try {{
+                    document.documentElement.className = mode;
+                }} catch(e){{}}
+            }}
+        </script>
+    </head>
+    <body>{}</body>
 </html>"#,
         theme_mode, css, body
-    )
+    );
+    doc
 }
+
+// Note: in-page JS helpers are embedded in the HTML template produced by
+// `wrap_html_document`. To avoid binding issues across webkit6 versions we
+// intentionally don't call JS from Rust here. If/when needed, add a small
+// compatibility wrapper that uses the correct webkit6 API available in the
+// project's environment.
 
 /// Create a scrollable, read-only viewer that displays the raw HTML source.
 /// For show source code.

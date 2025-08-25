@@ -84,12 +84,14 @@ pub mod ui;
 */
 
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
-use crate::ui::main_editor::{create_editor_with_preview, wire_footer_updates};
+use crate::components::editor::editor_ui::create_editor_with_preview;
+use crate::components::editor::footer_updates::wire_footer_updates;
+use crate::components::viewer::viewmode::ViewMode;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use crate::theme::ThemeManager;
-use crate::components::marco_engine::parser::MarkdownSyntaxMap;
+// MarkdownSyntaxMap compatibility removed; footer uses AST parser directly
 use crate::logic::{DocumentBuffer, RecentFiles};
 use crate::logic::menu_items::file::FileOperations;
 use crate::ui::menu_items::files::FileDialogs;
@@ -290,19 +292,9 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
     let (footer, footer_labels_rc) = footer::create_footer();
 
-    // Load active markdown schema from settings (if available)
-    let schema_root = config_dir.join("src/assets/markdown_schema");
-    let active_schema_map: Rc<RefCell<Option<MarkdownSyntaxMap>>> = Rc::new(RefCell::new(None));
-    if let Ok(Some(map)) = MarkdownSyntaxMap::load_active_schema(settings_path.to_str().unwrap(), schema_root.to_str().unwrap()) {
-        *active_schema_map.borrow_mut() = Some(map);
-    }
-
-    // Debug: report whether an active schema was found and how many rules it contains
-    if let Some(ref _map) = *active_schema_map.borrow() {
-        // schema loaded; intentionally silent in normal startup
-    } else {
-        // no schema found; intentionally silent in normal startup
-    }
+    // Active markdown schema support removed; footer uses AST parser directly.
+    let _schema_root = config_dir.join("src/assets/markdown_schema");
+    let active_schema_map: Rc<RefCell<Option<()>>> = Rc::new(RefCell::new(None));
 
     let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer, insert_mode_state, set_view_mode) = create_editor_with_preview(
         preview_theme_filename.as_str(),
@@ -313,12 +305,12 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     );
 
     // Wrap setter into Rc so it can be cloned into action callbacks
-    let set_view_mode_rc: Rc<Box<dyn Fn(crate::ui::main_editor::ViewMode)>> = Rc::new(set_view_mode);
+    let set_view_mode_rc: Rc<Box<dyn Fn(ViewMode)>> = Rc::new(set_view_mode);
 
     // Wire up live footer updates using the actual editor buffer
     // Wire footer updates directly: wire_footer_updates will run callbacks on
     // the main loop and call `apply_footer_update` directly.
-    wire_footer_updates(&editor_buffer, footer_labels_rc.clone(), active_schema_map.clone(), insert_mode_state.clone());
+    wire_footer_updates(&editor_buffer, footer_labels_rc.clone(), insert_mode_state.clone());
     split.add_css_class("split-view");
 
     // Apply saved view mode from settings at startup (if present)
@@ -326,8 +318,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         if let Some(layout) = s.layout {
             if let Some(vm) = layout.view_mode {
                 match vm.as_str() {
-                    "HTML Preview" => (set_view_mode_rc)(crate::ui::main_editor::ViewMode::HtmlPreview),
-                    "Source Code" | "Code Preview" => (set_view_mode_rc)(crate::ui::main_editor::ViewMode::CodePreview),
+                    "HTML Preview" => (set_view_mode_rc)(ViewMode::HtmlPreview),
+                    "Source Code" | "Code Preview" => (set_view_mode_rc)(ViewMode::CodePreview),
                     _ => {}
                 }
             }
@@ -338,7 +330,6 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let trigger_footer_update: std::rc::Rc<dyn Fn()> = std::rc::Rc::new({
         let buffer = editor_buffer.clone();
         let labels = footer_labels_rc.clone();
-        let active_schema_map = active_schema_map.clone();
         let test_counter = std::rc::Rc::new(std::cell::Cell::new(0));
         move || {
             // Manual footer trigger invoked; terminal output suppressed.
@@ -366,12 +357,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                 (Some(ref start), None) => buffer.text(start, &buffer.end_iter(), false).to_string(),
                 _ => String::new(),
             };
-            if let Some(ref map) = *active_schema_map.borrow() {
-                crate::footer::update_syntax_trace(&labels, &line_text, map);
-            } else {
-                let dummy_map = crate::components::marco_engine::parser::MarkdownSyntaxMap { rules: std::collections::HashMap::new(), display_hints: None };
-                crate::footer::update_syntax_trace(&labels, &line_text, &dummy_map);
-            }
+            // Footer uses AST-based parsing internally; pass only labels and line text
+            crate::footer::update_syntax_trace(&labels, &line_text);
         }
     });
 
@@ -476,21 +463,10 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     on_editor_theme_changed: Some(editor_callback),
                     on_schema_changed: Some(Box::new({
                         let active_schema_map = active_schema_map.clone();
-                        let config_dir = config_dir.clone();
-                        let settings_path_clone = settings_path_clone.clone();
                         let trigger = trigger_footer_update.clone();
                         move |_selected: Option<String>| {
-                            // Reload parser and update shared map
-                            let schema_root = config_dir.join("src/assets/markdown_schema");
-                            if let Ok(Some(map)) = crate::components::marco_engine::parser::MarkdownSyntaxMap::load_active_schema(
-                                settings_path_clone.to_str().unwrap(),
-                                schema_root.to_str().unwrap(),
-                            ) {
-                                *active_schema_map.borrow_mut() = Some(map);
-                            } else {
-                                *active_schema_map.borrow_mut() = None;
-                            }
-                            // Trigger immediate footer update
+                            // Schema support removed; clear any existing schema and trigger footer update
+                            *active_schema_map.borrow_mut() = None;
                             (trigger)();
                         }
                     })),
@@ -502,8 +478,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                             // Persist the selection asynchronously
                             save(&selected);
                             match selected.as_str() {
-                                "HTML Preview" => (sv)(crate::ui::main_editor::ViewMode::HtmlPreview),
-                                "Source Code" | "Code Preview" => (sv)(crate::ui::main_editor::ViewMode::CodePreview),
+                                "HTML Preview" => (sv)(ViewMode::HtmlPreview),
+                                "Source Code" | "Code Preview" => (sv)(ViewMode::CodePreview),
                                 _ => {}
                             }
                         }
@@ -525,7 +501,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let settings_path_clone2 = settings_path.clone();
     let view_html_action = gtk4::gio::SimpleAction::new("view_html", None);
     view_html_action.connect_activate(move |_, _| {
-        (sv_clone)(crate::ui::main_editor::ViewMode::HtmlPreview);
+    (sv_clone)(ViewMode::HtmlPreview);
         // Persist setting
     let mut s = crate::logic::swanson::Settings::load_from_file(settings_path_clone2.to_str().unwrap()).unwrap_or_default();
     if true {
@@ -544,7 +520,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let settings_path_clone3 = settings_path.clone();
     let view_code_action = gtk4::gio::SimpleAction::new("view_code", None);
     view_code_action.connect_activate(move |_, _| {
-        (sv_clone2)(crate::ui::main_editor::ViewMode::CodePreview);
+    (sv_clone2)(ViewMode::CodePreview);
         let mut s = crate::logic::swanson::Settings::load_from_file(settings_path_clone3.to_str().unwrap()).unwrap_or_default();
         if true {
             if s.layout.is_none() {

@@ -17,7 +17,7 @@
 //! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
-use crate::components::marco_engine::parser::{parse_markdown, MarkdownSyntaxMap};
+use crate::components::marco_engine::parser::parse_markdown;
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 use std::rc::Rc;
@@ -63,7 +63,7 @@ pub struct FooterLabels {
 
 /// Updates the formatting label with the Markdown syntax trace for the active line
 /// Pure helper: produce the display string for a line given a syntax map
-pub fn format_syntax_trace(line: &str, _syntax_map: &MarkdownSyntaxMap) -> String {
+pub fn format_syntax_trace(line: &str) -> String {
     // Parse the full AST for the line and derive friendly labels directly from nodes.
     // Many block-level rules expect a trailing newline to match (ATX headings, lists,
     // etc). Ensure we include a trailing newline when parsing single-line inputs so
@@ -251,8 +251,8 @@ pub fn update_insert_mode(labels: &FooterLabels, is_insert: bool) {
 }
 
 /// Updates the formatting label with the Markdown syntax trace for the active line
-pub fn update_syntax_trace(labels: &FooterLabels, line: &str, syntax_map: &MarkdownSyntaxMap) {
-    let display = format_syntax_trace(line, syntax_map);
+pub fn update_syntax_trace(labels: &FooterLabels, line: &str) {
+    let display = format_syntax_trace(line);
     footer_dbg!("[footer] update_syntax_trace called: {}", display);
     set_label_text(&labels.formatting, display);
 }
@@ -424,103 +424,42 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::marco_engine::parser::SyntaxRule;
-
-    fn make_test_map() -> MarkdownSyntaxMap {
-        let mut rules = std::collections::HashMap::new();
-        rules.insert(
-            "**".to_string(),
-            SyntaxRule {
-                name: "bold".to_string(),
-                pattern: "**".to_string(),
-                description: "Bold text".to_string(),
-            },
-        );
-        rules.insert(
-            "#".to_string(),
-            SyntaxRule {
-                name: "heading".to_string(),
-                pattern: "#".to_string(),
-                description: "Heading 1".to_string(),
-            },
-        );
-        rules.insert(
-            "##".to_string(),
-            SyntaxRule {
-                name: "heading".to_string(),
-                pattern: "##".to_string(),
-                description: "Heading 2".to_string(),
-            },
-        );
-        rules.insert(
-            "*".to_string(),
-            SyntaxRule {
-                name: "italic".to_string(),
-                pattern: "*".to_string(),
-                description: "Italic text".to_string(),
-            },
-        );
-        rules.insert(
-            "-".to_string(),
-            SyntaxRule {
-                name: "list".to_string(),
-                pattern: "-".to_string(),
-                description: "Unordered list".to_string(),
-            },
-        );
-        rules.insert(
-            "1.".to_string(),
-            SyntaxRule {
-                name: "list".to_string(),
-                pattern: "1.".to_string(),
-                description: "Ordered list".to_string(),
-            },
-        );
-        MarkdownSyntaxMap {
-            rules,
-            display_hints: None,
-        }
-    }
 
     #[test]
     fn test_format_syntax_trace_plain() {
-        let map = make_test_map();
-        let out = format_syntax_trace("text", &map);
+        let out = format_syntax_trace("text");
         assert_eq!(out, "Format: text");
     }
 
     #[test]
     fn test_format_syntax_trace_complex() {
-        let map = make_test_map();
-
         // Test heading with bold
-        let out = format_syntax_trace("# **Bold heading**", &map);
+        let out = format_syntax_trace("# **Bold heading**");
         assert!(out.starts_with("Format: "));
         assert!(out.contains("heading(1)") || out.contains("bold"));
 
         // Test list with italic
-        let out2 = format_syntax_trace("- *italic item*", &map);
+        let out2 = format_syntax_trace("- *italic item*");
         eprintln!("DEBUG footer out2='{}'", out2);
         assert!(out2.starts_with("Format: "));
         assert!(out2.contains("list") || out2.contains("italic"));
 
         // Test heading depth
-        let out3 = format_syntax_trace("## Level 2 heading", &map);
+        let out3 = format_syntax_trace("## Level 2 heading");
         assert!(out3.contains("heading(2)"));
 
         // Test ordered list
-        let out4 = format_syntax_trace("1. ordered item", &map);
+        let out4 = format_syntax_trace("1. ordered item");
         assert!(out4.contains("list(ordered)"));
 
         // Test unordered list
-        let out5 = format_syntax_trace("- unordered item", &map);
+        let out5 = format_syntax_trace("- unordered item");
         assert!(out5.contains("list(unordered)"));
     }
 
     #[test]
     fn test_format_syntax_trace_empty() {
-        let map = make_test_map();
-        let out = format_syntax_trace("", &map);
+        let out = format_syntax_trace("");
         assert_eq!(out, "Format: text");
     }
 
@@ -562,9 +501,8 @@ mod tests {
         update_word_count(&labels, 123);
         update_char_count(&labels, 456);
 
-        // Formatting update uses parse helper; test for text behavior
-        let map = make_test_map();
-        update_syntax_trace(&labels, "text", &map);
+        // Formatting update uses parse helper directly
+        update_syntax_trace(&labels, "text");
 
         // Verify Label texts
         assert!(cursor_row_label.text().contains("Row: 3"));

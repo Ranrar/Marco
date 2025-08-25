@@ -15,72 +15,6 @@ pub struct Node {
     pub children: Vec<Node>,
 }
 
-/// Syntax rule for markdown elements (compatibility with old parser)
-#[derive(Debug, Clone)]
-pub struct SyntaxRule {
-    pub name: String,
-    pub pattern: String,
-    pub description: String,
-}
-
-// Legacy `BlockElement` and line-based `parse_document_blocks` scanner were
-// removed as part of API cleanup. Use the full AST returned by
-// `parse_markdown` and `Node` for structured analysis.
-
-/// Markdown syntax map for compatibility with existing footer functionality
-#[derive(Debug, Clone)]
-pub struct MarkdownSyntaxMap {
-    pub rules: HashMap<String, SyntaxRule>,
-    pub display_hints: Option<HashMap<String, String>>,
-}
-
-impl MarkdownSyntaxMap {
-    /// Load active schema (compatibility function)
-    pub fn load_active_schema(
-        _settings_path: &str,
-        _schema_root: &str,
-    ) -> Result<Option<Self>, Box<dyn std::error::Error>> {
-        // Create a basic syntax map for now
-        let mut rules = HashMap::new();
-
-        rules.insert(
-            "heading".to_string(),
-            SyntaxRule {
-                name: "heading".to_string(),
-                pattern: "^#{1,6} .+".to_string(),
-                description: "Heading".to_string(),
-            },
-        );
-
-        rules.insert(
-            "paragraph".to_string(),
-            SyntaxRule {
-                name: "paragraph".to_string(),
-                pattern: ".+".to_string(),
-                description: "Paragraph".to_string(),
-            },
-        );
-
-        Ok(Some(MarkdownSyntaxMap {
-            rules,
-            display_hints: None,
-        }))
-    }
-
-    /// Build display hints map (compatibility function)
-    pub fn build_display_hints(&self) -> HashMap<String, String> {
-        // Return basic display hints
-        let mut hints = HashMap::new();
-        hints.insert("heading".to_string(), "📝".to_string());
-        hints.insert("paragraph".to_string(), "📄".to_string());
-        hints.insert("blockquote".to_string(), "📧".to_string());
-        hints.insert("code_block".to_string(), "💻".to_string());
-        hints.insert("list".to_string(), "📋".to_string());
-        hints
-    }
-}
-
-// The previous simple line-based scanner was removed to reduce duplicate
 // parsing logic and to encourage using the canonical pest-based AST. If a
 // lightweight, line-oriented summary is needed in future, we can reintroduce
 // a dedicated function or provide `parse_markdown_with_summary` that returns
@@ -127,7 +61,6 @@ pub fn parse_markdown(input: &str) -> Result<Node, Box<dyn std::error::Error>> {
     // We intentionally do not attach the lightweight `blocks` node to the
     // returned AST. The call to `parse_document_blocks` above ensures
     // `BlockElement` values are constructed (satisfying static analysis and
-    // legacy consumers that might call the function directly) without
     // altering the existing AST shape consumed elsewhere in the codebase.
 
     Ok(root)

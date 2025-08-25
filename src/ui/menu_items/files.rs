@@ -70,14 +70,14 @@ impl FileDialogs {
             ResponseType::Accept => {
                 if let Some(file) = dialog.file() {
                     if let Some(path) = file.path() {
-                        eprintln!("[FileDialogs] User selected file: {}", path.display());
+                        log::info!("[FileDialogs] User selected file: {}", path.display());
                         return Ok(Some(path));
                     }
                 }
                 Err(anyhow::anyhow!("No file selected"))
             }
             _ => {
-                eprintln!("[FileDialogs] Open dialog cancelled");
+                log::debug!("[FileDialogs] Open dialog cancelled");
                 Ok(None)
             }
         }
@@ -139,14 +139,14 @@ impl FileDialogs {
             ResponseType::Accept => {
                 if let Some(file) = dialog.file() {
                     if let Some(path) = file.path() {
-                        eprintln!("[FileDialogs] User chose save location: {}", path.display());
+                        log::info!("[FileDialogs] User chose save location: {}", path.display());
                         return Ok(Some(path));
                     }
                 }
                 Err(anyhow::anyhow!("No save location selected"))
             }
             _ => {
-                eprintln!("[FileDialogs] Save dialog cancelled");
+                log::debug!("[FileDialogs] Save dialog cancelled");
                 Ok(None)
             }
         }
@@ -290,7 +290,7 @@ impl FileDialogs {
             _ => SaveChangesResult::Cancel,
         };
 
-        eprintln!("[FileDialogs] Save changes dialog result: {:?}", result);
+        log::info!("[FileDialogs] Save changes dialog result: {:?}", result);
         Ok(result)
     }
 
@@ -345,7 +345,7 @@ impl FileDialogs {
         dialog.close();
 
         let result = matches!(response, ResponseType::Yes);
-        eprintln!("[FileDialogs] Overwrite dialog result: {}", result);
+        log::info!("[FileDialogs] Overwrite dialog result: {}", result);
         Ok(result)
     }
 
@@ -391,7 +391,7 @@ impl FileDialogs {
         // Explicitly close the dialog to ensure it disappears
         dialog.close();
 
-        eprintln!("[FileDialogs] Showed error dialog: {}", title);
+        log::info!("[FileDialogs] Showed error dialog: {}", title);
     }
 
     /// Shows an information dialog
@@ -424,7 +424,7 @@ impl FileDialogs {
         // Explicitly close the dialog to ensure it disappears
         dialog.close();
 
-        eprintln!("[FileDialogs] Showed info dialog: {}", title);
+        log::info!("[FileDialogs] Showed info dialog: {}", title);
     }
 }
 
@@ -437,7 +437,7 @@ impl FileDialogs {
         match Self::show_open_dialog(parent, "Open Markdown File").await {
             Ok(path) => path,
             Err(err) => {
-                eprintln!("[FileDialogs] Error showing open dialog: {}", err);
+                log::error!("[FileDialogs] Error showing open dialog: {}", err);
                 None
             }
         }
