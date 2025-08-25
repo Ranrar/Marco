@@ -138,10 +138,27 @@ use crate::components::marco_engine::render::{markdown_to_html, MarkdownOptions}
 use crate::ui::html_viewer::wrap_html_document;
 use gtk4::Paned;
 use std::cell::RefCell;
+use std::fmt;
 /// Create a split editor with live HTML preview using WebKit6
 use std::rc::Rc;
 /// This is the markdown editor
 use webkit6::prelude::*;
+
+/// Runtime view mode for the preview pane
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ViewMode {
+    HtmlPreview,
+    CodePreview,
+}
+
+impl fmt::Display for ViewMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ViewMode::HtmlPreview => write!(f, "HTML Preview"),
+            ViewMode::CodePreview => write!(f, "Code Preview"),
+        }
+    }
+}
 type EditorReturn = (
     Paned,
     webkit6::WebView,
@@ -151,6 +168,7 @@ type EditorReturn = (
     Box<dyn Fn(&str)>,
     sourceview5::Buffer,
     Rc<RefCell<bool>>,
+    Box<dyn Fn(ViewMode)>,
 );
 
 pub fn create_editor_with_preview(
@@ -604,6 +622,13 @@ pub fn create_editor_with_preview(
         // Preview theme mode change - terminal output suppressed.
     }) as Box<dyn Fn(&str)>;
 
+    // Prepare clones to be captured by the runtime setter closure
+    let paned_clone = paned.clone();
+    let buffer_clone_for_setter = buffer_rc.clone();
+    let css_rc_clone_for_setter = css_rc.clone();
+    let theme_mode_clone_for_setter = theme_mode_rc.clone();
+    let markdown_opts_clone_for_setter = markdown_opts_rc.clone();
+
     // Return the paned, webview, refresh closure, editor theme update, preview theme update, and buffer
     (
         paned,
@@ -614,6 +639,238 @@ pub fn create_editor_with_preview(
         update_preview_theme,
         buffer_rc.as_ref().clone(),
         insert_mode_state,
+        // Enhanced runtime view-mode switching closure with scroll preservation.
+        Box::new({
+            // No extra imports required here; use webkit6::WebView type already imported above.
+            let paned = paned_clone.clone();
+            let buffer = buffer_clone_for_setter.clone();
+            let css_rc = css_rc_clone_for_setter.clone();
+            let theme_mode = theme_mode_clone_for_setter.clone();
+            let markdown_opts = markdown_opts_clone_for_setter.clone();
+
+            // Helper: get normalized fraction from a ScrolledWindow (0.0..1.0)
+            let get_scrolled_fraction = |sw: &gtk4::ScrolledWindow| -> f64 {
+                let adj = sw.vadjustment();
+                let upper = adj.upper();
+                let page = adj.page_size();
+                let value = adj.value();
+                let denom = (upper - page).max(1.0);
+                (value / denom).clamp(0.0, 1.0)
+            };
+
+            // Helper: set normalized fraction into a ScrolledWindow
+            let set_scrolled_fraction = |sw: &gtk4::ScrolledWindow, frac: f64| {
+                let adj = sw.vadjustment();
+                let upper = adj.upper();
+                let page = adj.page_size();
+                let denom = (upper - page).max(1.0);
+                adj.set_value(frac.clamp(0.0, 1.0) * denom);
+            };
+
+            // JS helper to set fraction via inline script injection when creating the WebView
+            let js_set_fraction_inline = |f: f64| {
+                format!("<script>(function(){{try{{let el=document.scrollingElement||document.documentElement||document.body; let denom=Math.max(el.scrollHeight - el.clientHeight,1); el.scrollTop = Math.round(denom * {});}}catch(e){{}} }})();</script>", f)
+            };
+
+            // Simple HTML pretty-printer: inserts newlines between tags and
+            // performs a basic indentation heuristic. Good enough for the
+            // generated HTML from the markdown renderer and avoids adding a
+            // heavy dependency just for formatting.
+            let pretty_print_html = |input: &str| -> String {
+                // Add newlines between adjacent tags
+                let with_newlines = input.replace("><", ">\n<");
+                let mut out = String::new();
+                let mut indent: usize = 0;
+                for raw_line in with_newlines.lines() {
+                    let line = raw_line.trim();
+                    if line.is_empty() {
+                        continue;
+                    }
+                    // Decrease indent for closing tags
+                    if line.starts_with("</") {
+                        indent = indent.saturating_sub(1);
+                    }
+                    out.push_str(&"    ".repeat(indent));
+                    out.push_str(line);
+                    out.push('\n');
+                    // Increase indent for opening tags that are not self-closing
+                    if line.starts_with('<')
+                        && !line.starts_with("</")
+                        && !line.ends_with("/>")
+                        && !line.starts_with("<!")
+                    {
+                        // If this opening tag also contains a closing tag on same line, don't indent
+                        if !(line.contains("</") && line.find("</").unwrap() > 0) {
+                            indent += 1;
+                        }
+                    }
+                }
+                out
+            };
+
+            move |mode: ViewMode| {
+                // Capture current end child and its scroll fraction (if any)
+                let prev_child = paned.end_child();
+                // Default fraction to restore to 0.0
+                let mut captured_frac: f64 = 0.0;
+                // If prev child is a ScrolledWindow, capture its fraction. Capturing
+                // fraction directly from an existing WebView requires async JS
+                // evaluation; to keep this change robust we capture only from
+                // ScrolledWindow and fall back to 0.0 otherwise.
+                if let Some(widget) = prev_child.clone() {
+                    if let Some(sw_prev) = widget.downcast_ref::<gtk4::ScrolledWindow>() {
+                        captured_frac = get_scrolled_fraction(sw_prev);
+                    }
+                }
+
+                match mode {
+                    ViewMode::HtmlPreview => {
+                        // Create WebView and restore captured fraction into it after load
+                        let text = buffer
+                            .text(&buffer.start_iter(), &buffer.end_iter(), false)
+                            .to_string();
+                        let html_body = markdown_to_html(&text, &markdown_opts);
+                        // If we captured a fraction, inject an inline script to set
+                        // initial scroll position when the HTML loads. This avoids
+                        // needing to call run_javascript on the existing WebView.
+                        let mut body_with_script = String::new();
+                        if captured_frac > 0.0 {
+                            body_with_script.push_str(&js_set_fraction_inline(captured_frac));
+                        }
+                        body_with_script.push_str(&html_body);
+                        let html_with_script = wrap_html_document(
+                            &body_with_script,
+                            &css_rc.borrow(),
+                            &theme_mode.borrow(),
+                        );
+                        let web = crate::ui::html_viewer::create_html_viewer(&html_with_script);
+                        paned.set_end_child(Some(&web));
+
+                        // CRITICAL: Set up buffer change handler for this new WebView
+                        // so it updates when the user types in the editor
+                        let web_clone = web.clone();
+                        let buffer_clone = buffer.clone();
+                        let css_clone = css_rc.clone();
+                        let theme_mode_clone = theme_mode.clone();
+                        let markdown_opts_clone = markdown_opts.clone();
+
+                        let preview_timeout_id: Rc<std::cell::Cell<Option<glib::SourceId>>> =
+                            Rc::new(std::cell::Cell::new(None));
+                        let preview_timeout_id_cloned = Rc::clone(&preview_timeout_id);
+
+                        buffer_clone.connect_changed(move |buf| {
+                            // Cancel previous timeout
+                            if let Some(id) = preview_timeout_id_cloned.replace(None) {
+                                id.remove();
+                            }
+
+                            let buf_clone = buf.clone();
+                            let web_inner = web_clone.clone();
+                            let css_inner = css_clone.clone();
+                            let theme_mode_inner = theme_mode_clone.clone();
+                            let markdown_opts_inner = markdown_opts_clone.clone();
+                            let preview_timeout_id_inner = Rc::clone(&preview_timeout_id_cloned);
+
+                            // Schedule timeout
+                            let id = glib::timeout_add_local(
+                                std::time::Duration::from_millis(400),
+                                move || {
+                                    let text = buf_clone
+                                        .text(&buf_clone.start_iter(), &buf_clone.end_iter(), false)
+                                        .to_string();
+                                    let html_body = markdown_to_html(&text, &markdown_opts_inner);
+                                    let html = wrap_html_document(
+                                        &html_body,
+                                        &css_inner.borrow(),
+                                        &theme_mode_inner.borrow(),
+                                    );
+
+                                    let html_clone = html.clone();
+                                    let webview_idle = web_inner.clone();
+                                    glib::idle_add_local(move || {
+                                        if webview_idle.is_mapped() {
+                                            webview_idle.load_html(&html_clone, None);
+                                        }
+                                        glib::ControlFlow::Break
+                                    });
+
+                                    preview_timeout_id_inner.set(None);
+                                    glib::ControlFlow::Break
+                                },
+                            );
+                            preview_timeout_id_cloned.set(Some(id));
+                        });
+                    }
+                    ViewMode::CodePreview => {
+                        // Create ScrolledWindow with TextView and restore captured fraction
+                        let text = buffer
+                            .text(&buffer.start_iter(), &buffer.end_iter(), false)
+                            .to_string();
+                        let html_body = markdown_to_html(&text, &markdown_opts);
+                        let pretty = pretty_print_html(&html_body);
+                        let code_sw = crate::ui::html_viewer::create_html_source_viewer(&pretty);
+                        // Apply captured fraction (if any) after mapping
+                        let frac = captured_frac;
+                        if frac > 0.0 {
+                            let code_sw_clone = code_sw.clone();
+                            glib::idle_add_local(move || {
+                                set_scrolled_fraction(&code_sw_clone, frac);
+                                glib::ControlFlow::Break
+                            });
+                        }
+                        paned.set_end_child(Some(&code_sw));
+
+                        // CRITICAL: Set up buffer change handler for this new code preview
+                        // so it updates when the user types in the editor
+                        let code_sw_clone = code_sw.clone();
+                        let buffer_clone = buffer.clone();
+                        let markdown_opts_clone = markdown_opts.clone();
+
+                        let preview_timeout_id: Rc<std::cell::Cell<Option<glib::SourceId>>> =
+                            Rc::new(std::cell::Cell::new(None));
+                        let preview_timeout_id_cloned = Rc::clone(&preview_timeout_id);
+
+                        buffer_clone.connect_changed(move |buf| {
+                            // Cancel previous timeout
+                            if let Some(id) = preview_timeout_id_cloned.replace(None) {
+                                id.remove();
+                            }
+
+                            let buf_clone = buf.clone();
+                            let code_sw_inner = code_sw_clone.clone();
+                            let markdown_opts_inner = markdown_opts_clone.clone();
+                            let preview_timeout_id_inner = Rc::clone(&preview_timeout_id_cloned);
+
+                            // Schedule timeout
+                            let id = glib::timeout_add_local(
+                                std::time::Duration::from_millis(400),
+                                move || {
+                                    let text = buf_clone
+                                        .text(&buf_clone.start_iter(), &buf_clone.end_iter(), false)
+                                        .to_string();
+                                    let html_body = markdown_to_html(&text, &markdown_opts_inner);
+                                    let pretty = pretty_print_html(&html_body);
+
+                                    // Update the TextView content in the ScrolledWindow with formatted HTML
+                                    if let Some(child) = code_sw_inner.child() {
+                                        if let Some(text_view) =
+                                            child.downcast_ref::<gtk4::TextView>()
+                                        {
+                                            let buffer = text_view.buffer();
+                                            buffer.set_text(&pretty);
+                                        }
+                                    }
+
+                                    preview_timeout_id_inner.set(None);
+                                    glib::ControlFlow::Break
+                                },
+                            );
+                            preview_timeout_id_cloned.set(Some(id));
+                        });
+                    }
+                }
+            }
+        }) as Box<dyn Fn(ViewMode)>,
     )
 }
 use sourceview5::prelude::*; // For set_show_line_numbers

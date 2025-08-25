@@ -35,14 +35,24 @@ use std::rc::Rc;
 // Type alias for complex preview refresh callback
 type RefreshPreviewCallback = Rc<RefCell<Box<dyn Fn()>>>;
 
+/// Container for optional callbacks passed into the Settings dialog. Using a
+/// single struct keeps the function signature compact and satisfies clippy's
+/// `too_many_arguments` lint.
+///
+/// Construct this struct at the call-site and pass it into `show_settings_dialog`.
+pub struct SettingsDialogCallbacks {
+    pub on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
+    pub refresh_preview: Option<RefreshPreviewCallback>,
+    pub on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
+    pub on_schema_changed: Option<Box<dyn Fn(Option<String>) + 'static>>,
+    pub on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+}
+
 pub fn show_settings_dialog(
     parent: &Window,
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: PathBuf,
-    on_preview_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
-    refresh_preview: Option<RefreshPreviewCallback>,
-    on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
-    _on_schema_changed_callback: Option<Box<dyn Fn(Option<String>) + 'static>>,
+    callbacks: SettingsDialogCallbacks,
 ) {
     let dialog = Dialog::builder()
         .transient_for(parent)
@@ -58,18 +68,56 @@ pub fn show_settings_dialog(
         &tabs::editor::build_editor_tab(),
         Some(&Label::new(Some("Editor"))),
     );
+    // Build layout tab and provide a callback that will persist the setting and
+    // forward the value to any external on_view_mode_changed handler supplied by
+    // the caller via the `callbacks` struct.
+    let settings_path_clone = settings_path.clone();
+    // Read saved view mode so the layout tab can initialize its dropdown.
+    use crate::logic::swanson::Settings as AppSettings;
+    let saved_view_mode: Option<String> =
+        AppSettings::load_from_file(settings_path_clone.to_str().unwrap())
+            .unwrap_or_default()
+            .layout
+            .and_then(|l| l.view_mode);
+    // Move the optional outer callback into the closure so we don't require Clone
+    let outer_on_view = callbacks.on_view_mode_changed;
+    let layout_cb = std::boxed::Box::new(move |selected: String| {
+        use crate::logic::swanson::{LayoutSettings, Settings as AppSettings};
+        let mut app_settings =
+            AppSettings::load_from_file(settings_path_clone.to_str().unwrap()).unwrap_or_default();
+        if app_settings.layout.is_none() {
+            app_settings.layout = Some(LayoutSettings::default());
+        }
+        if let Some(ref mut layout) = app_settings.layout {
+            layout.view_mode = Some(selected.clone());
+        }
+        app_settings
+            .save_to_file(settings_path_clone.to_str().unwrap())
+            .ok();
+        // If the caller wanted a direct String callback, call it with the
+        // selected value.
+        if let Some(ref cb) = outer_on_view {
+            cb(selected.clone());
+        }
+    }) as std::boxed::Box<dyn Fn(String) + 'static>;
+
     notebook.append_page(
-        &tabs::layout::build_layout_tab(),
+        &tabs::layout::build_layout_tab(saved_view_mode, Some(layout_cb)),
         Some(&Label::new(Some("Layout"))),
     );
-    if let (Some(cb), Some(refresh_preview)) = (on_preview_theme_changed, refresh_preview.clone()) {
+
+    // Appearance tab wiring uses callbacks from the callbacks struct.
+    if let (Some(cb), Some(refresh_preview_cb)) = (
+        callbacks.on_preview_theme_changed,
+        callbacks.refresh_preview.clone(),
+    ) {
         notebook.append_page(
             &tabs::appearance::build_appearance_tab(
                 theme_manager.clone(),
                 settings_path.clone(),
                 cb,
-                refresh_preview,
-                on_editor_theme_changed,
+                refresh_preview_cb,
+                callbacks.on_editor_theme_changed,
             ),
             Some(&Label::new(Some("Appearance"))),
         );
@@ -80,7 +128,7 @@ pub fn show_settings_dialog(
                 settings_path.clone(),
                 Box::new(|_| {}),
                 Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
-                on_editor_theme_changed,
+                callbacks.on_editor_theme_changed,
             ),
             Some(&Label::new(Some("Appearance"))),
         );

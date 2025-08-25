@@ -1,7 +1,14 @@
 use gtk4::prelude::*;
 use gtk4::Box;
 
-pub fn build_layout_tab() -> Box {
+// Build the layout tab. `initial_view_mode` optionally sets which entry is
+// active when the tab is first shown (e.g. Some("Source Code") to select
+// the code preview). The optional callback will be called when the View Mode
+// dropdown changes and receives the selected value as a String.
+pub fn build_layout_tab(
+    initial_view_mode: Option<String>,
+    on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+) -> Box {
     use gtk4::{Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, Switch};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -54,7 +61,26 @@ pub fn build_layout_tab() -> Box {
     let view_mode_combo = ComboBoxText::new();
     view_mode_combo.append_text("HTML Preview");
     view_mode_combo.append_text("Source Code");
-    view_mode_combo.set_active(Some(0));
+    // Set active index based on saved setting if provided.
+    let active_index = match initial_view_mode.as_deref() {
+        Some(s)
+            if s.eq_ignore_ascii_case("source code") || s.eq_ignore_ascii_case("code preview") =>
+        {
+            Some(1)
+        }
+        _ => Some(0),
+    };
+    view_mode_combo.set_active(active_index);
+    // Connect change handler to notify owner if provided. Convert Option<String>
+    // to String when invoking the provided callback so callers receive a
+    // straightforward String value.
+    if let Some(cb) = on_view_mode_changed {
+        view_mode_combo.connect_changed(move |c| {
+            if let Some(text) = c.active_text() {
+                cb(text.to_string());
+            }
+        });
+    }
     let view_mode_row = add_row(
         "View Mode",
         "Choose the default mode for previewing Markdown content.",

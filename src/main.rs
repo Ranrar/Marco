@@ -304,7 +304,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         // no schema found; intentionally silent in normal startup
     }
 
-    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer, insert_mode_state) = create_editor_with_preview(
+    let (split, _webview, preview_css_rc, refresh_preview, update_editor_theme, update_preview_theme, editor_buffer, insert_mode_state, set_view_mode) = create_editor_with_preview(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         theme_manager.clone(),
@@ -312,11 +312,27 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         footer_labels_rc.clone()
     );
 
+    // Wrap setter into Rc so it can be cloned into action callbacks
+    let set_view_mode_rc: Rc<Box<dyn Fn(crate::ui::main_editor::ViewMode)>> = Rc::new(set_view_mode);
+
     // Wire up live footer updates using the actual editor buffer
     // Wire footer updates directly: wire_footer_updates will run callbacks on
     // the main loop and call `apply_footer_update` directly.
     wire_footer_updates(&editor_buffer, footer_labels_rc.clone(), active_schema_map.clone(), insert_mode_state.clone());
     split.add_css_class("split-view");
+
+    // Apply saved view mode from settings at startup (if present)
+    if let Ok(s) = crate::logic::swanson::Settings::load_from_file(settings_path.to_str().unwrap()) {
+        if let Some(layout) = s.layout {
+            if let Some(vm) = layout.view_mode {
+                match vm.as_str() {
+                    "HTML Preview" => (set_view_mode_rc)(crate::ui::main_editor::ViewMode::HtmlPreview),
+                    "Source Code" | "Code Preview" => (set_view_mode_rc)(crate::ui::main_editor::ViewMode::CodePreview),
+                    _ => {}
+                }
+            }
+        }
+    }
 
     // Closure to trigger an immediate footer syntax update using the active schema map
     let trigger_footer_update: std::rc::Rc<dyn Fn()> = std::rc::Rc::new({
@@ -387,7 +403,34 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let refresh_preview_for_settings2 = refresh_preview_rc.clone();
     let update_editor_theme_clone = Rc::new(update_editor_theme);
     let update_preview_theme_clone = Rc::new(update_preview_theme);
-        settings_action.connect_activate({
+    // Clone the runtime setter for the settings dialog callback so the original
+    // Rc isn't moved and can still be used for action registration below.
+    let set_view_mode_for_dialog = set_view_mode_rc.clone();
+
+    // Helper to persist view mode in settings.ron without blocking the UI
+    // This spawns a short-lived thread to perform file I/O. The settings file
+    // is small so this is a pragmatic choice; for heavy I/O consider using a
+    // dedicated worker queue or async executor.
+    let save_view_mode = {
+        let settings_path = settings_path.clone();
+        move |mode: &str| {
+            let path = settings_path.clone();
+            let mode_owned = mode.to_string();
+            std::thread::spawn(move || {
+                use crate::logic::swanson::{Settings as AppSettings, LayoutSettings};
+                let mut s = AppSettings::load_from_file(path.to_str().unwrap()).unwrap_or_default();
+                if s.layout.is_none() {
+                    s.layout = Some(LayoutSettings::default());
+                }
+                if let Some(ref mut l) = s.layout {
+                    l.view_mode = Some(mode_owned.clone());
+                }
+                let _ = s.save_to_file(path.to_str().unwrap());
+            });
+        }
+    };
+
+    settings_action.connect_activate({
             let win_clone = win_clone.clone();
             let theme_manager_clone = theme_manager_clone.clone();
             let settings_path_clone = settings_path_clone.clone();
@@ -409,11 +452,12 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                 };
                 
                 trace!("audit: opened settings dialog");
-                show_settings_dialog(
-                    win_clone.upcast_ref(),
-                    theme_manager_clone.clone(),
-                    settings_path_clone.clone(),
-                    Some(Box::new({
+                // Build the callbacks struct for the settings dialog to keep the
+                // callsite compact and satisfy the updated API.
+                use crate::ui::settings::dialog::SettingsDialogCallbacks;
+
+                let callbacks = SettingsDialogCallbacks {
+                    on_preview_theme_changed: Some(Box::new({
                         let theme_manager_clone = theme_manager_clone.clone();
                         let preview_css_for_settings = preview_css_for_settings.clone();
                         let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
@@ -428,9 +472,9 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                             (refresh_preview_for_settings2.borrow())();
                         }
                     })),
-                    Some(refresh_preview_for_settings2.clone()),
-                    Some(editor_callback),
-                    Some(Box::new({
+                    refresh_preview: Some(refresh_preview_for_settings2.clone()),
+                    on_editor_theme_changed: Some(editor_callback),
+                    on_schema_changed: Some(Box::new({
                         let active_schema_map = active_schema_map.clone();
                         let config_dir = config_dir.clone();
                         let settings_path_clone = settings_path_clone.clone();
@@ -449,11 +493,70 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                             // Trigger immediate footer update
                             (trigger)();
                         }
-                    }) as Box<dyn Fn(Option<String>) + 'static>),
+                    })),
+                    // on_view_mode_changed: persist and forward to runtime setter
+                    on_view_mode_changed: Some(Box::new({
+                        let sv = set_view_mode_for_dialog.clone();
+                        let save = save_view_mode.clone();
+                        move |selected: String| {
+                            // Persist the selection asynchronously
+                            save(&selected);
+                            match selected.as_str() {
+                                "HTML Preview" => (sv)(crate::ui::main_editor::ViewMode::HtmlPreview),
+                                "Source Code" | "Code Preview" => (sv)(crate::ui::main_editor::ViewMode::CodePreview),
+                                _ => {}
+                            }
+                        }
+                    }) as Box<dyn Fn(String) + 'static>),
+                };
+
+                show_settings_dialog(
+                    win_clone.upcast_ref(),
+                    theme_manager_clone.clone(),
+                    settings_path_clone.clone(),
+                    callbacks,
                 );
             }
         });
     app.add_action(&settings_action);
+
+    // Register view mode actions to switch preview and persist setting
+    let sv_clone = set_view_mode_rc.clone();
+    let settings_path_clone2 = settings_path.clone();
+    let view_html_action = gtk4::gio::SimpleAction::new("view_html", None);
+    view_html_action.connect_activate(move |_, _| {
+        (sv_clone)(crate::ui::main_editor::ViewMode::HtmlPreview);
+        // Persist setting
+    let mut s = crate::logic::swanson::Settings::load_from_file(settings_path_clone2.to_str().unwrap()).unwrap_or_default();
+    if true {
+            if s.layout.is_none() {
+                s.layout = Some(crate::logic::swanson::LayoutSettings::default());
+            }
+            if let Some(ref mut l) = s.layout {
+                l.view_mode = Some("HTML Preview".to_string());
+            }
+            let _ = s.save_to_file(settings_path_clone2.to_str().unwrap());
+    }
+    });
+    app.add_action(&view_html_action);
+
+    let sv_clone2 = set_view_mode_rc.clone();
+    let settings_path_clone3 = settings_path.clone();
+    let view_code_action = gtk4::gio::SimpleAction::new("view_code", None);
+    view_code_action.connect_activate(move |_, _| {
+        (sv_clone2)(crate::ui::main_editor::ViewMode::CodePreview);
+        let mut s = crate::logic::swanson::Settings::load_from_file(settings_path_clone3.to_str().unwrap()).unwrap_or_default();
+        if true {
+            if s.layout.is_none() {
+                s.layout = Some(crate::logic::swanson::LayoutSettings::default());
+            }
+            if let Some(ref mut l) = s.layout {
+                l.view_mode = Some("Source Code".to_string());
+            }
+            let _ = s.save_to_file(settings_path_clone3.to_str().unwrap());
+        }
+    });
+    app.add_action(&view_code_action);
 
     // Create file operations handler
     let file_operations = FileOperations::new(
