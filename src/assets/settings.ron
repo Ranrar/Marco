@@ -7,7 +7,7 @@
         ui_font_size: None,
     )),
     layout: Some((
-        view_mode: Some("HTML Preview"),
+        view_mode: Some("Source Code"),
         sync_scrolling: None,
         editor_view_split: None,
         show_line_numbers: None,

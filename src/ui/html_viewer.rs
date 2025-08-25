@@ -41,7 +41,17 @@ pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
 
 /// Create a scrollable, read-only viewer that displays the raw HTML source.
 /// For show source code.
-pub fn create_html_source_viewer(html: &str) -> gtk4::ScrolledWindow {
+/// Create a scrollable, read-only viewer that displays the raw HTML source.
+/// If `editor_bg`/`editor_fg` are provided, apply those colors to the TextView so
+/// the source view matches the editor theme. If `add_editor_scrolled_class` is
+/// true, the ScrolledWindow will be given the `editor-scrolled` CSS class so
+/// any global scrollbar styling injected by the application applies to it.
+pub fn create_html_source_viewer(
+    html: &str,
+    editor_bg: Option<&str>,
+    editor_fg: Option<&str>,
+    add_editor_scrolled_class: bool,
+) -> gtk4::ScrolledWindow {
     use gtk4::{PolicyType, ScrolledWindow, TextBuffer, TextView};
 
     let sw = ScrolledWindow::new();
@@ -58,10 +68,41 @@ pub fn create_html_source_viewer(html: &str) -> gtk4::ScrolledWindow {
     let ctx = tv.style_context();
     ctx.add_class("monospace");
 
+    // If editor colors are provided, add a wrapper class and load a small
+    // CSS provider to set the TextView foreground/background so the source
+    // viewer visually matches the editor theme.
+    if editor_bg.is_some() || editor_fg.is_some() {
+        // Add a class to the scrolled window so the CSS can target the child
+        sw.add_css_class("source-preview");
+        if let Some(display) = gtk4::gdk::Display::default() {
+            let mut css_rules = String::new();
+            let bg = editor_bg.unwrap_or("transparent");
+            let fg = editor_fg.unwrap_or("#000000");
+            // Target the monospace class we set on the TextView
+            css_rules.push_str(&format!(
+                ".source-preview .monospace {{ background-color: {}; color: {}; }}",
+                bg, fg
+            ));
+            let provider = gtk4::CssProvider::new();
+            provider.load_from_data(&css_rules);
+            // Register CSS provider for the display so our small rules apply.
+            gtk4::style_context_add_provider_for_display(
+                &display,
+                &provider,
+                gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        }
+    }
+
     let buffer = TextBuffer::new(None::<&gtk4::TextTagTable>);
     buffer.set_text(html);
     tv.set_buffer(Some(&buffer));
-
     sw.set_child(Some(&tv));
+
+    // If requested, add the editor-scrolled CSS class so the app's scrollbar
+    // CSS (which uses the .editor-scrolled selector) applies to this scrolled window.
+    if add_editor_scrolled_class {
+        sw.add_css_class("editor-scrolled");
+    }
     sw
 }

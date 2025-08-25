@@ -265,6 +265,9 @@ pub fn create_editor_with_preview(
     // preview scrollbar matches editor. Fallback to light defaults.
     let mut initial_thumb = String::from("#D0D4D8");
     let mut initial_track = String::from("#F0F0F0");
+    // Also try to extract editor background/foreground for code source view
+    let editor_bg_color: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+    let editor_fg_color: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
     let editor_dir = theme_manager.borrow().editor_theme_dir.clone();
     if editor_dir.exists() && editor_dir.is_dir() {
         if let Ok(entries) = std::fs::read_dir(&editor_dir) {
@@ -285,6 +288,25 @@ pub fn create_editor_with_preview(
                             }
                             if let Some(v) = extract_xml_color_value(&contents, "scrollbar-track") {
                                 initial_track = v;
+                            }
+                            // Try common tokens for background/text
+                            if editor_bg_color.borrow().is_none() {
+                                if let Some(v) = extract_xml_color_value(&contents, "dark-bg") {
+                                    *editor_bg_color.borrow_mut() = Some(v);
+                                } else if let Some(v) =
+                                    extract_xml_color_value(&contents, "light-bg")
+                                {
+                                    *editor_bg_color.borrow_mut() = Some(v);
+                                }
+                            }
+                            if editor_fg_color.borrow().is_none() {
+                                if let Some(v) = extract_xml_color_value(&contents, "dark-text") {
+                                    *editor_fg_color.borrow_mut() = Some(v);
+                                } else if let Some(v) =
+                                    extract_xml_color_value(&contents, "light-text")
+                                {
+                                    *editor_fg_color.borrow_mut() = Some(v);
+                                }
                             }
                             break;
                         }
@@ -462,6 +484,10 @@ pub fn create_editor_with_preview(
     let theme_mode_for_update = theme_mode_rc.clone();
     let markdown_opts_for_update = std::rc::Rc::clone(&markdown_opts_rc);
     let wheel_js_for_update = wheel_js_rc.clone();
+    // Clone editor bg/fg holders for use within the update_theme closure so
+    // we don't move the originals out of scope (they're needed elsewhere).
+    let editor_bg_for_update = editor_bg_color.clone();
+    let editor_fg_for_update = editor_fg_color.clone();
     let update_theme = Box::new(move |scheme_id: &str| {
         if let Some(scheme) = theme_manager_for_scheme
             .borrow()
@@ -482,6 +508,10 @@ pub fn create_editor_with_preview(
         // id="..."> matching `scheme_id` and use that file.
         let mut thumb = String::from("#D0D4D8");
         let mut track = String::from("#F0F0F0");
+        // If we have editor color tokens from XML, store them into the
+        // outer variables so they can be used when creating the source view.
+        let mut found_bg: Option<String> = None;
+        let mut found_fg: Option<String> = None;
         let editor_dir = theme_manager_for_scheme.borrow().editor_theme_dir.clone();
         let mut found = false;
         if editor_dir.exists() && editor_dir.is_dir() {
@@ -509,6 +539,26 @@ pub fn create_editor_with_preview(
                                 {
                                     track = v;
                                 }
+                                // Try common tokens for background/text
+                                if found_bg.is_none() {
+                                    if let Some(v) = extract_xml_color_value(&contents, "dark-bg") {
+                                        found_bg = Some(v);
+                                    } else if let Some(v) =
+                                        extract_xml_color_value(&contents, "light-bg")
+                                    {
+                                        found_bg = Some(v);
+                                    }
+                                }
+                                if found_fg.is_none() {
+                                    if let Some(v) = extract_xml_color_value(&contents, "dark-text")
+                                    {
+                                        found_fg = Some(v);
+                                    } else if let Some(v) =
+                                        extract_xml_color_value(&contents, "light-text")
+                                    {
+                                        found_fg = Some(v);
+                                    }
+                                }
                                 found = true;
                                 break;
                             }
@@ -519,6 +569,14 @@ pub fn create_editor_with_preview(
         }
         if !found {
             // Missing editor theme XML - suppressed terminal output.
+        }
+
+        // If we discovered bg/fg tokens, write them back to the outer vars
+        if let Some(bgv) = found_bg {
+            *editor_bg_for_update.borrow_mut() = Some(bgv);
+        }
+        if let Some(fgv) = found_fg {
+            *editor_fg_for_update.borrow_mut() = Some(fgv);
         }
 
         // Build CSS and load into the scrolled provider
@@ -808,7 +866,14 @@ pub fn create_editor_with_preview(
                             .to_string();
                         let html_body = markdown_to_html(&text, &markdown_opts);
                         let pretty = pretty_print_html(&html_body);
-                        let code_sw = crate::ui::html_viewer::create_html_source_viewer(&pretty);
+                        // Provide editor colors so the source view mirrors the editor theme
+                        let bg_borrow = editor_bg_color.borrow();
+                        let fg_borrow = editor_fg_color.borrow();
+                        let bg = bg_borrow.as_deref();
+                        let fg = fg_borrow.as_deref();
+                        let code_sw = crate::ui::html_viewer::create_html_source_viewer(
+                            &pretty, bg, fg, true,
+                        );
                         // Apply captured fraction (if any) after mapping
                         let frac = captured_frac;
                         if frac > 0.0 {

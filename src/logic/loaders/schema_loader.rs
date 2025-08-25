@@ -1,3 +1,4 @@
+/*
 //! Markdown schema loader for settings tab
 //! Scans src/assets/markdown_schema/ for valid schemas
 
@@ -44,3 +45,10 @@ pub fn list_available_schemas(root: &Path) -> Vec<MarkdownSchema> {
     }
     schemas
 }
+*/
+
+// NOTE: The original `schema_loader.rs` implementation is preserved above
+// but commented out because the module is currently unused. If you want to
+// re-enable schema detection in the Settings dialog, uncomment the block and
+// ensure the `src/assets/markdown_schema/` directory exists and contains
+// valid schema folders (each with `ast.ron` and `syntax.ron`).
