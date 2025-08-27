@@ -87,12 +87,6 @@ Run tests:
 cargo test --lib --tests -- --nocapture
 ```
 
-Run the AST/syntax checker (Python):
-
-```bash
-python3 tools/ast_syntax_checker/main.py
-```
-
 ## Troubleshooting
 
 - GTK CSS errors: Ensure you run from the repository root so relative theme paths resolve. Check `src/assets/themes/*` exists.
@@ -113,13 +107,6 @@ These are areas where an implemented contribution will have big impact. If you p
     - Wire the component into the editor buffer event loop: when the local buffer changes, the component should produce and broadcast a patch; when remote patches arrive, they should be applied to the `DocumentBuffer` using documented public update methods.
     - Respect existing undo/redo and cursor/selection synchronization: treat remote changes as first-class edits and emit events the UI can use to update cursors.
   - Testing notes: add unit tests for concurrent patches, and an integration test using two in-process backends that exchange patches.
-
-- More AST + syntax flavors
-  - Goal: Expand `src/assets/markdown_schema/` with more flavors and generating `display_hints.ron`.
-  - Integration points:
-  - Use `tools/ast_syntax_checker/` to test a given schema in `src/assets/markdown_schema/"name"`.
-  - Testing notes: Test all added/new AST/Syntax to se if they work in the `footer` and `Preview` if not open a issue.
-  - Submit an PR, when `ast_syntax_checker` shows the file has passed all tests
 
  - AI-assisted tools
   - Goal: Provide a component API and example component that offers in-editor assistance (summaries, rewrite suggestions, universal spell checking, autocorrect).

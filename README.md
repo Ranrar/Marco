@@ -1,8 +1,6 @@
 # Marco — a lightweight Rust Markdown Composer
 
-Marco is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and integration with tools for AST validation and documentation.
-
-This repository contains the application source, UI components, loaders, and tools, to validate own markdown flavor.
+Marco is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and integration with AST validation and documentation.
 
 ## Key features
 
@@ -14,7 +12,6 @@ This repository contains the application source, UI components, loaders, and too
 ## Architecture & internals
 
 - GTK4-based UI with modular components (editor, viewers, toolbar, menus)
-- Syntax and AST tooling (loaders and checkers under `src/assets/tools`)
 - Asset pipeline for icons, fonts, and themes (see `src/assets/`)
 - Support for adding custom AST and syntax definitions `src/assets/markdown_schema`
 
@@ -87,7 +84,6 @@ Code style & expectations:
 If you'd like to make a high-impact contribution, consider one of these areas — open an issue first so we can coordinate:
 
 - Collaborative editing (Yjs / CRDT): add a `components/collab/` backend that implements a `CollabBackend` trait and provide in-process tests for concurrent patches and cursor sync.
-- More AST & syntax flavors: expand `src/assets/markdown_schema/` and improve `tools/ast_syntax_checker/` to validate and generate `display_hints.ron` for new flavors.
 - AI-assisted tools: add a `components/ai/` interface for suggestions/edits; keep adapters off the UI thread and provide a small example implementation.
 
 ### Component docs & assets
@@ -100,16 +96,3 @@ Reference locations for contributors working on components and translations:
 - [src/assets/language/language matrix.md](src/assets/language/language%20matrix.md) — language implementation matrix
 
 If you add new component folders, please include a short `README.md` in the folder that explains the contract, tests, and how to run the component's dev harness.
-
-## Development notes & tips
-
-I have a small CLI tool at `tools/ast_syntax_checker/` that validates example `ast.ron` files against `syntax.ron` and can generate `display_hints.ron` for the UI.
-
-Use it when adding a new markdown flavor to check syntax/AST consistency and produce renderer hints.
-
-Run from project root:
-
-	python3 src/assets/tools/ast_syntax_checker/main.py
-
-See the tool folder for a short `requirements.txt` if you need Python dependencies.
-			python3 src/assets/tools/ast_syntax_checker/main.py
