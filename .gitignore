@@ -7,6 +7,7 @@ target
 /.github/chatmodes
 /.github/instructions
 /.VSCodeCounter
+tools
 /.vscode
 /dev
 

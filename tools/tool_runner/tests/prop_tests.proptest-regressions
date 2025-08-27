@@ -1,8 +1,0 @@
-# Seeds for failure cases proptest has generated in the past. It is
-# automatically read and these particular cases re-run before any
-# novel cases are generated.
-#
-# It is recommended to check this file in to source control so that
-# everyone who runs the test benefits from these saved cases.
-cc e2a9ad7f889f3f3a48400cf9a3520bb914f022e6976c5ce9cab893f5c9fc6207 # shrinks to (kinds, grammar_rules) = (["a"], [])
-cc 276fd7a8f3cdc936e44bb4e7b9585c5a66fcb89cbace37f231ea114b0fbba50a # shrinks to (ast_kinds, syntax_kinds) = (["a"], [])
