@@ -51,7 +51,7 @@ Planned and desired improvements
 - AI-assisted tools: assistant for writing and editing suggestions
 - Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence
 - Enhanced AST validation and UI for syntax hints
-- Packaging and distribution (flatpak, deb, rpm)
+- Packaging and distribution
 - Language plugin system (add new language support via plugins)
 - Advanced syntax features with linting support
 - Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
