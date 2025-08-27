@@ -1,6 +1,8 @@
-# Marco — a lightweight Rust Markdown Composer
+<p align="center">
+  <img src="https://github.com/Ranrar/marco/blob/main/documentation/user%20guide/logo.png" />
+</p>
 
-Marco is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and integration with AST validation and documentation.
+Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and custom markdown features.
 
 ## Key features
 
