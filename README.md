@@ -21,6 +21,10 @@ Below is a **preview of what’s coming**:
 
 You can see a **live snippet** of the Markdown features we’re working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
 
+<p align="center">
+  <img src="documentation/Screenshot/Screenshot from 2025-08-27 17-38-22.png" />
+</p>
+
 ## Text Formatting
 
 * **Headings**: Use `#` at the start of a line to create titles and subtitles. These show up in the Table of Contents and help structure your document.
