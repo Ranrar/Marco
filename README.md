@@ -6,7 +6,28 @@ Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written
 
 ## Features in Progress
 
+
 The **UI is mostly complete**, and we’re now turning our focus to the engine behind Marco. We’re actively developing the **grammar, AST, and syntax rules** for the parser and renderer, which will bring the editor to life.
+
+We added a small, custom debug harness to exercise the parser and test-suite so we can iterate quickly on grammar fixes and measure progress. Current parser test-run (debug harness):
+
+| Metric | Value |
+|---|---|
+| Total tests | 1225 |
+| Passed | 592 ✅ |
+| Failed | 633 ❌ |
+| Success rate | 48.3% |
+
+Debug outputs:
+
+| File | Last run | Stats |
+|---|---|---|
+| [benchmark results](debug/src/results/benchmark_results.md) | 2025-09-03 11:05:31 +02:00 | 140 / 340 passed (41.2%), total time 33.26ms |
+| [test results](debug/src/results/test_results.md) | 2025-09-03 11:04:18 +02:00 | 592 / 1225 passed (48.3%), 633 failed |
+
+Executive summary: analysis of the harness output shows a major "text rule" problem — roughly 70% of the remaining failures are caused by the CommonMark golden-standard `text` tests (text over-matching block content). This is the primary focus for Phase 1 implementation: refine boundary detection and text-rule exclusions so block-level constructs (headings, lists, blockquotes, code, tables, HTML) are recognized correctly.
+
+> Note: this branch doesn't yet build into a full application — a few core pieces (AST, syntax, phraser, renderer) are intentionally left out while we focus on stabilizing the grammar and tests. Once the parser test-suite reaches a satisfactory state we'll add those components and continue toward a runnable app; we don't have an exact timeline yet.
 
 Right now, the editor is in an early stage — features are limited — but this will change as we implement the new Markdown capabilities.
 
