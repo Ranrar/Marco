@@ -1,0 +1,342 @@
+// Marco flavor grammar
+// This file defines the Marco markdown dialect used by the editor and parser.
+// Covered features: link handling (validation, YouTube embedding, image inlining),
+// list parsing (ordered, unordered, nested, task lists), macros (inline and block),
+// tables, headings, paragraphs, code/maths blocks, and common inline formatting.
+
+// ===== WHITESPACE AND INDENTATION =====
+WHITESPACE = _{ " " | "\t" }
+NEWLINE    = _{ "\r\n" | "\n" }
+INDENT_OPT = _{ (" " | "\t")* }
+BLANK_LINE = _{ WHITESPACE* ~ NEWLINE }
+INDENT     = _{ " "{4} | "\t" }
+NON_INDENT = _{ " "{0, 3} }
+
+// ===== CASE-INSENSITIVE KEYWORDS =====
+KW_NOTE     = @{ ^"note" }
+KW_TIP      = @{ ^"tip" }
+KW_WARNING  = @{ ^"warning" }
+KW_DANGER   = @{ ^"danger" }
+KW_INFO     = @{ ^"info" }
+KW_BOOKMARK = @{ ^"bookmark" }
+KW_PAGE     = @{ ^"page" }
+KW_DOC      = @{ ^"doc" }
+KW_TOC      = @{ ^"toc" }
+KW_TABS     = @{ ^"tabs" }
+KW_TAB      = @{ ^"tab" }
+
+// Script types
+KW_BASH       = @{ ^"bash" }
+KW_ZSH        = @{ ^"zsh" }
+KW_SH         = @{ ^"sh" }
+KW_BAT        = @{ ^"bat" }
+KW_POWERSHELL = @{ ^"powershell" }
+KW_PS         = @{ ^"ps" }
+KW_PYTHON     = @{ ^"python" }
+KW_PY         = @{ ^"py" }
+KW_RUN        = @{ ^"run@" }
+
+// Diagram types
+KW_MERMAID  = @{ ^"mermaid" }
+KW_GRAPHVIZ = @{ ^"graphviz" }
+
+// ===== MAIN STRUCTURE =====
+document =  { section* }
+section  = _{ BLANK_LINE* ~ block ~ BLANK_LINE* }
+file     =  { SOI ~ document ~ EOI }
+
+// ===== BLOCK LEVEL - Ordered by specificity =====
+block = { code_block | math_block | hr | heading | blockquote | table | list | macro_block | footnote_def | reference_definition | reference_link | reference_image | def_list | block_comment | block_html | paragraph | unknown_block }
+
+// Error recovery for unrecognized blocks
+unknown_block = { (!NEWLINE ~ ANY)+ }
+macro_block   = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tabs_block }
+
+// ===== INLINE LEVEL - Ordered by specificity =====
+inline_core = { escaped_char | inline_link | inline_image | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | line_break | text }
+
+// Escape sequences for markdown special characters
+escaped_char = @{ "\\" ~ markdown_special }
+line_break   = @{ " "{2, } ~ NEWLINE }
+inline       =  { inline_core | inline_task_item }
+macro_inline =  { user_mention | run_inline | page_tag | toc | doc_ref }
+
+// Combined emphasis rules for proper precedence
+emphasis = { bold_italic | bold | italic }
+
+// ===== TEXT AND CHARACTERS =====
+
+word           = @{ unicode_letter+ ~ (inner_char* ~ unicode_letter+)* }
+inner_char     = _{ "-" | "'" }
+unicode_letter = _{ ASCII_ALPHANUMERIC | LETTER }
+
+safe_punct       = @{ !(markdown_special) ~ PUNCTUATION }
+markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "|" | "$" | "@" | "^" | "=" | "-" }
+
+math_symbol = @{ "±" | "√" | "∞" | "∑" | "≈" | "≠" | "≤" | "≥" | "∆" | "π" | "α" | "β" | "γ" | "λ" | "μ" | "σ" | "Ω" | "+" | "=" | "×" | "÷" }
+
+// Phase 1d: Line-aware text rule with sophisticated boundary detection
+// Conservative text: refuse to match if the line begins with any block-start marker
+// Text must be conservative at the start of a line (avoid stealing blocks),
+// but mid-line text should be permissive.
+text = @{
+    ((SOI | NEWLINE) ~ WHITESPACE* ~ !line_start_marker ~ text_line_content+)
+  | (!(SOI | NEWLINE) ~ text_line_content+)
+}
+
+text_line_content = _{
+    word
+  | safe_punct
+  | " "
+  | math_symbol
+  | inline_formatting_safe
+}
+
+// Detect block starts when anchored to start of input/line
+// Detect block starts when anchored to start of input/line. Allow optional leading whitespace.
+// Block markers (used in negative lookaheads after optional whitespace has been consumed)
+line_start_marker = _{
+    (heading_start | hr_start | list_start | blockquote_start | admonition_start | code_start | table_start | html_start)
+}
+
+heading_start = _{ "#"{1, 6} ~ " " }
+hr_start      = _{ ("***" | "---" | "___") ~ (WHITESPACE | NEWLINE | EOI) }
+// List start must be marker followed by space and not part of a word (e.g. #1. not a list)
+list_start = _{
+    NON_INDENT? ~ (("-" | "*" | "+") ~ " " | (ASCII_DIGIT+ ~ "." ~ " "))
+}
+// Blockquote must be a > optionally followed by a space and then either whitespace or content
+blockquote_start = _{ WHITESPACE* ~ ">" ~ (" " | "\t" | &NEWLINE | &EOI) }
+admonition_start = _{ ":::" }
+code_start       = _{ "```" | INDENT }
+// HTML start detection to prevent text consuming tags that begin a block
+html_start  = _{ "<" ~ ASCII_ALPHA }
+table_start = _{ "|" }
+
+inline_formatting_safe = _{
+    !("**" | "__" | "*" | "_" | "`" | "[" | "!" | "$$" | "$") ~ ANY
+}
+
+safe_inline = { word | safe_punct | " " | math_symbol }
+
+// URL components
+URL_SAFE = _{ unicode_letter | ASCII_DIGIT | "-" | "_" | "." | "/" | "?" | "&" | "=" | "%" | "#" | "~" | ":" }
+
+// ===== PARAGRAPH =====
+paragraph_line = { inline+ }
+paragraph      = { NON_INDENT? ~ !(block_start) ~ paragraph_line ~ (NEWLINE ~ !(block_start) ~ paragraph_line)* }
+
+// Helper to identify block starts
+// More precise block start detection
+// More precise block_start anchored at line start
+// block_start now reuses line_start_marker for clarity and to ensure usage
+block_start = _{
+    (SOI | NEWLINE) ~ WHITESPACE* ~ line_start_marker
+}
+
+// ===== HEADINGS =====
+// ATX headings (##) and Setext headings (underlines)
+H1 = { "#" ~ " "* ~ heading_content }
+H2 = { "##" ~ " "* ~ heading_content }
+H3 = { "###" ~ " "* ~ heading_content }
+H4 = { "####" ~ " "* ~ heading_content }
+H5 = { "#####" ~ " "* ~ heading_content }
+H6 = { "######" ~ " "* ~ heading_content }
+
+setext_h1 = { heading_content ~ NEWLINE ~ "="+ }
+setext_h2 = { heading_content ~ NEWLINE ~ "-"+ }
+
+heading_content = { safe_inline+ }
+heading         = { H6 | H5 | H4 | H3 | H2 | H1 | setext_h2 | setext_h1 }
+
+// ===== BLOCKQUOTE =====
+blockquote_line = { ">" ~ " "? ~ inline* }
+blockquote      = { blockquote_line ~ (NEWLINE ~ blockquote_line)* }
+
+// ===== TEXT FORMATTING =====
+// Bold: **text** or __text__
+bold_asterisk   = @{ "**" ~ (!"**" ~ (!NEWLINE ~ ANY))+ ~ "**" }
+bold_underscore = @{ "__" ~ (!"__" ~ (!NEWLINE ~ ANY))+ ~ "__" }
+bold            =  { bold_asterisk | bold_underscore }
+
+// Italic: *text* or _text_
+italic_asterisk   = @{ "*" ~ (!"*" ~ !"**" ~ (!NEWLINE ~ ANY))+ ~ "*" }
+italic_underscore = @{ "_" ~ (!"_" ~ !"__" ~ (!NEWLINE ~ ANY))+ ~ "_" }
+italic            =  { italic_asterisk | italic_underscore }
+
+// Bold + Italic combinations
+bold_italic_triple_asterisk   = @{ "***" ~ (!"***" ~ (!NEWLINE ~ ANY))+ ~ "***" }
+bold_italic_triple_underscore = @{ "___" ~ (!"___" ~ (!NEWLINE ~ ANY))+ ~ "___" }
+bold_italic_mixed_ast_under   = @{ "**_" ~ (!"_**" ~ (!NEWLINE ~ ANY))+ ~ "_**" }
+bold_italic_mixed_under_ast   = @{ "__*" ~ (!"*__" ~ (!NEWLINE ~ ANY))+ ~ "*__" }
+bold_italic                   =  { bold_italic_triple_asterisk | bold_italic_triple_underscore | bold_italic_mixed_ast_under | bold_italic_mixed_under_ast }
+
+// Strikethrough: ~~text~~ or --text--
+strikethrough_tilde = @{ "~~" ~ (!"~~" ~ (!NEWLINE ~ ANY))+ ~ "~~" }
+strikethrough_dash  = @{ "--" ~ (!"--" ~ (!NEWLINE ~ ANY))+ ~ "--" }
+strikethrough       =  { strikethrough_tilde | strikethrough_dash }
+
+// Highlight (Marco extension)
+highlight = @{ "==" ~ (!"==" ~ (!NEWLINE ~ ANY))+ ~ "==" }
+
+// Inline formatting
+emoji       = @{ ":" ~ (!(":" | WHITESPACE | NEWLINE) ~ ANY)+ ~ ":" }
+code_inline = @{ "`" ~ (!"`" ~ ANY)+ ~ "`" }
+superscript = @{ "^" ~ (!"^" ~ (!WHITESPACE ~ ANY))+ ~ "^" }
+subscript   = @{ "˅" ~ (!"˅" ~ (!WHITESPACE ~ ANY))+ ~ "˅" }
+
+// ===== LINKS AND IMAGES =====
+// HTTP / HTTPS / WWW / Mailto / Local paths
+http_url = @{ ("https://" | "http://") ~ URL_SAFE+ }
+www_url  = @{ "www." ~ URL_SAFE+ }
+
+// Email - Working pattern with subdomain support
+EMAIL_LOCAL       = @{ ASCII_ALPHANUMERIC+ ~ (ASCII_ALPHANUMERIC | "." | "_" | "-" | "+")* }
+EMAIL_FULL_DOMAIN = @{ (ASCII_ALPHANUMERIC+ ~ ".")+ ~ ASCII_ALPHANUMERIC+ }
+mailto            = @{ "mailto:" ~ EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN }
+
+// Local paths - More restrictive to avoid matching regular words
+local_path = @{
+    ("./" | "../" | "/" | ASCII_ALPHA ~ ":/" | ASCII_ALPHA ~ ":\\") ~ (!")" ~ ANY)+
+  | ASCII_ALPHANUMERIC+ ~ ("/" ~ (ASCII_ALPHANUMERIC | unicode_letter | "." | "-" | "_")+)+
+}
+
+// YouTube URLs
+youtube_url = @{ ("https://youtu.be/" | "http://youtu.be/" | "https://www.youtube.com/watch?v=" | "http://www.youtube.com/watch?v=") ~ URL_SAFE+ }
+
+// Image file extensions (case-insensitive)
+image_ext = @{ "." ~ (^"jpg" | ^"jpeg" | ^"png" | ^"gif" | ^"webp" | ^"svg") }
+image_url = @{ (http_url | www_url | local_path) ~ image_ext }
+
+// Inline link components
+inline_link_text = @{ (!"]" ~ ANY)* }
+inline_url       = @{ http_url | www_url | mailto | local_path }
+
+// Inline link and image
+inline_link  = { "[" ~ inline_link_text ~ "](" ~ inline_url ~ ")" }
+inline_image = { "!" ~ "[" ~ inline_link_text ~ "](" ~ inline_url ~ ")" }
+
+// Reference-style links
+block_caption   = { (!"]" ~ ANY)+ }
+reference_link  = { "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" }
+reference_image = { "!" ~ "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" }
+
+// Reference definition
+ref_title            = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+reference_definition = { "[" ~ block_caption ~ "]" ~ ":" ~ WHITESPACE* ~ inline_url ~ (WHITESPACE+ ~ ref_title)? ~ (NEWLINE | EOI) }
+
+// Block-level images and YouTube embeds
+block_image   = { "!"? ~ "[" ~ block_caption ~ "](" ~ image_url ~ ")" }
+block_youtube = { "[" ~ block_caption ~ "](" ~ youtube_url ~ ")" }
+
+// ===== CODE AND MATH =====
+// Fenced code block with optional language
+language_id   = @{ ASCII_ALPHA+ ~ (ASCII_ALPHANUMERIC | "-" | "_")* }
+fenced_code   =  { "```" ~ language_id? ~ NEWLINE ~ (!"```" ~ ANY)* ~ "```" }
+indented_code =  { INDENT+ ~ (!NEWLINE ~ ANY)+ ~ (NEWLINE ~ INDENT+ ~ (!NEWLINE ~ ANY)+)* }
+code_block    =  { fenced_code | indented_code }
+
+// Math
+math_inline = { "$" ~ (!"$" ~ ANY | "\\" ~ "$")* ~ "$" }
+math_block  = { "$$" ~ (!"$$" ~ ANY | "\\" ~ "$")* ~ "$$" }
+
+// ===== HORIZONTAL RULE =====
+hr = { WHITESPACE* ~ ("---" | "***" | "___") ~ WHITESPACE* }
+
+// ===== FOOTNOTES =====
+// Inline footnote (Pandoc/Obsidian style): ^[text]
+inline_footnote_ref = { "^" ~ "[" ~ (!"]" ~ ANY)+ ~ "]" }
+
+// Footnote reference: [^label]
+footnote_label = @{ (ASCII_ALPHANUMERIC | unicode_letter)+ }
+footnote_ref   =  { "[^" ~ footnote_label ~ "]" }
+
+// Footnote definition: [^label]: content
+footnote_def = { "[^" ~ footnote_label ~ "]" ~ ":" ~ WHITESPACE+ ~ (!NEWLINE ~ ANY)* ~ (NEWLINE ~ WHITESPACE+ ~ (!NEWLINE ~ ANY)*)* }
+
+// ===== COMMENTS =====
+inline_comment = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
+block_comment  = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
+
+// ===== HTML =====
+inline_html = { "<" ~ (!">" ~ ANY)+ ~ ">" }
+block_html  = { "<" ~ (!">" ~ ANY | NEWLINE)* ~ ">" }
+
+// ===== LISTS =====
+list              =  { list_item ~ (NEWLINE ~ list_item)* ~ NEWLINE? }
+list_item         =  { (SOI | NEWLINE)? ~ INDENT_OPT? ~ (task_list_item | regular_list_item) }
+regular_list_item = ${ list_marker ~ " " ~ list_item_content }
+task_list_item    =  { list_marker ~ WHITESPACE+ ~ task_marker ~ WHITESPACE+ ~ list_item_content ~ task_metadata? }
+list_item_content =  { (!NEWLINE ~ ANY)+ }
+list_marker       = @{ unordered_marker | ordered_marker }
+unordered_marker  = @{ "-" | "*" | "+" }
+ordered_marker    = @{ ASCII_DIGIT+ ~ "." }
+
+// Task-specific components
+task_marker   = { "[" ~ (" " | "x" | "X") ~ "]" }
+task_metadata = { "(" ~ (!":" ~ ANY)+ ~ ":" ~ " " ~ (!")" ~ ANY)+ ~ ")" }
+
+// Inline task item (without bullet) - for use in paragraphs
+inline_task_item = { task_marker ~ " " ~ inline* ~ task_metadata? }
+
+// ===== DEFINITION LIST =====
+def_list  =  { (term_line ~ (NEWLINE ~ def_line)+)+ }
+term_line = @{ (!NEWLINE ~ ANY)+ }
+def_line  =  { ":" ~ " " ~ (!NEWLINE ~ ANY)+ }
+
+// ===== TABLES =====
+table          = { table_header ~ NEWLINE ~ table_sep ~ (NEWLINE ~ table_row)* }
+table_header   = { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|" }
+table_sep      = { "|" ~ table_sep_cell ~ ("|" ~ table_sep_cell)* ~ "|" }
+table_row      = { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|" }
+table_cell     = { WHITESPACE* ~ inline_core* ~ WHITESPACE* }
+table_sep_cell = { WHITESPACE* ~ ":"? ~ "-"+ ~ ":"? ~ WHITESPACE* }
+
+// ===== MARCO =====
+
+// Tabs block
+tabs_block      =  { tabs_header ~ NEWLINE ~ general_content? ~ tab+ ~ tabs_end }
+tabs_header     =  { ":::" ~ NEWLINE? ~ WHITESPACE* ~ KW_TABS ~ (WHITESPACE+ ~ (!NEWLINE ~ ANY)*)? }
+general_content =  { (!tab_line ~ ANY ~ NEWLINE)* }
+tab             =  { tab_line ~ tab_content }
+tab_line        =  { "@" ~ KW_TAB ~ (WHITESPACE+ ~ tab_title)? ~ NEWLINE }
+tab_title       = @{ (!NEWLINE ~ ANY)+ }
+tab_content     =  { (!tab_line ~ !tabs_end ~ ANY ~ NEWLINE)* }
+tabs_end        =  { ":::" }
+
+// User mention
+user_mention =  { "@" ~ username ~ (WHITESPACE+ ~ "[" ~ platform ~ "]" ~ ("(" ~ display_name ~ ")")?)? }
+username     = @{ (unicode_letter | "_" | "-")+ }
+platform     = @{ (!"]" ~ ANY)+ }
+display_name = @{ (!")" ~ ANY)+ }
+
+// Admonition blocks
+admonition_type  = { KW_NOTE | KW_TIP | KW_WARNING | KW_DANGER | KW_INFO }
+admonition_open  = { ":::" ~ NEWLINE? ~ WHITESPACE* ~ admonition_type ~ ("[" ~ (!"]" ~ ANY)* ~ "]")? }
+admonition_emoji = { ":::" ~ NEWLINE? ~ WHITESPACE* ~ "[" ~ (!"]" ~ ANY)+ ~ "]" ~ (!NEWLINE ~ ANY)* }
+admonition_close = { ":::" }
+// allow nested admonitions by accepting any content that is not the closing delimiter
+admonition_block = { (admonition_open | admonition_emoji) ~ NEWLINE ~ ((!admonition_close ~ ANY) | admonition_block)* ~ admonition_close }
+
+// Bookmark
+bookmark = { "[" ~ KW_BOOKMARK ~ ":" ~ (!"]" ~ ANY)+ ~ "](" ~ local_path ~ ("=" ~ ASCII_DIGIT+)? ~ ")" }
+
+// Page tags and document references
+page_format = { ^"A4" | ^"US" | ASCII_DIGIT+ }
+page_tag    = { "[" ~ KW_PAGE ~ "=" ~ page_format? ~ "]" }
+doc_ref     = { "[" ~ "@" ~ KW_DOC ~ "]" ~ "(" ~ local_path ~ ")" }
+
+// Table of contents
+toc       = { "[" ~ KW_TOC ~ toc_depth? ~ "]" ~ toc_doc? }
+toc_depth = { "=" ~ ("1" | "2" | "3" | "4") }
+toc_doc   = { "(" ~ "@" ~ KW_DOC ~ ")" }
+
+// Run commands
+script_type = { KW_BASH | KW_ZSH | KW_SH | KW_BAT | KW_POWERSHELL | KW_PS | KW_PYTHON | KW_PY }
+
+run_inline       = { KW_RUN ~ script_type ~ "(" ~ (("\\" ~ ANY) | (!")" ~ ANY))* ~ ")" }
+run_block_fenced = { "```" ~ KW_RUN ~ script_type ~ NEWLINE ~ (!"```" ~ ANY)* ~ "```" }
+
+// Diagram blocks
+diagram_type   = { KW_MERMAID | KW_GRAPHVIZ }
+diagram_fenced = { "```" ~ diagram_type ~ NEWLINE ~ (!"```" ~ ANY)* ~ "```" }

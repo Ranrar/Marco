@@ -1,0 +1,1766 @@
+# Marco Grammar Comprehensive Test Cases
+# Based on analysis of src/components/marco_engine/grammar/grammar.pest
+# Covers all 167 rules with edge cases, cross-references, and known error patterns
+
+# ===== BASIC TEXT AND CHARACTERS =====
+[text_and_words]
+# Basic text patterns
+simple_word = "hello"
+multiple_words = "hello world test"
+with_apostrophe = "can't won't it's"
+with_hyphens = "well-known state-of-the-art"
+unicode_basic = "café résumé naïve"
+mixed_scripts = "English 中文 العربية русский 日本語"
+numbers_in_text = "Test 123 numbers"
+math_symbols = "π ≈ 3.14 ± 0.01"
+all_math_symbols = "±√∞∑≈≠≤≥∆παβγλμσΩ+=×÷"
+
+# Punctuation handling
+safe_punctuation = "Hello, world! How are you?"
+all_punctuation = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+markdown_specials = "*_`#[]~>|$@^=-"
+
+# Edge cases
+empty_string = ""
+only_spaces = "   "
+only_tabs = "\t\t"
+mixed_whitespace = " \t \t "
+very_long_text = "This is a very long text string that should test how the parser handles extended content without any special formatting or markdown syntax just plain text that goes on and on and should continue to parse correctly even with this much content"
+
+# ===== HEADINGS - ATX AND SETEXT =====
+[headings_atx]
+# ATX headings (# style)
+h1_simple = "# Hello"
+h1_no_space = "#NoSpace"
+h1_multiple_spaces = "#   Multiple   Spaces   "
+h1_with_formatting = "# **Bold** and *italic* heading"
+h1_unicode = "# Café & Résumé"
+h1_numbers = "# Chapter 1: Introduction"
+
+h2_simple = "## Section"
+h2_empty = "##"
+h2_only_spaces = "##   "
+h2_long = "## This is a very long heading that should still parse correctly"
+
+h3_simple = "### Subsection"
+h4_simple = "#### Sub-subsection"
+h5_simple = "##### Deep Section"
+h6_simple = "###### Deepest Section"
+
+# Invalid headings (should fail)
+h7_invalid = "####### Too Many Hashes"
+h8_invalid = "######## Even More Hashes"
+no_hash = "Not a heading"
+
+[headings_setext]
+# Setext headings (underline style)
+setext_h1_simple = "Heading\n======="
+setext_h1_uneven = "Heading\n============"
+setext_h1_short = "Long Heading Text\n==="
+setext_h2_simple = "Subheading\n----------"
+setext_h2_uneven = "Subheading\n-----------"
+
+# Edge cases for setext
+setext_empty_underline = "Heading\n"
+setext_no_text = "\n======"
+
+# ===== TEXT FORMATTING =====
+[bold_formatting]
+# Bold with asterisks
+bold_asterisk = "**bold text**"
+bold_asterisk_with_spaces = "** spaced bold **"
+bold_asterisk_empty = "****"
+bold_asterisk_nested = "**bold with **inner** bold**"
+bold_asterisk_multiline_fail = "**bold\ntext**"
+
+# Bold with underscores
+bold_underscore = "__bold text__"
+bold_underscore_empty = "____"
+bold_underscore_nested = "__bold with __inner__ bold__"
+
+# Invalid bold (should fail)
+bold_single_asterisk = "*not bold*"
+bold_mismatched = "**bold with underscore__"
+bold_unclosed = "**missing closing"
+
+[italic_formatting]
+# Italic with asterisks
+italic_asterisk = "*italic text*"
+italic_asterisk_empty = "**"
+italic_asterisk_nested = "*italic with *inner* italic*"
+
+# Italic with underscores
+italic_underscore = "_italic text_"
+italic_underscore_empty = "__"
+
+# Edge cases
+italic_in_word = "un*believable*ly"
+italic_with_punctuation = "*hello, world!*"
+
+# Invalid italic (should fail)
+italic_double_asterisk = "**not italic**"
+italic_unclosed = "*missing closing"
+
+[bold_italic_combinations]
+# Triple markers
+bold_italic_triple_ast = "***bold and italic***"
+bold_italic_triple_under = "___bold and italic___"
+
+# Mixed markers
+bold_italic_mixed_1 = "**_bold and italic_**"
+bold_italic_mixed_2 = "__*bold and italic*__"
+
+# Invalid combinations (should fail)
+bold_italic_mismatch = "***bold italic with underscore___"
+
+[other_formatting]
+# Strikethrough
+strike_tilde = "~~strikethrough~~"
+strike_dash = "--strikethrough--"
+strike_empty_tilde = "~~~~"
+strike_empty_dash = "----"
+strike_nested = "~~strike with ~~inner~~ strike~~"
+
+# Highlight (Marco extension)
+highlight_simple = "==highlighted text=="
+highlight_empty = "===="
+highlight_nested = "==highlight with ==inner== highlight=="
+
+# Superscript and subscript
+superscript_simple = "^super^"
+superscript_empty = "^^"
+superscript_math = "x^2^"
+subscript_simple = "˅sub˅"
+subscript_empty = "˅˅"
+subscript_chemical = "H˅2˅O"
+
+# ===== CODE AND MATH =====
+[code_inline]
+# Basic inline code
+code_simple = "`code`"
+code_with_spaces = "`some code here`"
+code_empty = "``"
+code_with_punctuation = "`hello, world!`"
+code_with_backticks = "`code with \\` backtick`"
+code_multiline = "`code\nwith newline`"
+
+# Edge cases
+code_in_sentence = "Use `print()` function"
+code_multiple = "`first` and `second` code"
+
+# Invalid code (should fail)
+code_unclosed = "`missing closing"
+code_triple_backtick = "```not inline```"
+
+[math_inline]
+# Basic math
+math_simple = "$x = 1$"
+math_complex = "$\\frac{a}{b} = c$"
+math_empty = "$$"
+math_with_spaces = "$ x = 1 $"
+math_escaped_dollar = "$price is \\$5$"
+math_formula = "$E = mc^2$"
+
+# Invalid math (should fail)
+math_unclosed = "$missing closing"
+math_nested = "$$not inline$$"
+
+[code_blocks]
+# Fenced code blocks
+fenced_simple = "```\ncode here\n```"
+fenced_with_lang = "```rust\nfn main() {}\n```"
+fenced_python = "```python\nprint('hello')\n```"
+fenced_empty = "```\n\n```"
+fenced_no_lang = "```\nsome code\nmore code\n```"
+
+# Edge cases
+fenced_with_backticks = "```\ncode with ``` inside\n```"
+fenced_multiline = "```rust\nfn main() {\n    println!(\"hello\");\n}\n```"
+
+# Invalid fenced blocks (should fail)
+fenced_unclosed = "```\ncode without closing"
+fenced_wrong_close = "```\ncode\n``"
+
+[math_blocks]
+# Block math
+math_block_simple = "$$x = 1$$"
+math_block_complex = "$$\\frac{\\partial f}{\\partial x} = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}$$"
+math_block_empty = "$$$$"
+math_block_multiline = "$$\nx = 1\ny = 2\n$$"
+
+# Invalid math blocks (should fail)
+math_block_unclosed = "$$missing closing"
+math_block_single = "$not block$"
+
+# ===== LINKS AND IMAGES =====
+[urls]
+# HTTP/HTTPS URLs
+http_simple = "http://example.com"
+https_simple = "https://example.com"
+url_with_path = "https://example.com/path/to/page"
+url_with_query = "https://example.com/search?q=test&lang=en"
+url_with_fragment = "https://example.com/page#section"
+url_complex = "https://subdomain.example.com:8080/path/to/page?param1=value1&param2=value2#section"
+
+# WWW URLs
+www_simple = "www.example.com"
+www_with_path = "www.example.com/path"
+
+# Email URLs
+mailto_simple = "mailto:user@example.com"
+mailto_complex = "mailto:user.name+tag@sub.example.com"
+
+# Local paths
+local_relative = "./path/to/file"
+local_parent = "../path/to/file"
+local_absolute = "/absolute/path/to/file"
+local_windows = "C:\\path\\to\\file"
+local_complex = "docs/guide/installation.md"
+
+# YouTube URLs
+youtube_watch = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+youtube_short = "https://youtu.be/dQw4w9WgXcQ"
+youtube_with_params = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42"
+
+# Image URLs
+image_jpg = "https://example.com/image.jpg"
+image_png = "https://example.com/image.png"
+image_gif = "https://example.com/image.gif"
+image_webp = "https://example.com/image.webp"
+image_svg = "https://example.com/image.svg"
+image_local = "./images/photo.jpg"
+
+[inline_links]
+# Basic inline links
+link_http = "[link](https://example.com)"
+link_https = "[secure link](https://secure.example.com)"
+link_local = "[local file](./path/to/file.md)"
+link_empty_text = "[](https://example.com)"
+link_with_title = "[link](https://example.com \"Title\")"
+
+# Edge cases
+link_nested_brackets = "[link [with] brackets](https://example.com)"
+link_with_formatting = "[**bold link**](https://example.com)"
+link_unicode = "[café link](https://example.com)"
+
+# Invalid links (should fail)
+link_empty_url = "[text]()"
+link_unclosed_bracket = "[text(missing closing bracket"
+link_unclosed_paren = "[text](missing closing paren"
+
+[inline_images]
+# Basic inline images
+image_basic = "![alt text](image.jpg)"
+image_empty_alt = "![](image.png)"
+image_with_url = "![remote](https://example.com/image.png)"
+image_complex_alt = "![A very detailed alt text](image.jpg)"
+
+# Invalid images (should fail)
+image_no_extension = "![alt](not_an_image)"
+image_unclosed = "![alt](image.jpg"
+
+[reference_links]
+# Reference-style links
+ref_link_basic = "[link text][ref]"
+ref_link_empty = "[][ref]"
+ref_link_self = "[link text][]"
+
+# Reference definitions
+ref_def_basic = "[ref]: https://example.com"
+ref_def_with_title = "[ref]: https://example.com \"Title\""
+ref_def_with_spaces = "[ref]:   https://example.com   \"Title\"   "
+
+# Reference images
+ref_image_basic = "![alt text][ref]"
+ref_image_empty = "![][ref]"
+
+# ===== LISTS =====
+[unordered_lists]
+# Basic unordered lists
+list_dash = "- Item 1"
+list_asterisk = "* Item 2"
+list_plus = "+ Item 3"
+
+# Multi-level lists
+list_nested = "- Level 1\n  - Level 2\n    - Level 3"
+list_mixed_markers = "- Item 1\n* Item 2\n+ Item 3"
+
+# Lists with content
+list_with_formatting = "- **Bold item**"
+list_with_links = "- [Link item](https://example.com)"
+list_with_code = "- Item with `code`"
+
+# Edge cases
+list_empty_item = "-"
+list_only_spaces = "-   "
+list_multiline_item = "- This is a very long list item that spans multiple lines and should still be parsed correctly"
+
+[ordered_lists]
+# Basic ordered lists
+ordered_simple = "1. First item"
+ordered_double_digit = "10. Tenth item"
+ordered_large_number = "999. Large number"
+
+# Ordered lists with different starts
+ordered_start_5 = "5. Fifth item"
+ordered_zero = "0. Zero item"
+
+# Mixed with unordered
+mixed_list = "1. Ordered\n- Unordered\n2. Back to ordered"
+
+[task_lists]
+# Task list items
+task_incomplete = "- [ ] Todo item"
+task_complete = "- [x] Done item"
+task_uppercase = "- [X] Also done"
+
+# Task lists with metadata
+task_with_meta = "- [ ] Task (priority: high)"
+task_complete_meta = "- [x] Completed (assignee: john)"
+
+# Edge cases
+task_no_space = "-[ ] No space"
+task_multiple_spaces = "-   [x]   Multiple spaces"
+task_invalid_marker = "- [?] Invalid marker"
+
+# Inline task items (without bullets)
+inline_task_simple = "[ ] Inline task"
+inline_task_complete = "[x] Completed inline"
+inline_task_with_meta = "[ ] Inline task (due: tomorrow)"
+
+[definition_lists]
+# Definition lists
+def_list_simple = "Term\n: Definition"
+def_list_multiple = "Term\n: First definition\n: Second definition"
+def_list_complex = "Complex Term\n: A very detailed definition that explains the term"
+
+# ===== TABLES =====
+[tables]
+# Basic tables
+table_simple = "| Col1 | Col2 |\n|------|------|\n| A    | B    |"
+table_with_alignment = "| Left | Center | Right |\n|:-----|:------:|------:|\n| A    | B      | C     |"
+table_minimal = "|A|B|\n|-|-|\n|1|2|"
+
+# Tables with content
+table_with_formatting = "| **Bold** | *Italic* |\n|----------|----------|\n| `code`   | [link](url) |"
+table_with_pipes = "| Text | With \\| Pipe |\n|------|------------|\n| A    | B          |"
+
+# Edge cases
+table_empty_cells = "| | |\n|-|-|\n| | |"
+table_uneven_columns = "| A | B | C |\n|---|---|\n| 1 | 2 |"
+
+# Invalid tables (should fail)
+table_no_separator = "| A | B |\n| 1 | 2 |"
+table_malformed = "| A | B\n|---|\n| 1 | 2 |"
+
+# ===== BLOCKQUOTES =====
+[blockquotes]
+# Basic blockquotes
+quote_simple = "> This is a quote"
+quote_multiline = "> First line\n> Second line"
+quote_with_space = ">   Spaced quote"
+quote_no_space = ">No space quote"
+quote_empty = ">"
+
+# Nested blockquotes
+quote_nested = "> Level 1\n>> Level 2\n>>> Level 3"
+
+# Blockquotes with formatting
+quote_with_bold = "> **Bold quote**"
+quote_with_code = "> Quote with `code`"
+quote_with_link = "> Quote with [link](url)"
+
+# ===== HORIZONTAL RULES =====
+[horizontal_rules]
+# Different HR styles
+hr_dashes = "---"
+hr_asterisks = "***"
+hr_underscores = "___"
+
+# HR with spaces
+hr_spaced_dashes = " --- "
+hr_spaced_asterisks = " *** "
+
+# Longer HR
+hr_long_dashes = "----------"
+hr_long_asterisks = "**********"
+
+# Invalid HR (should fail)
+hr_too_short = "--"
+hr_mixed = "-*-"
+
+# ===== FOOTNOTES =====
+[footnotes]
+# Footnote references
+footnote_ref_simple = "[^1]"
+footnote_ref_alpha = "[^note]"
+footnote_ref_mixed = "[^note1]"
+footnote_ref_unicode = "[^café]"
+
+# Footnote definitions
+footnote_def_simple = "[^1]: This is a footnote"
+footnote_def_multiline = "[^note]: This is a longer footnote\n    with multiple lines"
+footnote_def_complex = "[^complex]: A footnote with **formatting** and [links](url)"
+
+# Inline footnotes (Pandoc style)
+inline_footnote_simple = "^[This is an inline footnote]"
+inline_footnote_complex = "^[Inline footnote with **formatting**]"
+
+# Invalid footnotes (should fail)
+footnote_empty_label = "[^]"
+footnote_unclosed = "[^note"
+
+# ===== HTML AND COMMENTS =====
+[html_elements]
+# Inline HTML
+html_span = "<span>text</span>"
+html_strong = "<strong>bold</strong>"
+html_em = "<em>italic</em>"
+html_self_closing = "<br/>"
+html_with_attrs = "<a href=\"url\">link</a>"
+
+# Block HTML
+html_div = "<div>\ncontent\n</div>"
+html_complex = "<div class=\"container\">\n<p>Paragraph</p>\n</div>"
+
+# Edge cases
+html_empty = "<>"
+html_unclosed = "<div>unclosed"
+
+# Comments (should be silent)
+comment_inline = "<!-- inline comment -->"
+comment_block = "<!--\nblock comment\nwith multiple lines\n-->"
+comment_nested = "<!-- outer <!-- inner --> comment -->"
+
+# ===== MARCO EXTENSIONS =====
+[user_mentions]
+# Basic user mentions
+user_simple = "@username"
+user_underscore = "@user_name"
+user_hyphen = "@user-name"
+user_unicode = "@café_user"
+
+# User mentions with platform
+user_with_platform = "@user [github]"
+user_platform_complex = "@user [platform.name]"
+
+# User mentions with display name
+user_with_display = "@user [platform](Display Name)"
+user_full = "@user [github](John Doe)"
+
+# Invalid mentions (should fail)
+user_empty = "@"
+user_with_space = "@user name"
+
+[admonitions]
+# Basic admonitions
+note_simple = ":::\nnote\nThis is a note\n:::"
+tip_simple = ":::\ntip\nThis is a tip\n:::"
+warning_simple = ":::\nwarning\nThis is a warning\n:::"
+danger_simple = ":::\ndanger\nThis is dangerous\n:::"
+info_simple = ":::\ninfo\nThis is info\n:::"
+
+# Admonitions with titles
+note_with_title = ":::\nnote[Custom Title]\nNote content\n:::"
+warning_titled = ":::\nwarning[Important Warning]\nWarning content\n:::"
+
+# Admonitions with emoji
+emoji_admonition = ":::\n[💡] Custom Emoji\nContent here\n:::"
+
+# Case insensitive
+note_uppercase = ":::\nNOTE\nUppercase note\n:::"
+tip_mixed_case = ":::\nTiP\nMixed case tip\n:::"
+
+# Invalid admonitions (should fail)
+admonition_unclosed = ":::\nnote\nUnclosed admonition"
+admonition_unknown = ":::\ncustom\nUnknown type\n:::"
+
+[tabs]
+# Basic tabs
+tabs_simple = ":::\ntabs\nGeneral content\n@tab Tab 1\nContent 1\n@tab Tab 2\nContent 2\n:::"
+tabs_with_title = ":::\ntabs Main Tabs\n@tab First\nFirst content\n@tab Second\nSecond content\n:::"
+
+# Tabs with formatting
+tabs_formatted = ":::\ntabs\n@tab **Bold Tab**\nContent with **formatting**\n@tab *Italic Tab*\nMore content\n:::"
+
+# Edge cases
+tabs_empty_content = ":::\ntabs\n@tab Empty\n@tab Also Empty\n:::"
+tabs_no_general = ":::\ntabs\n@tab Only Tab\nOnly content\n:::"
+
+[page_and_doc]
+# Page tags
+page_a4 = "[page=A4]"
+page_us = "[page=US]"
+page_custom_size = "[page=210]"
+page_empty = "[page=]"
+
+# Document references
+doc_ref_simple = "[@doc](./document.md)"
+doc_ref_complex = "[@doc](../docs/guide/installation.md)"
+
+# Table of contents
+toc_simple = "[toc]"
+toc_with_depth = "[toc=2]"
+toc_max_depth = "[toc=4]"
+toc_with_doc = "[toc](@doc)"
+
+# Invalid page/doc (should fail)
+page_invalid_format = "[page=invalid]"
+toc_invalid_depth = "[toc=5]"
+
+[bookmarks]
+# Bookmarks
+bookmark_simple = "[bookmark:section](./file.md)"
+bookmark_with_line = "[bookmark:function](./code.rs=42)"
+bookmark_complex = "[bookmark:important-section](../docs/guide.md=123)"
+
+# Invalid bookmarks (should fail)
+bookmark_no_path = "[bookmark:section]"
+bookmark_empty = "[bookmark:]"
+
+[run_commands]
+# Inline run commands
+run_bash = "run@bash(ls -la)"
+run_python = "run@python(print('hello'))"
+run_zsh = "run@zsh(echo $HOME)"
+run_powershell = "run@powershell(Get-Location)"
+run_bat = "run@bat(dir)"
+
+# Run commands with escaping
+run_escaped = "run@bash(echo \"hello world\")"
+run_complex = "run@python(import os; print(os.getcwd()))"
+
+# Fenced run blocks
+run_block_bash = "```run@bash\nls -la\necho \"done\"\n```"
+run_block_python = "```run@python\nprint('hello')\nfor i in range(3):\n    print(i)\n```"
+
+# Case insensitive script types
+run_upper_bash = "run@BASH(echo test)"
+run_mixed_python = "run@Python(print('test'))"
+
+[diagrams]
+# Mermaid diagrams
+mermaid_simple = "```mermaid\ngraph TD\nA --> B\n```"
+mermaid_complex = "```mermaid\nsequenceDiagram\nAlice->>Bob: Hello\nBob-->>Alice: Hi\n```"
+
+# Graphviz diagrams
+graphviz_simple = "```graphviz\ndigraph G {\nA -> B\n}\n```"
+
+# Case insensitive
+mermaid_upper = "```MERMAID\ngraph LR\nA --> B\n```"
+
+# ===== ESCAPE SEQUENCES =====
+[escaped_characters]
+# Basic escaping
+escaped_asterisk = "\\*not bold\\*"
+escaped_underscore = "\\_not italic\\_"
+escaped_backtick = "\\`not code\\`"
+escaped_hash = "\\# not heading"
+escaped_bracket = "\\[not link\\]"
+escaped_tilde = "\\~not strikethrough\\~"
+escaped_greater = "\\> not blockquote"
+escaped_pipe = "\\| not table"
+escaped_dollar = "\\$ not math"
+escaped_at = "\\@ not mention"
+escaped_caret = "\\^ not superscript"
+escaped_equals = "\\= not highlight"
+escaped_dash = "\\- not list"
+
+# Multiple escapes
+multiple_escapes = "\\*\\*not bold\\*\\*"
+escaped_in_text = "This is \\*not\\* bold text"
+
+# ===== EDGE CASES AND ERROR RECOVERY =====
+[edge_cases]
+# Whitespace handling
+only_whitespace = "   \t   "
+mixed_line_endings = "text\r\nmore text\nfinal text"
+trailing_spaces = "text   "
+leading_spaces = "   text"
+
+# Unicode edge cases
+emoji_unicode = "😀 😃 😄 😁 😆"
+zero_width_chars = "text\u200Bwith\u200Cinvisible\u200Dchars"
+rtl_text = "العربية من اليمين"
+combining_chars = "café (é = e + ́)"
+
+# Very long content
+very_long_line = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+
+# Nested structures
+deeply_nested = "**bold with *italic and `code` inside* text**"
+mixed_formatting = "**bold** and *italic* and `code` and ~~strike~~"
+
+# Boundary conditions
+single_char = "a"
+two_chars = "ab"
+all_digits = "123456789"
+all_punctuation = ".,;:!?()[]{}\"'"
+
+[failure_cases]
+# These should all fail to parse with specific rules
+
+# Malformed markdown
+malformed_link = "[text(missing closing bracket"
+malformed_image = "![alt(missing closing bracket"
+malformed_bold = "**missing closing"
+malformed_italic = "*missing closing"
+malformed_code = "`missing closing"
+malformed_math = "$missing closing"
+malformed_emoji = ":missing closing"
+malformed_html = "<unclosed tag"
+malformed_comment = "<!-- unclosed comment"
+
+# Invalid syntax
+invalid_heading = "############ too many hashes"
+invalid_list_marker = "? Not a list"
+invalid_table = "| A | B |\n| 1 | 2 | 3 |"        # mismatched columns
+invalid_footnote = "[^invalid label with spaces]"
+invalid_reference = "[ref with spaces]: url"
+
+# Nested formatting conflicts
+nested_conflict_1 = "**bold with `code** inside`"
+nested_conflict_2 = "*italic with **bold* text**"
+nested_conflict_3 = "~~strike with **bold~~ text**"
+
+# URL validation failures
+invalid_url_scheme = "ftp://not.supported.com"
+malformed_url = "https://."
+empty_url_parts = "https:///empty/authority"
+
+# Marco extension failures
+invalid_admonition_type = ":::\ncustom_type\ncontent\n:::"
+malformed_user_mention = "@user [platform"
+invalid_script_type = "run@invalid_shell(command)"
+malformed_bookmark = "[bookmark](no_colon)"
+
+# Character encoding issues
+invalid_utf8 = "text with invalid utf8 bytes"
+null_bytes = "text with null bytes"
+control_chars = "text with control chars"
+
+# ===== PATHOLOGICAL INPUTS AND STRESS TESTS =====
+[pathological_inputs]
+# Deeply nested structures (CommonMark allows up to 32 levels)
+deeply_nested_quotes = "> > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > > Deep"
+deeply_nested_lists = "- Level 1\n  - Level 2\n    - Level 3\n      - Level 4\n        - Level 5\n          - Level 6\n            - Level 7\n              - Level 8"
+deeply_nested_emphasis = "**bold *italic **bold _italic_ bold** italic* bold**"
+
+# Very long inputs (performance testing)
+extremely_long_line = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum."
+
+# Repeated patterns (backtracking killers for naive parsers)
+many_emphasis_markers = "*****************************************************************************"
+alternating_chars = "*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*"
+quadratic_blowup = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[["
+
+# Mixed line endings (Windows/Unix)
+mixed_line_endings_complex = "Line 1\r\nLine 2\nLine 3\r\nLine 4\n"
+
+# Binary data patterns (using valid TOML escapes)
+binary_like_data = "\\u0000\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\u0008\\u0009\\n\\u000B\\u000C\\r\\u000E\\u000F"
+
+# Stack overflow attempts
+massive_nested_brackets = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+
+# ===== COMMONMARK SPECIFICATION EDGE CASES =====
+[commonmark_edge_cases]
+# Precedence rules (based on CommonMark spec examples)
+link_vs_emphasis = "[*foo*](bar)"
+emphasis_vs_link = "*[foo](bar)*"
+code_vs_emphasis = "`*foo*`"
+html_vs_emphasis = "<em>*foo*</em>"
+
+# Entity handling
+html_entities = "&amp; &lt; &gt; &quot; &#39; &#x27;"
+numeric_entities = "&#65; &#x41; &#97; &#x61;"
+invalid_entities = "&invalid; &; &#; &#x;"
+
+# Autolink edge cases
+autolink_email = "<user@example.com>"
+autolink_url = "<http://example.com>"
+autolink_invalid = "<not a url>"
+autolink_nested = "[<http://example.com>](http://other.com)"
+
+# Thematic breaks with different spacing
+hr_spaces_before = "   ---"
+hr_spaces_after = "---   "
+hr_spaces_between = "- - -"
+hr_mixed_chars_invalid = "-*-"
+hr_too_few_chars = "--"
+
+# List edge cases from CommonMark
+list_tight_vs_loose = "- foo\n- bar\n\n- baz"
+list_marker_interruption = "1. foo\n\n2. bar"
+list_continuation = "1. foo\n\n   continued"
+list_lazy_continuation = "1. foo\nbar"
+
+# ATX heading edge cases
+heading_no_space_after = "#foo"
+heading_space_before = " # foo"
+heading_trailing_hashes = "# foo #"
+heading_trailing_hashes_mismatch = "# foo ###"
+heading_empty = "#"
+heading_only_hashes = "######"
+
+# Setext heading edge cases
+setext_no_content = "\n===="
+setext_spaces_before = "   foo\n   ==="
+setext_uneven_underline = "foo\n======"
+
+# ===== SECURITY AND XSS VECTORS =====
+[security_vectors]
+# JavaScript injection attempts
+script_tag = "<script>alert('xss')</script>"
+script_src = "<script src=\"malicious.js\"></script>"
+onclick_handler = "<div onclick=\"alert('xss')\">click</div>"
+javascript_url = "[click](javascript:alert('xss'))"
+data_url = "[click](data:text/html,<script>alert('xss')</script>)"
+
+# Mixed HTML/Markdown XSS attempts
+mixed_xss_1 = "<img src=x onerror=alert('xss')>\n**bold**"
+mixed_xss_2 = "**bold** <script>alert('xss')</script>"
+mixed_xss_3 = "[text](<img src=x onerror=alert('xss')>)"
+
+# Protocol manipulation
+ftp_protocol = "[link](ftp://malicious.com)"
+file_protocol = "[link](file:///etc/passwd)"
+custom_protocol = "[link](custom://protocol)"
+
+# URL manipulation
+url_with_credentials = "https://user:pass@evil.com"
+url_with_unicode = "https://аpple.com"  # Punycode attack
+url_with_path_traversal = "file://../../etc/passwd"
+
+# Social engineering vectors
+fake_attachment = "[download.pdf](malicious.exe)"
+misleading_link = "[google.com](https://evil.com)"
+homograph_attack = "[аpple.com](https://evil.com)"  # Cyrillic 'а'
+
+# ===== ADVANCED UNICODE TESTING =====
+[unicode_advanced]
+# Right-to-left languages
+rtl_arabic = "مرحبا بالعالم **نص عريض** *نص مائل*"
+rtl_hebrew = "שלום עולם **טקסט מודגש** *טקסט נטוי*"
+mixed_direction = "Hello מרحبا world بالعالم!"
+
+# Complex emoji sequences
+emoji_sequences = "👨‍👩‍👧‍👦 👍🏽 🇺🇸 🏳️‍🌈"
+emoji_in_formatting = "**👍 bold emoji** *🎉 italic emoji*"
+emoji_in_links = "[🔗 emoji link](https://example.com)"
+
+# Zero-width characters (potential security issue)
+zero_width_joiner = "text\u200Dwith\u200Dzwj"
+zero_width_non_joiner = "text\u200Cwith\u200Cznj"
+zero_width_space = "text\u200Bwith\u200Bzws"
+
+# Combining characters
+combining_diacritics = "e\u0301\u0302\u0303\u0304"  # e with multiple combining marks
+normalization_test = "café vs cafe\u0301"  # NFC vs NFD
+
+# Surrogate pairs and astral plane
+astral_symbols = "𝕳𝖊𝖑𝖑𝖔 𝖜𝖔𝖗𝖑𝖉"  # Mathematical bold fraktur
+musical_symbols = "𝄞 𝄢 𝅘𝅥 𝅘𝅥𝅮"
+
+# ===== MARCO EXTENSION STRESS TESTS =====
+[marco_stress_tests]
+# Complex nested admonitions
+nested_admonitions = ":::\nnote\nOuter note\n:::\nwarning\nInner warning\n:::\n:::"
+
+# Run commands with complex scripts
+run_multiline_complex = "```run@bash\nfor i in {1..10}; do\n  echo \"Line $i\"\n  if [ $i -eq 5 ]; then\n    break\n  fi\ndone\n```"
+
+# Complex user mentions
+user_mention_unicode = "@café_user [github.com](Café User Name)"
+user_mention_complex = "@user_name-123 [platform.sub.domain](Very Long Display Name With Symbols!)"
+
+# Tab blocks with complex content
+tabs_with_code = ":::\ntabs Code Examples\n@tab Python\n```python\nprint('hello')\n```\n@tab Rust\n```rust\nfn main() {}\n```\n:::"
+
+# Deeply nested bookmarks
+bookmark_deep_path = "[bookmark:section](./very/deep/nested/folder/structure/file.md=999)"
+
+# Complex TOC references
+toc_with_doc_complex = "[toc=3](@doc ../../../deep/nested/docs/guide.md)"
+
+# ===== PERFORMANCE KILLERS =====
+[performance_tests]
+# Catastrophic backtracking patterns
+backtrack_emphasis = "*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*"
+backtrack_links = "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[not a link]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]"
+backtrack_code = "```\n```\n```\n```\n```\n```\n```\n```\n```\n```\n```\n```\n```"
+
+# Large table stress test
+large_table = "| A | B | C | D | E | F | G | H |\n|---|---|---|---|---|---|---|---|\n| 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 |\n| 9 | 10| 11| 12| 13| 14| 15| 16|\n| 17| 18| 19| 20| 21| 22| 23| 24|"
+
+# Many footnotes
+many_footnotes = "Text[^1] more[^2] text[^3] here[^4] and[^5] there[^6] everywhere[^7]"
+
+# Recursive reference links
+recursive_refs = "[foo][bar]\n[bar][baz]\n[baz][foo]"
+
+# ===== BOUNDARY CONDITIONS =====
+[boundary_conditions]
+# Maximum nesting levels
+max_list_nesting = "- 1\n  - 2\n    - 3\n      - 4\n        - 5\n          - 6\n            - 7\n              - 8\n                - 9\n                  - 10\n                    - 11\n                      - 12\n                        - 13\n                          - 14\n                            - 15\n                              - 16\n                                - 17\n                                  - 18\n                                    - 19\n                                      - 20\n                                        - 21\n                                          - 22\n                                            - 23\n                                              - 24\n                                                - 25\n                                                  - 26\n                                                    - 27\n                                                      - 28\n                                                        - 29\n                                                          - 30\n                                                            - 31\n                                                              - 32"
+
+# Edge of parsing limits
+almost_empty = " "
+just_newlines = "\n\n\n\n\n"
+only_markdown_chars = "*_`#[]~>|$@^=-"
+
+# Numeric edge cases
+largest_heading_number = "999999999999999999999. Heading"
+zero_heading = "0. Zero heading"
+negative_heading = "-1. Negative heading"
+
+# URL edge cases
+extremely_long_url = "https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+url_with_many_params = "https://example.com?param0=value0&param1=value1&param2=value2&param3=value3&param4=value4&param5=value5&param6=value6&param7=value7&param8=value8&param9=value9&param10=value10&param11=value11&param12=value12&param13=value13&param14=value14&param15=value15&param16=value16&param17=value17&param18=value18&param19=value19"
+ipv6_url = "http://[2001:db8::1]:8080/path"
+localhost_variants = "http://127.0.0.1:8080/path"
+
+# ===== REAL-WORLD EDGE CASES =====
+[real_world_cases]
+# GitHub issue references
+github_issue = "#123 @user fixes issue"
+github_mention = "@octocat please review"
+github_commit = "Fixed in commit abc123def456"
+
+# Academic citations
+citation_style = "According to Smith et al. (2023)[^smith2023], this is correct."
+doi_link = "https://doi.org/10.1000/182"
+arxiv_link = "https://arxiv.org/abs/2301.00001"
+
+# Programming documentation
+api_doc = "`GET /api/v1/users/{id}` returns user data"
+code_with_backticks = "Use `\\`` to escape backticks in code"
+regex_example = "Pattern: `/^[a-zA-Z0-9]+$/g`"
+
+# Multi-language content
+code_switching = "In Python, use `print()`, but in Rust use `println!()`"
+mixed_scripts_complex = "English 中文 العربية русский 日本語 한국어 हिन्दी"
+
+# Social media patterns
+hashtag_like = "This is #not-a-heading but markdown might confuse it"
+at_symbol_usage = "Email: user@domain.com vs mention @user"
+url_in_parentheses = "See (https://example.com) for details"
+
+# ===== REGRESSION TESTS =====
+[regression_tests]
+# Based on common parser bugs found online
+bug_emphasis_underscore = "_emphasis_with_underscores_inside_"
+bug_link_in_emphasis = "*[link](url) in emphasis*"
+bug_code_in_link = "[`code` in link](url)"
+bug_nested_quotes = "> > > Quote with `code` and *emphasis*"
+bug_table_alignment = "| Left | Center | Right |\n|:-----|:------:|------:|\n| A | B | C |"
+bug_list_continuation_indent = "1. First item\n\n   Continued paragraph\n\n2. Second item"
+bug_setext_with_markup = "*Emphasized* heading\n==================="
+bug_html_comment_multiline = "<!-- This is a\nmultiline comment\nwith **markdown** inside -->"
+
+# CommonMark compliance edge cases
+cm_link_title_quotes = "[link](url \"title with 'quotes'\")"
+cm_reference_case_insensitive = "[FOO][bar]\n[bar]: /url"
+cm_autolink_scheme_case = "<HTTP://EXAMPLE.COM>"
+cm_entity_in_link = "[link](url?param=value&amp;other=2)"
+
+# ===== COMMONMARK CONFORMANCE TESTS =====
+[commonmark_conformance]
+# Official CommonMark examples (subset of 637 total)
+# These are key examples from the CommonMark 0.30 specification
+
+# ATX headings - examples 32-49
+cm_atx_basic = "# foo"
+cm_atx_multiple = "## foo"
+cm_atx_max_level = "###### foo"
+cm_atx_no_space = "#5 bolt"
+cm_atx_escaped = "\\## foo"
+cm_atx_content_formatting = "# foo *bar* \\*baz\\*"
+cm_atx_spaces_after = "#                  foo                     "
+cm_atx_trailing_spaces = "### foo ### "
+cm_atx_trailing_hash_count = "### foo #### "
+
+# Setext headings - examples 50-70
+cm_setext_h1_basic = "Foo\n==="
+cm_setext_h2_basic = "Foo\n---"
+cm_setext_content = "Foo *bar*\n========="
+cm_setext_underline_count = "Foo\n========================="
+cm_setext_spaces = "   Foo\n---"
+cm_setext_indent_content = " Foo\n  ==="
+cm_setext_lazy = "Foo\nBar\n---"
+
+# Emphasis and strong emphasis - examples 350-410
+cm_emphasis_basic = "*foo bar*"
+cm_emphasis_underscore = "_foo bar_"
+cm_strong_basic = "**foo bar**"
+cm_strong_underscore = "__foo bar__"
+cm_emphasis_nested = "*foo **bar** baz*"
+cm_emphasis_intraword = "foo*bar*baz"
+cm_emphasis_punctuation = "*foo.*"
+cm_emphasis_newline_fail = "*foo\nbar*"
+
+# Links - examples 481-520
+cm_link_basic = "[link](/uri)"
+cm_link_title = "[link](/uri \"title\")"
+cm_link_empty = "[]()"
+cm_link_with_parens = "[link](/uri(and(nested)))"
+cm_link_escaped_parens = "[link](/uri\\(paren\\))"
+cm_autolink_uri = "<http://foo.bar.baz>"
+cm_autolink_email = "<foo@bar.example.com>"
+
+# Code spans - examples 328-349
+cm_code_basic = "`foo`"
+cm_code_with_backticks = "`` foo ` bar ``"
+cm_code_strip_spaces = "` `` `"
+cm_code_preserve_spaces = "`  `"
+cm_code_line_endings = "`foo   bar \nbaz`"
+
+# ===== FUZZING TESTS =====
+[fuzzing_tests]
+# Random Unicode from different planes
+random_unicode_basic = "🜴🝺🞩🟊🠂🡑🢈🣘🤇🥞🦋🧚🨻🩲🪱🫰"
+random_unicode_astral = "𝄞𝄢𝅘𝅥𝆺𝇇𝇈𝇉𝇊𝇋𝇌𝇍𝇎𝇏𝇐𝇑"
+random_unicode_cjk = "丂丄丅丆丏丒丗丟丠両丣並丩丮丯丱丳乃乄乚乜"
+random_unicode_arabic = "؀؁؂؃؄؅؆؇؈؉؊؋،؍؎؏ؘؙؚ؛؜؝؞؟"
+
+# Malformed UTF-8 sequences (using valid Unicode escape)
+malformed_utf8_high_surrogate = "\\uD800"
+malformed_utf8_low_surrogate = "\\uDFFF"
+malformed_utf8_overlong = "\\u0000"
+
+# Random ASCII patterns
+random_ascii_control = "\\u0001\\u0002\\u0003\\u0004\\u0005\\u0006\\u0007\\u0008"
+random_ascii_printable = "!@#$%^&*()_+{}|:<>?[];',./"
+random_ascii_extended = "¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿"
+
+# Chaos patterns (valid but pathological)
+chaos_markdown_soup = "*_`#[]()~>|$@^=-\\**_`#[]()~>|$@^=-\\*"
+chaos_nested_delimiters = "([{<>}])(([{<>}]))((([{<>}])))"
+chaos_unicode_soup = "🏳️‍🌈👨‍👩‍👧‍👦🤷🏽‍♀️🧑🏻‍💻🇺🇸🇬🇧🇩🇪🇫🇷🇮🇹"
+
+# Edge case lengths
+exactly_64_chars = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+exactly_256_chars = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+exactly_1024_chars = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+# ===== MEMORY STRESS TESTS =====
+[memory_stress]
+# Large documents (generated programmatically in comments)
+huge_document_headings = "# Heading 1\n## Subheading 1\n### Sub-sub 1\nContent\n\n# Heading 2\n## Subheading 2\n### Sub-sub 2\nMore content\n\n# Heading 3\n## Subheading 3\n### Sub-sub 3\nEven more content\n\n# Heading 4\n## Subheading 4\n### Sub-sub 4\nFinal content"
+
+# Repeated patterns
+many_bold_words = "**word1** **word2** **word3** **word4** **word5** **word6** **word7** **word8** **word9** **word10** **word11** **word12** **word13** **word14** **word15** **word16** **word17** **word18** **word19** **word20**"
+many_links = "[link1](url1) [link2](url2) [link3](url3) [link4](url4) [link5](url5) [link6](url6) [link7](url7) [link8](url8) [link9](url9) [link10](url10)"
+many_footnotes_refs = "Text[^1] more[^2] text[^3] here[^4] and[^5] there[^6] everywhere[^7] with[^8] many[^9] footnotes[^10] to[^11] test[^12] memory[^13] usage[^14] patterns[^15]"
+
+# Large nested structures
+huge_nested_list = "- Level 1 Item 1\n  - Level 2 Item 1\n    - Level 3 Item 1\n      - Level 4 Item 1\n        - Level 5 Item 1\n          - Level 6 Item 1\n            - Level 7 Item 1\n              - Level 8 Item 1\n                - Level 9 Item 1\n                  - Level 10 Item 1\n- Level 1 Item 2\n  - Level 2 Item 2\n    - Level 3 Item 2\n      - Level 4 Item 2\n        - Level 5 Item 2\n- Level 1 Item 3\n  - Level 2 Item 3\n    - Level 3 Item 3"
+
+# Memory bomb attempts (valid but expensive)
+exponential_nesting = "**bold *italic `code **bold *italic `code **bold *italic `code` italic* bold** code` italic* bold** `code` italic* bold**"
+parse_tree_explosion = "((((((((((nested parentheses))))))))))"
+
+# Large tables
+large_table_data = "| Col1 | Col2 | Col3 | Col4 | Col5 | Col6 | Col7 | Col8 |\n|------|------|------|------|------|------|------|------|\n| Data1| Data2| Data3| Data4| Data5| Data6| Data7| Data8|\n| Data9| Data10| Data11| Data12| Data13| Data14| Data15| Data16|\n| Data17| Data18| Data19| Data20| Data21| Data22| Data23| Data24|\n| Data25| Data26| Data27| Data28| Data29| Data30| Data31| Data32|"
+
+# ===== BENCHMARK INTEGRATION TESTS =====
+[benchmark_tests]
+# Performance regression tests
+perf_simple_parse = "Simple text with no formatting"
+perf_complex_formatting = "**Bold** *italic* `code` ~~strike~~ ==highlight== ^super^ ˅sub˅"
+perf_nested_structures = "> Quote with **bold** and *italic*\n> \n> Another line"
+perf_large_paragraph = "This is a very long paragraph that tests parsing performance with lots of text content that should be parsed efficiently without creating excessive memory allocations or taking too long to process even when the content is quite extensive and contains various types of formatting."
+
+# Typical document patterns
+perf_github_readme = "# Project Title\n\n[![Build Status](badge.svg)](link)\n\n## Description\n\nThis project does amazing things.\n\n### Installation\n\n```bash\nnpm install\n```\n\n### Usage\n\n```javascript\nconst lib = require('lib');\n```"
+
+perf_academic_paper = "# Abstract\n\nThis paper presents novel findings[^1].\n\n## Introduction\n\nAccording to Smith et al. (2023), this is important.\n\n## Methodology\n\nWe used the following approach:\n\n1. Data collection\n2. Analysis\n3. Validation\n\n[^1]: Important reference here"
+
+# Memory allocation patterns
+perf_many_small_elements = "`code1` `code2` `code3` `code4` `code5` `code6` `code7` `code8` `code9` `code10`"
+perf_few_large_elements = "```\nvery long code block with lots of content\nthat spans multiple lines and contains\nvarious programming constructs and\nother text that needs to be parsed\nefficiently by the parser\n```"
+
+# Parse tree complexity
+perf_shallow_wide = "**bold1** **bold2** **bold3** **bold4** **bold5** **bold6** **bold7** **bold8**"
+perf_deep_narrow = "**bold *italic `code` italic* bold**"
+
+# ===== SPECIFICATION COMPLIANCE =====
+[specification_compliance]
+# GitHub Flavored Markdown extensions
+gfm_table_basic = "| foo | bar |\n| --- | --- |\n| baz | bim |"
+gfm_table_alignment = "| left | center | right |\n|:-----|:------:|------:|\n| L    | C      | R     |"
+gfm_strikethrough = "~~Hi~~ Hello, world!"
+gfm_autolink_www = "www.commonmark.org"
+gfm_autolink_url = "Visit https://github.com"
+gfm_task_list = "- [x] foo\n  - [ ] bar\n  - [x] baz\n- [ ] bim"
+
+# Pandoc extensions (for reference)
+pandoc_subscript = "H~2~O"
+pandoc_superscript = "x^2^"
+pandoc_definition_list = "Term 1\n:   Definition 1\n\nTerm 2\n:   Definition 2a\n:   Definition 2b"
+
+# MultiMarkdown extensions (for reference)
+mmd_table_caption = "| foo | bar |\n|-----|-----|\n| baz | bim |\n[Table caption]"
+mmd_footnote_inline = "Here is some text^[and a footnote]"
+
+# ===== ERROR RECOVERY TESTS =====
+[error_recovery]
+# Parser recovery from errors
+partial_bold_recovery = "**bold but not closed and more text"
+partial_link_recovery = "[link text but no closing and more text"
+mixed_delimiters_recovery = "**bold _italic* underscore__"
+malformed_table_recovery = "| A | B |\n|---|\n| 1 | 2 | 3 |"
+
+# Graceful degradation
+unknown_language_code = "```unknown_lang\ncode content\n```"
+unknown_admonition_type = ":::\ncustom_type\ncontent\n:::"
+invalid_macro_syntax = "[invalid:syntax](no closing"
+
+# Boundary error conditions
+empty_inline_code = "``"
+empty_emphasis = "****"
+empty_link_text = "[](url)"
+empty_image_alt = "![](image.png)"
+
+# ===== INTEGRATION TESTS =====
+[integration_tests]
+# Real-world document snippets
+real_world_blog_post = "# How to Use Marco\n\n**Marco** is a powerful *markdown* processor.\n\n## Features\n\n- Fast parsing\n- Extensions support\n- Real-time preview\n\n```rust\nfn main() {\n    println!(\"Hello, world!\");\n}\n```\n\n> Marco makes markdown easy!\n\nVisit [our website](https://example.com) for more info."
+
+real_world_technical_doc = "# API Reference\n\n## Authentication\n\nUse JWT tokens:\n\n```http\nGET /api/users\nAuthorization: Bearer <token>\n```\n\n### Response\n\n| Field | Type | Description |\n|-------|------|-----------|\n| id    | int  | User ID   |\n| name  | str  | Full name |\n\n:::\nwarning\nTokens expire after 24 hours\n:::"
+
+real_world_readme = "# My Project\n\n[![CI](https://img.shields.io/badge/CI-passing-green)](https://example.com)\n\n## Quick Start\n\n1. Install dependencies: `npm install`\n2. Run tests: `npm test`\n3. Build: `npm run build`\n\n### Configuration\n\nCreate a `.env` file:\n\n```bash\nAPI_KEY=your_key_here\nDEBUG=true\n```\n\n## Contributing\n\n- [x] Write tests\n- [ ] Update docs\n- [ ] Add examples\n\n**Note**: Please follow our [style guide](STYLE.md)."
+
+# ===== COMMONMARK OFFICIAL TESTS =====
+# Downloaded from https://spec.commonmark.org/0.30/spec.json
+# Total Examples: 652
+
+[commonmark_block_quotes]
+# CommonMark section: Block quotes
+cm_example_228 = "> # Foo\n> bar\n> baz\n"
+cm_example_229 = "># Foo\n>bar\n> baz\n"
+cm_example_230 = "   > # Foo\n   > bar\n > baz\n"
+cm_example_231 = "    > # Foo\n    > bar\n    > baz\n"
+cm_example_232 = "> # Foo\n> bar\nbaz\n"
+cm_example_233 = "> bar\nbaz\n> foo\n"
+cm_example_234 = "> foo\n---\n"
+cm_example_235 = "> - foo\n- bar\n"
+cm_example_236 = ">     foo\n    bar\n"
+cm_example_237 = "> ```\nfoo\n```\n"
+cm_example_238 = "> foo\n    - bar\n"
+cm_example_239 = ">\n"
+cm_example_240 = ">\n>  \n> \n"
+cm_example_241 = ">\n> foo\n>  \n"
+cm_example_242 = "> foo\n\n> bar\n"
+cm_example_243 = "> foo\n> bar\n"
+cm_example_244 = "> foo\n>\n> bar\n"
+cm_example_245 = "foo\n> bar\n"
+cm_example_246 = "> aaa\n***\n> bbb\n"
+cm_example_247 = "> bar\nbaz\n"
+cm_example_248 = "> bar\n\nbaz\n"
+cm_example_249 = "> bar\n>\nbaz\n"
+cm_example_250 = "> > > foo\nbar\n"
+cm_example_251 = ">>> foo\n> bar\n>>baz\n"
+cm_example_252 = ">     code\n\n>    not code\n"
+
+[commonmark_tabs]
+# CommonMark section: Tabs
+cm_example_1 = "\tfoo\tbaz\t\tbim\n"
+cm_example_2 = "  \tfoo\tbaz\t\tbim\n"
+cm_example_3 = "    a\ta\n    ὐ\ta\n"
+cm_example_4 = "  - foo\n\n\tbar\n"
+cm_example_5 = "- foo\n\n\t\tbar\n"
+cm_example_6 = ">\t\tfoo\n"
+cm_example_7 = "-\t\tfoo\n"
+cm_example_8 = "    foo\n\tbar\n"
+cm_example_9 = " - foo\n   - bar\n\t - baz\n"
+cm_example_10 = "#\tFoo\n"
+cm_example_11 = "*\t*\t*\t\n"
+
+[commonmark_entity_and_numeric_character_references]
+# CommonMark section: Entity and numeric character references
+cm_example_25 = "&nbsp; &amp; &copy; &AElig; &Dcaron;\n&frac34; &HilbertSpace; &DifferentialD;\n&ClockwiseContourIntegral; &ngE;\n"
+cm_example_26 = "&#35; &#1234; &#992; &#0;\n"
+cm_example_27 = "&#X22; &#XD06; &#xcab;\n"
+cm_example_28 = "&nbsp &x; &#; &#x;\n&#87654321;\n&#abcdef0;\n&ThisIsNotDefined; &hi?;\n"
+cm_example_29 = "&copy\n"
+cm_example_30 = "&MadeUpEntity;\n"
+cm_example_31 = "<a href=\"&ouml;&ouml;.html\">\n"
+cm_example_32 = "[foo](/f&ouml;&ouml; \"f&ouml;&ouml;\")\n"
+cm_example_33 = "[foo]\n\n[foo]: /f&ouml;&ouml; \"f&ouml;&ouml;\"\n"
+cm_example_34 = "``` f&ouml;&ouml;\nfoo\n```\n"
+cm_example_35 = "`f&ouml;&ouml;`\n"
+cm_example_36 = "    f&ouml;f&ouml;\n"
+cm_example_37 = "&#42;foo&#42;\n*foo*\n"
+cm_example_38 = "&#42; foo\n\n* foo\n"
+cm_example_39 = "foo&#10;&#10;bar\n"
+cm_example_40 = "&#9;foo\n"
+cm_example_41 = "[a](url &quot;tit&quot;)\n"
+
+[commonmark_html_blocks]
+# CommonMark section: HTML blocks
+cm_example_148 = "<table><tr><td>\n<pre>\n**Hello**,\n\n_world_.\n</pre>\n</td></tr></table>\n"
+cm_example_149 = "<table>\n  <tr>\n    <td>\n           hi\n    </td>\n  </tr>\n</table>\n\nokay.\n"
+cm_example_150 = " <div>\n  *hello*\n         <foo><a>\n"
+cm_example_151 = "</div>\n*foo*\n"
+cm_example_152 = "<DIV CLASS=\"foo\">\n\n*Markdown*\n\n</DIV>\n"
+cm_example_153 = "<div id=\"foo\"\n  class=\"bar\">\n</div>\n"
+cm_example_154 = "<div id=\"foo\" class=\"bar\n  baz\">\n</div>\n"
+cm_example_155 = "<div>\n*foo*\n\n*bar*\n"
+cm_example_156 = "<div id=\"foo\"\n*hi*\n"
+cm_example_157 = "<div class\nfoo\n"
+cm_example_158 = "<div *???-&&&-<---\n*foo*\n"
+cm_example_159 = "<div><a href=\"bar\">*foo*</a></div>\n"
+cm_example_160 = "<table><tr><td>\nfoo\n</td></tr></table>\n"
+cm_example_161 = "<div></div>\n``` c\nint x = 33;\n```\n"
+cm_example_162 = "<a href=\"foo\">\n*bar*\n</a>\n"
+cm_example_163 = "<Warning>\n*bar*\n</Warning>\n"
+cm_example_164 = "<i class=\"foo\">\n*bar*\n</i>\n"
+cm_example_165 = "</ins>\n*bar*\n"
+cm_example_166 = "<del>\n*foo*\n</del>\n"
+cm_example_167 = "<del>\n\n*foo*\n\n</del>\n"
+cm_example_168 = "<del>*foo*</del>\n"
+cm_example_169 = "<pre language=\"haskell\"><code>\nimport Text.HTML.TagSoup\n\nmain :: IO ()\nmain = print $ parseTags tags\n</code></pre>\nokay\n"
+cm_example_170 = "<script type=\"text/javascript\">\n// JavaScript example\n\ndocument.getElementById(\"demo\").innerHTML = \"Hello JavaScript!\";\n</script>\nokay\n"
+cm_example_171 = "<textarea>\n\n*foo*\n\n_bar_\n\n</textarea>\n"
+cm_example_172 = "<style\n  type=\"text/css\">\nh1 {color:red;}\n\np {color:blue;}\n</style>\nokay\n"
+cm_example_173 = "<style\n  type=\"text/css\">\n\nfoo\n"
+cm_example_174 = "> <div>\n> foo\n\nbar\n"
+cm_example_175 = "- <div>\n- foo\n"
+cm_example_176 = "<style>p{color:red;}</style>\n*foo*\n"
+cm_example_177 = "<!-- foo -->*bar*\n*baz*\n"
+cm_example_178 = "<script>\nfoo\n</script>1. *bar*\n"
+cm_example_179 = "<!-- Foo\n\nbar\n   baz -->\nokay\n"
+cm_example_180 = "<?php\n\n  echo '>';\n\n?>\nokay\n"
+cm_example_181 = "<!DOCTYPE html>\n"
+cm_example_182 = "<![CDATA[\nfunction matchwo(a,b)\n{\n  if (a < b && a < 0) then {\n    return 1;\n\n  } else {\n\n    return 0;\n  }\n}\n]]>\nokay\n"
+cm_example_183 = "  <!-- foo -->\n\n    <!-- foo -->\n"
+cm_example_184 = "  <div>\n\n    <div>\n"
+cm_example_185 = "Foo\n<div>\nbar\n</div>\n"
+cm_example_186 = "<div>\nbar\n</div>\n*foo*\n"
+cm_example_187 = "Foo\n<a href=\"bar\">\nbaz\n"
+cm_example_188 = "<div>\n\n*Emphasized* text.\n\n</div>\n"
+cm_example_189 = "<div>\n*Emphasized* text.\n</div>\n"
+cm_example_190 = "<table>\n\n<tr>\n\n<td>\nHi\n</td>\n\n</tr>\n\n</table>\n"
+cm_example_191 = "<table>\n\n  <tr>\n\n    <td>\n      Hi\n    </td>\n\n  </tr>\n\n</table>\n"
+
+[commonmark_list_items]
+# CommonMark section: List items
+cm_example_253 = "A paragraph\nwith two lines.\n\n    indented code\n\n> A block quote.\n"
+cm_example_254 = "1.  A paragraph\n    with two lines.\n\n        indented code\n\n    > A block quote.\n"
+cm_example_255 = "- one\n\n two\n"
+cm_example_256 = "- one\n\n  two\n"
+cm_example_257 = " -    one\n\n     two\n"
+cm_example_258 = " -    one\n\n      two\n"
+cm_example_259 = "   > > 1.  one\n>>\n>>     two\n"
+cm_example_260 = ">>- one\n>>\n  >  > two\n"
+cm_example_261 = "-one\n\n2.two\n"
+cm_example_262 = "- foo\n\n\n  bar\n"
+cm_example_263 = "1.  foo\n\n    ```\n    bar\n    ```\n\n    baz\n\n    > bam\n"
+cm_example_264 = "- Foo\n\n      bar\n\n\n      baz\n"
+cm_example_265 = "123456789. ok\n"
+cm_example_266 = "1234567890. not ok\n"
+cm_example_267 = "0. ok\n"
+cm_example_268 = "003. ok\n"
+cm_example_269 = "-1. not ok\n"
+cm_example_270 = "- foo\n\n      bar\n"
+cm_example_271 = "  10.  foo\n\n           bar\n"
+cm_example_272 = "    indented code\n\nparagraph\n\n    more code\n"
+cm_example_273 = "1.     indented code\n\n   paragraph\n\n       more code\n"
+cm_example_274 = "1.      indented code\n\n   paragraph\n\n       more code\n"
+cm_example_275 = "   foo\n\nbar\n"
+cm_example_276 = "-    foo\n\n  bar\n"
+cm_example_277 = "-  foo\n\n   bar\n"
+cm_example_278 = "-\n  foo\n-\n  ```\n  bar\n  ```\n-\n      baz\n"
+cm_example_279 = "-   \n  foo\n"
+cm_example_280 = "-\n\n  foo\n"
+cm_example_281 = "- foo\n-\n- bar\n"
+cm_example_282 = "- foo\n-   \n- bar\n"
+cm_example_283 = "1. foo\n2.\n3. bar\n"
+cm_example_284 = "*\n"
+cm_example_285 = "foo\n*\n\nfoo\n1.\n"
+cm_example_286 = " 1.  A paragraph\n     with two lines.\n\n         indented code\n\n     > A block quote.\n"
+cm_example_287 = "  1.  A paragraph\n      with two lines.\n\n          indented code\n\n      > A block quote.\n"
+cm_example_288 = "   1.  A paragraph\n       with two lines.\n\n           indented code\n\n       > A block quote.\n"
+cm_example_289 = "    1.  A paragraph\n        with two lines.\n\n            indented code\n\n        > A block quote.\n"
+cm_example_290 = "  1.  A paragraph\nwith two lines.\n\n          indented code\n\n      > A block quote.\n"
+cm_example_291 = "  1.  A paragraph\n    with two lines.\n"
+cm_example_292 = "> 1. > Blockquote\ncontinued here.\n"
+cm_example_293 = "> 1. > Blockquote\n> continued here.\n"
+cm_example_294 = "- foo\n  - bar\n    - baz\n      - boo\n"
+cm_example_295 = "- foo\n - bar\n  - baz\n   - boo\n"
+cm_example_296 = "10) foo\n    - bar\n"
+cm_example_297 = "10) foo\n   - bar\n"
+cm_example_298 = "- - foo\n"
+cm_example_299 = "1. - 2. foo\n"
+cm_example_300 = "- # Foo\n- Bar\n  ---\n  baz\n"
+
+[commonmark_setext_headings]
+# CommonMark section: Setext headings
+cm_example_80 = "Foo *bar*\n=========\n\nFoo *bar*\n---------\n"
+cm_example_81 = "Foo *bar\nbaz*\n====\n"
+cm_example_82 = "  Foo *bar\nbaz*\t\n====\n"
+cm_example_83 = "Foo\n-------------------------\n\nFoo\n=\n"
+cm_example_84 = "   Foo\n---\n\n  Foo\n-----\n\n  Foo\n  ===\n"
+cm_example_85 = "    Foo\n    ---\n\n    Foo\n---\n"
+cm_example_86 = "Foo\n   ----      \n"
+cm_example_87 = "Foo\n    ---\n"
+cm_example_88 = "Foo\n= =\n\nFoo\n--- -\n"
+cm_example_89 = "Foo  \n-----\n"
+cm_example_90 = "Foo\\\n----\n"
+cm_example_91 = "`Foo\n----\n`\n\n<a title=\"a lot\n---\nof dashes\"/>\n"
+cm_example_92 = "> Foo\n---\n"
+cm_example_93 = "> foo\nbar\n===\n"
+cm_example_94 = "- Foo\n---\n"
+cm_example_95 = "Foo\nBar\n---\n"
+cm_example_96 = "---\nFoo\n---\nBar\n---\nBaz\n"
+cm_example_97 = "\n====\n"
+cm_example_98 = "---\n---\n"
+cm_example_99 = "- foo\n-----\n"
+cm_example_100 = "    foo\n---\n"
+cm_example_101 = "> foo\n-----\n"
+cm_example_102 = "\\> foo\n------\n"
+cm_example_103 = "Foo\n\nbar\n---\nbaz\n"
+cm_example_104 = "Foo\nbar\n\n---\n\nbaz\n"
+cm_example_105 = "Foo\nbar\n* * *\nbaz\n"
+cm_example_106 = "Foo\nbar\n\\---\nbaz\n"
+
+[commonmark_code_spans]
+# CommonMark section: Code spans
+cm_example_328 = "`foo`\n"
+cm_example_329 = "`` foo ` bar ``\n"
+cm_example_330 = "` `` `\n"
+cm_example_331 = "`  ``  `\n"
+cm_example_332 = "` a`\n"
+cm_example_333 = "` b `\n"
+cm_example_334 = "` `\n`  `\n"
+cm_example_335 = "``\nfoo\nbar  \nbaz\n``\n"
+cm_example_336 = "``\nfoo \n``\n"
+cm_example_337 = "`foo   bar \nbaz`\n"
+cm_example_338 = "`foo\\`bar`\n"
+cm_example_339 = "``foo`bar``\n"
+cm_example_340 = "` foo `` bar `\n"
+cm_example_341 = "*foo`*`\n"
+cm_example_342 = "[not a `link](/foo`)\n"
+cm_example_343 = "`<a href=\"`\">`\n"
+cm_example_344 = "<a href=\"`\">`\n"
+cm_example_345 = "`<http://foo.bar.`baz>`\n"
+cm_example_346 = "<http://foo.bar.`baz>`\n"
+cm_example_347 = "```foo``\n"
+cm_example_348 = "`foo\n"
+cm_example_349 = "`foo``bar``\n"
+
+[commonmark_emphasis_and_strong_emphasis]
+# CommonMark section: Emphasis and strong emphasis
+cm_example_350 = "*foo bar*\n"
+cm_example_351 = "a * foo bar*\n"
+cm_example_352 = "a*\"foo\"*\n"
+cm_example_353 = "* a *\n"
+cm_example_354 = "foo*bar*\n"
+cm_example_355 = "5*6*78\n"
+cm_example_356 = "_foo bar_\n"
+cm_example_357 = "_ foo bar_\n"
+cm_example_358 = "a_\"foo\"_\n"
+cm_example_359 = "foo_bar_\n"
+cm_example_360 = "5_6_78\n"
+cm_example_361 = "пристаням_стремятся_\n"
+cm_example_362 = "aa_\"bb\"_cc\n"
+cm_example_363 = "foo-_(bar)_\n"
+cm_example_364 = "_foo*\n"
+cm_example_365 = "*foo bar *\n"
+cm_example_366 = "*foo bar\n*\n"
+cm_example_367 = "*(*foo)\n"
+cm_example_368 = "*(*foo*)*\n"
+cm_example_369 = "*foo*bar\n"
+cm_example_370 = "_foo bar _\n"
+cm_example_371 = "_(_foo)\n"
+cm_example_372 = "_(_foo_)_\n"
+cm_example_373 = "_foo_bar\n"
+cm_example_374 = "_пристаням_стремятся\n"
+cm_example_375 = "_foo_bar_baz_\n"
+cm_example_376 = "_(bar)_.\n"
+cm_example_377 = "**foo bar**\n"
+cm_example_378 = "** foo bar**\n"
+cm_example_379 = "a**\"foo\"**\n"
+cm_example_380 = "foo**bar**\n"
+cm_example_381 = "__foo bar__\n"
+cm_example_382 = "__ foo bar__\n"
+cm_example_383 = "__\nfoo bar__\n"
+cm_example_384 = "a__\"foo\"__\n"
+cm_example_385 = "foo__bar__\n"
+cm_example_386 = "5__6__78\n"
+cm_example_387 = "пристаням__стремятся__\n"
+cm_example_388 = "__foo, __bar__, baz__\n"
+cm_example_389 = "foo-__(bar)__\n"
+cm_example_390 = "**foo bar **\n"
+cm_example_391 = "**(**foo)\n"
+cm_example_392 = "*(**foo**)*\n"
+cm_example_393 = "**Gomphocarpus (*Gomphocarpus physocarpus*, syn.\n*Asclepias physocarpa*)**\n"
+cm_example_394 = "**foo \"*bar*\" foo**\n"
+cm_example_395 = "**foo**bar\n"
+cm_example_396 = "__foo bar __\n"
+cm_example_397 = "__(__foo)\n"
+cm_example_398 = "_(__foo__)_\n"
+cm_example_399 = "__foo__bar\n"
+cm_example_400 = "__пристаням__стремятся\n"
+cm_example_401 = "__foo__bar__baz__\n"
+cm_example_402 = "__(bar)__.\n"
+cm_example_403 = "*foo [bar](/url)*\n"
+cm_example_404 = "*foo\nbar*\n"
+cm_example_405 = "_foo __bar__ baz_\n"
+cm_example_406 = "_foo _bar_ baz_\n"
+cm_example_407 = "__foo_ bar_\n"
+cm_example_408 = "*foo *bar**\n"
+cm_example_409 = "*foo **bar** baz*\n"
+cm_example_410 = "*foo**bar**baz*\n"
+cm_example_411 = "*foo**bar*\n"
+cm_example_412 = "***foo** bar*\n"
+cm_example_413 = "*foo **bar***\n"
+cm_example_414 = "*foo**bar***\n"
+cm_example_415 = "foo***bar***baz\n"
+cm_example_416 = "foo******bar*********baz\n"
+cm_example_417 = "*foo **bar *baz* bim** bop*\n"
+cm_example_418 = "*foo [*bar*](/url)*\n"
+cm_example_419 = "** is not an empty emphasis\n"
+cm_example_420 = "**** is not an empty strong emphasis\n"
+cm_example_421 = "**foo [bar](/url)**\n"
+cm_example_422 = "**foo\nbar**\n"
+cm_example_423 = "__foo _bar_ baz__\n"
+cm_example_424 = "__foo __bar__ baz__\n"
+cm_example_425 = "____foo__ bar__\n"
+cm_example_426 = "**foo **bar****\n"
+cm_example_427 = "**foo *bar* baz**\n"
+cm_example_428 = "**foo*bar*baz**\n"
+cm_example_429 = "***foo* bar**\n"
+cm_example_430 = "**foo *bar***\n"
+cm_example_431 = "**foo *bar **baz**\nbim* bop**\n"
+cm_example_432 = "**foo [*bar*](/url)**\n"
+cm_example_433 = "__ is not an empty emphasis\n"
+cm_example_434 = "____ is not an empty strong emphasis\n"
+cm_example_435 = "foo ***\n"
+cm_example_436 = "foo *\\**\n"
+cm_example_437 = "foo *_*\n"
+cm_example_438 = "foo *****\n"
+cm_example_439 = "foo **\\***\n"
+cm_example_440 = "foo **_**\n"
+cm_example_441 = "**foo*\n"
+cm_example_442 = "*foo**\n"
+cm_example_443 = "***foo**\n"
+cm_example_444 = "****foo*\n"
+cm_example_445 = "**foo***\n"
+cm_example_446 = "*foo****\n"
+cm_example_447 = "foo ___\n"
+cm_example_448 = "foo _\\__\n"
+cm_example_449 = "foo _*_\n"
+cm_example_450 = "foo _____\n"
+cm_example_451 = "foo __\\___\n"
+cm_example_452 = "foo __*__\n"
+cm_example_453 = "__foo_\n"
+cm_example_454 = "_foo__\n"
+cm_example_455 = "___foo__\n"
+cm_example_456 = "____foo_\n"
+cm_example_457 = "__foo___\n"
+cm_example_458 = "_foo____\n"
+cm_example_459 = "**foo**\n"
+cm_example_460 = "*_foo_*\n"
+cm_example_461 = "__foo__\n"
+cm_example_462 = "_*foo*_\n"
+cm_example_463 = "****foo****\n"
+cm_example_464 = "____foo____\n"
+cm_example_465 = "******foo******\n"
+cm_example_466 = "***foo***\n"
+cm_example_467 = "_____foo_____\n"
+cm_example_468 = "*foo _bar* baz_\n"
+cm_example_469 = "*foo __bar *baz bim__ bam*\n"
+cm_example_470 = "**foo **bar baz**\n"
+cm_example_471 = "*foo *bar baz*\n"
+cm_example_472 = "*[bar*](/url)\n"
+cm_example_473 = "_foo [bar_](/url)\n"
+cm_example_474 = "*<img src=\"foo\" title=\"*\"/>\n"
+cm_example_475 = "**<a href=\"**\">\n"
+cm_example_476 = "__<a href=\"__\">\n"
+cm_example_477 = "*a `*`*\n"
+cm_example_478 = "_a `_`_\n"
+cm_example_479 = "**a<http://foo.bar/?q=**>\n"
+cm_example_480 = "__a<http://foo.bar/?q=__>\n"
+
+[commonmark_links]
+# CommonMark section: Links
+cm_example_481 = "[link](/uri \"title\")\n"
+cm_example_482 = "[link](/uri)\n"
+cm_example_483 = "[](./target.md)\n"
+cm_example_484 = "[link]()\n"
+cm_example_485 = "[link](<>)\n"
+cm_example_486 = "[]()\n"
+cm_example_487 = "[link](/my uri)\n"
+cm_example_488 = "[link](</my uri>)\n"
+cm_example_489 = "[link](foo\nbar)\n"
+cm_example_490 = "[link](<foo\nbar>)\n"
+cm_example_491 = "[a](<b)c>)\n"
+cm_example_492 = "[link](<foo\\>)\n"
+cm_example_493 = "[a](<b)c\n[a](<b)c>\n[a](<b>c)\n"
+cm_example_494 = "[link](\\(foo\\))\n"
+cm_example_495 = "[link](foo(and(bar)))\n"
+cm_example_496 = "[link](foo(and(bar))\n"
+cm_example_497 = "[link](foo\\(and\\(bar\\))\n"
+cm_example_498 = "[link](<foo(and(bar)>)\n"
+cm_example_499 = "[link](foo\\)\\:)\n"
+cm_example_500 = "[link](#fragment)\n\n[link](http://example.com#fragment)\n\n[link](http://example.com?foo=3#frag)\n"
+cm_example_501 = "[link](foo\\bar)\n"
+cm_example_502 = "[link](foo%20b&auml;)\n"
+cm_example_503 = "[link](\"title\")\n"
+cm_example_504 = "[link](/url \"title\")\n[link](/url 'title')\n[link](/url (title))\n"
+cm_example_505 = "[link](/url \"title \\\"&quot;\")\n"
+cm_example_506 = "[link](/url \"title\")\n"
+cm_example_507 = "[link](/url \"title \"and\" title\")\n"
+cm_example_508 = "[link](/url 'title \"and\" title')\n"
+cm_example_509 = "[link](   /uri\n  \"title\"  )\n"
+cm_example_510 = "[link] (/uri)\n"
+cm_example_511 = "[link [foo [bar]]](/uri)\n"
+cm_example_512 = "[link] bar](/uri)\n"
+cm_example_513 = "[link [bar](/uri)\n"
+cm_example_514 = "[link \\[bar](/uri)\n"
+cm_example_515 = "[link *foo **bar** `#`*](/uri)\n"
+cm_example_516 = "[![moon](moon.jpg)](/uri)\n"
+cm_example_517 = "[foo [bar](/uri)](/uri)\n"
+cm_example_518 = "[foo *[bar [baz](/uri)](/uri)*](/uri)\n"
+cm_example_519 = "![[[foo](uri1)](uri2)](uri3)\n"
+cm_example_520 = "*[foo*](/uri)\n"
+cm_example_521 = "[foo *bar](baz*)\n"
+cm_example_522 = "*foo [bar* baz]\n"
+cm_example_523 = "[foo <bar attr=\"](baz)\">\n"
+cm_example_524 = "[foo`](/uri)`\n"
+cm_example_525 = "[foo<http://example.com/?search=](uri)>\n"
+cm_example_526 = "[foo][bar]\n\n[bar]: /url \"title\"\n"
+cm_example_527 = "[link [foo [bar]]][ref]\n\n[ref]: /uri\n"
+cm_example_528 = "[link \\[bar][ref]\n\n[ref]: /uri\n"
+cm_example_529 = "[link *foo **bar** `#`*][ref]\n\n[ref]: /uri\n"
+cm_example_530 = "[![moon](moon.jpg)][ref]\n\n[ref]: /uri\n"
+cm_example_531 = "[foo [bar](/uri)][ref]\n\n[ref]: /uri\n"
+cm_example_532 = "[foo *bar [baz][ref]*][ref]\n\n[ref]: /uri\n"
+cm_example_533 = "*[foo*][ref]\n\n[ref]: /uri\n"
+cm_example_534 = "[foo *bar][ref]*\n\n[ref]: /uri\n"
+cm_example_535 = "[foo <bar attr=\"][ref]\">\n\n[ref]: /uri\n"
+cm_example_536 = "[foo`][ref]`\n\n[ref]: /uri\n"
+cm_example_537 = "[foo<http://example.com/?search=][ref]>\n\n[ref]: /uri\n"
+cm_example_538 = "[foo][BaR]\n\n[bar]: /url \"title\"\n"
+cm_example_539 = "[ẞ]\n\n[SS]: /url\n"
+cm_example_540 = "[Foo\n  bar]: /url\n\n[Baz][Foo bar]\n"
+cm_example_541 = "[foo] [bar]\n\n[bar]: /url \"title\"\n"
+cm_example_542 = "[foo]\n[bar]\n\n[bar]: /url \"title\"\n"
+cm_example_543 = "[foo]: /url1\n\n[foo]: /url2\n\n[bar][foo]\n"
+cm_example_544 = "[bar][foo\\!]\n\n[foo!]: /url\n"
+cm_example_545 = "[foo][ref[]\n\n[ref[]: /uri\n"
+cm_example_546 = "[foo][ref[bar]]\n\n[ref[bar]]: /uri\n"
+cm_example_547 = "[[[foo]]]\n\n[[[foo]]]: /url\n"
+cm_example_548 = "[foo][ref\\[]\n\n[ref\\[]: /uri\n"
+cm_example_549 = "[bar\\\\]: /uri\n\n[bar\\\\]\n"
+cm_example_550 = "[]\n\n[]: /uri\n"
+cm_example_551 = "[\n ]\n\n[\n ]: /uri\n"
+cm_example_552 = "[foo][]\n\n[foo]: /url \"title\"\n"
+cm_example_553 = "[*foo* bar][]\n\n[*foo* bar]: /url \"title\"\n"
+cm_example_554 = "[Foo][]\n\n[foo]: /url \"title\"\n"
+cm_example_555 = "[foo] \n[]\n\n[foo]: /url \"title\"\n"
+cm_example_556 = "[foo]\n\n[foo]: /url \"title\"\n"
+cm_example_557 = "[*foo* bar]\n\n[*foo* bar]: /url \"title\"\n"
+cm_example_558 = "[[*foo* bar]]\n\n[*foo* bar]: /url \"title\"\n"
+cm_example_559 = "[[bar [foo]\n\n[foo]: /url\n"
+cm_example_560 = "[Foo]\n\n[foo]: /url \"title\"\n"
+cm_example_561 = "[foo] bar\n\n[foo]: /url\n"
+cm_example_562 = "\\[foo]\n\n[foo]: /url \"title\"\n"
+cm_example_563 = "[foo*]: /url\n\n*[foo*]\n"
+cm_example_564 = "[foo][bar]\n\n[foo]: /url1\n[bar]: /url2\n"
+cm_example_565 = "[foo][]\n\n[foo]: /url1\n"
+cm_example_566 = "[foo]()\n\n[foo]: /url1\n"
+cm_example_567 = "[foo](not a link)\n\n[foo]: /url1\n"
+cm_example_568 = "[foo][bar][baz]\n\n[baz]: /url\n"
+cm_example_569 = "[foo][bar][baz]\n\n[baz]: /url1\n[bar]: /url2\n"
+cm_example_570 = "[foo][bar][baz]\n\n[baz]: /url1\n[foo]: /url2\n"
+
+[commonmark_precedence]
+# CommonMark section: Precedence
+cm_example_42 = "- `one\n- two`\n"
+
+[commonmark_images]
+# CommonMark section: Images
+cm_example_571 = "![foo](/url \"title\")\n"
+cm_example_572 = "![foo *bar*]\n\n[foo *bar*]: train.jpg \"train & tracks\"\n"
+cm_example_573 = "![foo ![bar](/url)](/url2)\n"
+cm_example_574 = "![foo [bar](/url)](/url2)\n"
+cm_example_575 = "![foo *bar*][]\n\n[foo *bar*]: train.jpg \"train & tracks\"\n"
+cm_example_576 = "![foo *bar*][foobar]\n\n[FOOBAR]: train.jpg \"train & tracks\"\n"
+cm_example_577 = "![foo](train.jpg)\n"
+cm_example_578 = "My ![foo bar](/path/to/train.jpg  \"title\"   )\n"
+cm_example_579 = "![foo](<url>)\n"
+cm_example_580 = "![](/url)\n"
+cm_example_581 = "![foo][bar]\n\n[bar]: /url\n"
+cm_example_582 = "![foo][bar]\n\n[BAR]: /url\n"
+cm_example_583 = "![foo][]\n\n[foo]: /url \"title\"\n"
+cm_example_584 = "![*foo* bar][]\n\n[*foo* bar]: /url \"title\"\n"
+cm_example_585 = "![Foo][]\n\n[foo]: /url \"title\"\n"
+cm_example_586 = "![foo] \n[]\n\n[foo]: /url \"title\"\n"
+cm_example_587 = "![foo]\n\n[foo]: /url \"title\"\n"
+cm_example_588 = "![*foo* bar]\n\n[*foo* bar]: /url \"title\"\n"
+cm_example_589 = "![[foo]]\n\n[[foo]]: /url \"title\"\n"
+cm_example_590 = "![Foo]\n\n[foo]: /url \"title\"\n"
+cm_example_591 = "!\\[foo]\n\n[foo]: /url \"title\"\n"
+cm_example_592 = "\\![foo]\n\n[foo]: /url \"title\"\n"
+
+[commonmark_autolinks]
+# CommonMark section: Autolinks
+cm_example_593 = "<http://foo.bar.baz>\n"
+cm_example_594 = "<http://foo.bar.baz/test?q=hello&id=22&boolean>\n"
+cm_example_595 = "<irc://foo.bar:2233/baz>\n"
+cm_example_596 = "<MAILTO:FOO@BAR.BAZ>\n"
+cm_example_597 = "<a+b+c:d>\n"
+cm_example_598 = "<made-up-scheme://foo,bar>\n"
+cm_example_599 = "<http://../>\n"
+cm_example_600 = "<localhost:5001/foo>\n"
+cm_example_601 = "<http://foo.bar/baz bim>\n"
+cm_example_602 = "<http://example.com/\\[\\>\n"
+cm_example_603 = "<foo@bar.example.com>\n"
+cm_example_604 = "<foo+special@Bar.baz-bar0.com>\n"
+cm_example_605 = "<foo\\+@bar.example.com>\n"
+cm_example_606 = "<>\n"
+cm_example_607 = "< http://foo.bar >\n"
+cm_example_608 = "<m:abc>\n"
+cm_example_609 = "<foo.bar.baz>\n"
+cm_example_610 = "http://example.com\n"
+cm_example_611 = "foo@bar.example.com\n"
+
+[commonmark_raw_html]
+# CommonMark section: Raw HTML
+cm_example_612 = "<a><bab><c2c>\n"
+cm_example_613 = "<a/><b2/>\n"
+cm_example_614 = "<a  /><b2\ndata=\"foo\" >\n"
+cm_example_615 = "<a foo=\"bar\" bam = 'baz <em>\"</em>'\n_boolean zoop:33=zoop:33 />\n"
+cm_example_616 = "Foo <responsive-image src=\"foo.jpg\" />\n"
+cm_example_617 = "<33> <__>\n"
+cm_example_618 = "<a h*#ref=\"hi\">\n"
+cm_example_619 = "<a href=\"hi'> <a href=hi'>\n"
+cm_example_620 = "< a><\nfoo><bar/ >\n<foo bar=baz\nbim!bop />\n"
+cm_example_621 = "<a href='bar'title=title>\n"
+cm_example_622 = "</a></foo >\n"
+cm_example_623 = "</a href=\"foo\">\n"
+cm_example_624 = "foo <!-- this is a\ncomment - with hyphen -->\n"
+cm_example_625 = "foo <!-- not a comment -- two hyphens -->\n"
+cm_example_626 = "foo <!--> foo -->\n\nfoo <!-- foo--->\n"
+cm_example_627 = "foo <?php echo $a; ?>\n"
+cm_example_628 = "foo <!ELEMENT br EMPTY>\n"
+cm_example_629 = "foo <![CDATA[>&<]]>\n"
+cm_example_630 = "foo <a href=\"&ouml;\">\n"
+cm_example_631 = "foo <a href=\"\\*\">\n"
+cm_example_632 = "<a href=\"\\\"\">\n"
+
+[commonmark_blank_lines]
+# CommonMark section: Blank lines
+cm_example_227 = "  \n\naaa\n  \n\n# aaa\n\n  \n"
+
+[commonmark_thematic_breaks]
+# CommonMark section: Thematic breaks
+cm_example_43 = "***\n---\n___\n"
+cm_example_44 = "+++\n"
+cm_example_45 = "===\n"
+cm_example_46 = "--\n**\n__\n"
+cm_example_47 = " ***\n  ***\n   ***\n"
+cm_example_48 = "    ***\n"
+cm_example_49 = "Foo\n    ***\n"
+cm_example_50 = "_____________________________________\n"
+cm_example_51 = " - - -\n"
+cm_example_52 = " **  * ** * ** * **\n"
+cm_example_53 = "-     -      -      -\n"
+cm_example_54 = "- - - -    \n"
+cm_example_55 = "_ _ _ _ a\n\na------\n\n---a---\n"
+cm_example_56 = " *-*\n"
+cm_example_57 = "- foo\n***\n- bar\n"
+cm_example_58 = "Foo\n***\nbar\n"
+cm_example_59 = "Foo\n---\nbar\n"
+cm_example_60 = "* Foo\n* * *\n* Bar\n"
+cm_example_61 = "- Foo\n- * * *\n"
+
+[commonmark_hard_line_breaks]
+# CommonMark section: Hard line breaks
+cm_example_633 = "foo  \nbaz\n"
+cm_example_634 = "foo\\\nbaz\n"
+cm_example_635 = "foo       \nbaz\n"
+cm_example_636 = "foo  \n     bar\n"
+cm_example_637 = "foo\\\n     bar\n"
+cm_example_638 = "*foo  \nbar*\n"
+cm_example_639 = "*foo\\\nbar*\n"
+cm_example_640 = "`code  \nspan`\n"
+cm_example_641 = "`code\\\nspan`\n"
+cm_example_642 = "<a href=\"foo  \nbar\">\n"
+cm_example_643 = "<a href=\"foo\\\nbar\">\n"
+cm_example_644 = "foo\\\n"
+cm_example_645 = "foo  \n"
+cm_example_646 = "### foo\\\n"
+cm_example_647 = "### foo  \n"
+
+[commonmark_soft_line_breaks]
+# CommonMark section: Soft line breaks
+cm_example_648 = "foo\nbaz\n"
+cm_example_649 = "foo \n baz\n"
+
+[commonmark_indented_code_blocks]
+# CommonMark section: Indented code blocks
+cm_example_107 = "    a simple\n      indented code block\n"
+cm_example_108 = "  - foo\n\n    bar\n"
+cm_example_109 = "1.  foo\n\n    - bar\n"
+cm_example_110 = "    <a/>\n    *hi*\n\n    - one\n"
+cm_example_111 = "    chunk1\n\n    chunk2\n  \n \n \n    chunk3\n"
+cm_example_112 = "    chunk1\n      \n      chunk2\n"
+cm_example_113 = "Foo\n    bar\n\n"
+cm_example_114 = "    foo\nbar\n"
+cm_example_115 = "# Heading\n    foo\nHeading\n------\n    foo\n----\n"
+cm_example_116 = "        foo\n    bar\n"
+cm_example_117 = "\n    \n    foo\n    \n\n"
+cm_example_118 = "    foo  \n"
+
+[commonmark_textual_content]
+# CommonMark section: Textual content
+cm_example_650 = "hello $.;'there\n"
+cm_example_651 = "Foo χρῆν\n"
+cm_example_652 = "Multiple     spaces\n"
+
+[commonmark_link_reference_definitions]
+# CommonMark section: Link reference definitions
+cm_example_192 = "[foo]: /url \"title\"\n\n[foo]\n"
+cm_example_193 = "   [foo]: \n      /url  \n           'the title'  \n\n[foo]\n"
+cm_example_194 = "[Foo*bar\\]]:my_(url) 'title (with parens)'\n\n[Foo*bar\\]]\n"
+cm_example_195 = "[Foo bar]:\n<my url>\n'title'\n\n[Foo bar]\n"
+cm_example_196 = "[foo]: /url '\ntitle\nline1\nline2\n'\n\n[foo]\n"
+cm_example_197 = "[foo]: /url 'title\n\nwith blank line'\n\n[foo]\n"
+cm_example_198 = "[foo]:\n/url\n\n[foo]\n"
+cm_example_199 = "[foo]:\n\n[foo]\n"
+cm_example_200 = "[foo]: <>\n\n[foo]\n"
+cm_example_201 = "[foo]: <bar>(baz)\n\n[foo]\n"
+cm_example_202 = "[foo]: /url\\bar\\*baz \"foo\\\"bar\\baz\"\n\n[foo]\n"
+cm_example_203 = "[foo]\n\n[foo]: url\n"
+cm_example_204 = "[foo]\n\n[foo]: first\n[foo]: second\n"
+cm_example_205 = "[FOO]: /url\n\n[Foo]\n"
+cm_example_206 = "[ΑΓΩ]: /φου\n\n[αγω]\n"
+cm_example_207 = "[foo]: /url\n"
+cm_example_208 = "[\nfoo\n]: /url\nbar\n"
+cm_example_209 = "[foo]: /url \"title\" ok\n"
+cm_example_210 = "[foo]: /url\n\"title\" ok\n"
+cm_example_211 = "    [foo]: /url \"title\"\n\n[foo]\n"
+cm_example_212 = "```\n[foo]: /url\n```\n\n[foo]\n"
+cm_example_213 = "Foo\n[bar]: /baz\n\n[bar]\n"
+cm_example_214 = "# [Foo]\n[foo]: /url\n> bar\n"
+cm_example_215 = "[foo]: /url\nbar\n===\n[foo]\n"
+cm_example_216 = "[foo]: /url\n===\n[foo]\n"
+cm_example_217 = "[foo]: /foo-url \"foo\"\n[bar]: /bar-url\n  \"bar\"\n[baz]: /baz-url\n\n[foo],\n[bar],\n[baz]\n"
+cm_example_218 = "[foo]\n\n> [foo]: /url\n"
+
+[commonmark_inlines]
+# CommonMark section: Inlines
+cm_example_327 = "`hi`lo`\n"
+
+[commonmark_paragraphs]
+# CommonMark section: Paragraphs
+cm_example_219 = "aaa\n\nbbb\n"
+cm_example_220 = "aaa\nbbb\n\nccc\nddd\n"
+cm_example_221 = "aaa\n\n\nbbb\n"
+cm_example_222 = "  aaa\n bbb\n"
+cm_example_223 = "aaa\n             bbb\n                                       ccc\n"
+cm_example_224 = "   aaa\nbbb\n"
+cm_example_225 = "    aaa\nbbb\n"
+cm_example_226 = "aaa     \nbbb     \n"
+
+[commonmark_lists]
+# CommonMark section: Lists
+cm_example_301 = "- foo\n- bar\n+ baz\n"
+cm_example_302 = "1. foo\n2. bar\n3) baz\n"
+cm_example_303 = "Foo\n- bar\n- baz\n"
+cm_example_304 = "The number of windows in my house is\n14.  The number of doors is 6.\n"
+cm_example_305 = "The number of windows in my house is\n1.  The number of doors is 6.\n"
+cm_example_306 = "- foo\n\n- bar\n\n\n- baz\n"
+cm_example_307 = "- foo\n  - bar\n    - baz\n\n\n      bim\n"
+cm_example_308 = "- foo\n- bar\n\n<!-- -->\n\n- baz\n- bim\n"
+cm_example_309 = "-   foo\n\n    notcode\n\n-   foo\n\n<!-- -->\n\n    code\n"
+cm_example_310 = "- a\n - b\n  - c\n   - d\n  - e\n - f\n- g\n"
+cm_example_311 = "1. a\n\n  2. b\n\n   3. c\n"
+cm_example_312 = "- a\n - b\n  - c\n   - d\n    - e\n"
+cm_example_313 = "1. a\n\n  2. b\n\n    3. c\n"
+cm_example_314 = "- a\n- b\n\n- c\n"
+cm_example_315 = "* a\n*\n\n* c\n"
+cm_example_316 = "- a\n- b\n\n  c\n- d\n"
+cm_example_317 = "- a\n- b\n\n  [ref]: /url\n- d\n"
+cm_example_318 = "- a\n- ```\n  b\n\n\n  ```\n- c\n"
+cm_example_319 = "- a\n  - b\n\n    c\n- d\n"
+cm_example_320 = "* a\n  > b\n  >\n* c\n"
+cm_example_321 = "- a\n  > b\n  ```\n  c\n  ```\n- d\n"
+cm_example_322 = "- a\n"
+cm_example_323 = "- a\n  - b\n"
+cm_example_324 = "1. ```\n   foo\n   ```\n\n   bar\n"
+cm_example_325 = "* foo\n  * bar\n\n  baz\n"
+cm_example_326 = "- a\n  - b\n  - c\n\n- d\n  - e\n  - f\n"
+
+[commonmark_fenced_code_blocks]
+# CommonMark section: Fenced code blocks
+cm_example_119 = "```\n<\n >\n```\n"
+cm_example_120 = "~~~\n<\n >\n~~~\n"
+cm_example_121 = "``\nfoo\n``\n"
+cm_example_122 = "```\naaa\n~~~\n```\n"
+cm_example_123 = "~~~\naaa\n```\n~~~\n"
+cm_example_124 = "````\naaa\n```\n``````\n"
+cm_example_125 = "~~~~\naaa\n~~~\n~~~~\n"
+cm_example_126 = "```\n"
+cm_example_127 = "`````\n\n```\naaa\n"
+cm_example_128 = "> ```\n> aaa\n\nbbb\n"
+cm_example_129 = "```\n\n  \n```\n"
+cm_example_130 = "```\n```\n"
+cm_example_131 = " ```\n aaa\naaa\n```\n"
+cm_example_132 = "  ```\naaa\n  aaa\naaa\n  ```\n"
+cm_example_133 = "   ```\n   aaa\n    aaa\n  aaa\n   ```\n"
+cm_example_134 = "    ```\n    aaa\n    ```\n"
+cm_example_135 = "```\naaa\n  ```\n"
+cm_example_136 = "   ```\naaa\n  ```\n"
+cm_example_137 = "```\naaa\n    ```\n"
+cm_example_138 = "``` ```\naaa\n"
+cm_example_139 = "~~~~~~\naaa\n~~~ ~~\n"
+cm_example_140 = "foo\n```\nbar\n```\nbaz\n"
+cm_example_141 = "foo\n---\n~~~\nbar\n~~~\n# baz\n"
+cm_example_142 = "```ruby\ndef foo(x)\n  return 3\nend\n```\n"
+cm_example_143 = "~~~~    ruby startline=3 $%@#$\ndef foo(x)\n  return 3\nend\n~~~~~~~\n"
+cm_example_144 = "````;\n````\n"
+cm_example_145 = "``` aa ```\nfoo\n"
+cm_example_146 = "~~~ aa ``` ~~~\nfoo\n~~~\n"
+cm_example_147 = "```\n``` aaa\n```\n"
+
+[commonmark_atx_headings]
+# CommonMark section: ATX headings
+cm_example_62 = "# foo\n## foo\n### foo\n#### foo\n##### foo\n###### foo\n"
+cm_example_63 = "####### foo\n"
+cm_example_64 = "#5 bolt\n\n#hashtag\n"
+cm_example_65 = "\\## foo\n"
+cm_example_66 = "# foo *bar* \\*baz\\*\n"
+cm_example_67 = "#                  foo                     \n"
+cm_example_68 = " ### foo\n  ## foo\n   # foo\n"
+cm_example_69 = "    # foo\n"
+cm_example_70 = "foo\n    # bar\n"
+cm_example_71 = "## foo ##\n  ###   bar    ###\n"
+cm_example_72 = "# foo ##################################\n##### foo ##\n"
+cm_example_73 = "### foo ###     \n"
+cm_example_74 = "### foo ### b\n"
+cm_example_75 = "# foo#\n"
+cm_example_76 = "### foo \\###\n## foo #\\##\n# foo \\#\n"
+cm_example_77 = "****\n## foo\n****\n"
+cm_example_78 = "Foo bar\n# baz\nBar foo\n"
+cm_example_79 = "## \n#\n### ###\n"
+
+[commonmark_backslash_escapes]
+# CommonMark section: Backslash escapes
+cm_example_12 = "\\!\\\"\\#\\$\\%\\&\\'\\(\\)\\*\\+\\,\\-\\.\\/\\:\\;\\<\\=\\>\\?\\@\\[\\\\\\]\\^\\_\\`\\{\\|\\}\\~\n"
+cm_example_13 = "\\\t\\A\\a\\ \\3\\φ\\«\n"
+cm_example_14 = "\\*not emphasized*\n\\<br/> not a tag\n\\[not a link](/foo)\n\\`not code`\n1\\. not a list\n\\* not a list\n\\# not a heading\n\\[foo]: /url \"not a reference\"\n\\&ouml; not a character entity\n"
+cm_example_15 = "\\\\*emphasis*\n"
+cm_example_16 = "foo\\\nbar\n"
+cm_example_17 = "`` \\[\\` ``\n"
+cm_example_18 = "    \\[\\]\n"
+cm_example_19 = "~~~\n\\[\\]\n~~~\n"
+cm_example_20 = "<http://example.com?find=\\*>\n"
+cm_example_21 = "<a href=\"/bar\\/)\">\n"
+cm_example_22 = "[foo](/bar\\* \"ti\\*tle\")\n"
+cm_example_23 = "[foo]\n\n[foo]: /bar\\* \"ti\\*tle\"\n"
+cm_example_24 = "``` foo\\+bar\nfoo\n```\n"
