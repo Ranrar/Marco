@@ -491,7 +491,6 @@ fn get_rule(rule_name: &str) -> Option<Rule> {
         // Text and characters
         "text" => Some(Rule::text),
         "word" => Some(Rule::word),
-        "safe_inline" => Some(Rule::safe_inline),
         "safe_punct" => Some(Rule::safe_punct),
         "math_symbol" => Some(Rule::math_symbol),
         "unicode_letter" => Some(Rule::unicode_letter),
@@ -649,13 +648,16 @@ fn get_rule(rule_name: &str) -> Option<Rule> {
         "diagram_type" => Some(Rule::diagram_type),
 
         // Tabs
-        "tabs_block" => Some(Rule::tabs_block),
-        "tabs_header" => Some(Rule::tabs_header),
+        "tab_block" => Some(Rule::tab_block),
+        "tab_header" => Some(Rule::tab_header),
+        "tab_title" => Some(Rule::tab_title),
+        "tabs_content_I" => Some(Rule::tabs_content_I),
+        "tab_content_line" => Some(Rule::tab_content_line),
         "tab" => Some(Rule::tab),
         "tab_line" => Some(Rule::tab_line),
-        "tab_title" => Some(Rule::tab_title),
-        "tab_content" => Some(Rule::tab_content),
-        "tabs_end" => Some(Rule::tabs_end),
+        "tab_name" => Some(Rule::tab_name),
+        "tab_content_II" => Some(Rule::tab_content_II),
+        "tab_end" => Some(Rule::tab_end),
 
         // Keywords (case-insensitive)
         "KW_NOTE" => Some(Rule::KW_NOTE),
@@ -667,7 +669,6 @@ fn get_rule(rule_name: &str) -> Option<Rule> {
         "KW_PAGE" => Some(Rule::KW_PAGE),
         "KW_DOC" => Some(Rule::KW_DOC),
         "KW_TOC" => Some(Rule::KW_TOC),
-        "KW_TABS" => Some(Rule::KW_TABS),
         "KW_TAB" => Some(Rule::KW_TAB),
         "KW_BASH" => Some(Rule::KW_BASH),
         "KW_ZSH" => Some(Rule::KW_ZSH),
@@ -814,7 +815,8 @@ fn determine_rule(section: &str, test_name: &str) -> String {
         }
         "user_mentions" => "user_mention".to_string(),
         "admonitions" => "admonition_block".to_string(),
-        "tabs" => "tabs_block".to_string(),
+        "tab" => "tab_block".to_string(),
+        "tabs" => "tab_block".to_string(),
         "page_and_doc" => {
             if test_name.starts_with("page") {
                 "page_tag".to_string()
@@ -891,7 +893,7 @@ fn determine_rule(section: &str, test_name: &str) -> String {
             } else if test_name.contains("user_mention") {
                 "user_mention".to_string()
             } else if test_name.contains("tabs") {
-                "tabs_block".to_string()
+                "tab_block".to_string()
             } else if test_name.contains("bookmark") {
                 "bookmark".to_string()
             } else if test_name.contains("toc") {

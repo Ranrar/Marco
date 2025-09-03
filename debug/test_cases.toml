@@ -23,7 +23,7 @@ markdown_specials = "*_`#[]~>|$@^=-"
 # Edge cases
 empty_string = ""
 only_spaces = "   "
-only_tabs = "\t\t"
+only_tab = "\t\t"
 mixed_whitespace = " \t \t "
 very_long_text = "This is a very long text string that should test how the parser handles extended content without any special formatting or markdown syntax just plain text that goes on and on and should continue to parse correctly even with this much content"
 
@@ -454,38 +454,38 @@ user_with_space = "@user name"
 
 [admonitions]
 # Basic admonitions
-note_simple = ":::\nnote\nThis is a note\n:::"
-tip_simple = ":::\ntip\nThis is a tip\n:::"
-warning_simple = ":::\nwarning\nThis is a warning\n:::"
-danger_simple = ":::\ndanger\nThis is dangerous\n:::"
-info_simple = ":::\ninfo\nThis is info\n:::"
+note_simple = ":::note\nThis is a note\n:::"
+tip_simple = ":::tip\nThis is a tip\n:::"
+warning_simple = ":::warning\nThis is a warning\n:::"
+danger_simple = ":::danger\nThis is dangerous\n:::"
+info_simple = ":::info\nThis is info\n:::"
 
 # Admonitions with titles
-note_with_title = ":::\nnote[Custom Title]\nNote content\n:::"
-warning_titled = ":::\nwarning[Important Warning]\nWarning content\n:::"
+note_with_title = ":::note[Custom Title]\nNote content\n:::"
+warning_titled = ":::warning[Important Warning]\nWarning content\n:::"
 
 # Admonitions with emoji
-emoji_admonition = ":::\n[💡] Custom Emoji\nContent here\n:::"
+emoji_admonition = ":::[💡] Custom Emoji\nContent here\n:::"
 
 # Case insensitive
-note_uppercase = ":::\nNOTE\nUppercase note\n:::"
-tip_mixed_case = ":::\nTiP\nMixed case tip\n:::"
+note_uppercase = ":::NOTE\nUppercase note\n:::"
+tip_mixed_case = ":::TiP\nMixed case tip\n:::"
 
 # Invalid admonitions (should fail)
-admonition_unclosed = ":::\nnote\nUnclosed admonition"
-admonition_unknown = ":::\ncustom\nUnknown type\n:::"
+admonition_unclosed = ":::note\nUnclosed admonition"
+admonition_unknown = ":::custom\nUnknown type\n:::"
 
-[tabs]
-# Basic tabs
-tabs_simple = ":::\ntabs\nGeneral content\n@tab Tab 1\nContent 1\n@tab Tab 2\nContent 2\n:::"
-tabs_with_title = ":::\ntabs Main Tabs\n@tab First\nFirst content\n@tab Second\nSecond content\n:::"
+[tab]
+# Basic tab
+tab_simple = ":::tab\nGeneral content\n@tab Tab 1\nContent 1\n@tab Tab 2\nContent 2\n:::"
+tab_with_title = ":::tab Main Tab\n@tab First\nFirst content\n@tab Second\nSecond content\n:::"
 
-# Tabs with formatting
-tabs_formatted = ":::\ntabs\n@tab **Bold Tab**\nContent with **formatting**\n@tab *Italic Tab*\nMore content\n:::"
+# Tab with formatting
+tab_formatted = ":::tab\n@tab **Bold Tab**\nContent with **formatting**\n@tab *Italic Tab*\nMore content\n:::"
 
 # Edge cases
-tabs_empty_content = ":::\ntabs\n@tab Empty\n@tab Also Empty\n:::"
-tabs_no_general = ":::\ntabs\n@tab Only Tab\nOnly content\n:::"
+tab_empty_content = ":::tab\n@tab Empty\n@tab Also Empty\n:::"
+tab_no_general = ":::tab\n@tab Only Tab\nOnly content\n:::"
 
 [page_and_doc]
 # Page tags
@@ -775,7 +775,7 @@ user_mention_unicode = "@café_user [github.com](Café User Name)"
 user_mention_complex = "@user_name-123 [platform.sub.domain](Very Long Display Name With Symbols!)"
 
 # Tab blocks with complex content
-tabs_with_code = ":::\ntabs Code Examples\n@tab Python\n```python\nprint('hello')\n```\n@tab Rust\n```rust\nfn main() {}\n```\n:::"
+tab_with_code = ":::\ntab Code Examples\n@tab Python\n```python\nprint('hello')\n```\n@tab Rust\n```rust\nfn main() {}\n```\n:::"
 
 # Deeply nested bookmarks
 bookmark_deep_path = "[bookmark:section](./very/deep/nested/folder/structure/file.md=999)"

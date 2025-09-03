@@ -22,7 +22,6 @@ KW_BOOKMARK = @{ ^"bookmark" }
 KW_PAGE     = @{ ^"page" }
 KW_DOC      = @{ ^"doc" }
 KW_TOC      = @{ ^"toc" }
-KW_TABS     = @{ ^"tabs" }
 KW_TAB      = @{ ^"tab" }
 
 // Script types
@@ -50,13 +49,13 @@ block = { code_block | math_block | hr | heading | blockquote | table | list | m
 
 // Error recovery for unrecognized blocks
 unknown_block = { (!NEWLINE ~ ANY)+ }
-macro_block   = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tabs_block }
+macro_block   = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tab_block }
 
 // ===== INLINE LEVEL - Ordered by specificity =====
 inline_core = { escaped_char | inline_link | inline_image | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | line_break | text }
 
 // Escape sequences for markdown special characters
-escaped_char = @{ "\\" ~ markdown_special }
+escaped_char = @{ "\\" ~ (markdown_special | "\\") }
 line_break   = @{ " "{2, } ~ NEWLINE }
 inline       =  { inline_core | inline_task_item }
 macro_inline =  { user_mention | run_inline | page_tag | toc | doc_ref }
@@ -78,18 +77,86 @@ math_symbol = @{ "±" | "√" | "∞" | "∑" | "≈" | "≠" | "≤" | "≥" | 
 // Phase 1d: Line-aware text rule with sophisticated boundary detection
 // Conservative text: refuse to match if the line begins with any block-start marker
 // Text must be conservative at the start of a line (avoid stealing blocks),
-// but mid-line text should be permissive.
+// but mid-line text should be permissive. Use an explicit negative lookahead for
+// common block-start sequences to avoid false positives (heading, hr, list,
+// blockquote, admonition, code fence, table, HTML).
 text = @{
-    ((SOI | NEWLINE) ~ WHITESPACE* ~ !line_start_marker ~ text_line_content+)
-  | (!(SOI | NEWLINE) ~ text_line_content+)
+    // More permissive text rule: Only refuse block markers that have proper syntax.
+    // Allow content that starts with formatting markers (* _ ` etc.) since these
+    // should be handled by formatting rules or serve as fallback content.
+    (WHITESPACE+ ~ &(NEWLINE | EOI))
+  | // Special case: whitespace-only lines
+  ((SOI | NEWLINE) ~ WHITESPACE* ~ !(("#"{1, 6} ~ " ") | // ATX heading (must have space after #)
+  ("***" | "---" | "___") ~ (WHITESPACE | NEWLINE | EOI) | // horizontal rule
+  ">" ~ (" " | "\t" | &NEWLINE | &EOI) | // blockquote - enhanced detection
+  ":::" | // admonition
+  "```" ~ (WHITESPACE | NEWLINE | ASCII_ALPHA) | // fenced code block (must have space, newline, or language)
+  INDENT | // indented code
+  (ASCII_DIGIT+ ~ "." ~ " ") | // ordered list
+  (("-" | "*" | "+") ~ " ") | // unordered list (note: single * without space is not a list)
+  "|" | // table row
+  ("<" ~ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ (WHITESPACE | ">")) // html block tags (not inline tags)
+  ) ~ text_line_content+)
+  | start_line_formatting // Handle line-start formatting chars as text fallback
+
+  | text_line_content+
+}
+
+// Handle formatting characters at line start that should be treated as text
+start_line_formatting = @{
+    (SOI | NEWLINE) ~ WHITESPACE* ~ formatting_char ~ text_content_chars*
+}
+
+// Characters that can start formatting but might be literal text
+formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "[" | "!" | "$" }
+
+// Non-silent version of text content for atomic rules
+text_content_chars = {
+    word
+  | safe_punct
+  | WHITESPACE+
+  | math_symbol
+  | inline_formatting_safe
+  | "`"
+  | "*"
+  | "_"
+  | "~"
+  | "="
+  | "^"
+  | "#"
+  | "["
+  | "]"
+  | "!"
+  | "$"
 }
 
 text_line_content = _{
     word
   | safe_punct
-  | " "
+  | WHITESPACE+ // Allow multiple whitespace characters
+
   | math_symbol
   | inline_formatting_safe
+  | "`" // Allow single backticks in text content
+
+  | "*" // Allow asterisks
+
+  | "_" // Allow underscores
+
+  | "~" // Allow tildes
+
+  | "=" // Allow equals
+
+  | "^" // Allow carets
+
+  | "#" // Allow hashes
+
+  | "[" // Allow square brackets
+
+  | "]"
+  | "!" // Allow exclamation marks
+
+  | "$" // Allow dollar signs
 }
 
 // Detect block starts when anchored to start of input/line
@@ -105,8 +172,8 @@ hr_start      = _{ ("***" | "---" | "___") ~ (WHITESPACE | NEWLINE | EOI) }
 list_start = _{
     NON_INDENT? ~ (("-" | "*" | "+") ~ " " | (ASCII_DIGIT+ ~ "." ~ " "))
 }
-// Blockquote must be a > optionally followed by a space and then either whitespace or content
-blockquote_start = _{ WHITESPACE* ~ ">" ~ (" " | "\t" | &NEWLINE | &EOI) }
+// Enhanced blockquote detection - matches > with optional trailing space/tab or at line end
+blockquote_start = _{ ">" ~ (" " | "\t" | &NEWLINE | &EOI) }
 admonition_start = _{ ":::" }
 code_start       = _{ "```" | INDENT }
 // HTML start detection to prevent text consuming tags that begin a block
@@ -114,10 +181,8 @@ html_start  = _{ "<" ~ ASCII_ALPHA }
 table_start = _{ "|" }
 
 inline_formatting_safe = _{
-    !("**" | "__" | "*" | "_" | "`" | "[" | "!" | "$$" | "$") ~ ANY
+    !("**" | "__" | "*" | "_" | "```" | "[" | "!" | "$$" | "$") ~ ANY
 }
-
-safe_inline = { word | safe_punct | " " | math_symbol }
 
 // URL components
 URL_SAFE = _{ unicode_letter | ASCII_DIGIT | "-" | "_" | "." | "/" | "?" | "&" | "=" | "%" | "#" | "~" | ":" }
@@ -127,9 +192,7 @@ paragraph_line = { inline+ }
 paragraph      = { NON_INDENT? ~ !(block_start) ~ paragraph_line ~ (NEWLINE ~ !(block_start) ~ paragraph_line)* }
 
 // Helper to identify block starts
-// More precise block start detection
-// More precise block_start anchored at line start
-// block_start now reuses line_start_marker for clarity and to ensure usage
+// More precise block start detection anchored at line start with comprehensive coverage
 block_start = _{
     (SOI | NEWLINE) ~ WHITESPACE* ~ line_start_marker
 }
@@ -146,7 +209,8 @@ H6 = { "######" ~ " "* ~ heading_content }
 setext_h1 = { heading_content ~ NEWLINE ~ "="+ }
 setext_h2 = { heading_content ~ NEWLINE ~ "-"+ }
 
-heading_content = { safe_inline+ }
+heading_content = { heading_inline+ }
+heading_inline  = { emphasis | code_inline | escaped_char | word | safe_punct | " " | math_symbol }
 heading         = { H6 | H5 | H4 | H3 | H2 | H1 | setext_h2 | setext_h1 }
 
 // ===== BLOCKQUOTE =====
@@ -154,14 +218,14 @@ blockquote_line = { ">" ~ " "? ~ inline* }
 blockquote      = { blockquote_line ~ (NEWLINE ~ blockquote_line)* }
 
 // ===== TEXT FORMATTING =====
-// Bold: **text** or __text__
-bold_asterisk   = @{ "**" ~ (!"**" ~ (!NEWLINE ~ ANY))+ ~ "**" }
-bold_underscore = @{ "__" ~ (!"__" ~ (!NEWLINE ~ ANY))+ ~ "__" }
+// Bold: **text** or __text__ with error recovery for unclosed
+bold_asterisk   = @{ "**" ~ (!"**" ~ (!NEWLINE ~ ANY))+ ~ ("**" | &(NEWLINE | EOI)) }
+bold_underscore = @{ "__" ~ (!"__" ~ (!NEWLINE ~ ANY))+ ~ ("__" | &(NEWLINE | EOI)) }
 bold            =  { bold_asterisk | bold_underscore }
 
-// Italic: *text* or _text_
-italic_asterisk   = @{ "*" ~ (!"*" ~ !"**" ~ (!NEWLINE ~ ANY))+ ~ "*" }
-italic_underscore = @{ "_" ~ (!"_" ~ !"__" ~ (!NEWLINE ~ ANY))+ ~ "_" }
+// Italic: *text* or _text_ with error recovery for unclosed
+italic_asterisk   = @{ "*" ~ (!"*" ~ !"**" ~ (!NEWLINE ~ ANY))+ ~ ("*" | &(NEWLINE | EOI)) }
+italic_underscore = @{ "_" ~ (!"_" ~ !"__" ~ (!NEWLINE ~ ANY))+ ~ ("_" | &(NEWLINE | EOI)) }
 italic            =  { italic_asterisk | italic_underscore }
 
 // Bold + Italic combinations
@@ -208,13 +272,27 @@ youtube_url = @{ ("https://youtu.be/" | "http://youtu.be/" | "https://www.youtub
 image_ext = @{ "." ~ (^"jpg" | ^"jpeg" | ^"png" | ^"gif" | ^"webp" | ^"svg") }
 image_url = @{ (http_url | www_url | local_path) ~ image_ext }
 
-// Inline link components
+// Inline link components - more permissive URL matching
 inline_link_text = @{ (!"]" ~ ANY)* }
-inline_url       = @{ http_url | www_url | mailto | local_path }
+inline_url       = @{
+    http_url
+  | www_url
+  | mailto
+  | local_path
+  | // Fallback for any URL-like content (be permissive but exclude problematic chars)
+  (ASCII_ALPHANUMERIC | unicode_letter | "-" | "_" | "." | "/" | "?" | "&" | "=" | "%" | "#" | "~" | ":" | "@" | "!" | "$" | "*" | "+" | ",")+
+}
+
+// Autolinks (CommonMark standard)
+autolink_email = { "<" ~ EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN ~ ">" }
+autolink_url   = { "<" ~ (http_url | www_url) ~ ">" }
+autolink       = { autolink_email | autolink_url }
 
 // Inline link and image
-inline_link  = { "[" ~ inline_link_text ~ "](" ~ inline_url ~ ")" }
-inline_image = { "!" ~ "[" ~ inline_link_text ~ "](" ~ inline_url ~ ")" }
+inline_link  = { "[" ~ inline_link_text ~ "](" ~ inline_url ~ (" "+ ~ link_title)? ~ ")" | autolink }
+inline_image = { "!" ~ "[" ~ inline_link_text ~ "](" ~ inline_url ~ (WHITESPACE+ ~ link_title)? ~ ")" }
+// Link title support
+link_title = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 
 // Reference-style links
 block_caption   = { (!"]" ~ ANY)+ }
@@ -265,8 +343,8 @@ block_html  = { "<" ~ (!">" ~ ANY | NEWLINE)* ~ ">" }
 // ===== LISTS =====
 list              =  { list_item ~ (NEWLINE ~ list_item)* ~ NEWLINE? }
 list_item         =  { (SOI | NEWLINE)? ~ INDENT_OPT? ~ (task_list_item | regular_list_item) }
-regular_list_item = ${ list_marker ~ " " ~ list_item_content }
-task_list_item    =  { list_marker ~ WHITESPACE+ ~ task_marker ~ WHITESPACE+ ~ list_item_content ~ task_metadata? }
+regular_list_item = ${ list_marker ~ " " ~ !task_marker ~ list_item_content }
+task_list_item    =  { list_marker ~ WHITESPACE* ~ task_marker ~ WHITESPACE* ~ list_item_content ~ task_metadata? }
 list_item_content =  { (!NEWLINE ~ ANY)+ }
 list_marker       = @{ unordered_marker | ordered_marker }
 unordered_marker  = @{ "-" | "*" | "+" }
@@ -285,24 +363,30 @@ term_line = @{ (!NEWLINE ~ ANY)+ }
 def_line  =  { ":" ~ " " ~ (!NEWLINE ~ ANY)+ }
 
 // ===== TABLES =====
-table          = { table_header ~ NEWLINE ~ table_sep ~ (NEWLINE ~ table_row)* }
-table_header   = { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|" }
-table_sep      = { "|" ~ table_sep_cell ~ ("|" ~ table_sep_cell)* ~ "|" }
-table_row      = { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|" }
-table_cell     = { WHITESPACE* ~ inline_core* ~ WHITESPACE* }
-table_sep_cell = { WHITESPACE* ~ ":"? ~ "-"+ ~ ":"? ~ WHITESPACE* }
+table              =  { table_header ~ NEWLINE ~ table_sep ~ (NEWLINE ~ table_row)* }
+table_header       =  { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|"? }
+table_sep          =  { "|" ~ table_sep_cell ~ ("|" ~ table_sep_cell)* ~ "|"? }
+table_row          =  { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|"? }
+table_cell         =  { WHITESPACE* ~ table_cell_content* ~ WHITESPACE* }
+table_cell_content =  { escaped_char | inline_link | inline_image | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | footnote_ref | macro_inline | table_safe_text }
+table_safe_text    = @{ (!"|" ~ !NEWLINE ~ ANY)+ }
+table_sep_cell     =  { WHITESPACE* ~ ":"? ~ "-"+ ~ ":"? ~ WHITESPACE* }
 
 // ===== MARCO =====
 
-// Tabs block
-tabs_block      =  { tabs_header ~ NEWLINE ~ general_content? ~ tab+ ~ tabs_end }
-tabs_header     =  { ":::" ~ NEWLINE? ~ WHITESPACE* ~ KW_TABS ~ (WHITESPACE+ ~ (!NEWLINE ~ ANY)*)? }
-general_content =  { (!tab_line ~ ANY ~ NEWLINE)* }
-tab             =  { tab_line ~ tab_content }
-tab_line        =  { "@" ~ KW_TAB ~ (WHITESPACE+ ~ tab_title)? ~ NEWLINE }
-tab_title       = @{ (!NEWLINE ~ ANY)+ }
-tab_content     =  { (!tab_line ~ !tabs_end ~ ANY ~ NEWLINE)* }
-tabs_end        =  { ":::" }
+// Tab block
+// Tab block: accept general content and tab blocks in any order between header and end.
+tab_block = { tab_header ~ NEWLINE ~ tabs_content_I ~ tab_end }
+// Tab header: :::tab optional title with emoji/text
+tab_header       =  { ":::" ~ KW_TAB ~ tab_title? }
+tab_title        = @{ (" " | "\t")+ ~ (!NEWLINE ~ ANY)+ }
+tabs_content_I   =  { (tab_content_line | tab)* }
+tab_content_line =  { !tab_line ~ !tab_end ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
+tab              =  { tab_line ~ tab_content_II }
+tab_line         =  { "@" ~ KW_TAB ~ tab_name? ~ NEWLINE }
+tab_name         = @{ (" " | "\t")+ ~ (!NEWLINE ~ ANY)+ }
+tab_content_II   =  { (!tab_line ~ !tab_end ~ ANY)* }
+tab_end          =  { ":::" }
 
 // User mention
 user_mention =  { "@" ~ username ~ (WHITESPACE+ ~ "[" ~ platform ~ "]" ~ ("(" ~ display_name ~ ")")?)? }
@@ -312,11 +396,17 @@ display_name = @{ (!")" ~ ANY)+ }
 
 // Admonition blocks
 admonition_type  = { KW_NOTE | KW_TIP | KW_WARNING | KW_DANGER | KW_INFO }
-admonition_open  = { ":::" ~ NEWLINE? ~ WHITESPACE* ~ admonition_type ~ ("[" ~ (!"]" ~ ANY)* ~ "]")? }
-admonition_emoji = { ":::" ~ NEWLINE? ~ WHITESPACE* ~ "[" ~ (!"]" ~ ANY)+ ~ "]" ~ (!NEWLINE ~ ANY)* }
+admonition_open  = { ":::" ~ admonition_type ~ ("[" ~ (!"]" ~ ANY)* ~ "]")? }
+admonition_emoji = { ":::" ~ "[" ~ (!"]" ~ ANY)+ ~ "]" ~ (!NEWLINE ~ ANY)* }
 admonition_close = { ":::" }
 // allow nested admonitions by accepting any content that is not the closing delimiter
-admonition_block = { (admonition_open | admonition_emoji) ~ NEWLINE ~ ((!admonition_close ~ ANY) | admonition_block)* ~ admonition_close }
+// Admonition block with graceful recovery: allow nested admonitions and an
+// unclosed variant which consumes until EOI to avoid hard failures on missing
+// closing delimiter.
+admo_nest = { admonition_block | (!admonition_close ~ ANY)+ }
+// Admonition block accepts either a proper closing `:::` or EOI to recover from
+// unclosed admonitions; `admo_nest` allows nested content.
+admonition_block = { (admonition_open | admonition_emoji) ~ ((!admonition_close ~ ANY) | admo_nest)* ~ (admonition_close | &EOI) }
 
 // Bookmark
 bookmark = { "[" ~ KW_BOOKMARK ~ ":" ~ (!"]" ~ ANY)+ ~ "](" ~ local_path ~ ("=" ~ ASCII_DIGIT+)? ~ ")" }
