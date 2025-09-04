@@ -1,6 +1,6 @@
 // Marco flavor grammar
 // This file defines the Marco markdown dialect used by the editor and parser.
-// Covered features: link handling (validation, YouTube embedding, image inlining),
+// Covered features: link handling (validation, YouTube embedding, image.
 // list parsing (ordered, unordered, nested, task lists), macros (inline and block),
 // tables, headings, paragraphs, code/maths blocks, and common inline formatting.
 
@@ -52,7 +52,7 @@ unknown_block = { (!NEWLINE ~ ANY)+ }
 macro_block   = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tab_block }
 
 // ===== INLINE LEVEL - Ordered by specificity =====
-inline_core = { escaped_char | inline_link | inline_image | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | line_break | text }
+inline_core = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | line_break | text }
 
 // Escape sequences for markdown special characters
 escaped_char = @{ "\\" ~ (markdown_special | "\\") }
@@ -70,7 +70,7 @@ inner_char     = _{ "-" | "'" }
 unicode_letter = _{ ASCII_ALPHANUMERIC | LETTER }
 
 safe_punct       = @{ !(markdown_special) ~ PUNCTUATION }
-markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "|" | "$" | "@" | "^" | "=" | "-" }
+markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "|" | "$" | "@" | "^" | "=" | "-" | "\\" }
 
 math_symbol = @{ "±" | "√" | "∞" | "∑" | "≈" | "≠" | "≤" | "≥" | "∆" | "π" | "α" | "β" | "γ" | "λ" | "μ" | "σ" | "Ω" | "+" | "=" | "×" | "÷" }
 
@@ -108,7 +108,7 @@ start_line_formatting = @{
 }
 
 // Characters that can start formatting but might be literal text
-formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "[" | "!" | "$" }
+formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "!" | "$" }
 
 // Non-silent version of text content for atomic rules
 text_content_chars = {
@@ -120,12 +120,10 @@ text_content_chars = {
   | "`"
   | "*"
   | "_"
-  | "~"
   | "="
   | "^"
-  | "#"
-  | "["
-  | "]"
+  | "#" // Remove square brackets to allow links to work
+
   | "!"
   | "$"
 }
@@ -142,18 +140,15 @@ text_line_content = _{
   | "*" // Allow asterisks
 
   | "_" // Allow underscores
-
-  | "~" // Allow tildes
+  // Remove tilde to allow subscript to work properly
 
   | "=" // Allow equals
 
   | "^" // Allow carets
 
   | "#" // Allow hashes
+  // Remove square brackets to allow links to work properly
 
-  | "[" // Allow square brackets
-
-  | "]"
   | "!" // Allow exclamation marks
 
   | "$" // Allow dollar signs
@@ -181,7 +176,7 @@ html_start  = _{ "<" ~ ASCII_ALPHA }
 table_start = _{ "|" }
 
 inline_formatting_safe = _{
-    !("**" | "__" | "*" | "_" | "```" | "[" | "!" | "$$" | "$") ~ ANY
+    !("**" | "__" | "*" | "_" | "```" | "!" | "$$" | "$" | "~" | "\\") ~ ANY
 }
 
 // URL components
@@ -199,15 +194,16 @@ block_start = _{
 
 // ===== HEADINGS =====
 // ATX headings (##) and Setext headings (underlines)
-H1 = { "#" ~ " "* ~ heading_content }
-H2 = { "##" ~ " "* ~ heading_content }
-H3 = { "###" ~ " "* ~ heading_content }
-H4 = { "####" ~ " "* ~ heading_content }
-H5 = { "#####" ~ " "* ~ heading_content }
-H6 = { "######" ~ " "* ~ heading_content }
+// Allow 0-3 spaces of indentation before heading markers (CommonMark spec)
+H1 = { NON_INDENT? ~ "#" ~ " "* ~ heading_content }
+H2 = { NON_INDENT? ~ "##" ~ " "* ~ heading_content }
+H3 = { NON_INDENT? ~ "###" ~ " "* ~ heading_content }
+H4 = { NON_INDENT? ~ "####" ~ " "* ~ heading_content }
+H5 = { NON_INDENT? ~ "#####" ~ " "* ~ heading_content }
+H6 = { NON_INDENT? ~ "######" ~ " "* ~ heading_content }
 
-setext_h1 = { heading_content ~ NEWLINE ~ "="+ }
-setext_h2 = { heading_content ~ NEWLINE ~ "-"+ }
+setext_h1 = { NON_INDENT? ~ heading_content ~ NEWLINE ~ "="+ }
+setext_h2 = { NON_INDENT? ~ heading_content ~ NEWLINE ~ "-"+ }
 
 heading_content = { heading_inline+ }
 heading_inline  = { emphasis | code_inline | escaped_char | word | safe_punct | " " | math_symbol }
@@ -224,8 +220,9 @@ bold_underscore = @{ "__" ~ (!"__" ~ (!NEWLINE ~ ANY))+ ~ ("__" | &(NEWLINE | EO
 bold            =  { bold_asterisk | bold_underscore }
 
 // Italic: *text* or _text_ with error recovery for unclosed
-italic_asterisk   = @{ "*" ~ (!"*" ~ !"**" ~ (!NEWLINE ~ ANY))+ ~ ("*" | &(NEWLINE | EOI)) }
-italic_underscore = @{ "_" ~ (!"_" ~ !"__" ~ (!NEWLINE ~ ANY))+ ~ ("_" | &(NEWLINE | EOI)) }
+// Improved to handle single markers better and avoid conflicts with bold
+italic_asterisk   = @{ "*" ~ !"*" ~ (!"*" ~ (!NEWLINE ~ ANY))+ ~ ("*" | &(NEWLINE | EOI)) }
+italic_underscore = @{ "_" ~ !"_" ~ (!"_" ~ (!NEWLINE ~ ANY))+ ~ ("_" | &(NEWLINE | EOI)) }
 italic            =  { italic_asterisk | italic_underscore }
 
 // Bold + Italic combinations
@@ -247,7 +244,11 @@ highlight = @{ "==" ~ (!"==" ~ (!NEWLINE ~ ANY))+ ~ "==" }
 emoji       = @{ ":" ~ (!(":" | WHITESPACE | NEWLINE) ~ ANY)+ ~ ":" }
 code_inline = @{ "`" ~ (!"`" ~ ANY)+ ~ "`" }
 superscript = @{ "^" ~ (!"^" ~ (!WHITESPACE ~ ANY))+ ~ "^" }
-subscript   = @{ "˅" ~ (!"˅" ~ (!WHITESPACE ~ ANY))+ ~ "˅" }
+// Support both ˅ and ~ for subscript (Marco and Pandoc styles)
+// Ensure ~ doesn't conflict with ~~ (strikethrough)
+subscript_arrow = @{ "˅" ~ (!"˅" ~ (!WHITESPACE ~ ANY))+ ~ "˅" }
+subscript_tilde = @{ "~" ~ !"~" ~ (!"~" ~ (!WHITESPACE ~ ANY))+ ~ "~" }
+subscript       =  { subscript_arrow | subscript_tilde }
 
 // ===== LINKS AND IMAGES =====
 // HTTP / HTTPS / WWW / Mailto / Local paths
@@ -273,26 +274,32 @@ image_ext = @{ "." ~ (^"jpg" | ^"jpeg" | ^"png" | ^"gif" | ^"webp" | ^"svg") }
 image_url = @{ (http_url | www_url | local_path) ~ image_ext }
 
 // Inline link components - more permissive URL matching
-inline_link_text = @{ (!"]" ~ ANY)* }
-inline_url       = @{
+// Link URL parsing - common for all link types
+link_url = @{
     http_url
   | www_url
   | mailto
   | local_path
-  | // Fallback for any URL-like content (be permissive but exclude problematic chars)
-  (ASCII_ALPHANUMERIC | unicode_letter | "-" | "_" | "." | "/" | "?" | "&" | "=" | "%" | "#" | "~" | ":" | "@" | "!" | "$" | "*" | "+" | ",")+
+  | // Conservative fallback - stop at spaces, quotes, and closing parens
+  (ASCII_ALPHANUMERIC | unicode_letter | "-" | "_" | "." | "/" | "?" | "&" | "=" | "%" | "#" | "~" | ":")+
 }
 
-// Autolinks (CommonMark standard)
+// Link components
+inline_link_text = @{ (!"]" ~ ANY)* }
+link_title       =  { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+
+// Bracket links - explicit and clear
+bracket_link_with_title    = @{ "[" ~ inline_link_text ~ "](" ~ link_url ~ WHITESPACE+ ~ link_title ~ ")" }
+bracket_link_without_title = @{ "[" ~ inline_link_text ~ "](" ~ link_url ~ ")" }
+
+// Autolinks - separate and focused
 autolink_email = { "<" ~ EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN ~ ">" }
-autolink_url   = { "<" ~ (http_url | www_url) ~ ">" }
+autolink_url   = { "<" ~ link_url ~ ">" }
 autolink       = { autolink_email | autolink_url }
 
-// Inline link and image
-inline_link  = { "[" ~ inline_link_text ~ "](" ~ inline_url ~ (" "+ ~ link_title)? ~ ")" | autolink }
-inline_image = { "!" ~ "[" ~ inline_link_text ~ "](" ~ inline_url ~ (WHITESPACE+ ~ link_title)? ~ ")" }
-// Link title support
-link_title = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
+// Main link rule - order matters: more specific first
+inline_link  = { bracket_link_with_title | bracket_link_without_title | autolink }
+inline_image = { "!" ~ "[" ~ inline_link_text ~ "](" ~ link_url ~ (WHITESPACE+ ~ link_title)? ~ ")" }
 
 // Reference-style links
 block_caption   = { (!"]" ~ ANY)+ }
@@ -301,7 +308,7 @@ reference_image = { "!" ~ "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" 
 
 // Reference definition
 ref_title            = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
-reference_definition = { "[" ~ block_caption ~ "]" ~ ":" ~ WHITESPACE* ~ inline_url ~ (WHITESPACE+ ~ ref_title)? ~ (NEWLINE | EOI) }
+reference_definition = { "[" ~ block_caption ~ "]" ~ ":" ~ WHITESPACE* ~ inline_link ~ (WHITESPACE+ ~ ref_title)? ~ (NEWLINE | EOI) }
 
 // Block-level images and YouTube embeds
 block_image   = { "!"? ~ "[" ~ block_caption ~ "](" ~ image_url ~ ")" }

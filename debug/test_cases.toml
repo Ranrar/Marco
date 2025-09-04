@@ -248,6 +248,23 @@ link_empty_url = "[text]()"
 link_unclosed_bracket = "[text(missing closing bracket"
 link_unclosed_paren = "[text](missing closing paren"
 
+[link_title]
+# Link title parsing tests - test the link_title rule specifically
+title_double_quotes = "\"This is a tooltip\""
+title_single_quotes = "'This is a tooltip'"
+title_with_spaces = "\"Title with multiple spaces\""
+title_empty_double = "\"\""
+title_empty_single = "''"
+title_with_quotes = "\"Title with 'inner quotes'\""
+title_with_apostrophe = "'Title with \"inner quotes\"'"
+title_unicode = "\"Café ñoño\""
+title_multiword = "\"Multiple words in title\""
+
+# Invalid titles (should fail)
+title_unclosed_double = "\"unclosed title"
+title_unclosed_single = "'unclosed title"
+title_mixed_quotes = "\"mixed quotes'"
+
 [inline_images]
 # Basic inline images
 image_basic = "![alt text](image.jpg)"

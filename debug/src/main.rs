@@ -7,6 +7,7 @@ use std::fs;
 use std::io::Write;
 use std::time::{Duration, Instant};
 
+// Use the shared grammar file from the main project
 #[derive(Parser)]
 #[grammar = "../src/components/marco_engine/grammar/marco.pest"]
 pub struct MarcoParser;
@@ -95,6 +96,9 @@ fn run_batch_tests() {
     let mut total_tests = 0;
     let mut passed_tests = 0;
     let mut failed_tests = 0;
+    let mut expected_failures = 0;
+    let mut unknown_rules = 0;
+    let mut group_failures: HashMap<String, usize> = HashMap::new();
 
     for (section, cases) in test_cases {
         writeln!(output, "## {}\n", section).unwrap();
@@ -114,6 +118,8 @@ fn run_batch_tests() {
                     )
                     .unwrap();
                     failed_tests += 1;
+                    unknown_rules += 1;
+                    *group_failures.entry(section.clone()).or_insert(0) += 1;
                     continue;
                 }
             };
@@ -149,6 +155,7 @@ fn run_batch_tests() {
                         writeln!(output, "   Input: `{}`", escape_markdown(&input_text)).unwrap();
                         writeln!(output, "   Error: `{}`\n", e).unwrap();
                         passed_tests += 1;
+                        expected_failures += 1;
                     } else {
                         writeln!(
                             output,
@@ -159,6 +166,7 @@ fn run_batch_tests() {
                         writeln!(output, "   Input: `{}`", escape_markdown(&input_text)).unwrap();
                         writeln!(output, "   Error: `{}`\n", e).unwrap();
                         failed_tests += 1;
+                        *group_failures.entry(section.clone()).or_insert(0) += 1;
                     }
                 }
             }
@@ -170,6 +178,8 @@ fn run_batch_tests() {
     writeln!(output, "- **Total tests**: {}", total_tests).unwrap();
     writeln!(output, "- **Passed**: {} ✅", passed_tests).unwrap();
     writeln!(output, "- **Failed**: {} ❌", failed_tests).unwrap();
+    writeln!(output, "  - Expected failures: {} ✅", expected_failures).unwrap();
+    writeln!(output, "  - Unexpected failures: {} ❌", failed_tests).unwrap();
     writeln!(
         output,
         "- **Success rate**: {:.1}%",
@@ -178,12 +188,40 @@ fn run_batch_tests() {
     .unwrap();
 
     println!("✅ Batch testing complete!");
+
+    // Show unknown rules count first
+    if unknown_rules > 0 {
+        println!("❌ Unknown rules: {}", unknown_rules);
+    } else {
+        println!("✅ Unknown rules: 0");
+    }
+
+    // Show passed and failed tests separately
+    println!("✅ Passed tests: {}", passed_tests);
+    if expected_failures > 0 {
+        println!("✅ (Including {} expected failures)", expected_failures);
+    }
+    println!("❌ Failed tests: {} (unexpected failures)", failed_tests);
+
     println!(
         "📊 Results: {}/{} passed ({:.1}%)",
         passed_tests,
         total_tests,
         (passed_tests as f64 / total_tests as f64) * 100.0
     );
+
+    // Show group failures (only groups that have failures)
+    if !group_failures.is_empty() {
+        let total_group_failures: usize = group_failures.values().sum();
+        println!("\nGroup failures (total: {}):", total_group_failures);
+        let mut sorted_failures: Vec<_> = group_failures.iter().collect();
+        sorted_failures.sort_by(|a, b| b.1.cmp(a.1)); // Sort by failure count descending
+
+        for (group, count) in sorted_failures {
+            println!("  {}: {}", group, count);
+        }
+    }
+
     println!("📝 Detailed results written to src/results/test_results.md");
 }
 
@@ -540,9 +578,16 @@ fn get_rule(rule_name: &str) -> Option<Rule> {
 
         // Links and images
         "inline_link" => Some(Rule::inline_link),
+        "bracket_link_with_title" => Some(Rule::bracket_link_with_title),
+        "bracket_link_without_title" => Some(Rule::bracket_link_without_title),
+        "autolink" => Some(Rule::autolink),
+        "autolink_email" => Some(Rule::autolink_email),
+        "autolink_url" => Some(Rule::autolink_url),
         "inline_image" => Some(Rule::inline_image),
         "inline_link_text" => Some(Rule::inline_link_text),
-        "inline_url" => Some(Rule::inline_url),
+        "inline_url" => Some(Rule::link_url), // Legacy alias
+        "link_url" => Some(Rule::link_url),
+        "link_title" => Some(Rule::link_title),
         "reference_link" => Some(Rule::reference_link),
         "reference_image" => Some(Rule::reference_image),
         "reference_definition" => Some(Rule::reference_definition),
@@ -775,6 +820,7 @@ fn determine_rule(section: &str, test_name: &str) -> String {
             }
         }
         "inline_links" => "inline_link".to_string(),
+        "link_title" => "link_title".to_string(),
         "inline_images" => "inline_image".to_string(),
         "reference_links" => {
             if test_name.starts_with("ref_def") {
@@ -1199,7 +1245,11 @@ fn parse_test_cases(content: &str) -> HashMap<String, Vec<(String, String)>> {
             };
 
             // Unescape basic sequences
-            let test_value = test_value.replace("\\n", "\n").replace("\\t", "\t");
+            let test_value = test_value
+                .replace("\\n", "\n")
+                .replace("\\t", "\t")
+                .replace("\\\"", "\"")
+                .replace("\\'", "'");
 
             current_cases.push((test_name, test_value));
         }
