@@ -1,5 +1,15 @@
 (
-    editor: None,
+    editor: Some((
+        font: None,
+        font_size: None,
+        line_height: None,
+        line_wrapping: None,
+        auto_pairing: None,
+        show_invisibles: None,
+        tabs_to_spaces: None,
+        syntax_colors: Some(false),
+        linting: None,
+    )),
     appearance: Some((
         editor_mode: Some("dark"),
         preview_theme: Some("astro.css"),
@@ -18,6 +28,7 @@
     advanced: None,
     files: Some((
         recent_files: Some([
+            "/home/ranrar/Code/projects/marco2/README.md",
             "/home/ranrar/Code/projects/marco2/CONTRIBUTING.md",
         ]),
         max_recent_files: Some(5),
@@ -26,4 +37,31 @@
     log_to_file: Some(true),
     active_schema: Some("Marco"),
     schema_disabled: Some(false),
+    engine: Some((
+        parser: Some((
+            track_positions: Some(true),
+            enable_cache: Some(true),
+            max_cache_size: Some(500),
+            detailed_errors: Some(true),
+            collect_stats: None,
+        )),
+        render: Some((
+            html: Some((
+                include_styles: None,
+                generate_toc: Some(true),
+                syntax_highlighting: Some(false),
+                semantic_html: None,
+                include_metadata: Some(true),
+            )),
+            text: None,
+            default_format: Some("html"),
+        )),
+        performance: Some((
+            worker_threads: None,
+            cache_ast: Some(true),
+            max_cache_memory_mb: None,
+            debug_mode: None,
+        )),
+        output: None,
+    )),
 )

@@ -9,7 +9,7 @@ pub fn build_layout_tab(
     initial_view_mode: Option<String>,
     on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
 ) -> Box {
-    use gtk4::{Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, Switch};
+    use gtk4::{Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, SpinButton, Switch};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-layout");
@@ -18,46 +18,16 @@ pub fn build_layout_tab(
     container.set_margin_start(32);
     container.set_margin_end(32);
 
-    // Helper for bold label
-    let bold_label = |text: &str| {
-        let l = Label::new(Some(text));
-        l.set_halign(Align::Start);
-        l.set_xalign(0.0);
-        l.set_markup(&format!("<b>{}</b>", glib::markup_escape_text(text)));
-        l
-    };
-
-    // Helper for normal description
-    let desc_label = |text: &str| {
-        let l = Label::new(Some(text));
-        l.set_halign(Align::Start);
-        l.set_xalign(0.0);
-        l.set_wrap(true);
-        l
-    };
-
-    // Helper for a row: title, desc, control right-aligned, with extra vertical space
-    let add_row = |title: &str, desc: &str, control: &gtk4::Widget| {
-        let vbox = GtkBox::new(Orientation::Vertical, 2);
-        let hbox = GtkBox::new(Orientation::Horizontal, 0);
-        let title_label = bold_label(title);
-        let spacer = GtkBox::new(Orientation::Horizontal, 0);
-        spacer.set_hexpand(true);
-        let control = control.clone();
-        hbox.append(&title_label);
-        hbox.append(&spacer); // Expanding spacer
-        hbox.append(&control);
-        control.set_halign(Align::End);
-        hbox.set_hexpand(true);
-        vbox.append(&hbox);
-        let desc = desc_label(desc);
-        vbox.append(&desc);
-        vbox.set_spacing(4);
-        vbox.set_margin_bottom(24);
-        vbox
-    };
-
     // View Mode (Dropdown)
+    let view_mode_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let view_mode_header = Label::new(Some("View Mode"));
+    view_mode_header.set_markup("<b>View Mode</b>");
+    view_mode_header.set_halign(Align::Start);
+    view_mode_header.set_xalign(0.0);
+    
+    let view_mode_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    view_mode_spacer.set_hexpand(true);
+    
     let view_mode_combo = ComboBoxText::new();
     view_mode_combo.append_text("HTML Preview");
     view_mode_combo.append_text("Source Code");
@@ -81,24 +51,82 @@ pub fn build_layout_tab(
             }
         });
     }
-    let view_mode_row = add_row(
-        "View Mode",
-        "Choose the default mode for previewing Markdown content.",
-        view_mode_combo.upcast_ref(),
-    );
-    container.append(&view_mode_row);
+    view_mode_combo.set_halign(Align::End);
+    
+    view_mode_hbox.append(&view_mode_header);
+    view_mode_hbox.append(&view_mode_spacer);
+    view_mode_hbox.append(&view_mode_combo);
+    view_mode_hbox.set_margin_bottom(4);
+    container.append(&view_mode_hbox);
+
+    // Description text under header
+    let view_mode_description = Label::new(Some("Choose the default mode for previewing Markdown content."));
+    view_mode_description.set_halign(Align::Start);
+    view_mode_description.set_xalign(0.0);
+    view_mode_description.set_wrap(true);
+    view_mode_description.add_css_class("dim-label");
+    view_mode_description.set_margin_bottom(12);
+    container.append(&view_mode_description);
 
     // Sync Scrolling (Toggle)
+    let sync_scroll_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let sync_scroll_header = Label::new(Some("Sync Scrolling"));
+    sync_scroll_header.set_markup("<b>Sync Scrolling</b>");
+    sync_scroll_header.set_halign(Align::Start);
+    sync_scroll_header.set_xalign(0.0);
+    
+    let sync_scroll_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    sync_scroll_spacer.set_hexpand(true);
+    
     let sync_scroll_switch = Switch::new();
-    let sync_scroll_row = add_row(
-        "Sync Scrolling",
-        "Synchronize scrolling between the editor and the preview pane.",
-        sync_scroll_switch.upcast_ref(),
-    );
-    container.append(&sync_scroll_row);
+    sync_scroll_switch.set_halign(Align::End);
+    
+    sync_scroll_hbox.append(&sync_scroll_header);
+    sync_scroll_hbox.append(&sync_scroll_spacer);
+    sync_scroll_hbox.append(&sync_scroll_switch);
+    sync_scroll_hbox.set_margin_top(8);
+    sync_scroll_hbox.set_margin_bottom(4);
+    container.append(&sync_scroll_hbox);
 
-    // Editor/View Split (Slider)
+    // Description text under header
+    let sync_scroll_description = Label::new(Some("Synchronize scrolling between the editor and the preview pane."));
+    sync_scroll_description.set_halign(Align::Start);
+    sync_scroll_description.set_xalign(0.0);
+    sync_scroll_description.set_wrap(true);
+    sync_scroll_description.add_css_class("dim-label");
+    sync_scroll_description.set_margin_bottom(12);
+    container.append(&sync_scroll_description);
+
+    // Editor/View Split (Slider/SpinButton)
+    let split_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let split_header = Label::new(Some("Editor/View Split"));
+    split_header.set_markup("<b>Editor/View Split</b>");
+    split_header.set_halign(Align::Start);
+    split_header.set_xalign(0.0);
+    
+    let split_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    split_spacer.set_hexpand(true);
+
     let split_adj = Adjustment::new(60.0, 10.0, 90.0, 1.0, 0.0, 0.0);
+    let split_spin = SpinButton::new(Some(&split_adj), 1.0, 0);
+    split_spin.set_halign(Align::End);
+    
+    split_hbox.append(&split_header);
+    split_hbox.append(&split_spacer);
+    split_hbox.append(&split_spin);
+    split_hbox.set_margin_top(8);
+    split_hbox.set_margin_bottom(4);
+    container.append(&split_hbox);
+
+    // Description text under header
+    let split_description = Label::new(Some("Adjust how much horizontal space the editor takes."));
+    split_description.set_halign(Align::Start);
+    split_description.set_xalign(0.0);
+    split_description.set_wrap(true);
+    split_description.add_css_class("dim-label");
+    split_description.set_margin_bottom(12);
+    container.append(&split_description);
+
     let split_slider = Scale::new(Orientation::Horizontal, Some(&split_adj));
     split_slider.set_draw_value(false);
     split_slider.set_hexpand(true);
@@ -112,45 +140,70 @@ pub fn build_layout_tab(
             Some(&format!("{}%", mark)),
         );
     }
-    let split_vbox = GtkBox::new(Orientation::Vertical, 2);
-    let split_hbox = GtkBox::new(Orientation::Horizontal, 0);
-    let split_title = bold_label("Editor/View Split");
-    let split_spacer = GtkBox::new(Orientation::Horizontal, 0);
-    split_spacer.set_hexpand(true);
-    split_hbox.append(&split_title);
-    split_hbox.append(&split_spacer);
-    // No spinbutton for now, just slider
-    split_hbox.set_hexpand(true);
-    split_vbox.append(&split_hbox);
-    split_vbox.append(&desc_label(
-        "Adjust how much horizontal space the editor takes.",
-    ));
     split_slider.set_halign(Align::Start);
-    split_vbox.append(&split_slider);
-    split_vbox.set_spacing(2);
-    split_vbox.set_margin_bottom(24);
-    container.append(&split_vbox);
+    split_slider.set_margin_bottom(12);
+    container.append(&split_slider);
 
     // Show Line Numbers (Toggle)
+    let line_numbers_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let line_numbers_header = Label::new(Some("Show Line Numbers"));
+    line_numbers_header.set_markup("<b>Show Line Numbers</b>");
+    line_numbers_header.set_halign(Align::Start);
+    line_numbers_header.set_xalign(0.0);
+    
+    let line_numbers_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    line_numbers_spacer.set_hexpand(true);
+    
     let line_numbers_switch = Switch::new();
-    let line_numbers_row = add_row(
-        "Show Line Numbers",
-        "Display line numbers in the editor gutter.",
-        line_numbers_switch.upcast_ref(),
-    );
-    container.append(&line_numbers_row);
+    line_numbers_switch.set_halign(Align::End);
+    
+    line_numbers_hbox.append(&line_numbers_header);
+    line_numbers_hbox.append(&line_numbers_spacer);
+    line_numbers_hbox.append(&line_numbers_switch);
+    line_numbers_hbox.set_margin_top(8);
+    line_numbers_hbox.set_margin_bottom(4);
+    container.append(&line_numbers_hbox);
+
+    // Description text under header
+    let line_numbers_description = Label::new(Some("Display line numbers in the editor gutter."));
+    line_numbers_description.set_halign(Align::Start);
+    line_numbers_description.set_xalign(0.0);
+    line_numbers_description.set_wrap(true);
+    line_numbers_description.add_css_class("dim-label");
+    line_numbers_description.set_margin_bottom(12);
+    container.append(&line_numbers_description);
 
     // Text Direction (Dropdown)
+    let text_dir_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let text_dir_header = Label::new(Some("Text Direction"));
+    text_dir_header.set_markup("<b>Text Direction</b>");
+    text_dir_header.set_halign(Align::Start);
+    text_dir_header.set_xalign(0.0);
+    
+    let text_dir_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    text_dir_spacer.set_hexpand(true);
+    
     let text_dir_combo = ComboBoxText::new();
     text_dir_combo.append_text("Left-to-Right (LTR)");
     text_dir_combo.append_text("Right-to-Left (RTL)");
     text_dir_combo.set_active(Some(0));
-    let text_dir_row = add_row(
-        "Text Direction",
-        "Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout.",
-        text_dir_combo.upcast_ref(),
-    );
-    container.append(&text_dir_row);
+    text_dir_combo.set_halign(Align::End);
+    
+    text_dir_hbox.append(&text_dir_header);
+    text_dir_hbox.append(&text_dir_spacer);
+    text_dir_hbox.append(&text_dir_combo);
+    text_dir_hbox.set_margin_top(8);
+    text_dir_hbox.set_margin_bottom(4);
+    container.append(&text_dir_hbox);
+
+    // Description text under header
+    let text_dir_description = Label::new(Some("Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout."));
+    text_dir_description.set_halign(Align::Start);
+    text_dir_description.set_xalign(0.0);
+    text_dir_description.set_wrap(true);
+    text_dir_description.add_css_class("dim-label");
+    text_dir_description.set_margin_bottom(12);
+    container.append(&text_dir_description);
 
     container
 }

@@ -1,6 +1,8 @@
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
-use crate::components::marco_engine::render::{markdown_to_html, MarkdownOptions};
+use crate::components::marco_engine::grammar::Rule;
+use crate::components::marco_engine::render::{HtmlOptions, HtmlRenderer};
+use crate::components::marco_engine::{AstBuilder, MarcoParser};
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
@@ -8,6 +10,7 @@ use crate::components::viewer::webview_utils::webkit_scrollbar_css;
 use crate::footer::FooterLabels;
 use gtk4::prelude::*;
 use gtk4::Paned;
+use pest::Parser;
 use sourceview5::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -170,21 +173,25 @@ pub fn create_editor_with_preview(
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    let mut markdown_opts = MarkdownOptions::default();
-    markdown_opts.extension.table = true;
-    markdown_opts.extension.autolink = true;
-    markdown_opts.extension.strikethrough = true;
-    markdown_opts.extension.tasklist = true;
-    markdown_opts.extension.footnotes = true;
-    markdown_opts.extension.tagfilter = true;
-    let markdown_opts_rc = std::rc::Rc::new(markdown_opts);
+    let html_opts = HtmlOptions::default();
+    let html_opts_rc = std::rc::Rc::new(html_opts);
 
     // Precreate code scrolled window
     let initial_text = buffer_rc
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
-    let initial_html_body = markdown_to_html(&initial_text, &markdown_opts_rc)
-        .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
+
+    let initial_html_body = match MarcoParser::parse(Rule::document, &initial_text) {
+        Ok(pairs) => match AstBuilder::build(pairs) {
+            Ok(ast) => {
+                let renderer = HtmlRenderer::new(html_opts_rc.as_ref().clone());
+                renderer.render(&ast)
+            }
+            Err(e) => format!("Error building AST: {}", e),
+        },
+        Err(e) => format!("Error parsing markdown: {}", e),
+    };
+
     let pretty_initial =
         crate::components::viewer::html_format::pretty_print_html(&initial_html_body);
 
@@ -229,14 +236,24 @@ pub fn create_editor_with_preview(
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
-        let markdown_opts = std::rc::Rc::clone(&markdown_opts_rc);
+        let html_opts = std::rc::Rc::clone(&html_opts_rc);
         let wheel_js_local = wheel_js_for_refresh.clone();
         std::rc::Rc::new(move || {
             let text = buffer
                 .text(&buffer.start_iter(), &buffer.end_iter(), false)
                 .to_string();
-            let html_body = markdown_to_html(&text, &markdown_opts)
-                .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
+
+            let html_body = match MarcoParser::parse(Rule::document, &text) {
+                Ok(pairs) => match AstBuilder::build(pairs) {
+                    Ok(ast) => {
+                        let renderer = HtmlRenderer::new(html_opts.as_ref().clone());
+                        renderer.render(&ast)
+                    }
+                    Err(e) => format!("Error building AST: {}", e),
+                },
+                Err(e) => format!("Error parsing markdown: {}", e),
+            };
+
             let mut html_body_with_js = html_body.clone();
             html_body_with_js.push_str(&wheel_js_local);
             let html = crate::components::viewer::webkit6::wrap_html_document(
@@ -283,7 +300,7 @@ pub fn create_editor_with_preview(
     // Clones for preview theme updater
     let theme_manager_for_preview = Rc::clone(&theme_manager);
     let css_rc_for_preview = Rc::clone(&css_rc);
-    let markdown_opts_for_preview = std::rc::Rc::clone(&markdown_opts_rc);
+    let html_opts_for_preview = std::rc::Rc::clone(&html_opts_rc);
     let buffer_rc_for_preview = Rc::clone(&buffer_rc);
     let webview_rc_for_preview = Rc::clone(&webview_rc);
     let wheel_js_for_preview = wheel_js_for_refresh.clone();
@@ -397,7 +414,7 @@ pub fn create_editor_with_preview(
         let preview_theme_timeout_clone2 = Rc::clone(&preview_theme_timeout_clone);
         let webview_clone = webview_rc_for_preview.clone();
         let css_clone = Rc::clone(&css_rc_for_preview);
-        let markdown_clone = std::rc::Rc::clone(&markdown_opts_for_preview);
+        let html_opts_clone = std::rc::Rc::clone(&html_opts_for_preview);
         let buffer_clone = Rc::clone(&buffer_rc_for_preview);
         let wheel_clone = wheel_js_for_preview.clone();
         let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
@@ -405,7 +422,7 @@ pub fn create_editor_with_preview(
             refresh_preview_into_webview(
                 webview_clone.as_ref(),
                 &css_clone,
-                &markdown_clone,
+                &html_opts_clone,
                 &buffer_clone,
                 &wheel_clone,
                 &theme_mode_clone,
@@ -454,8 +471,18 @@ pub fn create_editor_with_preview(
                                 false,
                             )
                             .to_string();
-                        let html_body = markdown_to_html(&text, &markdown_opts_rc)
-                            .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
+
+                        let html_body = match MarcoParser::parse(Rule::document, &text) {
+                            Ok(pairs) => match AstBuilder::build(pairs) {
+                                Ok(ast) => {
+                                    let renderer = HtmlRenderer::new(html_opts_rc.as_ref().clone());
+                                    renderer.render(&ast)
+                                }
+                                Err(e) => format!("Error building AST: {}", e),
+                            },
+                            Err(e) => format!("Error parsing markdown: {}", e),
+                        };
+
                         let pretty =
                             crate::components::viewer::html_format::pretty_print_html(&html_body);
 

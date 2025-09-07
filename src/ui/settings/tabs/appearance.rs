@@ -14,7 +14,7 @@ pub fn build_appearance_tab(
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) -> gtk4::Box {
-    use gtk4::{Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale};
+    use gtk4::{Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale, SpinButton};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-appearance");
@@ -41,7 +41,7 @@ pub fn build_appearance_tab(
         l
     };
 
-    // Helper for a row: title, desc, control right-aligned, with extra vertical space
+    // Helper for a row: title, desc, control right-aligned, with reduced spacing (new style)
     let add_row = |title: &str, desc: &str, control: &gtk4::Widget| {
         let vbox = GtkBox::new(Orientation::Vertical, 2);
         let hbox = GtkBox::new(Orientation::Horizontal, 0);
@@ -56,9 +56,11 @@ pub fn build_appearance_tab(
         hbox.set_hexpand(true);
         vbox.append(&hbox);
         let desc = desc_label(desc);
+        desc.add_css_class("dim-label");
         vbox.append(&desc);
         vbox.set_spacing(4);
-        vbox.set_margin_bottom(24);
+        vbox.set_margin_top(8);
+        vbox.set_margin_bottom(12); // Reduced from 24px to 12px
         vbox
     };
 
@@ -220,8 +222,32 @@ pub fn build_appearance_tab(
     );
     container.append(&ui_font_row);
 
-    // UI Font Size (Slider)
+    // UI Font Size (Slider/SpinButton)
     let ui_font_size_adj = Adjustment::new(14.0, 10.0, 24.0, 1.0, 0.0, 0.0);
+    
+    // UI Font Size SpinButton with title
+    let ui_font_size_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let ui_font_size_title = bold_label("UI Font Size");
+    let ui_font_size_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    ui_font_size_spacer.set_hexpand(true);
+    
+    let ui_font_size_spin = SpinButton::new(Some(&ui_font_size_adj), 1.0, 0);
+    ui_font_size_spin.set_halign(Align::End);
+    
+    ui_font_size_hbox.append(&ui_font_size_title);
+    ui_font_size_hbox.append(&ui_font_size_spacer);
+    ui_font_size_hbox.append(&ui_font_size_spin);
+    ui_font_size_hbox.set_margin_top(8);
+    ui_font_size_hbox.set_margin_bottom(4);
+    container.append(&ui_font_size_hbox);
+
+    // Description under header
+    let ui_font_size_desc = desc_label("Customize the font size used in the application's user interface (menus, sidebars).");
+    ui_font_size_desc.add_css_class("dim-label");
+    ui_font_size_desc.set_margin_bottom(12);
+    container.append(&ui_font_size_desc);
+
+    // Slider below
     let ui_font_size_slider = Scale::new(Orientation::Horizontal, Some(&ui_font_size_adj));
     ui_font_size_slider.set_draw_value(false);
     ui_font_size_slider.set_hexpand(true);
@@ -234,24 +260,9 @@ pub fn build_appearance_tab(
             Some(&size.to_string()),
         );
     }
-    let ui_font_size_vbox = GtkBox::new(Orientation::Vertical, 2);
-    let ui_font_size_hbox = GtkBox::new(Orientation::Horizontal, 0);
-    let ui_font_size_title = bold_label("UI Font Size");
-    let ui_font_size_spacer = GtkBox::new(Orientation::Horizontal, 0);
-    ui_font_size_spacer.set_hexpand(true);
-    ui_font_size_hbox.append(&ui_font_size_title);
-    ui_font_size_hbox.append(&ui_font_size_spacer);
-    // No spinbutton for now
-    ui_font_size_hbox.set_hexpand(true);
-    ui_font_size_vbox.append(&ui_font_size_hbox);
-    ui_font_size_vbox.append(&desc_label(
-        "Customize the font size used in the application's user interface (menus, sidebars).",
-    ));
     ui_font_size_slider.set_halign(Align::Start);
-    ui_font_size_vbox.append(&ui_font_size_slider);
-    ui_font_size_vbox.set_spacing(2);
-    ui_font_size_vbox.set_margin_bottom(24);
-    container.append(&ui_font_size_vbox);
+    ui_font_size_slider.set_margin_bottom(12);
+    container.append(&ui_font_size_slider);
 
     container
 }

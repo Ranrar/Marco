@@ -20,6 +20,8 @@ pub struct Settings {
     // --- Markdown schema selection ---
     pub active_schema: Option<String>,
     pub schema_disabled: Option<bool>,
+    // --- Marco Engine Settings ---
+    pub engine: Option<EngineSettings>,
 }
 
 impl Settings {
@@ -181,4 +183,93 @@ pub struct AdvancedSettings {
 pub struct FileSettings {
     pub recent_files: Option<Vec<PathBuf>>,
     pub max_recent_files: Option<u8>,
+}
+
+/// Marco Engine specific settings integrated with main application settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EngineSettings {
+    /// Parser configuration
+    pub parser: Option<EngineParserSettings>,
+    /// Rendering configuration  
+    pub render: Option<EngineRenderSettings>,
+    /// Performance and processing configuration
+    pub performance: Option<EnginePerformanceSettings>,
+    /// Output format preferences
+    pub output: Option<EngineOutputSettings>,
+}
+
+/// Parser-specific engine settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EngineParserSettings {
+    /// Enable position tracking for better error reporting
+    pub track_positions: Option<bool>,
+    /// Enable parse result caching for performance
+    pub enable_cache: Option<bool>,
+    /// Maximum number of cached parse results
+    pub max_cache_size: Option<usize>,
+    /// Enable detailed error reporting
+    pub detailed_errors: Option<bool>,
+    /// Collect parsing statistics for debugging
+    pub collect_stats: Option<bool>,
+}
+
+/// Rendering-specific engine settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EngineRenderSettings {
+    /// HTML rendering options
+    pub html: Option<EngineHtmlSettings>,
+    /// Text rendering options
+    pub text: Option<EngineTextSettings>,
+    /// Default output format ("html", "text", "json", "json_pretty")
+    pub default_format: Option<String>,
+}
+
+/// HTML rendering specific settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EngineHtmlSettings {
+    /// Include CSS styling in output
+    pub include_styles: Option<bool>,
+    /// Generate table of contents
+    pub generate_toc: Option<bool>,
+    /// Enable syntax highlighting for code blocks (syncs with editor.syntax_colors)
+    pub syntax_highlighting: Option<bool>,
+    /// Use semantic HTML5 elements
+    pub semantic_html: Option<bool>,
+    /// Include metadata in HTML head
+    pub include_metadata: Option<bool>,
+}
+
+/// Text rendering specific settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EngineTextSettings {
+    /// Width for text wrapping (0 = no wrapping)
+    pub wrap_width: Option<usize>,
+    /// Include formatting markers in output
+    pub preserve_formatting: Option<bool>,
+    /// Convert links to footnotes
+    pub links_as_footnotes: Option<bool>,
+}
+
+/// Performance and processing settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EnginePerformanceSettings {
+    /// Number of worker threads for parallel processing (always enabled)
+    pub worker_threads: Option<usize>,
+    /// Enable AST caching for repeated operations
+    pub cache_ast: Option<bool>,
+    /// Maximum memory usage for caching (in MB)
+    pub max_cache_memory_mb: Option<usize>,
+    /// Enable debug mode for verbose output (syncs with main debug setting)
+    pub debug_mode: Option<bool>,
+}
+
+/// Output format and behavior settings
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct EngineOutputSettings {
+    /// Pretty print JSON output
+    pub pretty_json: Option<bool>,
+    /// Include source position information in output
+    pub include_positions: Option<bool>,
+    /// Include parsing statistics in output
+    pub include_stats: Option<bool>,
 }

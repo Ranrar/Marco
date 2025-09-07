@@ -1,5 +1,6 @@
 use crate::components::marco_engine::ast::{Node, Visitor};
 use std::fmt::Write;
+use log::debug;
 
 #[derive(Debug, Clone)]
 pub struct HtmlOptions {
@@ -36,7 +37,10 @@ impl HtmlRenderer {
     }
     
     pub fn render(mut self, ast: &Node) -> String {
+        debug!("HtmlRenderer::render - Starting render");
+        debug!("HtmlRenderer::render - AST root: {:?}", std::mem::discriminant(ast));
         self.visit(ast);
+        debug!("HtmlRenderer::render - Generated HTML: '{}'", self.output.chars().take(100).collect::<String>());
         self.output
     }
     
@@ -157,6 +161,11 @@ impl Visitor for HtmlRenderer {
     }
     
     fn visit_heading(&mut self, level: u8, content: &[Node]) -> Self::Output {
+        debug!("HtmlRenderer::visit_heading - level={}, content.len()={}", level, content.len());
+        for (i, child) in content.iter().enumerate() {
+            debug!("HtmlRenderer::visit_heading - child[{}]: {:?}", i, std::mem::discriminant(child));
+        }
+        
         let level = level.clamp(1, 6); // Ensure valid HTML heading level
         
         write!(self.output, "<h{}", level).unwrap();
@@ -370,7 +379,6 @@ impl Visitor for HtmlRenderer {
     }
     
     fn default_output(&self) -> Self::Output {
-        ()
     }
 }
 

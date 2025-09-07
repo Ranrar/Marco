@@ -39,6 +39,7 @@ thiserror = "1.0"                                # For better error handling
 rayon = "1.8"                                    # Parallel processing for large documents
 tokio = { version = "1.0", features = ["full"] } # Async runtime
 tree-sitter = "0.22"                             # Alternative parsing approach for syntax highlighting
+num_cpus = "1.16"                                # CPU core detection for parallel processing
 
 [dev-dependencies]
 # Basic testing

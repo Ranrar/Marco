@@ -11,46 +11,16 @@ pub fn build_language_tab() -> Box {
     container.set_margin_start(32);
     container.set_margin_end(32);
 
-    // Helper for bold label
-    let bold_label = |text: &str| {
-        let l = Label::new(Some(text));
-        l.set_halign(Align::Start);
-        l.set_xalign(0.0);
-        l.set_markup(&format!("<b>{}</b>", glib::markup_escape_text(text)));
-        l
-    };
-
-    // Helper for normal description
-    let desc_label = |text: &str| {
-        let l = Label::new(Some(text));
-        l.set_halign(Align::Start);
-        l.set_xalign(0.0);
-        l.set_wrap(true);
-        l
-    };
-
-    // Helper for a row: title, desc, control right-aligned, with extra vertical space
-    let add_row = |title: &str, desc: &str, control: &gtk4::Widget| {
-        let vbox = GtkBox::new(Orientation::Vertical, 2);
-        let hbox = GtkBox::new(Orientation::Horizontal, 0);
-        let title_label = bold_label(title);
-        let spacer = GtkBox::new(Orientation::Horizontal, 0);
-        spacer.set_hexpand(true);
-        let control = control.clone();
-        hbox.append(&title_label);
-        hbox.append(&spacer); // Expanding spacer
-        hbox.append(&control);
-        control.set_halign(Align::End);
-        hbox.set_hexpand(true);
-        vbox.append(&hbox);
-        let desc = desc_label(desc);
-        vbox.append(&desc);
-        vbox.set_spacing(4);
-        vbox.set_margin_bottom(24);
-        vbox
-    };
-
-    // Language selection (Dropdown)
+    // Language (Dropdown)
+    let lang_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    let lang_header = Label::new(Some("Language"));
+    lang_header.set_markup("<b>Language</b>");
+    lang_header.set_halign(Align::Start);
+    lang_header.set_xalign(0.0);
+    
+    let lang_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    lang_spacer.set_hexpand(true);
+    
     let lang_combo = ComboBoxText::new();
     lang_combo.append_text("System Default");
     lang_combo.append_text("English");
@@ -60,12 +30,22 @@ pub fn build_language_tab() -> Box {
     lang_combo.append_text("العربية");
     lang_combo.append_text("日本語");
     lang_combo.set_active(Some(0));
-    let lang_row = add_row(
-        "Language",
-        "Select the language used for menus, labels, and tooltips.",
-        lang_combo.upcast_ref(),
-    );
-    container.append(&lang_row);
+    lang_combo.set_halign(Align::End);
+    
+    lang_hbox.append(&lang_header);
+    lang_hbox.append(&lang_spacer);
+    lang_hbox.append(&lang_combo);
+    lang_hbox.set_margin_bottom(4);
+    container.append(&lang_hbox);
+
+    // Description text under header
+    let lang_description = Label::new(Some("Select the language used for menus, labels, and tooltips."));
+    lang_description.set_halign(Align::Start);
+    lang_description.set_xalign(0.0);
+    lang_description.set_wrap(true);
+    lang_description.add_css_class("dim-label");
+    lang_description.set_margin_bottom(12);
+    container.append(&lang_description);
 
     container
 }

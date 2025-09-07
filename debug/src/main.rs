@@ -221,6 +221,9 @@ fn main() {
     } else if args.len() == 2 && args[1] == "--analyze" {
         // Grammar analysis mode - detailed breakdown
         grammar_visualizer::analyze_grammar_structure();
+    } else if args.len() == 2 && args[1] == "--multiline" {
+        // Test multiline paragraph parsing
+        test_multiline_paragraphs();
     } else if args.len() == 2 && args[1] == "--tree" {
         eprintln!("Usage for --tree mode:");
         eprintln!(
@@ -252,6 +255,10 @@ fn main() {
         );
         eprintln!(
             "  {} --analyze                - Detailed grammar analysis",
+            args[0]
+        );
+        eprintln!(
+            "  {} --multiline              - Test multiline paragraph parsing",
             args[0]
         );
         eprintln!(
@@ -2319,4 +2326,78 @@ fn print_enhanced_pairs_last(
             }
         }
     }
+}
+
+// Test multiline paragraph functionality
+fn test_multiline_paragraphs() {
+    println!(
+        "{}🧪 Testing Multiline Paragraph Parsing{}",
+        BRIGHT_CYAN, RESET
+    );
+    println!(
+        "{}=========================================={}",
+        BRIGHT_CYAN, RESET
+    );
+    println!();
+
+    let test_input = "# Hello!\nasdasd\nasdasdasd\nasdasd";
+
+    println!("{}📝 Input:{}", BRIGHT_GREEN, RESET);
+    println!("\"{}\"", test_input);
+    println!();
+
+    println!(
+        "{}🔍 Expected: Each line should be a separate <p> tag{}",
+        BRIGHT_YELLOW, RESET
+    );
+    println!("Expected HTML:");
+    println!("<div class=\"marco-document\">");
+    println!("  <h1 class=\"marco-heading-1\">Hello!</h1>");
+    println!("  <p class=\"marco-paragraph\">asdasd</p>");
+    println!("  <p class=\"marco-paragraph\">asdasdasd</p>");
+    println!("  <p class=\"marco-paragraph\">asdasd</p>");
+    println!("</div>");
+    println!();
+
+    // Parse with document rule
+    match MarcoParser::parse(Rule::document, test_input) {
+        Ok(pairs) => {
+            println!("{}✅ Parse successful!{}", BRIGHT_GREEN, RESET);
+            println!();
+
+            println!("{}🌳 Parse Tree:{}", BRIGHT_CYAN, RESET);
+            for pair in pairs {
+                print_enhanced_pairs(pair, 0);
+            }
+            println!();
+
+            // Also show with file rule for complete processing
+            println!("{}📄 Full file processing:{}", BRIGHT_CYAN, RESET);
+            match MarcoParser::parse(Rule::file, test_input) {
+                Ok(file_pairs) => {
+                    for pair in file_pairs {
+                        print_enhanced_pairs(pair, 0);
+                    }
+                }
+                Err(e) => {
+                    eprintln!("{}❌ File parse error: {}{}", "\x1b[91m", e, RESET);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("{}❌ Parse error: {}{}", "\x1b[91m", e, RESET);
+            println!();
+            println!(
+                "{}💡 Tip: The grammar might not be handling multiline paragraphs correctly{}",
+                BRIGHT_YELLOW, RESET
+            );
+        }
+    }
+
+    println!();
+    println!("{}📊 Analysis:{}", BRIGHT_BLUE, RESET);
+    println!("- If you see multiple paragraph_line rules under one paragraph rule,");
+    println!("  then the grammar is parsing multiple lines as one paragraph.");
+    println!("- For the desired output, we need separate paragraph rules for each line.");
+    println!("- This can be fixed in the AST builder by splitting multi-line paragraphs.");
 }

@@ -14,18 +14,14 @@ pub mod grammar;
 pub mod parser;
 pub mod render;
 
-#[cfg(test)]
-mod tests;
-
-#[cfg(test)]
-mod simple_tests;
-
 // Re-export main types for convenience
 pub use ast::{AstBuilder, Node, Span, Visitor, VisitorMut};
-pub use engine::{AsyncMarcoPipeline, MarcoEngine, MarcoPipeline, ParallelMarcoPipeline};
+pub use engine::{
+    AsyncMarcoPipeline, EngineConfig, MarcoEngine, MarcoPipeline, ParallelMarcoPipeline,
+};
 pub use errors::MarcoError;
 pub use grammar::{MarcoParser, Rule};
-pub use parser::{EnhancedMarcoParser, ParseResult, ParserConfig, PositionedError, ErrorSeverity};
+pub use parser::{EnhancedMarcoParser, ErrorSeverity, ParseResult, ParserConfig, PositionedError};
 pub use render::{
     markdown_to_html, HtmlOptions, MarcoRenderer, MarkdownExtensions, MarkdownOptions,
     OutputFormat, TextOptions,

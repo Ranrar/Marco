@@ -5,11 +5,13 @@
 //! and parallel execution.
 
 pub mod async_pipeline;
+pub mod config;
 pub mod parallel;
 pub mod pipeline;
 
 pub use crate::components::marco_engine::grammar::MarcoParser;
 pub use async_pipeline::{gtk_integration, AsyncMarcoPipeline};
+pub use config::EngineConfig;
 pub use parallel::{ParallelConfig, ParallelMarcoPipeline, ParallelStats};
 pub use pipeline::{MarcoPipeline, PipelineConfig};
 
@@ -91,7 +93,9 @@ impl MarcoEngine {
     }
 
     /// Analyze rule usage in document
-    pub fn analyze_document(input: &str) -> Result<crate::components::marco_engine::parser::RuleAnalysis, MarcoError> {
+    pub fn analyze_document(
+        input: &str,
+    ) -> Result<crate::components::marco_engine::parser::RuleAnalysis, MarcoError> {
         let mut pipeline = MarcoPipeline::with_defaults();
         pipeline.analyze_rule_usage(input)
     }
