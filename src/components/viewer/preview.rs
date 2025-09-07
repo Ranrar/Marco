@@ -14,7 +14,8 @@ pub fn refresh_preview_into_webview(
     let text = buffer
         .text(&buffer.start_iter(), &buffer.end_iter(), false)
         .to_string();
-    let html_body = crate::components::marco_engine::render::markdown_to_html(&text, markdown_opts);
+    let html_body = crate::components::marco_engine::render::markdown_to_html(&text, markdown_opts)
+        .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
     let mut html_body_with_js = html_body.clone();
     html_body_with_js.push_str(wheel_js);
     let html = crate::components::viewer::webkit6::wrap_html_document(

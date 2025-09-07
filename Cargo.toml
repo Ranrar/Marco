@@ -34,6 +34,11 @@ tempfile = "3.21.0"
 pest = "2.8.1"
 pest_derive = "2.8.1"
 emojis = "0.7.2"
+# Marco Engine dependencies
+thiserror = "1.0"                                # For better error handling
+rayon = "1.8"                                    # Parallel processing for large documents
+tokio = { version = "1.0", features = ["full"] } # Async runtime
+tree-sitter = "0.22"                             # Alternative parsing approach for syntax highlighting
 
 [dev-dependencies]
 # Basic testing

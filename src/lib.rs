@@ -9,4 +9,4 @@ pub mod theme;
 pub use logic::buffer::{DocumentBuffer, RecentFiles};
 
 // Re-export the Marco parser for external tools
-pub use components::marco_engine::{MarcoParser, Rule, parse_with_rule, parse_document, print_pairs};
+pub use components::marco_engine::{MarcoParser, Rule, parse_with_rule, parse_document, print_pairs, parse_markdown};

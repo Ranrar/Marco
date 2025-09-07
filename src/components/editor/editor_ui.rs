@@ -183,7 +183,8 @@ pub fn create_editor_with_preview(
     let initial_text = buffer_rc
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
-    let initial_html_body = markdown_to_html(&initial_text, &markdown_opts_rc);
+    let initial_html_body = markdown_to_html(&initial_text, &markdown_opts_rc)
+        .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
     let pretty_initial =
         crate::components::viewer::html_format::pretty_print_html(&initial_html_body);
 
@@ -234,7 +235,8 @@ pub fn create_editor_with_preview(
             let text = buffer
                 .text(&buffer.start_iter(), &buffer.end_iter(), false)
                 .to_string();
-            let html_body = markdown_to_html(&text, &markdown_opts);
+            let html_body = markdown_to_html(&text, &markdown_opts)
+                .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
             let mut html_body_with_js = html_body.clone();
             html_body_with_js.push_str(&wheel_js_local);
             let html = crate::components::viewer::webkit6::wrap_html_document(
@@ -452,7 +454,8 @@ pub fn create_editor_with_preview(
                                 false,
                             )
                             .to_string();
-                        let html_body = markdown_to_html(&text, &markdown_opts_rc);
+                        let html_body = markdown_to_html(&text, &markdown_opts_rc)
+                            .unwrap_or_else(|e| format!("Error rendering markdown: {}", e));
                         let pretty =
                             crate::components::viewer::html_format::pretty_print_html(&html_body);
 
