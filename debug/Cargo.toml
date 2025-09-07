@@ -13,4 +13,9 @@ path = "src/main.rs"
 pest = "2.8.1"
 pest_derive = "2.8.1"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.9.5"
+toml = "0.8"
+# ASCII tree visualization for better parse tree display
+ascii_tree = "0.1.1"
+escape_string = "0.1.1"
+# Date/time for file generation timestamps
+chrono = { version = "0.4", features = ["serde"] }

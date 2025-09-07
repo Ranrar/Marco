@@ -23,8 +23,8 @@ fn test_marco_basic_parsing() {
     println!("HTML output: {}", html);
     println!("AST: {:?}", ast);
 
-    assert!(html.contains("<h1>"));
-    assert!(html.contains("<strong>"));
+    assert!(html.contains("<h1 class=\"marco-heading-1\">"));
+    assert!(html.contains("Hello World")); // Check heading content has proper spacing
 
     // Test JSON rendering
     let json_renderer = JsonRenderer::new(false);

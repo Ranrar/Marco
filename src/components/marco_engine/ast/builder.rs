@@ -44,9 +44,14 @@ impl AstBuilder {
         let span = Span::simple(pair.as_span().start(), pair.as_span().end());
 
         match pair.as_rule() {
+            Rule::file => Self::build_node(pair.into_inner().next().unwrap()),
+            Rule::block => Self::build_node(pair.into_inner().next().unwrap()),
             Rule::document => Self::build_document(pair, span),
             Rule::heading => Self::build_heading(pair, span),
             Rule::paragraph => Self::build_paragraph(pair, span),
+            Rule::paragraph_line => Self::build_paragraph_line(pair, span),
+            Rule::inline => Self::build_inline(pair),
+            Rule::inline_core => Self::build_inline_core(pair),
             Rule::code_block => Self::build_code_block(pair, span),
             Rule::math_block => Self::build_math_block(pair, span),
             Rule::list => Self::build_list(pair, span),
@@ -62,6 +67,13 @@ impl AstBuilder {
                 content: pair.as_str().to_string(),
                 span,
             }),
+            // Handle specific heading and inline rules
+            Rule::heading_inline => Self::build_node(pair.into_inner().next().unwrap()),
+            Rule::word => Ok(Node::Text {
+                content: pair.as_str().to_string(),
+                span,
+            }),
+            Rule::bold_asterisk => Self::build_strong(pair, span),
             _ => {
                 // For any unhandled rule, create a text node with the raw content
                 Ok(Node::Text {
@@ -97,11 +109,8 @@ impl AstBuilder {
                 Rule::H5 => level = 5,
                 Rule::H6 => level = 6,
                 Rule::heading_content => {
-                    for heading_inner in inner.into_inner() {
-                        if let Ok(node) = Self::build_node(heading_inner) {
-                            content.push(node);
-                        }
-                    }
+                    // Build content preserving spaces between words
+                    content = Self::build_heading_content_with_spaces(inner)?;
                 }
                 _ => {
                     // Fallback: treat as text content
@@ -116,6 +125,54 @@ impl AstBuilder {
         Ok(Node::heading(level, content, span))
     }
 
+    fn build_heading_content_with_spaces(pair: Pair<Rule>) -> Result<Vec<Node>> {
+        let full_text = pair.as_str();
+        let pair_span = pair.as_span();
+        let mut content = Vec::new();
+        let mut last_processed = 0;
+
+        let inlines: Vec<_> = pair.into_inner().collect();
+
+        for inline in inlines.iter() {
+            let relative_start = inline.as_span().start() - pair_span.start();
+            let relative_end = inline.as_span().end() - pair_span.start();
+
+            // Add any gap (whitespace) before this element
+            if relative_start > last_processed {
+                let gap_text = &full_text[last_processed..relative_start];
+                if !gap_text.is_empty() {
+                    content.push(Node::Text {
+                        content: gap_text.to_string(),
+                        span: Span::simple(
+                            pair_span.start() + last_processed,
+                            pair_span.start() + relative_start,
+                        ),
+                    });
+                }
+            }
+
+            // Add the actual inline element
+            if let Ok(node) = Self::build_node(inline.clone()) {
+                content.push(node);
+            }
+
+            last_processed = relative_end;
+        }
+
+        // Add any remaining text after the last element
+        if last_processed < full_text.len() {
+            let remaining_text = &full_text[last_processed..];
+            if !remaining_text.is_empty() {
+                content.push(Node::Text {
+                    content: remaining_text.to_string(),
+                    span: Span::simple(pair_span.start() + last_processed, pair_span.end()),
+                });
+            }
+        }
+
+        Ok(content)
+    }
+
     fn build_paragraph(pair: Pair<Rule>, span: Span) -> Result<Node> {
         let mut content = Vec::new();
 
@@ -126,6 +183,41 @@ impl AstBuilder {
         }
 
         Ok(Node::paragraph(content, span))
+    }
+
+    fn build_paragraph_line(pair: Pair<Rule>, span: Span) -> Result<Node> {
+        let content = pair.as_str().to_string();
+
+        // paragraph_line is just a container, process its contents
+        if let Some(inner) = pair.into_inner().next() {
+            return Self::build_node(inner);
+        }
+        // Fallback to text if no inner content
+        Ok(Node::Text { content, span })
+    }
+
+    fn build_inline(pair: Pair<Rule>) -> Result<Node> {
+        let span = Span::simple(pair.as_span().start(), pair.as_span().end());
+        let content = pair.as_str().to_string();
+
+        // inline is just a container, process its first inner element
+        if let Some(inner) = pair.into_inner().next() {
+            return Self::build_node(inner);
+        }
+        // Fallback to text if no inner content
+        Ok(Node::Text { content, span })
+    }
+
+    fn build_inline_core(pair: Pair<Rule>) -> Result<Node> {
+        let span = Span::simple(pair.as_span().start(), pair.as_span().end());
+        let content = pair.as_str().to_string();
+
+        // inline_core is just a container, process its first inner element
+        if let Some(inner) = pair.into_inner().next() {
+            return Self::build_node(inner);
+        }
+        // Fallback to text if no inner content
+        Ok(Node::Text { content, span })
     }
 
     fn build_code_block(pair: Pair<Rule>, span: Span) -> Result<Node> {
