@@ -7,6 +7,7 @@ use crate::components::marco_engine::{
     ast::{AstBuilder, Node},
     errors::MarcoError,
     grammar::{MarcoParser, Rule},
+    parser::{EnhancedMarcoParser, ParserConfig},
     render::{HtmlOptions, MarcoRenderer, OutputFormat, TextOptions},
 };
 use pest::Parser;
@@ -30,6 +31,8 @@ pub struct PipelineConfig {
     pub cache_ast: bool,
     /// Enable parallel processing where applicable
     pub parallel: bool,
+    /// Enhanced parser configuration
+    pub parser_config: ParserConfig,
 }
 
 impl Default for PipelineConfig {
@@ -41,6 +44,7 @@ impl Default for PipelineConfig {
             text_options: TextOptions::default(),
             cache_ast: false,
             parallel: false,
+            parser_config: ParserConfig::default(),
         }
     }
 }
@@ -49,14 +53,17 @@ impl Default for PipelineConfig {
 pub struct MarcoPipeline {
     config: PipelineConfig,
     cached_ast: Option<Node>,
+    parser: EnhancedMarcoParser,
 }
 
 impl MarcoPipeline {
     /// Create a new pipeline with the given configuration
     pub fn new(config: PipelineConfig) -> Self {
+        let parser = EnhancedMarcoParser::with_config(config.parser_config.clone());
         Self {
             config,
             cached_ast: None,
+            parser,
         }
     }
 
@@ -71,9 +78,26 @@ impl MarcoPipeline {
             eprintln!("Parsing {} characters of input", input.len());
         }
 
-        // Parse with Pest
-        let pairs = MarcoParser::parse(Rule::file, input)
-            .map_err(|e| MarcoError::Parse(format!("Pest parsing failed: {}", e)))?;
+        // Use enhanced parser for better error handling and features
+        let parse_result = self.parser.parse_document(input);
+        
+        if self.config.debug {
+            eprintln!("Parse result: {:?}", parse_result.stats);
+            if !parse_result.warnings.is_empty() {
+                eprintln!("Parse warnings: {:?}", parse_result.warnings);
+            }
+        }
+
+        // Convert parse nodes to pest pairs for AST building
+        let pairs = match parse_result.nodes {
+            Ok(nodes) => {
+                // For now, fall back to direct pest parsing for AST building
+                // TODO: Convert ParseNode tree to AST directly
+                MarcoParser::parse(Rule::file, input)
+                    .map_err(|e| MarcoError::Parse(format!("Pest parsing failed: {}", e)))?
+            }
+            Err(e) => return Err(e),
+        };
 
         if self.config.debug {
             eprintln!("Pest parsing successful, building AST");
@@ -168,11 +192,33 @@ impl MarcoPipeline {
 
     /// Update configuration
     pub fn update_config(&mut self, config: PipelineConfig) {
+        // Update parser configuration if it changed
+        self.parser = EnhancedMarcoParser::with_config(config.parser_config.clone());
         self.config = config;
         // Clear cache when config changes as it might affect parsing/rendering
         if !self.config.cache_ast {
             self.clear_cache();
         }
+    }
+
+    /// Get parser cache statistics
+    pub fn parser_cache_stats(&self) -> crate::components::marco_engine::parser::CacheStats {
+        self.parser.cache_stats()
+    }
+
+    /// Clear parser cache
+    pub fn clear_parser_cache(&mut self) {
+        self.parser.clear_cache();
+    }
+
+    /// Validate syntax without full parsing
+    pub fn validate_syntax(&mut self, rule_name: &str, input: &str) -> Result<bool, MarcoError> {
+        self.parser.validate(rule_name, input)
+    }
+
+    /// Analyze rule usage in document
+    pub fn analyze_rule_usage(&mut self, input: &str) -> Result<crate::components::marco_engine::parser::RuleAnalysis, MarcoError> {
+        self.parser.analyze_rule_usage(input)
     }
 
     /// Get current configuration

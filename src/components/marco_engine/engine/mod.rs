@@ -64,6 +64,10 @@ impl MarcoEngine {
             version: env!("CARGO_PKG_VERSION").to_string(),
             features: vec![
                 "pest-parser".to_string(),
+                "enhanced-parser".to_string(),
+                "position-tracking".to_string(),
+                "parse-caching".to_string(),
+                "rule-analysis".to_string(),
                 "async-processing".to_string(),
                 "parallel-processing".to_string(),
                 "html-rendering".to_string(),
@@ -78,6 +82,35 @@ impl MarcoEngine {
                 OutputFormat::JsonPretty,
             ],
         }
+    }
+
+    /// Validate syntax with a specific rule
+    pub fn validate_syntax(rule_name: &str, input: &str) -> Result<bool, MarcoError> {
+        let mut pipeline = MarcoPipeline::with_defaults();
+        pipeline.validate_syntax(rule_name, input)
+    }
+
+    /// Analyze rule usage in document
+    pub fn analyze_document(input: &str) -> Result<crate::components::marco_engine::parser::RuleAnalysis, MarcoError> {
+        let mut pipeline = MarcoPipeline::with_defaults();
+        pipeline.analyze_rule_usage(input)
+    }
+
+    /// Create a pipeline with enhanced parser features enabled
+    pub fn create_enhanced_pipeline() -> MarcoPipeline {
+        let config = pipeline::PipelineConfig {
+            parser_config: crate::components::marco_engine::parser::ParserConfig {
+                track_positions: true,
+                enable_cache: true,
+                detailed_errors: true,
+                collect_stats: true,
+                ..Default::default()
+            },
+            debug: false,
+            cache_ast: true,
+            ..Default::default()
+        };
+        MarcoPipeline::new(config)
     }
 }
 

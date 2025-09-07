@@ -11,6 +11,7 @@ pub mod ast;
 pub mod engine;
 pub mod errors;
 pub mod grammar;
+pub mod parser;
 pub mod render;
 
 #[cfg(test)]
@@ -24,6 +25,7 @@ pub use ast::{AstBuilder, Node, Span, Visitor, VisitorMut};
 pub use engine::{AsyncMarcoPipeline, MarcoEngine, MarcoPipeline, ParallelMarcoPipeline};
 pub use errors::MarcoError;
 pub use grammar::{MarcoParser, Rule};
+pub use parser::{EnhancedMarcoParser, ParseResult, ParserConfig, PositionedError, ErrorSeverity};
 pub use render::{
     markdown_to_html, HtmlOptions, MarcoRenderer, MarkdownExtensions, MarkdownOptions,
     OutputFormat, TextOptions,
@@ -56,6 +58,21 @@ pub async fn parse_to_text_async(input: &str) -> Result<String, MarcoError> {
 
 pub async fn parse_to_json_async(input: &str, pretty: bool) -> Result<String, MarcoError> {
     MarcoEngine::to_json_async(input, pretty).await
+}
+
+/// Enhanced parser functions
+pub fn validate_syntax(rule_name: &str, input: &str) -> Result<bool, MarcoError> {
+    MarcoEngine::validate_syntax(rule_name, input)
+}
+
+pub fn analyze_document(input: &str) -> Result<parser::RuleAnalysis, MarcoError> {
+    MarcoEngine::analyze_document(input)
+}
+
+/// Quick parsing with enhanced features
+pub fn parse_with_enhanced_features(input: &str) -> Result<String, MarcoError> {
+    let mut pipeline = MarcoEngine::create_enhanced_pipeline();
+    pipeline.process_default(input)
 }
 
 // Legacy compatibility functions
