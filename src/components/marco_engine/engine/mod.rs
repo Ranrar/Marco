@@ -26,11 +26,6 @@ impl MarcoEngine {
         MarcoPipeline::to_html(input)
     }
 
-    /// Quick text conversion using default pipeline
-    pub fn to_text(input: &str) -> Result<String, MarcoError> {
-        MarcoPipeline::to_text(input)
-    }
-
     /// Quick JSON conversion using default pipeline
     pub fn to_json(input: &str, pretty: bool) -> Result<String, MarcoError> {
         MarcoPipeline::to_json(input, pretty)
@@ -39,11 +34,6 @@ impl MarcoEngine {
     /// Async HTML conversion
     pub async fn to_html_async(input: &str) -> Result<String, MarcoError> {
         AsyncMarcoPipeline::to_html(input).await
-    }
-
-    /// Async text conversion
-    pub async fn to_text_async(input: &str) -> Result<String, MarcoError> {
-        AsyncMarcoPipeline::to_text(input).await
     }
 
     /// Async JSON conversion
@@ -79,7 +69,6 @@ impl MarcoEngine {
             ],
             supported_formats: vec![
                 OutputFormat::Html,
-                OutputFormat::Text,
                 OutputFormat::Json,
                 OutputFormat::JsonPretty,
             ],
@@ -144,7 +133,6 @@ mod tests {
 
         // These will fail without the grammar file, but test the interface
         let _html_result = MarcoEngine::to_html(input);
-        let _text_result = MarcoEngine::to_text(input);
         let _json_result = MarcoEngine::to_json(input, true);
     }
 
@@ -154,7 +142,6 @@ mod tests {
 
         // These will fail without the grammar file, but test the async interface
         let _html_result = MarcoEngine::to_html_async(input).await;
-        let _text_result = MarcoEngine::to_text_async(input).await;
         let _json_result = MarcoEngine::to_json_async(input, true).await;
     }
 

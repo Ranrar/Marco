@@ -8,7 +8,7 @@ use crate::components::marco_engine::{
     errors::MarcoError,
     grammar::{MarcoParser, Rule},
     parser::{EnhancedMarcoParser, ParserConfig},
-    render::{HtmlOptions, MarcoRenderer, OutputFormat, TextOptions},
+    render::{HtmlOptions, MarcoRenderer, OutputFormat},
 };
 use pest::Parser;
 use std::path::Path;
@@ -25,8 +25,6 @@ pub struct PipelineConfig {
     pub default_format: OutputFormat,
     /// HTML rendering options
     pub html_options: HtmlOptions,
-    /// Text rendering options  
-    pub text_options: TextOptions,
     /// Enable AST caching for performance
     pub cache_ast: bool,
     /// Enable parallel processing where applicable
@@ -41,7 +39,6 @@ impl Default for PipelineConfig {
             debug: false,
             default_format: OutputFormat::Html,
             html_options: HtmlOptions::default(),
-            text_options: TextOptions::default(),
             cache_ast: false,
             parallel: false,
             parser_config: ParserConfig::default(),
@@ -80,7 +77,7 @@ impl MarcoPipeline {
 
         // Use enhanced parser for better error handling and features
         let parse_result = self.parser.parse_document(input);
-        
+
         if self.config.debug {
             eprintln!("Parse result: {:?}", parse_result.stats);
             if !parse_result.warnings.is_empty() {
@@ -94,7 +91,7 @@ impl MarcoPipeline {
                 // For now, fall back to direct pest parsing for AST building
                 // TODO: Convert ParseNode tree to AST directly
                 MarcoParser::parse(Rule::file, input)
-                    .map_err(|e| MarcoError::Parse(format!("Pest parsing failed: {}", e)))?
+                    .map_err(|e| MarcoError::parse_error(format!("Pest parsing failed: {}", e)))?
             }
             Err(e) => return Err(e),
         };
@@ -135,7 +132,7 @@ impl MarcoPipeline {
         let ast = self
             .cached_ast
             .as_ref()
-            .ok_or_else(|| MarcoError::AST("No AST available - call parse() first".to_string()))?;
+            .ok_or_else(|| MarcoError::ast_error("No AST available - call parse() first"))?;
 
         let format = format.unwrap_or_else(|| self.config.default_format.clone());
 
@@ -147,10 +144,6 @@ impl MarcoPipeline {
             OutputFormat::Html => Ok(MarcoRenderer::render_html(
                 ast,
                 self.config.html_options.clone(),
-            )),
-            OutputFormat::Text => Ok(MarcoRenderer::render_text(
-                ast,
-                self.config.text_options.clone(),
             )),
             OutputFormat::Json => MarcoRenderer::render_json(ast, false),
             OutputFormat::JsonPretty => MarcoRenderer::render_json(ast, true),
@@ -175,7 +168,7 @@ impl MarcoPipeline {
     /// Process a file and return rendered output
     pub fn process_file<P: AsRef<Path>>(&mut self, path: P) -> Result<String, MarcoError> {
         let content = std::fs::read_to_string(path)
-            .map_err(|e| MarcoError::IO(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| MarcoError::io_error(format!("Failed to read file: {}", e)))?;
 
         self.process_default(&content)
     }
@@ -217,7 +210,10 @@ impl MarcoPipeline {
     }
 
     /// Analyze rule usage in document
-    pub fn analyze_rule_usage(&mut self, input: &str) -> Result<crate::components::marco_engine::parser::RuleAnalysis, MarcoError> {
+    pub fn analyze_rule_usage(
+        &mut self,
+        input: &str,
+    ) -> Result<crate::components::marco_engine::parser::RuleAnalysis, MarcoError> {
         self.parser.analyze_rule_usage(input)
     }
 
@@ -233,13 +229,6 @@ impl MarcoPipeline {
     pub fn to_html(input: &str) -> Result<String, MarcoError> {
         let mut pipeline = Self::with_defaults();
         pipeline.config.default_format = OutputFormat::Html;
-        pipeline.process_default(input)
-    }
-
-    /// Quick text conversion
-    pub fn to_text(input: &str) -> Result<String, MarcoError> {
-        let mut pipeline = Self::with_defaults();
-        pipeline.config.default_format = OutputFormat::Text;
         pipeline.process_default(input)
     }
 
@@ -277,7 +266,6 @@ mod tests {
 
         // These will fail without the grammar file, but test the interface
         let _html_result = MarcoPipeline::to_html(input);
-        let _text_result = MarcoPipeline::to_text(input);
         let _json_result = MarcoPipeline::to_json(input, true);
     }
 

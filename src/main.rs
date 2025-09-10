@@ -209,7 +209,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         .build();
     window.add_css_class("main-window");
 
-    // --- Custom VS Code–like draggable titlebar from menu.rs ---
+    // --- Custom VS Code-like draggable titlebar from menu.rs ---
     let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(&window);
     window.set_titlebar(Some(&titlebar_handle));
 

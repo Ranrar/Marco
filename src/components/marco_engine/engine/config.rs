@@ -7,7 +7,7 @@
 use super::pipeline::PipelineConfig;
 use crate::components::marco_engine::{
     parser::ParserConfig,
-    render::{HtmlOptions, OutputFormat, TextOptions},
+    render::{HtmlOptions, OutputFormat},
 };
 use crate::logic::swanson::{
     EngineParserSettings, EnginePerformanceSettings, EngineSettings, Settings,
@@ -77,7 +77,6 @@ impl EngineConfig {
 
         let default_format = match default_format_str.as_str() {
             "html" => OutputFormat::Html,
-            "text" => OutputFormat::Text,
             "json" => OutputFormat::Json,
             _ => OutputFormat::Html,
         };
@@ -99,28 +98,10 @@ impl EngineConfig {
             HtmlOptions::default()
         };
 
-        // Build text options
-        let text_options = if let Some(render) = engine_settings.render.as_ref() {
-            if let Some(text) = render.text.as_ref() {
-                TextOptions {
-                    line_width: text.wrap_width,
-                    preserve_formatting: text.preserve_formatting.unwrap_or(true),
-                    bullet_char: '•',
-                    number_format: "{}.".to_string(),
-                    heading_underline: true,
-                }
-            } else {
-                TextOptions::default()
-            }
-        } else {
-            TextOptions::default()
-        };
-
         PipelineConfig {
             debug,
             default_format,
             html_options,
-            text_options,
             cache_ast,
             parallel,
             parser_config: self.to_parser_config(),
@@ -249,24 +230,22 @@ impl EngineConfig {
         let mut settings = Settings::default();
 
         // Create engine settings for development
-        let mut engine_settings = EngineSettings::default();
-
-        // Parser settings for development
-        engine_settings.parser = Some(EngineParserSettings {
-            track_positions: Some(true),
-            enable_cache: Some(false), // Disable cache for development
-            max_cache_size: Some(100),
-            detailed_errors: Some(true),
-            collect_stats: Some(true),
-        });
-
-        // Performance settings for development
-        engine_settings.performance = Some(EnginePerformanceSettings {
-            worker_threads: Some(1), // Single thread for debugging consistency
-            cache_ast: Some(false),
-            max_cache_memory_mb: Some(16),
-            debug_mode: Some(true),
-        });
+        let engine_settings = EngineSettings {
+            parser: Some(EngineParserSettings {
+                track_positions: Some(true),
+                enable_cache: Some(false), // Disable cache for development
+                max_cache_size: Some(100),
+                detailed_errors: Some(true),
+                collect_stats: Some(true),
+            }),
+            performance: Some(EnginePerformanceSettings {
+                worker_threads: Some(1), // Single thread for debugging consistency
+                cache_ast: Some(false),
+                max_cache_memory_mb: Some(16),
+                debug_mode: Some(true),
+            }),
+            ..Default::default()
+        };
 
         settings.engine = Some(engine_settings);
         Self { settings }
@@ -277,24 +256,22 @@ impl EngineConfig {
         let mut settings = Settings::default();
 
         // Create engine settings for production
-        let mut engine_settings = EngineSettings::default();
-
-        // Parser settings for production
-        engine_settings.parser = Some(EngineParserSettings {
-            track_positions: Some(false), // Disable for performance
-            enable_cache: Some(true),
-            max_cache_size: Some(10000),
-            detailed_errors: Some(false),
-            collect_stats: Some(false),
-        });
-
-        // Performance settings for production
-        engine_settings.performance = Some(EnginePerformanceSettings {
-            worker_threads: None, // Use all available cores for optimal performance
-            cache_ast: Some(true),
-            max_cache_memory_mb: Some(256),
-            debug_mode: Some(false),
-        });
+        let engine_settings = EngineSettings {
+            parser: Some(EngineParserSettings {
+                track_positions: Some(false), // Disable for performance
+                enable_cache: Some(true),
+                max_cache_size: Some(10000),
+                detailed_errors: Some(false),
+                collect_stats: Some(false),
+            }),
+            performance: Some(EnginePerformanceSettings {
+                worker_threads: None, // Use all available cores for optimal performance
+                cache_ast: Some(true),
+                max_cache_memory_mb: Some(256),
+                debug_mode: Some(false),
+            }),
+            ..Default::default()
+        };
 
         settings.engine = Some(engine_settings);
         Self { settings }
@@ -305,24 +282,22 @@ impl EngineConfig {
         let mut settings = Settings::default();
 
         // Create engine settings for testing
-        let mut engine_settings = EngineSettings::default();
-
-        // Parser settings for testing
-        engine_settings.parser = Some(EngineParserSettings {
-            track_positions: Some(true),
-            enable_cache: Some(true),
-            max_cache_size: Some(500),
-            detailed_errors: Some(true),
-            collect_stats: Some(true),
-        });
-
-        // Performance settings for testing
-        engine_settings.performance = Some(EnginePerformanceSettings {
-            worker_threads: Some(1), // Single thread for deterministic testing
-            cache_ast: Some(true),
-            max_cache_memory_mb: Some(32),
-            debug_mode: Some(true),
-        });
+        let engine_settings = EngineSettings {
+            parser: Some(EngineParserSettings {
+                track_positions: Some(true),
+                enable_cache: Some(true),
+                max_cache_size: Some(500),
+                detailed_errors: Some(true),
+                collect_stats: Some(true),
+            }),
+            performance: Some(EnginePerformanceSettings {
+                worker_threads: Some(1), // Single thread for deterministic testing
+                cache_ast: Some(true),
+                max_cache_memory_mb: Some(32),
+                debug_mode: Some(true),
+            }),
+            ..Default::default()
+        };
 
         settings.engine = Some(engine_settings);
         Self { settings }

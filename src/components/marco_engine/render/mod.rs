@@ -5,12 +5,10 @@
 
 pub mod html;
 pub mod json;
-pub mod text;
 
 // Re-export all renderer types
 pub use html::{HtmlOptions, HtmlRenderer};
 pub use json::JsonRenderer;
-pub use text::{TextOptions, TextRenderer};
 
 use crate::components::marco_engine::ast::Node;
 use crate::components::marco_engine::errors::MarcoError;
@@ -20,7 +18,6 @@ use crate::components::marco_engine::errors::MarcoError;
 pub enum OutputFormat {
     Html,
     Json,
-    Text,
     JsonPretty,
 }
 
@@ -37,15 +34,11 @@ impl MarcoRenderer {
             }
             OutputFormat::Json => {
                 let renderer = JsonRenderer::new(false);
-                renderer.render(ast).map_err(MarcoError::from)
+                renderer.render(ast).map_err(|e| MarcoError::from(e))
             }
             OutputFormat::JsonPretty => {
                 let renderer = JsonRenderer::new(true);
-                renderer.render(ast).map_err(MarcoError::from)
-            }
-            OutputFormat::Text => {
-                let renderer = TextRenderer::new(TextOptions::default());
-                Ok(renderer.render(ast))
+                renderer.render(ast).map_err(|e| MarcoError::from(e))
             }
         }
     }
@@ -56,16 +49,10 @@ impl MarcoRenderer {
         renderer.render(ast)
     }
 
-    /// Render to text with custom options
-    pub fn render_text(ast: &Node, options: TextOptions) -> String {
-        let renderer = TextRenderer::new(options);
-        renderer.render(ast)
-    }
-
     /// Render to JSON with formatting control
     pub fn render_json(ast: &Node, pretty: bool) -> Result<String, MarcoError> {
         let renderer = JsonRenderer::new(pretty);
-        renderer.render(ast).map_err(MarcoError::from)
+        renderer.render(ast).map_err(|e| MarcoError::from(e))
     }
 }
 
@@ -88,13 +75,10 @@ mod tests {
         let html = MarcoRenderer::render(&ast, OutputFormat::Html).unwrap();
         let json = MarcoRenderer::render(&ast, OutputFormat::Json).unwrap();
         let json_pretty = MarcoRenderer::render(&ast, OutputFormat::JsonPretty).unwrap();
-        let text = MarcoRenderer::render(&ast, OutputFormat::Text).unwrap();
 
         assert!(html.contains("<h1"));
         assert!(json.contains("\"type\":\"document\""));
         assert!(json_pretty.contains("\"type\": \"document\""));
-        assert!(text.contains("Test"));
-        assert!(text.contains("===="));
     }
 
     #[test]
@@ -111,19 +95,11 @@ mod tests {
         };
         let html = MarcoRenderer::render_html(&ast, html_options);
         assert!(html.contains("custom-paragraph"));
-
-        // Text with custom line width
-        let text_options = TextOptions {
-            line_width: Some(10),
-            ..Default::default()
-        };
-        let text = MarcoRenderer::render_text(&ast, text_options);
-        assert!(text.len() > 0);
     }
 }
 
 // Legacy compatibility
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MarkdownOptions {
     pub html_options: HtmlOptions,
     pub extension: MarkdownExtensions,
@@ -152,23 +128,14 @@ impl Default for MarkdownExtensions {
     }
 }
 
-impl Default for MarkdownOptions {
-    fn default() -> Self {
-        Self {
-            html_options: HtmlOptions::default(),
-            extension: MarkdownExtensions::default(),
-        }
-    }
-}
-
 /// Legacy markdown_to_html function
 pub fn markdown_to_html(input: &str, options: &MarkdownOptions) -> Result<String, MarcoError> {
     use crate::components::marco_engine::ast::AstBuilder;
     use crate::components::marco_engine::grammar::{MarcoParser, Rule};
     use pest::Parser;
 
-    let pairs =
-        MarcoParser::parse(Rule::document, input).map_err(|e| MarcoError::Parse(e.to_string()))?;
+    let pairs = MarcoParser::parse(Rule::document, input)
+        .map_err(|e| MarcoError::parse_error(e.to_string()))?;
     let ast = AstBuilder::build(pairs)?;
     let renderer = HtmlRenderer::new(options.html_options.clone());
     Ok(renderer.render(&ast))

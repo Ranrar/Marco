@@ -48,18 +48,18 @@ impl ParallelMarcoPipeline {
                 .num_threads(max_threads)
                 .build_global();
         }
-        
+
         Self {
             config,
             pipeline_config,
         }
     }
-    
+
     /// Create with default configurations
     pub fn with_defaults() -> Self {
         Self::new(ParallelConfig::default(), PipelineConfig::default())
     }
-    
+
     /// Process multiple inputs in parallel
     pub fn process_batch(
         &self,
@@ -74,7 +74,7 @@ impl ParallelMarcoPipeline {
             })
             .collect()
     }
-    
+
     /// Process multiple files in parallel
     pub fn process_files<P: AsRef<Path> + Send + Sync>(
         &self,
@@ -91,7 +91,7 @@ impl ParallelMarcoPipeline {
             })
             .collect()
     }
-    
+
     /// Process a large document by splitting it into chunks
     pub fn process_large_document(
         &self,
@@ -100,13 +100,13 @@ impl ParallelMarcoPipeline {
     ) -> Result<String, MarcoError> {
         // Split document into logical chunks (by paragraphs/sections)
         let chunks = self.split_document(input);
-        
+
         if chunks.len() == 1 {
             // Single chunk, no need for parallel processing
             let mut pipeline = MarcoPipeline::new(self.pipeline_config.clone());
             return pipeline.process(input, Some(format));
         }
-        
+
         // Process chunks in parallel
         let results: Result<Vec<String>, MarcoError> = chunks
             .into_par_iter()
@@ -115,52 +115,52 @@ impl ParallelMarcoPipeline {
                 pipeline.process(&chunk, Some(format.clone()))
             })
             .collect();
-        
+
         match results {
             Ok(rendered_chunks) => Ok(self.merge_chunks(rendered_chunks, &format)),
             Err(e) => Err(e),
         }
     }
-    
+
     /// Split a document into processable chunks
     fn split_document(&self, input: &str) -> Vec<String> {
         let lines: Vec<&str> = input.lines().collect();
-        
+
         if lines.len() <= self.config.chunk_size {
             return vec![input.to_string()];
         }
-        
+
         let mut chunks = Vec::new();
         let mut current_chunk = Vec::new();
         let mut in_code_block = false;
-        
+
         for line in lines {
             current_chunk.push(line);
-            
+
             // Track code blocks to avoid splitting them
             if line.trim_start().starts_with("```") {
                 in_code_block = !in_code_block;
             }
-            
+
             // Check if we should start a new chunk
             let should_split = current_chunk.len() >= self.config.chunk_size
                 && !in_code_block
                 && (line.trim().is_empty() || line.starts_with('#'));
-            
+
             if should_split {
                 chunks.push(current_chunk.join("\n"));
                 current_chunk.clear();
             }
         }
-        
+
         // Add remaining content
         if !current_chunk.is_empty() {
             chunks.push(current_chunk.join("\n"));
         }
-        
+
         chunks
     }
-    
+
     /// Merge rendered chunks back together
     fn merge_chunks(&self, chunks: Vec<String>, format: &OutputFormat) -> String {
         match format {
@@ -169,7 +169,6 @@ impl ParallelMarcoPipeline {
                 let content = chunks.join("\n");
                 format!("<div class=\"marco-document\">{}</div>", content)
             }
-            OutputFormat::Text => chunks.join("\n\n"),
             OutputFormat::Json | OutputFormat::JsonPretty => {
                 // For JSON, we'd need to merge the AST structures
                 // This is simplified - in practice we'd need proper JSON merging
@@ -177,7 +176,7 @@ impl ParallelMarcoPipeline {
             }
         }
     }
-    
+
     /// Get processing statistics
     pub fn get_stats(&self) -> ParallelStats {
         ParallelStats {
@@ -200,7 +199,7 @@ pub struct ParallelStats {
 pub mod batch {
     use super::*;
     use std::collections::HashMap;
-    
+
     /// Process a directory of Marco files
     pub fn process_directory<P: AsRef<Path>>(
         dir_path: P,
@@ -209,13 +208,13 @@ pub mod batch {
     ) -> Result<HashMap<PathBuf, Result<String, MarcoError>>, std::io::Error> {
         let mut files = Vec::new();
         collect_marco_files(dir_path.as_ref(), &mut files, recursive)?;
-        
+
         let pipeline = ParallelMarcoPipeline::with_defaults();
         let results = pipeline.process_files(files, format);
-        
+
         Ok(results.into_iter().collect())
     }
-    
+
     /// Collect all .marco files in a directory
     fn collect_marco_files(
         dir: &Path,
@@ -225,7 +224,7 @@ pub mod batch {
         for entry in std::fs::read_dir(dir)? {
             let entry = entry?;
             let path = entry.path();
-            
+
             if path.is_file() {
                 if let Some(ext) = path.extension() {
                     if ext == "marco" || ext == "md" {
@@ -236,17 +235,17 @@ pub mod batch {
                 collect_marco_files(&path, files, recursive)?;
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Performance testing utilities
     pub fn benchmark_parallel_vs_sequential(
         inputs: Vec<String>,
         format: OutputFormat,
     ) -> BenchmarkResults {
         use std::time::Instant;
-        
+
         // Sequential processing
         let start = Instant::now();
         let mut sequential_results = Vec::new();
@@ -255,13 +254,13 @@ pub mod batch {
             sequential_results.push(pipeline.process(input, Some(format.clone())));
         }
         let sequential_time = start.elapsed();
-        
+
         // Parallel processing
         let start = Instant::now();
         let parallel_pipeline = ParallelMarcoPipeline::with_defaults();
         let parallel_results = parallel_pipeline.process_batch(inputs, format);
         let parallel_time = start.elapsed();
-        
+
         BenchmarkResults {
             sequential_time,
             parallel_time,
@@ -271,7 +270,7 @@ pub mod batch {
             total_items: sequential_results.len(),
         }
     }
-    
+
     #[derive(Debug)]
     pub struct BenchmarkResults {
         pub sequential_time: std::time::Duration,
@@ -286,7 +285,7 @@ pub mod batch {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_parallel_pipeline_creation() {
         let config = ParallelConfig {
@@ -294,56 +293,41 @@ mod tests {
             chunk_size: 50,
             parallel_rendering: true,
         };
-        
+
         let pipeline = ParallelMarcoPipeline::new(config, PipelineConfig::default());
         let stats = pipeline.get_stats();
-        
+
         assert_eq!(stats.chunk_size, 50);
         assert!(stats.current_threads > 0);
     }
-    
+
     #[test]
     fn test_document_splitting() {
         let pipeline = ParallelMarcoPipeline::with_defaults();
-        
+
         let small_doc = "# Title\n\nSmall content";
         let chunks = pipeline.split_document(small_doc);
         assert_eq!(chunks.len(), 1);
-        
+
         let large_doc = (0..200)
             .map(|i| format!("Line {}", i))
             .collect::<Vec<_>>()
             .join("\n");
-        
+
         let chunks = pipeline.split_document(&large_doc);
         assert!(chunks.len() > 1);
     }
-    
-    #[test]
-    fn test_batch_processing() {
-        let inputs = vec![
-            "# Doc 1\n\nContent 1".to_string(),
-            "# Doc 2\n\nContent 2".to_string(),
-            "# Doc 3\n\nContent 3".to_string(),
-        ];
-        
-        let pipeline = ParallelMarcoPipeline::with_defaults();
-        let results = pipeline.process_batch(inputs, OutputFormat::Text);
-        
-        assert_eq!(results.len(), 3);
-        // Results will be errors without the grammar file, but structure is correct
-    }
-    
+
     #[test]
     fn test_chunk_merging() {
         let pipeline = ParallelMarcoPipeline::with_defaults();
-        
+
         let chunks = vec![
             "<h1>Title 1</h1>".to_string(),
             "<p>Content 1</p>".to_string(),
             "<h1>Title 2</h1>".to_string(),
         ];
-        
+
         let merged = pipeline.merge_chunks(chunks, &OutputFormat::Html);
         assert!(merged.contains("marco-document"));
         assert!(merged.contains("<h1>Title 1</h1>"));

@@ -4,16 +4,18 @@
 //! with additional functionality for error handling, caching, and analysis.
 
 use crate::components::marco_engine::{
-    errors::MarcoError,
+    errors::{MarcoError, MarcoResult},
     grammar::{MarcoParser, Rule},
     parser::{
         position::{PositionTracker, PositionedError, SourceSpan},
-        utils::{get_rule_by_name, ParseNode, pairs_to_parse_tree, categorize_rule},
+        utils::{categorize_rule, get_rule_by_name, pairs_to_parse_tree, ParseNode},
     },
 };
+use lru::LruCache;
 use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use std::collections::HashMap;
+use std::num::NonZeroUsize;
 use std::time::{Duration, Instant};
 
 /// Enhanced parser with additional functionality
@@ -21,8 +23,8 @@ use std::time::{Duration, Instant};
 pub struct EnhancedMarcoParser {
     /// Position tracker for source mapping
     position_tracker: Option<PositionTracker>,
-    /// Parse cache for performance
-    cache: HashMap<String, CachedParseResult>,
+    /// LRU cache for performance
+    cache: LruCache<String, CachedParseResult>,
     /// Parser configuration
     config: ParserConfig,
 }
@@ -63,10 +65,10 @@ struct CachedParseResult {
 }
 
 /// Detailed parse result with metadata
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ParseResult {
     /// The parse tree if successful
-    pub nodes: Result<Vec<ParseNode>, MarcoError>,
+    pub nodes: MarcoResult<Vec<ParseNode>>,
     /// Parsing statistics
     pub stats: ParseStats,
     /// Any warnings generated during parsing
@@ -98,9 +100,11 @@ impl EnhancedMarcoParser {
 
     /// Create parser with custom configuration
     pub fn with_config(config: ParserConfig) -> Self {
+        let cache_capacity =
+            NonZeroUsize::new(config.max_cache_size).unwrap_or(NonZeroUsize::new(100).unwrap());
         Self {
             position_tracker: None,
-            cache: HashMap::new(),
+            cache: LruCache::new(cache_capacity),
             config,
         }
     }
@@ -111,7 +115,10 @@ impl EnhancedMarcoParser {
             Some(r) => r,
             None => {
                 return ParseResult {
-                    nodes: Err(MarcoError::Parse(format!("Unknown rule: {}", rule_name))),
+                    nodes: Err(MarcoError::parse_error(format!(
+                        "Unknown rule: {}",
+                        rule_name
+                    ))),
                     stats: ParseStats::default(),
                     warnings: vec![],
                     rule: Rule::file, // Default fallback
@@ -139,9 +146,12 @@ impl EnhancedMarcoParser {
             if let Some(cached) = self.cache.get(&cache_key) {
                 stats.cache_hit = true;
                 stats.parse_time = start_time.elapsed();
-                
+
                 return ParseResult {
-                    nodes: cached.result.clone().map_err(|e| MarcoError::Parse(e)),
+                    nodes: cached
+                        .result
+                        .clone()
+                        .map_err(|e| MarcoError::parse_error(e)),
                     stats,
                     warnings,
                     rule,
@@ -149,14 +159,14 @@ impl EnhancedMarcoParser {
             }
         }
 
-        // Perform the actual parsing
+        // Perform the actual parsing with error recovery
         let parse_result = MarcoParser::parse(rule, input);
         let parse_time = start_time.elapsed();
 
         let nodes_result = match parse_result {
             Ok(pairs) => {
                 let nodes = pairs_to_parse_tree(pairs);
-                
+
                 // Collect statistics if enabled
                 if self.config.collect_stats {
                     stats.node_count = nodes.iter().map(|n| n.node_count()).sum();
@@ -171,24 +181,68 @@ impl EnhancedMarcoParser {
 
                 Ok(nodes)
             }
-            Err(e) => Err(MarcoError::Parse(format!("Parse error: {}", e))),
+            Err(original_error) => {
+                // Error recovery: try fallback rules based on the failed rule
+                if let Some(fallback_rules) = self.get_fallback_rules(rule) {
+                    for fallback_rule in fallback_rules {
+                        if let Ok(pairs) = MarcoParser::parse(fallback_rule, input) {
+                            let nodes = pairs_to_parse_tree(pairs);
+
+                            // Add warning about fallback recovery
+                            let warning_msg = format!(
+                                "Recovered using rule {:?} after {:?} failed: {}",
+                                fallback_rule, rule, original_error
+                            );
+
+                            // Create positioned warning (using the whole input as span for simplicity)
+                            use crate::components::marco_engine::parser::position::{
+                                Position, PositionedError, SourceSpan,
+                            };
+                            let start_pos = Position::start();
+                            let end_pos = Position::new(input.len(), 1, input.len() + 1);
+                            let span = SourceSpan::new(start_pos, end_pos);
+                            warnings.push(PositionedError::warning(warning_msg, span));
+
+                            // Collect statistics for successful fallback
+                            if self.config.collect_stats {
+                                stats.node_count = nodes.iter().map(|n| n.node_count()).sum();
+                                stats.max_depth =
+                                    nodes.iter().map(|n| n.depth()).max().unwrap_or(0);
+                                stats.memory_estimate = self.estimate_memory_usage(&nodes);
+                            }
+
+                            return ParseResult {
+                                nodes: Ok(nodes),
+                                stats,
+                                warnings,
+                                rule: fallback_rule, // Update to show the successful rule
+                            };
+                        }
+                    }
+                }
+
+                // No recovery possible, return original error
+                Err(MarcoError::parse_error(format!(
+                    "Parse error: {}",
+                    original_error
+                )))
+            }
         };
 
         // Cache result if enabled
         if self.config.enable_cache {
             let cache_key = format!("{:?}:{}", rule, input);
             let cached_result = CachedParseResult {
-                result: nodes_result.clone().map_err(|e| e.to_string()),
+                result: match &nodes_result {
+                    Ok(nodes) => Ok(nodes.clone()),
+                    Err(e) => Err(e.to_string()),
+                },
                 timestamp: Instant::now(),
                 rule,
             };
-            
-            // Manage cache size
-            if self.cache.len() >= self.config.max_cache_size {
-                self.evict_oldest_cache_entry();
-            }
-            
-            self.cache.insert(cache_key, cached_result);
+
+            // LruCache automatically manages size and eviction
+            self.cache.put(cache_key, cached_result);
         }
 
         stats.parse_time = parse_time;
@@ -217,9 +271,9 @@ impl EnhancedMarcoParser {
     }
 
     /// Quick validation - just check if input is valid for a rule
-    pub fn validate(&mut self, rule_name: &str, input: &str) -> Result<bool, MarcoError> {
+    pub fn validate(&mut self, rule_name: &str, input: &str) -> MarcoResult<bool> {
         let rule = get_rule_by_name(rule_name)
-            .ok_or_else(|| MarcoError::Parse(format!("Unknown rule: {}", rule_name)))?;
+            .ok_or_else(|| MarcoError::parse_error(format!("Unknown rule: {}", rule_name)))?;
 
         match MarcoParser::parse(rule, input) {
             Ok(_) => Ok(true),
@@ -248,32 +302,37 @@ impl EnhancedMarcoParser {
 
     /// Estimate memory usage of parse tree (rough calculation)
     fn estimate_memory_usage(&self, nodes: &[ParseNode]) -> usize {
-        nodes.iter().map(|node| self.estimate_node_memory(node)).sum()
+        nodes
+            .iter()
+            .map(|node| self.estimate_node_memory(node))
+            .sum()
     }
 
     fn estimate_node_memory(&self, node: &ParseNode) -> usize {
         // Base size of the node structure
         let base_size = std::mem::size_of::<ParseNode>();
-        
+
         // Size of the text content
         let text_size = node.text.len();
-        
+
         // Size of children (recursive)
-        let children_size: usize = node.children.iter()
+        let children_size: usize = node
+            .children
+            .iter()
             .map(|child| self.estimate_node_memory(child))
             .sum();
-        
+
         base_size + text_size + children_size
     }
 
     /// Validate parse tree and generate warnings
     fn validate_parse_tree(&self, nodes: &[ParseNode]) -> Vec<PositionedError> {
         let mut warnings = Vec::new();
-        
+
         for node in nodes {
             self.validate_node_recursive(node, &mut warnings);
         }
-        
+
         warnings
     }
 
@@ -289,7 +348,11 @@ impl EnhancedMarcoParser {
         // Check for very deep nesting
         if node.depth() > 20 {
             warnings.push(PositionedError::warning(
-                format!("Deep nesting detected in {} (depth: {})", node.rule_name(), node.depth()),
+                format!(
+                    "Deep nesting detected in {} (depth: {})",
+                    node.rule_name(),
+                    node.depth()
+                ),
                 node.span.clone(),
             ));
         }
@@ -310,34 +373,61 @@ impl EnhancedMarcoParser {
 
     /// Check if a rule should allow empty content
     fn should_allow_empty(&self, rule: &Rule) -> bool {
-        matches!(rule, 
-            Rule::line_break |
-            Rule::paragraph_line
-        )
+        matches!(rule, Rule::line_break | Rule::paragraph_line)
     }
 
     /// Check if a rule is structural (containers, lists, etc.)
     fn is_structural_rule(&self, rule: &Rule) -> bool {
-        matches!(rule,
-            Rule::document |
-            Rule::section |
-            Rule::block |
-            Rule::paragraph |
-            Rule::list |
-            Rule::list_item |
-            Rule::table |
-            Rule::table_row |
-            Rule::blockquote
+        matches!(
+            rule,
+            Rule::document
+                | Rule::section
+                | Rule::block
+                | Rule::paragraph
+                | Rule::list
+                | Rule::list_item
+                | Rule::table
+                | Rule::table_row
+                | Rule::blockquote
         )
     }
 
-    /// Evict the oldest cache entry
-    fn evict_oldest_cache_entry(&mut self) {
-        if let Some((oldest_key, _)) = self.cache.iter()
-            .min_by_key(|(_, entry)| entry.timestamp)
-            .map(|(k, v)| (k.clone(), v.timestamp))
-        {
-            self.cache.remove(&oldest_key);
+    /// Get fallback rules for error recovery
+    fn get_fallback_rules(&self, failed_rule: Rule) -> Option<Vec<Rule>> {
+        use crate::components::marco_engine::grammar::Rule;
+
+        match failed_rule {
+            // Block-level fallbacks: try more general block types
+            Rule::heading => Some(vec![Rule::paragraph, Rule::text]),
+            Rule::admonition_block => Some(vec![Rule::blockquote, Rule::paragraph]),
+            Rule::code_block => Some(vec![Rule::paragraph, Rule::text]),
+            Rule::math_block => Some(vec![Rule::paragraph, Rule::text]),
+            Rule::table => Some(vec![Rule::paragraph, Rule::text]),
+            Rule::list => Some(vec![Rule::paragraph, Rule::text]),
+            Rule::blockquote => Some(vec![Rule::paragraph, Rule::text]),
+
+            // Inline fallbacks: try simpler inline elements
+            Rule::bold => Some(vec![Rule::emphasis, Rule::text]),
+            Rule::italic => Some(vec![Rule::emphasis, Rule::text]),
+            Rule::emphasis => Some(vec![Rule::text]),
+            Rule::code_inline => Some(vec![Rule::text]),
+            Rule::math_inline => Some(vec![Rule::text]),
+            Rule::inline_link => Some(vec![Rule::text]),
+            Rule::inline_image => Some(vec![Rule::text]),
+            Rule::strikethrough => Some(vec![Rule::text]),
+            Rule::highlight => Some(vec![Rule::text]),
+
+            // Structure fallbacks: try more general structures
+            Rule::section => Some(vec![Rule::block, Rule::paragraph]),
+            Rule::block => Some(vec![Rule::paragraph, Rule::text]),
+            Rule::paragraph => Some(vec![Rule::text]),
+            Rule::document => Some(vec![Rule::section, Rule::block]),
+
+            // For very basic rules, no fallback needed
+            Rule::text | Rule::word | Rule::inner_char | Rule::file => None,
+
+            // Default: try text as last resort for most inline content
+            _ => Some(vec![Rule::text]),
         }
     }
 }
@@ -359,18 +449,18 @@ pub struct CacheStats {
 /// Convenience functions for common parsing operations
 impl EnhancedMarcoParser {
     /// Parse and analyze rule usage in input
-    pub fn analyze_rule_usage(&mut self, input: &str) -> Result<RuleAnalysis, MarcoError> {
+    pub fn analyze_rule_usage(&mut self, input: &str) -> MarcoResult<RuleAnalysis> {
         let result = self.parse_document(input);
-        
+
         match result.nodes {
             Ok(nodes) => {
                 let mut rule_counts = HashMap::new();
                 let mut categories = HashMap::new();
-                
+
                 for node in &nodes {
                     self.count_rules_recursive(node, &mut rule_counts, &mut categories);
                 }
-                
+
                 Ok(RuleAnalysis {
                     rule_counts,
                     categories,
@@ -384,17 +474,17 @@ impl EnhancedMarcoParser {
     }
 
     fn count_rules_recursive(
-        &self, 
-        node: &ParseNode, 
+        &self,
+        node: &ParseNode,
         rule_counts: &mut HashMap<String, usize>,
-        categories: &mut HashMap<String, usize>
+        categories: &mut HashMap<String, usize>,
     ) {
         let rule_name = node.rule_name();
         let category = categorize_rule(&rule_name);
-        
+
         *rule_counts.entry(rule_name).or_insert(0) += 1;
         *categories.entry(category.to_string()).or_insert(0) += 1;
-        
+
         for child in &node.children {
             self.count_rules_recursive(child, rule_counts, categories);
         }
@@ -414,7 +504,9 @@ pub struct RuleAnalysis {
 impl RuleAnalysis {
     /// Get the most frequently used rules
     pub fn top_rules(&self, limit: usize) -> Vec<(String, usize)> {
-        let mut rules: Vec<_> = self.rule_counts.iter()
+        let mut rules: Vec<_> = self
+            .rule_counts
+            .iter()
             .map(|(rule, count)| (rule.clone(), *count))
             .collect();
         rules.sort_by(|a, b| b.1.cmp(&a.1));
@@ -423,7 +515,9 @@ impl RuleAnalysis {
 
     /// Get the most frequently used categories
     pub fn top_categories(&self, limit: usize) -> Vec<(String, usize)> {
-        let mut categories: Vec<_> = self.categories.iter()
+        let mut categories: Vec<_> = self
+            .categories
+            .iter()
             .map(|(cat, count)| (cat.clone(), *count))
             .collect();
         categories.sort_by(|a, b| b.1.cmp(&a.1));
@@ -465,11 +559,11 @@ mod tests {
     #[test]
     fn test_rule_validation() {
         let mut parser = EnhancedMarcoParser::new();
-        
+
         // Test with a valid rule
         let result = parser.validate("text", "hello world");
         assert!(result.is_ok());
-        
+
         // Test with invalid rule
         let result = parser.validate("nonexistent", "hello");
         assert!(result.is_err());

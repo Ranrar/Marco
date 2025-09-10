@@ -1,8 +1,9 @@
-pub mod builder;
+pub mod builders;
 pub mod node;
+pub mod validation;
 pub mod visitor;
 
-// Re-export key types
-pub use builder::AstBuilder;
+// Re-export key types from new builder modules
+pub use builders::AstBuilder;
 pub use node::{Node, Span};
 pub use visitor::{Visitor, VisitorMut};

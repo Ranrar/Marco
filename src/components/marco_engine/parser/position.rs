@@ -168,6 +168,12 @@ impl SourceSpan {
     }
 }
 
+impl fmt::Display for PositionedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} at {}", self.message, self.span.start)
+    }
+}
+
 impl fmt::Display for SourceSpan {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(text) = &self.text {

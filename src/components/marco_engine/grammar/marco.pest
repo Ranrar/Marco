@@ -122,8 +122,7 @@ text_content_chars = {
   | "_"
   | "="
   | "^"
-  | "#" // Remove square brackets to allow links to work
-
+  | "#"
   | "!"
   | "$"
 }
@@ -136,21 +135,12 @@ text_line_content = _{
   | math_symbol
   | inline_formatting_safe
   | "`" // Allow single backticks in text content
-
   | "*" // Allow asterisks
-
   | "_" // Allow underscores
-  // Remove tilde to allow subscript to work properly
-
   | "=" // Allow equals
-
   | "^" // Allow carets
-
   | "#" // Allow hashes
-  // Remove square brackets to allow links to work properly
-
   | "!" // Allow exclamation marks
-
   | "$" // Allow dollar signs
 }
 
@@ -396,7 +386,7 @@ tab_content_II   =  { (!tab_line ~ !tab_end ~ ANY)* }
 tab_end          =  { ":::" }
 
 // User mention
-user_mention =  { "@" ~ username ~ (WHITESPACE+ ~ "[" ~ platform ~ "]" ~ ("(" ~ display_name ~ ")")?)? }
+user_mention =  { "@" ~ username ~ "[" ~ platform ~ "]" ~ ("(" ~ display_name ~ ")")? }
 username     = @{ (unicode_letter | "_" | "-")+ }
 platform     = @{ (!"]" ~ ANY)+ }
 display_name = @{ (!")" ~ ANY)+ }

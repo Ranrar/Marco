@@ -733,7 +733,7 @@ pub fn truncate_string(s: &str, max_len: usize) -> String {
         s.to_string()
     } else {
         // Find the last valid character boundary before max_len - 3 (for "...")
-        let target_len = if max_len > 3 { max_len - 3 } else { 0 };
+        let target_len = max_len.saturating_sub(3);
         let mut truncate_at = target_len.min(s.len());
 
         while truncate_at > 0 && !s.is_char_boundary(truncate_at) {

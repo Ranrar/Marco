@@ -28,8 +28,10 @@
     advanced: None,
     files: Some((
         recent_files: Some([
-            "/home/ranrar/Code/projects/marco2/README.md",
             "/home/ranrar/Code/projects/marco2/CONTRIBUTING.md",
+            "saved_document.md",
+            "/home/ranrar/Code/projects/marco2/test_input.md",
+            "/home/ranrar/Code/projects/marco2/README.md",
         ]),
         max_recent_files: Some(5),
     )),

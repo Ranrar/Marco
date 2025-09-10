@@ -383,15 +383,15 @@
             <div>Total Tests</div>
         </div>
         <div class="summary-card passed">
-            <div class="number">1145</div>
+            <div class="number">1140</div>
             <div>Passed</div>
         </div>
         <div class="summary-card failed">
-            <div class="number">92</div>
+            <div class="number">97</div>
             <div>Failed</div>
         </div>
         <div class="summary-card rate">
-            <div class="number">92.6%</div>
+            <div class="number">92.2%</div>
             <div>Success Rate</div>
         </div>
     </div>
@@ -10618,18 +10618,16 @@
                 </div>
                 <div class="test-input">:::\ncustom_type\ncontent\n:::</div>
                 <div class="error-message"> --&gt; 1:4\n  |\n1 | :::␊\n  |    ^---\n  |\n  = expected admonition_type</div>
-            </div><div class="test-item" data-status="passed">
+            </div><div class="test-item" data-status="expected">
                 <div class="test-header">
                     <span class="test-name">malformed_user_mention</span>
-                    <span class="test-status status-passed">✅ Passed</span>
+                    <span class="test-status status-expected">⚠️ Expected</span>
                 </div>
                 <div class="test-details">
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user [platform</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
-</div>
+                <div class="error-message"> --&gt; 1:1\n  |\n1 | @user [platform\n  | ^---\n  |\n  = expected user_mention</div>
             </div><div class="test-item" data-status="expected">
                 <div class="test-header">
                     <span class="test-name">invalid_script_type</span>
@@ -12197,8 +12195,10 @@
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@café_user [github.com](Café User Name)</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@café_user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">café_user</span><span class="tree-brackets">⟩</span>
+                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@café_user [github.com](Café User Name)</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">café_user</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">platform</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">github.com</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">└─ </span><span class="rule-name">display_name</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">Café User Name</span><span class="tree-brackets">⟩</span>
 </div>
             </div><div class="test-item" data-status="passed">
                 <div class="test-header">
@@ -12209,8 +12209,10 @@
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user_name-123 [platform.sub.domain](Very Long Display Name With Symbols!)</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user_name-123 </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user_name-123</span><span class="tree-brackets">⟩</span>
+                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user_name-123 [platform.sub.domain](Very Long Display Name With Symbols!)</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user_name-123</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">platform</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">platform.sub.domain</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">└─ </span><span class="rule-name">display_name</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">Very Long Display Name With Symbols!</span><span class="tree-brackets">⟩</span>
 </div>
             </div><div class="test-item" data-status="passed">
                 <div class="test-header">
@@ -15738,57 +15740,49 @@
     </div><div class="section">
         <div class="section-header" onclick="toggleSection(this)">
             <span>▶ user_mentions</span>
-            <span class="section-stats">10/10 passed</span>
+            <span class="section-stats">5/10 passed</span>
         </div>
         <div class="collapsible-content">
-            <div class="test-item" data-status="passed">
+            <div class="test-item" data-status="failed">
                 <div class="test-header">
                     <span class="test-name">user_simple</span>
-                    <span class="test-status status-passed">✅ Passed</span>
+                    <span class="test-status status-failed">❌ Failed</span>
                 </div>
                 <div class="test-details">
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@username</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@username</span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">username</span><span class="tree-brackets">⟩</span>
-</div>
-            </div><div class="test-item" data-status="passed">
+                <div class="error-message"> --&gt; 1:1\n  |\n1 | @username\n  | ^---\n  |\n  = expected user_mention</div>
+            </div><div class="test-item" data-status="failed">
                 <div class="test-header">
                     <span class="test-name">user_underscore</span>
-                    <span class="test-status status-passed">✅ Passed</span>
+                    <span class="test-status status-failed">❌ Failed</span>
                 </div>
                 <div class="test-details">
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user_name</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user_name</span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user_name</span><span class="tree-brackets">⟩</span>
-</div>
-            </div><div class="test-item" data-status="passed">
+                <div class="error-message"> --&gt; 1:1\n  |\n1 | @user_name\n  | ^---\n  |\n  = expected user_mention</div>
+            </div><div class="test-item" data-status="failed">
                 <div class="test-header">
                     <span class="test-name">user_hyphen</span>
-                    <span class="test-status status-passed">✅ Passed</span>
+                    <span class="test-status status-failed">❌ Failed</span>
                 </div>
                 <div class="test-details">
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user-name</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user-name</span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user-name</span><span class="tree-brackets">⟩</span>
-</div>
-            </div><div class="test-item" data-status="passed">
+                <div class="error-message"> --&gt; 1:1\n  |\n1 | @user-name\n  | ^---\n  |\n  = expected user_mention</div>
+            </div><div class="test-item" data-status="failed">
                 <div class="test-header">
                     <span class="test-name">user_unicode</span>
-                    <span class="test-status status-passed">✅ Passed</span>
+                    <span class="test-status status-failed">❌ Failed</span>
                 </div>
                 <div class="test-details">
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@café_user</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@café_user</span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">café_user</span><span class="tree-brackets">⟩</span>
-</div>
+                <div class="error-message"> --&gt; 1:1\n  |\n1 | @café_user\n  | ^---\n  |\n  = expected user_mention</div>
             </div><div class="test-item" data-status="passed">
                 <div class="test-header">
                     <span class="test-name">user_with_platform</span>
@@ -15798,8 +15792,9 @@
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user [github]</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user [github]</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">└─ </span><span class="rule-name">platform</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">github</span><span class="tree-brackets">⟩</span>
 </div>
             </div><div class="test-item" data-status="passed">
                 <div class="test-header">
@@ -15810,8 +15805,9 @@
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user [platform.name]</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user [platform.name]</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">└─ </span><span class="rule-name">platform</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">platform.name</span><span class="tree-brackets">⟩</span>
 </div>
             </div><div class="test-item" data-status="passed">
                 <div class="test-header">
@@ -15822,8 +15818,10 @@
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user [platform](Display Name)</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user [platform](Display Name)</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">platform</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">platform</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">└─ </span><span class="rule-name">display_name</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">Display Name</span><span class="tree-brackets">⟩</span>
 </div>
             </div><div class="test-item" data-status="passed">
                 <div class="test-header">
@@ -15834,8 +15832,10 @@
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user [github](John Doe)</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user [github](John Doe)</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">├─ </span><span class="rule-name">platform</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">github</span><span class="tree-brackets">⟩</span>
+<span class="tree-structure">└─ </span><span class="rule-name">display_name</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">John Doe</span><span class="tree-brackets">⟩</span>
 </div>
             </div><div class="test-item" data-status="expected">
                 <div class="test-header">
@@ -15847,23 +15847,21 @@
                 </div>
                 <div class="test-input">@</div>
                 <div class="error-message"> --&gt; 1:2\n  |\n1 | @\n  |  ^---\n  |\n  = expected username</div>
-            </div><div class="test-item" data-status="passed">
+            </div><div class="test-item" data-status="failed">
                 <div class="test-header">
                     <span class="test-name">user_with_space</span>
-                    <span class="test-status status-passed">✅ Passed</span>
+                    <span class="test-status status-failed">❌ Failed</span>
                 </div>
                 <div class="test-details">
                     <strong>Rule:</strong> <span class="test-rule">user_mention</span>
                 </div>
                 <div class="test-input">@user name</div>
-                <div class="parse-tree"> <span class="rule-name">user_mention</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">@user </span><span class="tree-brackets">⟩</span>
-<span class="tree-structure">└─ </span><span class="rule-name">username</span> <span class="tree-arrow">→</span> <span class="tree-brackets">⟨</span><span class="tree-content">user</span><span class="tree-brackets">⟩</span>
-</div>
+                <div class="error-message"> --&gt; 1:1\n  |\n1 | @user name\n  | ^---\n  |\n  = expected user_mention</div>
             </div></div>
     </div>
     
     <div class="stats-bar">
-        <strong>Summary:</strong> 1145 passed • 92 failed • 52 expected failures • 0 unknown rules
+        <strong>Summary:</strong> 1140 passed • 97 failed • 53 expected failures • 0 unknown rules
     </div>
 </body>
 </html>

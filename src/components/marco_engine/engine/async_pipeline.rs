@@ -47,7 +47,7 @@ impl AsyncMarcoPipeline {
                 self.inner = updated_pipeline;
                 parse_result
             }
-            Err(join_error) => Err(MarcoError::Async(format!(
+            Err(join_error) => Err(MarcoError::async_error(format!(
                 "Task join error: {}",
                 join_error
             ))),
@@ -60,7 +60,7 @@ impl AsyncMarcoPipeline {
 
         tokio::task::spawn_blocking(move || inner.render(format))
             .await
-            .map_err(|e| MarcoError::Async(format!("Task join error: {}", e)))?
+            .map_err(|e| MarcoError::async_error(format!("Task join error: {}", e)))?
     }
 
     /// Complete async pipeline: parse input and render to specified format
@@ -83,8 +83,8 @@ impl AsyncMarcoPipeline {
         let path = path.as_ref().to_path_buf();
         let content = tokio::task::spawn_blocking(move || std::fs::read_to_string(path))
             .await
-            .map_err(|e| MarcoError::Async(format!("Task join error: {}", e)))?
-            .map_err(|e| MarcoError::IO(format!("Failed to read file: {}", e)))?;
+            .map_err(|e| MarcoError::async_error(format!("Task join error: {}", e)))?
+            .map_err(|e| MarcoError::io_error(format!("Failed to read file: {}", e)))?;
 
         self.process_default(&content).await
     }
@@ -107,16 +107,6 @@ impl AsyncMarcoPipeline {
         let mut pipeline = Self::with_defaults();
         pipeline.update_config(PipelineConfig {
             default_format: OutputFormat::Html,
-            ..Default::default()
-        });
-        pipeline.process_default(input).await
-    }
-
-    /// Quick async text conversion
-    pub async fn to_text(input: &str) -> Result<String, MarcoError> {
-        let mut pipeline = Self::with_defaults();
-        pipeline.update_config(PipelineConfig {
-            default_format: OutputFormat::Text,
             ..Default::default()
         });
         pipeline.process_default(input).await
@@ -243,7 +233,6 @@ mod tests {
 
         // These will fail without the grammar file, but test the async interface
         let _html_result = AsyncMarcoPipeline::to_html(input).await;
-        let _text_result = AsyncMarcoPipeline::to_text(input).await;
         let _json_result = AsyncMarcoPipeline::to_json(input, true).await;
     }
 

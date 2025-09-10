@@ -23,8 +23,7 @@ pub use errors::MarcoError;
 pub use grammar::{MarcoParser, Rule};
 pub use parser::{EnhancedMarcoParser, ErrorSeverity, ParseResult, ParserConfig, PositionedError};
 pub use render::{
-    markdown_to_html, HtmlOptions, MarcoRenderer, MarkdownExtensions, MarkdownOptions,
-    OutputFormat, TextOptions,
+    markdown_to_html, HtmlOptions, MarcoRenderer, MarkdownExtensions, MarkdownOptions, OutputFormat,
 };
 
 /// Version information
@@ -35,10 +34,6 @@ pub fn parse_to_html(input: &str) -> Result<String, MarcoError> {
     MarcoEngine::to_html(input)
 }
 
-pub fn parse_to_text(input: &str) -> Result<String, MarcoError> {
-    MarcoEngine::to_text(input)
-}
-
 pub fn parse_to_json(input: &str, pretty: bool) -> Result<String, MarcoError> {
     MarcoEngine::to_json(input, pretty)
 }
@@ -46,10 +41,6 @@ pub fn parse_to_json(input: &str, pretty: bool) -> Result<String, MarcoError> {
 /// Async versions
 pub async fn parse_to_html_async(input: &str) -> Result<String, MarcoError> {
     MarcoEngine::to_html_async(input).await
-}
-
-pub async fn parse_to_text_async(input: &str) -> Result<String, MarcoError> {
-    MarcoEngine::to_text_async(input).await
 }
 
 pub async fn parse_to_json_async(input: &str, pretty: bool) -> Result<String, MarcoError> {
@@ -78,14 +69,14 @@ use pest::Parser;
 pub fn parse_with_rule(
     input: &str,
     rule: Rule,
-) -> Result<pest::iterators::Pairs<Rule>, MarcoError> {
-    MarcoParser::parse(rule, input).map_err(|e| MarcoError::Parse(e.to_string()))
+) -> Result<pest::iterators::Pairs<'_, Rule>, MarcoError> {
+    MarcoParser::parse(rule, input).map_err(|e| MarcoError::parse_error(e.to_string()))
 }
 
 /// Legacy function for parsing a complete document
 pub fn parse_document(input: &str) -> Result<Node, MarcoError> {
-    let pairs =
-        MarcoParser::parse(Rule::document, input).map_err(|e| MarcoError::Parse(e.to_string()))?;
+    let pairs = MarcoParser::parse(Rule::document, input)
+        .map_err(|e| MarcoError::parse_error(e.to_string()))?;
     AstBuilder::build(pairs)
 }
 

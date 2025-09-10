@@ -182,8 +182,8 @@ pub fn format_syntax_trace(line: &str) -> String {
             }
             "frontmatter" => {
                 if let Some(v) = n.attributes.get("value") {
-                    static KV_RE: once_cell::sync::Lazy<regex::Regex> =
-                        once_cell::sync::Lazy::new(|| {
+                    static KV_RE: std::sync::LazyLock<regex::Regex> =
+                        std::sync::LazyLock::new(|| {
                             regex::Regex::new(
                                 r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$",
                             )

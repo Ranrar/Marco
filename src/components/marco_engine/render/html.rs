@@ -138,13 +138,339 @@ impl Visitor for HtmlRenderer {
             Node::Text { content, .. } => self.visit_text(content),
             Node::Emphasis { content, .. } => self.visit_emphasis(content),
             Node::Strong { content, .. } => self.visit_strong(content),
+            Node::Strikethrough { content, .. } => {
+                write!(self.output, "<s>").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</s>").unwrap();
+            }
+            Node::Highlight { content, .. } => {
+                write!(self.output, "<mark>").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</mark>").unwrap();
+            }
+            Node::Superscript { content, .. } => {
+                write!(self.output, "<sup>").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</sup>").unwrap();
+            }
+            Node::Subscript { content, .. } => {
+                write!(self.output, "<sub>").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</sub>").unwrap();
+            }
             Node::Code { content, .. } => self.visit_code(content),
+            Node::MathInline { content, .. } => {
+                write!(self.output, "<span class=\"math-inline\">\\({}\\)</span>", content).unwrap();
+            }
             Node::Link { text, url, title, .. } => self.visit_link(text, url, title),
+            Node::ReferenceLink { text, label, .. } => {
+                write!(self.output, "<a href=\"#ref-{}\">", label).unwrap();
+                for child in text {
+                    self.visit(child);
+                }
+                write!(self.output, "</a>").unwrap();
+            }
+            Node::InlineFootnote { content, .. } => {
+                write!(self.output, "<sup class=\"footnote\">").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</sup>").unwrap();
+            }
             Node::Image { alt, url, title, .. } => self.visit_image(alt, url, title),
+            Node::DefinitionList { items, .. } => {
+                write!(self.output, "<dl>").unwrap();
+                for child in items {
+                    self.visit(child);
+                }
+                write!(self.output, "</dl>").unwrap();
+            }
+            Node::DefinitionTerm { content, .. } => {
+                write!(self.output, "<dt>").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</dt>").unwrap();
+            }
+            Node::DefinitionDescription { content, .. } => {
+                write!(self.output, "<dd>").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</dd>").unwrap();
+            }
+            Node::FootnoteDefinition { label, content, .. } => {
+                write!(self.output, "<div id=\"footnote-{}\" class=\"footnote\">", label).unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::ReferenceDefinition { label, url, title, .. } => {
+                write!(self.output, "<div id=\"ref-{}\" class=\"reference\" data-url=\"{}\"", label, url).unwrap();
+                if let Some(title) = title {
+                    write!(self.output, " data-title=\"{}\"", title).unwrap();
+                }
+                write!(self.output, "></div>").unwrap();
+            }
+            Node::UserMention { username, platform, display_name, .. } => {
+                let platform_str = platform.as_deref().unwrap_or("unknown");
+                write!(self.output, "<span class=\"user-mention\" data-platform=\"{}\">@{}", platform_str, username).unwrap();
+                if let Some(name) = display_name {
+                    write!(self.output, " ({})", name).unwrap();
+                }
+                write!(self.output, "</span>").unwrap();
+            }
+            Node::Bookmark { label, path, line, .. } => {
+                write!(self.output, "<a href=\"{}{}\" class=\"bookmark\">", path, 
+                    line.map_or(String::new(), |l| format!("#{}", l))).unwrap();
+                write!(self.output, "[bookmark:{}]", label).unwrap();
+                write!(self.output, "</a>").unwrap();
+            }
+            Node::TabBlock { title, tabs, .. } => {
+                write!(self.output, "<div class=\"tab-block\"").unwrap();
+                if let Some(title) = title {
+                    write!(self.output, " data-title=\"{}\"", title).unwrap();
+                }
+                write!(self.output, ">").unwrap();
+                for child in tabs {
+                    self.visit(child);
+                }
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::Tab { name, content, .. } => {
+                write!(self.output, "<div class=\"tab\"").unwrap();
+                if let Some(name) = name {
+                    write!(self.output, " data-name=\"{}\"", name).unwrap();
+                }
+                write!(self.output, ">").unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::DiagramBlock { diagram_type, content, .. } => {
+                write!(self.output, "<div class=\"diagram\" data-type=\"{}\">", diagram_type).unwrap();
+                write!(self.output, "<pre><code>{}</code></pre>", content).unwrap();
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::RunInline { script_type, command, .. } => {
+                write!(self.output, "<code class=\"run-inline\" data-lang=\"{}\">{}</code>", script_type, command).unwrap();
+            }
+            Node::RunBlock { script_type, content, .. } => {
+                write!(self.output, "<div class=\"run-block\" data-lang=\"{}\">", script_type).unwrap();
+                write!(self.output, "<pre><code>{}</code></pre>", content).unwrap();
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::PageTag { format, .. } => {
+                let format_str = format.as_deref().unwrap_or("A4");
+                write!(self.output, "<meta name=\"page-format\" content=\"{}\">", format_str).unwrap();
+            }
+            Node::DocumentReference { path, .. } => {
+                write!(self.output, "<a href=\"{}\" class=\"doc-ref\">[@doc]({})</a>", path, path).unwrap();
+            }
+            Node::TableOfContents { depth, document, .. } => {
+                write!(self.output, "<div class=\"toc\"").unwrap();
+                if let Some(depth) = depth {
+                    write!(self.output, " data-depth=\"{}\"", depth).unwrap();
+                }
+                if let Some(doc) = document {
+                    write!(self.output, " data-document=\"{}\"", doc).unwrap();
+                }
+                write!(self.output, ">").unwrap();
+                write!(self.output, "<!-- TOC will be generated here -->").unwrap();
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::Autolink { url, .. } => {
+                write!(self.output, "<a href=\"{}\">{}</a>", url, url).unwrap();
+            }
+            Node::ReferenceImage { alt, label, .. } => {
+                write!(self.output, "<img src=\"#ref-{}\" alt=\"{}\">", label, alt).unwrap();
+            }
+            Node::FootnoteRef { label, .. } => {
+                write!(self.output, "<sup><a href=\"#footnote-{}\">{}</a></sup>", label, label).unwrap();
+            }
+            Node::Emoji { name, .. } => {
+                write!(self.output, "<span class=\"emoji\">:{}</span>", name).unwrap();
+            }
+            Node::LineBreak { .. } => {
+                write!(self.output, "<br>").unwrap();
+            }
+            Node::EscapedChar { character, .. } => {
+                write!(self.output, "{}", character).unwrap();
+            }
+            Node::InlineHTML { content, .. } => {
+                write!(self.output, "{}", content).unwrap();
+            }
+            Node::BlockHTML { content, .. } => {
+                write!(self.output, "{}", content).unwrap();
+            }
             Node::Macro { name, arguments, content, .. } => self.visit_macro(name, arguments, content),
             Node::HorizontalRule { .. } => self.visit_horizontal_rule(),
             Node::BlockQuote { content, .. } => self.visit_block_quote(content),
+            Node::Admonition { kind, content, .. } => self.visit_admonition(kind, content),
+            Node::TaskItem { checked, content, .. } => {
+                let check_mark = if *checked { "checked" } else { "" };
+                write!(self.output, "<input type=\"checkbox\" {} disabled> ", check_mark).unwrap();
+                for child in content {
+                    self.visit(child);
+                }
+            }
             Node::Unknown { content, rule, .. } => self.visit_unknown(content, rule),
+            
+            // New Node variants - provide default handling
+            Node::SetextHeading { content, level, .. } => {
+                // Treat setext headings same as regular headings
+                self.visit_heading(*level, content)
+            }
+            Node::TableHeader { cells, .. } => {
+                // Render table header cells
+                write!(self.output, "<thead><tr>").unwrap();
+                for cell in cells {
+                    write!(self.output, "<th>").unwrap();
+                    self.visit(cell);
+                    write!(self.output, "</th>").unwrap();
+                }
+                write!(self.output, "</tr></thead>").unwrap();
+            }
+            Node::TableRow { cells, .. } => {
+                // Render table row cells
+                write!(self.output, "<tr>").unwrap();
+                for cell in cells {
+                    write!(self.output, "<td>").unwrap();
+                    self.visit(cell);
+                    write!(self.output, "</td>").unwrap();
+                }
+                write!(self.output, "</tr>").unwrap();
+            }
+            Node::TableCell { content, alignment, .. } => {
+                // Render table cell content
+                let align_attr = match alignment {
+                    Some(align) => format!(" align=\"{}\"", align),
+                    None => String::new(),
+                };
+                write!(self.output, "<td{}>", align_attr).unwrap();
+                for node in content {
+                    self.visit(node);
+                }
+                write!(self.output, "</td>").unwrap();
+            }
+            Node::ThematicBreak { .. } => {
+                write!(self.output, "<hr>").unwrap();
+            }
+            Node::SoftLineBreak { .. } => {
+                write!(self.output, " ").unwrap();
+            }
+            Node::HardLineBreak { .. } => {
+                write!(self.output, "<br>").unwrap();
+            }
+            Node::HtmlBlock { content, .. } => {
+                write!(self.output, "{}", content).unwrap();
+            }
+            Node::FencedCodeBlock { content, language, .. } => {
+                match language {
+                    Some(lang) => {
+                        write!(self.output, "<pre><code class=\"language-{}\">{}</code></pre>", 
+                               lang, self.escape_html(content)).unwrap();
+                    }
+                    None => {
+                        write!(self.output, "<pre><code>{}</code></pre>", 
+                               self.escape_html(content)).unwrap();
+                    }
+                }
+            }
+            Node::IndentedCodeBlock { content, .. } => {
+                write!(self.output, "<pre><code>{}</code></pre>", 
+                       self.escape_html(content)).unwrap();
+            }
+            Node::LinkReferenceDefinition { .. } => {
+                // Usually not rendered
+            }
+            Node::MathBlockDisplay { content, .. } => {
+                write!(self.output, "<div class=\"math-block\">{}</div>", content).unwrap();
+            }
+            Node::CodeSpan { content, .. } => {
+                write!(self.output, "<code>{}</code>", self.escape_html(content)).unwrap();
+            }
+            Node::HtmlInlineTag { content, .. } => {
+                if let Some(nodes) = content {
+                    for node in nodes {
+                        self.visit(node);
+                    }
+                }
+            }
+            Node::AutolinkUrl { url, .. } => {
+                write!(self.output, "<a href=\"{}\">{}</a>", 
+                       self.escape_html(url), self.escape_html(url)).unwrap();
+            }
+            Node::AutolinkEmail { email, .. } => {
+                write!(self.output, "<a href=\"mailto:{}\">{}</a>", 
+                       self.escape_html(email), self.escape_html(email)).unwrap();
+            }
+            Node::AdmonitionWithIcon { kind, content, .. } => {
+                write!(self.output, "<div class=\"admonition {}\">", kind).unwrap();
+                for node in content {
+                    self.visit(node);
+                }
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::TabWithMetadata { name, content, .. } => {
+                let title = name.as_ref().map(|s| s.as_str()).unwrap_or("Tab");
+                write!(self.output, "<div class=\"tab\" data-title=\"{}\">", title).unwrap();
+                for node in content {
+                    self.visit(node);
+                }
+                write!(self.output, "</div>").unwrap();
+            }
+            Node::UserMentionWithMetadata { username, platform, display_name, .. } => {
+                let platform_str = platform.as_ref().map(|s| s.as_str()).unwrap_or("unknown");
+                let display = display_name.as_ref().unwrap_or(username);
+                write!(self.output, "<span class=\"user-mention\" data-platform=\"{}\">@{} ({})</span>", 
+                       platform_str, username, display).unwrap();
+            }
+            Node::Citation { key, locator, .. } => {
+                match locator {
+                    Some(loc) => {
+                        write!(self.output, "<cite data-key=\"{}\" data-locator=\"{}\">{}</cite>", 
+                               key, loc, key).unwrap();
+                    }
+                    None => {
+                        write!(self.output, "<cite data-key=\"{}\">{}</cite>", key, key).unwrap();
+                    }
+                }
+            }
+            Node::Keyboard { keys, .. } => {
+                write!(self.output, "<kbd>{}</kbd>", keys.join("+")).unwrap();
+            }
+            Node::Mark { content, reason, .. } => {
+                let class = reason.as_ref().map(|r| format!(" class=\"{}\"", r)).unwrap_or_default();
+                write!(self.output, "<mark{}>", class).unwrap();
+                for node in content {
+                    self.visit(node);
+                }
+                write!(self.output, "</mark>").unwrap();
+            }
+            Node::Details { summary, content, open, .. } => {
+                let open_attr = if *open { " open" } else { "" };
+                write!(self.output, "<details{}>", open_attr).unwrap();
+                write!(self.output, "<summary>").unwrap();
+                for node in summary {
+                    self.visit(node);
+                }
+                write!(self.output, "</summary>").unwrap();
+                for node in content {
+                    self.visit(node);
+                }
+                write!(self.output, "</details>").unwrap();
+            }
         }
     }
     
@@ -252,7 +578,10 @@ impl Visitor for HtmlRenderer {
     }
     
     fn visit_text(&mut self, content: &str) -> Self::Output {
-        write!(self.output, "{}", self.escape_html(content)).unwrap();
+        // First escape HTML, then convert newlines to <br> tags
+        let escaped_content = self.escape_html(content);
+        let html_content = escaped_content.replace('\n', "<br>");
+        write!(self.output, "{}", html_content).unwrap();
     }
     
     fn visit_emphasis(&mut self, content: &[Node]) -> Self::Output {
@@ -366,6 +695,28 @@ impl Visitor for HtmlRenderer {
         }
         
         write!(self.output, "</blockquote>").unwrap();
+    }
+    
+    fn visit_admonition(&mut self, kind: &str, content: &[Node]) -> Self::Output {
+        write!(self.output, "<div").unwrap();
+        self.write_class(&format!("admonition admonition-{}", kind));
+        write!(self.output, " data-admonition=\"{}\">", self.escape_html(kind)).unwrap();
+        
+        // Add admonition header
+        write!(self.output, "<div").unwrap();
+        self.write_class("admonition-header");
+        write!(self.output, ">{}</div>", self.escape_html(&kind.to_uppercase())).unwrap();
+        
+        // Add admonition content
+        write!(self.output, "<div").unwrap();
+        self.write_class("admonition-content");
+        write!(self.output, ">").unwrap();
+        
+        for child in content {
+            self.visit(child);
+        }
+        
+        write!(self.output, "</div></div>").unwrap();
     }
     
     fn visit_unknown(&mut self, content: &str, rule: &str) -> Self::Output {

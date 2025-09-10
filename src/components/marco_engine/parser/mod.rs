@@ -70,10 +70,7 @@ pub fn validate_syntax(
 
 /// Parse with specific rule and return only success/failure
 pub fn quick_parse_check(rule_name: &str, input: &str) -> bool {
-    match validate_syntax(rule_name, input) {
-        Ok(valid) => valid,
-        Err(_) => false,
-    }
+    validate_syntax(rule_name, input).unwrap_or_default()
 }
 
 /// Analyze rule usage in document
@@ -103,7 +100,7 @@ pub fn create_debug_parser() -> EnhancedMarcoParser {
         enable_cache: false,   // Disable for consistency
         max_cache_size: 50,
         detailed_errors: true, // Full error reporting
-        collect_stats: true,   // Collect statistics
+        collect_stats: true,   // Collect statistics for debugging
     };
     EnhancedMarcoParser::with_config(config)
 }
