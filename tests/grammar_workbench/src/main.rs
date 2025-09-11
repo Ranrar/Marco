@@ -1,5 +1,4 @@
 use pest::Parser;
-use pest_derive::Parser;
 
 use std::collections::HashMap;
 use std::env;
@@ -12,16 +11,14 @@ extern crate ascii_tree;
 extern crate escape_string;
 use pest::iterators::Pairs;
 
+// Import marco engine components
+use marco::components::marco_engine::{MarcoParser, Rule};
+
 // Grammar visualization module
 mod grammar_visualizer;
 
-// Use the shared grammar file from the main project
-#[derive(Parser)]
-#[grammar = "../src/components/marco_engine/grammar/marco.pest"]
-pub struct MarcoParser;
-
 #[derive(Debug)]
-struct TestResult {
+struct BenchmarkResult {
     name: String,
     rule: String,
     input: String,
@@ -292,7 +289,6 @@ fn run_batch_tests() {
     let test_cases = parse_test_cases(&test_content);
 
     // Collect test results in memory first
-    let mut test_results: Vec<TestResult> = Vec::new();
     let mut total_tests = 0;
     let mut passed_tests = 0;
     let mut failed_tests = 0;
@@ -1072,15 +1068,6 @@ fn escape_html_content(text: &str) -> String {
         .replace('\r', "\\r")
 }
 
-fn escape_html_preserve_structure(text: &str) -> String {
-    // Only escape HTML characters, preserve actual newlines for tree structure
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
-}
-
 fn get_current_timestamp() -> String {
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -1150,7 +1137,7 @@ fn run_benchmark_tests() {
 
                     match parse_result {
                         Ok(_) => {
-                            results.push(TestResult {
+                            results.push(BenchmarkResult {
                                 name: test_name.clone(),
                                 rule: rule_name.clone(),
                                 input: input_text.clone(),
@@ -1161,7 +1148,7 @@ fn run_benchmark_tests() {
                             });
                         }
                         Err(e) => {
-                            results.push(TestResult {
+                            results.push(BenchmarkResult {
                                 name: test_name.clone(),
                                 rule: rule_name.clone(),
                                 input: input_text.clone(),
@@ -1234,7 +1221,7 @@ fn run_benchmark_tests() {
     println!("✅ Benchmark complete! Report written to src/results/benchmark_results.md");
 }
 
-fn generate_benchmark_report(results: &[TestResult], stats: &BenchmarkStats) {
+fn generate_benchmark_report(results: &[BenchmarkResult], stats: &BenchmarkStats) {
     let mut output = match fs::File::create("src/results/benchmark_results.md") {
         Ok(file) => file,
         Err(e) => {
@@ -1296,7 +1283,7 @@ fn generate_benchmark_report(results: &[TestResult], stats: &BenchmarkStats) {
     writeln!(output, "\n## Performance Analysis\n").unwrap();
 
     // Group by input size for throughput analysis
-    let mut size_groups: HashMap<String, Vec<&TestResult>> = HashMap::new();
+    let mut size_groups: HashMap<String, Vec<&BenchmarkResult>> = HashMap::new();
     for result in results {
         let size_category = match result.input.len() {
             0..=50 => "Small (0-50 chars)",
@@ -1552,7 +1539,7 @@ fn get_rule(rule_name: &str) -> Option<Rule> {
         "inline" => Some(Rule::inline),
         "inline_core" => Some(Rule::inline_core),
         "escaped_char" => Some(Rule::escaped_char),
-        "line_break" => Some(Rule::line_break),
+        "line_break" => None, // Removed rule, use hard_line_break or soft_line_break
 
         // Marco extensions
         "macro_inline" => Some(Rule::macro_inline),
@@ -2192,34 +2179,6 @@ fn parse_test_cases(content: &str) -> HashMap<String, Vec<(String, String)>> {
     }
 
     sections
-}
-
-fn escape_markdown(text: &str) -> String {
-    text.replace('`', "\\`")
-        .replace('*', "\\*")
-        .replace('_', "\\_")
-        .replace('[', "\\[")
-        .replace(']', "\\]")
-}
-
-fn write_pairs_to_string(output: &mut fs::File, pair: pest::iterators::Pair<Rule>, depth: usize) {
-    let indent = "  ".repeat(depth);
-    let rule_name = format!("{:?}", pair.as_rule());
-    let text = pair.as_str();
-
-    // Clone the pair to check if it has children
-    let has_children = pair.clone().into_inner().peekable().peek().is_some();
-
-    if has_children {
-        // Has children - show structure
-        writeln!(output, "{}├── {} > \"{}\"", indent, rule_name, text).unwrap();
-        for inner_pair in pair.into_inner() {
-            write_pairs_to_string(output, inner_pair, depth + 1);
-        }
-    } else {
-        // Leaf node - show value
-        writeln!(output, "{}└── {}: \"{}\"", indent, rule_name, text).unwrap();
-    }
 }
 
 fn print_enhanced_pairs(pair: pest::iterators::Pair<Rule>, depth: usize) {

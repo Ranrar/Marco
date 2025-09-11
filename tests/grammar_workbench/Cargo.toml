@@ -1,17 +1,18 @@
 [package]
-name = "marco-debug"
+name = "marco-grammar-test"
 version = "0.1.0"
 edition = "2021"
-description = "Debug and testing tools for Marco grammar parser"
+description = "A real-time testing and validation platform that uses the Marco engine"
 
 [[bin]]
 name = "grammar-test"
 path = "src/main.rs"
 
 [dependencies]
+# Use the main marco crate
+marco = { path = "../.." }
 # Direct dependencies for the debug tool
 pest = "2.8.1"
-pest_derive = "2.8.1"
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 # ASCII tree visualization for better parse tree display
