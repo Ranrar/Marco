@@ -1,13 +1,14 @@
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
 use crate::components::marco_engine::grammar::Rule;
-use crate::components::marco_engine::render::{HtmlOptions, HtmlRenderer};
+use crate::components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
 use crate::components::marco_engine::{AstBuilder, MarcoParser};
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
 use crate::components::viewer::webview_utils::webkit_scrollbar_css;
 use crate::footer::FooterLabels;
+use crate::logic::swanson::Settings;
 use gtk4::prelude::*;
 use gtk4::Paned;
 use pest::Parser;
@@ -22,6 +23,7 @@ pub fn create_editor_with_preview(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     theme_mode: Rc<RefCell<String>>,
     labels: Rc<FooterLabels>,
+    settings_path: &str,
 ) -> EditorReturn {
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
@@ -173,7 +175,19 @@ pub fn create_editor_with_preview(
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    let html_opts = HtmlOptions::default();
+    // Load line break mode from settings
+    let line_break_mode = Settings::load_from_file(settings_path)
+        .ok()
+        .and_then(|s| s.engine)
+        .and_then(|e| e.render)
+        .and_then(|r| r.html)
+        .and_then(|h| h.line_break_mode)
+        .unwrap_or_else(|| "normal".to_string());
+
+    let html_opts = HtmlOptions {
+        line_break_mode,
+        ..HtmlOptions::default()
+    };
     let html_opts_rc = std::rc::Rc::new(html_opts);
 
     // Precreate code scrolled window

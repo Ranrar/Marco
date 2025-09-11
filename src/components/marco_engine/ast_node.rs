@@ -60,6 +60,15 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Type of line break
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum LineBreakType {
+    /// Hard line break (2+ spaces or backslash + newline)
+    Hard,
+    /// Soft line break (just newline)
+    Soft,
+}
+
 /// Source position information for any node in the AST
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Span {
@@ -194,7 +203,10 @@ pub enum Node {
     },
 
     /// Line break (hard, soft, or regular) - unified
-    LineBreak { span: Span },
+    LineBreak { 
+        break_type: LineBreakType, // Type of line break
+        span: Span 
+    },
 
     /// Escaped character \x
     EscapedChar { character: char, span: Span },
@@ -563,8 +575,18 @@ impl Node {
     }
 
     /// Create a new line break node
-    pub fn line_break(span: Span) -> Self {
-        Node::LineBreak { span }
+    pub fn line_break(break_type: LineBreakType, span: Span) -> Self {
+        Node::LineBreak { break_type, span }
+    }
+
+    /// Create a hard line break node (2+ spaces or backslash + newline)
+    pub fn hard_line_break(span: Span) -> Self {
+        Self::line_break(LineBreakType::Hard, span)
+    }
+
+    /// Create a soft line break node (just newline)
+    pub fn soft_line_break(span: Span) -> Self {
+        Self::line_break(LineBreakType::Soft, span)
     }
 
     /// Create a new escaped character node

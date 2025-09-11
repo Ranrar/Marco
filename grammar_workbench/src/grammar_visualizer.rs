@@ -7,7 +7,7 @@ pub fn show_grammar_tree() {
     println!("=================================\n");
 
     // Read the grammar file
-    let grammar_path = "../src/components/marco_engine/grammar/marco.pest";
+    let grammar_path = "../src/components/marco_engine/marco_grammar.pest";
     let grammar_content = match fs::read_to_string(grammar_path) {
         Ok(content) => content,
         Err(e) => {

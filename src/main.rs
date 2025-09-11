@@ -327,6 +327,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         theme_manager.clone(),
         Rc::clone(&theme_mode),
         footer_labels_rc.clone(),
+        settings_path.to_str().unwrap(),
     );
 
     // Wrap setter into Rc so it can be cloned into action callbacks

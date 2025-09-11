@@ -30,15 +30,6 @@ tempfile = "3.21.0"
 pest = "2.8.1"
 pest_derive = "2.8.1"
 emojis = "0.7.2"
-# Marco Engine dependencies
-rayon = "1.8" # Parallel processing for large documents  
-tokio = { version = "1.0", features = [
-    "rt-multi-thread",
-    "fs",
-    "io-util",
-    "macros",
-] } # Async runtime - optimized features
-lru = "0.12" # LRU cache implementation for enhanced parser
 
 [dev-dependencies]
 # Basic testing

@@ -119,4 +119,18 @@ static_defaults: (
         // Plugins/extensions (future: list of plugin configs)
         plugins: [],
     ),
+    // Marco Engine Configuration
+    engine: (
+        render: (
+            html: (
+                include_styles: true,
+                generate_toc: false,
+                syntax_highlighting: true,
+                semantic_html: true,
+                include_metadata: false,
+                // Line break behavior: "normal" (CommonMark) or "reversed" (Marco)
+                line_break_mode: "normal",
+            ),
+        ),
+    ),
 )

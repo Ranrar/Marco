@@ -1,7 +1,7 @@
 //! Markdown-specific settings tab
 use crate::logic::swanson::Settings as AppSettings;
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Label, Orientation, Switch};
+use gtk4::{Align, Box as GtkBox, ComboBoxText, Label, Orientation, Switch};
 
 /// Builds the Markdown tab UI for markdown-specific engine settings
 pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
@@ -157,6 +157,95 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     metadata_description.add_css_class("dim-label");
     metadata_description.set_margin_bottom(12);
     container.append(&metadata_description);
+
+    // === LINE BREAK BEHAVIOR ===
+    let linebreak_header = Label::new(Some("Line Break Behavior"));
+    linebreak_header.set_markup("<b>Line Break Behavior</b>");
+    linebreak_header.set_halign(Align::Start);
+    linebreak_header.set_xalign(0.0);
+    linebreak_header.set_margin_bottom(8);
+    container.append(&linebreak_header);
+
+    // Load current line break mode setting
+    let current_line_break_mode = load_settings()
+        .render
+        .and_then(|r| r.html)
+        .and_then(|h| h.line_break_mode)
+        .unwrap_or_else(|| "normal".to_string());
+
+    let linebreak_combo = ComboBoxText::new();
+    linebreak_combo.append_text("normal");
+    linebreak_combo.append_text("reversed");
+    
+    let active_idx = match current_line_break_mode.as_str() {
+        "reversed" => 1,
+        _ => 0, // Default to normal for "normal" or any other value
+    };
+    linebreak_combo.set_active(Some(active_idx));
+
+    // Create horizontal box for title and dropdown
+    let linebreak_hbox = GtkBox::new(Orientation::Horizontal, 0);
+    
+    let linebreak_title = Label::new(Some("Newline Interpretation Mode"));
+    linebreak_title.set_markup("<b>Newline Interpretation Mode</b>");
+    linebreak_title.set_halign(Align::Start);
+    linebreak_title.set_xalign(0.0);
+
+    let linebreak_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    linebreak_spacer.set_hexpand(true);
+
+    linebreak_combo.set_halign(Align::End);
+
+    linebreak_hbox.append(&linebreak_title);
+    linebreak_hbox.append(&linebreak_spacer);
+    linebreak_hbox.append(&linebreak_combo);
+    linebreak_hbox.set_margin_top(8);
+    linebreak_hbox.set_margin_bottom(4);
+    container.append(&linebreak_hbox);
+
+    // Wire dropdown to update setting and persist
+    {
+        let settings_path = settings_path.to_string();
+        linebreak_combo.connect_changed(move |combo| {
+            let idx = combo.active().unwrap_or(0);
+            let mode = if idx == 1 { "reversed" } else { "normal" };
+            
+            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+
+            if settings.engine.is_none() {
+                settings.engine = Some(crate::logic::swanson::EngineSettings::default());
+            }
+            if let Some(ref mut engine) = settings.engine {
+                if engine.render.is_none() {
+                    engine.render = Some(crate::logic::swanson::EngineRenderSettings::default());
+                }
+                if let Some(ref mut render) = engine.render {
+                    if render.html.is_none() {
+                        render.html = Some(crate::logic::swanson::EngineHtmlSettings::default());
+                    }
+                    if let Some(ref mut html) = render.html {
+                        html.line_break_mode = Some(mode.to_string());
+                    }
+                }
+            }
+
+            if let Err(e) = settings.save_to_file(&settings_path) {
+                eprintln!("Failed to save line break mode setting: {}", e);
+            }
+        });
+    }
+
+    // Description text for line breaks
+    let linebreak_description = Label::new(Some(
+        "Normal: Single Enter = soft break (no <br>), Double space/backslash + Enter = hard break (<br>)\n\
+         Reversed: Single Enter = hard break (<br>), Double space/backslash + Enter = soft break (no <br>)"
+    ));
+    linebreak_description.set_halign(Align::Start);
+    linebreak_description.set_xalign(0.0);
+    linebreak_description.set_wrap(true);
+    linebreak_description.add_css_class("dim-label");
+    linebreak_description.set_margin_bottom(16);
+    container.append(&linebreak_description);
 
     container
 }

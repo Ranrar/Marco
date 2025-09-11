@@ -52,11 +52,15 @@ unknown_block = { (!NEWLINE ~ ANY)+ }
 macro_block   = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tab_block }
 
 // ===== INLINE LEVEL - Ordered by specificity =====
-inline_core = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | line_break | text }
+inline_core = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | hard_line_break | soft_line_break | text }
 
 // Escape sequences for markdown special characters
 escaped_char = @{ "\\" ~ (markdown_special | "\\") }
-line_break   = @{ " "{2, } ~ NEWLINE }
+
+// Line breaks with distinction between hard and soft
+hard_line_break = @{ (" "{2,} | "\\") ~ NEWLINE }
+soft_line_break = @{ NEWLINE ~ &(!block_start ~ !EOI) }
+
 inline       =  { inline_core | inline_task_item }
 macro_inline =  { user_mention | run_inline | page_tag | toc | doc_ref }
 
@@ -80,7 +84,7 @@ math_symbol = @{ "±" | "√" | "∞" | "∑" | "≈" | "≠" | "≤" | "≥" | 
 // but mid-line text should be permissive. Use an explicit negative lookahead for
 // common block-start sequences to avoid false positives (heading, hr, list,
 // blockquote, admonition, code fence, table, HTML).
-text = @{
+text = {
     // More permissive text rule: Only refuse block markers that have proper syntax.
     // Allow content that starts with formatting markers (* _ ` etc.) since these
     // should be handled by formatting rules or serve as fallback content.
@@ -96,10 +100,10 @@ text = @{
   (("-" | "*" | "+") ~ " ") | // unordered list (note: single * without space is not a list)
   "|" | // table row
   ("<" ~ ASCII_ALPHA ~ ASCII_ALPHANUMERIC* ~ (WHITESPACE | ">")) // html block tags (not inline tags)
-  ) ~ text_line_content+)
+  ) ~ text_no_formatting+)
   | start_line_formatting // Handle line-start formatting chars as text fallback
 
-  | text_line_content+
+  | text_no_formatting+
 }
 
 // Handle formatting characters at line start that should be treated as text
@@ -114,10 +118,10 @@ formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "!" | "$" }
 text_content_chars = {
     word
   | safe_punct
-  | WHITESPACE+
+  | !((" "{2,} | "\\") ~ NEWLINE) ~ (" " | "\t") // Single space or tab, but not hard line break pattern
   | math_symbol
   | inline_formatting_safe
-  | "`"
+  | ("`" ~ !"`")
   | "*"
   | "_"
   | "="
@@ -127,21 +131,15 @@ text_content_chars = {
   | "$"
 }
 
-text_line_content = _{
-    word
-  | safe_punct
-  | WHITESPACE+ // Allow multiple whitespace characters
-
-  | math_symbol
-  | inline_formatting_safe
-  | "`" // Allow single backticks in text content
-  | "*" // Allow asterisks
-  | "_" // Allow underscores
-  | "=" // Allow equals
-  | "^" // Allow carets
-  | "#" // Allow hashes
-  | "!" // Allow exclamation marks
-  | "$" // Allow dollar signs
+// More restrictive text content that stops at formatting boundaries
+text_no_formatting = _{
+    !("`" ~ (!"`" ~ ANY)+ ~ "`") ~ // Don't match across inline code
+    !(("**" | "__") ~ (!"**" ~ !"__" ~ ANY)+ ~ ("**" | "__")) ~ // Don't match across bold
+    !("*" ~ (!"*" ~ ANY)+ ~ "*") ~ // Don't match across italic (but allow double asterisk)
+    !("$" ~ (!"$" ~ ANY)+ ~ "$") ~ // Don't match across inline math
+    !((" "{2,} | "\\") ~ NEWLINE) ~ // Don't match hard line breaks
+    !NEWLINE ~ // Don't match soft line breaks
+    (word | safe_punct | " " | "\t" | math_symbol | inline_formatting_safe)
 }
 
 // Detect block starts when anchored to start of input/line
