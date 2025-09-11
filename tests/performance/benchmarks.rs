@@ -641,7 +641,7 @@ impl BenchmarkResults {
                 result.input_size
             ));
         }
-        report.push_str("\n");
+        report.push('\n');
 
         // Cache Performance
         report.push_str("## Cache Performance\n\n");

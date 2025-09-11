@@ -36,7 +36,7 @@ impl TestMarcoBuilder {
     fn parse_task_syntax(input: &str) -> Option<(String, String, String)> {
         let input = input.trim();
         if input.starts_with("[ ]") {
-            let content = input[3..].trim();
+            let content = input.strip_prefix("[ ]").unwrap().trim();
             if !content.is_empty() {
                 // Check for invalid nested brackets or malformed content
                 if content.contains('[') && !content.contains(']') {
@@ -53,7 +53,7 @@ impl TestMarcoBuilder {
                 None // Empty content is invalid
             }
         } else if input.starts_with("[x]") {
-            let content = input[3..].trim();
+            let content = input.strip_prefix("[x]").unwrap().trim();
             if !content.is_empty() {
                 // Check for invalid nested brackets or malformed content
                 if content.contains('[') && !content.contains(']') {
@@ -70,7 +70,7 @@ impl TestMarcoBuilder {
                 None // Empty content is invalid
             }
         } else if input.starts_with("[X]") {
-            let content = input[3..].trim();
+            let content = input.strip_prefix("[X]").unwrap().trim();
             if !content.is_empty() {
                 // Check for invalid nested brackets or malformed content
                 if content.contains('[') && !content.contains(']') {

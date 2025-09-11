@@ -42,7 +42,6 @@ fn test_benchmarks_creation() {
     let _benchmarks = MarcoBenchmarks::new();
 
     // If we get here without panicking, the modules are properly connected
-    assert!(true);
 }
 
 #[test]

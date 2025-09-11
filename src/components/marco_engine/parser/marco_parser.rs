@@ -148,10 +148,7 @@ impl EnhancedMarcoParser {
                 stats.parse_time = start_time.elapsed();
 
                 return ParseResult {
-                    nodes: cached
-                        .result
-                        .clone()
-                        .map_err(|e| MarcoError::parse_error(e)),
+                    nodes: cached.result.clone().map_err(MarcoError::parse_error),
                     stats,
                     warnings,
                     rule,

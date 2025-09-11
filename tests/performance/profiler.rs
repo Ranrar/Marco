@@ -490,17 +490,21 @@ macro_rules! profile_operation {
 }
 
 /// Global profiler instance for convenience
-static mut GLOBAL_PROFILER: Option<PerformanceProfiler> = None;
-static PROFILER_INIT: std::sync::Once = std::sync::Once::new();
+static GLOBAL_PROFILER: std::sync::Mutex<Option<PerformanceProfiler>> = std::sync::Mutex::new(None);
 
 /// Initialize global profiler
 pub fn init_global_profiler(config: ProfilerConfig) {
-    PROFILER_INIT.call_once(|| unsafe {
-        GLOBAL_PROFILER = Some(PerformanceProfiler::new(config));
-    });
+    let mut profiler = GLOBAL_PROFILER.lock().unwrap();
+    if profiler.is_none() {
+        *profiler = Some(PerformanceProfiler::new(config));
+    }
 }
 
-/// Get reference to global profiler
-pub fn global_profiler() -> Option<&'static mut PerformanceProfiler> {
-    unsafe { GLOBAL_PROFILER.as_mut() }
+/// Execute a closure with the global profiler
+pub fn with_global_profiler<F, R>(f: F) -> Option<R>
+where
+    F: FnOnce(&mut PerformanceProfiler) -> R,
+{
+    let mut profiler = GLOBAL_PROFILER.lock().ok()?;
+    (*profiler).as_mut().map(f)
 }

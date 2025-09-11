@@ -34,11 +34,11 @@ impl MarcoRenderer {
             }
             OutputFormat::Json => {
                 let renderer = JsonRenderer::new(false);
-                renderer.render(ast).map_err(|e| MarcoError::from(e))
+                renderer.render(ast).map_err(MarcoError::from)
             }
             OutputFormat::JsonPretty => {
                 let renderer = JsonRenderer::new(true);
-                renderer.render(ast).map_err(|e| MarcoError::from(e))
+                renderer.render(ast).map_err(MarcoError::from)
             }
         }
     }
@@ -52,7 +52,7 @@ impl MarcoRenderer {
     /// Render to JSON with formatting control
     pub fn render_json(ast: &Node, pretty: bool) -> Result<String, MarcoError> {
         let renderer = JsonRenderer::new(pretty);
-        renderer.render(ast).map_err(|e| MarcoError::from(e))
+        renderer.render(ast).map_err(MarcoError::from)
     }
 }
 
