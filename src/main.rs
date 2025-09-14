@@ -9,77 +9,9 @@ mod toolbar;
 pub mod ui;
 
 /*
-╔══════════════════════════════════════════════════════════════════════════════════════════════════╗
-║                                    MARCO ARCHITECTURE GUIDELINES                                 ║
-║                                                                                                  ║
-║    CRITICAL: This file (main.rs) serves ONLY as an APPLICATION GATEWAY                           ║
-║                                                                                                  ║
-║    DO NOT ADD:                           ║    ALLOWED IN main.rs:                                ║
-║     • Business logic                     ║     • Module imports and declarations                 ║
-║     • UI component implementations       ║     • Application initialization                      ║
-║     • File operations                    ║     • Window setup and basic layout                   ║
-║     • Complex algorithms                 ║     • Async context bridging (spawn_local)            ║
-║     • Data processing                    ║                                                       ║
-║     • Theme logic                        ║                                                       ║
-║     • Parser implementations             ║                                                       ║
-║                                          ║                                                       ║
-║                                                                                                  ║
-║    FILE ORGANIZATION GUIDE:                                                                      ║
-║                                                                                                  ║
-║    src/logic/                          - All business logic and core functionality               ║
-║     ├── buffer.rs                       - Document state management                              ║
-║     ├── parser.rs                       - Markdown parsing and syntax analysis                   ║
-║     ├── asset_path.rs                   - Asset detection and path resolution                    ║
-║     ├── theme_loader.rs                 - Theme discovery and loading                            ║
-║     ├── schema_loader.rs                - Schema loading and validation                          ║
-║     ├── crossplatforms.rs               - Cross-platform compatibility                           ║
-║     ├── swanson.rs                      - Settings management                                    ║
-║     └── menu_items/                     - File operation business logic                          ║
-║         ├── file.rs                     - File operations (open, save, etc.)                     ║
-║         ├── edit.rs                     - Edit operations                                        ║
-║         ├── format.rs                   - Format operations                                      ║
-║         ├── view.rs                     - View state management                                  ║
-║         └── help.rs                     - Help system logic                                      ║
-║                                                                                                  ║
-║    src/ui/                             - All user interface components                           ║
-║     ├── main_editor.rs                  - Main editor UI with preview                            ║
-║     ├── code_viewer.rs                  - Code editor component                                  ║
-║     ├── html_viewer.rs                  - HTML preview component                                 ║
-║     ├── splitview.rs                    - Split view management                                  ║
-║     ├── menu_items/                     - UI dialogs and interactions                            ║
-║     │   └── files.rs                    - File dialogs (FileChooserNative, etc.)                 ║
-║     └── settings/                       - Settings UI components                                 ║
-║         ├── settings.rs                 - Settings dialog                                        ║
-║         └── tabs/                       - Settings tab components                                ║
-║                                                                                                  ║
-║    src/ (root level)                   - Application structure and integration                   ║
-║     ├── main.rs                         - THIS FILE: Application gateway only                    ║
-║     ├── lib.rs                          - Library exports for testing                            ║
-║     ├── footer.rs                       - Footer component integration                           ║
-║     ├── menu.rs                         - Menu bar and titlebar                                  ║
-║     ├── toolbar.rs                      - Toolbar component                                      ║
-║     └── theme.rs                        - Theme management integration                           ║
-║                                                                                                  ║
-║    INTEGRATION PATTERN:                                                                          ║
-║     main.rs → UI layer → Logic layer                                                             ║
-║     • main.rs sets up window and actions                                                         ║
-║     • UI components handle user interactions                                                     ║
-║     • Logic components process business rules                                                    ║
-║     • Async bridging happens in main.rs via spawn_local                                          ║
-║                                                                                                  ║
-║    WHEN ADDING NEW FEATURES:                                                                     ║
-║     1. Business logic → src/logic/                                                               ║
-║     2. UI components → src/ui/                                                                   ║
-║     3. Integration only → main.rs                                                                ║
-║     4. Keep layers separate and well-defined                                                     ║
-║                                                                                                  ║
-║    PRINCIPLES:                                                                                   ║
-║     • Separation of Concerns: Logic ≠ UI ≠ Integration                                           ║
-║     • Single Responsibility: Each file has one clear purpose                                     ║
-║     • Dependency Direction: main.rs → ui → logic (never reverse)                                 ║
-║     • Clean Architecture: Outer layers depend on inner layers                                    ║
-║                                                                                                  ║
-╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════════════════╗
+║    CRITICAL: This file (main.rs) serves ONLY as an APPLICATION GATEWAY    ║
+╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
 use crate::components::editor::editor_ui::create_editor_with_preview;
@@ -558,6 +490,15 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                         use crate::components::editor::editor_manager::set_scroll_sync_enabled_globally;
                         let _ = set_scroll_sync_enabled_globally(enabled);
                         log::debug!("Scroll sync toggled: {}", enabled);
+                    }
+                }) as Box<dyn Fn(bool) + 'static>),
+                // on_line_numbers_changed: enable/disable line numbers in the editor
+                on_line_numbers_changed: Some(Box::new({
+                    move |enabled: bool| {
+                        // Use the global line numbers API to update all editors
+                        use crate::components::editor::editor_manager::update_line_numbers_globally;
+                        let _ = update_line_numbers_globally(enabled);
+                        log::debug!("Line numbers toggled: {}", enabled);
                     }
                 }) as Box<dyn Fn(bool) + 'static>),
             };

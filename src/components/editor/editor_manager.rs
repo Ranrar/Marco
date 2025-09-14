@@ -10,9 +10,13 @@ pub type EditorId = u64;
 /// Editor settings change callback function
 type EditorSettingsCallback = Box<dyn Fn(&EditorDisplaySettings)>;
 
+/// Line numbers change callback function
+type LineNumbersCallback = Box<dyn Fn(bool)>;
+
 /// Editor settings manager for runtime updates
 pub struct EditorManager {
     editor_callbacks: Rc<std::cell::RefCell<HashMap<EditorId, EditorSettingsCallback>>>,
+    line_numbers_callbacks: Rc<std::cell::RefCell<HashMap<EditorId, LineNumbersCallback>>>,
     editor_config: EditorConfiguration,
     next_id: Rc<std::cell::RefCell<u64>>,
     scroll_synchronizer: Rc<ScrollSynchronizer>,
@@ -24,6 +28,7 @@ impl EditorManager {
         let editor_config = EditorConfiguration::new(settings_path)?;
         Ok(Self {
             editor_callbacks: Rc::new(std::cell::RefCell::new(HashMap::new())),
+            line_numbers_callbacks: Rc::new(std::cell::RefCell::new(HashMap::new())),
             editor_config,
             next_id: Rc::new(std::cell::RefCell::new(0)),
             scroll_synchronizer: Rc::new(ScrollSynchronizer::new()),
@@ -67,6 +72,36 @@ impl EditorManager {
         for (editor_id, callback) in callbacks.iter() {
             debug!("Notifying editor {} of settings update", editor_id);
             callback(editor_settings);
+        }
+
+        Ok(())
+    }
+
+    /// Register a line numbers callback
+    pub fn register_line_numbers_callback<F>(&self, callback: F) -> EditorId
+    where
+        F: Fn(bool) + 'static,
+    {
+        let mut next_id = self.next_id.borrow_mut();
+        let id = *next_id;
+        *next_id += 1;
+
+        let mut callbacks = self.line_numbers_callbacks.borrow_mut();
+        callbacks.insert(id, Box::new(callback));
+
+        debug!("Registered line numbers callback {} for updates", id);
+        id
+    }
+
+    /// Update line numbers setting and notify all registered callbacks
+    pub fn update_line_numbers(&self, show_line_numbers: bool) -> anyhow::Result<()> {
+        debug!("Updating line numbers setting: {}", show_line_numbers);
+
+        // Notify all line numbers callbacks
+        let callbacks = self.line_numbers_callbacks.borrow();
+        for (editor_id, callback) in callbacks.iter() {
+            debug!("Notifying editor {} of line numbers update", editor_id);
+            callback(show_line_numbers);
         }
 
         Ok(())
@@ -185,6 +220,32 @@ pub fn get_global_scroll_synchronizer() -> Option<Rc<ScrollSynchronizer>> {
     } else {
         debug!("Cannot get scroll synchronizer: global editor manager not initialized");
         None
+    }
+}
+
+/// Register a line numbers callback globally
+pub fn register_line_numbers_callback_globally<F>(callback: F) -> Option<EditorId>
+where
+    F: Fn(bool) + 'static,
+{
+    if let Some(manager) = get_editor_manager() {
+        let mgr = manager.borrow();
+        let id = mgr.register_line_numbers_callback(callback);
+        debug!("Globally registered line numbers callback with ID: {}", id);
+        Some(id)
+    } else {
+        debug!("Cannot register line numbers callback: global manager not initialized");
+        None
+    }
+}
+
+/// Update line numbers setting globally and notify all callbacks
+pub fn update_line_numbers_globally(show_line_numbers: bool) -> anyhow::Result<()> {
+    if let Some(manager) = get_editor_manager() {
+        let mgr = manager.borrow();
+        mgr.update_line_numbers(show_line_numbers)
+    } else {
+        Err(anyhow::anyhow!("Editor manager not initialized"))
     }
 }
 

@@ -91,6 +91,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                         show_invisibles: editor.show_invisibles.unwrap_or(false),
                         tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
                         syntax_colors: editor.syntax_colors.unwrap_or(true),
+                        show_line_numbers: settings
+                            .layout
+                            .as_ref()
+                            .and_then(|l| l.show_line_numbers)
+                            .unwrap_or(true),
                     };
 
                 if let Err(e) =
@@ -179,6 +184,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
                 syntax_colors: editor.syntax_colors.unwrap_or(true),
+                show_line_numbers: settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true),
             };
 
             if let Err(e) =
@@ -288,6 +298,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
                 syntax_colors: editor.syntax_colors.unwrap_or(true),
+                show_line_numbers: settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true),
             };
 
             if let Err(e) =
@@ -392,6 +407,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
                 syntax_colors: editor.syntax_colors.unwrap_or(true),
+                show_line_numbers: settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true),
             };
 
             if let Err(e) =
@@ -513,6 +533,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 show_invisibles: enabled,
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
                 syntax_colors: editor.syntax_colors.unwrap_or(true),
+                show_line_numbers: settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true),
             };
 
             if let Err(e) =
@@ -604,6 +629,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: enabled,
                 syntax_colors: editor.syntax_colors.unwrap_or(true),
+                show_line_numbers: settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true),
             };
 
             if let Err(e) =
@@ -701,6 +731,11 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
                 syntax_colors: enabled,
+                show_line_numbers: settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true),
             };
 
             if let Err(e) =

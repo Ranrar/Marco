@@ -48,6 +48,7 @@ pub struct SettingsDialogCallbacks {
     pub on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
     pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
     pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
 pub fn show_settings_dialog(
@@ -110,6 +111,7 @@ pub fn show_settings_dialog(
             settings_path.to_str(),
             callbacks.on_split_ratio_changed,
             callbacks.on_sync_scrolling_changed,
+            callbacks.on_line_numbers_changed,
         ),
         Some(&Label::new(Some("Layout"))),
     );

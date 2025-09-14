@@ -3,7 +3,6 @@
 /// it takes the already-rendered HTML and presents it in the UI.
 use gtk4::prelude::*;
 use webkit6::prelude::*;
-
 use webkit6::WebView;
 /// TODO change open link polici to onnly allow open target when klicking
 /// Create a WebView widget and load the provided HTML string.
@@ -21,6 +20,34 @@ pub fn create_html_viewer(html: &str) -> WebView {
     webview.set_vexpand(true);
     webview.set_hexpand(true);
     webview
+}
+
+/// Update the content in an existing WebView using JavaScript injection.
+/// This avoids full page reloads and provides smooth updates while preserving scroll position.
+pub fn update_html_content_smooth(webview: &WebView, content: &str) {
+    let escaped_content = content
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+
+    let js_code = format!("updateContent('{}');", escaped_content);
+    let webview_clone = webview.clone();
+    let js_code_clone = js_code.clone();
+
+    glib::idle_add_local(move || {
+        webview_clone.evaluate_javascript(
+            &js_code_clone,
+            None,                      // world_name
+            None,                      // source_uri
+            None::<&gio::Cancellable>, // cancellable
+            |result| match result {
+                Ok(_) => log::debug!("[webkit6] Content updated successfully"),
+                Err(e) => log::warn!("[webkit6] Failed to update content: {}", e),
+            },
+        );
+        glib::ControlFlow::Break
+    });
 }
 
 /// Wraps the HTML body with a full HTML document, injecting the provided CSS string into the <head>.
@@ -46,9 +73,42 @@ pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
                     document.documentElement.className = mode;
                 }} catch(e){{}}
             }}
+            function updateContent(htmlContent) {{
+                try {{
+                    // Save current scroll position
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    // Update content container
+                    var container = document.getElementById('marco-content-container');
+                    if (container) {{
+                        container.innerHTML = htmlContent;
+                        
+                        // Restore scroll position after a brief delay to allow content to render
+                        setTimeout(function() {{
+                            document.documentElement.scrollTop = scrollTop;
+                            document.body.scrollTop = scrollTop;
+                        }}, 10);
+                    }}
+                }} catch(e) {{
+                    console.error('Error updating content:', e);
+                }}
+            }}
+            function setContent(htmlContent) {{
+                // Alternative function for setting content without scroll preservation
+                try {{
+                    var container = document.getElementById('marco-content-container');
+                    if (container) {{
+                        container.innerHTML = htmlContent;
+                    }}
+                }} catch(e) {{
+                    console.error('Error setting content:', e);
+                }}
+            }}
         </script>
     </head>
-    <body>{}</body>
+    <body>
+        <div id="marco-content-container">{}</div>
+    </body>
 </html>"#,
         theme_mode, css, body
     );

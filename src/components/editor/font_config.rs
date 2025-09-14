@@ -49,6 +49,12 @@ impl EditorConfiguration {
                     self.settings_path, font_family, font_size, line_height, line_wrapping, show_invisibles, tabs_to_spaces, syntax_colors
                 );
 
+                let show_line_numbers = settings
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.show_line_numbers)
+                    .unwrap_or(true);
+
                 EditorDisplaySettings {
                     font_family,
                     font_size,
@@ -57,6 +63,7 @@ impl EditorConfiguration {
                     show_invisibles,
                     tabs_to_spaces,
                     syntax_colors,
+                    show_line_numbers,
                 }
             }
             Err(e) => {
@@ -69,6 +76,7 @@ impl EditorConfiguration {
                     show_invisibles: false,
                     tabs_to_spaces: false,
                     syntax_colors: true,
+                    show_line_numbers: true,
                 };
                 debug!(
                     "Using default editor settings: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{} syntax_colors:{}",
@@ -156,6 +164,9 @@ impl EditorConfiguration {
 
         // Apply syntax highlighting setting
         self.apply_syntax_highlighting_setting(sourceview, editor_settings.syntax_colors);
+
+        // Apply line numbers setting
+        sourceview.set_show_line_numbers(editor_settings.show_line_numbers);
 
         // Apply font and line height using CSS provider for more reliable rendering
         self.apply_font_and_line_height_via_css(
@@ -311,6 +322,7 @@ pub struct EditorDisplaySettings {
     pub show_invisibles: bool,
     pub tabs_to_spaces: bool,
     pub syntax_colors: bool,
+    pub show_line_numbers: bool,
 }
 
 impl Default for EditorDisplaySettings {
@@ -323,6 +335,7 @@ impl Default for EditorDisplaySettings {
             show_invisibles: false,
             tabs_to_spaces: false,
             syntax_colors: true,
+            show_line_numbers: true,
         }
     }
 }

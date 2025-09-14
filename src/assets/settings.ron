@@ -1,7 +1,7 @@
 (
     editor: Some((
         font: Some("Monospace"),
-        font_size: Some(15),
+        font_size: Some(12),
         line_height: Some(1.0),
         line_wrapping: Some(true),
         auto_pairing: None,
@@ -17,16 +17,16 @@
         ui_font_size: None,
     )),
     layout: Some((
-        view_mode: None,
+        view_mode: Some("HTML Preview"),
         sync_scrolling: Some(true),
         editor_view_split: None,
-        show_line_numbers: None,
+        show_line_numbers: Some(false),
         text_direction: None,
     )),
     language: None,
     window: Some((
-        width: Some(1720),
-        height: Some(956),
+        width: Some(1375),
+        height: Some(725),
         x: None,
         y: None,
         maximized: Some(false),
@@ -47,7 +47,7 @@
         parser: Some((
             track_positions: None,
             enable_cache: Some(true),
-            max_cache_size: None,
+            max_cache_size: Some(500),
             detailed_errors: Some(true),
             collect_stats: None,
         )),
@@ -58,7 +58,7 @@
                 syntax_highlighting: Some(true),
                 semantic_html: None,
                 include_metadata: None,
-                line_break_mode: None,
+                line_break_mode: Some("reversed"),
             )),
             text: None,
             default_format: None,

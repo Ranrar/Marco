@@ -15,7 +15,6 @@ use pest::Parser;
 use sourceview5::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use webkit6::prelude::*;
 
 pub fn create_editor_with_preview(
     preview_theme_filename: &str,
@@ -28,8 +27,24 @@ pub fn create_editor_with_preview(
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
+    
+    // Add constraints to limit paned position (10% to 90% of width)
+    paned.connect_notify_local(Some("position"), move |paned, _| {
+        let width = paned.allocated_width();
+        if width > 0 {
+            let position = paned.position();
+            let min_position = (width as f64 * 0.10) as i32;  // 10%
+            let max_position = (width as f64 * 0.90) as i32;  // 90%
+            
+            if position < min_position {
+                paned.set_position(min_position);
+            } else if position > max_position {
+                paned.set_position(max_position);
+            }
+        }
+    });
 
-    let (style_scheme, font_family, font_size_pt) = {
+    let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
         let tm = theme_manager.borrow();
         let style_scheme = tm.current_editor_scheme();
         let font_family = tm
@@ -46,7 +61,13 @@ pub fn create_editor_with_preview(
             .and_then(|a| a.ui_font_size)
             .map(|v| v as f64)
             .unwrap_or(10.0);
-        (style_scheme, font_family, font_size_pt)
+        let show_line_numbers = tm
+            .settings
+            .layout
+            .as_ref()
+            .and_then(|l| l.show_line_numbers)
+            .unwrap_or(true);
+        (style_scheme, font_family, font_size_pt, show_line_numbers)
     };
 
     let scheme_id = theme_manager.borrow().current_editor_scheme_id();
@@ -56,6 +77,7 @@ pub fn create_editor_with_preview(
             style_scheme.as_ref(),
             &font_family,
             font_size_pt,
+            show_line_numbers,
         );
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
@@ -108,6 +130,21 @@ pub fn create_editor_with_preview(
             log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
         } else {
             log::warn!("Failed to register editor with global editor manager - settings updates will not work");
+        }
+    }
+
+    // Register this editor for line numbers updates
+    {
+        let source_view_for_line_numbers = source_view.clone();
+        if let Some(_line_numbers_id) = crate::components::editor::editor_manager::register_line_numbers_callback_globally(
+            move |show_line_numbers: bool| {
+                log::debug!("Applying line numbers setting to SourceView: {}", show_line_numbers);
+                source_view_for_line_numbers.set_show_line_numbers(show_line_numbers);
+            }
+        ) {
+            log::debug!("Registered line numbers callback with editor manager: ID {:?}", _line_numbers_id);
+        } else {
+            log::warn!("Failed to register line numbers callback with global editor manager");
         }
     }
 
@@ -294,6 +331,8 @@ pub fn create_editor_with_preview(
 
     // refresh_preview closure
     let wheel_js_for_refresh = wheel_js_rc.clone();
+    let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
+    let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
@@ -301,38 +340,43 @@ pub fn create_editor_with_preview(
         let theme_mode = Rc::clone(&theme_mode_rc);
         let html_opts = std::rc::Rc::clone(&html_opts_rc);
         let wheel_js_local = wheel_js_for_refresh.clone();
+        let is_initial_load_clone = Rc::clone(&is_initial_load);
+        let last_css_hash_clone = Rc::clone(&last_css_hash);
         std::rc::Rc::new(move || {
-            let text = buffer
-                .text(&buffer.start_iter(), &buffer.end_iter(), false)
-                .to_string();
-
-            let html_body = match MarcoParser::parse(Rule::document, &text) {
-                Ok(pairs) => match AstBuilder::build(pairs) {
-                    Ok(ast) => {
-                        let renderer = HtmlRenderer::new(html_opts.as_ref().clone());
-                        renderer.render(&ast)
-                    }
-                    Err(e) => format!("Error building AST: {}", e),
-                },
-                Err(e) => format!("Error parsing markdown: {}", e),
-            };
-
-            let mut html_body_with_js = html_body.clone();
-            html_body_with_js.push_str(&wheel_js_local);
-            let html = crate::components::viewer::webkit6::wrap_html_document(
-                &html_body_with_js,
-                &css.borrow(),
-                &theme_mode.borrow(),
-            );
-            // Preview HTML built; intentionally not logging size to reduce terminal noise
-            let html_clone = html.clone();
-            let webview_idle = webview.as_ref().clone();
-            glib::idle_add_local(move || {
-                // Load HTML into the webview; do this even if not yet mapped so the
-                // content is present as soon as the widget becomes visible.
-                webview_idle.load_html(&html_clone, None);
-                glib::ControlFlow::Break
-            });
+            let is_first_load = *is_initial_load_clone.borrow();
+            
+            // Check if CSS has changed (theme update)
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            css.borrow().hash(&mut hasher);
+            theme_mode.borrow().hash(&mut hasher);
+            let current_css_hash = hasher.finish();
+            let css_changed = *last_css_hash_clone.borrow() != current_css_hash;
+            *last_css_hash_clone.borrow_mut() = current_css_hash;
+            
+            if is_first_load || css_changed {
+                // Use traditional load_html for initial load or when CSS/theme changes
+                crate::components::viewer::preview::refresh_preview_into_webview(
+                    webview.as_ref(),
+                    &css,
+                    html_opts.as_ref(),
+                    buffer.as_ref(),
+                    &wheel_js_local,
+                    &theme_mode,
+                );
+                
+                // Mark as no longer initial load
+                *is_initial_load_clone.borrow_mut() = false;
+            } else {
+                // Use smooth updates for subsequent content changes
+                crate::components::viewer::preview::refresh_preview_content_smooth(
+                    webview.as_ref(),
+                    html_opts.as_ref(),
+                    buffer.as_ref(),
+                    &wheel_js_local,
+                );
+            }
         })
     };
 

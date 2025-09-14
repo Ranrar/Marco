@@ -16,6 +16,7 @@ pub fn build_layout_tab(
     settings_path: Option<&str>,
     on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
     on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 ) -> Box {
     use gtk4::{
         Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, SpinButton,
@@ -284,7 +285,66 @@ pub fn build_layout_tab(
     line_numbers_spacer.set_hexpand(true);
 
     let line_numbers_switch = Switch::new();
+
+    // Load current line numbers setting from file
+    let current_line_numbers = if let Some(settings_path) = settings_path {
+        match Settings::load_from_file(settings_path) {
+            Ok(settings) => settings
+                .layout
+                .as_ref()
+                .and_then(|l| l.show_line_numbers)
+                .unwrap_or(true), // Default to true if not set
+            Err(e) => {
+                debug!("Failed to load settings for line numbers: {}", e);
+                true // Default to true
+            }
+        }
+    } else {
+        true // Default to true
+    };
+
+    line_numbers_switch.set_active(current_line_numbers);
     line_numbers_switch.set_halign(Align::End);
+
+    // Save line numbers setting when it changes
+    if let Some(settings_path) = settings_path {
+        let settings_path = settings_path.to_string();
+        line_numbers_switch.connect_state_set(move |_switch, is_active| {
+            debug!("Line numbers changed to: {}", is_active);
+
+            // Load current settings, update line numbers, and save
+            let mut settings = Settings::load_from_file(&settings_path).unwrap_or_default();
+
+            // Ensure layout settings exist
+            if settings.layout.is_none() {
+                use crate::logic::swanson::LayoutSettings;
+                settings.layout = Some(LayoutSettings::default());
+            }
+
+            // Update line numbers setting
+            if let Some(ref mut layout) = settings.layout {
+                layout.show_line_numbers = Some(is_active);
+            }
+
+            // Save settings
+            if let Err(e) = settings.save_to_file(&settings_path) {
+                debug!("Failed to save line numbers setting: {}", e);
+            } else {
+                debug!("Line numbers saved: {}", is_active);
+            }
+
+            glib::Propagation::Proceed
+        });
+    }
+
+    // Also connect runtime callback if provided
+    if let Some(callback) = on_line_numbers_changed {
+        line_numbers_switch.connect_state_set(move |_switch, is_active| {
+            debug!("Calling runtime line numbers update: {}", is_active);
+            callback(is_active);
+            glib::Propagation::Proceed
+        });
+    }
 
     line_numbers_hbox.append(&line_numbers_header);
     line_numbers_hbox.append(&line_numbers_spacer);
