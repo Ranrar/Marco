@@ -46,6 +46,8 @@ pub struct SettingsDialogCallbacks {
     pub on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
     pub on_schema_changed: Option<Box<dyn Fn(Option<String>) + 'static>>,
     pub on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+    pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
+    pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
 pub fn show_settings_dialog(
@@ -102,7 +104,13 @@ pub fn show_settings_dialog(
     }) as std::boxed::Box<dyn Fn(String) + 'static>;
 
     notebook.append_page(
-        &tabs::layout::build_layout_tab(saved_view_mode, Some(layout_cb)),
+        &tabs::layout::build_layout_tab(
+            saved_view_mode,
+            Some(layout_cb),
+            settings_path.to_str(),
+            callbacks.on_split_ratio_changed,
+            callbacks.on_sync_scrolling_changed,
+        ),
         Some(&Label::new(Some("Layout"))),
     );
 

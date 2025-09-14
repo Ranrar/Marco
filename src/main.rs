@@ -249,6 +249,18 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         editor_theme_dir,
     )));
 
+    // Initialize monospace font cache for fast settings loading
+    if let Err(e) = crate::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
+        log::warn!("Failed to initialize monospace font cache: {}", e);
+    }
+
+    // Initialize the global editor manager for runtime editor settings updates
+    if let Err(e) = crate::components::editor::editor_manager::init_editor_manager(
+        settings_path.to_str().unwrap(),
+    ) {
+        log::warn!("Failed to initialize editor manager: {}", e);
+    }
+
     // Initialize file logger according to settings (runtime)
     {
         let app_settings =
@@ -517,6 +529,37 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                         }
                     }
                 }) as Box<dyn Fn(String) + 'static>),
+                // on_split_ratio_changed: update the actual paned widget position in real-time
+                on_split_ratio_changed: Some(Box::new({
+                    let split_paned = split.clone();
+                    move |ratio: i32| {
+                        // Calculate the pixel position based on the current paned width
+                        let paned_width = split_paned.allocated_width();
+                        let new_position = if paned_width > 0 {
+                            (paned_width as f64 * ratio as f64 / 100.0) as i32
+                        } else {
+                            // Fallback to default width calculation
+                            (1200.0 * ratio as f64 / 100.0) as i32
+                        };
+
+                        split_paned.set_position(new_position);
+                        log::debug!(
+                            "Live split ratio update: {}% -> {}px (width: {}px)",
+                            ratio,
+                            new_position,
+                            paned_width
+                        );
+                    }
+                }) as Box<dyn Fn(i32) + 'static>),
+                // on_sync_scrolling_changed: enable/disable scroll synchronization
+                on_sync_scrolling_changed: Some(Box::new({
+                    move |enabled: bool| {
+                        // Use the global scroll sync API to enable/disable synchronization
+                        use crate::components::editor::editor_manager::set_scroll_sync_enabled_globally;
+                        let _ = set_scroll_sync_enabled_globally(enabled);
+                        log::debug!("Scroll sync toggled: {}", enabled);
+                    }
+                }) as Box<dyn Fn(bool) + 'static>),
             };
 
             show_settings_dialog(
@@ -625,6 +668,97 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             },
             |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
         );
+    }
+
+    // Apply startup editor settings to ensure editor uses settings.ron values
+    if let Err(e) = crate::components::editor::editor_manager::apply_startup_editor_settings() {
+        log::warn!("Failed to apply startup editor settings: {}", e);
+    }
+
+    // Load and apply saved window state
+    {
+        use crate::logic::swanson::Settings as AppSettings;
+        if let Ok(settings) = AppSettings::load_from_file(settings_path.to_str().unwrap()) {
+            if let Some(window_settings) = settings.window {
+                // Apply window size
+                let (width, height) = window_settings.get_window_size();
+                window.set_default_size(width as i32, height as i32);
+
+                // Apply window position if saved
+                if let Some((x, y)) = window_settings.get_window_position() {
+                    // Note: GTK4 doesn't support programmatic window positioning directly
+                    // This would need platform-specific implementation if required
+                    log::debug!(
+                        "Would restore window position to ({}, {}) if supported",
+                        x,
+                        y
+                    );
+                }
+
+                // Apply maximized state
+                if window_settings.is_maximized() {
+                    window.maximize();
+                }
+            }
+        }
+    }
+
+    // Connect window state change handlers to persist settings
+    {
+        let settings_path_for_resize = settings_path.clone();
+        window.connect_default_width_notify(move |w| {
+            let settings_path = settings_path_for_resize.clone();
+            let width = w.default_width();
+            let height = w.default_height();
+
+            std::thread::spawn(move || {
+                use crate::logic::swanson::Settings as AppSettings;
+                let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
+                    .unwrap_or_default();
+                let _ = settings.update_window_settings(|ws| {
+                    ws.width = Some(width as u32);
+                    ws.height = Some(height as u32);
+                });
+                let _ = settings.save_to_file(settings_path.to_str().unwrap());
+                log::debug!("Window size saved: {}x{}", width, height);
+            });
+        });
+
+        let settings_path_for_resize2 = settings_path.clone();
+        window.connect_default_height_notify(move |w| {
+            let settings_path = settings_path_for_resize2.clone();
+            let width = w.default_width();
+            let height = w.default_height();
+
+            std::thread::spawn(move || {
+                use crate::logic::swanson::Settings as AppSettings;
+                let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
+                    .unwrap_or_default();
+                let _ = settings.update_window_settings(|ws| {
+                    ws.width = Some(width as u32);
+                    ws.height = Some(height as u32);
+                });
+                let _ = settings.save_to_file(settings_path.to_str().unwrap());
+                log::debug!("Window size saved: {}x{}", width, height);
+            });
+        });
+
+        let settings_path_for_maximize = settings_path.clone();
+        window.connect_maximized_notify(move |w| {
+            let settings_path = settings_path_for_maximize.clone();
+            let is_maximized = w.is_maximized();
+
+            std::thread::spawn(move || {
+                use crate::logic::swanson::Settings as AppSettings;
+                let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
+                    .unwrap_or_default();
+                let _ = settings.update_window_settings(|ws| {
+                    ws.maximized = Some(is_maximized);
+                });
+                let _ = settings.save_to_file(settings_path.to_str().unwrap());
+                log::debug!("Window maximized state saved: {}", is_maximized);
+            });
+        });
     }
 
     // Present the window

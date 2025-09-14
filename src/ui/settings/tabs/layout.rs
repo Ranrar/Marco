@@ -1,15 +1,26 @@
+use crate::logic::swanson::{Settings, WindowSettings};
 use gtk4::prelude::*;
 use gtk4::Box;
+use log::debug;
 
 // Build the layout tab. `initial_view_mode` optionally sets which entry is
 // active when the tab is first shown (e.g. Some("Source Code") to select
 // the code preview). The optional callback will be called when the View Mode
 // dropdown changes and receives the selected value as a String.
+// `settings_path` is used to load/save window settings including split ratio.
+// `on_split_ratio_changed` is called when the split ratio slider changes to update the UI in real-time.
+// `on_sync_scrolling_changed` is called when the sync scrolling toggle changes.
 pub fn build_layout_tab(
     initial_view_mode: Option<String>,
     on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+    settings_path: Option<&str>,
+    on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
+    on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 ) -> Box {
-    use gtk4::{Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, SpinButton, Switch};
+    use gtk4::{
+        Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, SpinButton,
+        Switch,
+    };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-layout");
@@ -24,10 +35,10 @@ pub fn build_layout_tab(
     view_mode_header.set_markup("<b>View Mode</b>");
     view_mode_header.set_halign(Align::Start);
     view_mode_header.set_xalign(0.0);
-    
+
     let view_mode_spacer = GtkBox::new(Orientation::Horizontal, 0);
     view_mode_spacer.set_hexpand(true);
-    
+
     let view_mode_combo = ComboBoxText::new();
     view_mode_combo.append_text("HTML Preview");
     view_mode_combo.append_text("Source Code");
@@ -52,7 +63,7 @@ pub fn build_layout_tab(
         });
     }
     view_mode_combo.set_halign(Align::End);
-    
+
     view_mode_hbox.append(&view_mode_header);
     view_mode_hbox.append(&view_mode_spacer);
     view_mode_hbox.append(&view_mode_combo);
@@ -60,7 +71,9 @@ pub fn build_layout_tab(
     container.append(&view_mode_hbox);
 
     // Description text under header
-    let view_mode_description = Label::new(Some("Choose the default mode for previewing Markdown content."));
+    let view_mode_description = Label::new(Some(
+        "Choose the default mode for previewing Markdown content.",
+    ));
     view_mode_description.set_halign(Align::Start);
     view_mode_description.set_xalign(0.0);
     view_mode_description.set_wrap(true);
@@ -74,13 +87,72 @@ pub fn build_layout_tab(
     sync_scroll_header.set_markup("<b>Sync Scrolling</b>");
     sync_scroll_header.set_halign(Align::Start);
     sync_scroll_header.set_xalign(0.0);
-    
+
     let sync_scroll_spacer = GtkBox::new(Orientation::Horizontal, 0);
     sync_scroll_spacer.set_hexpand(true);
-    
+
     let sync_scroll_switch = Switch::new();
+
+    // Load current sync scrolling setting from file
+    let current_sync_scrolling = if let Some(settings_path) = settings_path {
+        match Settings::load_from_file(settings_path) {
+            Ok(settings) => settings
+                .layout
+                .as_ref()
+                .and_then(|l| l.sync_scrolling)
+                .unwrap_or(true), // Default to true if not set
+            Err(e) => {
+                debug!("Failed to load settings for sync scrolling: {}", e);
+                true // Default to true
+            }
+        }
+    } else {
+        true // Default to true
+    };
+
+    sync_scroll_switch.set_active(current_sync_scrolling);
     sync_scroll_switch.set_halign(Align::End);
-    
+
+    // Save sync scrolling setting when it changes
+    if let Some(settings_path) = settings_path {
+        let settings_path = settings_path.to_string();
+        sync_scroll_switch.connect_state_set(move |_switch, is_active| {
+            debug!("Sync scrolling changed to: {}", is_active);
+
+            // Load current settings, update sync scrolling, and save
+            let mut settings = Settings::load_from_file(&settings_path).unwrap_or_default();
+
+            // Ensure layout settings exist
+            if settings.layout.is_none() {
+                use crate::logic::swanson::LayoutSettings;
+                settings.layout = Some(LayoutSettings::default());
+            }
+
+            // Update sync scrolling setting
+            if let Some(ref mut layout) = settings.layout {
+                layout.sync_scrolling = Some(is_active);
+            }
+
+            // Save settings
+            if let Err(e) = settings.save_to_file(&settings_path) {
+                debug!("Failed to save sync scrolling setting: {}", e);
+            } else {
+                debug!("Sync scrolling saved: {}", is_active);
+            }
+
+            glib::Propagation::Proceed
+        });
+    }
+
+    // Also connect runtime callback if provided
+    if let Some(callback) = on_sync_scrolling_changed {
+        sync_scroll_switch.connect_state_set(move |_switch, is_active| {
+            debug!("Calling runtime sync scrolling update: {}", is_active);
+            callback(is_active);
+            glib::Propagation::Proceed
+        });
+    }
+
     sync_scroll_hbox.append(&sync_scroll_header);
     sync_scroll_hbox.append(&sync_scroll_spacer);
     sync_scroll_hbox.append(&sync_scroll_switch);
@@ -89,7 +161,9 @@ pub fn build_layout_tab(
     container.append(&sync_scroll_hbox);
 
     // Description text under header
-    let sync_scroll_description = Label::new(Some("Synchronize scrolling between the editor and the preview pane."));
+    let sync_scroll_description = Label::new(Some(
+        "Synchronize scrolling between the editor and the preview pane.",
+    ));
     sync_scroll_description.set_halign(Align::Start);
     sync_scroll_description.set_xalign(0.0);
     sync_scroll_description.set_wrap(true);
@@ -103,14 +177,69 @@ pub fn build_layout_tab(
     split_header.set_markup("<b>Editor/View Split</b>");
     split_header.set_halign(Align::Start);
     split_header.set_xalign(0.0);
-    
+
     let split_spacer = GtkBox::new(Orientation::Horizontal, 0);
     split_spacer.set_hexpand(true);
 
-    let split_adj = Adjustment::new(60.0, 10.0, 90.0, 1.0, 0.0, 0.0);
+    // Load current split ratio from settings or use default (60%)
+    let current_split_ratio = if let Some(settings_path) = settings_path {
+        match Settings::load_from_file(settings_path) {
+            Ok(settings) => settings
+                .window
+                .as_ref()
+                .and_then(|w| w.split_ratio)
+                .unwrap_or(60),
+            Err(e) => {
+                debug!("Failed to load settings for split ratio: {}", e);
+                60
+            }
+        }
+    } else {
+        60
+    };
+
+    let split_adj = Adjustment::new(current_split_ratio as f64, 10.0, 90.0, 1.0, 0.0, 0.0);
     let split_spin = SpinButton::new(Some(&split_adj), 1.0, 0);
     split_spin.set_halign(Align::End);
-    
+
+    // Save split ratio when it changes
+    if let Some(settings_path) = settings_path {
+        let settings_path = settings_path.to_string();
+        split_adj.connect_value_changed(move |adj| {
+            let new_ratio = adj.value() as i32;
+            debug!("Split ratio changed to: {}%", new_ratio);
+
+            // Load current settings, update split ratio, and save
+            let mut settings = Settings::load_from_file(&settings_path).unwrap_or_default();
+
+            // Ensure window settings exist
+            if settings.window.is_none() {
+                settings.window = Some(WindowSettings::default());
+            }
+
+            // Update split ratio
+            if let Some(ref mut window) = settings.window {
+                window.split_ratio = Some(new_ratio);
+            }
+
+            // Save settings
+            if let Err(e) = settings.save_to_file(&settings_path) {
+                debug!("Failed to save split ratio setting: {}", e);
+            } else {
+                debug!("Split ratio saved: {}%", new_ratio);
+            }
+        });
+    }
+
+    // Also connect live split ratio updates if callback provided
+    if let Some(callback) = on_split_ratio_changed {
+        split_adj.connect_value_changed(move |adj| {
+            let new_ratio = adj.value() as i32;
+            debug!("Calling live split ratio update: {}%", new_ratio);
+            callback(new_ratio);
+        });
+    }
+
     split_hbox.append(&split_header);
     split_hbox.append(&split_spacer);
     split_hbox.append(&split_spin);
@@ -150,13 +279,13 @@ pub fn build_layout_tab(
     line_numbers_header.set_markup("<b>Show Line Numbers</b>");
     line_numbers_header.set_halign(Align::Start);
     line_numbers_header.set_xalign(0.0);
-    
+
     let line_numbers_spacer = GtkBox::new(Orientation::Horizontal, 0);
     line_numbers_spacer.set_hexpand(true);
-    
+
     let line_numbers_switch = Switch::new();
     line_numbers_switch.set_halign(Align::End);
-    
+
     line_numbers_hbox.append(&line_numbers_header);
     line_numbers_hbox.append(&line_numbers_spacer);
     line_numbers_hbox.append(&line_numbers_switch);
@@ -179,16 +308,16 @@ pub fn build_layout_tab(
     text_dir_header.set_markup("<b>Text Direction</b>");
     text_dir_header.set_halign(Align::Start);
     text_dir_header.set_xalign(0.0);
-    
+
     let text_dir_spacer = GtkBox::new(Orientation::Horizontal, 0);
     text_dir_spacer.set_hexpand(true);
-    
+
     let text_dir_combo = ComboBoxText::new();
     text_dir_combo.append_text("Left-to-Right (LTR)");
     text_dir_combo.append_text("Right-to-Left (RTL)");
     text_dir_combo.set_active(Some(0));
     text_dir_combo.set_halign(Align::End);
-    
+
     text_dir_hbox.append(&text_dir_header);
     text_dir_hbox.append(&text_dir_spacer);
     text_dir_hbox.append(&text_dir_combo);
@@ -197,7 +326,9 @@ pub fn build_layout_tab(
     container.append(&text_dir_hbox);
 
     // Description text under header
-    let text_dir_description = Label::new(Some("Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout."));
+    let text_dir_description = Label::new(Some(
+        "Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout.",
+    ));
     text_dir_description.set_halign(Align::Start);
     text_dir_description.set_xalign(0.0);
     text_dir_description.set_wrap(true);

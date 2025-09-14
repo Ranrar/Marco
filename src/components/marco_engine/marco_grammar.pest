@@ -89,6 +89,7 @@ text = {
     // Allow content that starts with formatting markers (* _ ` etc.) since these
     // should be handled by formatting rules or serve as fallback content.
     (WHITESPACE+ ~ &(NEWLINE | EOI))
+  | NEWLINE+  // Special case: just newlines
   | // Special case: whitespace-only lines
   ((SOI | NEWLINE) ~ WHITESPACE* ~ !(("#"{1, 6} ~ " ") | // ATX heading (must have space after #)
   ("***" | "---" | "___") ~ (WHITESPACE | NEWLINE | EOI) | // horizontal rule
@@ -183,6 +184,7 @@ block_start = _{
 // ===== HEADINGS =====
 // ATX headings (##) and Setext headings (underlines)
 // Allow 0-3 spaces of indentation before heading markers (CommonMark spec)
+// Both ATX and setext headings support full inline content per CommonMark spec
 H1 = { NON_INDENT? ~ "#" ~ " "* ~ heading_content }
 H2 = { NON_INDENT? ~ "##" ~ " "* ~ heading_content }
 H3 = { NON_INDENT? ~ "###" ~ " "* ~ heading_content }
@@ -190,11 +192,15 @@ H4 = { NON_INDENT? ~ "####" ~ " "* ~ heading_content }
 H5 = { NON_INDENT? ~ "#####" ~ " "* ~ heading_content }
 H6 = { NON_INDENT? ~ "######" ~ " "* ~ heading_content }
 
-setext_h1 = { NON_INDENT? ~ heading_content ~ NEWLINE ~ "="+ }
-setext_h2 = { NON_INDENT? ~ heading_content ~ NEWLINE ~ "-"+ }
+// Setext headings: CommonMark compliant with proper inline content
+setext_h1 = { NON_INDENT? ~ setext_content ~ NEWLINE ~ "="+ }
+setext_h2 = { NON_INDENT? ~ setext_content ~ NEWLINE ~ "-"+ }
 
-heading_content = { heading_inline+ }
-heading_inline  = { emphasis | code_inline | escaped_char | word | safe_punct | " " | math_symbol }
+// Setext content: any characters except newline (will be processed as inline later)
+setext_content = { (!NEWLINE ~ ANY)+ }
+
+// Unified heading content supporting full inline formatting (CommonMark compliant)
+heading_content = { inline+ }
 heading         = { H6 | H5 | H4 | H3 | H2 | H1 | setext_h2 | setext_h1 }
 
 // ===== BLOCKQUOTE =====
@@ -218,7 +224,9 @@ bold_italic_triple_asterisk   = @{ "***" ~ (!"***" ~ (!NEWLINE ~ ANY))+ ~ "***" 
 bold_italic_triple_underscore = @{ "___" ~ (!"___" ~ (!NEWLINE ~ ANY))+ ~ "___" }
 bold_italic_mixed_ast_under   = @{ "**_" ~ (!"_**" ~ (!NEWLINE ~ ANY))+ ~ "_**" }
 bold_italic_mixed_under_ast   = @{ "__*" ~ (!"*__" ~ (!NEWLINE ~ ANY))+ ~ "*__" }
-bold_italic                   =  { bold_italic_triple_asterisk | bold_italic_triple_underscore | bold_italic_mixed_ast_under | bold_italic_mixed_under_ast }
+bold_italic_triple_mixed_au   = @{ "***" ~ (!"___" ~ (!NEWLINE ~ ANY))+ ~ "___" }
+bold_italic_triple_mixed_ua   = @{ "___" ~ (!"***" ~ (!NEWLINE ~ ANY))+ ~ "***" }
+bold_italic                   =  { bold_italic_triple_asterisk | bold_italic_triple_underscore | bold_italic_mixed_ast_under | bold_italic_mixed_under_ast | bold_italic_triple_mixed_au | bold_italic_triple_mixed_ua }
 
 // Strikethrough: ~~text~~ or --text--
 strikethrough_tilde = @{ "~~" ~ (!"~~" ~ (!NEWLINE ~ ANY))+ ~ "~~" }
@@ -240,7 +248,7 @@ subscript       =  { subscript_arrow | subscript_tilde }
 
 // ===== LINKS AND IMAGES =====
 // HTTP / HTTPS / WWW / Mailto / Local paths
-http_url = @{ ("https://" | "http://") ~ URL_SAFE+ }
+http_url = @{ (("https://" | "http://") ~ URL_SAFE+) | ("www." ~ URL_SAFE+) }
 www_url  = @{ "www." ~ URL_SAFE+ }
 
 // Email - Working pattern with subdomain support
@@ -273,7 +281,9 @@ link_url = @{
 }
 
 // Link components
-inline_link_text = @{ (!"]" ~ ANY)* }
+inline_link_text = @{ (escaped_bracket | balanced_brackets | (!"](" ~ !"]" ~ ANY))* }
+escaped_bracket = { "\\" ~ ("[" | "]") }
+balanced_brackets = { "[" ~ (escaped_bracket | (!"]" ~ !"[" ~ ANY))* ~ "]" }
 link_title       =  { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
 
 // Bracket links - explicit and clear
@@ -314,7 +324,10 @@ math_inline = { "$" ~ (!"$" ~ ANY | "\\" ~ "$")* ~ "$" }
 math_block  = { "$$" ~ (!"$$" ~ ANY | "\\" ~ "$")* ~ "$$" }
 
 // ===== HORIZONTAL RULE =====
-hr = { WHITESPACE* ~ ("---" | "***" | "___") ~ WHITESPACE* }
+hr = { WHITESPACE* ~ (hr_dash | hr_star | hr_underscore) ~ WHITESPACE* }
+hr_dash = { "-" ~ (WHITESPACE* ~ "-") ~ (WHITESPACE* ~ "-")+ }  // Exactly 3+ dashes with optional spaces
+hr_star = { "*" ~ (WHITESPACE* ~ "*") ~ (WHITESPACE* ~ "*")+ }  // Exactly 3+ stars with optional spaces  
+hr_underscore = { "_" ~ (WHITESPACE* ~ "_") ~ (WHITESPACE* ~ "_")+ }  // Exactly 3+ underscores with optional spaces
 
 // ===== FOOTNOTES =====
 // Inline footnote (Pandoc/Obsidian style): ^[text]
@@ -343,7 +356,7 @@ task_list_item    =  { list_marker ~ WHITESPACE* ~ task_marker ~ WHITESPACE* ~ l
 list_item_content =  { (!NEWLINE ~ ANY)+ }
 list_marker       = @{ unordered_marker | ordered_marker }
 unordered_marker  = @{ "-" | "*" | "+" }
-ordered_marker    = @{ ASCII_DIGIT+ ~ "." }
+ordered_marker    = @{ "-"? ~ ASCII_DIGIT+ ~ "." }
 
 // Task-specific components
 task_marker   = { "[" ~ (" " | "x" | "X") ~ "]" }
@@ -373,8 +386,8 @@ table_sep_cell     =  { WHITESPACE* ~ ":"? ~ "-"+ ~ ":"? ~ WHITESPACE* }
 // Tab block: accept general content and tab blocks in any order between header and end.
 tab_block = { tab_header ~ NEWLINE ~ tabs_content_I ~ tab_end }
 // Tab header: :::tab optional title with emoji/text
-tab_header       =  { ":::" ~ KW_TAB ~ tab_title? }
-tab_title        = @{ (" " | "\t")+ ~ (!NEWLINE ~ ANY)+ }
+tab_header       =  { ":::" ~ KW_TAB ~ (" " | "\t")* ~ tab_title? }
+tab_title        = @{ (!NEWLINE ~ ANY)+ }
 tabs_content_I   =  { (tab_content_line | tab)* }
 tab_content_line =  { !tab_line ~ !tab_end ~ (!NEWLINE ~ ANY)* ~ NEWLINE }
 tab              =  { tab_line ~ tab_content_II }
@@ -391,7 +404,7 @@ display_name = @{ (!")" ~ ANY)+ }
 
 // Admonition blocks
 admonition_type  = { KW_NOTE | KW_TIP | KW_WARNING | KW_DANGER | KW_INFO }
-admonition_open  = { ":::" ~ admonition_type ~ ("[" ~ (!"]" ~ ANY)* ~ "]")? }
+admonition_open  = { ":::" ~ (WHITESPACE | NEWLINE)* ~ admonition_type ~ ("[" ~ (!"]" ~ ANY)* ~ "]")? }
 admonition_emoji = { ":::" ~ "[" ~ (!"]" ~ ANY)+ ~ "]" ~ (!NEWLINE ~ ANY)* }
 admonition_close = { ":::" }
 // allow nested admonitions by accepting any content that is not the closing delimiter

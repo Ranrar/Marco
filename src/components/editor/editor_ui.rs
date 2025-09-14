@@ -50,12 +50,13 @@ pub fn create_editor_with_preview(
     };
 
     let scheme_id = theme_manager.borrow().current_editor_scheme_id();
-    let (editor_widget, buffer, source_view, _scrolled_css_provider) = render_editor_with_view(
-        &scheme_id,
-        style_scheme.as_ref(),
-        &font_family,
-        font_size_pt,
-    );
+    let (editor_widget, buffer, source_view, _scrolled_css_provider, editor_scrolled_window) =
+        render_editor_with_view(
+            &scheme_id,
+            style_scheme.as_ref(),
+            &font_family,
+            font_size_pt,
+        );
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
@@ -81,13 +82,42 @@ pub fn create_editor_with_preview(
     });
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
+    // Register this editor with the global editor manager to receive settings updates
+    {
+        let source_view_for_callback = source_view.clone();
+        let settings_path_owned = settings_path.to_string();
+        if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
+            move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
+                use crate::components::editor::font_config::EditorConfiguration;
+                
+                log::debug!("Applying editor settings update to SourceView: {} {}px", 
+                    new_settings.font_family, new_settings.font_size);
+                
+                // Create an EditorConfiguration instance to apply the settings
+                match EditorConfiguration::new(&settings_path_owned) {
+                    Ok(editor_config) => {
+                        editor_config.apply_to_sourceview(&source_view_for_callback, new_settings);
+                        log::debug!("Successfully applied editor settings to SourceView");
+                    },
+                    Err(e) => {
+                        log::error!("Failed to create EditorConfiguration: {}", e);
+                    }
+                }
+            }
+        ) {
+            log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
+        } else {
+            log::warn!("Failed to register editor with global editor manager - settings updates will not work");
+        }
+    }
+
     use std::fs;
     use std::path::Path;
     let css_path = Path::new(preview_theme_dir).join(preview_theme_filename);
     let mut css = fs::read_to_string(&css_path)
         .unwrap_or_else(|_| String::from("body { background: #fff; color: #222; }"));
 
-    // wheel JS and scroll report
+    // wheel JS with scroll report for bidirectional sync
     let scroll_scale: f64 = std::env::var("MARCO_SCROLL_SCALE")
         .ok()
         .and_then(|s| s.parse::<f64>().ok())
@@ -222,6 +252,25 @@ pub fn create_editor_with_preview(
     );
     let webview = crate::components::viewer::webkit6::create_html_viewer(&initial_html);
     let webview_rc = Rc::new(webview.clone());
+
+    // Initialize scroll synchronization between editor and preview
+    if let Some(global_sync) =
+        crate::components::editor::editor_manager::get_global_scroll_synchronizer()
+    {
+        // Setup bidirectional scroll sync between the editor ScrolledWindow and WebView
+        let webview_for_sync = webview.clone();
+        let editor_sw_for_sync = editor_scrolled_window.clone();
+
+        // Setup the bidirectional connection
+        global_sync.connect_scrolled_window_and_webview(&editor_sw_for_sync, &webview_for_sync);
+
+        log::debug!("Scroll synchronization initialized between editor and WebView preview");
+    } else {
+        log::warn!(
+            "Failed to initialize scroll synchronization: global scroll synchronizer not available"
+        );
+    }
+
     let bg_init_owned = editor_bg_color.borrow().clone();
     let fg_init_owned = editor_fg_color.borrow().clone();
     let bg_init = bg_init_owned.as_deref();

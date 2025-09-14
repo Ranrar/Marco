@@ -1,0 +1,37 @@
+{
+    "test_suites": [
+        {
+            "name": "Comprehensive Marco Grammar Tests",
+            "spec_file": "spec_comprehensive.json",
+            "description": "Comprehensive test suite converted from TOML with all grammar test cases (1204 tests)",
+            "enabled": true,
+            "categories": [
+                "Text Processing",
+                "Headings",
+                "Text Formatting",
+                "Code and Math",
+                "Links and Images",
+                "Lists and Tables",
+                "Advanced Features",
+                "Edge Cases",
+                "Performance Tests"
+            ]
+        }
+    ],
+    "test_options": {
+        "stop_on_first_failure": false,
+        "verbose_output": true,
+        "show_parse_trees": false,
+        "benchmark_mode": false,
+        "parallel_execution": false,
+        "output_format": "markdown",
+        "save_results": true,
+        "results_dir": "src/results"
+    },
+    "grammar_settings": {
+        "grammar_file": "../src/components/marco_engine/grammar/marco.pest",
+        "main_rule": "document",
+        "debug_mode": false,
+        "trace_parsing": false
+    }
+}

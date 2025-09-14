@@ -249,7 +249,9 @@ impl AstBuilder {
             Rule::bold_italic_triple_asterisk
             | Rule::bold_italic_triple_underscore
             | Rule::bold_italic_mixed_ast_under
-            | Rule::bold_italic_mixed_under_ast => {
+            | Rule::bold_italic_mixed_under_ast
+            | Rule::bold_italic_triple_mixed_au
+            | Rule::bold_italic_triple_mixed_ua => {
                 let content = self.extract_emphasis_content(&pair)?;
                 Ok(Node::strong(
                     vec![Node::emphasis(
@@ -470,6 +472,7 @@ impl AstBuilder {
             // CONTENT EXTRACTION RULES
             // ===========================================
             Rule::heading_content => {
+                // heading_content now contains inline+ directly (full CommonMark inline support)
                 let content = self.build_children(pair)?;
                 // This is handled by heading rules - return combined content
                 if content.len() == 1 {
@@ -477,17 +480,6 @@ impl AstBuilder {
                 } else {
                     Ok(Node::paragraph(content, span))
                 }
-            }
-
-            Rule::heading_inline => {
-                // Extract the actual text/word content
-                let text = pair.as_str(); // Get text before moving pair
-                let mut inner_pairs = pair.into_inner();
-                if let Some(inner_pair) = inner_pairs.next() {
-                    return self.build_node(inner_pair);
-                }
-                // Fallback to raw text
-                Ok(Node::text(text.to_string(), span))
             }
 
             Rule::word => Ok(Node::text(pair.as_str().to_string(), span)),
@@ -632,10 +624,7 @@ impl AstBuilder {
         let span_copy = self.create_span(&pair);
 
         for inner_pair in pair.into_inner() {
-            if matches!(
-                inner_pair.as_rule(),
-                Rule::heading_content | Rule::heading_inline
-            ) {
+            if matches!(inner_pair.as_rule(), Rule::heading_content) {
                 let child_content = self.build_children(inner_pair)?;
                 content.extend(child_content);
             }
@@ -785,6 +774,26 @@ impl AstBuilder {
                 if text.len() >= 6 && text.starts_with("__*") && text.ends_with("*__") {
                     Ok(text[3..text.len() - 3].to_string())
                 } else if text.len() >= 3 && text.starts_with("__*") {
+                    Ok(text[3..].to_string())
+                } else {
+                    Ok(text.to_string())
+                }
+            }
+            Rule::bold_italic_triple_mixed_au => {
+                // Remove *** and ___ markers
+                if text.len() >= 6 && text.starts_with("***") && text.ends_with("___") {
+                    Ok(text[3..text.len() - 3].to_string())
+                } else if text.len() >= 3 && text.starts_with("***") {
+                    Ok(text[3..].to_string())
+                } else {
+                    Ok(text.to_string())
+                }
+            }
+            Rule::bold_italic_triple_mixed_ua => {
+                // Remove ___ and *** markers
+                if text.len() >= 6 && text.starts_with("___") && text.ends_with("***") {
+                    Ok(text[3..text.len() - 3].to_string())
+                } else if text.len() >= 3 && text.starts_with("___") {
                     Ok(text[3..].to_string())
                 } else {
                     Ok(text.to_string())

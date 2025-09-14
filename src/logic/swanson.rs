@@ -137,6 +137,29 @@ impl Settings {
             .and_then(|h| h.line_break_mode.clone())
             .unwrap_or_else(|| "normal".to_string())
     }
+
+    /// Get window settings, creating default if none exist
+    pub fn get_window_settings(&self) -> WindowSettings {
+        self.window.clone().unwrap_or_default()
+    }
+
+    /// Get mutable reference to window settings, creating if none exist
+    pub fn get_or_create_window_settings(&mut self) -> &mut WindowSettings {
+        if self.window.is_none() {
+            self.window = Some(WindowSettings::default());
+        }
+        self.window.as_mut().unwrap()
+    }
+
+    /// Update window settings
+    pub fn update_window_settings<F>(&mut self, updater: F) -> anyhow::Result<()>
+    where
+        F: FnOnce(&mut WindowSettings),
+    {
+        let window_settings = self.get_or_create_window_settings();
+        updater(window_settings);
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -181,6 +204,38 @@ pub struct WindowSettings {
     pub x: Option<i32>,
     pub y: Option<i32>,
     pub maximized: Option<bool>,
+    pub split_ratio: Option<i32>, // between 10% and 90%
+}
+
+impl WindowSettings {
+    /// Get the split ratio or return default (60%)
+    pub fn get_split_ratio(&self) -> i32 {
+        self.split_ratio.unwrap_or(60)
+    }
+
+    /// Set the split ratio, ensuring it's within valid bounds (10-90%)
+    pub fn set_split_ratio(&mut self, ratio: i32) {
+        self.split_ratio = Some(ratio.clamp(10, 90));
+    }
+
+    /// Get window dimensions or return defaults
+    pub fn get_window_size(&self) -> (u32, u32) {
+        (self.width.unwrap_or(1200), self.height.unwrap_or(800))
+    }
+
+    /// Get window position or return None (let window manager decide)
+    pub fn get_window_position(&self) -> Option<(i32, i32)> {
+        if let (Some(x), Some(y)) = (self.x, self.y) {
+            Some((x, y))
+        } else {
+            None
+        }
+    }
+
+    /// Check if window should be maximized
+    pub fn is_maximized(&self) -> bool {
+        self.maximized.unwrap_or(false)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

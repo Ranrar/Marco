@@ -176,7 +176,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     let linebreak_combo = ComboBoxText::new();
     linebreak_combo.append_text("normal");
     linebreak_combo.append_text("reversed");
-    
+
     let active_idx = match current_line_break_mode.as_str() {
         "reversed" => 1,
         _ => 0, // Default to normal for "normal" or any other value
@@ -185,7 +185,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
 
     // Create horizontal box for title and dropdown
     let linebreak_hbox = GtkBox::new(Orientation::Horizontal, 0);
-    
+
     let linebreak_title = Label::new(Some("Newline Interpretation Mode"));
     linebreak_title.set_markup("<b>Newline Interpretation Mode</b>");
     linebreak_title.set_halign(Align::Start);
@@ -209,7 +209,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         linebreak_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0);
             let mode = if idx == 1 { "reversed" } else { "normal" };
-            
+
             let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
 
             if settings.engine.is_none() {
@@ -237,8 +237,12 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
 
     // Description text for line breaks
     let linebreak_description = Label::new(Some(
-        "Normal: Single Enter = soft break (no <br>), Double space/backslash + Enter = hard break (<br>)\n\
-         Reversed: Single Enter = hard break (<br>), Double space/backslash + Enter = soft break (no <br>)"
+        "Normal mode:\n\
+        - Press Enter → moves to a new line but keeps the text together\n\
+        - Add 2 spaces or \\ at the end of a line, then press Enter → makes a clear break between lines\n\n\
+        Reversed mode:\n\
+        - Press Enter → makes a clear break between lines\n\
+        - Add 2 spaces or \\ at the end of a line, then press Enter → moves to a new line but keeps the text together"
     ));
     linebreak_description.set_halign(Align::Start);
     linebreak_description.set_xalign(0.0);

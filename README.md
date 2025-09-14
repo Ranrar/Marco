@@ -7,7 +7,7 @@ Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written
 ## Features in Progress
 
 
-The **UI is mostly complete**, and we’re now turning our focus to the engine behind Marco. We’re actively developing the **grammar, AST, and syntax rules** for the parser and renderer, which will bring the editor to life.
+The **UI is mostly complete**, and were now turning our focus to the engine behind Marco. Were actively developing the **grammar, AST, and syntax rules** for the parser and renderer, which will bring the editor to life.
 
 We added a small, custom debug harness to exercise the parser and test-suite so we can iterate quickly on grammar fixes and measure progress. Current parser test-run (debug harness):
 
@@ -39,7 +39,7 @@ Debug outputs:
 
 Right now, the editor is in an early stage — features are limited — but this will change as we implement the new Markdown capabilities.
 
-Below is a **preview of what’s coming**:
+Below is a **preview of whats coming**:
 
 - Structured **grammar and AST** for Markdown parsing
 - Fully-featured **renderer** for inline and block elements
@@ -48,7 +48,7 @@ Below is a **preview of what’s coming**:
 - Enhanced **admonition blocks** and **mentions**
 - Smooth **cross-document navigation** and page splitting
 
-You can see a **live snippet** of the Markdown features we’re working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
+You can see a **live snippet** of the Markdown features were working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
 
 <p align="center">
   <img src="documentation/Screenshot/Screenshot from 2025-08-27 17-38-22.png" />
@@ -133,7 +133,7 @@ Marco Markdown adds **powerful navigation features** to your Markdown documents,
 
 Automatically generate a **Table of Contents** from your headings.
 
-* Shows headings in a hierarchy (H1–H6)
+* Shows headings in a hierarchy (H1-H6)
 * Can only be **local** (current page) and can span multiple linked pages
 * Optional depth: limit how many heading levels appear
 * Collapsible sections supported

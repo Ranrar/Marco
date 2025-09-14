@@ -82,9 +82,248 @@
   <style name="def:note"              foreground="#79B8FF" background="#264F78"/>
 
   <!-- Markdown specific -->
-  <style name="markdown:header"       foreground="dark-keyword" bold="true" scale="1.2"/>
+  <style name="markdown:header"       foreground="dark-keyword" bold="true" scale="1"/>
   <style name="markdown:emphasis"     italic="true"/>
   <style name="markdown:strong-emphasis" bold="true"/>
   <style name="markdown:code"         foreground="dark-string" background="#2D2D30"/>
   <style name="markdown:link"         foreground="dark-selection" underline="single"/>
+
+  <!-- Extended language elements -->
+  <style name="def:special-constant"  foreground="#569CD6"/>
+  <style name="def:boolean"           foreground="#569CD6"/>
+  <style name="def:reserved"          foreground="#F44747"/>
+  <style name="def:net-address"       foreground="#79B8FF" underline="single"/>
+  <style name="def:doc-comment-element" foreground="#6A9955" italic="true"/>
+  
+  <!-- Complex numbers and specialized constants -->
+  <style name="def:complex"           foreground="#B5CEA8"/>
+  <style name="def:character"         foreground="#CE9178"/>
+  
+  <!-- Headings for structured documents -->
+  <style name="def:heading0"          foreground="#569CD6" bold="true" scale="1.6"/>
+  <style name="def:heading1"          foreground="#569CD6" bold="true" scale="1.5"/>
+  <style name="def:heading2"          foreground="#569CD6" bold="true" scale="1.4"/>
+  <style name="def:heading3"          foreground="#569CD6" bold="true" scale="1.3"/>
+  <style name="def:heading4"          foreground="#569CD6" bold="true" scale="1.2"/>
+  <style name="def:heading5"          foreground="#569CD6" bold="true" scale="1.1"/>
+  <style name="def:heading6"          foreground="#569CD6" bold="true"/>
+  
+  <!-- Markup elements -->
+  <style name="def:emphasis"          foreground="dark-text" italic="true"/>
+  <style name="def:strong-emphasis"   foreground="dark-text" bold="true"/>
+  <style name="def:inline-code"       foreground="#CE9178" background="#2D2D30"/>
+  <style name="def:insertion"         foreground="#6A9955" background="#2D2D30"/>
+  <style name="def:deletion"          foreground="#F44747" background="#2D2D30" strikethrough="true"/>
+  <style name="def:link"              foreground="#79B8FF" underline="single"/>
+  <style name="def:heading"           foreground="#569CD6" bold="true" scale="1.2"/>
+  <style name="def:thematic-break"    foreground="#6A9955"/>
+  <style name="def:preformatted-section" foreground="#CE9178" background="#2D2D30"/>
+  <style name="def:list-marker"       foreground="#569CD6"/>
+
+  <!-- Additional markdown-specific styles that the language definition uses -->
+  <style name="def:link-destination"  foreground="#79B8FF" underline="single"/>
+  <style name="def:link-text"         foreground="#79B8FF"/>
+  <style name="def:link-symbol"       foreground="#569CD6"/>
+  <style name="def:thematic-break"    foreground="#858585"/>
+  <style name="def:backslash-escape"  foreground="#D7BA7D"/>
+  <style name="def:line-break"        foreground="#858585"/>
+
+  <!-- Programming language specific -->
+  <!-- Python -->
+  <style name="python:module-handler" foreground="#C586C0"/>
+  <style name="python:decorator"      foreground="#DCDCAA"/>
+  <style name="python:special-variable" foreground="#4FC1FF"/>
+  
+  <!-- JavaScript -->
+  <style name="js:regex"              foreground="#D16969"/>
+  <style name="js:template-literal"   foreground="#CE9178"/>
+  <style name="js:null-value"         foreground="#569CD6"/>
+  
+  <!-- HTML -->
+  <style name="html:tag"              foreground="#569CD6"/>
+  <style name="html:attribute-name"   foreground="#92C5F7"/>
+  <style name="html:attribute-value"  foreground="#CE9178"/>
+  <style name="html:entity"           foreground="#DCDCAA"/>
+  
+  <!-- CSS -->
+  <style name="css:selector-id"       foreground="#D7BA7D"/>
+  <style name="css:selector-class"    foreground="#D7BA7D"/>
+  <style name="css:property-name"     foreground="#92C5F7"/>
+  <style name="css:property-value"    foreground="#CE9178"/>
+  <style name="css:color"             foreground="#B5CEA8"/>
+  
+  <!-- XML -->
+  <style name="xml:tag"               foreground="#569CD6"/>
+  <style name="xml:attribute-name"    foreground="#92C5F7"/>
+  <style name="xml:attribute-value"   foreground="#CE9178"/>
+  <style name="xml:entity"            foreground="#DCDCAA"/>
+  <style name="xml:cdata"             foreground="#6A9955"/>
+  
+  <!-- JSON -->
+  <style name="json:keyname"          foreground="#92C5F7"/>
+  <style name="json:null-value"       foreground="#569CD6"/>
+  
+  <!-- Rust -->
+  <style name="rust:macro"            foreground="#DCDCAA"/>
+  <style name="rust:attribute"        foreground="#C586C0"/>
+  <style name="rust:lifetime"         foreground="#4EC9B0"/>
+  
+  <!-- C/C++ -->
+  <style name="c:macro-name"          foreground="#C586C0"/>
+  <style name="c:included-file"       foreground="#CE9178"/>
+  <style name="c:preprocessor-hash"   foreground="#C586C0"/>
+  
+  <!-- Additional common elements -->
+  <style name="def:shebang"           foreground="#6A9955" italic="true"/>
+  <style name="def:special-char"      foreground="#D7BA7D"/>
+  <style name="def:underlined"        underline="single"/>
+  
+  <!-- Version control diff -->
+  <style name="diff:added-line"       foreground="#6A9955" background="#2D2D30"/>
+  <style name="diff:removed-line"     foreground="#F44747" background="#2D2D30"/>
+  <style name="diff:changed-line"     foreground="#FFCC02" background="#2D2D30"/>
+  <style name="diff:location"         foreground="#92C5F7"/>
+  
+  <!-- Shell/Bash -->
+  <style name="sh:variable"           foreground="#4FC1FF"/>
+  <style name="sh:variable-definition" foreground="#4FC1FF"/>
+  
+  <!-- SQL -->
+  <style name="sql:keyword"           foreground="#569CD6" bold="true"/>
+  <style name="sql:function"          foreground="#DCDCAA"/>
+
+  <!-- Marco-specific syntax highlighting -->
+  <!-- Headings (ATX and Setext) -->
+  <style name="marco:h1"              foreground="#569CD6" bold="true" scale="1.8"/>
+  <style name="marco:h2"              foreground="#569CD6" bold="true" scale="1.6"/>
+  <style name="marco:h3"              foreground="#569CD6" bold="true" scale="1.4"/>
+  <style name="marco:h4"              foreground="#569CD6" bold="true" scale="1.2"/>
+  <style name="marco:h5"              foreground="#569CD6" bold="true" scale="1.1"/>
+  <style name="marco:h6"              foreground="#569CD6" bold="true"/>
+  <style name="marco:setext-h1"       foreground="#569CD6" bold="true" scale="1.8"/>
+  <style name="marco:setext-h2"       foreground="#569CD6" bold="true" scale="1.6"/>
+  <style name="marco:heading-marker"  foreground="#858585"/>
+  
+  <!-- Text formatting -->
+  <style name="marco:bold"            foreground="dark-text" bold="true"/>
+  <style name="marco:italic"          foreground="dark-text" italic="true"/>
+  <style name="marco:bold-italic"     foreground="dark-text" bold="true" italic="true"/>
+  <style name="marco:strikethrough"   foreground="#858585" strikethrough="true"/>
+  <style name="marco:highlight"       foreground="#1E1E1E" background="#FFCC02"/>
+  <style name="marco:superscript"     foreground="#B5CEA8" scale="0.8"/>
+  <style name="marco:subscript"       foreground="#B5CEA8" scale="0.8"/>
+  
+  <!-- Links and images -->
+  <style name="marco:link"            foreground="#79B8FF" underline="single"/>
+  <style name="marco:link-text"       foreground="#79B8FF"/>
+  <style name="marco:link-url"        foreground="#CE9178"/>
+  <style name="marco:image"           foreground="#4EC9B0"/>
+  <style name="marco:image-alt"       foreground="#4EC9B0"/>
+  <style name="marco:autolink"        foreground="#79B8FF" underline="single"/>
+  <style name="marco:email"           foreground="#79B8FF" underline="single"/>
+  
+  <!-- Code blocks and inline code -->
+  <style name="marco:code-inline"     foreground="#CE9178" background="#2D2D30"/>
+  <style name="marco:code-block"      foreground="#CE9178" background="#2D2D30"/>
+  <style name="marco:fenced-code"     foreground="#CE9178" background="#2D2D30"/>
+  <style name="marco:language-id"     foreground="#569CD6" background="#2D2D30"/>
+  
+  <!-- Math -->
+  <style name="marco:math-inline"     foreground="#B5CEA8" background="#2D2D30"/>
+  <style name="marco:math-block"      foreground="#B5CEA8" background="#2D2D30"/>
+  <style name="marco:math-symbol"     foreground="#B5CEA8"/>
+  
+  <!-- Lists -->
+  <style name="marco:list-marker"     foreground="#569CD6" bold="true"/>
+  <style name="marco:task-marker"     foreground="#4FC1FF" bold="true"/>
+  <style name="marco:task-complete"   foreground="#6A9955" bold="true"/>
+  <style name="marco:task-metadata"   foreground="#858585"/>
+  
+  <!-- Blockquotes -->
+  <style name="marco:blockquote"      foreground="#858585" italic="true"/>
+  <style name="marco:blockquote-marker" foreground="#569CD6"/>
+  
+  <!-- Tables -->
+  <style name="marco:table-header"    foreground="dark-text" bold="true" background="#264F78"/>
+  <style name="marco:table-separator" foreground="#569CD6"/>
+  <style name="marco:table-cell"      foreground="dark-text"/>
+  
+  <!-- Horizontal rules -->
+  <style name="marco:horizontal-rule" foreground="#858585"/>
+  
+  <!-- Footnotes -->
+  <style name="marco:footnote-ref"    foreground="#DCDCAA"/>
+  <style name="marco:footnote-def"    foreground="#DCDCAA"/>
+  <style name="marco:inline-footnote" foreground="#DCDCAA" background="#2D2D30"/>
+  
+  <!-- Comments -->
+  <style name="marco:comment"         foreground="#6A9955" italic="true"/>
+  
+  <!-- HTML elements -->
+  <style name="marco:html-tag"        foreground="#569CD6"/>
+  <style name="marco:html-attribute"  foreground="#92C5F7"/>
+  
+  <!-- Marco-specific extensions -->
+  <!-- Admonitions -->
+  <style name="marco:admonition-marker" foreground="#C586C0" bold="true"/>
+  <style name="marco:admonition-note"  foreground="#79B8FF" background="#264F78"/>
+  <style name="marco:admonition-tip"   foreground="#6A9955" background="#2D2D30"/>
+  <style name="marco:admonition-warning" foreground="#FFCC02" background="#433B00"/>
+  <style name="marco:admonition-danger" foreground="#F44747" background="#5A1D1D"/>
+  <style name="marco:admonition-info"  foreground="#4EC9B0" background="#2D2D30"/>
+  
+  <!-- User mentions -->
+  <style name="marco:user-mention"    foreground="#DCDCAA" bold="true"/>
+  <style name="marco:platform"        foreground="#C586C0"/>
+  <style name="marco:display-name"    foreground="#4EC9B0"/>
+  
+  <!-- Tab blocks -->
+  <style name="marco:tab-marker"      foreground="#C586C0" bold="true"/>
+  <style name="marco:tab-title"       foreground="#DCDCAA"/>
+  <style name="marco:tab-name"        foreground="#4FC1FF"/>
+  
+  <!-- Bookmarks -->
+  <style name="marco:bookmark"        foreground="#DCDCAA" background="#2D2D30"/>
+  
+  <!-- Page tags and document references -->
+  <style name="marco:page-tag"        foreground="#C586C0"/>
+  <style name="marco:doc-ref"         foreground="#79B8FF" underline="single"/>
+  
+  <!-- Table of contents -->
+  <style name="marco:toc"             foreground="#4EC9B0"/>
+  <style name="marco:toc-depth"       foreground="#B5CEA8"/>
+  
+  <!-- Run commands -->
+  <style name="marco:run-keyword"     foreground="#C586C0" bold="true"/>
+  <style name="marco:script-type"     foreground="#569CD6" bold="true"/>
+  <style name="marco:run-command"     foreground="#CE9178" background="#2D2D30"/>
+  
+  <!-- Diagrams -->
+  <style name="marco:diagram-type"    foreground="#C586C0" bold="true"/>
+  <style name="marco:diagram-content" foreground="#4EC9B0" background="#2D2D30"/>
+  
+  <!-- YouTube embeds -->
+  <style name="marco:youtube"         foreground="#F44747" background="#2D2D30"/>
+  
+  <!-- Definition lists -->
+  <style name="marco:def-term"        foreground="dark-text" bold="true"/>
+  <style name="marco:def-definition"  foreground="#858585"/>
+  
+  <!-- Emojis -->
+  <style name="marco:emoji"           foreground="#FFCC02"/>
+  
+  <!-- Keywords and special markers -->
+  <style name="marco:keyword"         foreground="#569CD6" bold="true"/>
+  <style name="marco:escape-char"     foreground="#D7BA7D"/>
+  <style name="marco:line-break"      foreground="#858585"/>
+  
+  <!-- Marco grammar specific elements -->
+  <style name="marco:whitespace"      foreground="#858585"/>
+  <style name="marco:newline"         foreground="#858585"/>
+  <style name="marco:indent"          foreground="#858585"/>
+  <style name="marco:marker"          foreground="#569CD6"/>
+  <style name="marco:delimiter"       foreground="#C586C0"/>
+  <style name="marco:content"         foreground="dark-text"/>
+  <style name="marco:punctuation"     foreground="#858585"/>
+  <style name="marco:special-char"    foreground="#D7BA7D"/>
 </style-scheme>

@@ -10,6 +10,7 @@ pub fn render_editor_with_view(
     sourceview5::Buffer,
     sourceview5::View,
     gtk4::CssProvider,
+    gtk4::ScrolledWindow,
 ) {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
     let buffer = sourceview5::Buffer::new(None);
@@ -63,5 +64,5 @@ pub fn render_editor_with_view(
 
     container.append(&scrolled);
 
-    (container, buffer, source_view, scrolled_provider)
+    (container, buffer, source_view, scrolled_provider, scrolled)
 }

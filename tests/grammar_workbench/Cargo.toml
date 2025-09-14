@@ -14,7 +14,7 @@ marco = { path = "../.." }
 # Direct dependencies for the debug tool
 pest = "2.8.1"
 serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
+serde_json = "1.0"
 # ASCII tree visualization for better parse tree display
 ascii_tree = "0.1.1"
 escape_string = "0.1.1"
