@@ -9,9 +9,7 @@ pub mod theme;
 pub use logic::buffer::{DocumentBuffer, RecentFiles};
 
 // Re-export the Marco parser for external tools
-pub use components::marco_engine::{
-    parse_document, parse_markdown, parse_with_rule, print_pairs, AstBuilder, MarcoParser, Rule,
-};
+pub use components::marco_engine::{parse_markdown, AstBuilder, MarcoParser, Rule};
 
 // Re-export HTML rendering
 pub use components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};

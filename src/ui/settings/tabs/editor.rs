@@ -697,24 +697,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 editor.syntax_colors = Some(enabled);
             }
 
-            // Also sync to engine settings for HTML rendering
-            if settings.engine.is_none() {
-                settings.engine = Some(crate::logic::swanson::EngineSettings::default());
-            }
-            if let Some(ref mut engine) = settings.engine {
-                if engine.render.is_none() {
-                    engine.render = Some(crate::logic::swanson::EngineRenderSettings::default());
-                }
-                if let Some(ref mut render) = engine.render {
-                    if render.html.is_none() {
-                        render.html = Some(crate::logic::swanson::EngineHtmlSettings::default());
-                    }
-                    if let Some(ref mut html) = render.html {
-                        html.syntax_highlighting = Some(enabled);
-                    }
-                }
-            }
-
             // Save settings
             if let Err(e) = settings.save_to_file(&settings_path) {
                 error!("Failed to save syntax colors setting: {}", e);

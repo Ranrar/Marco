@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
 license = "MIT OR Apache-2.0"
+default-run = "marco"
 
 
 [[bin]]

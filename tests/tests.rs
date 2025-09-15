@@ -141,7 +141,7 @@ fn test_list() {
             assert_eq!(children.len(), 1);
             match &children[0] {
                 Node::List { ordered, items, .. } => {
-                    assert_eq!(*ordered, false); // Unordered list
+                    assert!(!(*ordered)); // Unordered list
                     assert_eq!(items.len(), 3);
                     for item in items {
                         match item {

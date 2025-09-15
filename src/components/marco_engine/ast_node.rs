@@ -203,9 +203,9 @@ pub enum Node {
     },
 
     /// Line break (hard, soft, or regular) - unified
-    LineBreak { 
+    LineBreak {
         break_type: LineBreakType, // Type of line break
-        span: Span 
+        span: Span,
     },
 
     /// Escaped character \x
@@ -280,6 +280,53 @@ pub enum Node {
     },
 
     // ===========================================
+    // FOOTNOTES AND REFERENCES
+    // ===========================================
+    /// Footnote definition [^label]: content
+    FootnoteDef {
+        label: String,
+        content: Vec<Node>,
+        span: Span,
+    },
+
+    /// Footnote reference [^label]
+    FootnoteRef { label: String, span: Span },
+
+    /// Inline footnote ^[content]
+    InlineFootnoteRef { content: Vec<Node>, span: Span },
+
+    /// Reference definition [label]: url "title"
+    ReferenceDefinition {
+        label: String,
+        url: String,
+        title: Option<String>,
+        span: Span,
+    },
+
+    /// Reference link [text][label]
+    ReferenceLink {
+        text: Vec<Node>,
+        label: String,
+        span: Span,
+    },
+
+    /// Reference image ![alt][label]
+    ReferenceImage {
+        alt: String,
+        label: String,
+        span: Span,
+    },
+
+    // ===========================================
+    // HTML ELEMENTS
+    // ===========================================
+    /// Block HTML <div>...</div>
+    HtmlBlock { content: String, span: Span },
+
+    /// Inline HTML <span>text</span>
+    InlineHtml { content: String, span: Span },
+
+    // ===========================================
     // ERROR RECOVERY
     // ===========================================
     /// Unknown/unhandled content for error recovery
@@ -330,6 +377,14 @@ impl Node {
             Node::RunInline { span, .. } => span,
             Node::RunBlock { span, .. } => span,
             Node::DiagramBlock { span, .. } => span,
+            Node::FootnoteDef { span, .. } => span,
+            Node::FootnoteRef { span, .. } => span,
+            Node::InlineFootnoteRef { span, .. } => span,
+            Node::ReferenceDefinition { span, .. } => span,
+            Node::ReferenceLink { span, .. } => span,
+            Node::ReferenceImage { span, .. } => span,
+            Node::HtmlBlock { span, .. } => span,
+            Node::InlineHtml { span, .. } => span,
             Node::Unknown { span, .. } => span,
         }
     }
@@ -358,6 +413,8 @@ impl Node {
                 | Node::TableOfContents { .. }
                 | Node::RunBlock { .. }
                 | Node::DiagramBlock { .. }
+                | Node::FootnoteDef { .. }
+                | Node::HtmlBlock { .. }
         )
     }
 
@@ -381,6 +438,11 @@ impl Node {
                 | Node::UserMention { .. }
                 | Node::Bookmark { .. }
                 | Node::RunInline { .. }
+                | Node::FootnoteRef { .. }
+                | Node::InlineFootnoteRef { .. }
+                | Node::ReferenceLink { .. }
+                | Node::ReferenceImage { .. }
+                | Node::InlineHtml { .. }
         )
     }
 
@@ -406,6 +468,9 @@ impl Node {
             Node::TabBlock { tabs, .. } => Some(tabs),
             Node::Tab { content, .. } => Some(content),
             Node::Admonition { content, .. } => Some(content),
+            Node::FootnoteDef { content, .. } => Some(content),
+            Node::InlineFootnoteRef { content, .. } => Some(content),
+            Node::ReferenceLink { text, .. } => Some(text),
             _ => None,
         }
     }
@@ -432,6 +497,9 @@ impl Node {
             Node::TabBlock { tabs, .. } => Some(tabs),
             Node::Tab { content, .. } => Some(content),
             Node::Admonition { content, .. } => Some(content),
+            Node::FootnoteDef { content, .. } => Some(content),
+            Node::InlineFootnoteRef { content, .. } => Some(content),
+            Node::ReferenceLink { text, .. } => Some(text),
             _ => None,
         }
     }
@@ -610,6 +678,75 @@ impl Node {
             alignment,
             span,
         }
+    }
+
+    /// Create a new footnote definition node
+    pub fn footnote_def(label: String, content: Vec<Node>, span: Span) -> Self {
+        Node::FootnoteDef {
+            label,
+            content,
+            span,
+        }
+    }
+
+    /// Create a new footnote reference node
+    pub fn footnote_ref(label: String, span: Span) -> Self {
+        Node::FootnoteRef { label, span }
+    }
+
+    /// Create a new inline footnote reference node
+    pub fn inline_footnote_ref(content: Vec<Node>, span: Span) -> Self {
+        Node::InlineFootnoteRef { content, span }
+    }
+
+    /// Create a new reference definition node
+    pub fn reference_definition(
+        label: String,
+        url: String,
+        title: Option<String>,
+        span: Span,
+    ) -> Self {
+        Node::ReferenceDefinition {
+            label,
+            url,
+            title,
+            span,
+        }
+    }
+
+    /// Create a new reference link node
+    pub fn reference_link(text: Vec<Node>, label: String, span: Span) -> Self {
+        Node::ReferenceLink { text, label, span }
+    }
+
+    /// Create a new reference image node
+    pub fn reference_image(alt: String, label: String, span: Span) -> Self {
+        Node::ReferenceImage { alt, label, span }
+    }
+
+    /// Create a new HTML block node
+    pub fn html_block(content: String, span: Span) -> Self {
+        Node::HtmlBlock { content, span }
+    }
+
+    /// Create a new inline HTML node
+    pub fn inline_html(content: String, span: Span) -> Self {
+        Node::InlineHtml { content, span }
+    }
+
+    /// Create a new definition list node
+    pub fn definition_list(items: Vec<Node>, span: Span) -> Self {
+        Node::DefinitionList { items, span }
+    }
+
+    /// Create a new definition term node
+    pub fn definition_term(content: Vec<Node>, span: Span) -> Self {
+        Node::DefinitionTerm { content, span }
+    }
+
+    /// Create a new definition description node
+    pub fn definition_description(content: Vec<Node>, span: Span) -> Self {
+        Node::DefinitionDescription { content, span }
     }
 }
 

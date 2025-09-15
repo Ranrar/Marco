@@ -579,6 +579,93 @@ impl HtmlRenderer {
                 write!(self.output, "</div>").unwrap();
             }
 
+            // Footnotes and references
+            Node::FootnoteDef { label, content, .. } => {
+                write!(
+                    self.output,
+                    "<div class=\"{}footnote-def\" id=\"footnote-def-{}\">",
+                    self.options.class_prefix,
+                    self.escape_html(label)
+                )
+                .unwrap();
+                write!(self.output, "<p><strong>[^{}]:</strong> ", self.escape_html(label)).unwrap();
+                for child in content {
+                    self.render_node(child);
+                }
+                write!(self.output, "</p></div>").unwrap();
+            }
+
+            Node::FootnoteRef { label, .. } => {
+                write!(
+                    self.output,
+                    "<a href=\"#footnote-def-{}\" class=\"{}footnote-ref\" id=\"footnote-ref-{}\">[^{}]</a>",
+                    self.escape_html(label),
+                    self.options.class_prefix,
+                    self.escape_html(label),
+                    self.escape_html(label)
+                )
+                .unwrap();
+            }
+
+            Node::InlineFootnoteRef { content, .. } => {
+                write!(self.output, "<span class=\"{}inline-footnote\">^[", self.options.class_prefix).unwrap();
+                for child in content {
+                    self.render_node(child);
+                }
+                write!(self.output, "]</span>").unwrap();
+            }
+
+            Node::ReferenceDefinition { label, url, title, .. } => {
+                // Reference definitions are typically not rendered in HTML
+                write!(
+                    self.output,
+                    "<!-- Reference definition: [{}]: {} {} -->",
+                    self.escape_html(label),
+                    self.escape_html(url),
+                    title.as_ref().map_or(String::new(), |t| format!("\"{}\"", self.escape_html(t)))
+                )
+                .unwrap();
+            }
+
+            Node::ReferenceLink { text, label, .. } => {
+                // Note: In a full implementation, you'd resolve the reference
+                write!(self.output, "<a href=\"#ref-{}\" class=\"{}reference-link\">", 
+                       self.escape_html(label), self.options.class_prefix).unwrap();
+                for child in text {
+                    self.render_node(child);
+                }
+                write!(self.output, "</a>").unwrap();
+            }
+
+            Node::ReferenceImage { alt, label, .. } => {
+                // Note: In a full implementation, you'd resolve the reference
+                write!(
+                    self.output,
+                    "<img src=\"#ref-{}\" alt=\"{}\" class=\"{}reference-image\">",
+                    self.escape_html(label),
+                    self.escape_html(alt),
+                    self.options.class_prefix
+                )
+                .unwrap();
+            }
+
+            // HTML elements
+            Node::HtmlBlock { content, .. } => {
+                if self.options.sanitize_html {
+                    write!(self.output, "<pre><code>{}</code></pre>", self.escape_html(content)).unwrap();
+                } else {
+                    write!(self.output, "{}", content).unwrap();
+                }
+            }
+
+            Node::InlineHtml { content, .. } => {
+                if self.options.sanitize_html {
+                    write!(self.output, "<code>{}</code>", self.escape_html(content)).unwrap();
+                } else {
+                    write!(self.output, "{}", content).unwrap();
+                }
+            }
+
             // Error recovery
             Node::Unknown { content, rule, .. } => {
                 write!(

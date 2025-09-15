@@ -45,9 +45,7 @@
     schema_disabled: None,
     engine: Some((
         parser: Some((
-            track_positions: None,
-            enable_cache: Some(true),
-            max_cache_size: Some(500),
+
             detailed_errors: Some(true),
             collect_stats: None,
         )),

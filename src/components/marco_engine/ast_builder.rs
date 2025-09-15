@@ -8,11 +8,12 @@
 //! - Helper functions for complex parsing operations
 
 // Re-export key types from ast_node
-pub use crate::components::marco_engine::ast_node::{LineBreakType, Node, Span};
+pub use crate::components::marco_engine::ast_node::{Node, Span};
 
 // Enhanced AstBuilder with complete feature support
 use crate::components::marco_engine::grammar::Rule;
 use pest::iterators::{Pair, Pairs};
+use pest::Parser;
 use std::collections::HashMap;
 
 /// Enhanced AST Builder with comprehensive rule coverage
@@ -87,17 +88,6 @@ impl AstBuilder {
                 Ok(Node::document(children, span))
             }
 
-            Rule::file => {
-                // File is the top-level rule - extract document content
-                for inner_pair in pair.into_inner() {
-                    if inner_pair.as_rule() == Rule::document {
-                        return self.build_node(inner_pair);
-                    }
-                }
-                // Fallback to empty document
-                Ok(Node::document(Vec::new(), span))
-            }
-
             // ===========================================
             // BLOCK ELEMENTS
             // ===========================================
@@ -156,16 +146,60 @@ impl AstBuilder {
                 Ok(Node::math_block(content, span))
             }
 
-            // Lists
+            // Lists - now with separate ordered/unordered rules
             Rule::list => {
-                let ordered = self.is_ordered_list(&pair)?;
-                let items = self.build_children(pair)?;
+                // Rule::list contains either unordered_list or ordered_list
+                // Process the inner list directly to avoid double nesting
+                let mut inner_pairs = pair.into_inner();
+                if let Some(inner_pair) = inner_pairs.next() {
+                    // Should always be exactly one inner pair
+                    self.build_node(inner_pair)
+                } else {
+                    // Fallback - empty list
+                    Ok(Node::list(false, vec![], span))
+                }
+            }
+
+            Rule::unordered_list | Rule::ordered_list => {
+                let ordered = match pair.as_rule() {
+                    Rule::ordered_list => true,
+                    Rule::unordered_list => false,
+                    _ => unreachable!(), // Should never happen
+                };
+
+                // Collect list items directly
+                let mut items = Vec::new();
+                for inner_pair in pair.into_inner() {
+                    match inner_pair.as_rule() {
+                        Rule::unordered_list_item | Rule::ordered_list_item => {
+                            let item = self.build_node(inner_pair)?;
+                            items.push(item);
+                        }
+                        _ => {
+                            // Skip any other elements to prevent double nesting
+                        }
+                    }
+                }
+
                 Ok(Node::list(ordered, items, span))
             }
 
-            Rule::list_item => {
+            Rule::unordered_list_item | Rule::ordered_list_item => {
                 let checked = self.extract_task_state(&pair)?;
-                let content = self.build_children(pair)?;
+                let mut content = self.build_children(pair)?;
+
+                // If the content is a single paragraph containing inline elements,
+                // unwrap the paragraph to get direct inline content for the list item
+                if content.len() == 1 {
+                    if let Node::Paragraph {
+                        content: para_content,
+                        ..
+                    } = &content[0]
+                    {
+                        content = para_content.clone();
+                    }
+                }
+
                 Ok(Node::list_item(content, checked, span))
             }
 
@@ -217,7 +251,7 @@ impl AstBuilder {
             // ===========================================
             // INLINE ELEMENTS
             // ===========================================
-            Rule::text => {
+            Rule::text | Rule::text_no_newline => {
                 let content = pair.as_str().to_string();
                 Ok(Node::text(content, span))
             }
@@ -322,6 +356,81 @@ impl AstBuilder {
             Rule::escaped_char => {
                 let character = self.extract_escaped_character(&pair)?;
                 Ok(Node::escaped_char(character, span))
+            }
+
+            // ===========================================
+            // FOOTNOTES AND REFERENCES
+            // ===========================================
+
+            // Footnote definition: [^label]: content
+            Rule::footnote_def => {
+                let (label, content) = self.extract_footnote_def_parts(pair)?;
+                Ok(Node::FootnoteDef {
+                    label,
+                    content,
+                    span,
+                })
+            }
+
+            // Footnote reference: [^label]
+            Rule::footnote_ref => {
+                let label = self.extract_footnote_ref_label(&pair)?;
+                Ok(Node::FootnoteRef { label, span })
+            }
+
+            // Inline footnote: ^[content]
+            Rule::inline_footnote_ref => {
+                let content = self.extract_inline_footnote_content(pair)?;
+                Ok(Node::InlineFootnoteRef { content, span })
+            }
+
+            // Reference definition: [label]: url "title"
+            Rule::reference_definition => {
+                let (label, url, title) = self.extract_reference_def_parts(pair)?;
+                Ok(Node::ReferenceDefinition {
+                    label,
+                    url,
+                    title,
+                    span,
+                })
+            }
+
+            // Reference link: [text][label]
+            Rule::reference_link => {
+                let (text, label) = self.extract_reference_link_parts(pair)?;
+                Ok(Node::ReferenceLink { text, label, span })
+            }
+
+            // Reference image: ![alt][label]
+            Rule::reference_image => {
+                let (alt, label) = self.extract_reference_image_parts(pair)?;
+                Ok(Node::ReferenceImage { alt, label, span })
+            }
+
+            // ===========================================
+            // HTML ELEMENTS
+            // ===========================================
+
+            // Block HTML: <div>...</div>
+            Rule::block_html => {
+                let content = pair.as_str().to_string();
+                Ok(Node::HtmlBlock { content, span })
+            }
+
+            // Inline HTML: <span>text</span>
+            Rule::inline_html => {
+                let content = pair.as_str().to_string();
+                Ok(Node::InlineHtml { content, span })
+            }
+
+            // ===========================================
+            // DEFINITION LISTS
+            // ===========================================
+
+            // Definition list: term\n: definition
+            Rule::def_list => {
+                let items = self.build_children(pair)?;
+                Ok(Node::DefinitionList { items, span })
             }
 
             // ===========================================
@@ -437,7 +546,7 @@ impl AstBuilder {
                 Err(AstError::MissingContent("Empty block rule".to_string()))
             }
 
-            Rule::inline_core | Rule::inline => {
+            Rule::inline_core | Rule::inline | Rule::inline_no_newline => {
                 // Inline is a container - extract the actual inline type
                 let mut inner_pairs = pair.into_inner();
                 if let Some(inner_pair) = inner_pairs.next() {
@@ -495,12 +604,41 @@ impl AstBuilder {
             }
 
             Rule::list_item_content => {
-                // Parse the content as inline elements
+                // Parse the content as inline elements and return them directly
                 let text = pair.as_str();
+
+                // Try to parse the text content as inline markup
+                if let Ok(pairs) = crate::components::marco_engine::parser::MarcoParser::parse(
+                    crate::components::marco_engine::parser::Rule::paragraph_line,
+                    text,
+                ) {
+                    // Build inline nodes from the parsed content
+                    let mut children = Vec::new();
+                    for inline_pair in pairs {
+                        for inline_child in inline_pair.into_inner() {
+                            children.push(self.build_node(inline_child)?);
+                        }
+                    }
+
+                    // For single inline elements, return directly
+                    if children.len() == 1 {
+                        return Ok(children.into_iter().next().unwrap());
+                    } else if !children.is_empty() {
+                        // For multiple inline elements, we need to return them somehow
+                        // Since we can only return one Node, we'll create a temporary container
+                        // that the parent can unwrap
+                        return Ok(Node::Paragraph {
+                            content: children,
+                            span,
+                        });
+                    }
+                }
+
+                // Fallback to plain text if inline parsing fails
                 Ok(Node::text(text.to_string(), span))
             }
 
-            Rule::regular_list_item => {
+            Rule::unordered_regular_list_item | Rule::ordered_regular_list_item => {
                 // Extract the list_item_content
                 let text = pair.as_str(); // Get text before moving pair
                 for inner_pair in pair.into_inner() {
@@ -512,7 +650,7 @@ impl AstBuilder {
                 Ok(Node::text(text.to_string(), span))
             }
 
-            Rule::task_list_item => {
+            Rule::unordered_task_list_item | Rule::ordered_task_list_item => {
                 // Similar to regular_list_item but with task marker handling
                 let text = pair.as_str(); // Get text before moving pair
                 for inner_pair in pair.into_inner() {
@@ -521,6 +659,74 @@ impl AstBuilder {
                     }
                 }
                 Ok(Node::text(text.to_string(), span))
+            }
+
+            // ===========================================
+            // TAB BLOCK INTERNAL RULES
+            // ===========================================
+            Rule::tab_header => {
+                // Tab header should be handled by tab_block processing
+                let span = self.create_span(&pair);
+                let title = self.extract_tab_header_title(pair)?;
+                if let Some(title_text) = title {
+                    Ok(Node::text(title_text, span))
+                } else {
+                    Ok(Node::text("Tab".to_string(), span))
+                }
+            }
+
+            Rule::tabs_content => {
+                // tabs_content is a container - process its children
+                let content = self.extract_tabs_content(pair)?;
+                if content.len() == 1 {
+                    Ok(content.into_iter().next().unwrap())
+                } else {
+                    Ok(Node::paragraph(content, span))
+                }
+            }
+
+            Rule::tab_line => {
+                // Tab line should be handled by tab processing
+                let span = self.create_span(&pair);
+                let name = self.extract_tab_line_name(pair)?;
+                if let Some(tab_name) = name {
+                    Ok(Node::text(format!("@tab {}", tab_name), span))
+                } else {
+                    Ok(Node::text("@tab".to_string(), span))
+                }
+            }
+
+            Rule::tab_content_line => {
+                // Tab content line is general content
+                let content = pair.as_str().trim().to_string();
+                Ok(Node::text(content, span))
+            }
+
+            Rule::tab_body => {
+                // Tab body container - process as text for now
+                let content = pair.as_str().trim().to_string();
+                if content.is_empty() {
+                    Ok(Node::text("".to_string(), span))
+                } else {
+                    Ok(Node::text(content, span))
+                }
+            }
+
+            Rule::tab_title => {
+                // Tab title is text content
+                let content = pair.as_str().trim().to_string();
+                Ok(Node::text(content, span))
+            }
+
+            Rule::tab_name => {
+                // Tab name is text content
+                let content = pair.as_str().trim().to_string();
+                Ok(Node::text(content, span))
+            }
+
+            Rule::tab_end => {
+                // Tab end delimiter - no content
+                Ok(Node::text("".to_string(), span))
             }
 
             // ===========================================
@@ -561,12 +767,12 @@ impl AstBuilder {
         let mut inline_nodes = Vec::new();
         for inner_pair in pair.into_inner() {
             match inner_pair.as_rule() {
-                Rule::inline | Rule::inline_core => {
+                Rule::inline | Rule::inline_core | Rule::inline_no_newline => {
                     // Recursively extract from inline containers
                     let nested_content = self.extract_inline_content(inner_pair)?;
                     inline_nodes.extend(nested_content);
                 }
-                Rule::text => {
+                Rule::text | Rule::text_no_newline => {
                     let span = self.create_span(&inner_pair);
                     inline_nodes.push(Node::text(inner_pair.as_str().to_string(), span));
                 }
@@ -864,12 +1070,28 @@ impl AstBuilder {
 
     /// Check if list is ordered
     fn is_ordered_list(&self, pair: &Pair<Rule>) -> Result<bool, AstError> {
-        let text = pair.as_str();
-        // Check if any list item starts with a digit
-        Ok(text.lines().any(|line| {
-            let trimmed = line.trim_start();
-            trimmed.chars().next().is_some_and(|c| c.is_ascii_digit())
-        }))
+        // With the new grammar, we can determine list type from the rule itself
+        match pair.as_rule() {
+            Rule::ordered_list => Ok(true),
+            Rule::unordered_list => Ok(false),
+            Rule::list => {
+                // For the generic list rule, check the first list item type
+                for inner_pair in pair.clone().into_inner() {
+                    match inner_pair.as_rule() {
+                        Rule::ordered_list_item => return Ok(true),
+                        Rule::unordered_list_item => return Ok(false),
+                        _ => continue,
+                    }
+                }
+                // Fallback: check text content for digits
+                let text = pair.as_str();
+                Ok(text.lines().any(|line| {
+                    let trimmed = line.trim_start();
+                    trimmed.chars().next().is_some_and(|c| c.is_ascii_digit())
+                }))
+            }
+            _ => Ok(false),
+        }
     }
 
     /// Extract task list checkbox state
@@ -891,25 +1113,31 @@ impl AstBuilder {
     ) -> Result<(Vec<Node>, Vec<Vec<Node>>), AstError> {
         let mut headers = Vec::new();
         let mut rows = Vec::new();
-        let mut is_first_row = true;
 
         for inner_pair in pair.into_inner() {
             match inner_pair.as_rule() {
-                Rule::table_row => {
-                    let cells = self.build_children(inner_pair)?;
-                    if is_first_row {
-                        headers = cells;
-                        is_first_row = false;
-                    } else {
-                        rows.push(cells);
-                    }
+                Rule::table_with_header => {
+                    // Recursively process table with header
+                    return self.extract_table_data(inner_pair);
+                }
+                Rule::table_without_header => {
+                    // Recursively process table without header
+                    return self.extract_table_data(inner_pair);
                 }
                 Rule::table_header => {
-                    headers = self.build_children(inner_pair)?;
-                    is_first_row = false;
+                    // Explicit header found
+                    let mut header_cells = self.build_children(inner_pair)?;
+                    self.filter_trailing_empty_cells(&mut header_cells);
+                    headers = header_cells;
+                }
+                Rule::table_row => {
+                    // Regular data row
+                    let mut cells = self.build_children(inner_pair)?;
+                    self.filter_trailing_empty_cells(&mut cells);
+                    rows.push(cells);
                 }
                 Rule::table_sep => {
-                    // Skip separator row
+                    // Skip separator row - only used for alignment info
                     continue;
                 }
                 _ => {}
@@ -917,6 +1145,33 @@ impl AstBuilder {
         }
 
         Ok((headers, rows))
+    }
+
+    /// Filter out empty trailing cells from a table row
+    /// This handles cases where trailing pipes create unwanted empty cells
+    fn filter_trailing_empty_cells(&self, cells: &mut Vec<Node>) {
+        // Remove trailing empty cells
+        while let Some(last_cell) = cells.last() {
+            if let Node::TableCell { content, .. } = last_cell {
+                // Check if cell is empty or contains only whitespace
+                let is_empty = content.is_empty()
+                    || content.iter().all(|node| {
+                        if let Node::Text { content: text, .. } = node {
+                            text.trim().is_empty()
+                        } else {
+                            false
+                        }
+                    });
+
+                if is_empty {
+                    cells.pop();
+                } else {
+                    break;
+                }
+            } else {
+                break;
+            }
+        }
     }
 
     /// Extract table cell alignment
@@ -1161,21 +1416,133 @@ impl AstBuilder {
     /// Extract tab block parts
     fn extract_tab_block_parts(
         &mut self,
-        _pair: Pair<Rule>,
+        pair: Pair<Rule>,
     ) -> Result<(Option<String>, Vec<Node>), AstError> {
-        // Implementation for tab blocks would go here
-        // For now, return empty
-        Ok((None, Vec::new()))
+        let mut title = None;
+        let mut tabs = Vec::new();
+
+        for inner_pair in pair.into_inner() {
+            match inner_pair.as_rule() {
+                Rule::tab_header => {
+                    // Extract title from tab header
+                    title = self.extract_tab_header_title(inner_pair)?;
+                }
+                Rule::tabs_content => {
+                    // Extract tabs and general content from tabs_content
+                    let content_nodes = self.extract_tabs_content(inner_pair)?;
+                    tabs.extend(content_nodes);
+                }
+                Rule::tab_end => {
+                    // Closing delimiter - no processing needed
+                }
+                _ => {
+                    // Handle any other unexpected content
+                    let child = self.build_node(inner_pair)?;
+                    tabs.push(child);
+                }
+            }
+        }
+
+        Ok((title, tabs))
+    }
+
+    /// Extract tab header title
+    fn extract_tab_header_title(&self, pair: Pair<Rule>) -> Result<Option<String>, AstError> {
+        for inner_pair in pair.into_inner() {
+            if inner_pair.as_rule() == Rule::tab_title {
+                let title = inner_pair.as_str().trim().to_string();
+                if !title.is_empty() {
+                    return Ok(Some(title));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Extract content from tabs_content (contains tab rules)
+    fn extract_tabs_content(&mut self, pair: Pair<Rule>) -> Result<Vec<Node>, AstError> {
+        let mut content = Vec::new();
+
+        for inner_pair in pair.into_inner() {
+            match inner_pair.as_rule() {
+                Rule::tab => {
+                    // Extract individual tab and create Tab node
+                    let (tab_name, tab_content) = self.extract_tab_parts(inner_pair.clone())?;
+                    let span = self.create_span(&inner_pair);
+
+                    content.push(Node::Tab {
+                        name: tab_name,
+                        content: tab_content,
+                        span,
+                    });
+                }
+                _ => {
+                    // Handle any other content (shouldn't happen with new grammar)
+                    let child = self.build_node(inner_pair)?;
+                    content.push(child);
+                }
+            }
+        }
+
+        Ok(content)
     }
 
     /// Extract individual tab parts
     fn extract_tab_parts(
         &mut self,
-        _pair: Pair<Rule>,
+        pair: Pair<Rule>,
     ) -> Result<(Option<String>, Vec<Node>), AstError> {
-        // Implementation for individual tabs would go here
-        // For now, return empty
-        Ok((None, Vec::new()))
+        let mut name = None;
+        let mut content = Vec::new();
+
+        for inner_pair in pair.into_inner() {
+            match inner_pair.as_rule() {
+                Rule::tab_line => {
+                    // Extract tab name from @tab [name]
+                    name = self.extract_tab_line_name(inner_pair)?;
+                }
+                Rule::tab_body => {
+                    // Extract tab content
+                    let tab_content = self.extract_tab_body_content(inner_pair)?;
+                    content.extend(tab_content);
+                }
+                _ => {
+                    // Handle any other content
+                    let child = self.build_node(inner_pair)?;
+                    content.push(child);
+                }
+            }
+        }
+
+        Ok((name, content))
+    }
+
+    /// Extract tab name from tab_line (@tab [name])
+    fn extract_tab_line_name(&self, pair: Pair<Rule>) -> Result<Option<String>, AstError> {
+        for inner_pair in pair.into_inner() {
+            if inner_pair.as_rule() == Rule::tab_name {
+                let name = inner_pair.as_str().trim().to_string();
+                if !name.is_empty() {
+                    return Ok(Some(name));
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Extract content from tab_body
+    fn extract_tab_body_content(&mut self, pair: Pair<Rule>) -> Result<Vec<Node>, AstError> {
+        let content_text = pair.as_str().trim();
+        if content_text.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Parse the content as markdown
+        let span = self.create_span(&pair);
+
+        // For now, treat tab content as plain text
+        // In a more sophisticated implementation, we could parse it as markdown
+        Ok(vec![Node::text(content_text.to_string(), span)])
     }
 
     /// Extract table of contents parts: [toc=2](@doc)
@@ -1283,6 +1650,150 @@ impl AstBuilder {
         };
 
         Ok((diagram_type, content))
+    }
+
+    // ===========================================
+    // FOOTNOTE AND REFERENCE EXTRACTION FUNCTIONS
+    // ===========================================
+
+    /// Extract footnote definition parts: [^label]: content
+    fn extract_footnote_def_parts(
+        &mut self,
+        pair: Pair<Rule>,
+    ) -> Result<(String, Vec<Node>), AstError> {
+        let text = pair.as_str();
+
+        // Parse [^label]: content format
+        if let Some(close_bracket) = text.find("]: ") {
+            if text.starts_with("[^") {
+                let label = text[2..close_bracket].to_string();
+                let content_text = text[close_bracket + 3..].trim();
+
+                // Parse content as markdown - for now, treat as text
+                let span = self.create_span(&pair);
+                let content = if content_text.is_empty() {
+                    Vec::new()
+                } else {
+                    vec![Node::text(content_text.to_string(), span)]
+                };
+
+                return Ok((label, content));
+            }
+        }
+
+        // Fallback
+        Ok(("".to_string(), Vec::new()))
+    }
+
+    /// Extract footnote reference label: [^label]
+    fn extract_footnote_ref_label(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
+        let text = pair.as_str();
+
+        // Parse [^label] format
+        if text.starts_with("[^") && text.ends_with("]") && text.len() > 3 {
+            let label = text[2..text.len() - 1].to_string();
+            Ok(label)
+        } else {
+            Ok("".to_string())
+        }
+    }
+
+    /// Extract inline footnote content: ^[content]
+    fn extract_inline_footnote_content(&mut self, pair: Pair<Rule>) -> Result<Vec<Node>, AstError> {
+        let text = pair.as_str();
+
+        // Parse ^[content] format
+        if text.starts_with("^[") && text.ends_with("]") && text.len() > 3 {
+            let content_text = &text[2..text.len() - 1];
+            let span = self.create_span(&pair);
+
+            // For now, treat content as plain text
+            // In a full implementation, you'd parse as inline markdown
+            Ok(vec![Node::text(content_text.to_string(), span)])
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    /// Extract reference definition parts: [label]: url "title"
+    fn extract_reference_def_parts(
+        &self,
+        pair: Pair<Rule>,
+    ) -> Result<(String, String, Option<String>), AstError> {
+        let text = pair.as_str();
+
+        // Parse [label]: url "title" format
+        if let Some(close_bracket) = text.find("]: ") {
+            if text.starts_with("[") {
+                let label = text[1..close_bracket].to_string();
+                let url_and_title = &text[close_bracket + 3..];
+
+                // Check for title in quotes
+                if let Some(quote_pos) = url_and_title.find(" \"") {
+                    let url = url_and_title[..quote_pos].trim().to_string();
+                    let title_part = &url_and_title[quote_pos + 2..];
+                    let title = if let Some(stripped) = title_part.strip_suffix('"') {
+                        Some(stripped.to_string())
+                    } else {
+                        Some(title_part.to_string())
+                    };
+                    return Ok((label, url, title));
+                } else {
+                    let url = url_and_title.trim().to_string();
+                    return Ok((label, url, None));
+                }
+            }
+        }
+
+        // Fallback
+        Ok(("".to_string(), "".to_string(), None))
+    }
+
+    /// Extract reference link parts: [text][label]
+    fn extract_reference_link_parts(
+        &mut self,
+        pair: Pair<Rule>,
+    ) -> Result<(Vec<Node>, String), AstError> {
+        let text = pair.as_str();
+
+        // Parse [text][label] format
+        if let Some(first_close) = text.find("][") {
+            if text.starts_with("[") && text.ends_with("]") {
+                let link_text = &text[1..first_close];
+                let label = &text[first_close + 2..text.len() - 1];
+
+                let span = self.create_span(&pair);
+                let text_nodes = vec![Node::text(link_text.to_string(), span)];
+
+                return Ok((text_nodes, label.to_string()));
+            }
+        }
+
+        // Fallback
+        let span = self.create_span(&pair);
+        Ok((vec![Node::text("link".to_string(), span)], "".to_string()))
+    }
+
+    /// Extract reference image parts: ![alt][label]
+    fn extract_reference_image_parts(
+        &self,
+        pair: Pair<Rule>,
+    ) -> Result<(String, String), AstError> {
+        let text = pair.as_str();
+
+        // Parse ![alt][label] format
+        if text.starts_with("![") {
+            if let Some(first_close) = text.find("][") {
+                if text.ends_with("]") {
+                    let alt_text = &text[2..first_close];
+                    let label = &text[first_close + 2..text.len() - 1];
+                    return Ok((alt_text.to_string(), label.to_string()));
+                }
+            }
+        }
+
+        // Fallback
+        Ok(("image".to_string(), "".to_string()))
     }
 
     /// Post-process inline content to detect hard line breaks

@@ -15,7 +15,7 @@ pub mod render_html;
 
 // Re-export main types for the 3-function API (removed errors module)
 pub use ast_builder::AstBuilder;
-pub use ast_node::{Node, Span};
+pub use ast_node::Node;
 pub use grammar::{MarcoParser, Rule};
 pub use render_html::{HtmlOptions, HtmlRenderer};
 
@@ -50,36 +50,7 @@ pub fn parse_to_html(input: &str) -> Result<String, String> {
     Ok(render_html(&ast, HtmlOptions::default()))
 }
 
-/// Legacy function: Parse markdown text (alias for parse_text)
+/// Legacy function: Parse markdown text (alias for parse_text) - Used by footer.rs
 pub fn parse_markdown(input: &str) -> Result<pest::iterators::Pairs<'_, Rule>, String> {
     parse_text(input)
-}
-
-/// Legacy function: Parse with specific rule
-pub fn parse_with_rule(
-    input: &str,
-    rule: Rule,
-) -> Result<pest::iterators::Pairs<'_, Rule>, String> {
-    MarcoParser::parse(rule, input).map_err(|e| e.to_string())
-}
-
-/// Legacy function: Parse document (alias for parse_text)
-pub fn parse_document(input: &str) -> Result<pest::iterators::Pairs<'_, Rule>, String> {
-    parse_text(input)
-}
-
-/// Debug function: Print parsed pairs
-pub fn print_pairs(pairs: pest::iterators::Pairs<'_, Rule>) {
-    fn print_pairs_internal(pairs: pest::iterators::Pairs<'_, Rule>, indent: usize) {
-        for pair in pairs {
-            println!(
-                "{}{:?}: {}",
-                " ".repeat(indent),
-                pair.as_rule(),
-                pair.as_str()
-            );
-            print_pairs_internal(pair.into_inner(), indent + 2);
-        }
-    }
-    print_pairs_internal(pairs, 0);
 }

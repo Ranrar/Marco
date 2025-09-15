@@ -25,17 +25,19 @@
     )),
     language: None,
     window: Some((
-        width: Some(1375),
-        height: Some(725),
+        width: Some(1889),
+        height: Some(1179),
         x: None,
         y: None,
         maximized: Some(false),
         split_ratio: Some(40),
     )),
-    advanced: None,
     files: Some((
         recent_files: Some([
+            "/home/ranrar/Code/projects/marco2/documentation/user guide/user_guide.md",
+            "/home/ranrar/Code/projects/marco2/CONTRIBUTING.md",
             "/home/ranrar/Code/projects/marco2/README.md",
+            "saved_document.md",
         ]),
         max_recent_files: None,
     )),
@@ -44,31 +46,12 @@
     active_schema: None,
     schema_disabled: None,
     engine: Some((
-        parser: Some((
-            track_positions: None,
-            enable_cache: Some(true),
-            max_cache_size: Some(500),
-            detailed_errors: Some(true),
-            collect_stats: None,
-        )),
         render: Some((
             html: Some((
-                include_styles: None,
                 generate_toc: None,
-                syntax_highlighting: Some(true),
-                semantic_html: None,
                 include_metadata: None,
                 line_break_mode: Some("reversed"),
             )),
-            text: None,
-            default_format: None,
         )),
-        performance: Some((
-            worker_threads: None,
-            cache_ast: Some(true),
-            max_cache_memory_mb: None,
-            debug_mode: None,
-        )),
-        output: None,
     )),
 )

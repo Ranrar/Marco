@@ -9,7 +9,7 @@
 pub use crate::components::marco_engine::grammar::{MarcoParser, Rule};
 
 // Re-export basic Pest types that might be needed
-pub use pest::iterators::{Pair, Pairs};
+pub use pest::iterators::{Pairs};
 pub use pest::Parser;
 
 /// Simple parse result type - use String for errors as per simplified architecture

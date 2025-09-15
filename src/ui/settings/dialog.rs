@@ -148,12 +148,6 @@ pub fn show_settings_dialog(
         Some(&Label::new(Some("Language"))),
     );
 
-    // Add Advanced tab for Marco Engine settings
-    notebook.append_page(
-        &tabs::advanced::build_advanced_tab(settings_path.to_str().unwrap()),
-        Some(&Label::new(Some("Advanced"))),
-    );
-
     // Add Markdown tab for markdown-specific settings
     notebook.append_page(
         &tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap()),

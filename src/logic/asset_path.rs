@@ -12,7 +12,7 @@
 //! This works regardless of where the binary is run from, as long as "marco/" is next to the binary.
 
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::{PathBuf};
 use std::fmt;
 
 /// Custom error type for asset path detection

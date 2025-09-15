@@ -1,4 +1,3 @@
-pub mod advanced;
 pub mod appearance;
 pub mod debug;
 pub mod editor;
