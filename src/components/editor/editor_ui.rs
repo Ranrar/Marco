@@ -16,13 +16,14 @@ use sourceview5::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-pub fn create_editor_with_preview(
+pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
     preview_theme_dir: &str,
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     theme_mode: Rc<RefCell<String>>,
     labels: Rc<FooterLabels>,
     settings_path: &str,
+    document_buffer: Option<Rc<RefCell<crate::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
@@ -333,6 +334,9 @@ pub fn create_editor_with_preview(
     let wheel_js_for_refresh = wheel_js_rc.clone();
     let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
     let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
+    let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
+    // Clone document_buffer for use in refresh closure
+    let document_buffer_for_refresh = document_buffer.as_ref().map(Rc::clone);
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
@@ -342,8 +346,28 @@ pub fn create_editor_with_preview(
         let wheel_js_local = wheel_js_for_refresh.clone();
         let is_initial_load_clone = Rc::clone(&is_initial_load);
         let last_css_hash_clone = Rc::clone(&last_css_hash);
+        let last_document_path_clone = Rc::clone(&last_document_path);
+        let document_buffer_capture = document_buffer_for_refresh.clone();
         std::rc::Rc::new(move || {
             let is_first_load = *is_initial_load_clone.borrow();
+            
+            // Check if the document path has changed (indicating a new file was loaded)
+            let current_doc_path = document_buffer_capture
+                .as_ref()
+                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
+            
+            let doc_path_changed = {
+                let last_path = last_document_path_clone.borrow();
+                match (&*last_path, &current_doc_path) {
+                    (None, None) => false,
+                    (Some(_), None) => true,
+                    (None, Some(_)) => true,
+                    (Some(last), Some(current)) => last != current,
+                }
+            };
+            
+            // Update the last document path
+            *last_document_path_clone.borrow_mut() = current_doc_path.clone();
             
             // Check if CSS has changed (theme update)
             use std::collections::hash_map::DefaultHasher;
@@ -355,15 +379,21 @@ pub fn create_editor_with_preview(
             let css_changed = *last_css_hash_clone.borrow() != current_css_hash;
             *last_css_hash_clone.borrow_mut() = current_css_hash;
             
-            if is_first_load || css_changed {
-                // Use traditional load_html for initial load or when CSS/theme changes
-                crate::components::viewer::preview::refresh_preview_into_webview(
+            if is_first_load || css_changed || doc_path_changed {
+                // Use traditional load_html for initial load, when CSS/theme changes, or when document changes
+                // Generate base URI directly from DocumentBuffer for WebKit6
+                let base_uri = document_buffer_capture
+                    .as_ref()
+                    .and_then(|buf| buf.borrow().get_base_uri_for_webview());
+                
+                crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri(
                     webview.as_ref(),
                     &css,
                     html_opts.as_ref(),
                     buffer.as_ref(),
                     &wheel_js_local,
                     &theme_mode,
+                    base_uri.as_deref(),
                 );
                 
                 // Mark as no longer initial load
@@ -384,10 +414,62 @@ pub fn create_editor_with_preview(
     log::debug!("[preview] triggering initial refresh");
     refresh_preview_impl();
 
+    // Track current view mode for real-time updates
+    let current_view_mode: Rc<RefCell<ViewMode>> = Rc::new(RefCell::new(ViewMode::HtmlPreview));
+
+    // Function to update HTML code view with raw HTML
+    let update_html_code_view = {
+        let buffer_for_code = Rc::clone(&buffer_rc);
+        let precreated_code_sw_for_code = precreated_code_sw.clone();
+        let html_opts_for_code = Rc::clone(&html_opts_rc);
+        
+        Box::new(move || {
+            let text = buffer_for_code
+                .text(
+                    &buffer_for_code.start_iter(),
+                    &buffer_for_code.end_iter(),
+                    false,
+                )
+                .to_string();
+
+            // Generate raw HTML using Marco engine (same as nested code blocks)
+            let html_body = match MarcoParser::parse(Rule::document, &text) {
+                Ok(pairs) => match AstBuilder::build(pairs) {
+                    Ok(ast) => {
+                        let renderer = HtmlRenderer::new(html_opts_for_code.as_ref().clone());
+                        renderer.render(&ast)
+                    }
+                    Err(e) => format!("<!-- Error building AST: {} -->", e),
+                },
+                Err(e) => format!("<!-- Error parsing markdown: {} -->", e),
+            };
+
+            // Format the HTML for better readability in code view
+            let formatted_html = crate::components::viewer::html_format::pretty_print_html(&html_body);
+            
+            // Show formatted HTML for easy reading and debugging
+            if let Some(sw_child) = precreated_code_sw_for_code.child() {
+                if let Ok(tv) = sw_child.downcast::<gtk4::TextView>() {
+                    let new_buf = gtk4::TextBuffer::new(None::<&gtk4::TextTagTable>);
+                    new_buf.set_text(&formatted_html);  // Pretty-formatted HTML for readability
+                    tv.set_buffer(Some(&new_buf));
+                }
+            }
+        }) as Box<dyn Fn()>
+    };
+    let update_html_code_view_rc = Rc::new(update_html_code_view);
+
     // Also update preview whenever buffer content changes (e.g. when opening a file).
     let refresh_for_signal = std::rc::Rc::clone(&refresh_preview_impl);
+    let update_code_for_signal = Rc::clone(&update_html_code_view_rc);
+    let view_mode_for_signal = Rc::clone(&current_view_mode);
     buffer_rc.connect_changed(move |_| {
-        refresh_for_signal();
+        refresh_for_signal();  // Always update HTML preview
+        
+        // Also update code view if we're currently in CodePreview mode
+        if *view_mode_for_signal.borrow() == ViewMode::CodePreview {
+            update_code_for_signal();
+        }
     });
 
     // theme update function
@@ -415,6 +497,7 @@ pub fn create_editor_with_preview(
     let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
     let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
     let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
+    let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
     use std::cell::Cell;
     let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
     let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
@@ -525,7 +608,20 @@ pub fn create_editor_with_preview(
         let buffer_clone = Rc::clone(&buffer_rc_for_preview);
         let wheel_clone = wheel_js_for_preview.clone();
         let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
+        let document_buffer_clone = document_buffer_for_preview.as_ref().map(Rc::clone);
         let id = glib::timeout_add_local(std::time::Duration::from_millis(150), move || {
+            // Extract document path from DocumentBuffer for base URI generation
+            let doc_path = document_buffer_clone
+                .as_ref()
+                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
+            
+            // Debug: log the document path being passed
+            if let Some(ref path) = doc_path {
+                eprintln!("[DEBUG] Theme refresh: Passing document path to preview: {}", path.display());
+            } else {
+                eprintln!("[DEBUG] Theme refresh: No document path available (untitled document)");
+            }
+            
             refresh_preview_into_webview(
                 webview_clone.as_ref(),
                 &css_clone,
@@ -533,6 +629,7 @@ pub fn create_editor_with_preview(
                 &buffer_clone,
                 &wheel_clone,
                 &theme_mode_clone,
+                doc_path.as_deref(),
             );
             preview_theme_timeout_clone2.set(None);
             glib::ControlFlow::Break
@@ -557,10 +654,14 @@ pub fn create_editor_with_preview(
             // visible child and keeps the code-preview TextView in sync with
             // the latest rendered HTML.
             let stack_for_mode = stack.clone();
-            let buffer_for_mode = Rc::clone(&buffer_rc);
-            let precreated_code_sw_for_mode = precreated_code_sw.clone();
             let refresh_for_mode = std::rc::Rc::clone(&refresh_preview_impl);
+            let update_code_for_mode = Rc::clone(&update_html_code_view_rc);
+            let current_view_mode_for_mode = Rc::clone(&current_view_mode);
+            
             Box::new(move |mode: ViewMode| {
+                // Update the tracked view mode
+                *current_view_mode_for_mode.borrow_mut() = mode;
+                
                 match mode {
                     ViewMode::HtmlPreview => {
                         // Ensure preview is up-to-date, then show HTML preview.
@@ -568,41 +669,8 @@ pub fn create_editor_with_preview(
                         stack_for_mode.set_visible_child_name("html_preview");
                     }
                     ViewMode::CodePreview => {
-                        // Regenerate pretty HTML from current buffer and update the
-                        // TextView inside the precreated scrolled window so the
-                        // source view shows current content.
-                        let text = buffer_for_mode
-                            .text(
-                                &buffer_for_mode.start_iter(),
-                                &buffer_for_mode.end_iter(),
-                                false,
-                            )
-                            .to_string();
-
-                        let html_body = match MarcoParser::parse(Rule::document, &text) {
-                            Ok(pairs) => match AstBuilder::build(pairs) {
-                                Ok(ast) => {
-                                    let renderer = HtmlRenderer::new(html_opts_rc.as_ref().clone());
-                                    renderer.render(&ast)
-                                }
-                                Err(e) => format!("Error building AST: {}", e),
-                            },
-                            Err(e) => format!("Error parsing markdown: {}", e),
-                        };
-
-                        let pretty =
-                            crate::components::viewer::html_format::pretty_print_html(&html_body);
-
-                        if let Some(sw_child) = precreated_code_sw_for_mode.child() {
-                            if let Ok(tv) = sw_child.downcast::<gtk4::TextView>() {
-                                // Create a fresh TextBuffer with the updated pretty HTML
-                                // and set it on the TextView. This avoids depending on
-                                // the exact return type of `tv.buffer()` across gtk versions.
-                                let new_buf = gtk4::TextBuffer::new(None::<&gtk4::TextTagTable>);
-                                new_buf.set_text(&pretty);
-                                tv.set_buffer(Some(&new_buf));
-                            }
-                        }
+                        // Update HTML code view with current raw HTML, then show it
+                        (update_code_for_mode)();
                         stack_for_mode.set_visible_child_name("code_preview");
                     }
                 }

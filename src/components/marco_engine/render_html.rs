@@ -91,6 +91,93 @@ impl HtmlRenderer {
                 write!(self.output, "</code></pre>").unwrap();
             }
 
+            Node::NestedCodeBlock {
+                language,
+                level,
+                content,
+                ..
+            } => {
+                // Render nested code block with Russian doll-style nesting
+                write!(
+                    self.output,
+                    "<div class=\"nested-code-block level-{}\"",
+                    level
+                )
+                .unwrap();
+
+                if let Some(lang) = language {
+                    write!(self.output, " data-language=\"{}\"", self.escape_html(lang)).unwrap();
+                }
+
+                write!(self.output, ">").unwrap();
+
+                // Add header with language info
+                write!(
+                    self.output,
+                    "<div class=\"code-header\">{}</div>",
+                    self.escape_html(language.as_ref().unwrap_or(&"code".to_string()))
+                )
+                .unwrap();
+
+                // Add content container
+                write!(self.output, "<div class=\"code-content\">").unwrap();
+
+                // Check if this is the innermost level with just text content (actual code)
+                if content.len() == 1 {
+                    if let Some(document_node) = content.first() {
+                        if let Node::Document { children, .. } = document_node {
+                            if children.len() == 1 {
+                                if let Some(Node::Paragraph {
+                                    content: text_nodes,
+                                    ..
+                                }) = children.first()
+                                {
+                                    // This looks like code content - render as <pre><code>
+                                    write!(self.output, "<pre><code>").unwrap();
+                                    for text_node in text_nodes {
+                                        if let Node::Text {
+                                            content: text_content,
+                                            ..
+                                        } = text_node
+                                        {
+                                            write!(
+                                                self.output,
+                                                "{}",
+                                                self.escape_html(text_content)
+                                            )
+                                            .unwrap();
+                                        }
+                                    }
+                                    write!(self.output, "</code></pre>").unwrap();
+                                } else {
+                                    // Recursively render nested content
+                                    for child in content {
+                                        self.render_node(child);
+                                    }
+                                }
+                            } else {
+                                // Recursively render nested content
+                                for child in content {
+                                    self.render_node(child);
+                                }
+                            }
+                        } else {
+                            // Recursively render nested content
+                            for child in content {
+                                self.render_node(child);
+                            }
+                        }
+                    }
+                } else {
+                    // Recursively render nested content
+                    for child in content {
+                        self.render_node(child);
+                    }
+                }
+
+                write!(self.output, "</div></div>").unwrap();
+            }
+
             Node::MathBlock { content, .. } => {
                 write!(
                     self.output,
@@ -588,7 +675,12 @@ impl HtmlRenderer {
                     self.escape_html(label)
                 )
                 .unwrap();
-                write!(self.output, "<p><strong>[^{}]:</strong> ", self.escape_html(label)).unwrap();
+                write!(
+                    self.output,
+                    "<p><strong>[^{}]:</strong> ",
+                    self.escape_html(label)
+                )
+                .unwrap();
                 for child in content {
                     self.render_node(child);
                 }
@@ -608,29 +700,43 @@ impl HtmlRenderer {
             }
 
             Node::InlineFootnoteRef { content, .. } => {
-                write!(self.output, "<span class=\"{}inline-footnote\">^[", self.options.class_prefix).unwrap();
+                write!(
+                    self.output,
+                    "<span class=\"{}inline-footnote\">^[",
+                    self.options.class_prefix
+                )
+                .unwrap();
                 for child in content {
                     self.render_node(child);
                 }
                 write!(self.output, "]</span>").unwrap();
             }
 
-            Node::ReferenceDefinition { label, url, title, .. } => {
+            Node::ReferenceDefinition {
+                label, url, title, ..
+            } => {
                 // Reference definitions are typically not rendered in HTML
                 write!(
                     self.output,
                     "<!-- Reference definition: [{}]: {} {} -->",
                     self.escape_html(label),
                     self.escape_html(url),
-                    title.as_ref().map_or(String::new(), |t| format!("\"{}\"", self.escape_html(t)))
+                    title
+                        .as_ref()
+                        .map_or(String::new(), |t| format!("\"{}\"", self.escape_html(t)))
                 )
                 .unwrap();
             }
 
             Node::ReferenceLink { text, label, .. } => {
                 // Note: In a full implementation, you'd resolve the reference
-                write!(self.output, "<a href=\"#ref-{}\" class=\"{}reference-link\">", 
-                       self.escape_html(label), self.options.class_prefix).unwrap();
+                write!(
+                    self.output,
+                    "<a href=\"#ref-{}\" class=\"{}reference-link\">",
+                    self.escape_html(label),
+                    self.options.class_prefix
+                )
+                .unwrap();
                 for child in text {
                     self.render_node(child);
                 }
@@ -651,15 +757,20 @@ impl HtmlRenderer {
 
             // HTML elements
             Node::HtmlBlock { content, .. } => {
-                if self.options.sanitize_html {
-                    write!(self.output, "<pre><code>{}</code></pre>", self.escape_html(content)).unwrap();
+                if self.options.sanitize_html && !self.is_safe_html(content) {
+                    write!(
+                        self.output,
+                        "<pre><code>{}</code></pre>",
+                        self.escape_html(content)
+                    )
+                    .unwrap();
                 } else {
                     write!(self.output, "{}", content).unwrap();
                 }
             }
 
             Node::InlineHtml { content, .. } => {
-                if self.options.sanitize_html {
+                if self.options.sanitize_html && !self.is_safe_html(content) {
                     write!(self.output, "<code>{}</code>", self.escape_html(content)).unwrap();
                 } else {
                     write!(self.output, "{}", content).unwrap();
@@ -679,6 +790,95 @@ impl HtmlRenderer {
                 write!(self.output, "</div>").unwrap();
             }
         }
+    }
+
+    /// Check if HTML content contains only safe elements that should be allowed in GFM
+    fn is_safe_html(&self, content: &str) -> bool {
+        // List of safe HTML elements commonly used in GFM
+        const SAFE_ELEMENTS: &[&str] = &[
+            "p",
+            "div",
+            "span",
+            "br",
+            "hr",
+            "img",
+            "a",
+            "strong",
+            "em",
+            "b",
+            "i",
+            "u",
+            "s",
+            "code",
+            "pre",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "ul",
+            "ol",
+            "li",
+            "dl",
+            "dt",
+            "dd",
+            "table",
+            "thead",
+            "tbody",
+            "tr",
+            "th",
+            "td",
+            "blockquote",
+            "center",
+            "details",
+            "summary",
+            "mark",
+            "del",
+            "ins",
+            "sub",
+            "sup",
+            "src",
+            "alt",
+            "title",
+            "width",
+            "height",
+            "loading",
+            "decoding",
+        ];
+
+        // Simple check: extract all element names and verify they're in the safe list
+        let content_lower = content.to_lowercase();
+
+        // Find all opening tags
+        let mut pos = 0;
+        while let Some(start) = content_lower[pos..].find('<') {
+            let start = pos + start;
+            if let Some(end) = content_lower[start..].find('>') {
+                let end = start + end;
+                let tag_content = &content_lower[start + 1..end];
+
+                // Skip closing tags and self-closing tags
+                if tag_content.starts_with('/') || tag_content.ends_with('/') {
+                    pos = end + 1;
+                    continue;
+                }
+
+                // Extract element name (before space or closing bracket)
+                let element_name = tag_content.split_whitespace().next().unwrap_or("");
+
+                // Check if this element is in our safe list
+                if !element_name.is_empty() && !SAFE_ELEMENTS.contains(&element_name) {
+                    return false;
+                }
+
+                pos = end + 1;
+            } else {
+                break;
+            }
+        }
+
+        true
     }
 
     fn escape_html(&self, input: &str) -> String {

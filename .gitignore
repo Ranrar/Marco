@@ -12,5 +12,4 @@ target
 
 # Program specefik
 /src/bin
-/tests
 /log

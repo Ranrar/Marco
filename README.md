@@ -1,43 +1,18 @@
 <p align="center">
-  <img src="https://github.com/Ranrar/marco/blob/main/documentation/user%20guide/logo.png" />
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/user%20guide/logo.png" />
 </p>
 
 Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and custom markdown features.
 
 ## Features in Progress
 
+Marco is currently in active development with a focus on perfecting our custom markdown grammar and parser. We're approximately **90% complete** with the core implementation, working on polishing the codebase and ensuring robust parsing of all markdown constructs.
 
-The **UI is mostly complete**, and were now turning our focus to the engine behind Marco. Were actively developing the **grammar, AST, and syntax rules** for the parser and renderer, which will bring the editor to life.
-
-We added a small, custom debug harness to exercise the parser and test-suite so we can iterate quickly on grammar fixes and measure progress. Current parser test-run (debug harness):
-
-| Metric | Value |
-|---|---|
-| Total tests | 1225 |
-| Passed | 1143 |
-| Failed | 82 |
-| Success rate | 93.3% |
-
-Debug outputs:
-
-| File | Last run | Stats |
-|---|---|---|
-| [benchmark results](debug/src/results/benchmark_results.md) | 2025-09-03 (latest) | 320 / 340 passed (94.1%), total time 84.36ms |
-| [test results](debug/src/results/test_results.md) | 2025-09-03 (latest) | 1143 / 1225 passed (93.3%), 82 failed |
-
-**🎯 Major Breakthrough Achieved**: The text rule optimization project has been **successfully completed**! We've eliminated the primary parsing bottleneck, achieving a **93.3% success rate** (up from 48.3% - a 95% improvement). The "text rule problem" that was causing 84.2% of all failures has been resolved through sophisticated boundary detection and enhanced whitespace handling.
-
-**Key Improvements:**
-- **Text Rule Failures**: Reduced from 451 to ~0 (99.8% reduction)
-- **Performance**: Maintained sub-millisecond parsing (avg 188.49μs per test)
-- **Memory Efficiency**: 57KB total usage with linear scaling
-- **Stress Testing**: Handles pathological cases gracefully
-
-**Remaining Work**: The 82 remaining failures (6.7%) are distributed across various rules like `inline_link` (13), `setext_h2` (7), and `image_url` (6), representing manageable edge cases rather than systematic issues.
-
-> Note: this branch doesn't yet build into a full application — a few core pieces (AST, syntax, phraser, renderer) are intentionally left out while we focus on stabilizing the grammar and tests. With the parser now achieving 93.3% accuracy, we're well-positioned to add those components and continue toward a runnable app in the near future.
-
-Right now, the editor is in an early stage — features are limited — but this will change as we implement the new Markdown capabilities.
+**Current development focus:**
+- Fine-tuning the **pest-based grammar** for comprehensive markdown support
+- Polishing the **AST builder** and **HTML renderer** components
+- Implementing robust **error handling** and **edge case coverage**
+- Optimizing **parser performance** and **memory usage**
 
 Below is a **preview of whats coming**:
 
@@ -51,8 +26,9 @@ Below is a **preview of whats coming**:
 You can see a **live snippet** of the Markdown features were working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
 
 <p align="center">
-  <img src="documentation/Screenshot/Screenshot from 2025-08-27 17-38-22.png" />
+  <img src="documentation/Screenshot/Screenshot from 2025-09-17 22-21-06.png" />
 </p>
+<a href="documentation/Screenshot">View more screenshots</a>
 
 ## Text Formatting
 
@@ -295,9 +271,15 @@ Mentions let you **tag people and link to their public profiles**. The format is
 
 ## Architecture & internals
 
-- GTK4-based UI with modular components (editor, viewers, toolbar, menus)
-- Asset pipeline for icons, fonts, and themes (see `src/assets/`)
-- Support for adding custom AST and syntax definitions `src/assets/markdown_schema`
+- **GTK4-RS** (`gtk4`, `glib`, `gio`) - Cross-platform GUI framework providing the main application window, widgets, and event handling. Used for the editor interface, menus, toolbars, and all user interactions.
+
+- **SourceView5** (`sourceview5`) - Advanced text editor component with syntax highlighting and code editing features. Provides the main markdown editing area with features like line numbers, search/replace, and text formatting.
+
+- **WebKit6** (`webkit6`) - Modern web engine for HTML rendering and preview. Displays the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
+
+- **Pest** (`pest`, `pest_derive`) - Parser generator for creating the custom markdown grammar. Used in the marco_engine component to parse markdown into an AST, enabling fine-grained control over rendering and future extensibility for custom markdown features.
+
+- **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
 
 ## Quickstart
 
@@ -340,7 +322,7 @@ Planned and desired improvements
 - Multiple layout modes: editor+preview (standard), editor only, preview only, detachable preview
 - Export / Save as HTML or PDF
 - Page size presets for export (A4, US Letter)
-- Scroll sync between editor and preview
+- [x] Scroll sync between editor and preview
 - Context menus & toolbar: Quick access to formatting and actions
 - Smart code blocks: 100+ programming languages,
 - Intelligent search

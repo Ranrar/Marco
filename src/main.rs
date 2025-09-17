@@ -14,7 +14,7 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::editor_ui::create_editor_with_preview;
+use crate::components::editor::editor_ui::{create_editor_with_preview_and_buffer};
 use crate::components::editor::footer_updates::wire_footer_updates;
 use crate::components::viewer::viewmode::ViewMode;
 use crate::theme::ThemeManager;
@@ -57,8 +57,8 @@ fn main() -> glib::ExitCode {
         default_panic(info);
     }));
 
-    // Asset path detection and environment setup
-    use crate::logic::asset_path::{get_asset_dir_checked, get_font_path, get_settings_path};
+    // path detection and environment setup
+    use crate::logic::paths::{get_asset_dir_checked, get_font_path, get_settings_path};
     let asset_dir = match get_asset_dir_checked() {
         Ok(asset_dir) => asset_dir,
         Err(e) => {
@@ -251,6 +251,14 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
     let (footer, footer_labels_rc) = footer::create_footer();
 
+    // Create file operations handler early so we can pass DocumentBuffer to editor
+    let file_operations = FileOperations::new(
+        Rc::new(RefCell::new(DocumentBuffer::new_untitled())),
+        Rc::new(RefCell::new(RecentFiles::new(&settings_path))),
+    );
+    let file_operations_rc = Rc::new(RefCell::new(file_operations));
+    let document_buffer_ref = Rc::clone(&file_operations_rc.borrow().buffer);
+
     // Active markdown schema support removed; footer uses AST parser directly.
     let _schema_root = config_dir.join("src/assets/markdown_schema");
     let active_schema_map: Rc<RefCell<Option<()>>> = Rc::new(RefCell::new(None));
@@ -265,13 +273,14 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         editor_buffer,
         insert_mode_state,
         set_view_mode,
-    ) = create_editor_with_preview(
+    ) = create_editor_with_preview_and_buffer(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         theme_manager.clone(),
         Rc::clone(&theme_mode),
         footer_labels_rc.clone(),
         settings_path.to_str().unwrap(),
+        Some(document_buffer_ref),
     );
 
     // Wrap setter into Rc so it can be cloned into action callbacks
@@ -554,13 +563,6 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         }
     });
     app.add_action(&view_code_action);
-
-    // Create file operations handler
-    let file_operations = FileOperations::new(
-        Rc::new(RefCell::new(DocumentBuffer::new_untitled())),
-        Rc::new(RefCell::new(RecentFiles::new(&settings_path))),
-    );
-    let file_operations_rc = Rc::new(RefCell::new(file_operations));
 
     // Populate the Recent Files submenu from FileOperations' recent list
     // If empty, leave the submenu with its placeholder (no entries) so it appears inactive.

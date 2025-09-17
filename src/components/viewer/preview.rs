@@ -71,6 +71,7 @@ fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
 }
 
 /// Small helper to wrap markdown -> html and load into webview using the new rendering system.
+/// If document_path is provided, it will be used to generate a base URI for resolving relative paths.
 pub fn refresh_preview_into_webview(
     webview: &webkit6::WebView,
     css: &RefCell<String>,
@@ -78,6 +79,26 @@ pub fn refresh_preview_into_webview(
     buffer: &sourceview5::Buffer,
     wheel_js: &str,
     theme_mode: &RefCell<String>,
+    document_path: Option<&std::path::Path>,
+) {
+    let base_uri = document_path.and_then(|path| {
+        crate::components::viewer::webkit6::generate_base_uri_from_path(path)
+    });
+    refresh_preview_into_webview_with_base_uri(
+        webview, css, html_options, buffer, wheel_js, theme_mode, base_uri.as_deref()
+    );
+}
+
+/// Small helper to wrap markdown -> html and load into webview using the new rendering system.
+/// If base_uri is provided, it will be used directly as the base URI for resolving relative paths.
+pub fn refresh_preview_into_webview_with_base_uri(
+    webview: &webkit6::WebView,
+    css: &RefCell<String>,
+    html_options: &HtmlOptions,
+    buffer: &sourceview5::Buffer,
+    wheel_js: &str,
+    theme_mode: &RefCell<String>,
+    base_uri: Option<&str>,
 ) {
     let text = buffer
         .text(&buffer.start_iter(), &buffer.end_iter(), false)
@@ -102,10 +123,17 @@ pub fn refresh_preview_into_webview(
         &theme_mode.borrow(),
     );
     let html_clone = html.clone();
+    // Use the provided base URI directly (already converted to string)
+    let base_uri_clone = base_uri.map(|s| s.to_string());
     let webview_idle = webview.clone();
     glib::idle_add_local(move || {
         log::debug!("[viewer] loading html length={} ", html_clone.len());
-        webview_idle.load_html(&html_clone, None);
+        if let Some(ref base_uri) = base_uri_clone {
+            log::debug!("[viewer] using base URI: {}", base_uri);
+            webview_idle.load_html(&html_clone, Some(base_uri));
+        } else {
+            webview_idle.load_html(&html_clone, None);
+        }
         glib::ControlFlow::Break
     });
 }

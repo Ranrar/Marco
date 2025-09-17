@@ -107,6 +107,16 @@ pub enum Node {
         span: Span,
     },
 
+    /// Nested code block (Marco extension) - supports recursive fenced code blocks
+    /// This enables Russian-doll style nested code blocks where inner fenced blocks
+    /// are recursively parsed rather than treated as literal text
+    NestedCodeBlock {
+        language: Option<String>, // Programming language if specified
+        level: u8,               // Nesting level (1-3)
+        content: Vec<Node>,      // Parsed inner content (can contain more NestedCodeBlock nodes)
+        span: Span,
+    },
+
     /// Math block $$formula$$
     MathBlock { content: String, span: Span },
 
@@ -345,6 +355,7 @@ impl Node {
             Node::Heading { span, .. } => span,
             Node::Paragraph { span, .. } => span,
             Node::CodeBlock { span, .. } => span,
+            Node::NestedCodeBlock { span, .. } => span,
             Node::MathBlock { span, .. } => span,
             Node::List { span, .. } => span,
             Node::ListItem { span, .. } => span,
@@ -397,6 +408,7 @@ impl Node {
                 | Node::Heading { .. }
                 | Node::Paragraph { .. }
                 | Node::CodeBlock { .. }
+                | Node::NestedCodeBlock { .. }
                 | Node::MathBlock { .. }
                 | Node::List { .. }
                 | Node::ListItem { .. }
@@ -452,6 +464,7 @@ impl Node {
             Node::Document { children, .. } => Some(children),
             Node::Heading { content, .. } => Some(content),
             Node::Paragraph { content, .. } => Some(content),
+            Node::NestedCodeBlock { content, .. } => Some(content),
             Node::List { items, .. } => Some(items),
             Node::ListItem { content, .. } => Some(content),
             Node::BlockQuote { content, .. } => Some(content),
@@ -481,6 +494,7 @@ impl Node {
             Node::Document { children, .. } => Some(children),
             Node::Heading { content, .. } => Some(content),
             Node::Paragraph { content, .. } => Some(content),
+            Node::NestedCodeBlock { content, .. } => Some(content),
             Node::List { items, .. } => Some(items),
             Node::ListItem { content, .. } => Some(content),
             Node::BlockQuote { content, .. } => Some(content),
@@ -535,6 +549,16 @@ impl Node {
     pub fn code_block(language: Option<String>, content: String, span: Span) -> Self {
         Node::CodeBlock {
             language,
+            content,
+            span,
+        }
+    }
+
+    /// Create a new nested code block node (Marco extension)
+    pub fn nested_code_block(language: Option<String>, level: u8, content: Vec<Node>, span: Span) -> Self {
+        Node::NestedCodeBlock {
+            language,
+            level,
             content,
             span,
         }

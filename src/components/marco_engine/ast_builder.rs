@@ -21,6 +21,8 @@ pub struct AstBuilder {
     /// Cache for efficient span creation (currently unused but planned for optimization)
     #[allow(dead_code)]
     span_cache: HashMap<String, Span>,
+    /// Current nesting depth for nested code blocks
+    nesting_depth: u8,
 }
 
 /// Error type for AST building operations
@@ -43,6 +45,7 @@ impl AstBuilder {
     pub fn new() -> Self {
         Self {
             span_cache: HashMap::new(),
+            nesting_depth: 0,
         }
     }
 
@@ -116,6 +119,9 @@ impl AstBuilder {
                 // Look for pattern: text ending with 2+ spaces + soft line break
                 inline_content = self.detect_hard_line_breaks(inline_content, &paragraph_text)?;
 
+                // Fix whitespace boundary issues between text and formatting
+                inline_content = self.fix_whitespace_boundaries(inline_content, &paragraph_text)?;
+
                 Ok(Node::paragraph(inline_content, span))
             }
 
@@ -134,10 +140,18 @@ impl AstBuilder {
                 Ok(Node::heading(level, content, span))
             }
 
-            // Code blocks - unified handling
+            // Code blocks - unified handling with nested support
             Rule::code_block | Rule::fenced_code | Rule::indented_code => {
                 let (language, content) = self.extract_code_content(&pair)?;
-                Ok(Node::code_block(language, content, span))
+
+                // Check if this is a nested fenced code block
+                if let Some((nested_node, _nesting_level)) =
+                    self.try_build_nested_code_block(&language, &content, span.clone())?
+                {
+                    Ok(nested_node)
+                } else {
+                    Ok(Node::code_block(language, content, span))
+                }
             }
 
             // Math blocks
@@ -268,16 +282,13 @@ impl AstBuilder {
 
             // Emphasis handling - only handle specific types to avoid nesting
             Rule::bold_asterisk | Rule::bold_underscore => {
-                let content = self.extract_emphasis_content(&pair)?;
-                Ok(Node::strong(vec![Node::text(content, span.clone())], span))
+                let content = self.extract_emphasis_content_from_structure(&pair)?;
+                Ok(Node::strong(content, span))
             }
 
             Rule::italic_asterisk | Rule::italic_underscore => {
-                let content = self.extract_emphasis_content(&pair)?;
-                Ok(Node::emphasis(
-                    vec![Node::text(content, span.clone())],
-                    span,
-                ))
+                let content = self.extract_emphasis_content_from_structure(&pair)?;
+                Ok(Node::emphasis(content, span))
             }
 
             Rule::bold_italic_triple_asterisk
@@ -286,12 +297,9 @@ impl AstBuilder {
             | Rule::bold_italic_mixed_under_ast
             | Rule::bold_italic_triple_mixed_au
             | Rule::bold_italic_triple_mixed_ua => {
-                let content = self.extract_emphasis_content(&pair)?;
+                let content = self.extract_emphasis_content_from_structure(&pair)?;
                 Ok(Node::strong(
-                    vec![Node::emphasis(
-                        vec![Node::text(content, span.clone())],
-                        span.clone(),
-                    )],
+                    vec![Node::emphasis(content, span.clone())],
                     span,
                 ))
             }
@@ -1009,6 +1017,93 @@ impl AstBuilder {
         }
     }
 
+    /// Extract emphasis content from non-atomic structure (new method for non-atomic rules)
+    fn extract_emphasis_content_from_structure(
+        &mut self,
+        pair: &Pair<Rule>,
+    ) -> Result<Vec<Node>, AstError> {
+        let mut content_nodes = Vec::new();
+
+        // Skip opening and closing markers, process content in between
+        let inner_pairs: Vec<_> = pair.clone().into_inner().collect();
+
+        if inner_pairs.is_empty() {
+            // If no internal structure, extract text content manually
+            let text = pair.as_str();
+            let content_text = match pair.as_rule() {
+                Rule::bold_asterisk => {
+                    if text.len() >= 4 && text.starts_with("**") && text.ends_with("**") {
+                        text[2..text.len() - 2].to_string()
+                    } else if text.len() >= 2 && text.starts_with("**") {
+                        text[2..].to_string()
+                    } else {
+                        text.to_string()
+                    }
+                }
+                Rule::bold_underscore => {
+                    if text.len() >= 4 && text.starts_with("__") && text.ends_with("__") {
+                        text[2..text.len() - 2].to_string()
+                    } else if text.len() >= 2 && text.starts_with("__") {
+                        text[2..].to_string()
+                    } else {
+                        text.to_string()
+                    }
+                }
+                Rule::italic_asterisk => {
+                    if text.len() >= 2
+                        && text.starts_with("*")
+                        && text.ends_with("*")
+                        && !text.starts_with("**")
+                    {
+                        text[1..text.len() - 1].to_string()
+                    } else if text.len() >= 1 && text.starts_with("*") && !text.starts_with("**") {
+                        text[1..].to_string()
+                    } else {
+                        text.to_string()
+                    }
+                }
+                Rule::italic_underscore => {
+                    if text.len() >= 2
+                        && text.starts_with("_")
+                        && text.ends_with("_")
+                        && !text.starts_with("__")
+                    {
+                        text[1..text.len() - 1].to_string()
+                    } else if text.len() >= 1 && text.starts_with("_") && !text.starts_with("__") {
+                        text[1..].to_string()
+                    } else {
+                        text.to_string()
+                    }
+                }
+                _ => {
+                    // For bold_italic rules
+                    let text = pair.as_str();
+                    if text.len() >= 6 && text.starts_with("***") && text.ends_with("***") {
+                        text[3..text.len() - 3].to_string()
+                    } else if text.len() >= 6 && text.starts_with("___") && text.ends_with("___") {
+                        text[3..text.len() - 3].to_string()
+                    } else {
+                        // Handle other bold_italic variations...
+                        text.to_string()
+                    }
+                }
+            };
+
+            if !content_text.is_empty() {
+                let span = self.create_span(pair);
+                content_nodes.push(Node::text(content_text, span));
+            }
+        } else {
+            // Process internal structure if present
+            for inner_pair in inner_pairs {
+                let child = self.build_node(inner_pair)?;
+                content_nodes.push(child);
+            }
+        }
+
+        Ok(content_nodes)
+    }
+
     /// Extract fenced code content (helper function)
     fn extract_fenced_code_content(
         &self,
@@ -1019,14 +1114,20 @@ impl AstBuilder {
             return Ok((None, String::new()));
         }
 
-        // Extract language from first line
+        // Extract language from first line - now supporting variable-length fences
         let first_line = lines[0];
-        let language = if first_line.starts_with("```") && first_line.len() > 3 {
-            let lang_part = first_line[3..].trim();
-            if lang_part.is_empty() {
-                None
+        let language = if first_line.starts_with("```") {
+            // Find where backticks end
+            let backtick_count = first_line.chars().take_while(|&c| c == '`').count();
+            if first_line.len() > backtick_count {
+                let lang_part = first_line[backtick_count..].trim();
+                if lang_part.is_empty() {
+                    None
+                } else {
+                    Some(lang_part.to_string())
+                }
             } else {
-                Some(lang_part.to_string())
+                None
             }
         } else {
             None
@@ -1843,6 +1944,159 @@ impl AstBuilder {
         Ok(content)
     }
 
+    /// Fix whitespace boundary issues between text and formatting elements
+    fn fix_whitespace_boundaries(
+        &self,
+        mut content: Vec<Node>,
+        source_text: &str,
+    ) -> Result<Vec<Node>, AstError> {
+        let mut i = 0;
+        while i < content.len() {
+            // Look for patterns where whitespace is missing between text and formatting
+            if i > 0 {
+                let needs_update = {
+                    let (prev_node, current_node) = (&content[i - 1], &content[i]);
+
+                    // Check if there's missing whitespace between nodes
+                    match (prev_node, current_node) {
+                        (
+                            Node::Text {
+                                span: prev_span, ..
+                            },
+                            Node::Strong {
+                                span: current_span, ..
+                            }
+                            | Node::Emphasis {
+                                span: current_span, ..
+                            },
+                        ) => {
+                            // Check if there's a gap between the spans (missing whitespace)
+                            if prev_span.end < current_span.start {
+                                let gap_start = prev_span.end as usize;
+                                let gap_end = current_span.start as usize;
+
+                                if gap_start < source_text.len() && gap_end <= source_text.len() {
+                                    let gap_text = &source_text[gap_start..gap_end];
+
+                                    // If the gap contains only whitespace, we should add it
+                                    if gap_text.trim().is_empty() && !gap_text.is_empty() {
+                                        Some((true, gap_text.to_string()))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    }
+                };
+
+                if let Some((is_prev, gap_text)) = needs_update {
+                    if is_prev {
+                        // Update the previous text node
+                        if let Node::Text {
+                            content: prev_content,
+                            span: prev_span,
+                        } = &content[i - 1].clone()
+                        {
+                            if let Node::Strong {
+                                span: current_span, ..
+                            }
+                            | Node::Emphasis {
+                                span: current_span, ..
+                            } = &content[i]
+                            {
+                                content[i - 1] = Node::Text {
+                                    content: format!("{}{}", prev_content, gap_text),
+                                    span: Span {
+                                        start: prev_span.start,
+                                        end: current_span.start,
+                                        line: prev_span.line,
+                                        column: prev_span.column,
+                                    },
+                                };
+                            }
+                        }
+                    }
+                }
+
+                // Also check the reverse: formatting followed by text
+                let needs_update_reverse = {
+                    let (prev_node, current_node) = (&content[i - 1], &content[i]);
+
+                    match (prev_node, current_node) {
+                        (
+                            Node::Strong {
+                                span: prev_span, ..
+                            }
+                            | Node::Emphasis {
+                                span: prev_span, ..
+                            },
+                            Node::Text {
+                                span: current_span, ..
+                            },
+                        ) => {
+                            // Check if there's a gap between the spans (missing whitespace)
+                            if prev_span.end < current_span.start {
+                                let gap_start = prev_span.end as usize;
+                                let gap_end = current_span.start as usize;
+
+                                if gap_start < source_text.len() && gap_end <= source_text.len() {
+                                    let gap_text = &source_text[gap_start..gap_end];
+
+                                    // If the gap contains only whitespace, we should add it
+                                    if gap_text.trim().is_empty() && !gap_text.is_empty() {
+                                        Some(gap_text.to_string())
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        _ => None,
+                    }
+                };
+
+                if let Some(gap_text) = needs_update_reverse {
+                    // Update the current text node
+                    if let Node::Text {
+                        content: current_content,
+                        span: current_span,
+                    } = &content[i].clone()
+                    {
+                        if let Node::Strong {
+                            span: prev_span, ..
+                        }
+                        | Node::Emphasis {
+                            span: prev_span, ..
+                        } = &content[i - 1]
+                        {
+                            content[i] = Node::Text {
+                                content: format!("{}{}", gap_text, current_content),
+                                span: Span {
+                                    start: prev_span.end,
+                                    end: current_span.end,
+                                    line: current_span.line,
+                                    column: current_span.column,
+                                },
+                            };
+                        }
+                    }
+                }
+            }
+            i += 1;
+        }
+        Ok(content)
+    }
+
     /// Check if there's text before the line break position that ends with 2+ spaces
     fn find_preceding_text_with_trailing_spaces(
         &self,
@@ -1895,6 +2149,102 @@ impl AstBuilder {
             }
         }
         None
+    }
+
+    /// Try to build a nested code block if the content contains nested fenced code
+    /// Returns (nested_node, nesting_level) if nested content is detected, or None for regular code blocks
+    fn try_build_nested_code_block(
+        &mut self,
+        language: &Option<String>,
+        content: &str,
+        span: Span,
+    ) -> Result<Option<(Node, u8)>, AstError> {
+        // Check if the content contains nested fenced code blocks
+        if self.has_nested_fences(content) {
+            // Determine our level based on our own opening fence from the span
+            let nesting_level = self.determine_current_fence_level(&span);
+
+            // This is a nested code block - parse the content recursively
+            let inner_content = self.parse_nested_content(content)?;
+
+            let nested_node =
+                Node::nested_code_block(language.clone(), nesting_level, inner_content, span);
+
+            Ok(Some((nested_node, nesting_level)))
+        } else {
+            // Regular code block - no nesting detected
+            Ok(None)
+        }
+    }
+
+    /// Check if content has nested fence markers
+    fn has_nested_fences(&self, content: &str) -> bool {
+        let lines: Vec<&str> = content.lines().collect();
+
+        for line in lines {
+            let trimmed = line.trim();
+
+            // Check for fenced code block markers
+            if trimmed.starts_with("```") && trimmed.len() >= 3 {
+                let backtick_count = trimmed.chars().take_while(|&c| c == '`').count();
+                if backtick_count >= 3 {
+                    return true;
+                }
+            }
+        }
+
+        // If we're already at a nesting depth > 0, treat all blocks as nested for consistency
+        if self.nesting_depth > 0 {
+            return true;
+        }
+
+        false
+    }
+
+    /// Determine the current fence level based on the original input
+    /// This is a simplified approach - in a full implementation we'd track this better
+    fn determine_current_fence_level(&self, _span: &Span) -> u8 {
+        // Use current nesting depth + 1
+        self.nesting_depth + 1
+    }
+
+    /// Parse nested content recursively with increased nesting depth
+    fn parse_nested_content(&mut self, content: &str) -> Result<Vec<Node>, AstError> {
+        // Increase nesting depth for recursive parsing
+        let old_depth = self.nesting_depth;
+        self.nesting_depth += 1;
+
+        // Parse the content as a markdown document
+        use crate::components::marco_engine::MarcoParser;
+        use pest::Parser;
+
+        let result = match MarcoParser::parse(Rule::document, content) {
+            Ok(pairs) => {
+                let mut children = Vec::new();
+                for pair in pairs {
+                    let node = self.build_node(pair)?;
+                    children.push(node);
+                }
+                Ok(children)
+            }
+            Err(_e) => {
+                // If parsing fails, treat as plain text
+                Ok(vec![Node::text(
+                    content.to_string(),
+                    Span {
+                        start: 0,
+                        end: content.len() as u32,
+                        line: 1,
+                        column: 1,
+                    },
+                )])
+            }
+        };
+
+        // Restore original nesting depth
+        self.nesting_depth = old_depth;
+
+        result
     }
 }
 
