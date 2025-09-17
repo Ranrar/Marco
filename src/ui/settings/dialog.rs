@@ -46,6 +46,9 @@ pub struct SettingsDialogCallbacks {
     pub on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
     pub on_schema_changed: Option<Box<dyn Fn(Option<String>) + 'static>>,
     pub on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+    pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
+    pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
 pub fn show_settings_dialog(
@@ -65,7 +68,7 @@ pub fn show_settings_dialog(
 
     // Add each tab
     notebook.append_page(
-        &tabs::editor::build_editor_tab(),
+        &tabs::editor::build_editor_tab(settings_path.to_str().unwrap()),
         Some(&Label::new(Some("Editor"))),
     );
     // Build layout tab and provide a callback that will persist the setting and
@@ -102,7 +105,14 @@ pub fn show_settings_dialog(
     }) as std::boxed::Box<dyn Fn(String) + 'static>;
 
     notebook.append_page(
-        &tabs::layout::build_layout_tab(saved_view_mode, Some(layout_cb)),
+        &tabs::layout::build_layout_tab(
+            saved_view_mode,
+            Some(layout_cb),
+            settings_path.to_str(),
+            callbacks.on_split_ratio_changed,
+            callbacks.on_sync_scrolling_changed,
+            callbacks.on_line_numbers_changed,
+        ),
         Some(&Label::new(Some("Layout"))),
     );
 
@@ -133,52 +143,15 @@ pub fn show_settings_dialog(
             Some(&Label::new(Some("Appearance"))),
         );
     }
-    // --- Markdown Schema Tab (disabled) ---
-    // The Markdown Schema tab has been temporarily hidden from the Settings dialog.
-    // The original implementation is preserved below for easy re-enabling.
-    // To re-enable, uncomment the lines and restore `pub mod schema;` in
-    // `src/ui/settings/tabs/mod.rs`.
-
-    /*
-    use crate::ui::settings::tabs::schema::build_schema_tab;
-    let schema_root = "src/assets/markdown_schema";
-    // Load settings using Settings struct
-    use crate::logic::swanson::Settings as AppSettings;
-    let app_settings =
-        AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
-    let active_schema = app_settings.active_schema.clone();
-    let schema_disabled = app_settings.schema_disabled.unwrap_or(false);
-    // Handler for schema change
-    let settings_path_clone = settings_path.clone();
-    let on_schema_changed = Rc::new(move |selected: Option<String>| {
-        // Update settings using Settings struct
-        use crate::logic::swanson::Settings as AppSettings;
-        let mut app_settings =
-            AppSettings::load_from_file(settings_path_clone.to_str().unwrap()).unwrap_or_default();
-        app_settings.active_schema = selected.clone();
-        app_settings.schema_disabled = Some(selected.is_none());
-        app_settings
-            .save_to_file(settings_path_clone.to_str().unwrap())
-            .ok();
-        // Reload parser and update UI (handled by on_schema_changed_callback in caller)
-        // Invoke optional external callback so callers can update shared state
-        if let Some(ref cb) = on_schema_changed_callback {
-            cb(selected.clone());
-        }
-    });
-    notebook.append_page(
-        &build_schema_tab(
-            schema_root,
-            active_schema,
-            schema_disabled,
-            on_schema_changed,
-        ),
-        Some(&Label::new(Some("Markdown Schema"))),
-    );
-    */
     notebook.append_page(
         &tabs::language::build_language_tab(),
         Some(&Label::new(Some("Language"))),
+    );
+
+    // Add Markdown tab for markdown-specific settings
+    notebook.append_page(
+        &tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap()),
+        Some(&Label::new(Some("Markdown"))),
     );
 
     // Optionally show Debug tab when `debug` is enabled in settings.ron

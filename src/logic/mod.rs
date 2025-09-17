@@ -1,6 +1,6 @@
 pub mod swanson;
 pub mod crossplatforms;
-pub mod asset_path;
+pub mod paths;
 pub mod menu_items;
 pub mod buffer;
 pub mod loaders;

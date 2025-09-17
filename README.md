@@ -1,16 +1,20 @@
 <p align="center">
-  <img src="https://github.com/Ranrar/marco/blob/main/documentation/user%20guide/logo.png" />
+  <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/user%20guide/logo.png" />
 </p>
 
 Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and custom markdown features.
 
 ## Features in Progress
 
-The **UI is mostly complete**, and we’re now turning our focus to the engine behind Marco. We’re actively developing the **grammar, AST, and syntax rules** for the parser and renderer, which will bring the editor to life.
+Marco is currently in active development with a focus on perfecting our custom markdown grammar and parser. We're approximately **90% complete** with the core implementation, working on polishing the codebase and ensuring robust parsing of all markdown constructs.
 
-Right now, the editor is in an early stage — features are limited — but this will change as we implement the new Markdown capabilities.
+**Current development focus:**
+- Fine-tuning the **pest-based grammar** for comprehensive markdown support
+- Polishing the **AST builder** and **HTML renderer** components
+- Implementing robust **error handling** and **edge case coverage**
+- Optimizing **parser performance** and **memory usage**
 
-Below is a **preview of what’s coming**:
+Below is a **preview of whats coming**:
 
 - Structured **grammar and AST** for Markdown parsing
 - Fully-featured **renderer** for inline and block elements
@@ -19,11 +23,12 @@ Below is a **preview of what’s coming**:
 - Enhanced **admonition blocks** and **mentions**
 - Smooth **cross-document navigation** and page splitting
 
-You can see a **live snippet** of the Markdown features we’re working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
+You can see a **live snippet** of the Markdown features were working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
 
 <p align="center">
-  <img src="documentation/Screenshot/Screenshot from 2025-08-27 17-38-22.png" />
+  <img src="documentation/Screenshot/Screenshot from 2025-09-17 22-21-06.png" />
 </p>
+<a href="documentation/Screenshot">View more screenshots</a>
 
 ## Text Formatting
 
@@ -104,7 +109,7 @@ Marco Markdown adds **powerful navigation features** to your Markdown documents,
 
 Automatically generate a **Table of Contents** from your headings.
 
-* Shows headings in a hierarchy (H1–H6)
+* Shows headings in a hierarchy (H1-H6)
 * Can only be **local** (current page) and can span multiple linked pages
 * Optional depth: limit how many heading levels appear
 * Collapsible sections supported
@@ -266,9 +271,15 @@ Mentions let you **tag people and link to their public profiles**. The format is
 
 ## Architecture & internals
 
-- GTK4-based UI with modular components (editor, viewers, toolbar, menus)
-- Asset pipeline for icons, fonts, and themes (see `src/assets/`)
-- Support for adding custom AST and syntax definitions `src/assets/markdown_schema`
+- **GTK4-RS** (`gtk4`, `glib`, `gio`) - Cross-platform GUI framework providing the main application window, widgets, and event handling. Used for the editor interface, menus, toolbars, and all user interactions.
+
+- **SourceView5** (`sourceview5`) - Advanced text editor component with syntax highlighting and code editing features. Provides the main markdown editing area with features like line numbers, search/replace, and text formatting.
+
+- **WebKit6** (`webkit6`) - Modern web engine for HTML rendering and preview. Displays the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
+
+- **Pest** (`pest`, `pest_derive`) - Parser generator for creating the custom markdown grammar. Used in the marco_engine component to parse markdown into an AST, enabling fine-grained control over rendering and future extensibility for custom markdown features.
+
+- **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
 
 ## Quickstart
 
@@ -311,7 +322,7 @@ Planned and desired improvements
 - Multiple layout modes: editor+preview (standard), editor only, preview only, detachable preview
 - Export / Save as HTML or PDF
 - Page size presets for export (A4, US Letter)
-- Scroll sync between editor and preview
+- [x] Scroll sync between editor and preview
 - Context menus & toolbar: Quick access to formatting and actions
 - Smart code blocks: 100+ programming languages,
 - Intelligent search

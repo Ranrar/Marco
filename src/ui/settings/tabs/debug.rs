@@ -1,7 +1,7 @@
 //! Debug settings tab
-use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, Orientation, Label, CheckButton, Align};
 use crate::logic::swanson::Settings as AppSettings;
+use gtk4::prelude::*;
+use gtk4::{Align, Box as GtkBox, CheckButton, Label, Orientation};
 use log::trace;
 
 /// Builds the Debug tab UI. Provides a simple checkbox to enable/disable debug mode.
@@ -18,13 +18,18 @@ pub fn build_debug_tab(settings_path: &str) -> GtkBox {
     header.set_halign(Align::Start);
     header.set_xalign(0.0);
 
-    let desc = Label::new(Some("Enable debug features and diagnostics. Toggle to show/hide debug UI components."));
+    let desc = Label::new(Some(
+        "Enable debug features and diagnostics. Toggle to show/hide debug UI components.",
+    ));
     desc.set_halign(Align::Start);
     desc.set_xalign(0.0);
     desc.set_wrap(true);
 
     // Load current setting (default to false)
-    let current = AppSettings::load_from_file(settings_path).unwrap_or_default().debug.unwrap_or(false);
+    let current = AppSettings::load_from_file(settings_path)
+        .unwrap_or_default()
+        .debug
+        .unwrap_or(false);
 
     let checkbox = CheckButton::with_label("Enable debug mode (show debug UI and diagnostics)");
     checkbox.set_active(current);

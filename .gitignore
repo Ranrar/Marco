@@ -7,15 +7,9 @@ target
 /.github/chatmodes
 /.github/instructions
 /.VSCodeCounter
-tools
 /.vscode
-/dev
+/.dev
 
 # Program specefik
+/src/bin
 /log
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-.env/

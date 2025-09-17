@@ -1,30 +1,51 @@
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
-use crate::components::marco_engine::render::{markdown_to_html, MarkdownOptions};
+use crate::components::marco_engine::grammar::Rule;
+use crate::components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
+use crate::components::marco_engine::{AstBuilder, MarcoParser};
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
 use crate::components::viewer::webview_utils::webkit_scrollbar_css;
 use crate::footer::FooterLabels;
+use crate::logic::swanson::Settings;
 use gtk4::prelude::*;
 use gtk4::Paned;
+use pest::Parser;
 use sourceview5::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use webkit6::prelude::*;
 
-pub fn create_editor_with_preview(
+pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
     preview_theme_dir: &str,
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     theme_mode: Rc<RefCell<String>>,
     labels: Rc<FooterLabels>,
+    settings_path: &str,
+    document_buffer: Option<Rc<RefCell<crate::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
+    
+    // Add constraints to limit paned position (10% to 90% of width)
+    paned.connect_notify_local(Some("position"), move |paned, _| {
+        let width = paned.allocated_width();
+        if width > 0 {
+            let position = paned.position();
+            let min_position = (width as f64 * 0.10) as i32;  // 10%
+            let max_position = (width as f64 * 0.90) as i32;  // 90%
+            
+            if position < min_position {
+                paned.set_position(min_position);
+            } else if position > max_position {
+                paned.set_position(max_position);
+            }
+        }
+    });
 
-    let (style_scheme, font_family, font_size_pt) = {
+    let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
         let tm = theme_manager.borrow();
         let style_scheme = tm.current_editor_scheme();
         let font_family = tm
@@ -41,16 +62,24 @@ pub fn create_editor_with_preview(
             .and_then(|a| a.ui_font_size)
             .map(|v| v as f64)
             .unwrap_or(10.0);
-        (style_scheme, font_family, font_size_pt)
+        let show_line_numbers = tm
+            .settings
+            .layout
+            .as_ref()
+            .and_then(|l| l.show_line_numbers)
+            .unwrap_or(true);
+        (style_scheme, font_family, font_size_pt, show_line_numbers)
     };
 
     let scheme_id = theme_manager.borrow().current_editor_scheme_id();
-    let (editor_widget, buffer, source_view, _scrolled_css_provider) = render_editor_with_view(
-        &scheme_id,
-        style_scheme.as_ref(),
-        &font_family,
-        font_size_pt,
-    );
+    let (editor_widget, buffer, source_view, _scrolled_css_provider, editor_scrolled_window) =
+        render_editor_with_view(
+            &scheme_id,
+            style_scheme.as_ref(),
+            &font_family,
+            font_size_pt,
+            show_line_numbers,
+        );
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
@@ -76,13 +105,57 @@ pub fn create_editor_with_preview(
     });
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
+    // Register this editor with the global editor manager to receive settings updates
+    {
+        let source_view_for_callback = source_view.clone();
+        let settings_path_owned = settings_path.to_string();
+        if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
+            move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
+                use crate::components::editor::font_config::EditorConfiguration;
+                
+                log::debug!("Applying editor settings update to SourceView: {} {}px", 
+                    new_settings.font_family, new_settings.font_size);
+                
+                // Create an EditorConfiguration instance to apply the settings
+                match EditorConfiguration::new(&settings_path_owned) {
+                    Ok(editor_config) => {
+                        editor_config.apply_to_sourceview(&source_view_for_callback, new_settings);
+                        log::debug!("Successfully applied editor settings to SourceView");
+                    },
+                    Err(e) => {
+                        log::error!("Failed to create EditorConfiguration: {}", e);
+                    }
+                }
+            }
+        ) {
+            log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
+        } else {
+            log::warn!("Failed to register editor with global editor manager - settings updates will not work");
+        }
+    }
+
+    // Register this editor for line numbers updates
+    {
+        let source_view_for_line_numbers = source_view.clone();
+        if let Some(_line_numbers_id) = crate::components::editor::editor_manager::register_line_numbers_callback_globally(
+            move |show_line_numbers: bool| {
+                log::debug!("Applying line numbers setting to SourceView: {}", show_line_numbers);
+                source_view_for_line_numbers.set_show_line_numbers(show_line_numbers);
+            }
+        ) {
+            log::debug!("Registered line numbers callback with editor manager: ID {:?}", _line_numbers_id);
+        } else {
+            log::warn!("Failed to register line numbers callback with global editor manager");
+        }
+    }
+
     use std::fs;
     use std::path::Path;
     let css_path = Path::new(preview_theme_dir).join(preview_theme_filename);
     let mut css = fs::read_to_string(&css_path)
         .unwrap_or_else(|_| String::from("body { background: #fff; color: #222; }"));
 
-    // wheel JS and scroll report
+    // wheel JS with scroll report for bidirectional sync
     let scroll_scale: f64 = std::env::var("MARCO_SCROLL_SCALE")
         .ok()
         .and_then(|s| s.parse::<f64>().ok())
@@ -170,20 +243,37 @@ pub fn create_editor_with_preview(
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    let mut markdown_opts = MarkdownOptions::default();
-    markdown_opts.extension.table = true;
-    markdown_opts.extension.autolink = true;
-    markdown_opts.extension.strikethrough = true;
-    markdown_opts.extension.tasklist = true;
-    markdown_opts.extension.footnotes = true;
-    markdown_opts.extension.tagfilter = true;
-    let markdown_opts_rc = std::rc::Rc::new(markdown_opts);
+    // Load line break mode from settings
+    let line_break_mode = Settings::load_from_file(settings_path)
+        .ok()
+        .and_then(|s| s.engine)
+        .and_then(|e| e.render)
+        .and_then(|r| r.html)
+        .and_then(|h| h.line_break_mode)
+        .unwrap_or_else(|| "normal".to_string());
+
+    let html_opts = HtmlOptions {
+        line_break_mode,
+        ..HtmlOptions::default()
+    };
+    let html_opts_rc = std::rc::Rc::new(html_opts);
 
     // Precreate code scrolled window
     let initial_text = buffer_rc
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
-    let initial_html_body = markdown_to_html(&initial_text, &markdown_opts_rc);
+
+    let initial_html_body = match MarcoParser::parse(Rule::document, &initial_text) {
+        Ok(pairs) => match AstBuilder::build(pairs) {
+            Ok(ast) => {
+                let renderer = HtmlRenderer::new(html_opts_rc.as_ref().clone());
+                renderer.render(&ast)
+            }
+            Err(e) => format!("Error building AST: {}", e),
+        },
+        Err(e) => format!("Error parsing markdown: {}", e),
+    };
+
     let pretty_initial =
         crate::components::viewer::html_format::pretty_print_html(&initial_html_body);
 
@@ -200,6 +290,25 @@ pub fn create_editor_with_preview(
     );
     let webview = crate::components::viewer::webkit6::create_html_viewer(&initial_html);
     let webview_rc = Rc::new(webview.clone());
+
+    // Initialize scroll synchronization between editor and preview
+    if let Some(global_sync) =
+        crate::components::editor::editor_manager::get_global_scroll_synchronizer()
+    {
+        // Setup bidirectional scroll sync between the editor ScrolledWindow and WebView
+        let webview_for_sync = webview.clone();
+        let editor_sw_for_sync = editor_scrolled_window.clone();
+
+        // Setup the bidirectional connection
+        global_sync.connect_scrolled_window_and_webview(&editor_sw_for_sync, &webview_for_sync);
+
+        log::debug!("Scroll synchronization initialized between editor and WebView preview");
+    } else {
+        log::warn!(
+            "Failed to initialize scroll synchronization: global scroll synchronizer not available"
+        );
+    }
+
     let bg_init_owned = editor_bg_color.borrow().clone();
     let fg_init_owned = editor_fg_color.borrow().clone();
     let bg_init = bg_init_owned.as_deref();
@@ -223,34 +332,81 @@ pub fn create_editor_with_preview(
 
     // refresh_preview closure
     let wheel_js_for_refresh = wheel_js_rc.clone();
+    let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
+    let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
+    let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
+    // Clone document_buffer for use in refresh closure
+    let document_buffer_for_refresh = document_buffer.as_ref().map(Rc::clone);
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
-        let markdown_opts = std::rc::Rc::clone(&markdown_opts_rc);
+        let html_opts = std::rc::Rc::clone(&html_opts_rc);
         let wheel_js_local = wheel_js_for_refresh.clone();
+        let is_initial_load_clone = Rc::clone(&is_initial_load);
+        let last_css_hash_clone = Rc::clone(&last_css_hash);
+        let last_document_path_clone = Rc::clone(&last_document_path);
+        let document_buffer_capture = document_buffer_for_refresh.clone();
         std::rc::Rc::new(move || {
-            let text = buffer
-                .text(&buffer.start_iter(), &buffer.end_iter(), false)
-                .to_string();
-            let html_body = markdown_to_html(&text, &markdown_opts);
-            let mut html_body_with_js = html_body.clone();
-            html_body_with_js.push_str(&wheel_js_local);
-            let html = crate::components::viewer::webkit6::wrap_html_document(
-                &html_body_with_js,
-                &css.borrow(),
-                &theme_mode.borrow(),
-            );
-            // Preview HTML built; intentionally not logging size to reduce terminal noise
-            let html_clone = html.clone();
-            let webview_idle = webview.as_ref().clone();
-            glib::idle_add_local(move || {
-                // Load HTML into the webview; do this even if not yet mapped so the
-                // content is present as soon as the widget becomes visible.
-                webview_idle.load_html(&html_clone, None);
-                glib::ControlFlow::Break
-            });
+            let is_first_load = *is_initial_load_clone.borrow();
+            
+            // Check if the document path has changed (indicating a new file was loaded)
+            let current_doc_path = document_buffer_capture
+                .as_ref()
+                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
+            
+            let doc_path_changed = {
+                let last_path = last_document_path_clone.borrow();
+                match (&*last_path, &current_doc_path) {
+                    (None, None) => false,
+                    (Some(_), None) => true,
+                    (None, Some(_)) => true,
+                    (Some(last), Some(current)) => last != current,
+                }
+            };
+            
+            // Update the last document path
+            *last_document_path_clone.borrow_mut() = current_doc_path.clone();
+            
+            // Check if CSS has changed (theme update)
+            use std::collections::hash_map::DefaultHasher;
+            use std::hash::{Hash, Hasher};
+            let mut hasher = DefaultHasher::new();
+            css.borrow().hash(&mut hasher);
+            theme_mode.borrow().hash(&mut hasher);
+            let current_css_hash = hasher.finish();
+            let css_changed = *last_css_hash_clone.borrow() != current_css_hash;
+            *last_css_hash_clone.borrow_mut() = current_css_hash;
+            
+            if is_first_load || css_changed || doc_path_changed {
+                // Use traditional load_html for initial load, when CSS/theme changes, or when document changes
+                // Generate base URI directly from DocumentBuffer for WebKit6
+                let base_uri = document_buffer_capture
+                    .as_ref()
+                    .and_then(|buf| buf.borrow().get_base_uri_for_webview());
+                
+                crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri(
+                    webview.as_ref(),
+                    &css,
+                    html_opts.as_ref(),
+                    buffer.as_ref(),
+                    &wheel_js_local,
+                    &theme_mode,
+                    base_uri.as_deref(),
+                );
+                
+                // Mark as no longer initial load
+                *is_initial_load_clone.borrow_mut() = false;
+            } else {
+                // Use smooth updates for subsequent content changes
+                crate::components::viewer::preview::refresh_preview_content_smooth(
+                    webview.as_ref(),
+                    html_opts.as_ref(),
+                    buffer.as_ref(),
+                    &wheel_js_local,
+                );
+            }
         })
     };
 
@@ -258,10 +414,62 @@ pub fn create_editor_with_preview(
     log::debug!("[preview] triggering initial refresh");
     refresh_preview_impl();
 
+    // Track current view mode for real-time updates
+    let current_view_mode: Rc<RefCell<ViewMode>> = Rc::new(RefCell::new(ViewMode::HtmlPreview));
+
+    // Function to update HTML code view with raw HTML
+    let update_html_code_view = {
+        let buffer_for_code = Rc::clone(&buffer_rc);
+        let precreated_code_sw_for_code = precreated_code_sw.clone();
+        let html_opts_for_code = Rc::clone(&html_opts_rc);
+        
+        Box::new(move || {
+            let text = buffer_for_code
+                .text(
+                    &buffer_for_code.start_iter(),
+                    &buffer_for_code.end_iter(),
+                    false,
+                )
+                .to_string();
+
+            // Generate raw HTML using Marco engine (same as nested code blocks)
+            let html_body = match MarcoParser::parse(Rule::document, &text) {
+                Ok(pairs) => match AstBuilder::build(pairs) {
+                    Ok(ast) => {
+                        let renderer = HtmlRenderer::new(html_opts_for_code.as_ref().clone());
+                        renderer.render(&ast)
+                    }
+                    Err(e) => format!("<!-- Error building AST: {} -->", e),
+                },
+                Err(e) => format!("<!-- Error parsing markdown: {} -->", e),
+            };
+
+            // Format the HTML for better readability in code view
+            let formatted_html = crate::components::viewer::html_format::pretty_print_html(&html_body);
+            
+            // Show formatted HTML for easy reading and debugging
+            if let Some(sw_child) = precreated_code_sw_for_code.child() {
+                if let Ok(tv) = sw_child.downcast::<gtk4::TextView>() {
+                    let new_buf = gtk4::TextBuffer::new(None::<&gtk4::TextTagTable>);
+                    new_buf.set_text(&formatted_html);  // Pretty-formatted HTML for readability
+                    tv.set_buffer(Some(&new_buf));
+                }
+            }
+        }) as Box<dyn Fn()>
+    };
+    let update_html_code_view_rc = Rc::new(update_html_code_view);
+
     // Also update preview whenever buffer content changes (e.g. when opening a file).
     let refresh_for_signal = std::rc::Rc::clone(&refresh_preview_impl);
+    let update_code_for_signal = Rc::clone(&update_html_code_view_rc);
+    let view_mode_for_signal = Rc::clone(&current_view_mode);
     buffer_rc.connect_changed(move |_| {
-        refresh_for_signal();
+        refresh_for_signal();  // Always update HTML preview
+        
+        // Also update code view if we're currently in CodePreview mode
+        if *view_mode_for_signal.borrow() == ViewMode::CodePreview {
+            update_code_for_signal();
+        }
     });
 
     // theme update function
@@ -281,7 +489,7 @@ pub fn create_editor_with_preview(
     // Clones for preview theme updater
     let theme_manager_for_preview = Rc::clone(&theme_manager);
     let css_rc_for_preview = Rc::clone(&css_rc);
-    let markdown_opts_for_preview = std::rc::Rc::clone(&markdown_opts_rc);
+    let html_opts_for_preview = std::rc::Rc::clone(&html_opts_rc);
     let buffer_rc_for_preview = Rc::clone(&buffer_rc);
     let webview_rc_for_preview = Rc::clone(&webview_rc);
     let wheel_js_for_preview = wheel_js_for_refresh.clone();
@@ -289,6 +497,7 @@ pub fn create_editor_with_preview(
     let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
     let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
     let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
+    let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
     use std::cell::Cell;
     let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
     let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
@@ -395,18 +604,32 @@ pub fn create_editor_with_preview(
         let preview_theme_timeout_clone2 = Rc::clone(&preview_theme_timeout_clone);
         let webview_clone = webview_rc_for_preview.clone();
         let css_clone = Rc::clone(&css_rc_for_preview);
-        let markdown_clone = std::rc::Rc::clone(&markdown_opts_for_preview);
+        let html_opts_clone = std::rc::Rc::clone(&html_opts_for_preview);
         let buffer_clone = Rc::clone(&buffer_rc_for_preview);
         let wheel_clone = wheel_js_for_preview.clone();
         let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
+        let document_buffer_clone = document_buffer_for_preview.as_ref().map(Rc::clone);
         let id = glib::timeout_add_local(std::time::Duration::from_millis(150), move || {
+            // Extract document path from DocumentBuffer for base URI generation
+            let doc_path = document_buffer_clone
+                .as_ref()
+                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
+            
+            // Debug: log the document path being passed
+            if let Some(ref path) = doc_path {
+                eprintln!("[DEBUG] Theme refresh: Passing document path to preview: {}", path.display());
+            } else {
+                eprintln!("[DEBUG] Theme refresh: No document path available (untitled document)");
+            }
+            
             refresh_preview_into_webview(
                 webview_clone.as_ref(),
                 &css_clone,
-                &markdown_clone,
+                &html_opts_clone,
                 &buffer_clone,
                 &wheel_clone,
                 &theme_mode_clone,
+                doc_path.as_deref(),
             );
             preview_theme_timeout_clone2.set(None);
             glib::ControlFlow::Break
@@ -431,10 +654,14 @@ pub fn create_editor_with_preview(
             // visible child and keeps the code-preview TextView in sync with
             // the latest rendered HTML.
             let stack_for_mode = stack.clone();
-            let buffer_for_mode = Rc::clone(&buffer_rc);
-            let precreated_code_sw_for_mode = precreated_code_sw.clone();
             let refresh_for_mode = std::rc::Rc::clone(&refresh_preview_impl);
+            let update_code_for_mode = Rc::clone(&update_html_code_view_rc);
+            let current_view_mode_for_mode = Rc::clone(&current_view_mode);
+            
             Box::new(move |mode: ViewMode| {
+                // Update the tracked view mode
+                *current_view_mode_for_mode.borrow_mut() = mode;
+                
                 match mode {
                     ViewMode::HtmlPreview => {
                         // Ensure preview is up-to-date, then show HTML preview.
@@ -442,30 +669,8 @@ pub fn create_editor_with_preview(
                         stack_for_mode.set_visible_child_name("html_preview");
                     }
                     ViewMode::CodePreview => {
-                        // Regenerate pretty HTML from current buffer and update the
-                        // TextView inside the precreated scrolled window so the
-                        // source view shows current content.
-                        let text = buffer_for_mode
-                            .text(
-                                &buffer_for_mode.start_iter(),
-                                &buffer_for_mode.end_iter(),
-                                false,
-                            )
-                            .to_string();
-                        let html_body = markdown_to_html(&text, &markdown_opts_rc);
-                        let pretty =
-                            crate::components::viewer::html_format::pretty_print_html(&html_body);
-
-                        if let Some(sw_child) = precreated_code_sw_for_mode.child() {
-                            if let Ok(tv) = sw_child.downcast::<gtk4::TextView>() {
-                                // Create a fresh TextBuffer with the updated pretty HTML
-                                // and set it on the TextView. This avoids depending on
-                                // the exact return type of `tv.buffer()` across gtk versions.
-                                let new_buf = gtk4::TextBuffer::new(None::<&gtk4::TextTagTable>);
-                                new_buf.set_text(&pretty);
-                                tv.set_buffer(Some(&new_buf));
-                            }
-                        }
+                        // Update HTML code view with current raw HTML, then show it
+                        (update_code_for_mode)();
                         stack_for_mode.set_visible_child_name("code_preview");
                     }
                 }

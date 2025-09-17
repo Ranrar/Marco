@@ -2,17 +2,17 @@
 //!
 //! Usage:
 //! ```no_run
-//! use marco::logic::asset_path::get_asset_dir;
+//! use marco::logic::paths::{get_asset_dir_checked, get_font_path, get_settings_path};
 //!
-//! let asset_dir = get_asset_dir();
-//! let font_path = asset_dir.join("fonts/ui_menu.ttf");
-//! let settings_path = asset_dir.join("settings.ron");
+//! let asset_dir = get_asset_dir_checked()?;
+//! let font_path = get_font_path("ui_menu.ttf")?;
+//! let settings_path = get_settings_path()?;
 //! ```
 //!
 //! This works regardless of where the binary is run from, as long as "marco/" is next to the binary.
 
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::fmt;
 
 /// Custom error type for asset path detection
@@ -47,11 +47,6 @@ pub fn get_asset_dir_checked() -> Result<PathBuf, AssetError> {
     }
 }
 
-/// Returns the asset directory path ("marco") next to the binary, panicking if not found.
-pub fn get_asset_dir() -> PathBuf {
-    get_asset_dir_checked().expect("Asset directory not found next to binary")
-}
-
 /// Returns the path to a font file in the asset directory.
 pub fn get_font_path(font_name: &str) -> Result<PathBuf, AssetError> {
     let asset_dir = get_asset_dir_checked()?;
@@ -63,10 +58,3 @@ pub fn get_settings_path() -> Result<PathBuf, AssetError> {
     let asset_dir = get_asset_dir_checked()?;
     Ok(asset_dir.join("settings.ron"))
 }
-
-/// Returns the path to a documentation file in the asset directory.
-pub fn get_doc_path(doc_name: &str) -> Result<PathBuf, AssetError> {
-    let asset_dir = get_asset_dir_checked()?;
-    Ok(asset_dir.join("documentation").join(doc_name))
-}
-

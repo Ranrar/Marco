@@ -263,6 +263,57 @@ impl DocumentBuffer {
         self.file_path.as_deref()
     }
 
+    /// Gets the directory containing the document file
+    ///
+    /// This is useful for resolving relative image paths in markdown documents.
+    ///
+    /// # Returns
+    /// * `Some(PathBuf)` - Directory path containing the file
+    /// * `None` - Document is untitled/unsaved or path has no parent
+    ///
+    /// # Example
+    /// ```no_run
+    /// use std::path::Path;
+    /// use marco::logic::buffer::DocumentBuffer;
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// let buffer = DocumentBuffer::new_from_file(Path::new("/home/user/docs/readme.md"))?;
+    /// let dir = buffer.get_directory_path();
+    /// assert_eq!(dir.unwrap(), Path::new("/home/user/docs"));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_directory_path(&self) -> Option<&Path> {
+        self.file_path.as_deref()?.parent()
+    }
+
+    /// Generates a file:// URI for the document's directory
+    ///
+    /// This is used as a base URI for WebKit6 to resolve relative image paths
+    /// in markdown documents. The base URI points to the directory containing
+    /// the markdown file, allowing relative image references to work correctly.
+    ///
+    /// # Returns
+    /// * `Some(String)` - file:// URI for the document directory
+    /// * `None` - Document is untitled/unsaved or path has no parent
+    ///
+    /// # Example
+    /// ```no_run
+    /// use std::path::Path;
+    /// use marco::logic::buffer::DocumentBuffer;
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// let buffer = DocumentBuffer::new_from_file(Path::new("/home/user/docs/readme.md"))?;
+    /// let base_uri = buffer.get_base_uri_for_webview();
+    /// assert!(base_uri.unwrap().starts_with("file://"));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn get_base_uri_for_webview(&self) -> Option<String> {
+        let dir_path = self.get_directory_path()?;
+        Some(format!("file://{}/", dir_path.display()))
+    }
+
     /// Gets the full display title including modification indicator
     ///
     /// # Returns

@@ -602,13 +602,12 @@ impl FileOperations {
         let new_buffer = DocumentBuffer::new_from_file(path)?;
         let content = new_buffer.read_content()?;
 
-        // Update editor
-        editor_buffer.set_text(&content);
-
-        // Update our buffer
+        // Update our DocumentBuffer FIRST (before editor buffer to ensure preview refresh sees the updated state)
         *self.buffer.borrow_mut() = new_buffer;
-        // Set baseline to the loaded content so modifications are tracked correctly
         self.buffer.borrow_mut().set_baseline(&content);
+
+        // Update editor (this will trigger preview refresh which should now see the updated DocumentBuffer)
+        editor_buffer.set_text(&content);
 
         // Add to recent files
         self.add_recent_file(path);

@@ -1,122 +1,72 @@
-// Marco Editor Settings File (RON format)
-// All settings are grouped by UI tab/section. Adjust as needed.
-//
-// The `static_defaults` group below contains the canonical default for every setting.
-// Use this for "reset all" operations or to audit the default state.
-static_defaults: (
-    editor: (
-        font: "Monospace",
-        font_size: 14,
-        line_height: 1.4,
-        line_wrapping: true,
-        auto_pairing: true,
-        show_invisibles: false,
-        tabs_to_spaces: true,
-        syntax_colors: true,
-        linting: true,
-    ),
-    appearance: (
-        color_mode: "System default"
-        app_theme: "standard-light.css",
-        preview_theme: "standard,css",
-        ui_font: "System Default",
-        ui_font_size: 14,
-    ),
-    layout: (
-        view_mode: "HTML Preview",
-        sync_scrolling: true,
-        editor_view_split: 60,
-        show_line_numbers: true,
-        text_direction: "LTR",
-    ),
-    language: (
-        language: "System Default",
-    ),
-    advanced: (
-        enabled_variants: ["CommonMark", "GFM"],
-        plugins: [],
-    ),
-    // Window geometry and state
-    window: (
-        // Window width in pixels (400-5000)
-        width: 1200,
-        // Window height in pixels (300-3000)
-        height: 800,
-        // Window X position on screen (-10000 to 10000)
-        x: 0,
-        // Window Y position on screen (-10000 to 10000)
-        y: 0,
-        // Start maximized (true/false)
-        maximized: false,
-    ),
-),
-// ---- User/active settings below ----
 (
-    editor: (
-        // Font used in the editor ("Monospace" or "Proportional")
-        font: "Monospace",
-        // Font size for the editor (10-24)
-        font_size: 14,
-        // Line height (1.0-2.0, step 0.05)
-        line_height: 1.4,
-        // Line wrapping (wrap long lines in editor)
-        line_wrapping: true,
-        // Auto pairing (auto-close brackets, quotes, etc.)
-        auto_pairing: true,
-        // Show invisible characters (tabs, spaces, newlines)
-        show_invisibles: false,
-        // Convert tabs to spaces
-        tabs_to_spaces: true,
-        // Syntax colors (enable syntax highlighting)
-        syntax_colors: true,
-        // Enable Markdown linting
-        linting: true,
-    ),
-    appearance: (
-        // Application theme ("Light", "Dark", "System Default")
-        color_mode: "System default"
-        // Application theme (css file)
-        app_theme: "standard-light.css",
-        // HTML preview theme (css file)
-        preview_theme: "standard,css",
-        // UI font (menus, sidebars)
-        ui_font: "System Default",
-        // UI font size (10-24)
-        ui_font_size: 14,
-    ),
-    layout: (
-        // Default view mode ("HTML Preview" or "Source Code")
-        view_mode: "HTML Preview",
-        // Synchronize scrolling between editor and preview
-        sync_scrolling: true,
-        // Editor/view split percentage (10-90)
-        editor_view_split: 60,
-        // Show line numbers in editor gutter
-        show_line_numbers: true,
-        // Text direction ("LTR" or "RTL")
-        text_direction: "LTR",
-    ),
-    language: (
-        // UI language ("System Default", "English", "Dansk", "Deutsch", "Français", "العربية", "日本語")
-        language: "System Default",
-    ),
-    // Window geometry and state
-    window: (
-        // Window width in pixels (400-5000)
-        width: 1200,
-        // Window height in pixels (300-3000)
-        height: 800,
-        // Window X position on screen (-10000 to 10000)
-        x: 0,
-        // Window Y position on screen (-10000 to 10000)
-        y: 0,
-        // Start maximized (true/false)
-        maximized: false,
-    ),
-    advanced: (
-        // Enabled Markdown variants (default fallback: ["CommonMark", "GFM"])
-        enabled_variants: ["CommonMark", "GFM"],
-        // Plugins/extensions (future: list of plugin configs)
-        plugins: [],
-    ),
+    editor: Some((
+        font: Some("Monospace"),
+        font_size: Some(12),
+        line_height: Some(1.0),
+        line_wrapping: Some(true),
+        auto_pairing: None,
+        show_invisibles: Some(false),
+        tabs_to_spaces: Some(false),
+        syntax_colors: Some(true),
+        linting: None,
+    )),
+    appearance: Some((
+        editor_mode: Some("dark"),
+        preview_theme: Some("astro.css"),
+        ui_font: None,
+        ui_font_size: None,
+    )),
+    layout: Some((
+        view_mode: Some("HTML Preview"),
+        sync_scrolling: Some(true),
+        editor_view_split: None,
+        show_line_numbers: Some(false),
+        text_direction: None,
+    )),
+    language: None,
+    window: Some((
+        width: Some(800),
+        height: Some(600),
+        x: None,
+        y: None,
+        maximized: Some(false),
+        split_ratio: Some(40),
+    )),
+    advanced: None,
+    files: Some((
+        recent_files: Some([
+            "/home/ranrar/Code/projects/marco2/README.md",
+        ]),
+        max_recent_files: None,
+    )),
+    debug: Some(false),
+    log_to_file: Some(false),
+    active_schema: None,
+    schema_disabled: None,
+    engine: Some((
+        parser: Some((
+
+            detailed_errors: Some(true),
+            collect_stats: None,
+        )),
+        render: Some((
+            html: Some((
+                include_styles: None,
+                generate_toc: None,
+                syntax_highlighting: Some(true),
+                semantic_html: None,
+                include_metadata: None,
+                line_break_mode: Some("reversed"),
+            )),
+            text: None,
+            default_format: None,
+        )),
+        performance: Some((
+            worker_threads: None,
+            cache_ast: Some(true),
+            max_cache_memory_mb: None,
+            debug_mode: None,
+        )),
+        output: None,
+    )),
 )

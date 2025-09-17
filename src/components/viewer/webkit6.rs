@@ -3,24 +3,87 @@
 /// it takes the already-rendered HTML and presents it in the UI.
 use gtk4::prelude::*;
 use webkit6::prelude::*;
-
 use webkit6::WebView;
+use std::path::Path;
 /// TODO change open link polici to onnly allow open target when klicking
+
+/// Generate a file:// base URI from a document path for resolving relative file references.
+/// If the document has a parent directory, returns a file:// URI for that directory.
+/// This allows relative image paths and other file references in the document to work correctly.
+pub fn generate_base_uri_from_path<P: AsRef<Path>>(document_path: P) -> Option<String> {
+    if let Some(parent_dir) = document_path.as_ref().parent() {
+        // Convert parent directory to absolute path and create file:// URI
+        if let Ok(absolute_parent) = parent_dir.canonicalize() {
+            let path_str = absolute_parent.to_string_lossy();
+            Some(format!("file://{}/", path_str))
+        } else {
+            // Fallback: use the path as-is if canonicalize fails
+            let path_str = parent_dir.to_string_lossy();
+            Some(format!("file://{}/", path_str))
+        }
+    } else {
+        None
+    }
+}
 /// Create a WebView widget and load the provided HTML string.
+/// If base_uri is provided, it will be used as the base for resolving relative paths.
 pub fn create_html_viewer(html: &str) -> WebView {
+    create_html_viewer_with_base(html, None)
+}
+
+/// Create a WebView widget with an optional base URI for resolving relative paths.
+/// This version allows specifying a base URI to resolve local file references.
+pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>) -> WebView {
     let webview = WebView::new();
+    
+    // Configure WebKit security settings to allow local file access
+    if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
+        settings.set_allow_file_access_from_file_urls(true);
+        settings.set_allow_universal_access_from_file_urls(true);
+        settings.set_auto_load_images(true);
+    }
+    
     // Defer loading HTML until the main loop is idle to ensure the widget
     // has been allocated and avoid 'trying to snapshot GtkGizmo without a current allocation' warnings.
     let html_string = html.to_string();
+    let base_uri_string = base_uri.map(|s| s.to_string());
     let webview_clone = webview.clone();
     glib::idle_add_local(move || {
-        webview_clone.load_html(&html_string, None);
+        webview_clone.load_html(&html_string, base_uri_string.as_deref());
         // Stop the idle source after one run
         glib::ControlFlow::Break
     });
     webview.set_vexpand(true);
     webview.set_hexpand(true);
     webview
+}
+
+/// Update the content in an existing WebView using JavaScript injection.
+/// This avoids full page reloads and provides smooth updates while preserving scroll position.
+pub fn update_html_content_smooth(webview: &WebView, content: &str) {
+    let escaped_content = content
+        .replace('\\', "\\\\")
+        .replace('\'', "\\'")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r");
+
+    let js_code = format!("updateContent('{}');", escaped_content);
+    let webview_clone = webview.clone();
+    let js_code_clone = js_code.clone();
+
+    glib::idle_add_local(move || {
+        webview_clone.evaluate_javascript(
+            &js_code_clone,
+            None,                      // world_name
+            None,                      // source_uri
+            None::<&gio::Cancellable>, // cancellable
+            |result| match result {
+                Ok(_) => log::debug!("[webkit6] Content updated successfully"),
+                Err(e) => log::warn!("[webkit6] Failed to update content: {}", e),
+            },
+        );
+        glib::ControlFlow::Break
+    });
 }
 
 /// Wraps the HTML body with a full HTML document, injecting the provided CSS string into the <head>.
@@ -46,9 +109,42 @@ pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
                     document.documentElement.className = mode;
                 }} catch(e){{}}
             }}
+            function updateContent(htmlContent) {{
+                try {{
+                    // Save current scroll position
+                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+                    
+                    // Update content container
+                    var container = document.getElementById('marco-content-container');
+                    if (container) {{
+                        container.innerHTML = htmlContent;
+                        
+                        // Restore scroll position after a brief delay to allow content to render
+                        setTimeout(function() {{
+                            document.documentElement.scrollTop = scrollTop;
+                            document.body.scrollTop = scrollTop;
+                        }}, 10);
+                    }}
+                }} catch(e) {{
+                    console.error('Error updating content:', e);
+                }}
+            }}
+            function setContent(htmlContent) {{
+                // Alternative function for setting content without scroll preservation
+                try {{
+                    var container = document.getElementById('marco-content-container');
+                    if (container) {{
+                        container.innerHTML = htmlContent;
+                    }}
+                }} catch(e) {{
+                    console.error('Error setting content:', e);
+                }}
+            }}
         </script>
     </head>
-    <body>{}</body>
+    <body>
+        <div id="marco-content-container">{}</div>
+    </body>
 </html>"#,
         theme_mode, css, body
     );

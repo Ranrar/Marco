@@ -5,11 +5,13 @@ pub fn render_editor_with_view(
     style_scheme: Option<&sourceview5::StyleScheme>,
     font_family: &str,
     font_size_pt: f64,
+    show_line_numbers: bool,
 ) -> (
     gtk4::Box,
     sourceview5::Buffer,
     sourceview5::View,
     gtk4::CssProvider,
+    gtk4::ScrolledWindow,
 ) {
     let container = gtk4::Box::new(gtk4::Orientation::Vertical, 6);
     let buffer = sourceview5::Buffer::new(None);
@@ -19,9 +21,15 @@ pub fn render_editor_with_view(
     source_view.set_monospace(true);
     source_view.set_vexpand(true);
     source_view.set_editable(true);
-    source_view.set_show_line_numbers(true);
+    source_view.set_show_line_numbers(show_line_numbers);
     source_view.set_highlight_current_line(false);
-    source_view.set_show_line_marks(true);
+    source_view.set_show_line_marks(false);
+
+    // Set inner text margins (space between text and editor boundaries)
+    source_view.set_left_margin(10); // Left margin inside the editor
+    source_view.set_right_margin(10); // Right margin inside the editor
+    source_view.set_top_margin(10); // Top margin inside the editor
+    source_view.set_bottom_margin(10); // Bottom margin inside the editor
 
     if let Some(scheme) = style_scheme {
         buffer.set_style_scheme(Some(scheme));
@@ -63,5 +71,5 @@ pub fn render_editor_with_view(
 
     container.append(&scrolled);
 
-    (container, buffer, source_view, scrolled_provider)
+    (container, buffer, source_view, scrolled_provider, scrolled)
 }

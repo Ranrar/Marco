@@ -50,11 +50,6 @@ fn main() {
     let lang_dst = marco_root.join("language");
     copy_dir_recursive(&lang_src, &lang_dst);
 
-    // Copy markdown_schema
-    let md_src = asset_root.join("markdown_schema");
-    let md_dst = marco_root.join("markdown_schema");
-    copy_dir_recursive(&md_src, &md_dst);
-
     // Copy themes
     let themes_src = asset_root.join("themes");
     let themes_dst = marco_root.join("themes");
