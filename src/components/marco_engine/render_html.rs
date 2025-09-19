@@ -13,8 +13,6 @@ pub struct HtmlOptions {
     pub inline_styles: bool,
     pub class_prefix: String,
     pub sanitize_html: bool,
-    /// Line break behavior: "normal" (CommonMark) or "reversed" (Marco)
-    pub line_break_mode: String,
 }
 
 impl Default for HtmlOptions {
@@ -25,7 +23,6 @@ impl Default for HtmlOptions {
             inline_styles: false,
             class_prefix: "marco-".to_string(),
             sanitize_html: true,
-            line_break_mode: "normal".to_string(),
         }
     }
 }
@@ -52,8 +49,27 @@ impl HtmlRenderer {
         match node {
             // Document structure
             Node::Document { children, .. } => {
-                for child in children {
-                    self.render_node(child);
+                // Group consecutive standalone ListItems into proper list containers
+                let mut i = 0;
+                while i < children.len() {
+                    if let Node::ListItem { .. } = &children[i] {
+                        // Found a standalone ListItem - collect all consecutive ones
+                        write!(self.output, "<ul>").unwrap();
+                        while i < children.len() {
+                            if let Node::ListItem { .. } = &children[i] {
+                                // Render standalone ListItem WITHOUT <li> wrapper
+                                self.render_standalone_list_item(&children[i]);
+                                i += 1;
+                            } else {
+                                break;
+                            }
+                        }
+                        write!(self.output, "</ul>").unwrap();
+                    } else {
+                        // Not a ListItem - render normally
+                        self.render_node(&children[i]);
+                        i += 1;
+                    }
                 }
             }
 
@@ -66,8 +82,23 @@ impl HtmlRenderer {
                 write!(self.output, "</h{}>", level).unwrap();
             }
 
-            Node::Paragraph { content, .. } => {
-                write!(self.output, "<p>").unwrap();
+            Node::Paragraph { content, indent_level, .. } => {
+                write!(self.output, "<p").unwrap();
+                
+                // Add indentation class if present
+                if let Some(indent) = indent_level {
+                    if *indent > 0 {
+                        write!(
+                            self.output,
+                            " class=\"{}indent-level-{}\"",
+                            self.options.class_prefix,
+                            indent
+                        )
+                        .unwrap();
+                    }
+                }
+                
+                write!(self.output, ">").unwrap();
                 for child in content {
                     self.render_node(child);
                 }
@@ -75,9 +106,25 @@ impl HtmlRenderer {
             }
 
             Node::CodeBlock {
-                language, content, ..
+                language, content, indent_level, ..
             } => {
-                write!(self.output, "<pre><code").unwrap();
+                write!(self.output, "<pre").unwrap();
+                
+                // Add indentation class to the pre tag if present
+                if let Some(indent) = indent_level {
+                    if *indent > 0 {
+                        write!(
+                            self.output,
+                            " class=\"{}indent-level-{}\"",
+                            self.options.class_prefix,
+                            indent
+                        )
+                        .unwrap();
+                    }
+                }
+                
+                write!(self.output, "><code").unwrap();
+                
                 if let Some(lang) = language {
                     write!(
                         self.output,
@@ -122,57 +169,9 @@ impl HtmlRenderer {
                 // Add content container
                 write!(self.output, "<div class=\"code-content\">").unwrap();
 
-                // Check if this is the innermost level with just text content (actual code)
-                if content.len() == 1 {
-                    if let Some(document_node) = content.first() {
-                        if let Node::Document { children, .. } = document_node {
-                            if children.len() == 1 {
-                                if let Some(Node::Paragraph {
-                                    content: text_nodes,
-                                    ..
-                                }) = children.first()
-                                {
-                                    // This looks like code content - render as <pre><code>
-                                    write!(self.output, "<pre><code>").unwrap();
-                                    for text_node in text_nodes {
-                                        if let Node::Text {
-                                            content: text_content,
-                                            ..
-                                        } = text_node
-                                        {
-                                            write!(
-                                                self.output,
-                                                "{}",
-                                                self.escape_html(text_content)
-                                            )
-                                            .unwrap();
-                                        }
-                                    }
-                                    write!(self.output, "</code></pre>").unwrap();
-                                } else {
-                                    // Recursively render nested content
-                                    for child in content {
-                                        self.render_node(child);
-                                    }
-                                }
-                            } else {
-                                // Recursively render nested content
-                                for child in content {
-                                    self.render_node(child);
-                                }
-                            }
-                        } else {
-                            // Recursively render nested content
-                            for child in content {
-                                self.render_node(child);
-                            }
-                        }
-                    }
-                } else {
-                    // Recursively render nested content
-                    for child in content {
-                        self.render_node(child);
-                    }
+                // Always render nested content consistently as regular markdown content
+                for child in content {
+                    self.render_node(child);
                 }
 
                 write!(self.output, "</div></div>").unwrap();
@@ -199,22 +198,36 @@ impl HtmlRenderer {
             }
 
             Node::ListItem {
-                content, checked, ..
+                content, checked, indent_level, ..
             } => {
                 write!(self.output, "<li").unwrap();
+                
+                // Build class string combining task item and indentation classes
+                let mut classes = Vec::new();
+                
                 if let Some(is_checked) = checked {
-                    let class = if *is_checked {
-                        "task-item checked"
+                    if *is_checked {
+                        classes.push(format!("{}task-item checked", self.options.class_prefix));
                     } else {
-                        "task-item"
-                    };
+                        classes.push(format!("{}task-item", self.options.class_prefix));
+                    }
+                }
+                
+                if let Some(indent) = indent_level {
+                    if *indent > 0 {
+                        classes.push(format!("{}indent-level-{}", self.options.class_prefix, indent));
+                    }
+                }
+                
+                if !classes.is_empty() {
                     write!(
                         self.output,
-                        " class=\"{}{}\"",
-                        self.options.class_prefix, class
+                        " class=\"{}\"",
+                        classes.join(" ")
                     )
                     .unwrap();
                 }
+                
                 write!(self.output, ">").unwrap();
 
                 if let Some(is_checked) = checked {
@@ -283,11 +296,33 @@ impl HtmlRenderer {
                 }
             }
 
-            Node::BlockQuote { content, .. } => {
-                write!(self.output, "<blockquote>").unwrap();
-                for child in content {
+            Node::BlockQuote { content, indent_level, .. } => {
+                write!(self.output, "<blockquote").unwrap();
+                
+                // Apply indentation class if present
+                if let Some(indent) = indent_level {
+                    if *indent > 0 {
+                        write!(self.output, " class=\"{}indent-level-{}\"", 
+                               self.options.class_prefix, indent).unwrap();
+                    }
+                }
+                
+                write!(self.output, ">").unwrap();
+                
+                // Handle blockquote content with proper line breaks between text nodes
+                for (i, child) in content.iter().enumerate() {
+                    if i > 0 {
+                        // Add line break between consecutive text nodes or other inline content
+                        match (content.get(i-1), child) {
+                            (Some(Node::Text { .. }), Node::Text { .. }) => {
+                                write!(self.output, "<br>").unwrap();
+                            },
+                            _ => {}
+                        }
+                    }
                     self.render_node(child);
                 }
+                
                 write!(self.output, "</blockquote>").unwrap();
             }
 
@@ -420,41 +455,14 @@ impl HtmlRenderer {
             }
 
             Node::LineBreak { break_type, .. } => {
-                match self.options.line_break_mode.as_str() {
-                    "normal" => {
-                        // CommonMark behavior: Hard breaks become <br>, soft breaks are ignored
-                        match break_type {
-                            crate::components::marco_engine::ast_node::LineBreakType::Hard => {
-                                write!(self.output, "<br>").unwrap();
-                            }
-                            crate::components::marco_engine::ast_node::LineBreakType::Soft => {
-                                // Soft breaks are ignored in normal mode (just whitespace)
-                                write!(self.output, " ").unwrap();
-                            }
-                        }
+                // Standard behavior: Hard breaks become <br>, soft breaks become space
+                match break_type {
+                    crate::components::marco_engine::ast_node::LineBreakType::Hard => {
+                        write!(self.output, "<br>").unwrap();
                     }
-                    "reversed" => {
-                        // Marco behavior: Soft breaks become <br>, hard breaks are ignored
-                        match break_type {
-                            crate::components::marco_engine::ast_node::LineBreakType::Hard => {
-                                // Hard breaks are ignored in reversed mode (just whitespace)
-                                write!(self.output, " ").unwrap();
-                            }
-                            crate::components::marco_engine::ast_node::LineBreakType::Soft => {
-                                write!(self.output, "<br>").unwrap();
-                            }
-                        }
-                    }
-                    _ => {
-                        // Default to normal behavior for unknown modes
-                        match break_type {
-                            crate::components::marco_engine::ast_node::LineBreakType::Hard => {
-                                write!(self.output, "<br>").unwrap();
-                            }
-                            crate::components::marco_engine::ast_node::LineBreakType::Soft => {
-                                write!(self.output, " ").unwrap();
-                            }
-                        }
+                    crate::components::marco_engine::ast_node::LineBreakType::Soft => {
+                        // Soft breaks are rendered as space
+                        write!(self.output, " ").unwrap();
                     }
                 }
             }
@@ -769,14 +777,6 @@ impl HtmlRenderer {
                 }
             }
 
-            Node::InlineHtml { content, .. } => {
-                if self.options.sanitize_html && !self.is_safe_html(content) {
-                    write!(self.output, "<code>{}</code>", self.escape_html(content)).unwrap();
-                } else {
-                    write!(self.output, "{}", content).unwrap();
-                }
-            }
-
             // Error recovery
             Node::Unknown { content, rule, .. } => {
                 write!(
@@ -889,8 +889,31 @@ impl HtmlRenderer {
                 .replace('>', "&gt;")
                 .replace('"', "&quot;")
                 .replace('\'', "&#x27;")
+                .replace('\t', "&nbsp;&nbsp;&nbsp;&nbsp;") // Convert tabs to 4 non-breaking spaces
         } else {
-            input.to_string()
+            input
+                .replace('\t', "&nbsp;&nbsp;&nbsp;&nbsp;") // Convert tabs to 4 non-breaking spaces even without sanitization
+        }
+    }
+
+    /// Render a standalone ListItem without <li> wrapper (for document-level tasks)
+    fn render_standalone_list_item(&mut self, node: &Node) {
+        if let Node::ListItem { content, checked, .. } = node {
+            // Render checkbox if this is a task
+            if let Some(is_checked) = checked {
+                let checked_attr = if *is_checked { " checked" } else { "" };
+                write!(
+                    self.output,
+                    "<input type=\"checkbox\"{} disabled> ",
+                    checked_attr
+                )
+                .unwrap();
+            }
+
+            // Render content without <li> wrapper
+            for child in content {
+                self.render_node(child);
+            }
         }
     }
 }

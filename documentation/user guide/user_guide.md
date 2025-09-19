@@ -152,12 +152,12 @@ Create headings using the toolbar dropdown or keyboard shortcuts:
 ### Code Blocks
 - **Inline Code**: Use backticks `` `code` ``
 - **Fenced Code Blocks**: Use the smart search dialog or type manually
-  ```markdown
+  ````markdown
   ```python
   def hello():
       print("Hello, World!")
   ```
-  ```
+  ````
 
 #### Smart Language Selection
 Marco now features an advanced language picker for fenced code blocks:

@@ -56,7 +56,6 @@
                 syntax_highlighting: Some(true),
                 semantic_html: None,
                 include_metadata: None,
-                line_break_mode: Some("reversed"),
             )),
             text: None,
             default_format: None,

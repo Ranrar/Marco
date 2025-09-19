@@ -287,22 +287,116 @@ code {
 }
 
 pre {
+    border: 1px solid var(--pre-border);
+    border-radius: 5px;
+    margin: 1.5rem 0;
+    overflow: hidden;
+    background-color: var(--pre-bg);
+    border-left: 4px solid var(--link-color);
+}
+
+pre:before {
+    content: "Code";
+    display: block;
     background-color: var(--pre-bg);
     color: var(--pre-color);
-    border-radius: 5px;
-    font-size: 0.85rem;
-    line-height: 1.4;
-    overflow: auto;
-    padding: 1.5rem;
-    margin: 1.5rem 0;
-    border: 1px solid var(--pre-border);
+    padding: 0.4rem 0.75rem;
+    font-weight: 400;
+    font-size: 0.8rem;
+    font-family: 'Palatino', 'Palatino Linotype', 'Palatino LT STD', 'Book Antiqua', Georgia, serif;
+    border-bottom: 1px solid var(--pre-border);
+    opacity: 0.8;
 }
 
 pre code {
-    background-color: transparent;
-    border: none;
-    padding: 0;
-    color: inherit;
+    display: block;
+    padding: 1rem;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: visible;
+}
+
+
+
+/* Nested Code Blocks (Marco Extension) */
+.nested-code-block {
+    border: 1px solid var(--pre-border);
+    border-radius: 5px;
+    margin: 1.5rem 0;
+    overflow: hidden;
+    background-color: var(--pre-bg);
+}
+
+.nested-code-block .code-header {
+    background-color: var(--pre-bg);
+    color: var(--pre-color);
+    padding: 0.4rem 0.75rem;
+    font-weight: 400;
+    font-size: 0.8rem;
+    font-family: 'Palatino', 'Palatino Linotype', 'Palatino LT STD', 'Book Antiqua', Georgia, serif;
+    border-bottom: 1px solid var(--pre-border);
+    opacity: 0.8;
+}
+
+.nested-code-block .code-content {
+    padding: 1rem;
+    background-color: var(--bg-color);
+    min-height: 2rem;
+}
+
+/* Different border colors for nesting levels */
+.nested-code-block.level-1 {
+    border-left: 4px solid var(--link-color);
+}
+
+.nested-code-block.level-2 {
+    border-left: 4px solid var(--quote-border);
+}
+
+.nested-code-block.level-3 {
+    border-left: 4px solid var(--heading-accent);
+}
+
+.nested-code-block.level-4,
+.nested-code-block.level-5,
+.nested-code-block.level-6,
+.nested-code-block.level-7,
+.nested-code-block.level-8,
+.nested-code-block.level-9,
+.nested-code-block.level-10 {
+    border-left: 4px solid var(--h6-color);
+}
+
+/* Code blocks inside nested blocks should have reduced padding */
+.nested-code-block .code-content pre {
+    margin: 0.5rem 0;
+    padding: 0.75rem;
+    background-color: var(--pre-bg);
+    border: 1px solid var(--pre-border);
+}
+
+/* Remove the "Code" label from pre blocks inside nested code blocks */
+.nested-code-block .code-content pre:before {
+    display: none !important;
+    content: none !important;
+}
+
+/* Adjust nested paragraph spacing */
+.nested-code-block .code-content p {
+    margin: 0.5rem 0;
+    text-indent: 0; /* No indent in code blocks */
+}
+
+.nested-code-block .code-content p:first-child {
+    margin-top: 0;
+}
+
+.nested-code-block .code-content p:last-child {
+    margin-bottom: 0;
 }
 
 table {

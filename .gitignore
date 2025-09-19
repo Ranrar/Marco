@@ -2,6 +2,9 @@
 Cargo.lock
 target
 
+# Not ready
+src/assets/themes/editor/syntax
+
 # internal dev code
 *.code-workspace
 /.github/chatmodes

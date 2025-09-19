@@ -98,12 +98,17 @@ pub enum Node {
     },
 
     /// Paragraph containing inline content
-    Paragraph { content: Vec<Node>, span: Span },
+    Paragraph { 
+        content: Vec<Node>, 
+        indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
+        span: Span 
+    },
 
     /// Code block (fenced ``` or indented) - unified
     CodeBlock {
         language: Option<String>, // Programming language if specified
         content: String,          // Raw code content
+        indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
         span: Span,
     },
 
@@ -131,6 +136,7 @@ pub enum Node {
     ListItem {
         content: Vec<Node>,    // Item content
         checked: Option<bool>, // For task lists: None, Some(false), Some(true)
+        indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
         span: Span,
     },
 
@@ -149,7 +155,11 @@ pub enum Node {
     },
 
     /// Block quote
-    BlockQuote { content: Vec<Node>, span: Span },
+    BlockQuote { 
+        content: Vec<Node>, 
+        indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
+        span: Span 
+    },
 
     /// Horizontal rule (---, ***, ___)
     HorizontalRule { span: Span },
@@ -333,9 +343,6 @@ pub enum Node {
     /// Block HTML <div>...</div>
     HtmlBlock { content: String, span: Span },
 
-    /// Inline HTML <span>text</span>
-    InlineHtml { content: String, span: Span },
-
     // ===========================================
     // ERROR RECOVERY
     // ===========================================
@@ -395,7 +402,6 @@ impl Node {
             Node::ReferenceLink { span, .. } => span,
             Node::ReferenceImage { span, .. } => span,
             Node::HtmlBlock { span, .. } => span,
-            Node::InlineHtml { span, .. } => span,
             Node::Unknown { span, .. } => span,
         }
     }
@@ -454,7 +460,6 @@ impl Node {
                 | Node::InlineFootnoteRef { .. }
                 | Node::ReferenceLink { .. }
                 | Node::ReferenceImage { .. }
-                | Node::InlineHtml { .. }
         )
     }
 
@@ -536,8 +541,8 @@ impl Node {
     }
 
     /// Create a new paragraph node
-    pub fn paragraph(content: Vec<Node>, span: Span) -> Self {
-        Node::Paragraph { content, span }
+    pub fn paragraph(content: Vec<Node>, indent_level: Option<u8>, span: Span) -> Self {
+        Node::Paragraph { content, indent_level, span }
     }
 
     /// Create a new text node
@@ -546,10 +551,11 @@ impl Node {
     }
 
     /// Create a new code block node
-    pub fn code_block(language: Option<String>, content: String, span: Span) -> Self {
+    pub fn code_block(language: Option<String>, content: String, indent_level: Option<u8>, span: Span) -> Self {
         Node::CodeBlock {
             language,
             content,
+            indent_level,
             span,
         }
     }
@@ -579,10 +585,11 @@ impl Node {
     }
 
     /// Create a new list item node
-    pub fn list_item(content: Vec<Node>, checked: Option<bool>, span: Span) -> Self {
+    pub fn list_item(content: Vec<Node>, checked: Option<bool>, indent_level: Option<u8>, span: Span) -> Self {
         Node::ListItem {
             content,
             checked,
+            indent_level,
             span,
         }
     }
@@ -627,8 +634,8 @@ impl Node {
     }
 
     /// Create a new block quote node
-    pub fn block_quote(content: Vec<Node>, span: Span) -> Self {
-        Node::BlockQuote { content, span }
+    pub fn block_quote(content: Vec<Node>, indent_level: Option<u8>, span: Span) -> Self {
+        Node::BlockQuote { content, indent_level, span }
     }
 
     /// Create a new horizontal rule node
@@ -751,11 +758,6 @@ impl Node {
     /// Create a new HTML block node
     pub fn html_block(content: String, span: Span) -> Self {
         Node::HtmlBlock { content, span }
-    }
-
-    /// Create a new inline HTML node
-    pub fn inline_html(content: String, span: Span) -> Self {
-        Node::InlineHtml { content, span }
     }
 
     /// Create a new definition list node

@@ -8,7 +8,6 @@ use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
 use crate::components::viewer::webview_utils::webkit_scrollbar_css;
 use crate::footer::FooterLabels;
-use crate::logic::swanson::Settings;
 use gtk4::prelude::*;
 use gtk4::Paned;
 use pest::Parser;
@@ -86,14 +85,15 @@ pub fn create_editor_with_preview_and_buffer(
 
     let insert_mode_state: Rc<RefCell<bool>> = Rc::new(RefCell::new(true));
 
-    // Event controller for Insert key
+    // Event controller for Insert key and line break handling
     use gtk4::gdk::Key;
+    use gtk4::gdk::ModifierType;
     use gtk4::glib::Propagation;
     let event_controller = gtk4::EventControllerKey::new();
     let insert_mode_state_clone = Rc::clone(&insert_mode_state);
     let labels_clone = Rc::clone(&labels);
     let source_view_clone = source_view.clone();
-    event_controller.connect_key_pressed(move |_controller, keyval, _keycode, _state| {
+    event_controller.connect_key_pressed(move |_controller, keyval, _keycode, state| {
         if keyval == Key::Insert {
             let mut mode = insert_mode_state_clone.borrow_mut();
             *mode = !*mode;
@@ -101,8 +101,26 @@ pub fn create_editor_with_preview_and_buffer(
             crate::footer::update_insert_mode(&labels_clone, *mode);
             return Propagation::Stop;
         }
+        
+        // Handle Enter vs Shift+Enter for different line break types
+        if keyval == Key::Return {
+            let buffer = source_view_clone.buffer();
+            if state.contains(ModifierType::SHIFT_MASK) {
+                // Shift+Enter: Insert hard line break (backslash + newline)
+                buffer.insert_at_cursor("\\");
+                buffer.insert_at_cursor("\n");
+            } else {
+                // Enter: Insert soft line break (just newline)
+                buffer.insert_at_cursor("\n");
+            }
+            return Propagation::Stop;
+        }
+        
         Propagation::Proceed
     });
+    
+    // Set event controller to capture phase to ensure it receives events before SourceView
+    event_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
     // Register this editor with the global editor manager to receive settings updates
@@ -154,6 +172,10 @@ pub fn create_editor_with_preview_and_buffer(
     let css_path = Path::new(preview_theme_dir).join(preview_theme_filename);
     let mut css = fs::read_to_string(&css_path)
         .unwrap_or_else(|_| String::from("body { background: #fff; color: #222; }"));
+
+    // Add Marco indentation CSS to the theme CSS
+    css.push('\n');
+    css.push_str(&crate::components::viewer::webview_utils::complete_indentation_css());
 
     // wheel JS with scroll report for bidirectional sync
     let scroll_scale: f64 = std::env::var("MARCO_SCROLL_SCALE")
@@ -243,19 +265,7 @@ pub fn create_editor_with_preview_and_buffer(
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    // Load line break mode from settings
-    let line_break_mode = Settings::load_from_file(settings_path)
-        .ok()
-        .and_then(|s| s.engine)
-        .and_then(|e| e.render)
-        .and_then(|r| r.html)
-        .and_then(|h| h.line_break_mode)
-        .unwrap_or_else(|| "normal".to_string());
-
-    let html_opts = HtmlOptions {
-        line_break_mode,
-        ..HtmlOptions::default()
-    };
+    let html_opts = HtmlOptions::default();
     let html_opts_rc = std::rc::Rc::new(html_opts);
 
     // Precreate code scrolled window
@@ -386,26 +396,30 @@ pub fn create_editor_with_preview_and_buffer(
                     .as_ref()
                     .and_then(|buf| buf.borrow().get_base_uri_for_webview());
                 
-                crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri(
-                    webview.as_ref(),
-                    &css,
-                    html_opts.as_ref(),
-                    buffer.as_ref(),
-                    &wheel_js_local,
-                    &theme_mode,
-                    base_uri.as_deref(),
-                );
+                let params = crate::components::viewer::preview::PreviewRefreshParams {
+                    webview: webview.as_ref(),
+                    css: &css,
+                    html_options: html_opts.as_ref(),
+                    buffer: buffer.as_ref(),
+                    wheel_js: &wheel_js_local,
+                    theme_mode: &theme_mode,
+                    base_uri: base_uri.as_deref(),
+                    document_buffer: document_buffer_capture.as_ref(),
+                };
+                crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
                 
                 // Mark as no longer initial load
                 *is_initial_load_clone.borrow_mut() = false;
             } else {
                 // Use smooth updates for subsequent content changes
-                crate::components::viewer::preview::refresh_preview_content_smooth(
-                    webview.as_ref(),
-                    html_opts.as_ref(),
-                    buffer.as_ref(),
-                    &wheel_js_local,
-                );
+                let params = crate::components::viewer::preview::SmoothUpdateParams {
+                    webview: webview.as_ref(),
+                    html_options: html_opts.as_ref(),
+                    buffer: buffer.as_ref(),
+                    wheel_js: &wheel_js_local,
+                    document_buffer: document_buffer_capture.as_ref(),
+                };
+                crate::components::viewer::preview::refresh_preview_content_smooth_with_doc_buffer(params);
             }
         })
     };

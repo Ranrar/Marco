@@ -122,17 +122,6 @@ impl Settings {
         }
         false
     }
-
-    /// Get the line break mode for HTML rendering
-    pub fn get_line_break_mode(&self) -> String {
-        self.engine
-            .as_ref()
-            .and_then(|e| e.render.as_ref())
-            .and_then(|r| r.html.as_ref())
-            .and_then(|h| h.line_break_mode.clone())
-            .unwrap_or_else(|| "normal".to_string())
-    }
-
     /// Get window settings, creating default if none exist
     pub fn get_window_settings(&self) -> WindowSettings {
         self.window.clone().unwrap_or_default()
@@ -260,8 +249,4 @@ pub struct EngineHtmlSettings {
     pub generate_toc: Option<bool>,
     /// Include metadata in HTML head (UI setting - not consumed by current Marco engine)
     pub include_metadata: Option<bool>,
-    /// Line break behavior: "normal" (CommonMark) or "reversed" (Marco)
-    /// Normal: Single Enter = soft break (no <br>), Double space/backslash + Enter = hard break (<br>)
-    /// Reversed: Single Enter = hard break (<br>), Double space/backslash + Enter = soft break (no <br>)
-    pub line_break_mode: Option<String>,
 }

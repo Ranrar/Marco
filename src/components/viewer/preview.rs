@@ -6,6 +6,27 @@ use pest::Parser;
 use std::cell::RefCell;
 use webkit6::prelude::*;
 
+/// Parameters for preview refresh operations
+pub struct PreviewRefreshParams<'a> {
+    pub webview: &'a webkit6::WebView,
+    pub css: &'a RefCell<String>,
+    pub html_options: &'a HtmlOptions,
+    pub buffer: &'a sourceview5::Buffer,
+    pub wheel_js: &'a str,
+    pub theme_mode: &'a RefCell<String>,
+    pub base_uri: Option<&'a str>,
+    pub document_buffer: Option<&'a std::rc::Rc<std::cell::RefCell<crate::logic::buffer::DocumentBuffer>>>,
+}
+
+/// Simplified parameters for smooth content updates
+pub struct SmoothUpdateParams<'a> {
+    pub webview: &'a webkit6::WebView,
+    pub html_options: &'a HtmlOptions,
+    pub buffer: &'a sourceview5::Buffer,
+    pub wheel_js: &'a str,
+    pub document_buffer: Option<&'a std::rc::Rc<std::cell::RefCell<crate::logic::buffer::DocumentBuffer>>>,
+}
+
 /// Generate test HTML content when the editor is empty
 fn generate_test_html(wheel_js: &str) -> String {
     let welcome_html = r#"<div id="welcome-message" style="
@@ -100,32 +121,93 @@ pub fn refresh_preview_into_webview_with_base_uri(
     theme_mode: &RefCell<String>,
     base_uri: Option<&str>,
 ) {
-    let text = buffer
-        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+    let params = PreviewRefreshParams {
+        webview,
+        css,
+        html_options,
+        buffer,
+        wheel_js,
+        theme_mode,
+        base_uri,
+        document_buffer: None,
+    };
+    refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
+}
+
+    /// Enhanced version that checks both GTK TextBuffer and DocumentBuffer to determine if welcome message should show
+    pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(
+        params: PreviewRefreshParams<'_>,
+    ) {
+    let text = params.buffer
+        .text(&params.buffer.start_iter(), &params.buffer.end_iter(), false)
         .to_string();
 
     // Debug: log the input text
     log::debug!("[viewer] Processing text: '{}'", text);
 
+    // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
     let html_body_with_js = if text.trim().is_empty() {
-        log::debug!("[viewer] Empty text, using welcome message");
-        generate_test_html(wheel_js)
+        match params.document_buffer {
+            Some(doc_buf) => {
+                let doc_buf_borrowed = doc_buf.borrow();
+                if doc_buf_borrowed.get_file_path().is_none() {
+                    // Untitled document with empty GTK buffer -> show welcome message
+                    log::debug!("[viewer] Empty GTK buffer, untitled document -> showing welcome message");
+                    generate_test_html(params.wheel_js)
+                } else {
+                    // File document with empty GTK buffer -> try to read from DocumentBuffer
+                    log::debug!("[viewer] Empty GTK buffer, but file loaded -> trying to read from DocumentBuffer");
+                    match doc_buf_borrowed.read_content() {
+                        Ok(file_content) if !file_content.trim().is_empty() => {
+                            log::debug!("[viewer] Successfully read content from DocumentBuffer: {} chars", file_content.len());
+                            let html_body = parse_markdown_to_html(&file_content, params.html_options);
+                            let mut html_with_js = html_body;
+                            html_with_js.push_str(params.wheel_js);
+                            html_with_js
+                        }
+                        Ok(_) => {
+                            // File exists but is empty
+                            log::debug!("[viewer] File exists but is empty -> parsing empty content");
+                            let html_body = parse_markdown_to_html("", params.html_options);
+                            let mut html_with_js = html_body;
+                            html_with_js.push_str(params.wheel_js);
+                            html_with_js
+                        }
+                        Err(e) => {
+                            log::error!("[viewer] Failed to read from DocumentBuffer: {}", e);
+                            // Fallback to parsing empty text
+                            let html_body = parse_markdown_to_html("", params.html_options);
+                            let mut html_with_js = html_body;
+                            html_with_js.push_str(params.wheel_js);
+                            html_with_js
+                        }
+                    }
+                }
+            }
+            None => {
+                // No DocumentBuffer and empty GTK buffer -> show welcome message
+                log::debug!("[viewer] No DocumentBuffer, empty GTK buffer -> showing welcome message");
+                generate_test_html(params.wheel_js)
+            }
+        }
     } else {
-        let html_body = parse_markdown_to_html(&text, html_options);
+        // GTK TextBuffer has content -> use it directly
+        log::debug!("[viewer] GTK buffer has content -> using GTK buffer content");
+        let html_body = parse_markdown_to_html(&text, params.html_options);
         let mut html_with_js = html_body;
-        html_with_js.push_str(wheel_js);
+        html_with_js.push_str(params.wheel_js);
         html_with_js
     };
 
     let html = crate::components::viewer::webkit6::wrap_html_document(
         &html_body_with_js,
-        &css.borrow(),
-        &theme_mode.borrow(),
+        &params.css.borrow(),
+        &params.theme_mode.borrow(),
     );
     let html_clone = html.clone();
     // Use the provided base URI directly (already converted to string)
-    let base_uri_clone = base_uri.map(|s| s.to_string());
-    let webview_idle = webview.clone();
+    let base_uri_clone = params.base_uri.map(|s| s.to_string());
+    let webview_idle = params.webview.clone();
     glib::idle_add_local(move || {
         log::debug!("[viewer] loading html length={} ", html_clone.len());
         if let Some(ref base_uri) = base_uri_clone {
@@ -138,31 +220,71 @@ pub fn refresh_preview_into_webview_with_base_uri(
     });
 }
 
-/// Small helper for smooth content updates that preserves scroll position.
-/// This is used for content updates during typing, not for theme/CSS changes.
-pub fn refresh_preview_content_smooth(
-    webview: &webkit6::WebView,
-    html_options: &HtmlOptions,
-    buffer: &sourceview5::Buffer,
-    wheel_js: &str,
+/// Enhanced version that checks both GTK TextBuffer and DocumentBuffer to determine if welcome message should show
+pub fn refresh_preview_content_smooth_with_doc_buffer(
+    params: SmoothUpdateParams<'_>,
 ) {
-    let text = buffer
-        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+    let text = params.buffer
+        .text(&params.buffer.start_iter(), &params.buffer.end_iter(), false)
         .to_string();
 
     // Debug: log the input text
     log::debug!("[viewer] Processing text for smooth update: '{}'", text);
 
+    // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
     let html_body_with_js = if text.trim().is_empty() {
-        log::debug!("[viewer] Empty text, using welcome message for smooth update");
-        generate_test_html(wheel_js)
+        match params.document_buffer {
+            Some(doc_buf) => {
+                let doc_buf_borrowed = doc_buf.borrow();
+                if doc_buf_borrowed.get_file_path().is_none() {
+                    // Untitled document with empty GTK buffer -> show welcome message
+                    log::debug!("[viewer] Smooth update: Empty GTK buffer, untitled document -> showing welcome message");
+                    generate_test_html(params.wheel_js)
+                } else {
+                    // File document with empty GTK buffer -> try to read from DocumentBuffer
+                    log::debug!("[viewer] Smooth update: Empty GTK buffer, but file loaded -> trying to read from DocumentBuffer");
+                    match doc_buf_borrowed.read_content() {
+                        Ok(file_content) if !file_content.trim().is_empty() => {
+                            log::debug!("[viewer] Smooth update: Successfully read content from DocumentBuffer: {} chars", file_content.len());
+                            let html_body = parse_markdown_to_html(&file_content, params.html_options);
+                            let mut html_with_js = html_body;
+                            html_with_js.push_str(params.wheel_js);
+                            html_with_js
+                        }
+                        Ok(_) => {
+                            // File exists but is empty
+                            log::debug!("[viewer] Smooth update: File exists but is empty -> parsing empty content");
+                            let html_body = parse_markdown_to_html("", params.html_options);
+                            let mut html_with_js = html_body;
+                            html_with_js.push_str(params.wheel_js);
+                            html_with_js
+                        }
+                        Err(e) => {
+                            log::error!("[viewer] Smooth update: Failed to read from DocumentBuffer: {}", e);
+                            // Fallback to parsing empty text
+                            let html_body = parse_markdown_to_html("", params.html_options);
+                            let mut html_with_js = html_body;
+                            html_with_js.push_str(params.wheel_js);
+                            html_with_js
+                        }
+                    }
+                }
+            }
+            None => {
+                // No DocumentBuffer and empty GTK buffer -> show welcome message
+                log::debug!("[viewer] Smooth update: No DocumentBuffer, empty GTK buffer -> showing welcome message");
+                generate_test_html(params.wheel_js)
+            }
+        }
     } else {
-        let html_body = parse_markdown_to_html(&text, html_options);
+        // GTK TextBuffer has content -> use it directly
+        log::debug!("[viewer] Smooth update: GTK buffer has content -> using GTK buffer content");
+        let html_body = parse_markdown_to_html(&text, params.html_options);
         let mut html_with_js = html_body;
-        html_with_js.push_str(wheel_js);
+        html_with_js.push_str(params.wheel_js);
         html_with_js
     };
 
     // Use smooth update - just update the content, not the entire page
-    crate::components::viewer::webkit6::update_html_content_smooth(webview, &html_body_with_js);
+    crate::components::viewer::webkit6::update_html_content_smooth(params.webview, &html_body_with_js);
 }

@@ -72,17 +72,13 @@ KW_RUN        = @{ ^"run@" }
 KW_MERMAID  = @{ ^"mermaid" }
 KW_GRAPHVIZ = @{ ^"graphviz" }
 
-// Root rule - document contains any number of sections
+// Root rule - document contains blocks with flexible separation
 // Examples: empty document, single heading, multiple paragraphs with code blocks
-document = { section* }
-
-// A section is a block with optional blank lines around it
-// Examples: "# Title\n", "\n\nParagraph text\n\n", "```code```"
-section = _{ BLANK_LINE* ~ block ~ BLANK_LINE* }
+document = { (BLANK_LINE* ~ block ~ BLANK_LINE*)* }
 
 // Block-level elements ordered by parsing priority (most specific first)
 // Examples: code blocks, headings, paragraphs, lists, tables
-block = { code_block | math_block | hr | heading | blockquote | table | list | macro_block | footnote_def | reference_definition | reference_link | reference_image | def_list | block_comment | block_html | paragraph | unknown_block }
+block = { code_block | math_block | hr | heading | blockquote | table | list | macro_block | footnote_def | reference_definition | reference_link | reference_image | def_list | block_comment | block_html | task_block | paragraph | unknown_block }
 
 // Error recovery for unrecognized block content
 // Examples: "~~~invalid~~~", "<<weird syntax>>"
@@ -92,9 +88,9 @@ unknown_block = { (!NEWLINE ~ ANY)+ }
 // Examples: admonitions, executable code, diagrams, bookmarks
 macro_block = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tab_block }
 
-// Core inline elements ordered by parsing priority
+// Core inline elements ordered by parsing priority (HTML removed - all HTML is block-level)
 // Examples: `code`, **bold**, [links](url), $math$, escaped chars
-inline_core = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | hard_line_break | soft_line_break | text }
+inline_core = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_comment | footnote_ref | macro_inline | hard_line_break | soft_line_break | text }
 
 // Escape sequences for markdown special characters
 // Examples: "\*", "\\", "\[", "\]"
@@ -174,9 +170,7 @@ text = {
 // Handle formatting characters at line start that should be treated as text
 // Examples: "*not bold", "_not italic" (when not properly formatted)
 // Only matches single characters at line start, not multi-line content
-start_line_formatting = @{
-    (SOI | NEWLINE) ~ WHITESPACE* ~ formatting_char ~ (!NEWLINE ~ !("[" | "(") ~ text_content_chars)*
-}
+start_line_formatting = @{ (SOI | NEWLINE) ~ WHITESPACE* ~ !("```" | "~~~") ~ formatting_char ~ (!NEWLINE ~ !("[" | "(") ~ text_content_chars)* }
 
 // Characters that can start formatting but might be literal text
 // Examples: "*", "_", "`", "~", "=" (exclude "!" since it's only used for images)
@@ -184,22 +178,7 @@ formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "$" }
 
 // Text content components for building text rules
 // Examples: words, punctuation, spaces, math symbols
-text_content_chars = {
-    word
-  | safe_punct
-  | !((" "{2, } | "\\") ~ NEWLINE) ~ (" " | "\t") // Single space or tab, but not hard line break pattern
-
-  | math_symbol
-  | inline_formatting_safe
-  | ("`" ~ !"`")
-  | "*"
-  | "_"
-  | "="
-  | "^"
-  | "#"
-  | "!"
-  | "$"
-}
+text_content_chars = { word | safe_punct | !((" "{2, } | "\\") ~ NEWLINE) ~ (" " | "\t") | math_symbol | inline_formatting_safe | ("`" ~ !"`") | "*" | "_" | "=" | "^" | "#" | "!" | "$" }
 
 // More restrictive text content that stops at formatting boundaries
 // Examples: plain text that doesn't cross `code`, **bold**, or $math$ boundaries
@@ -215,9 +194,7 @@ text_no_formatting = _{
 
 // Block start detection for avoiding text conflicts
 // Examples: "# heading", "> quote", "- list", "```code"
-line_start_marker = _{
-    (heading_start | hr_start | list_start | blockquote_start | admonition_start | code_start | table_start | html_start)
-}
+line_start_marker = _{ (heading_start | hr_start | list_start | blockquote_start | admonition_start | code_start | table_start | html_start) }
 
 // Heading marker - 1-6 hashes followed by space
 // Examples: "# ", "## ", "### "
@@ -229,9 +206,7 @@ hr_start = _{ ("***" | "---" | "___") ~ (WHITESPACE | NEWLINE | EOI) }
 
 // List marker - dash/star/plus or numbered list with space
 // Examples: "- ", "* ", "+ ", "1. ", "42. "
-list_start = _{
-    NON_INDENT? ~ (("-" | "*" | "+") ~ " " | (ASCII_DIGIT+ ~ "." ~ " "))
-}
+list_start = _{ NON_INDENT? ~ (("-" | "*" | "+") ~ " " | (ASCII_DIGIT+ ~ "." ~ " ")) }
 
 // Blockquote marker - > with optional space/tab or at line end
 // Examples: "> ", ">\t", ">\n"
@@ -255,9 +230,7 @@ table_start = _{ "|" }
 
 // Characters safe for inline formatting detection
 // Examples: letters, numbers, some punctuation (excludes markdown specials)
-inline_formatting_safe = _{
-    !("**" | "__" | "*" | "_" | "```" | "!" | "$$" | "$" | "~" | "\\" | "|") ~ ANY
-}
+inline_formatting_safe = _{ !("**" | "__" | "*" | "_" | "```" | "!" | "$$" | "$" | "~" | "\\" | "|") ~ ANY }
 
 // URL-safe characters for link parsing
 // Examples: "a-z", "0-9", "-", "_", ".", "/", "?", "&", "="
@@ -267,9 +240,9 @@ URL_SAFE = _{ unicode_letter | ASCII_DIGIT | "-" | "_" | "." | "/" | "?" | "&" |
 // Examples: "This is **bold** text", "Link: [example](url)"
 paragraph_line = { inline_no_newline+ }
 
-// Inline elements that don't include newlines
+// Inline elements that don't include newlines (HTML removed - all HTML is block-level)
 // Examples: **bold**, [links](url), `code`, but stops at line boundaries
-inline_no_newline = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | inline_comment | footnote_ref | macro_inline | hard_line_break | text_no_newline }
+inline_no_newline = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_comment | footnote_ref | macro_inline | hard_line_break | text_no_newline }
 
 // Text that stops at newlines and block boundaries
 // Examples: "regular text", "some words", but not "# heading" at line start
@@ -295,15 +268,11 @@ text_no_newline = {
 
 // Single-line paragraph (Marco extension: each line is a separate paragraph)
 // Examples: "Line 1" (creates one paragraph), "Line 1\nLine 2" (creates two paragraphs)
-paragraph = {
-    NON_INDENT? ~ !(line_start_marker) ~ paragraph_line
-}
+paragraph = { NON_INDENT? ~ !(line_start_marker) ~ paragraph_line }
 
 // Helper for detecting block start markers
 // Examples: start of input/line followed by "# ", "```", "> ", etc.
-block_start = _{
-    (SOI | NEWLINE) ~ WHITESPACE* ~ line_start_marker
-}
+block_start = _{ (SOI | NEWLINE) ~ WHITESPACE* ~ line_start_marker }
 
 // ATX headings (##) and Setext headings (underlines)
 // Allow 0-3 spaces of indentation before heading markers (CommonMark spec)
@@ -338,13 +307,17 @@ heading_text = { !(NEWLINE | EOI) ~ inline_core }
 // Examples: "# Title", "## Section", "Title\n====="
 heading = { H6 | H5 | H4 | H3 | H2 | H1 | setext_h2 | setext_h1 }
 
-// Single line of blockquote with > prefix (Marco extension: single-line like paragraphs)
-// Examples: "> Quote text", ">Another quote", "> **Bold** quote"
-blockquote_line = { ">" ~ " "? ~ inline_no_newline* }
+// Blockquote content line without the > marker (content after > and optional space)
+// Examples: "Quote text", "**Bold** quote", "Quote with [link](url)"
+blockquote_content = { (!NEWLINE ~ ANY)* }
 
-// Single-line blockquote block (matches Marco's single-line paragraph behavior)
-// Examples: "> Single line quote"
-blockquote = { blockquote_line }
+// Single line of blockquote with > prefix stripped from content
+// Examples: "> Quote text" -> content is "Quote text"
+blockquote_line = { ">" ~ " "? ~ blockquote_content }
+
+// Multi-line blockquote block - consecutive lines starting with >
+// Examples: "> Line 1\n> Line 2", "> Single line"
+blockquote = { blockquote_line ~ (NEWLINE ~ blockquote_line)* }
 
 // Bold formatting with double asterisks or underscores
 // Examples: "**bold text**", "__also bold__"
@@ -555,10 +528,10 @@ math_block = { "$$" ~ (!"$$" ~ ANY | "\\" ~ "$")* ~ "$$" }
 
 // Horizontal rule with various characters (3+ with optional spacing)
 // Examples: "---", "***", "___", "- - -", "* * *"
-hr            = { WHITESPACE* ~ (hr_dash | hr_star | hr_underscore) ~ WHITESPACE* ~ (NEWLINE | EOI) }
-hr_dash       = { "-" ~ (WHITESPACE* ~ "-") ~ (WHITESPACE* ~ "-")+ }
+hr      = { WHITESPACE* ~ (hr_dash | hr_star | hr_underscore) ~ WHITESPACE* ~ (NEWLINE | EOI) }
+hr_dash = { "-" ~ (WHITESPACE* ~ "-") ~ (WHITESPACE* ~ "-")+ }
 // Exactly 3+ dashes with optional spaces
-hr_star       = { "*" ~ (WHITESPACE* ~ "*") ~ (WHITESPACE* ~ "*")+ }
+hr_star = { "*" ~ (WHITESPACE* ~ "*") ~ (WHITESPACE* ~ "*")+ }
 // Exactly 3+ stars with optional spaces
 hr_underscore = { "_" ~ (WHITESPACE* ~ "_") ~ (WHITESPACE* ~ "_")+ }
 // Exactly 3+ underscores with optional spaces
@@ -584,13 +557,10 @@ footnote_def = { "[^" ~ footnote_label ~ "]" ~ ":" ~ WHITESPACE+ ~ (!NEWLINE ~ A
 inline_comment = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
 block_comment  = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
 
-// Inline HTML tags and elements
-// Examples: "<em>emphasis</em>", "<span class='highlight'>text</span>"
-inline_html = { "<" ~ (!">" ~ ANY)+ ~ ">" }
-
-// Block HTML elements (can contain newlines)
-// Examples: "<div>\n<p>content</p>\n</div>", "<table>...</table>"
-block_html = { "<" ~ (!">" ~ ANY | NEWLINE)* ~ ">" }
+// HTML elements - all HTML is treated as block-level content
+// Simple greedy approach: match everything from < until we find a paragraph break or EOF
+// Examples: "<em>emphasis</em>", "<a href='...'><p>nested content</p></a>", "<img src='...' />"
+block_html = { "<" ~ (!(NEWLINE ~ NEWLINE | EOI) ~ ANY)* }
 
 // Main list types - unordered or ordered
 // Examples: "- item 1", "1. first item", "* bullet", "+ another bullet"
@@ -630,7 +600,7 @@ ordered_marker   = @{ "-"? ~ ASCII_DIGIT+ ~ "." }
 
 // Task list components
 // Examples: "[ ]" (empty), "[x]" (done), "[X]" (done caps)
-task_marker = { "[" ~ (" " | "x" | "X") ~ "]" }
+task_marker = @{ "[" ~ (" " | "x" | "X") ~ "]" }
 
 // Optional task metadata with user and date
 // Examples: "(user: 2024-01-15)", "(alice: completed task)"
@@ -639,6 +609,10 @@ task_metadata = { "(" ~ (!":" ~ ANY)+ ~ ":" ~ " " ~ (!")" ~ ANY)+ ~ ")" }
 // Inline task item without list marker (for use in paragraphs)
 // Examples: "[x] completed inline task", "[ ] todo (user: 2024-01-15)"
 inline_task_item = { task_marker ~ " " ~ inline* ~ task_metadata? }
+
+// Block-level task item without list marker (standalone task)
+// Examples: "[x] Completed task", "[ ] Todo task", "[ ] Task with (user: 2024-01-15)"
+task_block = { task_marker ~ WHITESPACE* ~ (!NEWLINE ~ ANY)* ~ task_metadata? }
 
 // Definition list with terms and definitions
 // Examples: "Term 1\n: definition 1\n: definition 2\nTerm 2\n: definition"
@@ -674,9 +648,9 @@ table_row    = { "|" ~ table_cell ~ ("|" ~ table_cell)* ~ "|"? }
 // Examples: " Cell content ", "**Bold** cell", " `code` cell "
 table_cell = { WHITESPACE* ~ table_cell_content* ~ WHITESPACE* }
 
-// Content allowed in table cells (no pipes or newlines)
-// Examples: "text", "**bold**", "[link](url)", "`code`"
-table_cell_content = { escaped_char | inline_link | inline_image | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_html | footnote_ref | macro_inline | table_safe_text }
+// Content allowed in table cells (no pipes or newlines, HTML removed - use inline code for HTML in tables)
+// Examples: "text", "**bold**", "[link](url)", "`code`", "`<span>html</span>`"
+table_cell_content = { escaped_char | inline_link | inline_image | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | footnote_ref | macro_inline | table_safe_text }
 
 // Text safe for table cells (excludes pipes and newlines)
 // Examples: "regular text", "no | pipes", "no newlines"

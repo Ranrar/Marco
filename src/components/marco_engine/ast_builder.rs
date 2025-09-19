@@ -23,6 +23,8 @@ pub struct AstBuilder {
     span_cache: HashMap<String, Span>,
     /// Current nesting depth for nested code blocks
     nesting_depth: u8,
+    /// Maximum allowed nesting depth to prevent infinite recursion
+    max_nesting_depth: u8,
 }
 
 /// Error type for AST building operations
@@ -46,6 +48,7 @@ impl AstBuilder {
         Self {
             span_cache: HashMap::new(),
             nesting_depth: 0,
+            max_nesting_depth: 10, // Reasonable limit to prevent stack overflow
         }
     }
 
@@ -98,6 +101,9 @@ impl AstBuilder {
                 // Get paragraph text before processing
                 let paragraph_text = pair.as_str().to_string();
 
+                // Calculate indentation from the span position
+                let indent_level = self.calculate_indent_from_span(&pair.as_span());
+
                 // Paragraph should collect inline content from paragraph_line
                 let mut inline_content = Vec::new();
                 for inner_pair in pair.into_inner() {
@@ -122,7 +128,7 @@ impl AstBuilder {
                 // Fix whitespace boundary issues between text and formatting
                 inline_content = self.fix_whitespace_boundaries(inline_content, &paragraph_text)?;
 
-                Ok(Node::paragraph(inline_content, span))
+                Ok(Node::paragraph(inline_content, indent_level, span))
             }
 
             // Heading rules - unified handling for all heading types
@@ -142,6 +148,9 @@ impl AstBuilder {
 
             // Code blocks - unified handling with nested support
             Rule::code_block | Rule::fenced_code | Rule::indented_code => {
+                // Calculate indentation from the span position
+                let indent_level = self.calculate_indent_from_span(&pair.as_span());
+
                 let (language, content) = self.extract_code_content(&pair)?;
 
                 // Check if this is a nested fenced code block
@@ -150,7 +159,7 @@ impl AstBuilder {
                 {
                     Ok(nested_node)
                 } else {
-                    Ok(Node::code_block(language, content, span))
+                    Ok(Node::code_block(language, content, indent_level, span))
                 }
             }
 
@@ -199,6 +208,9 @@ impl AstBuilder {
             }
 
             Rule::unordered_list_item | Rule::ordered_list_item => {
+                // Calculate indentation level from the span position
+                let indent_level = self.calculate_indent_from_span(&pair.as_span());
+                
                 let checked = self.extract_task_state(&pair)?;
                 let mut content = self.build_children(pair)?;
 
@@ -214,7 +226,20 @@ impl AstBuilder {
                     }
                 }
 
-                Ok(Node::list_item(content, checked, span))
+                Ok(Node::list_item(content, checked, indent_level, span))
+            }
+
+            // Standalone task blocks (tasks without list markers)
+            Rule::task_block => {
+                // Calculate indentation level from the span position
+                let indent_level = self.calculate_indent_from_span(&pair.as_span());
+                
+                let checked = self.extract_task_state(&pair)?;
+                let content = self.extract_task_content(&pair)?;
+                
+                // Create a list item for consistency with list-based tasks
+                // This allows the same rendering logic to work for both list and standalone tasks
+                Ok(Node::list_item(content, checked, indent_level, span))
             }
 
             // Tables
@@ -226,7 +251,7 @@ impl AstBuilder {
             Rule::table_row => {
                 let cells = self.build_children(pair)?;
                 // Return as a temporary structure - tables handle this differently
-                Ok(Node::paragraph(cells, span)) // Temporary wrapper
+                Ok(Node::paragraph(cells, None, span)) // Temporary wrapper
             }
 
             Rule::table_cell => {
@@ -244,7 +269,7 @@ impl AstBuilder {
                     Ok(Node::text("".to_string(), span))
                 } else {
                     // Multiple children - wrap in paragraph
-                    Ok(Node::paragraph(content, span))
+                    Ok(Node::paragraph(content, None, span))
                 }
             }
 
@@ -255,8 +280,77 @@ impl AstBuilder {
 
             // Block quotes
             Rule::blockquote => {
+                // Calculate indentation from the span position
+                let indent_level = self.calculate_indent_from_span(&pair.as_span());
+                
                 let content = self.build_children(pair)?;
-                Ok(Node::block_quote(content, span))
+                
+                // Process blockquote content to handle line breaks properly
+                let mut processed_content = Vec::new();
+                
+                for child in content {
+                    match child {
+                        // If we have a paragraph with text + line break, flatten it
+                        Node::Paragraph { content: para_content, .. } if para_content.len() == 2 => {
+                            if matches!(&para_content[1], Node::LineBreak { .. }) {
+                                for item in para_content {
+                                    processed_content.push(item);
+                                }
+                            } else {
+                                processed_content.push(Node::Paragraph { content: para_content, indent_level: None, span: span.clone() });
+                            }
+                        },
+                        _ => processed_content.push(child)
+                    }
+                }
+                
+                Ok(Node::block_quote(processed_content, indent_level, span))
+            }
+
+            // Blockquote content (the text after > marker) 
+            Rule::blockquote_content => {
+                let content_str = pair.as_str();
+                
+                // Check if content ends with backslash (hard line break)
+                if content_str.ends_with('\\') {
+                    let text_content = &content_str[..content_str.len()-1]; // Remove the backslash
+                    if text_content.trim().is_empty() {
+                        // Just a backslash on empty line - return hard line break
+                        Ok(Node::line_break(crate::components::marco_engine::ast_node::LineBreakType::Hard, span))
+                    } else {
+                        // Text followed by backslash - return text + hard line break wrapped in paragraph for processing
+                        Ok(Node::paragraph(vec![
+                            Node::text(text_content.to_string(), span.clone()),
+                            Node::line_break(crate::components::marco_engine::ast_node::LineBreakType::Hard, span.clone())
+                        ], None, span))
+                    }
+                } else {
+                    // Regular content - just return as text
+                    if content_str.trim().is_empty() {
+                        Ok(Node::text("".to_string(), span))
+                    } else {
+                        Ok(Node::text(content_str.to_string(), span))
+                    }
+                }
+            }
+
+            // Blockquote line (> marker + content) - extract just the content
+            Rule::blockquote_line => {
+                let content = self.build_children(pair)?;
+                // Return content directly, filtering out any empty nodes
+                let non_empty: Vec<Node> = content.into_iter()
+                    .filter(|node| !matches!(node, Node::Text { content, .. } if content.trim().is_empty()))
+                    .collect();
+                
+                if non_empty.len() == 1 {
+                    Ok(non_empty.into_iter().next().unwrap())
+                } else if non_empty.is_empty() {
+                    // Empty blockquote line, create empty text node
+                    Ok(Node::text("".to_string(), span))
+                } else {
+                    // Multiple items, wrap in paragraph
+                    Ok(Node::paragraph(non_empty, None, span))
+                }
             }
 
             // Horizontal rules
@@ -425,12 +519,6 @@ impl AstBuilder {
                 Ok(Node::HtmlBlock { content, span })
             }
 
-            // Inline HTML: <span>text</span>
-            Rule::inline_html => {
-                let content = pair.as_str().to_string();
-                Ok(Node::InlineHtml { content, span })
-            }
-
             // ===========================================
             // DEFINITION LISTS
             // ===========================================
@@ -595,7 +683,7 @@ impl AstBuilder {
                 if content.len() == 1 {
                     Ok(content.into_iter().next().unwrap())
                 } else {
-                    Ok(Node::paragraph(content, span))
+                    Ok(Node::paragraph(content, None, span))
                 }
             }
 
@@ -607,7 +695,7 @@ impl AstBuilder {
                 if content.len() == 1 {
                     Ok(content.into_iter().next().unwrap())
                 } else {
-                    Ok(Node::paragraph(content, span))
+                    Ok(Node::paragraph(content, None, span))
                 }
             }
 
@@ -637,6 +725,7 @@ impl AstBuilder {
                         // that the parent can unwrap
                         return Ok(Node::Paragraph {
                             content: children,
+                            indent_level: None,
                             span,
                         });
                     }
@@ -689,7 +778,7 @@ impl AstBuilder {
                 if content.len() == 1 {
                     Ok(content.into_iter().next().unwrap())
                 } else {
-                    Ok(Node::paragraph(content, span))
+                    Ok(Node::paragraph(content, None, span))
                 }
             }
 
@@ -828,6 +917,60 @@ impl AstBuilder {
                 }
             }
             _ => Ok(1), // Default to level 1
+        }
+    }
+
+    /// Count leading indentation from span column information
+    /// Now supports both tabs and spaces: 1 tab = 1 indent level, 4 spaces = 1 indent level
+    fn calculate_indent_from_span(&self, span: &pest::Span) -> Option<u8> {
+        let (line_num, column) = span.start_pos().line_col();
+        if column > 1 {
+            // Get the full input to analyze the actual leading whitespace
+            let full_input = span.get_input();
+            
+            // Find the line containing this span
+            let lines: Vec<&str> = full_input.lines().collect();
+            if let Some(current_line) = lines.get(line_num - 1) {
+                // Count actual leading whitespace characters
+                let mut indent_level = 0u8;
+                let mut space_count = 0u8;
+                
+                for ch in current_line.chars() {
+                    match ch {
+                        '\t' => {
+                            // Each tab counts as 1 indent level
+                            indent_level += 1;
+                            space_count = 0; // Reset space counting after tab
+                        }
+                        ' ' => {
+                            space_count += 1;
+                            // Every 4 spaces = 1 indent level
+                            if space_count >= 4 {
+                                indent_level += 1;
+                                space_count = 0; // Reset for next group of spaces
+                            }
+                        }
+                        _ => break, // Stop at first non-whitespace character
+                    }
+                }
+                
+                if indent_level > 0 {
+                    Some(indent_level)
+                } else {
+                    None
+                }
+            } else {
+                // Fallback to old column-based calculation for spaces-only content
+                let spaces = (column - 1) as u8;
+                let indent_level = spaces / 4;
+                if indent_level > 0 {
+                    Some(indent_level)
+                } else {
+                    None
+                }
+            }
+        } else {
+            None
         }
     }
 
@@ -1204,6 +1347,30 @@ impl AstBuilder {
             Ok(Some(true))
         } else {
             Ok(None)
+        }
+    }
+
+    /// Extract content from task_block (text after the task marker)
+    fn extract_task_content(&mut self, pair: &Pair<Rule>) -> Result<Vec<Node>, AstError> {
+        let full_text = pair.as_str();
+        
+        // Parse the task block: [x] Some content here
+        // We need to extract "Some content here" part
+        let content_text = if let Some(pos) = full_text.find(']') {
+            // Skip past ']' and any whitespace to get to content
+            let after_bracket = &full_text[pos + 1..];
+            after_bracket.trim_start()
+        } else {
+            // Fallback - shouldn't happen with valid task_marker
+            full_text
+        };
+
+        // Convert the text content to a Text node
+        if content_text.is_empty() {
+            Ok(vec![])
+        } else {
+            let span = self.create_span(pair);
+            Ok(vec![Node::text(content_text.to_string(), span)])
         }
     }
 
@@ -2179,6 +2346,11 @@ impl AstBuilder {
 
     /// Check if content has nested fence markers
     fn has_nested_fences(&self, content: &str) -> bool {
+        // Don't check for nesting if we're already at max depth
+        if self.nesting_depth >= self.max_nesting_depth {
+            return false;
+        }
+
         let lines: Vec<&str> = content.lines().collect();
 
         for line in lines {
@@ -2210,6 +2382,23 @@ impl AstBuilder {
 
     /// Parse nested content recursively with increased nesting depth
     fn parse_nested_content(&mut self, content: &str) -> Result<Vec<Node>, AstError> {
+        // Check recursion depth to prevent infinite recursion and stack overflow
+        if self.nesting_depth >= self.max_nesting_depth {
+            log::warn!(
+                "[ast_builder] Maximum nesting depth ({}) reached, treating as plain text", 
+                self.max_nesting_depth
+            );
+            return Ok(vec![Node::text(
+                content.to_string(),
+                Span {
+                    start: 0,
+                    end: content.len() as u32,
+                    line: 1,
+                    column: 1,
+                },
+            )]);
+        }
+
         // Increase nesting depth for recursive parsing
         let old_depth = self.nesting_depth;
         self.nesting_depth += 1;

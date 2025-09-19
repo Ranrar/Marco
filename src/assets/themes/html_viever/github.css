@@ -226,25 +226,115 @@ code, tt {
 }
 
 pre {
-    word-wrap: normal;
-    padding: 16px;
-    overflow: auto;
-    font-size: 85%;
-    line-height: 1.45;
-    background-color: #f6f8fa;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    margin-bottom: 16px;
+    margin: 16px 0;
+    overflow: hidden;
+    background-color: var(--bg-code);
+    border-left: 4px solid var(--link-color);
+}
+
+pre:before {
+    content: "Code";
+    display: block;
+    background-color: var(--bg-code);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    font-weight: 400;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    border-bottom: 1px solid var(--border-color);
+    opacity: 0.8;
 }
 
 pre code {
-    display: inline;
-    padding: 0;
-    margin: 0;
+    display: block;
+    padding: 16px;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 85%;
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-break: break-word;
     overflow: visible;
-    line-height: inherit;
-    word-wrap: normal;
-    background-color: transparent;
+    margin: 0;
     border: 0;
+}
+
+/* Nested Code Blocks (Marco Extension) */
+.nested-code-block {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin: 16px 0;
+    overflow: hidden;
+    background-color: var(--bg-code);
+}
+
+.nested-code-block .code-header {
+    background-color: var(--bg-code);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    font-weight: 400;
+    font-size: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    border-bottom: 1px solid var(--border-color);
+    opacity: 0.8;
+}
+
+.nested-code-block .code-content {
+    padding: 16px;
+    background-color: var(--bg-color);
+    min-height: 1rem;
+}
+
+/* Different border colors for nesting levels */
+.nested-code-block.level-1 {
+    border-left: 4px solid var(--link-color);
+}
+
+.nested-code-block.level-2 {
+    border-left: 4px solid #7c3aed;
+}
+
+.nested-code-block.level-3 {
+    border-left: 4px solid #059669;
+}
+
+.nested-code-block.level-4,
+.nested-code-block.level-5,
+.nested-code-block.level-6,
+.nested-code-block.level-7,
+.nested-code-block.level-8,
+.nested-code-block.level-9,
+.nested-code-block.level-10 {
+    border-left: 4px solid var(--text-muted);
+}
+
+/* Code blocks inside nested blocks should have reduced padding */
+.nested-code-block .code-content pre {
+    margin: 8px 0;
+    padding: 12px;
+    background-color: var(--bg-code);
+    border: 1px solid var(--border-light);
+}
+
+/* Remove the "Code" label from pre blocks inside nested code blocks */
+.nested-code-block .code-content pre:before {
+    display: none !important;
+    content: none !important;
+}
+
+/* Adjust nested paragraph spacing */
+.nested-code-block .code-content p {
+    margin: 8px 0;
+}
+
+.nested-code-block .code-content p:first-child {
+    margin-top: 0;
+}
+
+.nested-code-block .code-content p:last-child {
+    margin-bottom: 0;
 }
 
 table {

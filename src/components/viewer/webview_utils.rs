@@ -59,3 +59,70 @@ pub fn gtk_scrollbar_css(thumb: &str, track: &str) -> String {
         track = track
     )
 }
+
+/// Generate CSS for indentation levels
+/// Creates classes .marco-indent-level-1, .marco-indent-level-2, etc. with appropriate margins
+pub fn indentation_css() -> String {
+    let mut css = String::new();
+    css.push_str("/* Marco Indentation Levels */\n");
+    
+    // Generate CSS for indentation levels 1-10 (should be enough for most use cases)
+    for level in 1..=10 {
+        let indent_size = level * 2; // 2em per indentation level
+        css.push_str(&format!(
+            ".marco-indent-level-{} {{\n    margin-left: {}em;\n}}\n",
+            level, indent_size
+        ));
+    }
+    
+    css
+}
+
+/// Generate CSS for list item indentation with proper task list support
+pub fn list_indentation_css() -> String {
+    let mut css = String::new();
+    css.push_str("/* Marco List Indentation with Task List Support */\n");
+    
+    for level in 1..=10 {
+        let indent_size = level * 2; // 2em per indentation level
+        css.push_str(&format!(
+            "li.marco-indent-level-{} {{\n    margin-left: {}em;\n}}\n",
+            level, indent_size
+        ));
+        
+        // Special handling for task list items
+        css.push_str(&format!(
+            "li.marco-task-item.marco-indent-level-{} {{\n    margin-left: {}em;\n}}\n",
+            level, indent_size
+        ));
+    }
+    
+    css
+}
+
+/// Generate CSS for code block indentation
+pub fn code_indentation_css() -> String {
+    let mut css = String::new();
+    css.push_str("/* Marco Code Block Indentation */\n");
+    
+    for level in 1..=10 {
+        let indent_size = level * 2; // 2em per indentation level
+        css.push_str(&format!(
+            "pre.marco-indent-level-{} {{\n    margin-left: {}em;\n}}\n",
+            level, indent_size
+        ));
+    }
+    
+    css
+}
+
+/// Generate complete indentation CSS for all elements
+pub fn complete_indentation_css() -> String {
+    let mut css = String::new();
+    css.push_str(&indentation_css());
+    css.push('\n');
+    css.push_str(&list_indentation_css());
+    css.push('\n');
+    css.push_str(&code_indentation_css());
+    css
+}

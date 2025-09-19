@@ -34,8 +34,9 @@
 pub enum LayoutState {
 	Split,          // A: Editor + View (default)
 	EditorOnly,     // B: Editor only
-	ViewOnly,       // C: View only
+	ViewOnly,       // C: View only in editor
 	EditorAndWin,   // D: Editor + view in separate window
+	// View in separate window only (for desktop preview only with no editor, just like a PDF viever, right click "view document"
 	ViewWinOnly,    // E: View in separate window only
 }
 
