@@ -40,7 +40,7 @@
         max_recent_files: None,
     )),
     debug: Some(false),
-    log_to_file: Some(false),
+    log_to_file: Some(true),
     active_schema: None,
     schema_disabled: None,
     engine: Some((

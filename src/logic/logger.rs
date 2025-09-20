@@ -52,18 +52,21 @@ impl SimpleFileLogger {
 
 impl Log for SimpleFileLogger {
     fn enabled(&self, metadata: &Metadata) -> bool {
-        match self.level.to_level() {
-            Some(min_level) => metadata.level() >= min_level,
-            None => metadata.level() >= Level::Info,
-        }
+        // Always accept logs at the configured level or higher
+        metadata.level() <= self.level.to_level().unwrap_or(Level::Trace)
     }
 
     fn log(&self, record: &Record) {
         if !self.enabled(record.metadata()) {
             return;
         }
-    let ts = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let line = format!("{} [{}] {}\n", ts, record.level(), record.args());
+        let ts = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        let line = format!("{} [{}] {}: {}\n", 
+            ts, 
+            record.level(), 
+            record.target(), 
+            record.args()
+        );
         if let Ok(mut guard) = self.inner.lock() {
             if let Some(ref mut file) = *guard {
                 let _ = file.write_all(line.as_bytes());

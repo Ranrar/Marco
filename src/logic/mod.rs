@@ -3,6 +3,7 @@ pub mod crossplatforms;
 pub mod paths;
 pub mod menu_items;
 pub mod buffer;
+pub mod cache;
 pub mod loaders;
 pub mod layoutstate;
 pub mod logger;

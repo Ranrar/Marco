@@ -203,19 +203,19 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         let rust_log_set = std::env::var("RUST_LOG").is_ok();
         let enabled = app_settings.log_to_file.unwrap_or(false) || rust_log_set;
 
-        // Use Debug level when RUST_LOG is set, otherwise use Trace
-        let level = if rust_log_set {
-            log::LevelFilter::Debug
-        } else {
-            log::LevelFilter::Trace
-        };
+        // Use Trace level to capture ALL log messages in the codebase
+        let level = log::LevelFilter::Trace;
 
         if let Err(e) = crate::logic::logger::init_file_logger(enabled, level) {
             eprintln!("Failed to initialize file logger: {}", e);
+        } else if enabled {
+            log::info!("Logger initialized with level: {:?}, RUST_LOG set: {}", level, rust_log_set);
+            log::debug!("Debug logging is working");
+            log::trace!("Trace logging is working");
         }
 
-        if rust_log_set {
-            println!("Debug logging enabled, check log files in ./log/ directory");
+        if rust_log_set || enabled {
+            println!("Logging enabled (level: {:?}), check log files in ./log/ directory", level);
         }
     }
     // Pass settings struct to modules as needed

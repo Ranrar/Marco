@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use std::fs;
 use std::path::{Path, PathBuf};
+use crate::logic::cache::{cached, global_cache};
 
 /// Manages document buffer state including file path, modification status, and content
 ///
@@ -88,7 +88,84 @@ impl DocumentBuffer {
         })
     }
 
+    /// Creates a document buffer from a file using cached loading with async callback
+    ///
+    /// This function uses the global file cache for faster loading and provides
+    /// an async callback pattern for GTK-safe file loading.
+    ///
+    /// # Arguments
+    /// * `path` - Path to the existing file
+    /// * `callback` - Callback function to handle the loaded content
+    ///
+    /// # Returns
+    /// * `Ok(DocumentBuffer)` - Buffer initialized with the file path
+    /// * `Err(anyhow::Error)` - If the path is invalid or the file doesn't exist
+    ///
+    /// # Example
+    /// ```no_run
+    /// use std::path::Path;
+    /// use marco::logic::buffer::DocumentBuffer;
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// let buffer = DocumentBuffer::load_from_cached(
+    ///     Path::new("document.md"),
+    ///     |result| {
+    ///         match result {
+    ///             Ok(content) => println!("Loaded: {}", content),
+    ///             Err(e) => println!("Error: {}", e),
+    ///         }
+    ///     }
+    /// )?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn load_from_cached<P, F>(
+        path: P,
+        callback: F,
+    ) -> Result<Self>
+    where
+        P: AsRef<Path> + Send + 'static,
+        F: Fn(Result<String>) + 'static,
+    {
+        let path = path.as_ref();
+        if !path.exists() {
+            return Err(anyhow::anyhow!("File does not exist: {}", path.display()));
+        }
+
+        let display_name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("Unknown")
+            .to_string();
+
+        let buffer = Self {
+            file_path: Some(path.to_path_buf()),
+            is_modified: false,
+            baseline_content: String::new(),
+            display_name,
+        };
+
+        // Load content asynchronously using the cache
+        let path_for_async = path.to_path_buf();
+        global_cache().load_file_fast_async(path_for_async, callback);
+
+        Ok(buffer)
+    }
+
+    /// Register this buffer as having an open file in the cache
+    /// Call this after the DocumentBuffer is wrapped in an Rc for weak reference tracking
+    pub fn register_as_open<T>(&self, reference: std::sync::Weak<T>) 
+    where
+        T: Send + Sync + 'static,
+    {
+        if let Some(path) = &self.file_path {
+            global_cache().register_open_file(path, reference);
+        }
+    }
+
     /// Reads the content of the file associated with this buffer
+    ///
+    /// Uses the global file cache to improve performance for repeated reads.
     ///
     /// # Returns
     /// * `Ok(String)` - Content of the file
@@ -107,13 +184,18 @@ impl DocumentBuffer {
     /// ```
     pub fn read_content(&self) -> Result<String> {
         match &self.file_path {
-            Some(path) => fs::read_to_string(path)
-                .with_context(|| format!("Failed to read file: {}", path.display())),
+            Some(path) => {
+                // Use cached file operations for better performance
+                cached::read_to_string(path)
+                    .with_context(|| format!("Failed to read file: {}", path.display()))
+            }
             None => Ok(String::new()), // Empty content for untitled documents
         }
     }
 
     /// Saves content to the file associated with this buffer
+    ///
+    /// Uses cached file operations and automatically invalidates the cache.
     ///
     /// # Arguments
     /// * `content` - Text content to save
@@ -124,6 +206,7 @@ impl DocumentBuffer {
     ///
     /// # Side Effects
     /// - Sets `is_modified` to `false` on successful save
+    /// - Invalidates file cache entry
     ///
     /// # Example
     /// ```no_run
@@ -141,17 +224,22 @@ impl DocumentBuffer {
             Some(path) => {
                 // Create parent directories if they don't exist
                 if let Some(parent) = path.parent() {
-                    fs::create_dir_all(parent).with_context(|| {
-                        format!("Failed to create directory: {}", parent.display())
-                    })?;
+                    std::fs::create_dir_all(parent)
+                        .with_context(|| format!("Failed to create parent directories for: {}", path.display()))?;
                 }
 
-                fs::write(path, content)
+                // Write content directly
+                std::fs::write(path, content)
                     .with_context(|| format!("Failed to write file: {}", path.display()))?;
+
+                // Invalidate cache after write
+                global_cache().invalidate_file(path);
 
                 // Update baseline to the saved content
                 self.baseline_content = content.to_string();
                 self.is_modified = false;
+                
+                log::info!("Saved file with cached operations: {}", path.display());
                 Ok(())
             }
             None => Err(anyhow::anyhow!(
@@ -161,6 +249,8 @@ impl DocumentBuffer {
     }
 
     /// Saves content to a new file path (Save As operation)
+    ///
+    /// Uses cached file operations for better performance.
     ///
     /// # Arguments
     /// * `path` - New file path to save to
@@ -175,6 +265,7 @@ impl DocumentBuffer {
     /// - Updates `display_name` to the new filename
     /// - Sets `is_modified` to `false` on successful save
     /// - Automatically appends `.md` extension if missing
+    /// - Invalidates cache entries
     ///
     /// # Example
     /// ```no_run
@@ -198,12 +289,16 @@ impl DocumentBuffer {
 
         // Create parent directories if they don't exist
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create parent directories for: {}", path.display()))?;
         }
 
-        fs::write(&path, content)
+        // Write content directly
+        std::fs::write(&path, content)
             .with_context(|| format!("Failed to write file: {}", path.display()))?;
+
+        // Invalidate cache after write
+        global_cache().invalidate_file(&path);
 
         // Update buffer state
         let display_name = path
@@ -212,13 +307,47 @@ impl DocumentBuffer {
             .unwrap_or("Unknown")
             .to_string();
 
-        self.file_path = Some(path);
+        self.file_path = Some(path.clone());
         self.display_name = display_name;
         // After Save As, baseline matches the saved content
         self.baseline_content = content.to_string();
         self.is_modified = false;
 
+        log::info!("Saved file as with cached operations: {}", path.display());
         Ok(())
+    }
+
+    /// Loads file content and sets it as the baseline (used when opening files)
+    ///
+    /// This method is useful when opening a file to ensure the baseline content
+    /// matches what was loaded from disk, using the cache for better performance.
+    ///
+    /// # Returns
+    /// * `Ok(String)` - The loaded content
+    /// * `Err(anyhow::Error)` - If no file is associated or read fails
+    ///
+    /// # Side Effects
+    /// - Sets `baseline_content` to the loaded content
+    /// - Sets `is_modified` to `false`
+    ///
+    /// # Example
+    /// ```no_run
+    /// use marco::logic::buffer::DocumentBuffer;
+    /// use std::path::Path;
+    ///
+    /// # fn main() -> anyhow::Result<()> {
+    /// let mut buffer = DocumentBuffer::new_from_file(Path::new("document.md"))?;
+    /// let content = buffer.load_and_set_baseline()?;
+    /// assert!(!buffer.is_modified);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn load_and_set_baseline(&mut self) -> Result<String> {
+        let content = self.read_content()?;
+        self.baseline_content = content.clone();
+        self.is_modified = false;
+        log::debug!("Loaded content and set baseline for: {:?}", self.file_path);
+        Ok(content)
     }
 
     /// Marks the document as modified (has unsaved changes)

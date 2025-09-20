@@ -60,6 +60,7 @@ pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>) -> WebVi
 
 /// Update the content in an existing WebView using JavaScript injection.
 /// This avoids full page reloads and provides smooth updates while preserving scroll position.
+/// If the JavaScript function is not available (race condition), the error is logged and handled gracefully.
 pub fn update_html_content_smooth(webview: &WebView, content: &str) {
     let escaped_content = content
         .replace('\\', "\\\\")
@@ -67,19 +68,44 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
         .replace('\n', "\\n")
         .replace('\r', "\\r");
 
-    let js_code = format!("updateContent('{}');", escaped_content);
+    // Use a more defensive JavaScript approach that handles the case where updateContent doesn't exist
+    let js_code = format!(
+        r#"
+        try {{
+            if (typeof updateContent === 'function') {{
+                updateContent('{}');
+            }} else {{
+                // Function doesn't exist, try to create the content container and update it directly
+                console.log('updateContent function not available, falling back to direct DOM update');
+                var container = document.getElementById('marco-content-container');
+                if (container) {{
+                    container.innerHTML = '{}';
+                }} else {{
+                    // Create the container if it doesn't exist
+                    var body = document.body || document.getElementsByTagName('body')[0];
+                    if (body) {{
+                        body.innerHTML = '<div id="marco-content-container">{}</div>';
+                    }}
+                }}
+            }}
+        }} catch(e) {{
+            console.error('Error in content update:', e);
+        }}
+        "#, 
+        escaped_content, escaped_content, escaped_content
+    );
+
     let webview_clone = webview.clone();
-    let js_code_clone = js_code.clone();
 
     glib::idle_add_local(move || {
         webview_clone.evaluate_javascript(
-            &js_code_clone,
+            &js_code,
             None,                      // world_name
             None,                      // source_uri
             None::<&gio::Cancellable>, // cancellable
             |result| match result {
-                Ok(_) => log::debug!("[webkit6] Content updated successfully"),
-                Err(e) => log::warn!("[webkit6] Failed to update content: {}", e),
+                Ok(_) => log::debug!("[webkit6] Content update JavaScript executed successfully"),
+                Err(e) => log::warn!("[webkit6] Failed to execute content update JavaScript: {}", e),
             },
         );
         glib::ControlFlow::Break

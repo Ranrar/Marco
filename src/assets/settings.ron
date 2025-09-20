@@ -34,8 +34,8 @@
     )),
     files: Some((
         recent_files: Some([
-            "/home/ranrar/Code/projects/marco2/documentation/user guide/user_guide.md",
             "/home/ranrar/Code/projects/marco2/README.md",
+            "/home/ranrar/Code/projects/marco2/documentation/user guide/user_guide.md",
             "/home/ranrar/Code/projects/marco2/test_nested_crash.md",
             "/home/ranrar/Code/projects/marco2/stress_test_nested.md",
             "/home/ranrar/Code/projects/marco2/indentation_showcase.md",

@@ -17,7 +17,7 @@
 //! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
-use crate::components::marco_engine::parse_markdown;
+use crate::components::marco_engine::global_ast_cache;
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 use std::rc::Rc;
@@ -74,7 +74,7 @@ pub fn format_syntax_trace(line: &str) -> String {
         to_parse.push('\n');
     }
 
-    let ast = match parse_markdown(&to_parse) {
+    let _ast = match global_ast_cache().parse_cached(&to_parse) {
         Ok(a) => a,
         Err(_) => {
             // If parsing fails, fall back to a minimal text label

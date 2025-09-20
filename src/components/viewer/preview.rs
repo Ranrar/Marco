@@ -42,51 +42,45 @@ fn generate_test_html(wheel_js: &str) -> String {
     html_with_js
 }
 
-/// Parse markdown text into HTML using the Marco engine
+/// Parse markdown text into HTML using the Marco engine with caching
 fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
-    match MarcoParser::parse(Rule::document, text) {
-        Ok(pairs) => {
-            // Debug: log what was parsed
+    use crate::components::marco_engine::global_ast_cache;
+    
+    match global_ast_cache().parse_cached(text) {
+        Ok(ast) => {
+            log::debug!("[viewer] AST parsed and cached successfully");
+            let renderer = HtmlRenderer::new(html_options.clone());
+            let html = renderer.render(&ast);
             log::debug!(
-                "[viewer] Parsed {} pairs from text: '{}'",
-                pairs.len(),
-                text.chars().take(50).collect::<String>()
+                "[viewer] HTML rendered: '{}'",
+                html.chars().take(100).collect::<String>()
             );
-
-            // Debug: log each parsed pair
-            let pairs_vec: Vec<_> = pairs.collect();
-            for (i, pair) in pairs_vec.iter().enumerate() {
-                log::debug!(
-                    "[viewer] Pair {}: Rule={:?}, Text='{}'",
-                    i,
-                    pair.as_rule(),
-                    pair.as_str()
-                );
-            }
-
-            // Convert back to pairs for AST building
-            let pairs_for_ast = MarcoParser::parse(Rule::document, text).unwrap();
-
-            match AstBuilder::build(pairs_for_ast) {
-                Ok(ast) => {
-                    log::debug!("[viewer] AST built successfully");
-                    let renderer = HtmlRenderer::new(html_options.clone());
-                    let html = renderer.render(&ast);
-                    log::debug!(
-                        "[viewer] HTML rendered: '{}'",
-                        html.chars().take(100).collect::<String>()
-                    );
-                    html
-                }
-                Err(e) => {
-                    log::error!("[viewer] Error building AST: {}", e);
-                    format!("Error building AST: {}", e)
-                }
-            }
+            html
         }
         Err(e) => {
-            log::error!("[viewer] Error parsing markdown: {}", e);
-            format!("Error parsing markdown: {}", e)
+            log::error!("[viewer] Error parsing markdown with cache: {}", e);
+            
+            // Fallback to non-cached parsing in case of cache issues
+            log::info!("[viewer] Falling back to non-cached parsing");
+            match MarcoParser::parse(Rule::document, text) {
+                Ok(pairs) => {
+                    match AstBuilder::build(pairs) {
+                        Ok(ast) => {
+                            log::debug!("[viewer] Fallback AST built successfully");
+                            let renderer = HtmlRenderer::new(html_options.clone());
+                            renderer.render(&ast)
+                        }
+                        Err(e) => {
+                            log::error!("[viewer] Error building AST in fallback: {}", e);
+                            format!("Error building AST: {}", e)
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("[viewer] Error parsing markdown in fallback: {}", e);
+                    format!("Error parsing markdown: {}", e)
+                }
+            }
         }
     }
 }
@@ -142,8 +136,11 @@ pub fn refresh_preview_into_webview_with_base_uri(
         .text(&params.buffer.start_iter(), &params.buffer.end_iter(), false)
         .to_string();
 
-    // Debug: log the input text
-    log::debug!("[viewer] Processing text: '{}'", text);
+    // Debug: log the input text (first 100 chars only to avoid massive logs)
+    log::debug!("[viewer] Processing text ({} chars): '{}'", 
+        text.len(), 
+        text.chars().take(100).collect::<String>()
+    );
 
     // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
     let html_body_with_js = if text.trim().is_empty() {
@@ -228,8 +225,11 @@ pub fn refresh_preview_content_smooth_with_doc_buffer(
         .text(&params.buffer.start_iter(), &params.buffer.end_iter(), false)
         .to_string();
 
-    // Debug: log the input text
-    log::debug!("[viewer] Processing text for smooth update: '{}'", text);
+    // Debug: log the input text (first 100 chars only to avoid massive logs)
+    log::debug!("[viewer] Processing text for smooth update ({} chars): '{}'", 
+        text.len(), 
+        text.chars().take(100).collect::<String>()
+    );
 
     // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
     let html_body_with_js = if text.trim().is_empty() {
