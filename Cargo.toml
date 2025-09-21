@@ -32,6 +32,7 @@ pest = "2.8.1"
 pest_derive = "2.8.1"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
+dirs = "5.0"
 
 [dev-dependencies]
 # Basic testing

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Marco
+Comment=A GTK4-based markdown editor with custom syntax extensions
+Exec=marco %F
+Type=Application
+MimeType=text/markdown;text/x-markdown;
+Icon=marco
+Categories=Office;TextEditor;
+StartupNotify=true
+Version=1.0

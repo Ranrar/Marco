@@ -55,6 +55,7 @@ pub fn show_settings_dialog(
     parent: &Window,
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: PathBuf,
+    asset_dir: &std::path::Path,
     callbacks: SettingsDialogCallbacks,
 ) {
     let dialog = Dialog::builder()
@@ -125,6 +126,7 @@ pub fn show_settings_dialog(
             &tabs::appearance::build_appearance_tab(
                 theme_manager.clone(),
                 settings_path.clone(),
+                asset_dir,
                 cb,
                 refresh_preview_cb,
                 callbacks.on_editor_theme_changed,
@@ -136,6 +138,7 @@ pub fn show_settings_dialog(
             &tabs::appearance::build_appearance_tab(
                 theme_manager.clone(),
                 settings_path.clone(),
+                asset_dir,
                 Box::new(|_| {}),
                 Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
                 callbacks.on_editor_theme_changed,

@@ -108,6 +108,9 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(app: &Application, initial_file: Option<String>) {
+    // Import path functions
+    use crate::logic::paths::{get_asset_dir_checked, get_settings_path};
+    
     // Load and apply menu.css for menu and titlebar styling
     use gtk4 as gtk;
     use gtk4::gdk::Display;
@@ -146,10 +149,18 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- ThemeManager and settings.ron path ---
-    let config_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    let settings_path = config_dir.join("src/assets/settings.ron");
-    let dev_ui_theme_dir = config_dir.join("src/assets/themes/gtk4");
-    let prod_ui_theme_dir = config_dir.join("themes/ui");
+    let settings_path = get_settings_path().unwrap_or_else(|_| {
+        // Fallback to development path if asset detection fails
+        let config_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        config_dir.join("src/assets/settings.ron")
+    });
+    let asset_dir = get_asset_dir_checked().unwrap_or_else(|_| {
+        // Fallback to development paths if asset detection fails
+        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+    });
+    
+    let dev_ui_theme_dir = asset_dir.join("themes/gtk4");
+    let prod_ui_theme_dir = asset_dir.join("themes/ui");
     let ui_theme_dir = if dev_ui_theme_dir.exists() {
         dev_ui_theme_dir
     } else {
@@ -157,8 +168,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     };
 
     // Use src/assets/themes/html_viever for preview themes in dev, /themes/ in prod
-    let dev_preview_theme_dir = config_dir.join("src/assets/themes/html_viever");
-    let prod_preview_theme_dir = config_dir.join("themes");
+    let dev_preview_theme_dir = asset_dir.join("themes/html_viever");
+    let prod_preview_theme_dir = asset_dir.join("themes");
     let preview_theme_dir = if dev_preview_theme_dir.exists() {
         dev_preview_theme_dir
     } else {
@@ -166,8 +177,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     };
 
     // Use src/assets/themes/editor for editor style schemes in dev, /themes/editor in prod
-    let dev_editor_theme_dir = config_dir.join("src/assets/themes/editor");
-    let prod_editor_theme_dir = config_dir.join("themes/editor");
+    let dev_editor_theme_dir = asset_dir.join("themes/editor");
+    let prod_editor_theme_dir = asset_dir.join("themes/editor");
     let editor_theme_dir = if dev_editor_theme_dir.exists() {
         dev_editor_theme_dir
     } else {
@@ -260,7 +271,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let document_buffer_ref = Rc::clone(&file_operations_rc.borrow().buffer);
 
     // Active markdown schema support removed; footer uses AST parser directly.
-    let _schema_root = config_dir.join("src/assets/markdown_schema");
+    let _schema_root = asset_dir.join("markdown_schema");
     let active_schema_map: Rc<RefCell<Option<()>>> = Rc::new(RefCell::new(None));
 
     let (
@@ -516,6 +527,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                 win_clone.upcast_ref(),
                 theme_manager_clone.clone(),
                 settings_path_clone.clone(),
+                &asset_dir,
                 callbacks,
             );
         }

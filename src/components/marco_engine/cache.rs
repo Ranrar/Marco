@@ -520,9 +520,10 @@ mod tests {
     
     #[test]
     fn test_block_id_overlap() {
+        // Create spans that actually overlap on the line level
         let span1 = Span { start: 0, end: 10, line: 1, column: 1 };
-        let span2 = Span { start: 5, end: 15, line: 2, column: 1 };
-        let span3 = Span { start: 20, end: 30, line: 5, column: 1 };
+        let span2 = Span { start: 5, end: 15, line: 1, column: 5 }; // Same line, overlapping
+        let span3 = Span { start: 20, end: 30, line: 5, column: 1 }; // Different line, no overlap
         
         let node = Node::text("test".to_string(), span1.clone());
         
@@ -530,7 +531,9 @@ mod tests {
         let block2 = BlockId::from_span_and_node(&span2, &node);
         let block3 = BlockId::from_span_and_node(&span3, &node);
         
+        // Blocks on the same line should overlap
         assert!(block1.overlaps_with(&block2));
+        // Blocks on different lines should not overlap  
         assert!(!block1.overlaps_with(&block3));
     }
     

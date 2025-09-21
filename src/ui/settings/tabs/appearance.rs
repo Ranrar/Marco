@@ -10,6 +10,7 @@ use crate::theme::ThemeManager;
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     settings_path: PathBuf,
+    asset_dir: &std::path::Path,
     on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
@@ -184,8 +185,8 @@ pub fn build_appearance_tab(
     let on_preview_theme_changed = Rc::new(on_preview_theme_changed);
     use std::cell::Cell;
     let user_selected_preview_theme = Rc::new(Cell::new(false));
-    let html_theme_dir = std::path::Path::new("src/assets/themes/html_viever");
-    let html_themes = list_html_view_themes(html_theme_dir);
+    let html_theme_dir = asset_dir.join("themes/html_viever");
+    let html_themes = list_html_view_themes(&html_theme_dir);
 
     // Build HTML Preview Theme row
     let (preview_theme_row, _preview_theme_combo) = build_html_preview_theme_row(

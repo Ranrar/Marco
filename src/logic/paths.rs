@@ -35,16 +35,35 @@ impl fmt::Display for AssetError {
 
 impl std::error::Error for AssetError {}
 
-/// Returns the path to the asset directory ("marco") next to the binary, or an error if not found.
+/// Returns the path to the asset directory, checking multiple locations in order:
+/// 1. "marco_assets" next to the binary (development/portable)
+/// 2. "~/.local/share/marco" (user installation)
+/// 3. "/usr/local/share/marco" (system installation)
+/// 4. "/usr/share/marco" (package installation)
 pub fn get_asset_dir_checked() -> Result<PathBuf, AssetError> {
     let exe_path = env::current_exe().map_err(AssetError::ExePathError)?;
     let parent = exe_path.parent().ok_or(AssetError::ParentMissing)?;
-    let asset_dir = parent.join("marco_assets");
-    if asset_dir.exists() && asset_dir.is_dir() {
-        Ok(asset_dir)
-    } else {
-        Err(AssetError::AssetDirMissing(asset_dir))
+    
+    // Try locations in order of preference
+    let candidate_paths = [
+        // 1. Next to binary (development/portable)
+        parent.join("marco_assets"),
+        // 2. User local share directory
+        dirs::home_dir().map(|h| h.join(".local/share/marco")).unwrap_or_else(|| PathBuf::from("/tmp")),
+        // 3. System local share directory
+        PathBuf::from("/usr/local/share/marco"),
+        // 4. System share directory
+        PathBuf::from("/usr/share/marco"),
+    ];
+    
+    for asset_dir in candidate_paths.iter() {
+        if asset_dir.exists() && asset_dir.is_dir() {
+            return Ok(asset_dir.clone());
+        }
     }
+    
+    // If none found, return error with the first (preferred) location
+    Err(AssetError::AssetDirMissing(candidate_paths[0].clone()))
 }
 
 /// Returns the path to a font file in the asset directory.
