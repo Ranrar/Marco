@@ -71,6 +71,10 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
 pub fn create_custom_titlebar(
     window: &gtk4::ApplicationWindow,
 ) -> (WindowHandle, Label, gio::Menu) {
+    // Get the asset directory for dynamic path resolution  
+    use crate::logic::paths::get_asset_dir_checked;
+    let asset_dir = get_asset_dir_checked();
+    
     let handle = WindowHandle::new();
     let titlebar = GtkBox::new(Orientation::Horizontal, 0);
     titlebar.add_css_class("titlebar");
@@ -81,8 +85,9 @@ pub fn create_custom_titlebar(
     titlebar.set_margin_end(0);
     set_menu_height(&titlebar, 0); // Minimum height, matches footer
 
-    // App icon (left)
-    let icon = Image::from_file("src/assets/icons/favicon.png");
+    // App icon (left) - uses dynamic asset directory path
+    let icon_path = asset_dir.unwrap_or_else(|_| std::path::PathBuf::from("src/assets")).join("icons/favicon.png");
+    let icon = Image::from_file(&icon_path);
     icon.set_pixel_size(16);
     icon.set_halign(Align::Start);
     icon.set_margin_start(5);
