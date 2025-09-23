@@ -2,59 +2,64 @@
 
 This document tests all the standard CommonMark features supported by Marco.
 
-## Headers and Sections
+## Headers and Sections (ok)
 
-# Heading Level 1 (ATX)
-## Heading Level 2 (ATX)
-### Heading Level 3 (ATX)
-#### Heading Level 4 (ATX)
-##### Heading Level 5 (ATX)
-###### Heading Level 6 (ATX)
+# Heading Level 1 (ATX) (ok)
+## Heading Level 2 (ATX) (ok)
+### Heading Level 3 (ATX) (ok)
+#### Heading Level 4 (ATX) (ok)
+##### Heading Level 5 (ATX) (ok)
+###### Heading Level 6 (ATX) (ok)
 
-Alternative Setext H1
+Alternative Setext H1 (ok)
 =====================
 
-Alternative Setext H2
+Alternative Setext H2 (ok)
 ---------------------
 
-### Headers with **formatting** and `code`
-### Headers with [links](https://example.com)
+### Headers with `code` (ok)
+## Header with **bold text** (ok)
+## Header with *italic text* (ok)
+## Header with ***bold italic***  (ok) 
+## Header with ==highlight== (ok)
+## Header with :smile: (ok)
+## Header with ~~deleted~~ (ok)
 
 ## Text Formatting
 
 ### Emphasis
 
-This is *italic text* with asterisks.
-This is _italic text_ with underscores.
+This is *italic text* with asterisks. (ok)
+This is _italic text_ with underscores. (ok)
 
-This is **bold text** with asterisks.
-This is __bold text__ with underscores.
+This is **bold text** with asterisks. (ok)
+This is __bold text__ with underscores. (ok)
 
-This is ***bold and italic*** with triple asterisks.
-This is ___bold and italic___ with triple underscores.
+This is ***bold and italic*** with triple asterisks. (ok)
+This is ___bold and italic___ with triple underscores. (ok)
 
-Mixed formatting: **_bold italic_** and __*italic bold*__.
+Mixed formatting: **_bold italic_** and __*italic bold*__.  (ok)
 
 ### Strikethrough
 
-~~This text is deleted/strikethrough with tildes~~
---This text is also deleted with dashes--
+~~This text is deleted/strikethrough with tildes~~  (ok)
+--This text is also deleted with dashes--  (ok)
 
 ### Marco Extensions: Highlight, Superscript, Subscript
 
-==This text is highlighted==
+==This text is highlighted== (ok)
 
-This is text with ^superscript^ formatting.
-This is text with ~subscript~ formatting.
-This is text with ˅subscript˅ formatting (alternative arrow style).
+This is text with ^superscript^ formatting. (ok)
+This is text with ~subscript~ formatting. (ok)
+This is text with ˅subscript˅ formatting (alternative arrow style). (ok)
 
 ### Inline Code
 
-Here is `inline code` in backticks.
+Here is `inline code` in backticks.  (ok)
 Here is `code with **formatting** inside` (formatting should be literal).
 Here is `code with symbols: *_~=^$`.
 
-## Line Breaks
+## Line Breaks (ok)
 
 This line has two spaces at the end for hard break.  
 This should be on a new line.
@@ -65,29 +70,35 @@ This should also be on a new line.
 This line has a normal newline
 but should continue on the same paragraph (soft break).
 
-## Horizontal Rules
+## Horizontal Rules (ok)
 
-Three dashes:
+Three dashes: (ok)
+
 ---
 
-Three asterisks:
+Three asterisks: (ok)
+
 ***
 
-Three underscores:
+Three underscores: (ok)
+
 ___
 
-Spaced dashes:
+Spaced dashes: (ok)
+
 - - -
 
-Spaced asterisks:
+Spaced asterisks: (ok)
+
 * * *
 
-Spaced underscores:
+Spaced underscores: (ok)
+
 _ _ _
 
 ## Lists
 
-### Unordered Lists
+### Unordered Lists  (ok)
 
 - First item
 - Second item
@@ -96,17 +107,19 @@ _ _ _
     - Deep nested item
 - Third item
 
-Alternative markers:
+Alternative markers:  (ok)
+
 * Item with asterisk
 + Item with plus
 - Item with dash
 
-Mixed markers (should still work):
+Mixed markers (should still work):  (ok)
+
 * First
 + Second  
 - Third
 
-### Ordered Lists
+### Ordered Lists  (ok)
 
 1. First item
 2. Second item
@@ -115,17 +128,17 @@ Mixed markers (should still work):
       1. Deep nested item
 3. Third item
 
-Different numbering:
+Different numbering:  (ok)
 1. First
 1. Second (same number)
 5. Fifth (skip numbers)
 2. Second again (wrong order)
 
-Negative numbers:
+Negative numbers:  (ok)
 -1. Negative item
 0. Zero item
 
-### Lists with Formatting
+### Lists with Formatting  (ok)
 
 - Item with **bold text**
 - Item with *italic text*

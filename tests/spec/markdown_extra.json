@@ -1,0 +1,602 @@
+[
+  {
+    "example": 1,
+    "markdown": "HTML\n: A markup language",
+    "html": "<dl><dt>HTML</dt><dd>A markup language</dd></dl>",
+    "section": "Definition Lists",
+    "start_line": 1,
+    "end_line": 2
+  },
+  {
+    "example": 2,
+    "markdown": "Term 1\n: Definition 1\n: Definition 2\n\nTerm 2\n: Another definition",
+    "html": "<dl><dt>Term 1</dt><dd>Definition 1</dd><dd>Definition 2</dd><dt>Term 2</dt><dd>Another definition</dd></dl>",
+    "section": "Definition Lists - multiple definitions",
+    "start_line": 3,
+    "end_line": 8
+  },
+  {
+    "example": 3,
+    "markdown": "This has a footnote[^1].\n\n[^1]: This is the footnote definition.",
+    "html": "<p>This has a footnote<sup id=\"fnref:1\"><a href=\"#fn:1\" class=\"footnote-ref\">1</a></sup>.</p><div class=\"footnotes\"><hr><ol><li id=\"fn:1\">This is the footnote definition. <a href=\"#fnref:1\" class=\"footnote-backref\">↩</a></li></ol></div>",
+    "section": "Footnotes - reference style",
+    "start_line": 9,
+    "end_line": 11
+  },
+  {
+    "example": 4,
+    "markdown": "This has an inline footnote^[This is inline].",
+    "html": "<p>This has an inline footnote<sup class=\"footnote-inline\">This is inline</sup>.</p>",
+    "section": "Footnotes - inline style",
+    "start_line": 12,
+    "end_line": 12
+  },
+  {
+    "example": 5,
+    "markdown": "Multiple footnotes[^first] and [^second].\n\n[^first]: First footnote.\n[^second]: Second footnote.",
+    "html": "<p>Multiple footnotes<sup id=\"fnref:first\"><a href=\"#fn:first\" class=\"footnote-ref\">1</a></sup> and <sup id=\"fnref:second\"><a href=\"#fn:second\" class=\"footnote-ref\">2</a></sup>.</p><div class=\"footnotes\"><hr><ol><li id=\"fn:first\">First footnote. <a href=\"#fnref:first\" class=\"footnote-backref\">↩</a></li><li id=\"fn:second\">Second footnote. <a href=\"#fnref:second\" class=\"footnote-backref\">↩</a></li></ol></div>",
+    "section": "Footnotes - multiple references",
+    "start_line": 13,
+    "end_line": 16
+  },
+  {
+    "example": 6,
+    "markdown": "```\ncode block content\nmore lines\n```",
+    "html": "<pre><code>code block content\nmore lines\n</code></pre>",
+    "section": "Fenced Code Blocks - backticks",
+    "start_line": 17,
+    "end_line": 20
+  },
+  {
+    "example": 7,
+    "markdown": "```python\ndef hello():\n    print(\"Hello!\")\n```",
+    "html": "<pre><code class=\"language-python\">def hello():\n    print(\"Hello!\")\n</code></pre>",
+    "section": "Fenced Code Blocks - with language",
+    "start_line": 21,
+    "end_line": 24
+  },
+  {
+    "example": 8,
+    "markdown": "~~~\ncode with tildes\n~~~",
+    "html": "<pre><code>code with tildes\n</code></pre>",
+    "section": "Fenced Code Blocks - tildes",
+    "start_line": 25,
+    "end_line": 27
+  },
+  {
+    "example": 9,
+    "markdown": "Math inline: $E = mc^2$ in text.",
+    "html": "<p>Math inline: <span class=\"math-inline\">E = mc^2</span> in text.</p>",
+    "section": "Math - inline LaTeX",
+    "start_line": 28,
+    "end_line": 28
+  },
+  {
+    "example": 10,
+    "markdown": "$$\n\\sum_{i=1}^n x_i = x_1 + x_2 + \\cdots + x_n\n$$",
+    "html": "<div class=\"math-block\">\\sum_{i=1}^n x_i = x_1 + x_2 + \\cdots + x_n</div>",
+    "section": "Math - block LaTeX",
+    "start_line": 29,
+    "end_line": 31
+  },
+  {
+    "example": 11,
+    "markdown": "# Header with **bold text**",
+    "html": "<h1>Header with <strong>bold text</strong></h1>",
+    "section": "Headers with Bold - asterisk H1",
+    "start_line": 32,
+    "end_line": 32
+  },
+  {
+    "example": 12,
+    "markdown": "# Header with __bold text__",
+    "html": "<h1>Header with <strong>bold text</strong></h1>",
+    "section": "Headers with Bold - underscore H1",
+    "start_line": 33,
+    "end_line": 33
+  },
+  {
+    "example": 13,
+    "markdown": "## Header with **bold text**",
+    "html": "<h2>Header with <strong>bold text</strong></h2>",
+    "section": "Headers with Bold - asterisk H2",
+    "start_line": 34,
+    "end_line": 34
+  },
+  {
+    "example": 14,
+    "markdown": "## Header with __bold text__",
+    "html": "<h2>Header with <strong>bold text</strong></h2>",
+    "section": "Headers with Bold - underscore H2",
+    "start_line": 35,
+    "end_line": 35
+  },
+  {
+    "example": 15,
+    "markdown": "### Header with **bold text**",
+    "html": "<h3>Header with <strong>bold text</strong></h3>",
+    "section": "Headers with Bold - asterisk H3",
+    "start_line": 36,
+    "end_line": 36
+  },
+  {
+    "example": 16,
+    "markdown": "### Header with __bold text__",
+    "html": "<h3>Header with <strong>bold text</strong></h3>",
+    "section": "Headers with Bold - underscore H3",
+    "start_line": 37,
+    "end_line": 37
+  },
+  {
+    "example": 17,
+    "markdown": "#### Header with **bold text**",
+    "html": "<h4>Header with <strong>bold text</strong></h4>",
+    "section": "Headers with Bold - asterisk H4",
+    "start_line": 38,
+    "end_line": 38
+  },
+  {
+    "example": 18,
+    "markdown": "#### Header with __bold text__",
+    "html": "<h4>Header with <strong>bold text</strong></h4>",
+    "section": "Headers with Bold - underscore H4",
+    "start_line": 39,
+    "end_line": 39
+  },
+  {
+    "example": 19,
+    "markdown": "##### Header with **bold text**",
+    "html": "<h5>Header with <strong>bold text</strong></h5>",
+    "section": "Headers with Bold - asterisk H5",
+    "start_line": 40,
+    "end_line": 40
+  },
+  {
+    "example": 20,
+    "markdown": "##### Header with __bold text__",
+    "html": "<h5>Header with <strong>bold text</strong></h5>",
+    "section": "Headers with Bold - underscore H5",
+    "start_line": 41,
+    "end_line": 41
+  },
+  {
+    "example": 21,
+    "markdown": "###### Header with **bold text**",
+    "html": "<h6>Header with <strong>bold text</strong></h6>",
+    "section": "Headers with Bold - asterisk H6",
+    "start_line": 42,
+    "end_line": 42
+  },
+  {
+    "example": 22,
+    "markdown": "###### Header with __bold text__",
+    "html": "<h6>Header with <strong>bold text</strong></h6>",
+    "section": "Headers with Bold - underscore H6",
+    "start_line": 43,
+    "end_line": 43
+  },
+  {
+    "example": 23,
+    "markdown": "# Header with *italic text*",
+    "html": "<h1>Header with <em>italic text</em></h1>",
+    "section": "Headers with Italic - asterisk H1",
+    "start_line": 44,
+    "end_line": 44
+  },
+  {
+    "example": 24,
+    "markdown": "# Header with _italic text_",
+    "html": "<h1>Header with <em>italic text</em></h1>",
+    "section": "Headers with Italic - underscore H1",
+    "start_line": 45,
+    "end_line": 45
+  },
+  {
+    "example": 25,
+    "markdown": "## Header with *italic text*",
+    "html": "<h2>Header with <em>italic text</em></h2>",
+    "section": "Headers with Italic - asterisk H2",
+    "start_line": 46,
+    "end_line": 46
+  },
+  {
+    "example": 26,
+    "markdown": "## Header with _italic text_",
+    "html": "<h2>Header with <em>italic text</em></h2>",
+    "section": "Headers with Italic - underscore H2",
+    "start_line": 47,
+    "end_line": 47
+  },
+  {
+    "example": 27,
+    "markdown": "### Header with *italic text*",
+    "html": "<h3>Header with <em>italic text</em></h3>",
+    "section": "Headers with Italic - asterisk H3",
+    "start_line": 48,
+    "end_line": 48
+  },
+  {
+    "example": 28,
+    "markdown": "### Header with _italic text_",
+    "html": "<h3>Header with <em>italic text</em></h3>",
+    "section": "Headers with Italic - underscore H3",
+    "start_line": 49,
+    "end_line": 49
+  },
+  {
+    "example": 29,
+    "markdown": "#### Header with *italic text*",
+    "html": "<h4>Header with <em>italic text</em></h4>",
+    "section": "Headers with Italic - asterisk H4",
+    "start_line": 50,
+    "end_line": 50
+  },
+  {
+    "example": 30,
+    "markdown": "#### Header with _italic text_",
+    "html": "<h4>Header with <em>italic text</em></h4>",
+    "section": "Headers with Italic - underscore H4",
+    "start_line": 51,
+    "end_line": 51
+  },
+  {
+    "example": 31,
+    "markdown": "##### Header with *italic text*",
+    "html": "<h5>Header with <em>italic text</em></h5>",
+    "section": "Headers with Italic - asterisk H5",
+    "start_line": 52,
+    "end_line": 52
+  },
+  {
+    "example": 32,
+    "markdown": "##### Header with _italic text_",
+    "html": "<h5>Header with <em>italic text</em></h5>",
+    "section": "Headers with Italic - underscore H5",
+    "start_line": 53,
+    "end_line": 53
+  },
+  {
+    "example": 33,
+    "markdown": "###### Header with *italic text*",
+    "html": "<h6>Header with <em>italic text</em></h6>",
+    "section": "Headers with Italic - asterisk H6",
+    "start_line": 54,
+    "end_line": 54
+  },
+  {
+    "example": 34,
+    "markdown": "###### Header with _italic text_",
+    "html": "<h6>Header with <em>italic text</em></h6>",
+    "section": "Headers with Italic - underscore H6",
+    "start_line": 55,
+    "end_line": 55
+  },
+  {
+    "example": 35,
+    "markdown": "# Header with ***bold italic***",
+    "html": "<h1>Header with <strong><em>bold italic</em></strong></h1>",
+    "section": "Headers with Bold-Italic - triple asterisk H1",
+    "start_line": 56,
+    "end_line": 56
+  },
+  {
+    "example": 36,
+    "markdown": "# Header with ___bold italic___",
+    "html": "<h1>Header with <strong><em>bold italic</em></strong></h1>",
+    "section": "Headers with Bold-Italic - triple underscore H1",
+    "start_line": 57,
+    "end_line": 57
+  },
+  {
+    "example": 37,
+    "markdown": "# Header with **_mixed bold italic_**",
+    "html": "<h1>Header with <strong><em>mixed bold italic</em></strong></h1>",
+    "section": "Headers with Bold-Italic - mixed asterisk-underscore H1",
+    "start_line": 58,
+    "end_line": 58
+  },
+  {
+    "example": 38,
+    "markdown": "# Header with __*mixed bold italic*__",
+    "html": "<h1>Header with <strong><em>mixed bold italic</em></strong></h1>",
+    "section": "Headers with Bold-Italic - mixed underscore-asterisk H1",
+    "start_line": 59,
+    "end_line": 59
+  },
+  {
+    "example": 39,
+    "markdown": "# Header with ***bold italic___",
+    "html": "<h1>Header with <strong><em>bold italic</em></strong></h1>",
+    "section": "Headers with Bold-Italic - mixed open asterisk close underscore H1",
+    "start_line": 60,
+    "end_line": 60
+  },
+  {
+    "example": 40,
+    "markdown": "# Header with ___bold italic***",
+    "html": "<h1>Header with <strong><em>bold italic</em></strong></h1>",
+    "section": "Headers with Bold-Italic - mixed open underscore close asterisk H1",
+    "start_line": 61,
+    "end_line": 61
+  },
+  {
+    "example": 41,
+    "markdown": "## Header with ***bold italic***",
+    "html": "<h2>Header with <strong><em>bold italic</em></strong></h2>",
+    "section": "Headers with Bold-Italic - triple asterisk H2",
+    "start_line": 62,
+    "end_line": 62
+  },
+  {
+    "example": 42,
+    "markdown": "### Header with ***bold italic***",
+    "html": "<h3>Header with <strong><em>bold italic</em></strong></h3>",
+    "section": "Headers with Bold-Italic - triple asterisk H3",
+    "start_line": 63,
+    "end_line": 63
+  },
+  {
+    "example": 43,
+    "markdown": "#### Header with ***bold italic***",
+    "html": "<h4>Header with <strong><em>bold italic</em></strong></h4>",
+    "section": "Headers with Bold-Italic - triple asterisk H4",
+    "start_line": 64,
+    "end_line": 64
+  },
+  {
+    "example": 44,
+    "markdown": "##### Header with ***bold italic***",
+    "html": "<h5>Header with <strong><em>bold italic</em></strong></h5>",
+    "section": "Headers with Bold-Italic - triple asterisk H5",
+    "start_line": 65,
+    "end_line": 65
+  },
+  {
+    "example": 45,
+    "markdown": "###### Header with ***bold italic***",
+    "html": "<h6>Header with <strong><em>bold italic</em></strong></h6>",
+    "section": "Headers with Bold-Italic - triple asterisk H6",
+    "start_line": 66,
+    "end_line": 66
+  },
+  {
+    "example": 46,
+    "markdown": "# Header with `inline code`",
+    "html": "<h1>Header with <code>inline code</code></h1>",
+    "section": "Headers with Code - H1",
+    "start_line": 67,
+    "end_line": 67
+  },
+  {
+    "example": 47,
+    "markdown": "## Header with `inline code`",
+    "html": "<h2>Header with <code>inline code</code></h2>",
+    "section": "Headers with Code - H2",
+    "start_line": 68,
+    "end_line": 68
+  },
+  {
+    "example": 48,
+    "markdown": "### Header with `inline code`",
+    "html": "<h3>Header with <code>inline code</code></h3>",
+    "section": "Headers with Code - H3",
+    "start_line": 69,
+    "end_line": 69
+  },
+  {
+    "example": 49,
+    "markdown": "#### Header with `inline code`",
+    "html": "<h4>Header with <code>inline code</code></h4>",
+    "section": "Headers with Code - H4",
+    "start_line": 70,
+    "end_line": 70
+  },
+  {
+    "example": 50,
+    "markdown": "##### Header with `inline code`",
+    "html": "<h5>Header with <code>inline code</code></h5>",
+    "section": "Headers with Code - H5",
+    "start_line": 71,
+    "end_line": 71
+  },
+  {
+    "example": 51,
+    "markdown": "###### Header with `inline code`",
+    "html": "<h6>Header with <code>inline code</code></h6>",
+    "section": "Headers with Code - H6",
+    "start_line": 72,
+    "end_line": 72
+  },
+  {
+    "example": 52,
+    "markdown": "# Header with ==highlight==",
+    "html": "<h1>Header with <mark>highlight</mark></h1>",
+    "section": "Headers with Highlight - H1",
+    "start_line": 73,
+    "end_line": 73
+  },
+  {
+    "example": 53,
+    "markdown": "## Header with ==highlight==",
+    "html": "<h2>Header with <mark>highlight</mark></h2>",
+    "section": "Headers with Highlight - H2",
+    "start_line": 74,
+    "end_line": 74
+  },
+  {
+    "example": 54,
+    "markdown": "### Header with ==highlight==",
+    "html": "<h3>Header with <mark>highlight</mark></h3>",
+    "section": "Headers with Highlight - H3",
+    "start_line": 75,
+    "end_line": 75
+  },
+  {
+    "example": 55,
+    "markdown": "#### Header with ==highlight==",
+    "html": "<h4>Header with <mark>highlight</mark></h4>",
+    "section": "Headers with Highlight - H4",
+    "start_line": 76,
+    "end_line": 76
+  },
+  {
+    "example": 56,
+    "markdown": "##### Header with ==highlight==",
+    "html": "<h5>Header with <mark>highlight</mark></h5>",
+    "section": "Headers with Highlight - H5",
+    "start_line": 77,
+    "end_line": 77
+  },
+  {
+    "example": 57,
+    "markdown": "###### Header with ==highlight==",
+    "html": "<h6>Header with <mark>highlight</mark></h6>",
+    "section": "Headers with Highlight - H6",
+    "start_line": 78,
+    "end_line": 78
+  },
+  {
+    "example": 58,
+    "markdown": "# Header with :smile:",
+    "html": "<h1>Header with <span class=\"emoji\">smile</span></h1>",
+    "section": "Headers with Emoji - H1",
+    "start_line": 79,
+    "end_line": 79
+  },
+  {
+    "example": 59,
+    "markdown": "## Header with :smile:",
+    "html": "<h2>Header with <span class=\"emoji\">smile</span></h2>",
+    "section": "Headers with Emoji - H2",
+    "start_line": 80,
+    "end_line": 80
+  },
+  {
+    "example": 60,
+    "markdown": "### Header with :smile:",
+    "html": "<h3>Header with <span class=\"emoji\">smile</span></h3>",
+    "section": "Headers with Emoji - H3",
+    "start_line": 81,
+    "end_line": 81
+  },
+  {
+    "example": 61,
+    "markdown": "#### Header with :smile:",
+    "html": "<h4>Header with <span class=\"emoji\">smile</span></h4>",
+    "section": "Headers with Emoji - H4",
+    "start_line": 82,
+    "end_line": 82
+  },
+  {
+    "example": 62,
+    "markdown": "##### Header with :smile:",
+    "html": "<h5>Header with <span class=\"emoji\">smile</span></h5>",
+    "section": "Headers with Emoji - H5",
+    "start_line": 83,
+    "end_line": 83
+  },
+  {
+    "example": 63,
+    "markdown": "###### Header with :smile:",
+    "html": "<h6>Header with <span class=\"emoji\">smile</span></h6>",
+    "section": "Headers with Emoji - H6",
+    "start_line": 84,
+    "end_line": 84
+  },
+  {
+    "example": 64,
+    "markdown": "# Header with ~~deleted~~",
+    "html": "<h1>Header with <del>deleted</del></h1>",
+    "section": "Headers with Strikethrough - tilde H1",
+    "start_line": 85,
+    "end_line": 85
+  },
+  {
+    "example": 65,
+    "markdown": "# Header with --deleted--",
+    "html": "<h1>Header with <del>deleted</del></h1>",
+    "section": "Headers with Strikethrough - dash H1",
+    "start_line": 86,
+    "end_line": 86
+  },
+  {
+    "example": 66,
+    "markdown": "## Header with ~~deleted~~",
+    "html": "<h2>Header with <del>deleted</del></h2>",
+    "section": "Headers with Strikethrough - tilde H2",
+    "start_line": 87,
+    "end_line": 87
+  },
+  {
+    "example": 67,
+    "markdown": "## Header with --deleted--",
+    "html": "<h2>Header with <del>deleted</del></h2>",
+    "section": "Headers with Strikethrough - dash H2",
+    "start_line": 88,
+    "end_line": 88
+  },
+  {
+    "example": 68,
+    "markdown": "### Header with ~~deleted~~",
+    "html": "<h3>Header with <del>deleted</del></h3>",
+    "section": "Headers with Strikethrough - tilde H3",
+    "start_line": 89,
+    "end_line": 89
+  },
+  {
+    "example": 69,
+    "markdown": "### Header with --deleted--",
+    "html": "<h3>Header with <del>deleted</del></h3>",
+    "section": "Headers with Strikethrough - dash H3",
+    "start_line": 90,
+    "end_line": 90
+  },
+  {
+    "example": 70,
+    "markdown": "#### Header with ~~deleted~~",
+    "html": "<h4>Header with <del>deleted</del></h4>",
+    "section": "Headers with Strikethrough - tilde H4",
+    "start_line": 91,
+    "end_line": 91
+  },
+  {
+    "example": 71,
+    "markdown": "#### Header with --deleted--",
+    "html": "<h4>Header with <del>deleted</del></h4>",
+    "section": "Headers with Strikethrough - dash H4",
+    "start_line": 92,
+    "end_line": 92
+  },
+  {
+    "example": 72,
+    "markdown": "##### Header with ~~deleted~~",
+    "html": "<h5>Header with <del>deleted</del></h5>",
+    "section": "Headers with Strikethrough - tilde H5",
+    "start_line": 93,
+    "end_line": 93
+  },
+  {
+    "example": 73,
+    "markdown": "##### Header with --deleted--",
+    "html": "<h5>Header with <del>deleted</del></h5>",
+    "section": "Headers with Strikethrough - dash H5",
+    "start_line": 94,
+    "end_line": 94
+  },
+  {
+    "example": 74,
+    "markdown": "###### Header with ~~deleted~~",
+    "html": "<h6>Header with <del>deleted</del></h6>",
+    "section": "Headers with Strikethrough - tilde H6",
+    "start_line": 95,
+    "end_line": 95
+  },
+  {
+    "example": 75,
+    "markdown": "###### Header with --deleted--",
+    "html": "<h6>Header with <del>deleted</del></h6>",
+    "section": "Headers with Strikethrough - dash H6",
+    "start_line": 96,
+    "end_line": 96
+  }
+]

@@ -313,11 +313,8 @@ impl HtmlRenderer {
                 for (i, child) in content.iter().enumerate() {
                     if i > 0 {
                         // Add line break between consecutive text nodes or other inline content
-                        match (content.get(i-1), child) {
-                            (Some(Node::Text { .. }), Node::Text { .. }) => {
-                                write!(self.output, "<br>").unwrap();
-                            },
-                            _ => {}
+                        if let (Some(Node::Text { .. }), Node::Text { .. }) = (content.get(i-1), child) {
+                            write!(self.output, "<br>").unwrap();
                         }
                     }
                     self.render_node(child);
@@ -411,6 +408,17 @@ impl HtmlRenderer {
                 write!(self.output, "<code>").unwrap();
                 write!(self.output, "{}", self.escape_html(content)).unwrap();
                 write!(self.output, "</code>").unwrap();
+            }
+
+            Node::Emoji { unicode, shortcode, .. } => {
+                // Render emoji with fallback to shortcode
+                write!(
+                    self.output,
+                    "<span class=\"{}emoji\" title=\":{}\">{}\u{200B}</span>",
+                    self.options.class_prefix,
+                    self.escape_html(shortcode),
+                    self.escape_html(unicode)
+                ).unwrap();
             }
 
             Node::MathInline { content, .. } => {

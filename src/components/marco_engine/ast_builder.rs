@@ -312,8 +312,8 @@ impl AstBuilder {
                 let content_str = pair.as_str();
                 
                 // Check if content ends with backslash (hard line break)
-                if content_str.ends_with('\\') {
-                    let text_content = &content_str[..content_str.len()-1]; // Remove the backslash
+                if let Some(text_content) = content_str.strip_suffix('\\') {
+                    // Remove the backslash
                     if text_content.trim().is_empty() {
                         // Just a backslash on empty line - return hard line break
                         Ok(Node::line_break(crate::components::marco_engine::ast_node::LineBreakType::Hard, span))
@@ -374,6 +374,11 @@ impl AstBuilder {
                 Ok(Node::math_inline(content, span))
             }
 
+            Rule::emoji => {
+                let (shortcode, unicode) = self.extract_emoji_content(&pair)?;
+                Ok(Node::emoji(shortcode, unicode, span))
+            }
+
             // Emphasis handling - only handle specific types to avoid nesting
             Rule::bold_asterisk | Rule::bold_underscore => {
                 let content = self.extract_emphasis_content_from_structure(&pair)?;
@@ -414,8 +419,9 @@ impl AstBuilder {
             }
 
             Rule::strikethrough => {
-                let content = self.build_children(pair)?;
-                Ok(Node::strikethrough(content, span))
+                // Handle strikethrough content extraction from atomic rules
+                let content = self.extract_strikethrough_content(&pair)?;
+                Ok(Node::strikethrough(vec![Node::text(content, span.clone())], span))
             }
 
             Rule::highlight => {
@@ -436,13 +442,15 @@ impl AstBuilder {
             }
 
             Rule::superscript => {
-                let content = self.build_children(pair)?;
-                Ok(Node::superscript(content, span))
+                let content = self.extract_superscript_content(&pair)?;
+                let content_node = Node::text(content, span.clone());
+                Ok(Node::superscript(vec![content_node], span))
             }
 
             Rule::subscript => {
-                let content = self.build_children(pair)?;
-                Ok(Node::subscript(content, span))
+                let content = self.extract_subscript_content(&pair)?;
+                let content_node = Node::text(content, span.clone());
+                Ok(Node::subscript(vec![content_node], span))
             }
 
             // Links and images
@@ -695,6 +703,17 @@ impl AstBuilder {
                 if content.len() == 1 {
                     Ok(content.into_iter().next().unwrap())
                 } else {
+                    Ok(Node::paragraph(content, None, span))
+                }
+            }
+
+            Rule::heading_text => {
+                // heading_text contains inline_core - process the inline content
+                let content = self.build_children(pair)?;
+                if content.len() == 1 {
+                    Ok(content.into_iter().next().unwrap())
+                } else {
+                    // Multiple inline elements - wrap in a container
                     Ok(Node::paragraph(content, None, span))
                 }
             }
@@ -1044,7 +1063,7 @@ impl AstBuilder {
                 }
             }
         } else if matches!(rule, Rule::heading) {
-            // Heading container - look for setext rules inside
+            // Heading container - look for ATX heading rules (H1-H6) inside, then heading_content inside those
             for inner_pair in pair.into_inner() {
                 if matches!(inner_pair.as_rule(), Rule::setext_h1 | Rule::setext_h2) {
                     // Found setext inside heading - extract setext_content
@@ -1057,18 +1076,60 @@ impl AstBuilder {
                             return Ok(content);
                         }
                     }
-                } else if matches!(inner_pair.as_rule(), Rule::heading_content) {
-                    // ATX header content
-                    let child_content = self.build_children(inner_pair)?;
-                    content.extend(child_content);
+                } else if matches!(inner_pair.as_rule(), Rule::H1 | Rule::H2 | Rule::H3 | Rule::H4 | Rule::H5 | Rule::H6) {
+                    // Found ATX heading (H1-H6) - look for heading_content inside it
+                    for atx_inner in inner_pair.into_inner() {
+                        if matches!(atx_inner.as_rule(), Rule::heading_content) {
+                            // ATX header content - process children and preserve whitespace between tokens
+                            let heading_text_pairs: Vec<_> = atx_inner.into_inner().collect();
+                            
+                            for (i, heading_text_pair) in heading_text_pairs.iter().enumerate() {
+                                // Add space if there's a gap between this token and the previous one
+                                if i > 0 {
+                                    let prev_end = heading_text_pairs[i - 1].as_span().end();
+                                    let curr_start = heading_text_pair.as_span().start();
+                                    
+                                    if curr_start > prev_end {
+                                        // There's whitespace between tokens - add a space node
+                                        // Use the previous token's span info for line/column
+                                        let prev_span = self.create_span(&heading_text_pairs[i - 1]);
+                                        let space_span = Span::new(prev_end as u32, curr_start as u32, prev_span.line, prev_span.column);
+                                        content.push(Node::text(" ".to_string(), space_span));
+                                    }
+                                }
+                                
+                                let child_node = self.build_node(heading_text_pair.clone())?;
+                                content.push(child_node);
+                            }
+                        }
+                    }
                 }
             }
         } else {
             // Handle other heading types
             for inner_pair in pair.into_inner() {
                 if matches!(inner_pair.as_rule(), Rule::heading_content) {
-                    let child_content = self.build_children(inner_pair)?;
-                    content.extend(child_content);
+                    // ATX header content - process children and preserve whitespace between tokens
+                    let heading_text_pairs: Vec<_> = inner_pair.into_inner().collect();
+                    
+                    for (i, heading_text_pair) in heading_text_pairs.iter().enumerate() {
+                        // Add space if there's a gap between this token and the previous one
+                        if i > 0 {
+                            let prev_end = heading_text_pairs[i - 1].as_span().end();
+                            let curr_start = heading_text_pair.as_span().start();
+                            
+                            if curr_start > prev_end {
+                                // There's whitespace between tokens - add a space node
+                                // Use the previous token's span info for line/column
+                                let prev_span = self.create_span(&heading_text_pairs[i - 1]);
+                                let space_span = Span::new(prev_end as u32, curr_start as u32, prev_span.line, prev_span.column);
+                                content.push(Node::text(" ".to_string(), space_span));
+                            }
+                        }
+                        
+                        let child_node = self.build_node(heading_text_pair.clone())?;
+                        content.push(child_node);
+                    }
                 }
             }
         }
@@ -1131,121 +1192,6 @@ impl AstBuilder {
         }
     }
 
-    /// Extract emphasis content (helper function)
-    fn extract_emphasis_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
-        let text = pair.as_str();
-
-        match pair.as_rule() {
-            Rule::bold_asterisk => {
-                // Remove ** markers
-                if text.len() >= 4 && text.starts_with("**") && text.ends_with("**") {
-                    Ok(text[2..text.len() - 2].to_string())
-                } else if text.len() >= 2 && text.starts_with("**") {
-                    // Incomplete bold (missing end markers)
-                    Ok(text[2..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_underscore => {
-                // Remove __ markers
-                if text.len() >= 4 && text.starts_with("__") && text.ends_with("__") {
-                    Ok(text[2..text.len() - 2].to_string())
-                } else if text.len() >= 2 && text.starts_with("__") {
-                    // Incomplete bold (missing end markers)
-                    Ok(text[2..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::italic_asterisk => {
-                // Remove * markers
-                if text.len() >= 2 && text.starts_with('*') && text.ends_with('*') {
-                    Ok(text[1..text.len() - 1].to_string())
-                } else if !text.is_empty() && text.starts_with('*') {
-                    // Incomplete italic (missing end marker)
-                    Ok(text[1..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::italic_underscore => {
-                // Remove _ markers
-                if text.len() >= 2 && text.starts_with('_') && text.ends_with('_') {
-                    Ok(text[1..text.len() - 1].to_string())
-                } else if !text.is_empty() && text.starts_with('_') {
-                    // Incomplete italic (missing end marker)
-                    Ok(text[1..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_italic_triple_asterisk => {
-                // Remove *** markers
-                if text.len() >= 6 && text.starts_with("***") && text.ends_with("***") {
-                    Ok(text[3..text.len() - 3].to_string())
-                } else if text.len() >= 3 && text.starts_with("***") {
-                    // Incomplete bold italic (missing end markers)
-                    Ok(text[3..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_italic_triple_underscore => {
-                // Remove ___ markers
-                if text.len() >= 6 && text.starts_with("___") && text.ends_with("___") {
-                    Ok(text[3..text.len() - 3].to_string())
-                } else if text.len() >= 3 && text.starts_with("___") {
-                    // Incomplete bold italic (missing end markers)
-                    Ok(text[3..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_italic_mixed_ast_under => {
-                // Remove **_ and _** markers
-                if text.len() >= 6 && text.starts_with("**_") && text.ends_with("_**") {
-                    Ok(text[3..text.len() - 3].to_string())
-                } else if text.len() >= 3 && text.starts_with("**_") {
-                    Ok(text[3..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_italic_mixed_under_ast => {
-                // Remove __* and *__ markers
-                if text.len() >= 6 && text.starts_with("__*") && text.ends_with("*__") {
-                    Ok(text[3..text.len() - 3].to_string())
-                } else if text.len() >= 3 && text.starts_with("__*") {
-                    Ok(text[3..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_italic_triple_mixed_au => {
-                // Remove *** and ___ markers
-                if text.len() >= 6 && text.starts_with("***") && text.ends_with("___") {
-                    Ok(text[3..text.len() - 3].to_string())
-                } else if text.len() >= 3 && text.starts_with("***") {
-                    Ok(text[3..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            Rule::bold_italic_triple_mixed_ua => {
-                // Remove ___ and *** markers
-                if text.len() >= 6 && text.starts_with("___") && text.ends_with("***") {
-                    Ok(text[3..text.len() - 3].to_string())
-                } else if text.len() >= 3 && text.starts_with("___") {
-                    Ok(text[3..].to_string())
-                } else {
-                    Ok(text.to_string())
-                }
-            }
-            _ => Ok(text.to_string()),
-        }
-    }
-
     /// Extract emphasis content from non-atomic structure (new method for non-atomic rules)
     fn extract_emphasis_content_from_structure(
         &mut self,
@@ -1285,7 +1231,7 @@ impl AstBuilder {
                         && !text.starts_with("**")
                     {
                         text[1..text.len() - 1].to_string()
-                    } else if text.len() >= 1 && text.starts_with("*") && !text.starts_with("**") {
+                    } else if !text.is_empty() && text.starts_with("*") && !text.starts_with("**") {
                         text[1..].to_string()
                     } else {
                         text.to_string()
@@ -1298,7 +1244,7 @@ impl AstBuilder {
                         && !text.starts_with("__")
                     {
                         text[1..text.len() - 1].to_string()
-                    } else if text.len() >= 1 && text.starts_with("_") && !text.starts_with("__") {
+                    } else if !text.is_empty() && text.starts_with("_") && !text.starts_with("__") {
                         text[1..].to_string()
                     } else {
                         text.to_string()
@@ -1307,12 +1253,23 @@ impl AstBuilder {
                 _ => {
                     // For bold_italic rules
                     let text = pair.as_str();
-                    if text.len() >= 6 && text.starts_with("***") && text.ends_with("***") {
+                    if (text.len() >= 6 && text.starts_with("***") && text.ends_with("***")) ||
+                       (text.len() >= 6 && text.starts_with("___") && text.ends_with("___")) {
                         text[3..text.len() - 3].to_string()
-                    } else if text.len() >= 6 && text.starts_with("___") && text.ends_with("___") {
+                    } else if text.len() >= 5 && text.starts_with("**_") && text.ends_with("_**") {
+                        // **_mixed bold italic_**
+                        text[3..text.len() - 3].to_string()
+                    } else if text.len() >= 5 && text.starts_with("__*") && text.ends_with("*__") {
+                        // __*mixed bold italic*__
+                        text[3..text.len() - 3].to_string()
+                    } else if text.len() >= 5 && text.starts_with("***") && text.ends_with("___") {
+                        // ***bold italic___
+                        text[3..text.len() - 3].to_string()
+                    } else if text.len() >= 5 && text.starts_with("___") && text.ends_with("***") {
+                        // ___bold italic***
                         text[3..text.len() - 3].to_string()
                     } else {
-                        // Handle other bold_italic variations...
+                        // Fallback - try to strip any combination of * and _
                         text.to_string()
                     }
                 }
@@ -1398,29 +1355,93 @@ impl AstBuilder {
         Ok(content.to_string())
     }
 
-    /// Check if list is ordered
-    fn is_ordered_list(&self, pair: &Pair<Rule>) -> Result<bool, AstError> {
-        // With the new grammar, we can determine list type from the rule itself
-        match pair.as_rule() {
-            Rule::ordered_list => Ok(true),
-            Rule::unordered_list => Ok(false),
-            Rule::list => {
-                // For the generic list rule, check the first list item type
-                for inner_pair in pair.clone().into_inner() {
-                    match inner_pair.as_rule() {
-                        Rule::ordered_list_item => return Ok(true),
-                        Rule::unordered_list_item => return Ok(false),
-                        _ => continue,
+    /// Extract emoji content and convert to unicode
+    fn extract_emoji_content(&self, pair: &Pair<Rule>) -> Result<(String, String), AstError> {
+        let text = pair.as_str();
+        // Remove : delimiters to get shortcode
+        if text.len() >= 2 && text.starts_with(':') && text.ends_with(':') {
+            let shortcode = text[1..text.len() - 1].to_string();
+            
+            // Use the emojis crate to convert shortcode to unicode
+            if let Some(emoji) = emojis::get_by_shortcode(&shortcode) {
+                Ok((shortcode, emoji.as_str().to_string()))
+            } else {
+                // If emoji not found, return the original text as both shortcode and unicode
+                Ok((shortcode.clone(), format!(":{shortcode}:")))
+            }
+        } else {
+            // Malformed emoji, return as-is
+            Ok((text.to_string(), text.to_string()))
+        }
+    }
+
+    /// Extract strikethrough content from atomic rules
+    fn extract_strikethrough_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
+        // Look for the atomic strikethrough sub-rule
+        for inner_pair in pair.clone().into_inner() {
+            match inner_pair.as_rule() {
+                Rule::strikethrough_tilde => {
+                    let text = inner_pair.as_str();
+                    // Remove ~~ delimiters
+                    if text.len() >= 4 && text.starts_with("~~") && text.ends_with("~~") {
+                        return Ok(text[2..text.len() - 2].to_string());
                     }
                 }
-                // Fallback: check text content for digits
-                let text = pair.as_str();
-                Ok(text.lines().any(|line| {
-                    let trimmed = line.trim_start();
-                    trimmed.chars().next().is_some_and(|c| c.is_ascii_digit())
-                }))
+                Rule::strikethrough_dash => {
+                    let text = inner_pair.as_str();
+                    // Remove -- delimiters
+                    if text.len() >= 4 && text.starts_with("--") && text.ends_with("--") {
+                        return Ok(text[2..text.len() - 2].to_string());
+                    }
+                }
+                _ => {}
             }
-            _ => Ok(false),
+        }
+        
+        // Fallback: extract from the outer pair
+        let text = pair.as_str();
+        if text.len() >= 4 && 
+           ((text.starts_with("~~") && text.ends_with("~~")) || 
+            (text.starts_with("--") && text.ends_with("--"))) {
+            Ok(text[2..text.len() - 2].to_string())
+        } else {
+            Ok(text.to_string())
+        }
+    }
+
+    /// Extract superscript content
+    fn extract_superscript_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
+        let text = pair.as_str();
+        // Remove ^ delimiters
+        if text.len() >= 2 && text.starts_with("^") && text.ends_with("^") {
+            Ok(text[1..text.len() - 1].to_string())
+        } else {
+            // Fallback for malformed superscript
+            Ok(text.to_string())
+        }
+    }
+
+    /// Extract subscript content
+    fn extract_subscript_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
+        let text = pair.as_str();
+        
+        // Handle different subscript formats
+        if text.starts_with("˅") && text.ends_with("˅") {
+            // Arrow style: ˅content˅
+            // Need to properly handle UTF-8 characters - ˅ is multi-byte
+            let chars: Vec<char> = text.chars().collect();
+            if chars.len() >= 2 && chars[0] == '˅' && chars[chars.len()-1] == '˅' {
+                let content: String = chars[1..chars.len()-1].iter().collect();
+                Ok(content)
+            } else {
+                Ok(text.to_string())
+            }
+        } else if text.len() >= 2 && text.starts_with("~") && text.ends_with("~") {
+            // Tilde style: ~content~
+            Ok(text[1..text.len() - 1].to_string())
+        } else {
+            // Fallback for malformed subscript
+            Ok(text.to_string())
         }
     }
 

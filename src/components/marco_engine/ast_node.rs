@@ -206,6 +206,13 @@ pub enum Node {
     /// Inline math $formula$
     MathInline { content: String, span: Span },
 
+    /// Emoji :name:
+    Emoji { 
+        shortcode: String,  // e.g., "smile", "heart", "thumbs_up"
+        unicode: String,    // e.g., "😊", "❤️", "👍"
+        span: Span 
+    },
+
     /// Links [text](url "title")
     Link {
         text: Vec<Node>,       // Link text content
@@ -354,176 +361,6 @@ pub enum Node {
     },
 }
 
-impl Node {
-    /// Get the span of any node
-    pub fn span(&self) -> &Span {
-        match self {
-            Node::Document { span, .. } => span,
-            Node::Heading { span, .. } => span,
-            Node::Paragraph { span, .. } => span,
-            Node::CodeBlock { span, .. } => span,
-            Node::NestedCodeBlock { span, .. } => span,
-            Node::MathBlock { span, .. } => span,
-            Node::List { span, .. } => span,
-            Node::ListItem { span, .. } => span,
-            Node::Table { span, .. } => span,
-            Node::TableCell { span, .. } => span,
-            Node::BlockQuote { span, .. } => span,
-            Node::HorizontalRule { span, .. } => span,
-            Node::DefinitionList { span, .. } => span,
-            Node::DefinitionTerm { span, .. } => span,
-            Node::DefinitionDescription { span, .. } => span,
-            Node::Text { span, .. } => span,
-            Node::Strong { span, .. } => span,
-            Node::Emphasis { span, .. } => span,
-            Node::Strikethrough { span, .. } => span,
-            Node::Highlight { span, .. } => span,
-            Node::Superscript { span, .. } => span,
-            Node::Subscript { span, .. } => span,
-            Node::Code { span, .. } => span,
-            Node::MathInline { span, .. } => span,
-            Node::Link { span, .. } => span,
-            Node::Image { span, .. } => span,
-            Node::LineBreak { span, .. } => span,
-            Node::EscapedChar { span, .. } => span,
-            Node::UserMention { span, .. } => span,
-            Node::Bookmark { span, .. } => span,
-            Node::TabBlock { span, .. } => span,
-            Node::Tab { span, .. } => span,
-            Node::Admonition { span, .. } => span,
-            Node::TableOfContents { span, .. } => span,
-            Node::RunInline { span, .. } => span,
-            Node::RunBlock { span, .. } => span,
-            Node::DiagramBlock { span, .. } => span,
-            Node::FootnoteDef { span, .. } => span,
-            Node::FootnoteRef { span, .. } => span,
-            Node::InlineFootnoteRef { span, .. } => span,
-            Node::ReferenceDefinition { span, .. } => span,
-            Node::ReferenceLink { span, .. } => span,
-            Node::ReferenceImage { span, .. } => span,
-            Node::HtmlBlock { span, .. } => span,
-            Node::Unknown { span, .. } => span,
-        }
-    }
-
-    /// Check if this is a block-level element
-    pub fn is_block(&self) -> bool {
-        matches!(
-            self,
-            Node::Document { .. }
-                | Node::Heading { .. }
-                | Node::Paragraph { .. }
-                | Node::CodeBlock { .. }
-                | Node::NestedCodeBlock { .. }
-                | Node::MathBlock { .. }
-                | Node::List { .. }
-                | Node::ListItem { .. }
-                | Node::Table { .. }
-                | Node::TableCell { .. }
-                | Node::BlockQuote { .. }
-                | Node::HorizontalRule { .. }
-                | Node::DefinitionList { .. }
-                | Node::DefinitionTerm { .. }
-                | Node::DefinitionDescription { .. }
-                | Node::TabBlock { .. }
-                | Node::Tab { .. }
-                | Node::Admonition { .. }
-                | Node::TableOfContents { .. }
-                | Node::RunBlock { .. }
-                | Node::DiagramBlock { .. }
-                | Node::FootnoteDef { .. }
-                | Node::HtmlBlock { .. }
-        )
-    }
-
-    /// Check if this is an inline element
-    pub fn is_inline(&self) -> bool {
-        matches!(
-            self,
-            Node::Text { .. }
-                | Node::Strong { .. }
-                | Node::Emphasis { .. }
-                | Node::Strikethrough { .. }
-                | Node::Highlight { .. }
-                | Node::Superscript { .. }
-                | Node::Subscript { .. }
-                | Node::Code { .. }
-                | Node::MathInline { .. }
-                | Node::Link { .. }
-                | Node::Image { .. }
-                | Node::LineBreak { .. }
-                | Node::EscapedChar { .. }
-                | Node::UserMention { .. }
-                | Node::Bookmark { .. }
-                | Node::RunInline { .. }
-                | Node::FootnoteRef { .. }
-                | Node::InlineFootnoteRef { .. }
-                | Node::ReferenceLink { .. }
-                | Node::ReferenceImage { .. }
-        )
-    }
-
-    /// Get child nodes if this node can contain children
-    pub fn children(&self) -> Option<&[Node]> {
-        match self {
-            Node::Document { children, .. } => Some(children),
-            Node::Heading { content, .. } => Some(content),
-            Node::Paragraph { content, .. } => Some(content),
-            Node::NestedCodeBlock { content, .. } => Some(content),
-            Node::List { items, .. } => Some(items),
-            Node::ListItem { content, .. } => Some(content),
-            Node::BlockQuote { content, .. } => Some(content),
-            Node::DefinitionList { items, .. } => Some(items),
-            Node::DefinitionTerm { content, .. } => Some(content),
-            Node::DefinitionDescription { content, .. } => Some(content),
-            Node::Strong { content, .. } => Some(content),
-            Node::Emphasis { content, .. } => Some(content),
-            Node::Strikethrough { content, .. } => Some(content),
-            Node::Highlight { content, .. } => Some(content),
-            Node::Superscript { content, .. } => Some(content),
-            Node::Subscript { content, .. } => Some(content),
-            Node::Link { text, .. } => Some(text),
-            Node::TabBlock { tabs, .. } => Some(tabs),
-            Node::Tab { content, .. } => Some(content),
-            Node::Admonition { content, .. } => Some(content),
-            Node::FootnoteDef { content, .. } => Some(content),
-            Node::InlineFootnoteRef { content, .. } => Some(content),
-            Node::ReferenceLink { text, .. } => Some(text),
-            _ => None,
-        }
-    }
-
-    /// Get mutable child nodes if this node can contain children
-    pub fn children_mut(&mut self) -> Option<&mut Vec<Node>> {
-        match self {
-            Node::Document { children, .. } => Some(children),
-            Node::Heading { content, .. } => Some(content),
-            Node::Paragraph { content, .. } => Some(content),
-            Node::NestedCodeBlock { content, .. } => Some(content),
-            Node::List { items, .. } => Some(items),
-            Node::ListItem { content, .. } => Some(content),
-            Node::BlockQuote { content, .. } => Some(content),
-            Node::DefinitionList { items, .. } => Some(items),
-            Node::DefinitionTerm { content, .. } => Some(content),
-            Node::DefinitionDescription { content, .. } => Some(content),
-            Node::Strong { content, .. } => Some(content),
-            Node::Emphasis { content, .. } => Some(content),
-            Node::Strikethrough { content, .. } => Some(content),
-            Node::Highlight { content, .. } => Some(content),
-            Node::Superscript { content, .. } => Some(content),
-            Node::Subscript { content, .. } => Some(content),
-            Node::Link { text, .. } => Some(text),
-            Node::TabBlock { tabs, .. } => Some(tabs),
-            Node::Tab { content, .. } => Some(content),
-            Node::Admonition { content, .. } => Some(content),
-            Node::FootnoteDef { content, .. } => Some(content),
-            Node::InlineFootnoteRef { content, .. } => Some(content),
-            Node::ReferenceLink { text, .. } => Some(text),
-            _ => None,
-        }
-    }
-}
-
 // Convenient constructor methods
 impl Node {
     /// Create a new document node
@@ -573,6 +410,11 @@ impl Node {
     /// Create a new inline code node
     pub fn code(content: String, span: Span) -> Self {
         Node::Code { content, span }
+    }
+
+    /// Create a new emoji node
+    pub fn emoji(shortcode: String, unicode: String, span: Span) -> Self {
+        Node::Emoji { shortcode, unicode, span }
     }
 
     /// Create a new list node
@@ -710,70 +552,6 @@ impl Node {
             span,
         }
     }
-
-    /// Create a new footnote definition node
-    pub fn footnote_def(label: String, content: Vec<Node>, span: Span) -> Self {
-        Node::FootnoteDef {
-            label,
-            content,
-            span,
-        }
-    }
-
-    /// Create a new footnote reference node
-    pub fn footnote_ref(label: String, span: Span) -> Self {
-        Node::FootnoteRef { label, span }
-    }
-
-    /// Create a new inline footnote reference node
-    pub fn inline_footnote_ref(content: Vec<Node>, span: Span) -> Self {
-        Node::InlineFootnoteRef { content, span }
-    }
-
-    /// Create a new reference definition node
-    pub fn reference_definition(
-        label: String,
-        url: String,
-        title: Option<String>,
-        span: Span,
-    ) -> Self {
-        Node::ReferenceDefinition {
-            label,
-            url,
-            title,
-            span,
-        }
-    }
-
-    /// Create a new reference link node
-    pub fn reference_link(text: Vec<Node>, label: String, span: Span) -> Self {
-        Node::ReferenceLink { text, label, span }
-    }
-
-    /// Create a new reference image node
-    pub fn reference_image(alt: String, label: String, span: Span) -> Self {
-        Node::ReferenceImage { alt, label, span }
-    }
-
-    /// Create a new HTML block node
-    pub fn html_block(content: String, span: Span) -> Self {
-        Node::HtmlBlock { content, span }
-    }
-
-    /// Create a new definition list node
-    pub fn definition_list(items: Vec<Node>, span: Span) -> Self {
-        Node::DefinitionList { items, span }
-    }
-
-    /// Create a new definition term node
-    pub fn definition_term(content: Vec<Node>, span: Span) -> Self {
-        Node::DefinitionTerm { content, span }
-    }
-
-    /// Create a new definition description node
-    pub fn definition_description(content: Vec<Node>, span: Span) -> Self {
-        Node::DefinitionDescription { content, span }
-    }
 }
 
 impl Span {
@@ -799,15 +577,5 @@ impl Span {
             line: line as u32,
             column: column as u32,
         }
-    }
-
-    /// Check if this span is empty
-    pub fn is_empty(&self) -> bool {
-        self.start == self.end
-    }
-
-    /// Get the length of this span
-    pub fn len(&self) -> u32 {
-        self.end - self.start
     }
 }

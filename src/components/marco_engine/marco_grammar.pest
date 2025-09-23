@@ -188,6 +188,12 @@ text_no_formatting = _{
   !NEWLINE ~  // Don't match soft line breaks
   !"[" ~  // Stop at potential links
   !"=" ~  // Stop at potential highlight markers
+  !(":" ~ (!(":" | WHITESPACE | NEWLINE) ~ ANY)+ ~ ":") ~  // Don't match emoji patterns
+  !("~~" ~ (!"~~" ~ (!NEWLINE ~ ANY))+ ~ "~~") ~  // Don't match tilde strikethrough
+  !("--" ~ (!"--" ~ (!NEWLINE ~ ANY))+ ~ "--") ~  // Don't match dash strikethrough
+  !("^" ~ (!"^" ~ (!WHITESPACE ~ ANY))+ ~ "^") ~  // Don't match superscript patterns
+  !("~" ~ !"~" ~ (!"~" ~ (!WHITESPACE ~ ANY))+ ~ "~") ~  // Don't match subscript tilde patterns
+  !("˅" ~ (!"˅" ~ (!WHITESPACE ~ ANY))+ ~ "˅") ~  // Don't match subscript arrow patterns
   ( // Allow spaces before formatting markers but don't include the markers themselves
   (" " ~ !(("**" | "__" | "*" ~ !"*" | "==" | "$" | "["))) | // Regular content
   (word | safe_punct | "\t" | math_symbol | inline_formatting_safe))

@@ -21,6 +21,8 @@ pub use ast_node::Node;
 pub use parser_cache::{global_parser_cache};
 pub use grammar::{MarcoParser, Rule};
 pub use render_html::{HtmlOptions, HtmlRenderer};
+// Re-export parser utilities for testing and convenience
+pub use parser::{ParseResult, parse_document, parse_with_rule};
 
 /// Version information
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

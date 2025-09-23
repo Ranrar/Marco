@@ -1,5 +1,11 @@
 [
   {
+    "_comment": "CommonMark Spec",
+    "_description": "Version 0.31.2 (2024-01-28)",
+    "_usage": "Run with: cargo run --bin marco-test -- spec --file tests/spec/commonmark.json",
+    "_note": "This comment object is ignored by the test runner"
+  },
+  {
     "markdown": "\tfoo\tbaz\t\tbim\n",
     "html": "<pre><code>foo\tbaz\t\tbim\n</code></pre>\n",
     "example": 1,

@@ -229,6 +229,13 @@ code {
     transition: background-color 0.3s ease;
 }
 
+/* Fix inline code in headers - override transparent text */
+h1 code, h2 code, h3 code, h4 code, h5 code, h6 code {
+    -webkit-text-fill-color: var(--info-green);
+    color: var(--info-green);
+    background-color: var(--bg-code);
+}
+
 /* Code blocks - Simple and clean like neutral theme */
 pre {
     border: 1px solid var(--border-color);
@@ -470,6 +477,34 @@ mark {
 .theme-dark mark {
     background: linear-gradient(135deg, var(--warning-yellow), #f59e0b);
     color: #0a0a0a;
+}
+
+/* Fix highlight/mark in headers - override transparent text */
+h1 mark, h2 mark, h3 mark, h4 mark, h5 mark, h6 mark {
+    -webkit-text-fill-color: #1a1a1a;
+    color: #1a1a1a;
+    background: linear-gradient(135deg, var(--warning-yellow), #fbbf24);
+}
+
+.theme-dark h1 mark, .theme-dark h2 mark, .theme-dark h3 mark, 
+.theme-dark h4 mark, .theme-dark h5 mark, .theme-dark h6 mark {
+    -webkit-text-fill-color: #0a0a0a;
+    color: #0a0a0a;
+    background: linear-gradient(135deg, var(--warning-yellow), #f59e0b);
+}
+
+/* Emoji styling */
+.marco-emoji {
+    font-size: 1.2em;
+    display: inline-block;
+    vertical-align: baseline;
+}
+
+/* Fix emoji in headers - override transparent text */
+h1 .marco-emoji, h2 .marco-emoji, h3 .marco-emoji, 
+h4 .marco-emoji, h5 .marco-emoji, h6 .marco-emoji {
+    -webkit-text-fill-color: initial;
+    color: initial;
 }
 
 /* Footnotes */
