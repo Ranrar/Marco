@@ -7,10 +7,23 @@ description = "Marco - A Markdown Composer"
 license = "MIT OR Apache-2.0"
 default-run = "marco"
 
+[features]
+default = []
+# Enable comprehensive CommonMark spec testing (652 tests)
+integration-tests = []
+
 
 [[bin]]
 name = "marco"
 path = "src/main.rs"
+
+[[bin]]
+name = "marco-test"
+path = "tests/test_runner/main.rs"
+
+[[bin]]
+name = "marco-parser-debug"
+path = "tests/parser_debug/main.rs"
 
 [dependencies]
 ron = "0.8"
@@ -33,6 +46,11 @@ pest_derive = "2.8.1"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "5.0"
+# Test suite dependencies (needed for marco-test binary)
+clap = { version = "4.5", features = ["derive"] }
+similar = { version = "2.7", features = ["inline", "unicode"] }
+colored = "2.1"
+atty = "0.2"
 
 [dev-dependencies]
 # Basic testing

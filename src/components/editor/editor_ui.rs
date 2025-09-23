@@ -1,7 +1,7 @@
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
 use crate::components::editor::processing_utilities::AsyncExtensionManager;
-use crate::components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
+use crate::components::marco_engine::render_html::HtmlOptions;
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
@@ -271,12 +271,9 @@ pub fn create_editor_with_preview_and_buffer(
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
 
-    let initial_html_body = match crate::components::marco_engine::global_ast_cache().parse_cached(&initial_text) {
-        Ok(ast) => {
-            let renderer = HtmlRenderer::new(html_opts_rc.as_ref().clone());
-            renderer.render(&ast)
-        }
-        Err(e) => format!("Error parsing markdown: {}", e),
+    let initial_html_body = match crate::components::marco_engine::global_parser_cache().render_with_cache(&initial_text, html_opts_rc.as_ref().clone()) {
+        Ok(html) => html,
+        Err(e) => format!("Error rendering HTML: {}", e),
     };
 
     let pretty_initial =
@@ -441,13 +438,10 @@ pub fn create_editor_with_preview_and_buffer(
                 )
                 .to_string();
 
-            // Generate raw HTML using Marco engine with caching
-            let html_body = match crate::components::marco_engine::global_ast_cache().parse_cached(&text) {
-                Ok(ast) => {
-                    let renderer = HtmlRenderer::new(html_opts_for_code.as_ref().clone());
-                    renderer.render(&ast)
-                }
-                Err(e) => format!("<!-- Error parsing markdown: {} -->", e),
+            // Generate raw HTML using Marco engine with full HTML caching
+            let html_body = match crate::components::marco_engine::global_parser_cache().render_with_cache(&text, html_opts_for_code.as_ref().clone()) {
+                Ok(html) => html,
+                Err(e) => format!("<!-- Error rendering HTML: {} -->", e),
             };
 
             // Format the HTML for better readability in code view
@@ -481,104 +475,38 @@ pub fn create_editor_with_preview_and_buffer(
     let extension_manager_for_signal = extension_manager.clone();
     let buffer_rc_clone = Rc::clone(&buffer_rc);
     
-    // Debouncing state for extension processing as per optimization spec
-    let extension_timeout_id: Rc<std::cell::Cell<Option<glib::SourceId>>> = Rc::new(std::cell::Cell::new(None));
-    let extension_first_call: Rc<std::cell::Cell<bool>> = Rc::new(std::cell::Cell::new(true));
-    
     buffer_rc_clone.connect_changed(move |buffer| {
         // Always update HTML preview immediately - this is lightweight
         refresh_for_signal();
         
-        // Debounced extension processing with leading + trailing edge (as per spec)
-        let debounce_ms = 200; // As recommended in optimization spec
+        // Use our improved debounced extension processing with proper leading + trailing edge
+        let current_text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
+        let cursor_position = {
+            let cursor_iter = buffer.cursor_position();
+            if cursor_iter >= 0 { Some(cursor_iter as u32) } else { None }
+        };
         
-        // Cancel any existing timer
-        if let Some(timer_id) = extension_timeout_id.replace(None) {
-            timer_id.remove();
-        }
-        
-        // Leading edge: immediate processing on first keystroke
-        let is_first_call = extension_first_call.get();
-        if is_first_call {
-            extension_first_call.set(false);
-            
-            // Process extensions immediately on first keystroke for responsiveness
-            let current_text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
-            let cursor_position = {
-                let cursor_iter = buffer.cursor_position();
-                if cursor_iter >= 0 { Some(cursor_iter as u32) } else { None }
-            };
-            
-            if let Some(ref manager) = extension_manager_for_signal {
-                if let Ok(manager_ref) = manager.try_borrow() {
-                    if let Err(e) = manager_ref.process_extensions_async(
-                        current_text.clone(),
-                        cursor_position,
-                        |results| {
-                            log::debug!("Immediate extension processing: {} results", results.len());
-                            for result in results {
-                                if result.success && !result.processed_content.is_empty() {
-                                    log::debug!("Extension '{}' processed immediately in {}ms", 
-                                        result.extension_name, result.processing_time_ms);
-                                }
+        if let Some(ref manager) = extension_manager_for_signal {
+            if let Ok(manager_ref) = manager.try_borrow() {
+                if let Err(e) = manager_ref.process_extensions_with_debouncing(
+                    current_text,
+                    cursor_position,
+                    |results| {
+                        log::debug!("Extension processing completed: {} results", results.len());
+                        for result in results {
+                            if result.success {
+                                log::debug!("Extension '{}' processed in {}ms", 
+                                    result.extension_name, result.processing_time_ms);
                             }
                         }
-                    ) {
-                        log::error!("Failed to trigger immediate extension processing: {}", e);
                     }
+                ) {
+                    log::error!("Failed to trigger extension processing: {}", e);
                 }
             }
         }
         
-        // Trailing edge: debounced processing for subsequent keystrokes
-        let buffer_clone = buffer.clone();
-        let manager_clone = extension_manager_for_signal.clone();
-        let extension_timeout_clone = Rc::clone(&extension_timeout_id);
-        let extension_first_clone = Rc::clone(&extension_first_call);
-        let timer_id = glib::timeout_add_local(
-            std::time::Duration::from_millis(debounce_ms),
-            move || {
-                // Clear the timeout ID
-                extension_timeout_clone.set(None);
-                
-                // Reset first call flag for next typing session
-                extension_first_clone.set(true);
-                
-                // Process extensions after debounce delay
-                let current_text = buffer_clone.text(&buffer_clone.start_iter(), &buffer_clone.end_iter(), false).to_string();
-                let cursor_position = {
-                    let cursor_iter = buffer_clone.cursor_position();
-                    if cursor_iter >= 0 { Some(cursor_iter as u32) } else { None }
-                };
-                
-                if let Some(ref manager) = manager_clone {
-                    if let Ok(manager_ref) = manager.try_borrow() {
-                        if let Err(e) = manager_ref.process_extensions_async(
-                            current_text,
-                            cursor_position,
-                            |results| {
-                                log::debug!("Debounced extension processing: {} results", results.len());
-                                for result in results {
-                                    if result.success && !result.processed_content.is_empty() {
-                                        log::debug!("Extension '{}' processed after debounce in {}ms", 
-                                            result.extension_name, result.processing_time_ms);
-                                    }
-                                }
-                            }
-                        ) {
-                            log::error!("Failed to trigger debounced extension processing: {}", e);
-                        }
-                    }
-                }
-                
-                glib::ControlFlow::Break
-            }
-        );
-        
-        extension_timeout_id.set(Some(timer_id));
-        
-        // Hash-based cache automatically handles content changes
-        log::debug!("Buffer changed - debounced extension processing scheduled");
+        log::debug!("Buffer changed - extension processing triggered");
         
         // Also update code view if we're currently in CodePreview mode
         if *view_mode_for_signal.borrow() == ViewMode::CodePreview {

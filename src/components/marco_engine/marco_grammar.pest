@@ -138,7 +138,7 @@ markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "|" | "$" 
 
 // Mathematical symbols and operators
 // Examples: "±", "√", "∞", "≈", "π", "α"
-math_symbol = @{ "±" | "√" | "∞" | "∑" | "≈" | "≠" | "≤" | "≥" | "∆" | "π" | "α" | "β" | "γ" | "λ" | "μ" | "σ" | "Ω" | "+" | "=" | "×" | "÷" }
+math_symbol = @{ "±" | "√" | "∞" | "∑" | "≈" | "≠" | "≤" | "≥" | "∆" | "π" | "α" | "β" | "γ" | "λ" | "μ" | "σ" | "Ω" | "+" | "×" | "÷" }
 
 // text matching with block boundary detection
 // Avoids consuming text that should be parsed as block elements
@@ -177,8 +177,8 @@ start_line_formatting = @{ (SOI | NEWLINE) ~ WHITESPACE* ~ !("```" | "~~~") ~ fo
 formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "$" }
 
 // Text content components for building text rules
-// Examples: words, punctuation, spaces, math symbols
-text_content_chars = { word | safe_punct | !((" "{2, } | "\\") ~ NEWLINE) ~ (" " | "\t") | math_symbol | inline_formatting_safe | ("`" ~ !"`") | "*" | "_" | "=" | "^" | "#" | "!" | "$" }
+// Examples: words, punctuation, spaces, math symbols (excluding = to avoid conflicts with highlight)
+text_content_chars = { word | safe_punct | !((" "{2, } | "\\") ~ NEWLINE) ~ (" " | "\t") | math_symbol | inline_formatting_safe | ("`" ~ !"`") | "*" | "_" | "^" | "#" | "!" | "$" }
 
 // More restrictive text content that stops at formatting boundaries
 // Examples: plain text that doesn't cross `code`, **bold**, or $math$ boundaries
@@ -187,8 +187,9 @@ text_no_formatting = _{
   !((" "{2, } | "\\") ~ NEWLINE) ~  // Don't match hard line breaks
   !NEWLINE ~  // Don't match soft line breaks
   !"[" ~  // Stop at potential links
+  !"=" ~  // Stop at potential highlight markers
   ( // Allow spaces before formatting markers but don't include the markers themselves
-  (" " ~ !(("**" | "__" | "*" ~ !"*" | "$" | "["))) | // Regular content
+  (" " ~ !(("**" | "__" | "*" ~ !"*" | "==" | "$" | "["))) | // Regular content
   (word | safe_punct | "\t" | math_symbol | inline_formatting_safe))
 }
 

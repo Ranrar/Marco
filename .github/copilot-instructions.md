@@ -28,23 +28,8 @@ Key files:
 ### Project Structure Patterns
 - `src/main.rs` serves **only** as application gateway - UI logic lives in components
 - `src/lib.rs` re-exports public API for external tools and tests
-- `src/bin/` contains debugging tools (not user-facing binaries)
-- Modules follow consistent `mod.rs` + individual files pattern
 
 ## Development Workflows
-
-### Testing & Debugging
-Use the specialized bin tools for parser development:
-```bash
-# Test current parser state
-cargo run --bin test_current_parser
-
-# Debug grammar rule precedence
-cargo run --bin debug_grammar_precedence  
-
-# Test edge cases and rendering
-cargo run --bin test_edge_cases_render
-```
 
 ### Grammar Development
 The project includes VS Code tasks for pest grammar work:
@@ -92,8 +77,60 @@ Marco supports unique syntax beyond CommonMark:
 - View mode switching handled in `viewer::viewmode`
 
 ## Testing Approach
-- Integration tests in `tests/` directory use lib.rs exports
-- Parser testing via bin tools with live content
-- Manual testing preferred over unit tests for UI components
 
-When modifying grammar, always run `test_current_parser` and check `PARSER_ISSUES.md` for current status.
+### Primary Testing Strategy: Smoke Tests
+Marco prioritizes **smoke tests** as the primary testing methodology. Smoke tests verify core functionality works correctly without extensive mocking or complex setup.
+
+#### Smoke Test Principles:
+- **Fast execution** - Complete in milliseconds, suitable for frequent runs
+- **Core functionality focus** - Test the happy path and essential features
+- **Real integration** - Use actual components together, not mocked dependencies
+- **Clear assertions** - Verify observable behavior and expected outputs
+- **Self-contained** - Each test includes its own data and cleanup
+
+#### Smoke Test Examples:
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn smoke_test_parser_cache() {
+        let cache = SimpleParserCache::new();
+        let content = "# Hello World\n\nThis is a **test** document.";
+        
+        // Test AST caching - first call should be cache miss
+        let ast1 = cache.parse_with_cache(content).expect("Parse failed");
+        let stats = cache.stats();
+        assert_eq!(stats.ast_misses, 1);
+        assert_eq!(stats.ast_hits, 0);
+        
+        // Second call should be cache hit
+        let ast2 = cache.parse_with_cache(content).expect("Parse failed");
+        let stats = cache.stats();
+        assert_eq!(stats.ast_hits, 1);
+        
+        // Verify functionality works
+        assert!(format!("{:?}", ast1).contains("Hello World"));
+    }
+}
+```
+
+#### When to Add Smoke Tests:
+- **New components or modules** - Add smoke tests immediately after implementation
+- **Core functionality changes** - Update existing smoke tests to reflect new behavior  
+- **Bug fixes** - Add smoke test to verify fix and prevent regression
+- **Performance optimizations** - Ensure smoke tests still pass after changes
+
+### Secondary Testing Approaches:
+- **Integration tests** in `tests/` directory use lib.rs exports
+- **Parser testing** via bin tools with live content (`src/bin/test_*`)
+- **Manual testing** preferred over unit tests for UI components
+- **Grammar testing** - always run `test_current_parser` and check `PARSER_ISSUES.md`
+
+### Testing Guidelines:
+1. **Smoke tests first** - Every new module should include smoke tests
+2. **Test the public API** - Focus on interfaces other components use
+3. **Avoid over-mocking** - Use real objects when possible
+4. **Document test intent** - Clear comments explaining what is being verified
+5. **Fast feedback** - Tests should complete quickly for development workflow

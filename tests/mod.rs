@@ -1,3 +1,5 @@
-pub mod html_tests;
-pub mod simple_debug;
-pub mod tests;
+//! Marco Test Suite
+//!
+//! This module provides comprehensive testing for the Marco markdown engine.
+
+pub mod integration;

@@ -1,8 +1,5 @@
-use crate::components::marco_engine::grammar::Rule;
-use crate::components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
-use crate::components::marco_engine::{AstBuilder, MarcoParser};
+use crate::components::marco_engine::render_html::HtmlOptions;
 use gtk4::prelude::*;
-use pest::Parser;
 use std::cell::RefCell;
 use webkit6::prelude::*;
 
@@ -42,15 +39,14 @@ fn generate_test_html(wheel_js: &str) -> String {
     html_with_js
 }
 
-/// Parse markdown text into HTML using the Marco engine with caching
+/// Parse markdown text into HTML using the Marco engine with full HTML caching
 fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
-    use crate::components::marco_engine::global_ast_cache;
+    use crate::components::marco_engine::global_parser_cache;
     
-    match global_ast_cache().parse_cached(text) {
-        Ok(ast) => {
-            log::debug!("[viewer] AST parsed and cached successfully");
-            let renderer = HtmlRenderer::new(html_options.clone());
-            let html = renderer.render(&ast);
+    // Use full HTML caching for optimal performance
+    match global_parser_cache().render_with_cache(text, html_options.clone()) {
+        Ok(html) => {
+            log::debug!("[viewer] HTML rendered and cached successfully");
             log::debug!(
                 "[viewer] HTML rendered: '{}'",
                 html.chars().take(100).collect::<String>()
@@ -58,29 +54,8 @@ fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
             html
         }
         Err(e) => {
-            log::error!("[viewer] Error parsing markdown with cache: {}", e);
-            
-            // Fallback to non-cached parsing in case of cache issues
-            log::info!("[viewer] Falling back to non-cached parsing");
-            match MarcoParser::parse(Rule::document, text) {
-                Ok(pairs) => {
-                    match AstBuilder::build(pairs) {
-                        Ok(ast) => {
-                            log::debug!("[viewer] Fallback AST built successfully");
-                            let renderer = HtmlRenderer::new(html_options.clone());
-                            renderer.render(&ast)
-                        }
-                        Err(e) => {
-                            log::error!("[viewer] Error building AST in fallback: {}", e);
-                            format!("Error building AST: {}", e)
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!("[viewer] Error parsing markdown in fallback: {}", e);
-                    format!("Error parsing markdown: {}", e)
-                }
-            }
+            log::error!("[viewer] Error rendering HTML with cache: {}", e);
+            format!("Error rendering HTML: {}", e)
         }
     }
 }

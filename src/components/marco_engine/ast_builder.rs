@@ -419,8 +419,20 @@ impl AstBuilder {
             }
 
             Rule::highlight => {
-                let content = self.build_children(pair)?;
-                Ok(Node::highlight(content, span))
+                // Extract content from atomic highlight rule like emphasis does
+                let text = pair.as_str();
+                let content_text = if text.len() >= 4 && text.starts_with("==") && text.ends_with("==") {
+                    text[2..text.len() - 2].to_string()
+                } else if text.len() >= 2 && text.starts_with("==") {
+                    // Incomplete highlight (missing end markers)
+                    text[2..].to_string()
+                } else {
+                    text.to_string()
+                };
+                
+                // Create a text node with the extracted content
+                let content_node = Node::text(content_text, span.clone());
+                Ok(Node::highlight(vec![content_node], span))
             }
 
             Rule::superscript => {
@@ -708,12 +720,12 @@ impl AstBuilder {
                     crate::components::marco_engine::parser::Rule::paragraph_line,
                     text,
                 ) {
-                    // Build inline nodes from the parsed content
+                    // Build inline nodes from the parsed content WITH gap detection
                     let mut children = Vec::new();
                     for inline_pair in pairs {
-                        for inline_child in inline_pair.into_inner() {
-                            children.push(self.build_node(inline_child)?);
-                        }
+                        // Use extract_inline_content for proper gap detection
+                        let inline_content = self.extract_inline_content(inline_pair)?;
+                        children.extend(inline_content);
                     }
 
                     // For single inline elements, return directly
@@ -862,7 +874,30 @@ impl AstBuilder {
     /// Extract inline content from paragraph lines and inline containers
     fn extract_inline_content(&mut self, pair: Pair<Rule>) -> Result<Vec<Node>, AstError> {
         let mut inline_nodes = Vec::new();
+        let parent_span = pair.as_span();
+        let parent_content = pair.as_str();
+        
+        let mut last_end_pos = parent_span.start();
+        
         for inner_pair in pair.into_inner() {
+            let current_start = inner_pair.as_span().start();
+            let current_end = inner_pair.as_span().end();
+            
+            // Check if there's a gap between last element and current element
+            if current_start > last_end_pos {
+                // Extract the gap content (whitespace that was consumed by Pest)
+                let gap_start = last_end_pos - parent_span.start();
+                let gap_end = current_start - parent_span.start();
+                if gap_start < parent_content.len() && gap_end <= parent_content.len() {
+                    let gap_content = &parent_content[gap_start..gap_end];
+                    if !gap_content.is_empty() {
+                        // Create a text node for the gap - use approximate line/column
+                        let gap_span = Span::new(last_end_pos as u32, current_start as u32, 0, 0);
+                        inline_nodes.push(Node::text(gap_content.to_string(), gap_span));
+                    }
+                }
+            }
+            
             match inner_pair.as_rule() {
                 Rule::inline | Rule::inline_core | Rule::inline_no_newline => {
                     // Recursively extract from inline containers
@@ -879,7 +914,22 @@ impl AstBuilder {
                     inline_nodes.push(child);
                 }
             }
+            
+            last_end_pos = current_end;
         }
+        
+        // Check if there's content after the last element
+        if last_end_pos < parent_span.end() {
+            let gap_start = last_end_pos - parent_span.start();
+            if gap_start < parent_content.len() {
+                let remaining_content = &parent_content[gap_start..];
+                if !remaining_content.is_empty() {
+                    let gap_span = Span::new(last_end_pos as u32, parent_span.end() as u32, 0, 0);
+                    inline_nodes.push(Node::text(remaining_content.to_string(), gap_span));
+                }
+            }
+        }
+        
         Ok(inline_nodes)
     }
 
@@ -979,15 +1029,51 @@ impl AstBuilder {
         let mut content = Vec::new();
         let original_text = pair.as_str(); // Get text before moving pair
         let span_copy = self.create_span(&pair);
+        let rule = pair.as_rule();
 
-        for inner_pair in pair.into_inner() {
-            if matches!(inner_pair.as_rule(), Rule::heading_content) {
-                let child_content = self.build_children(inner_pair)?;
-                content.extend(child_content);
+        // Handle setext headers specially - check both direct setext rules and heading containers
+        if matches!(rule, Rule::setext_h1 | Rule::setext_h2) {
+            // Direct setext rule
+            for inner_pair in pair.into_inner() {
+                if matches!(inner_pair.as_rule(), Rule::setext_content) {
+                    let setext_text = inner_pair.as_str().trim();
+                    if !setext_text.is_empty() {
+                        content.push(Node::text(setext_text.to_string(), self.create_span(&inner_pair)));
+                    }
+                    return Ok(content);
+                }
+            }
+        } else if matches!(rule, Rule::heading) {
+            // Heading container - look for setext rules inside
+            for inner_pair in pair.into_inner() {
+                if matches!(inner_pair.as_rule(), Rule::setext_h1 | Rule::setext_h2) {
+                    // Found setext inside heading - extract setext_content
+                    for setext_inner in inner_pair.into_inner() {
+                        if matches!(setext_inner.as_rule(), Rule::setext_content) {
+                            let setext_text = setext_inner.as_str().trim();
+                            if !setext_text.is_empty() {
+                                content.push(Node::text(setext_text.to_string(), self.create_span(&setext_inner)));
+                            }
+                            return Ok(content);
+                        }
+                    }
+                } else if matches!(inner_pair.as_rule(), Rule::heading_content) {
+                    // ATX header content
+                    let child_content = self.build_children(inner_pair)?;
+                    content.extend(child_content);
+                }
+            }
+        } else {
+            // Handle other heading types
+            for inner_pair in pair.into_inner() {
+                if matches!(inner_pair.as_rule(), Rule::heading_content) {
+                    let child_content = self.build_children(inner_pair)?;
+                    content.extend(child_content);
+                }
             }
         }
 
-        // If no content found, extract from raw text
+        // If no content found, extract from raw text (fallback for ATX headers)
         if content.is_empty() {
             // Remove heading markers
             let cleaned_text = original_text.trim_start_matches('#').trim();
