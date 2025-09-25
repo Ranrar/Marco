@@ -12,7 +12,7 @@ pub use logic::buffer::{DocumentBuffer, RecentFiles};
 pub use components::marco_engine::{parse_markdown, AstBuilder, MarcoParser, Rule};
 
 // Re-export parser utilities for testing and convenience
-pub use components::marco_engine::{ParseResult, parse_document, parse_with_rule};
+pub use components::marco_engine::{parse_document, parse_with_rule, ParseResult};
 
 // Re-export HTML rendering
 pub use components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};

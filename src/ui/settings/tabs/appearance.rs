@@ -15,7 +15,10 @@ pub fn build_appearance_tab(
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) -> gtk4::Box {
-    use gtk4::{Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale, SpinButton};
+    use gtk4::{
+        Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale,
+        SpinButton,
+    };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-appearance");
@@ -225,16 +228,16 @@ pub fn build_appearance_tab(
 
     // UI Font Size (Slider/SpinButton)
     let ui_font_size_adj = Adjustment::new(14.0, 10.0, 24.0, 1.0, 0.0, 0.0);
-    
+
     // UI Font Size SpinButton with title
     let ui_font_size_hbox = GtkBox::new(Orientation::Horizontal, 0);
     let ui_font_size_title = bold_label("UI Font Size");
     let ui_font_size_spacer = GtkBox::new(Orientation::Horizontal, 0);
     ui_font_size_spacer.set_hexpand(true);
-    
+
     let ui_font_size_spin = SpinButton::new(Some(&ui_font_size_adj), 1.0, 0);
     ui_font_size_spin.set_halign(Align::End);
-    
+
     ui_font_size_hbox.append(&ui_font_size_title);
     ui_font_size_hbox.append(&ui_font_size_spacer);
     ui_font_size_hbox.append(&ui_font_size_spin);
@@ -243,7 +246,9 @@ pub fn build_appearance_tab(
     container.append(&ui_font_size_hbox);
 
     // Description under header
-    let ui_font_size_desc = desc_label("Customize the font size used in the application's user interface (menus, sidebars).");
+    let ui_font_size_desc = desc_label(
+        "Customize the font size used in the application's user interface (menus, sidebars).",
+    );
     ui_font_size_desc.add_css_class("dim-label");
     ui_font_size_desc.set_margin_bottom(12);
     container.append(&ui_font_size_desc);

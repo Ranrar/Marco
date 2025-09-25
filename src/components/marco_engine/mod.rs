@@ -22,10 +22,8 @@ pub use parser_cache::{global_parser_cache};
 pub use grammar::{MarcoParser, Rule};
 pub use render_html::{HtmlOptions, HtmlRenderer};
 // Re-export parser utilities for testing and convenience
+#[allow(unused_imports)]
 pub use parser::{ParseResult, parse_document, parse_with_rule};
-
-/// Version information
-pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 // ============================================================================
 // SIMPLIFIED 3-FUNCTION API
@@ -47,41 +45,11 @@ pub fn build_ast(pairs: pest::iterators::Pairs<'_, Rule>) -> Result<Node, String
 pub fn render_html(ast: &Node, options: HtmlOptions) -> String {
     HtmlRenderer::new(options).render(ast)
 }
-
-/// Convenience function: Parse markdown to HTML (now uses block-level caching internally)
-pub fn parse_to_html(input: &str) -> Result<String, String> {
-    // Use new parser cache internally for better performance
-    parse_to_html_cached(input)
-}
-
 /// Enhanced cached function: Parse markdown to HTML with block-level caching
 pub fn parse_to_html_cached(input: &str) -> Result<String, String> {
     // Use new parser cache for block-level HTML caching
     global_parser_cache().render_with_cache(input, HtmlOptions::default())
         .map_err(|e| format!("Block-level HTML caching failed: {}", e))
-}
-
-/// Enhanced cached function: Parse text with block-level AST caching
-pub fn parse_to_ast_cached(input: &str) -> Result<Node, String> {
-    // Use simple parser cache for document-level AST caching
-    global_parser_cache().parse_with_cache(input)
-        .map_err(|e| format!("Simple AST caching failed: {}", e))
-}
-
-/// Enhanced incremental function: Parse text with incremental block processing
-pub fn parse_to_ast_incremental(input: &str) -> Result<Vec<Node>, String> {
-    // Simplified - just parse normally and return as single-item vec
-    // Real incremental parsing removed as per spec (too complex)
-    let node = global_parser_cache().parse_with_cache(input)
-        .map_err(|e| format!("Incremental block parsing failed: {}", e))?;
-    Ok(vec![node])
-}
-
-/// Cached function: Parse text with AST caching - NOW USING SIMPLE CACHE
-pub fn parse_cached(input: &str) -> Result<Node, String> {
-    // Use simple parser cache for better performance and maintainability
-    global_parser_cache().parse_with_cache(input)
-        .map_err(|e| format!("Simple cache parsing failed: {}", e))
 }
 
 /// Legacy function: Parse markdown text (alias for parse_text) - Used by footer.rs

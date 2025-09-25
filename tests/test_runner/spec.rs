@@ -1,5 +1,5 @@
 //! JSON test specification structures
-//! 
+//!
 //! Defines the structures for parsing and managing test cases from JSON spec files
 //! like commonmark.json and marco.json.
 
@@ -12,19 +12,19 @@ use std::path::Path;
 pub struct TestCase {
     /// The markdown input to test
     pub markdown: String,
-    
+
     /// The expected HTML output
     pub html: String,
-    
+
     /// Example number from the specification
     pub example: u32,
-    
+
     /// Starting line number in the specification document
     pub start_line: u32,
-    
+
     /// Ending line number in the specification document
     pub end_line: u32,
-    
+
     /// Section name this test belongs to
     pub section: String,
 }
@@ -34,7 +34,7 @@ pub struct TestCase {
 pub struct TestSpec {
     /// All test cases in this specification
     pub tests: Vec<TestCase>,
-    
+
     /// Source file name (for tracking purposes)
     pub source: String,
 }
@@ -44,52 +44,56 @@ impl TestSpec {
     pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
         let path = path.as_ref();
         let content = fs::read_to_string(path)?;
-        
+
         // Handle empty files gracefully
         if content.trim().is_empty() {
             return Ok(TestSpec {
                 tests: vec![],
-                source: path.file_name()
+                source: path
+                    .file_name()
                     .unwrap_or_default()
                     .to_string_lossy()
                     .to_string(),
             });
         }
-        
+
         let tests: Vec<TestCase> = serde_json::from_str(&content)?;
-        
+
         Ok(TestSpec {
             tests,
-            source: path.file_name()
+            source: path
+                .file_name()
                 .unwrap_or_default()
                 .to_string_lossy()
                 .to_string(),
         })
     }
-    
+
     /// Save the test specification back to a JSON file
     pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
         let content = serde_json::to_string_pretty(&self.tests)?;
         fs::write(path, content)?;
         Ok(())
     }
-    
+
     /// Find a test case by example number
     pub fn find_by_example(&self, example: u32) -> Option<&TestCase> {
         self.tests.iter().find(|test| test.example == example)
     }
-    
+
     /// Add a new test case to the specification
     pub fn add_test(&mut self, test_case: TestCase) {
         self.tests.push(test_case);
     }
-    
+
     /// Get the next available example number
     pub fn next_example_number(&self) -> u32 {
-        self.tests.iter()
+        self.tests
+            .iter()
             .map(|test| test.example)
             .max()
-            .unwrap_or(0) + 1
+            .unwrap_or(0)
+            + 1
     }
 }
 
@@ -98,23 +102,19 @@ impl TestSpec {
 pub enum TestResult {
     /// Test passed - actual output matches expected
     Passed,
-    
+
     /// Test failed - actual output doesn't match expected
     Failed {
         expected: String,
         actual: String,
         diff: String,
     },
-    
+
     /// Test case has no expected result - needs baseline
-    NoBaseline {
-        actual: String,
-    },
-    
+    NoBaseline { actual: String },
+
     /// Test case couldn't be executed due to error
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 /// Summary of test run results
@@ -132,7 +132,7 @@ impl TestSummary {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Record a test result in the summary
     pub fn record(&mut self, result: &TestResult) {
         self.total += 1;
@@ -143,7 +143,7 @@ impl TestSummary {
             TestResult::Error { .. } => self.errors += 1,
         }
     }
-    
+
     /// Get the success rate as a percentage
     pub fn success_rate(&self) -> f64 {
         if self.total == 0 {
@@ -157,23 +157,25 @@ impl TestSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::NamedTempFile;
     use std::io::Write;
-    
+    use tempfile::NamedTempFile;
+
     #[test]
     fn test_load_empty_spec() {
         let mut temp_file = NamedTempFile::new().unwrap();
         writeln!(temp_file).unwrap();
-        
+
         let spec = TestSpec::load_from_file(temp_file.path()).unwrap();
         assert_eq!(spec.tests.len(), 0);
         assert!(!spec.source.is_empty());
     }
-    
+
     #[test]
     fn test_load_valid_spec() {
         let mut temp_file = NamedTempFile::new().unwrap();
-        writeln!(temp_file, "[
+        writeln!(
+            temp_file,
+            "[
             {{
                 \"markdown\": \"# Testing\",
                 \"html\": \"<h1>Testing</h1>\",
@@ -182,8 +184,10 @@ mod tests {
                 \"end_line\": 15,
                 \"section\": \"Headers\"
             }}
-        ]").unwrap();
-        
+        ]"
+        )
+        .unwrap();
+
         let spec = TestSpec::load_from_file(temp_file.path()).unwrap();
         assert_eq!(spec.tests.len(), 1);
         assert_eq!(spec.tests[0].markdown, "# Testing");
@@ -191,7 +195,7 @@ mod tests {
         assert_eq!(spec.tests[0].example, 1);
         assert_eq!(spec.tests[0].section, "Headers");
     }
-    
+
     #[test]
     fn test_find_by_example() {
         let spec = TestSpec {
@@ -215,23 +219,23 @@ mod tests {
             ],
             source: "test.json".to_string(),
         };
-        
+
         let test = spec.find_by_example(1).unwrap();
         assert_eq!(test.markdown, "# Test 1");
-        
+
         let test = spec.find_by_example(999);
         assert!(test.is_none());
     }
-    
+
     #[test]
     fn test_next_example_number() {
         let mut spec = TestSpec {
             tests: vec![],
             source: "test.json".to_string(),
         };
-        
+
         assert_eq!(spec.next_example_number(), 1);
-        
+
         spec.add_test(TestCase {
             markdown: "# Test".to_string(),
             html: "<h1>Test</h1>".to_string(),
@@ -240,14 +244,14 @@ mod tests {
             end_line: 15,
             section: "Headers".to_string(),
         });
-        
+
         assert_eq!(spec.next_example_number(), 6);
     }
-    
+
     #[test]
     fn test_summary() {
         let mut summary = TestSummary::new();
-        
+
         summary.record(&TestResult::Passed);
         summary.record(&TestResult::Failed {
             expected: "foo".to_string(),
@@ -257,7 +261,7 @@ mod tests {
         summary.record(&TestResult::NoBaseline {
             actual: "baz".to_string(),
         });
-        
+
         assert_eq!(summary.total, 3);
         assert_eq!(summary.passed, 1);
         assert_eq!(summary.failed, 1);

@@ -32,21 +32,21 @@
 /// LayoutState represents the current layout mode of the application.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum LayoutState {
-	Split,          // A: Editor + View (default)
-	EditorOnly,     // B: Editor only
-	ViewOnly,       // C: View only in editor
-	EditorAndWin,   // D: Editor + view in separate window
-	// View in separate window only (for desktop preview only with no editor, just like a PDF viever, right click "view document"
-	ViewWinOnly,    // E: View in separate window only
+    Split,        // A: Editor + View (default)
+    EditorOnly,   // B: Editor only
+    ViewOnly,     // C: View only in editor
+    EditorAndWin, // D: Editor + view in separate window
+    // View in separate window only (for desktop preview only with no editor, just like a PDF viever, right click "view document"
+    ViewWinOnly, // E: View in separate window only
 }
 
 /// Converts a LayoutState to a human-readable string label.
 pub fn layout_state_label(state: LayoutState) -> &'static str {
-	match state {
-		LayoutState::Split => "standard split view",
-		LayoutState::EditorOnly => "editor view only",
-		LayoutState::ViewOnly => "preview view only",
-		LayoutState::EditorAndWin => "editor + view in separate window",
-		LayoutState::ViewWinOnly => "view in separate window only",
-	}
+    match state {
+        LayoutState::Split => "standard split view",
+        LayoutState::EditorOnly => "editor view only",
+        LayoutState::ViewOnly => "preview view only",
+        LayoutState::EditorAndWin => "editor + view in separate window",
+        LayoutState::ViewWinOnly => "view in separate window only",
+    }
 }

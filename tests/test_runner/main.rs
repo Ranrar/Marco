@@ -3,11 +3,11 @@
 //! This is the main entry point for the Marco test runner application.
 //! It provides a comprehensive testing framework for the Marco markdown engine.
 
-mod spec;
-mod runner;
+mod cli;
 mod diff;
 mod interactive;
-mod cli;
+mod runner;
+mod spec;
 
 use anyhow::Result;
 
@@ -18,6 +18,6 @@ fn main() -> Result<()> {
     } else {
         colored::control::set_override(false);
     }
-    
+
     cli::main()
 }

@@ -1,9 +1,9 @@
+use chrono::Local;
 use log::{Level, LevelFilter, Log, Metadata, Record};
+use std::boxed::Box;
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
-use std::sync::{Mutex};
-use chrono::Local;
-use std::boxed::Box;
+use std::sync::Mutex;
 
 static mut LOGGER: Option<&'static SimpleFileLogger> = None;
 
@@ -20,24 +20,27 @@ impl SimpleFileLogger {
         }
 
         let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-    let log_root = cwd.join("log"); // Dont change
+        let log_root = cwd.join("log"); // Dont change
         fs::create_dir_all(&log_root).map_err(|e| e.to_string())?;
 
-    // YYYYMM folder
-    let month_folder = Local::now().format("%Y%m").to_string();
+        // YYYYMM folder
+        let month_folder = Local::now().format("%Y%m").to_string();
         let month_dir = log_root.join(month_folder);
         fs::create_dir_all(&month_dir).map_err(|e| e.to_string())?;
-    // File name: YYMMDD.log
-    let file_name = Local::now().format("%y%m%d.log").to_string();
+        // File name: YYMMDD.log
+        let file_name = Local::now().format("%y%m%d.log").to_string();
         let file_path = month_dir.join(file_name);
 
-    let file = OpenOptions::new()
+        let file = OpenOptions::new()
             .create(true)
             .append(true)
             .open(&file_path)
             .map_err(|e| e.to_string())?;
 
-        let boxed = Box::new(SimpleFileLogger { inner: Mutex::new(Some(file)), level });
+        let boxed = Box::new(SimpleFileLogger {
+            inner: Mutex::new(Some(file)),
+            level,
+        });
         let leaked: &'static SimpleFileLogger = Box::leak(boxed);
         unsafe {
             LOGGER = Some(leaked);
@@ -61,10 +64,11 @@ impl Log for SimpleFileLogger {
             return;
         }
         let ts = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        let line = format!("{} [{}] {}: {}\n", 
-            ts, 
-            record.level(), 
-            record.target(), 
+        let line = format!(
+            "{} [{}] {}: {}\n",
+            ts,
+            record.level(),
+            record.target(),
             record.args()
         );
         if let Ok(mut guard) = self.inner.lock() {

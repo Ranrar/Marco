@@ -27,7 +27,7 @@ pub fn create_toolbar_structure() -> Box {
 
     // Create headings button with popover
     let headings_button = Button::with_label("H1");
-    headings_button.set_size_request(16,16);
+    headings_button.set_size_request(16, 16);
     headings_button.set_tooltip_text(Some("Headings"));
     headings_button.add_css_class("toolbar-headings-btn");
 
@@ -57,7 +57,7 @@ pub fn create_toolbar_structure() -> Box {
 
     // Text formatting buttons
     let bold_button = Button::with_label("𝐁");
-    bold_button.set_size_request(16,16);
+    bold_button.set_size_request(16, 16);
     bold_button.set_tooltip_text(Some("Bold"));
     bold_button.add_css_class("toolbar-btn-bold");
     toolbar.append(&bold_button);

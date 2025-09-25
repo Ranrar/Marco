@@ -65,7 +65,7 @@ pub fn gtk_scrollbar_css(thumb: &str, track: &str) -> String {
 pub fn indentation_css() -> String {
     let mut css = String::new();
     css.push_str("/* Marco Indentation Levels */\n");
-    
+
     // Generate CSS for indentation levels 1-10 (should be enough for most use cases)
     for level in 1..=10 {
         let indent_size = level * 2; // 2em per indentation level
@@ -74,7 +74,7 @@ pub fn indentation_css() -> String {
             level, indent_size
         ));
     }
-    
+
     css
 }
 
@@ -82,21 +82,21 @@ pub fn indentation_css() -> String {
 pub fn list_indentation_css() -> String {
     let mut css = String::new();
     css.push_str("/* Marco List Indentation with Task List Support */\n");
-    
+
     for level in 1..=10 {
         let indent_size = level * 2; // 2em per indentation level
         css.push_str(&format!(
             "li.marco-indent-level-{} {{\n    margin-left: {}em;\n}}\n",
             level, indent_size
         ));
-        
+
         // Special handling for task list items
         css.push_str(&format!(
             "li.marco-task-item.marco-indent-level-{} {{\n    margin-left: {}em;\n}}\n",
             level, indent_size
         ));
     }
-    
+
     css
 }
 
@@ -104,7 +104,7 @@ pub fn list_indentation_css() -> String {
 pub fn code_indentation_css() -> String {
     let mut css = String::new();
     css.push_str("/* Marco Code Block Indentation */\n");
-    
+
     for level in 1..=10 {
         let indent_size = level * 2; // 2em per indentation level
         css.push_str(&format!(
@@ -112,7 +112,7 @@ pub fn code_indentation_css() -> String {
             level, indent_size
         ));
     }
-    
+
     css
 }
 

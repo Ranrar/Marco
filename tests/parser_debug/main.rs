@@ -1,6 +1,6 @@
 use clap::{Arg, Command};
-use marco::components::marco_engine::{parse_markdown, build_ast, parse_to_html_cached, Rule};
 use marco::components::marco_engine::parser::parse_with_rule;
+use marco::components::marco_engine::{build_ast, parse_markdown, parse_to_html_cached, Rule};
 use pest::iterators::{Pair, Pairs};
 use std::io::{self, Read};
 
@@ -17,13 +17,13 @@ fn main() {
                         .long("rule")
                         .value_name("RULE")
                         .help("Specific grammar rule to test")
-                        .required(true)
+                        .required(true),
                 )
                 .arg(
                     Arg::new("input")
                         .help("Markdown input to parse")
-                        .required(false)
-                )
+                        .required(false),
+                ),
         )
         .subcommand(
             Command::new("ast")
@@ -31,8 +31,8 @@ fn main() {
                 .arg(
                     Arg::new("input")
                         .help("Markdown input to build AST from")
-                        .required(false)
-                )
+                        .required(false),
+                ),
         )
         .subcommand(
             Command::new("pipeline")
@@ -40,8 +40,8 @@ fn main() {
                 .arg(
                     Arg::new("input")
                         .help("Markdown input for full pipeline")
-                        .required(false)
-                )
+                        .required(false),
+                ),
         )
         .subcommand(
             Command::new("setext")
@@ -49,8 +49,8 @@ fn main() {
                 .arg(
                     Arg::new("input")
                         .help("Setext header input (optional, uses default if not provided)")
-                        .required(false)
-                )
+                        .required(false),
+                ),
         )
         .get_matches();
 
@@ -89,7 +89,9 @@ fn get_input_text(provided: Option<&String>) -> String {
         None => {
             println!("Enter markdown input (press Ctrl+D when finished):");
             let mut buffer = String::new();
-            io::stdin().read_to_string(&mut buffer).expect("Failed to read from stdin");
+            io::stdin()
+                .read_to_string(&mut buffer)
+                .expect("Failed to read from stdin");
             buffer.trim_end().to_string()
         }
     }
@@ -137,7 +139,7 @@ fn debug_ast_building(input: &str) {
         Ok(pairs) => {
             println!("✓ Grammar parsing succeeded");
             println!();
-            
+
             // Show the grammar structure
             println!("Grammar structure:");
             print_parser_structure(pairs.clone(), 0);
@@ -187,11 +189,13 @@ fn debug_full_pipeline(input: &str) {
                             println!("✓ Step 3: HTML rendering succeeded");
                             println!("   HTML: {}", html);
                             println!();
-                            
+
                             // Analyze the issue
                             if input.contains("=====") || input.contains("-----") {
                                 if html.contains("=====") || html.contains("-----") {
-                                    println!("⚠️  ISSUE DETECTED: HTML contains underline markers!");
+                                    println!(
+                                        "⚠️  ISSUE DETECTED: HTML contains underline markers!"
+                                    );
                                     println!("   This indicates the setext parsing is not working correctly.");
                                 } else {
                                     println!("✓ HTML looks correct - no underline markers found");
@@ -219,7 +223,10 @@ fn debug_setext_headers(input: &str) {
         vec![
             ("Simple H1", "Simple Header\n============="),
             ("Simple H2", "Simple Header\n-------------"),
-            ("Complex H1", "Header with **bold** text\n========================"),
+            (
+                "Complex H1",
+                "Header with **bold** text\n========================",
+            ),
             ("Multiline", "Line 1\nLine 2\n======"),
         ]
     } else {
@@ -227,23 +234,23 @@ fn debug_setext_headers(input: &str) {
     };
 
     println!("=== Setext Header Debug ===");
-    
+
     for (name, test_input) in test_cases {
         println!("\n--- Testing: {} ---", name);
         println!("Input: {:?}", test_input);
-        
+
         // Test grammar parsing specifically for setext
         let setext_rule = if test_input.contains("=====") {
             Rule::setext_h1
         } else {
             Rule::setext_h2
         };
-        
+
         match parse_with_rule(test_input, setext_rule) {
             Ok(pairs) => {
                 println!("✓ Setext grammar parsing succeeded");
                 print_parser_structure(pairs, 1);
-                
+
                 // Test full pipeline
                 match parse_to_html_cached(test_input) {
                     Ok(html) => {
@@ -272,8 +279,13 @@ fn print_parser_structure(pairs: Pairs<Rule>, base_indent: usize) {
 
 fn print_pair_structure(pair: Pair<Rule>, indent: usize) {
     let indent_str = "  ".repeat(indent);
-    println!("{}Rule: {:?}, Text: {:?}", indent_str, pair.as_rule(), pair.as_str());
-    
+    println!(
+        "{}Rule: {:?}, Text: {:?}",
+        indent_str,
+        pair.as_rule(),
+        pair.as_str()
+    );
+
     for inner_pair in pair.into_inner() {
         print_pair_structure(inner_pair, indent + 1);
     }

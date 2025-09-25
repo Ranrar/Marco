@@ -441,7 +441,7 @@ mod tests {
     fn test_format_syntax_trace_complex() {
         // NOTE: AST processing is currently disabled, so all inputs return "Format: text"
         // TODO: Re-enable this test when AST processing is restored
-        
+
         // Test heading with bold
         let out = format_syntax_trace("# **Bold heading**");
         assert!(out.starts_with("Format: "));

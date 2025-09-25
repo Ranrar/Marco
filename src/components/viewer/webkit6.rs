@@ -2,9 +2,9 @@
 /// It does not perform the actual Markdown-to-HTML conversion itself; instead,
 /// it takes the already-rendered HTML and presents it in the UI.
 use gtk4::prelude::*;
+use std::path::Path;
 use webkit6::prelude::*;
 use webkit6::WebView;
-use std::path::Path;
 /// TODO change open link polici to onnly allow open target when klicking
 
 /// Generate a file:// base URI from a document path for resolving relative file references.
@@ -35,14 +35,14 @@ pub fn create_html_viewer(html: &str) -> WebView {
 /// This version allows specifying a base URI to resolve local file references.
 pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>) -> WebView {
     let webview = WebView::new();
-    
+
     // Configure WebKit security settings to allow local file access
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
         settings.set_allow_file_access_from_file_urls(true);
         settings.set_allow_universal_access_from_file_urls(true);
         settings.set_auto_load_images(true);
     }
-    
+
     // Defer loading HTML until the main loop is idle to ensure the widget
     // has been allocated and avoid 'trying to snapshot GtkGizmo without a current allocation' warnings.
     let html_string = html.to_string();
@@ -91,7 +91,7 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
         }} catch(e) {{
             console.error('Error in content update:', e);
         }}
-        "#, 
+        "#,
         escaped_content, escaped_content, escaped_content
     );
 
@@ -105,7 +105,10 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
             None::<&gio::Cancellable>, // cancellable
             |result| match result {
                 Ok(_) => log::debug!("[webkit6] Content update JavaScript executed successfully"),
-                Err(e) => log::warn!("[webkit6] Failed to execute content update JavaScript: {}", e),
+                Err(e) => log::warn!(
+                    "[webkit6] Failed to execute content update JavaScript: {}",
+                    e
+                ),
             },
         );
         glib::ControlFlow::Break

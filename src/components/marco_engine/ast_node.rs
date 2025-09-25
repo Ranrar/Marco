@@ -98,10 +98,10 @@ pub enum Node {
     },
 
     /// Paragraph containing inline content
-    Paragraph { 
-        content: Vec<Node>, 
+    Paragraph {
+        content: Vec<Node>,
         indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
-        span: Span 
+        span: Span,
     },
 
     /// Code block (fenced ``` or indented) - unified
@@ -117,8 +117,8 @@ pub enum Node {
     /// are recursively parsed rather than treated as literal text
     NestedCodeBlock {
         language: Option<String>, // Programming language if specified
-        level: u8,               // Nesting level (1-3)
-        content: Vec<Node>,      // Parsed inner content (can contain more NestedCodeBlock nodes)
+        level: u8,                // Nesting level (1-3)
+        content: Vec<Node>,       // Parsed inner content (can contain more NestedCodeBlock nodes)
         span: Span,
     },
 
@@ -134,8 +134,8 @@ pub enum Node {
 
     /// List item with optional task checkbox
     ListItem {
-        content: Vec<Node>,    // Item content
-        checked: Option<bool>, // For task lists: None, Some(false), Some(true)
+        content: Vec<Node>,       // Item content
+        checked: Option<bool>,    // For task lists: None, Some(false), Some(true)
         indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
         span: Span,
     },
@@ -155,10 +155,10 @@ pub enum Node {
     },
 
     /// Block quote
-    BlockQuote { 
-        content: Vec<Node>, 
+    BlockQuote {
+        content: Vec<Node>,
         indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
-        span: Span 
+        span: Span,
     },
 
     /// Horizontal rule (---, ***, ___)
@@ -207,10 +207,10 @@ pub enum Node {
     MathInline { content: String, span: Span },
 
     /// Emoji :name:
-    Emoji { 
-        shortcode: String,  // e.g., "smile", "heart", "thumbs_up"
-        unicode: String,    // e.g., "😊", "❤️", "👍"
-        span: Span 
+    Emoji {
+        shortcode: String, // e.g., "smile", "heart", "thumbs_up"
+        unicode: String,   // e.g., "😊", "❤️", "👍"
+        span: Span,
     },
 
     /// Links [text](url "title")
@@ -379,7 +379,11 @@ impl Node {
 
     /// Create a new paragraph node
     pub fn paragraph(content: Vec<Node>, indent_level: Option<u8>, span: Span) -> Self {
-        Node::Paragraph { content, indent_level, span }
+        Node::Paragraph {
+            content,
+            indent_level,
+            span,
+        }
     }
 
     /// Create a new text node
@@ -388,7 +392,12 @@ impl Node {
     }
 
     /// Create a new code block node
-    pub fn code_block(language: Option<String>, content: String, indent_level: Option<u8>, span: Span) -> Self {
+    pub fn code_block(
+        language: Option<String>,
+        content: String,
+        indent_level: Option<u8>,
+        span: Span,
+    ) -> Self {
         Node::CodeBlock {
             language,
             content,
@@ -398,7 +407,12 @@ impl Node {
     }
 
     /// Create a new nested code block node (Marco extension)
-    pub fn nested_code_block(language: Option<String>, level: u8, content: Vec<Node>, span: Span) -> Self {
+    pub fn nested_code_block(
+        language: Option<String>,
+        level: u8,
+        content: Vec<Node>,
+        span: Span,
+    ) -> Self {
         Node::NestedCodeBlock {
             language,
             level,
@@ -414,7 +428,11 @@ impl Node {
 
     /// Create a new emoji node
     pub fn emoji(shortcode: String, unicode: String, span: Span) -> Self {
-        Node::Emoji { shortcode, unicode, span }
+        Node::Emoji {
+            shortcode,
+            unicode,
+            span,
+        }
     }
 
     /// Create a new list node
@@ -427,7 +445,12 @@ impl Node {
     }
 
     /// Create a new list item node
-    pub fn list_item(content: Vec<Node>, checked: Option<bool>, indent_level: Option<u8>, span: Span) -> Self {
+    pub fn list_item(
+        content: Vec<Node>,
+        checked: Option<bool>,
+        indent_level: Option<u8>,
+        span: Span,
+    ) -> Self {
         Node::ListItem {
             content,
             checked,
@@ -477,7 +500,11 @@ impl Node {
 
     /// Create a new block quote node
     pub fn block_quote(content: Vec<Node>, indent_level: Option<u8>, span: Span) -> Self {
-        Node::BlockQuote { content, indent_level, span }
+        Node::BlockQuote {
+            content,
+            indent_level,
+            span,
+        }
     }
 
     /// Create a new horizontal rule node

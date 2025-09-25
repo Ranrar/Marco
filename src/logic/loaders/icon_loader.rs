@@ -1,4 +1,3 @@
-
 //! Utilities for using a bundled IcoMoon TTF icon font with GTK/Pango.
 //!
 //! Font family: `icomoon` (glyphs U+31..U+39 map to the app icons):

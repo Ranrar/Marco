@@ -12,8 +12,8 @@
 //! This works regardless of where the binary is run from, as long as "marco/" is next to the binary.
 
 use std::env;
-use std::path::PathBuf;
 use std::fmt;
+use std::path::PathBuf;
 
 /// Custom error type for asset path detection
 #[derive(Debug)]
@@ -28,7 +28,9 @@ impl fmt::Display for AssetError {
         match self {
             AssetError::ExePathError(e) => write!(f, "Failed to get current exe path: {}", e),
             AssetError::ParentMissing => write!(f, "Executable has no parent directory"),
-            AssetError::AssetDirMissing(p) => write!(f, "Asset directory not found: {}", p.display()),
+            AssetError::AssetDirMissing(p) => {
+                write!(f, "Asset directory not found: {}", p.display())
+            }
         }
     }
 }
@@ -43,25 +45,27 @@ impl std::error::Error for AssetError {}
 pub fn get_asset_dir_checked() -> Result<PathBuf, AssetError> {
     let exe_path = env::current_exe().map_err(AssetError::ExePathError)?;
     let parent = exe_path.parent().ok_or(AssetError::ParentMissing)?;
-    
+
     // Try locations in order of preference
     let candidate_paths = [
         // 1. Next to binary (development/portable)
         parent.join("marco_assets"),
         // 2. User local share directory
-        dirs::home_dir().map(|h| h.join(".local/share/marco")).unwrap_or_else(|| PathBuf::from("/tmp")),
+        dirs::home_dir()
+            .map(|h| h.join(".local/share/marco"))
+            .unwrap_or_else(|| PathBuf::from("/tmp")),
         // 3. System local share directory
         PathBuf::from("/usr/local/share/marco"),
         // 4. System share directory
         PathBuf::from("/usr/share/marco"),
     ];
-    
+
     for asset_dir in candidate_paths.iter() {
         if asset_dir.exists() && asset_dir.is_dir() {
             return Ok(asset_dir.clone());
         }
     }
-    
+
     // If none found, return error with the first (preferred) location
     Err(AssetError::AssetDirMissing(candidate_paths[0].clone()))
 }

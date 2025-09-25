@@ -20,6 +20,11 @@ use crate::components::marco_engine::{parse_text, build_ast, render_html};
 /// Simple content hash type
 type ContentHash = u64;
 
+/// Cache size limits to prevent memory exhaustion
+const MAX_AST_CACHE_ENTRIES: usize = 500;
+const MAX_HTML_CACHE_ENTRIES: usize = 1000;
+const MAX_CONTENT_SIZE_BYTES: usize = 1024 * 1024; // 1MB per content item
+
 /// Calculate hash of content for cache key
 fn calculate_hash(content: &str) -> ContentHash {
     let mut hasher = DefaultHasher::new();
@@ -105,9 +110,24 @@ impl SimpleParserCache {
         let ast = build_ast(pairs)
             .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
         
-        // Add to cache and update entry count
+        // Add to cache with size limits to prevent memory exhaustion
         let cached_ast = CachedAst::new(ast.clone(), content_hash);
         if let Ok(mut cache) = self.ast_cache.write() {
+            // Check content size before caching
+            if content.len() > MAX_CONTENT_SIZE_BYTES {
+                log::warn!("Content too large for caching: {} bytes", content.len());
+                return Ok(ast);
+            }
+            
+            // Evict oldest entries if cache is full
+            if cache.len() >= MAX_AST_CACHE_ENTRIES {
+                // Simple eviction: remove random entries (could be improved with LRU)
+                let keys_to_remove: Vec<_> = cache.keys().take(cache.len() / 4).cloned().collect();
+                for key in keys_to_remove {
+                    cache.remove(&key);
+                }
+            }
+            
             cache.insert(content_hash, cached_ast);
             // Update stats entry count
             if let Ok(mut stats) = self.stats.write() {
@@ -145,9 +165,24 @@ impl SimpleParserCache {
         let ast = self.parse_with_cache(content)?;
         let html = render_html(&ast, options.clone());
         
-        // Add to cache and update entry count
+        // Add to cache with size limits to prevent memory exhaustion
         let cached_html = CachedHtml::new(html.clone(), content_hash, options_hash);
         if let Ok(mut cache) = self.html_cache.write() {
+            // Check content size before caching
+            if content.len() > MAX_CONTENT_SIZE_BYTES {
+                log::warn!("Content too large for HTML caching: {} bytes", content.len());
+                return Ok(html);
+            }
+            
+            // Evict oldest entries if cache is full
+            if cache.len() >= MAX_HTML_CACHE_ENTRIES {
+                // Simple eviction: remove random entries (could be improved with LRU)
+                let keys_to_remove: Vec<_> = cache.keys().take(cache.len() / 4).cloned().collect();
+                for key in keys_to_remove {
+                    cache.remove(&key);
+                }
+            }
+            
             cache.insert(cache_key, cached_html);
             // Update stats entry count
             if let Ok(mut stats) = self.stats.write() {
@@ -169,6 +204,7 @@ impl SimpleParserCache {
     }
     
     /// Clear all cached entries (used by test files)
+    #[allow(dead_code)]
     pub fn clear(&self) {
         if let Ok(mut cache) = self.ast_cache.write() {
             cache.clear();
@@ -183,6 +219,7 @@ impl SimpleParserCache {
     }
     
     /// Get cache statistics (used by test files)
+    #[allow(dead_code)]
     pub fn stats(&self) -> ParserCacheStats {
         let ast_entries = if let Ok(cache) = self.ast_cache.read() {
             cache.len()
@@ -232,6 +269,8 @@ impl ParserCacheStats {
         Self::default()
     }
 
+    /// Get AST cache hit rate as percentage (0.0-1.0, used by test files)
+    #[allow(dead_code)]
     pub fn ast_hit_rate(&self) -> f64 {
         if self.ast_hits + self.ast_misses == 0 {
             0.0
@@ -239,7 +278,9 @@ impl ParserCacheStats {
             self.ast_hits as f64 / (self.ast_hits + self.ast_misses) as f64
         }
     }
-    
+
+    /// Get HTML cache hit rate as percentage (0.0-1.0, used by test files)
+    #[allow(dead_code)]
     pub fn html_hit_rate(&self) -> f64 {
         if self.html_hits + self.html_misses == 0 {
             0.0
@@ -258,9 +299,6 @@ static GLOBAL_PARSER_CACHE: LazyLock<SimpleParserCache> = LazyLock::new(|| {
 pub fn global_parser_cache() -> &'static SimpleParserCache {
     &GLOBAL_PARSER_CACHE
 }
-
-/// Type alias for backward compatibility
-pub type MarcoParserCache = SimpleParserCache;
 
 #[cfg(test)]
 mod tests {
@@ -367,11 +405,15 @@ mod tests {
         let cache = SimpleParserCache::new();
         let content = "# Test Document";
         
-        let mut options1 = HtmlOptions::default();
-        options1.syntax_highlighting = true;
+        let options1 = HtmlOptions {
+            syntax_highlighting: true,
+            ..HtmlOptions::default()
+        };
         
-        let mut options2 = HtmlOptions::default();
-        options2.syntax_highlighting = false;
+        let options2 = HtmlOptions {
+            syntax_highlighting: false,
+            ..HtmlOptions::default()
+        };
         
         // Same content, different options should create separate cache entries
         let html1 = cache.render_with_cache(content, options1).expect("Render failed");

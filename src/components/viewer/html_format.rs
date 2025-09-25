@@ -1,7 +1,6 @@
 pub fn pretty_print_html(input: &str) -> String {
     let with_newlines = input.replace(
-        "><",
-        ">
+        "><", ">
 <",
     );
     let mut out = String::new();

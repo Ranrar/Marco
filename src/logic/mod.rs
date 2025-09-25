@@ -1,12 +1,12 @@
-pub mod swanson;
-pub mod crossplatforms;
-pub mod paths;
-pub mod menu_items;
 pub mod buffer;
 pub mod cache;
-pub mod loaders;
+pub mod crossplatforms;
 pub mod layoutstate;
+pub mod loaders;
 pub mod logger;
+pub mod menu_items;
+pub mod paths;
+pub mod swanson;
 
 // Re-export commonly used types
 pub use buffer::{DocumentBuffer, RecentFiles};

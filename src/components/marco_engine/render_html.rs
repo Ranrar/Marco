@@ -82,22 +82,25 @@ impl HtmlRenderer {
                 write!(self.output, "</h{}>", level).unwrap();
             }
 
-            Node::Paragraph { content, indent_level, .. } => {
+            Node::Paragraph {
+                content,
+                indent_level,
+                ..
+            } => {
                 write!(self.output, "<p").unwrap();
-                
+
                 // Add indentation class if present
                 if let Some(indent) = indent_level {
                     if *indent > 0 {
                         write!(
                             self.output,
                             " class=\"{}indent-level-{}\"",
-                            self.options.class_prefix,
-                            indent
+                            self.options.class_prefix, indent
                         )
                         .unwrap();
                     }
                 }
-                
+
                 write!(self.output, ">").unwrap();
                 for child in content {
                     self.render_node(child);
@@ -106,25 +109,27 @@ impl HtmlRenderer {
             }
 
             Node::CodeBlock {
-                language, content, indent_level, ..
+                language,
+                content,
+                indent_level,
+                ..
             } => {
                 write!(self.output, "<pre").unwrap();
-                
+
                 // Add indentation class to the pre tag if present
                 if let Some(indent) = indent_level {
                     if *indent > 0 {
                         write!(
                             self.output,
                             " class=\"{}indent-level-{}\"",
-                            self.options.class_prefix,
-                            indent
+                            self.options.class_prefix, indent
                         )
                         .unwrap();
                     }
                 }
-                
+
                 write!(self.output, "><code").unwrap();
-                
+
                 if let Some(lang) = language {
                     write!(
                         self.output,
@@ -198,13 +203,16 @@ impl HtmlRenderer {
             }
 
             Node::ListItem {
-                content, checked, indent_level, ..
+                content,
+                checked,
+                indent_level,
+                ..
             } => {
                 write!(self.output, "<li").unwrap();
-                
+
                 // Build class string combining task item and indentation classes
                 let mut classes = Vec::new();
-                
+
                 if let Some(is_checked) = checked {
                     if *is_checked {
                         classes.push(format!("{}task-item checked", self.options.class_prefix));
@@ -212,22 +220,20 @@ impl HtmlRenderer {
                         classes.push(format!("{}task-item", self.options.class_prefix));
                     }
                 }
-                
+
                 if let Some(indent) = indent_level {
                     if *indent > 0 {
-                        classes.push(format!("{}indent-level-{}", self.options.class_prefix, indent));
+                        classes.push(format!(
+                            "{}indent-level-{}",
+                            self.options.class_prefix, indent
+                        ));
                     }
                 }
-                
+
                 if !classes.is_empty() {
-                    write!(
-                        self.output,
-                        " class=\"{}\"",
-                        classes.join(" ")
-                    )
-                    .unwrap();
+                    write!(self.output, " class=\"{}\"", classes.join(" ")).unwrap();
                 }
-                
+
                 write!(self.output, ">").unwrap();
 
                 if let Some(is_checked) = checked {
@@ -296,30 +302,40 @@ impl HtmlRenderer {
                 }
             }
 
-            Node::BlockQuote { content, indent_level, .. } => {
+            Node::BlockQuote {
+                content,
+                indent_level,
+                ..
+            } => {
                 write!(self.output, "<blockquote").unwrap();
-                
+
                 // Apply indentation class if present
                 if let Some(indent) = indent_level {
                     if *indent > 0 {
-                        write!(self.output, " class=\"{}indent-level-{}\"", 
-                               self.options.class_prefix, indent).unwrap();
+                        write!(
+                            self.output,
+                            " class=\"{}indent-level-{}\"",
+                            self.options.class_prefix, indent
+                        )
+                        .unwrap();
                     }
                 }
-                
+
                 write!(self.output, ">").unwrap();
-                
+
                 // Handle blockquote content with proper line breaks between text nodes
                 for (i, child) in content.iter().enumerate() {
                     if i > 0 {
                         // Add line break between consecutive text nodes or other inline content
-                        if let (Some(Node::Text { .. }), Node::Text { .. }) = (content.get(i-1), child) {
+                        if let (Some(Node::Text { .. }), Node::Text { .. }) =
+                            (content.get(i - 1), child)
+                        {
                             write!(self.output, "<br>").unwrap();
                         }
                     }
                     self.render_node(child);
                 }
-                
+
                 write!(self.output, "</blockquote>").unwrap();
             }
 
@@ -410,7 +426,9 @@ impl HtmlRenderer {
                 write!(self.output, "</code>").unwrap();
             }
 
-            Node::Emoji { unicode, shortcode, .. } => {
+            Node::Emoji {
+                unicode, shortcode, ..
+            } => {
                 // Render emoji with fallback to shortcode
                 write!(
                     self.output,
@@ -418,7 +436,8 @@ impl HtmlRenderer {
                     self.options.class_prefix,
                     self.escape_html(shortcode),
                     self.escape_html(unicode)
-                ).unwrap();
+                )
+                .unwrap();
             }
 
             Node::MathInline { content, .. } => {
@@ -899,14 +918,16 @@ impl HtmlRenderer {
                 .replace('\'', "&#x27;")
                 .replace('\t', "&nbsp;&nbsp;&nbsp;&nbsp;") // Convert tabs to 4 non-breaking spaces
         } else {
-            input
-                .replace('\t', "&nbsp;&nbsp;&nbsp;&nbsp;") // Convert tabs to 4 non-breaking spaces even without sanitization
+            input.replace('\t', "&nbsp;&nbsp;&nbsp;&nbsp;") // Convert tabs to 4 non-breaking spaces even without sanitization
         }
     }
 
     /// Render a standalone ListItem without <li> wrapper (for document-level tasks)
     fn render_standalone_list_item(&mut self, node: &Node) {
-        if let Node::ListItem { content, checked, .. } = node {
+        if let Node::ListItem {
+            content, checked, ..
+        } = node
+        {
             // Render checkbox if this is a task
             if let Some(is_checked) = checked {
                 let checked_attr = if *is_checked { " checked" } else { "" };

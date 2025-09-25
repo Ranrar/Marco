@@ -1,6 +1,6 @@
+use crate::logic::cache::{cached, global_cache};
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
-use crate::logic::cache::{cached, global_cache};
 
 /// Manages document buffer state including file path, modification status, and content
 ///
@@ -119,10 +119,7 @@ impl DocumentBuffer {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load_from_cached<P, F>(
-        path: P,
-        callback: F,
-    ) -> Result<Self>
+    pub fn load_from_cached<P, F>(path: P, callback: F) -> Result<Self>
     where
         P: AsRef<Path> + Send + 'static,
         F: Fn(Result<String>) + 'static,
@@ -154,7 +151,7 @@ impl DocumentBuffer {
 
     /// Register this buffer as having an open file in the cache
     /// Call this after the DocumentBuffer is wrapped in an Rc for weak reference tracking
-    pub fn register_as_open<T>(&self, reference: std::sync::Weak<T>) 
+    pub fn register_as_open<T>(&self, reference: std::sync::Weak<T>)
     where
         T: Send + Sync + 'static,
     {
@@ -224,8 +221,12 @@ impl DocumentBuffer {
             Some(path) => {
                 // Create parent directories if they don't exist
                 if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent)
-                        .with_context(|| format!("Failed to create parent directories for: {}", path.display()))?;
+                    std::fs::create_dir_all(parent).with_context(|| {
+                        format!(
+                            "Failed to create parent directories for: {}",
+                            path.display()
+                        )
+                    })?;
                 }
 
                 // Write content directly
@@ -238,7 +239,7 @@ impl DocumentBuffer {
                 // Update baseline to the saved content
                 self.baseline_content = content.to_string();
                 self.is_modified = false;
-                
+
                 log::info!("Saved file with cached operations: {}", path.display());
                 Ok(())
             }
@@ -289,8 +290,12 @@ impl DocumentBuffer {
 
         // Create parent directories if they don't exist
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent)
-                .with_context(|| format!("Failed to create parent directories for: {}", path.display()))?;
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!(
+                    "Failed to create parent directories for: {}",
+                    path.display()
+                )
+            })?;
         }
 
         // Write content directly

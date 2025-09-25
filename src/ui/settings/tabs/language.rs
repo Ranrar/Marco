@@ -2,7 +2,7 @@ use gtk4::prelude::*;
 use gtk4::Box;
 
 pub fn build_language_tab() -> Box {
-    use gtk4::{Label, ComboBoxText, Box as GtkBox, Orientation, Align};
+    use gtk4::{Align, Box as GtkBox, ComboBoxText, Label, Orientation};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-language");
@@ -17,10 +17,10 @@ pub fn build_language_tab() -> Box {
     lang_header.set_markup("<b>Language</b>");
     lang_header.set_halign(Align::Start);
     lang_header.set_xalign(0.0);
-    
+
     let lang_spacer = GtkBox::new(Orientation::Horizontal, 0);
     lang_spacer.set_hexpand(true);
-    
+
     let lang_combo = ComboBoxText::new();
     lang_combo.append_text("System Default");
     lang_combo.append_text("English");
@@ -31,7 +31,7 @@ pub fn build_language_tab() -> Box {
     lang_combo.append_text("日本語");
     lang_combo.set_active(Some(0));
     lang_combo.set_halign(Align::End);
-    
+
     lang_hbox.append(&lang_header);
     lang_hbox.append(&lang_spacer);
     lang_hbox.append(&lang_combo);
@@ -39,7 +39,9 @@ pub fn build_language_tab() -> Box {
     container.append(&lang_hbox);
 
     // Description text under header
-    let lang_description = Label::new(Some("Select the language used for menus, labels, and tooltips."));
+    let lang_description = Label::new(Some(
+        "Select the language used for menus, labels, and tooltips.",
+    ));
     lang_description.set_halign(Align::Start);
     lang_description.set_xalign(0.0);
     lang_description.set_wrap(true);

@@ -210,7 +210,7 @@ impl AstBuilder {
             Rule::unordered_list_item | Rule::ordered_list_item => {
                 // Calculate indentation level from the span position
                 let indent_level = self.calculate_indent_from_span(&pair.as_span());
-                
+
                 let checked = self.extract_task_state(&pair)?;
                 let mut content = self.build_children(pair)?;
 
@@ -233,10 +233,10 @@ impl AstBuilder {
             Rule::task_block => {
                 // Calculate indentation level from the span position
                 let indent_level = self.calculate_indent_from_span(&pair.as_span());
-                
+
                 let checked = self.extract_task_state(&pair)?;
                 let content = self.extract_task_content(&pair)?;
-                
+
                 // Create a list item for consistency with list-based tasks
                 // This allows the same rendering logic to work for both list and standalone tasks
                 Ok(Node::list_item(content, checked, indent_level, span))
@@ -282,47 +282,64 @@ impl AstBuilder {
             Rule::blockquote => {
                 // Calculate indentation from the span position
                 let indent_level = self.calculate_indent_from_span(&pair.as_span());
-                
+
                 let content = self.build_children(pair)?;
-                
+
                 // Process blockquote content to handle line breaks properly
                 let mut processed_content = Vec::new();
-                
+
                 for child in content {
                     match child {
                         // If we have a paragraph with text + line break, flatten it
-                        Node::Paragraph { content: para_content, .. } if para_content.len() == 2 => {
+                        Node::Paragraph {
+                            content: para_content,
+                            ..
+                        } if para_content.len() == 2 => {
                             if matches!(&para_content[1], Node::LineBreak { .. }) {
                                 for item in para_content {
                                     processed_content.push(item);
                                 }
                             } else {
-                                processed_content.push(Node::Paragraph { content: para_content, indent_level: None, span: span.clone() });
+                                processed_content.push(Node::Paragraph {
+                                    content: para_content,
+                                    indent_level: None,
+                                    span: span.clone(),
+                                });
                             }
-                        },
-                        _ => processed_content.push(child)
+                        }
+                        _ => processed_content.push(child),
                     }
                 }
-                
+
                 Ok(Node::block_quote(processed_content, indent_level, span))
             }
 
-            // Blockquote content (the text after > marker) 
+            // Blockquote content (the text after > marker)
             Rule::blockquote_content => {
                 let content_str = pair.as_str();
-                
+
                 // Check if content ends with backslash (hard line break)
                 if let Some(text_content) = content_str.strip_suffix('\\') {
                     // Remove the backslash
                     if text_content.trim().is_empty() {
                         // Just a backslash on empty line - return hard line break
-                        Ok(Node::line_break(crate::components::marco_engine::ast_node::LineBreakType::Hard, span))
+                        Ok(Node::line_break(
+                            crate::components::marco_engine::ast_node::LineBreakType::Hard,
+                            span,
+                        ))
                     } else {
                         // Text followed by backslash - return text + hard line break wrapped in paragraph for processing
-                        Ok(Node::paragraph(vec![
-                            Node::text(text_content.to_string(), span.clone()),
-                            Node::line_break(crate::components::marco_engine::ast_node::LineBreakType::Hard, span.clone())
-                        ], None, span))
+                        Ok(Node::paragraph(
+                            vec![
+                                Node::text(text_content.to_string(), span.clone()),
+                                Node::line_break(
+                                    crate::components::marco_engine::ast_node::LineBreakType::Hard,
+                                    span.clone(),
+                                ),
+                            ],
+                            None,
+                            span,
+                        ))
                     }
                 } else {
                     // Regular content - just return as text
@@ -341,7 +358,7 @@ impl AstBuilder {
                 let non_empty: Vec<Node> = content.into_iter()
                     .filter(|node| !matches!(node, Node::Text { content, .. } if content.trim().is_empty()))
                     .collect();
-                
+
                 if non_empty.len() == 1 {
                     Ok(non_empty.into_iter().next().unwrap())
                 } else if non_empty.is_empty() {
@@ -421,21 +438,25 @@ impl AstBuilder {
             Rule::strikethrough => {
                 // Handle strikethrough content extraction from atomic rules
                 let content = self.extract_strikethrough_content(&pair)?;
-                Ok(Node::strikethrough(vec![Node::text(content, span.clone())], span))
+                Ok(Node::strikethrough(
+                    vec![Node::text(content, span.clone())],
+                    span,
+                ))
             }
 
             Rule::highlight => {
                 // Extract content from atomic highlight rule like emphasis does
                 let text = pair.as_str();
-                let content_text = if text.len() >= 4 && text.starts_with("==") && text.ends_with("==") {
-                    text[2..text.len() - 2].to_string()
-                } else if text.len() >= 2 && text.starts_with("==") {
-                    // Incomplete highlight (missing end markers)
-                    text[2..].to_string()
-                } else {
-                    text.to_string()
-                };
-                
+                let content_text =
+                    if text.len() >= 4 && text.starts_with("==") && text.ends_with("==") {
+                        text[2..text.len() - 2].to_string()
+                    } else if text.len() >= 2 && text.starts_with("==") {
+                        // Incomplete highlight (missing end markers)
+                        text[2..].to_string()
+                    } else {
+                        text.to_string()
+                    };
+
                 // Create a text node with the extracted content
                 let content_node = Node::text(content_text, span.clone());
                 Ok(Node::highlight(vec![content_node], span))
@@ -895,13 +916,13 @@ impl AstBuilder {
         let mut inline_nodes = Vec::new();
         let parent_span = pair.as_span();
         let parent_content = pair.as_str();
-        
+
         let mut last_end_pos = parent_span.start();
-        
+
         for inner_pair in pair.into_inner() {
             let current_start = inner_pair.as_span().start();
             let current_end = inner_pair.as_span().end();
-            
+
             // Check if there's a gap between last element and current element
             if current_start > last_end_pos {
                 // Extract the gap content (whitespace that was consumed by Pest)
@@ -916,7 +937,7 @@ impl AstBuilder {
                     }
                 }
             }
-            
+
             match inner_pair.as_rule() {
                 Rule::inline | Rule::inline_core | Rule::inline_no_newline => {
                     // Recursively extract from inline containers
@@ -933,10 +954,10 @@ impl AstBuilder {
                     inline_nodes.push(child);
                 }
             }
-            
+
             last_end_pos = current_end;
         }
-        
+
         // Check if there's content after the last element
         if last_end_pos < parent_span.end() {
             let gap_start = last_end_pos - parent_span.start();
@@ -948,7 +969,7 @@ impl AstBuilder {
                 }
             }
         }
-        
+
         Ok(inline_nodes)
     }
 
@@ -996,14 +1017,14 @@ impl AstBuilder {
         if column > 1 {
             // Get the full input to analyze the actual leading whitespace
             let full_input = span.get_input();
-            
+
             // Find the line containing this span
             let lines: Vec<&str> = full_input.lines().collect();
             if let Some(current_line) = lines.get(line_num - 1) {
                 // Count actual leading whitespace characters
                 let mut indent_level = 0u8;
                 let mut space_count = 0u8;
-                
+
                 for ch in current_line.chars() {
                     match ch {
                         '\t' => {
@@ -1022,7 +1043,7 @@ impl AstBuilder {
                         _ => break, // Stop at first non-whitespace character
                     }
                 }
-                
+
                 if indent_level > 0 {
                     Some(indent_level)
                 } else {
@@ -1057,7 +1078,10 @@ impl AstBuilder {
                 if matches!(inner_pair.as_rule(), Rule::setext_content) {
                     let setext_text = inner_pair.as_str().trim();
                     if !setext_text.is_empty() {
-                        content.push(Node::text(setext_text.to_string(), self.create_span(&inner_pair)));
+                        content.push(Node::text(
+                            setext_text.to_string(),
+                            self.create_span(&inner_pair),
+                        ));
                     }
                     return Ok(content);
                 }
@@ -1071,33 +1095,45 @@ impl AstBuilder {
                         if matches!(setext_inner.as_rule(), Rule::setext_content) {
                             let setext_text = setext_inner.as_str().trim();
                             if !setext_text.is_empty() {
-                                content.push(Node::text(setext_text.to_string(), self.create_span(&setext_inner)));
+                                content.push(Node::text(
+                                    setext_text.to_string(),
+                                    self.create_span(&setext_inner),
+                                ));
                             }
                             return Ok(content);
                         }
                     }
-                } else if matches!(inner_pair.as_rule(), Rule::H1 | Rule::H2 | Rule::H3 | Rule::H4 | Rule::H5 | Rule::H6) {
+                } else if matches!(
+                    inner_pair.as_rule(),
+                    Rule::H1 | Rule::H2 | Rule::H3 | Rule::H4 | Rule::H5 | Rule::H6
+                ) {
                     // Found ATX heading (H1-H6) - look for heading_content inside it
                     for atx_inner in inner_pair.into_inner() {
                         if matches!(atx_inner.as_rule(), Rule::heading_content) {
                             // ATX header content - process children and preserve whitespace between tokens
                             let heading_text_pairs: Vec<_> = atx_inner.into_inner().collect();
-                            
+
                             for (i, heading_text_pair) in heading_text_pairs.iter().enumerate() {
                                 // Add space if there's a gap between this token and the previous one
                                 if i > 0 {
                                     let prev_end = heading_text_pairs[i - 1].as_span().end();
                                     let curr_start = heading_text_pair.as_span().start();
-                                    
+
                                     if curr_start > prev_end {
                                         // There's whitespace between tokens - add a space node
                                         // Use the previous token's span info for line/column
-                                        let prev_span = self.create_span(&heading_text_pairs[i - 1]);
-                                        let space_span = Span::new(prev_end as u32, curr_start as u32, prev_span.line, prev_span.column);
+                                        let prev_span =
+                                            self.create_span(&heading_text_pairs[i - 1]);
+                                        let space_span = Span::new(
+                                            prev_end as u32,
+                                            curr_start as u32,
+                                            prev_span.line,
+                                            prev_span.column,
+                                        );
                                         content.push(Node::text(" ".to_string(), space_span));
                                     }
                                 }
-                                
+
                                 let child_node = self.build_node(heading_text_pair.clone())?;
                                 content.push(child_node);
                             }
@@ -1111,22 +1147,27 @@ impl AstBuilder {
                 if matches!(inner_pair.as_rule(), Rule::heading_content) {
                     // ATX header content - process children and preserve whitespace between tokens
                     let heading_text_pairs: Vec<_> = inner_pair.into_inner().collect();
-                    
+
                     for (i, heading_text_pair) in heading_text_pairs.iter().enumerate() {
                         // Add space if there's a gap between this token and the previous one
                         if i > 0 {
                             let prev_end = heading_text_pairs[i - 1].as_span().end();
                             let curr_start = heading_text_pair.as_span().start();
-                            
+
                             if curr_start > prev_end {
                                 // There's whitespace between tokens - add a space node
                                 // Use the previous token's span info for line/column
                                 let prev_span = self.create_span(&heading_text_pairs[i - 1]);
-                                let space_span = Span::new(prev_end as u32, curr_start as u32, prev_span.line, prev_span.column);
+                                let space_span = Span::new(
+                                    prev_end as u32,
+                                    curr_start as u32,
+                                    prev_span.line,
+                                    prev_span.column,
+                                );
                                 content.push(Node::text(" ".to_string(), space_span));
                             }
                         }
-                        
+
                         let child_node = self.build_node(heading_text_pair.clone())?;
                         content.push(child_node);
                     }
@@ -1253,8 +1294,9 @@ impl AstBuilder {
                 _ => {
                     // For bold_italic rules
                     let text = pair.as_str();
-                    if (text.len() >= 6 && text.starts_with("***") && text.ends_with("***")) ||
-                       (text.len() >= 6 && text.starts_with("___") && text.ends_with("___")) {
+                    if (text.len() >= 6 && text.starts_with("***") && text.ends_with("***"))
+                        || (text.len() >= 6 && text.starts_with("___") && text.ends_with("___"))
+                    {
                         text[3..text.len() - 3].to_string()
                     } else if text.len() >= 5 && text.starts_with("**_") && text.ends_with("_**") {
                         // **_mixed bold italic_**
@@ -1361,7 +1403,7 @@ impl AstBuilder {
         // Remove : delimiters to get shortcode
         if text.len() >= 2 && text.starts_with(':') && text.ends_with(':') {
             let shortcode = text[1..text.len() - 1].to_string();
-            
+
             // Use the emojis crate to convert shortcode to unicode
             if let Some(emoji) = emojis::get_by_shortcode(&shortcode) {
                 Ok((shortcode, emoji.as_str().to_string()))
@@ -1397,12 +1439,13 @@ impl AstBuilder {
                 _ => {}
             }
         }
-        
+
         // Fallback: extract from the outer pair
         let text = pair.as_str();
-        if text.len() >= 4 && 
-           ((text.starts_with("~~") && text.ends_with("~~")) || 
-            (text.starts_with("--") && text.ends_with("--"))) {
+        if text.len() >= 4
+            && ((text.starts_with("~~") && text.ends_with("~~"))
+                || (text.starts_with("--") && text.ends_with("--")))
+        {
             Ok(text[2..text.len() - 2].to_string())
         } else {
             Ok(text.to_string())
@@ -1424,14 +1467,14 @@ impl AstBuilder {
     /// Extract subscript content
     fn extract_subscript_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
         let text = pair.as_str();
-        
+
         // Handle different subscript formats
         if text.starts_with("˅") && text.ends_with("˅") {
             // Arrow style: ˅content˅
             // Need to properly handle UTF-8 characters - ˅ is multi-byte
             let chars: Vec<char> = text.chars().collect();
-            if chars.len() >= 2 && chars[0] == '˅' && chars[chars.len()-1] == '˅' {
-                let content: String = chars[1..chars.len()-1].iter().collect();
+            if chars.len() >= 2 && chars[0] == '˅' && chars[chars.len() - 1] == '˅' {
+                let content: String = chars[1..chars.len() - 1].iter().collect();
                 Ok(content)
             } else {
                 Ok(text.to_string())
@@ -1460,7 +1503,7 @@ impl AstBuilder {
     /// Extract content from task_block (text after the task marker)
     fn extract_task_content(&mut self, pair: &Pair<Rule>) -> Result<Vec<Node>, AstError> {
         let full_text = pair.as_str();
-        
+
         // Parse the task block: [x] Some content here
         // We need to extract "Some content here" part
         let content_text = if let Some(pos) = full_text.find(']') {
@@ -2492,7 +2535,7 @@ impl AstBuilder {
         // Check recursion depth to prevent infinite recursion and stack overflow
         if self.nesting_depth >= self.max_nesting_depth {
             log::warn!(
-                "[ast_builder] Maximum nesting depth ({}) reached, treating as plain text", 
+                "[ast_builder] Maximum nesting depth ({}) reached, treating as plain text",
                 self.max_nesting_depth
             );
             return Ok(vec![Node::text(
