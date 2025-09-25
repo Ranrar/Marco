@@ -437,7 +437,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn test_format_syntax_trace_complex() {
         // NOTE: AST processing is currently disabled, so all inputs return "Format: text"
         // TODO: Re-enable this test when AST processing is restored

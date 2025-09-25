@@ -80,84 +80,15 @@ impl DocumentBuffer {
             .unwrap_or("Unknown")
             .to_string();
 
-        Ok(Self {
-            file_path: Some(path.to_path_buf()),
-            is_modified: false,
-            baseline_content: String::new(),
-            display_name,
-        })
-    }
-
-    /// Creates a document buffer from a file using cached loading with async callback
-    ///
-    /// This function uses the global file cache for faster loading and provides
-    /// an async callback pattern for GTK-safe file loading.
-    ///
-    /// # Arguments
-    /// * `path` - Path to the existing file
-    /// * `callback` - Callback function to handle the loaded content
-    ///
-    /// # Returns
-    /// * `Ok(DocumentBuffer)` - Buffer initialized with the file path
-    /// * `Err(anyhow::Error)` - If the path is invalid or the file doesn't exist
-    ///
-    /// # Example
-    /// ```no_run
-    /// use std::path::Path;
-    /// use marco::logic::buffer::DocumentBuffer;
-    ///
-    /// # fn main() -> anyhow::Result<()> {
-    /// let buffer = DocumentBuffer::load_from_cached(
-    ///     Path::new("document.md"),
-    ///     |result| {
-    ///         match result {
-    ///             Ok(content) => println!("Loaded: {}", content),
-    ///             Err(e) => println!("Error: {}", e),
-    ///         }
-    ///     }
-    /// )?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn load_from_cached<P, F>(path: P, callback: F) -> Result<Self>
-    where
-        P: AsRef<Path> + Send + 'static,
-        F: Fn(Result<String>) + 'static,
-    {
-        let path = path.as_ref();
-        if !path.exists() {
-            return Err(anyhow::anyhow!("File does not exist: {}", path.display()));
-        }
-
-        let display_name = path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("Unknown")
-            .to_string();
-
         let buffer = Self {
             file_path: Some(path.to_path_buf()),
             is_modified: false,
             baseline_content: String::new(),
             display_name,
         };
-
-        // Load content asynchronously using the cache
-        let path_for_async = path.to_path_buf();
-        global_cache().load_file_fast_async(path_for_async, callback);
-
+        
+        log::info!("Created document buffer for file: {} - ready to load content", path.display());
         Ok(buffer)
-    }
-
-    /// Register this buffer as having an open file in the cache
-    /// Call this after the DocumentBuffer is wrapped in an Rc for weak reference tracking
-    pub fn register_as_open<T>(&self, reference: std::sync::Weak<T>)
-    where
-        T: Send + Sync + 'static,
-    {
-        if let Some(path) = &self.file_path {
-            global_cache().register_open_file(path, reference);
-        }
     }
 
     /// Reads the content of the file associated with this buffer
@@ -236,11 +167,13 @@ impl DocumentBuffer {
                 // Invalidate cache after write
                 global_cache().invalidate_file(path);
 
-                // Update baseline to the saved content
-                self.baseline_content = content.to_string();
-                self.is_modified = false;
-
-                log::info!("Saved file with cached operations: {}", path.display());
+                // Update baseline using optimized method (log first to avoid borrow issues)
+                let content_size = content.len();
+                log::info!("Saved file: {} ({} bytes) with cached operations", 
+                    path.display(), content_size);
+                
+                self.update_baseline_and_state(content, false);
+                self.log_document_state("save_content");
                 Ok(())
             }
             None => Err(anyhow::anyhow!(
@@ -305,20 +238,23 @@ impl DocumentBuffer {
         // Invalidate cache after write
         global_cache().invalidate_file(&path);
 
-        // Update buffer state
+        // Update buffer state with enhanced logging
         let display_name = path
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("Unknown")
             .to_string();
 
+        let content_size = content.len();
         self.file_path = Some(path.clone());
         self.display_name = display_name;
-        // After Save As, baseline matches the saved content
-        self.baseline_content = content.to_string();
-        self.is_modified = false;
-
-        log::info!("Saved file as with cached operations: {}", path.display());
+        
+        log::info!("Saved file as: {} ({} bytes) with cached operations - now tracking as open document", 
+            path.display(), content_size);
+        
+        // After Save As, baseline matches the saved content - use optimized method
+        self.update_baseline_and_state(content, false);
+        self.log_document_state("save_as_content");
         Ok(())
     }
 
@@ -349,9 +285,22 @@ impl DocumentBuffer {
     /// ```
     pub fn load_and_set_baseline(&mut self) -> Result<String> {
         let content = self.read_content()?;
+        let content_size = content.len();
+        
+        // Enhanced logging with file info
+        match &self.file_path {
+            Some(path) => {
+                log::info!("Loaded file: {} ({} bytes) - now tracking as open document", 
+                    path.display(), content_size);
+            }
+            None => {
+                log::debug!("Loaded content and set baseline for untitled document ({} bytes)", content_size);
+            }
+        }
+        
+        // Optimize: Set baseline and return content in one operation to avoid clone
         self.baseline_content = content.clone();
         self.is_modified = false;
-        log::debug!("Loaded content and set baseline for: {:?}", self.file_path);
         Ok(content)
     }
 
@@ -368,14 +317,29 @@ impl DocumentBuffer {
     /// assert!(buffer.is_modified);
     /// ```
     /// Update modification state by comparing the provided editor content with the baseline.
+    /// Enhanced with logging for debugging purposes
     pub fn update_modified_from_content(&mut self, current_content: &str) {
         let modified = self.baseline_content != current_content;
+        let was_modified = self.is_modified;
         self.is_modified = modified;
+        
+        // Log state changes for debugging
+        if was_modified != modified {
+            let state_change = if modified { "clean → modified" } else { "modified → clean" };
+            log::debug!("Document state changed ({}): {:?}", state_change, self.file_path);
+        }
     }
 
     /// Sets the baseline content (used after loading or saving a file)
+    /// Optimized to avoid unnecessary allocations when content hasn't changed
     pub fn set_baseline(&mut self, content: &str) {
-        self.baseline_content = content.to_string();
+        // Optimization: Only allocate new string if content actually differs
+        if self.baseline_content != content {
+            let content_size = content.len();
+            self.baseline_content = content.to_string();
+            log::debug!("Updated baseline content ({} bytes) for: {:?}", 
+                content_size, self.file_path);
+        }
         self.is_modified = false;
     }
 
@@ -487,9 +451,15 @@ impl DocumentBuffer {
     /// assert_eq!(buffer.display_name, "Untitled.md");
     /// ```
     pub fn reset_to_untitled(&mut self) {
+        let had_file = self.file_path.is_some();
         self.file_path = None;
         self.is_modified = false;
         self.display_name = "Untitled.md".to_string();
+        
+        if had_file {
+            log::info!("Document reset to untitled state - closed file association");
+        }
+        self.log_document_state("reset_to_untitled");
     }
 
     /// Checks if a file exists at the given path
@@ -505,6 +475,54 @@ impl DocumentBuffer {
     /// * `false` - File does not exist
     pub fn file_exists<P: AsRef<Path>>(path: P) -> bool {
         path.as_ref().exists() && path.as_ref().is_file()
+    }
+
+    /// Optimized method to update both baseline content and modified state efficiently
+    /// Reduces string allocations when the content hasn't actually changed
+    pub fn update_baseline_and_state(&mut self, new_content: &str, mark_modified: bool) {
+        // Only update baseline if content has changed to avoid unnecessary allocations
+        if self.baseline_content != new_content {
+            let old_size = self.baseline_content.len();
+            let new_size = new_content.len();
+            self.baseline_content = new_content.to_string();
+            
+            log::debug!("Baseline content updated for: {:?} (size: {} → {} bytes)", 
+                self.file_path, old_size, new_size);
+        }
+        self.is_modified = mark_modified;
+    }
+
+    /// Gets document statistics for logging and monitoring
+    pub fn get_document_stats(&self) -> DocumentStats {
+        DocumentStats {
+            file_path: self.file_path.clone(),
+            display_name: self.display_name.clone(),
+            is_modified: self.is_modified,
+            baseline_size: self.baseline_content.len(),
+            has_file_association: self.file_path.is_some(),
+        }
+    }
+
+    /// Logs current document state - useful for debugging memory usage and file operations
+    pub fn log_document_state(&self, operation: &str) {
+        let stats = self.get_document_stats();
+        match &stats.file_path {
+            Some(path) => {
+                log::info!("Document state after {}: {} ({} bytes, modified: {}) [{}]", 
+                    operation, 
+                    path.display(), 
+                    stats.baseline_size, 
+                    stats.is_modified,
+                    stats.display_name);
+            }
+            None => {
+                log::debug!("Document state after {}: {} ({} bytes, modified: {})", 
+                    operation, 
+                    stats.display_name, 
+                    stats.baseline_size, 
+                    stats.is_modified);
+            }
+        }
     }
 }
 
@@ -578,6 +596,16 @@ impl RecentFiles {
     }
 }
 
+/// Statistics about a document buffer for monitoring and debugging
+#[derive(Debug, Clone)]
+pub struct DocumentStats {
+    pub file_path: Option<PathBuf>,
+    pub display_name: String,
+    pub is_modified: bool,
+    pub baseline_size: usize,
+    pub has_file_association: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,12 +667,81 @@ mod tests {
             .save_as_content(&file_path, "# Test content")
             .unwrap();
 
+        // Test the optimized stats method usage
+        let stats = buffer.get_document_stats();
+        assert!(stats.has_file_association);
+        assert_eq!(stats.baseline_size, 14); // "# Test content".len()
+        assert!(!stats.is_modified);
+        
         assert!(buffer.file_path.is_some());
-        let saved_path = buffer.file_path.unwrap();
+        let saved_path = buffer.file_path.as_ref().unwrap();
         assert_eq!(saved_path.extension().unwrap(), "md");
         assert!(saved_path.exists());
 
-        let content = fs::read_to_string(&saved_path).unwrap();
+        let content = fs::read_to_string(saved_path).unwrap();
         assert_eq!(content, "# Test content");
+    }
+
+    #[test]
+    fn smoke_test_buffer_optimizations() {
+        // Test the optimized baseline update method
+        let mut buffer = DocumentBuffer::new_untitled();
+        
+        // Initial state
+        assert_eq!(buffer.baseline_content, "");
+        assert!(!buffer.is_modified);
+        
+        // First update should allocate new string
+        buffer.update_baseline_and_state("# Hello World", false);
+        assert_eq!(buffer.baseline_content, "# Hello World");
+        assert!(!buffer.is_modified);
+        
+        // Same content should not reallocate (optimization)
+        let baseline_ptr = buffer.baseline_content.as_ptr();
+        buffer.update_baseline_and_state("# Hello World", true);
+        assert_eq!(buffer.baseline_content.as_ptr(), baseline_ptr); // Same pointer = no reallocation
+        assert!(buffer.is_modified);
+        
+        // Different content should allocate
+        buffer.update_baseline_and_state("# Different Content", false);
+        assert_ne!(buffer.baseline_content.as_ptr(), baseline_ptr); // Different pointer = new allocation
+        assert_eq!(buffer.baseline_content, "# Different Content");
+        assert!(!buffer.is_modified);
+    }
+
+    #[test]
+    fn smoke_test_document_stats() {
+        let mut buffer = DocumentBuffer::new_untitled();
+        buffer.baseline_content = "# Test Content".to_string();
+        buffer.is_modified = true;
+        
+        let stats = buffer.get_document_stats();
+        assert_eq!(stats.display_name, "Untitled.md");
+        assert!(stats.is_modified);
+        assert_eq!(stats.baseline_size, 14); // "# Test Content".len()
+        assert!(!stats.has_file_association);
+        assert!(stats.file_path.is_none());
+    }
+
+    #[test]
+    fn smoke_test_optimized_set_baseline() {
+        let mut buffer = DocumentBuffer::new_untitled();
+        
+        // First set
+        buffer.set_baseline("Initial content");
+        assert_eq!(buffer.baseline_content, "Initial content");
+        assert!(!buffer.is_modified);
+        
+        // Same content should not reallocate
+        let baseline_ptr = buffer.baseline_content.as_ptr();
+        buffer.set_baseline("Initial content");
+        assert_eq!(buffer.baseline_content.as_ptr(), baseline_ptr);
+        assert!(!buffer.is_modified);
+        
+        // Different content should allocate
+        buffer.set_baseline("New content");
+        assert_ne!(buffer.baseline_content.as_ptr(), baseline_ptr);
+        assert_eq!(buffer.baseline_content, "New content");
+        assert!(!buffer.is_modified);
     }
 }

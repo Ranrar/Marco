@@ -5,6 +5,7 @@ use std::rc::Rc;
 
 // Import your theme manager
 use crate::logic::loaders::theme_loader::list_html_view_themes;
+use crate::logic::signal_manager::SignalManager;
 use crate::theme::ThemeManager;
 
 pub fn build_appearance_tab(
@@ -14,7 +15,7 @@ pub fn build_appearance_tab(
     on_preview_theme_changed: Box<dyn Fn(String) + 'static>,
     refresh_preview: Rc<RefCell<Box<dyn Fn()>>>,
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
-) -> gtk4::Box {
+) -> (gtk4::Box, Rc<RefCell<SignalManager>>) {
     use gtk4::{
         Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale,
         SpinButton,
@@ -26,6 +27,9 @@ pub fn build_appearance_tab(
     container.set_margin_bottom(24);
     container.set_margin_start(32);
     container.set_margin_end(32);
+    
+    // Create signal manager to track all signal handlers for proper cleanup
+    let signal_manager = Rc::new(RefCell::new(SignalManager::new()));
 
     // Helper for bold label
     let bold_label = |text: &str| {
@@ -93,14 +97,16 @@ pub fn build_appearance_tab(
                 .position(|t| t.filename == current_preview_str)
                 .unwrap_or(0);
             preview_theme_combo.set_active(Some(preview_active_idx as u32));
-            // Signal
+            // Signal - properly managed for cleanup
             {
                 let theme_manager = Rc::clone(&theme_manager);
                 let settings_path = settings_path.clone();
                 let html_themes = html_themes.clone();
                 let on_preview_theme_changed = Rc::clone(&on_preview_theme_changed);
                 let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
-                preview_theme_combo.connect_changed(move |combo| {
+                let signal_manager = signal_manager.clone();
+                
+                let handler_id = preview_theme_combo.connect_changed(move |combo| {
                     let idx = combo.active().unwrap_or(0) as usize;
                     if let Some(theme_entry) = html_themes.get(idx) {
                         user_selected_preview_theme.set(true);
@@ -115,6 +121,13 @@ pub fn build_appearance_tab(
                         (on_preview_theme_changed)(theme_entry.filename.clone());
                     }
                 });
+                
+                // Register handler for cleanup
+                signal_manager.borrow_mut().register_handler(
+                    "appearance_tab", 
+                    &preview_theme_combo.clone().upcast(), 
+                    handler_id
+                );
             }
             let row = add_row(
                 "HTML Preview Theme",
@@ -153,7 +166,9 @@ pub fn build_appearance_tab(
         let settings_path = settings_path.clone();
         let refresh_preview = Rc::clone(&refresh_preview);
         let on_editor_theme_changed = on_editor_theme_changed.map(Rc::new);
-        color_mode_combo.connect_changed(move |combo| {
+        let signal_manager = signal_manager.clone();
+        
+        let handler_id = color_mode_combo.connect_changed(move |combo| {
             let idx = combo.active().unwrap_or(0);
             let mode = if idx == 1 { "dark" } else { "light" };
             log::info!("Switching color mode to: {}", mode);
@@ -183,6 +198,13 @@ pub fn build_appearance_tab(
             // Refresh preview and UI
             (refresh_preview.borrow())();
         });
+        
+        // Register handler for cleanup
+        signal_manager.borrow_mut().register_handler(
+            "appearance_tab", 
+            &color_mode_combo.clone().upcast(), 
+            handler_id
+        );
     }
     use std::rc::Rc;
     let on_preview_theme_changed = Rc::new(on_preview_theme_changed);
@@ -270,5 +292,5 @@ pub fn build_appearance_tab(
     ui_font_size_slider.set_margin_bottom(12);
     container.append(&ui_font_size_slider);
 
-    container
+    (container, signal_manager)
 }

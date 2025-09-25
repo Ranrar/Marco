@@ -68,6 +68,10 @@ pub struct FileOperations {
     pub recent_files: Rc<RefCell<RecentFiles>>,
     /// Callbacks to run when the recent files list changes
     recent_changed_callbacks: RefCell<Vec<Box<dyn Fn()>>>,
+    /// Last recent files list to prevent redundant updates
+    last_recent_files: RefCell<Option<Vec<std::path::PathBuf>>>,
+    /// Flag to prevent recursive callback cascades
+    updating_recent_files: RefCell<bool>,
 }
 
 impl FileOperations {
@@ -96,6 +100,8 @@ impl FileOperations {
             buffer,
             recent_files,
             recent_changed_callbacks: RefCell::new(Vec::new()),
+            last_recent_files: RefCell::new(None),
+            updating_recent_files: RefCell::new(false),
         }
     }
 
@@ -104,16 +110,79 @@ impl FileOperations {
         self.recent_changed_callbacks
             .borrow_mut()
             .push(Box::new(cb));
+        log::debug!("Registered recent files callback (total: {})", self.recent_changed_callbacks.borrow().len());
+    }
+
+    /// Clear cascade prevention state (useful for testing or manual reset)
+    #[allow(dead_code)]
+    pub fn reset_cascade_prevention(&self) {
+        *self.last_recent_files.borrow_mut() = None;
+        *self.updating_recent_files.borrow_mut() = false;
+        log::debug!("Reset cascade prevention state");
+    }
+
+    /// Get current callback statistics for debugging cascade issues
+    #[allow(dead_code)]
+    pub fn get_callback_stats(&self) -> (usize, bool, usize) {
+        let callback_count = self.recent_changed_callbacks.borrow().len();
+        let is_updating = *self.updating_recent_files.borrow();
+        let cached_files_count = self.last_recent_files.borrow()
+            .as_ref()
+            .map(|files| files.len())
+            .unwrap_or(0);
+        (callback_count, is_updating, cached_files_count)
     }
 
     fn invoke_recent_changed_callbacks(&self) {
-        for cb in self.recent_changed_callbacks.borrow().iter() {
+        // Prevent recursive callback cascades
+        if *self.updating_recent_files.borrow() {
+            log::debug!("Skipping recent files callbacks (already updating)");
+            return;
+        }
+
+        // Get current recent files list
+        let current_files = self.recent_files.borrow().get_files();
+        
+        // Check if the list actually changed to prevent redundant updates
+        if let Some(ref last_files) = *self.last_recent_files.borrow() {
+            if last_files == &current_files {
+                log::debug!("Skipping recent files callbacks (list unchanged)");
+                return;
+            }
+        }
+
+        log::debug!("Invoking recent files callbacks for {} files", current_files.len());
+        
+        // Set flag to prevent recursive calls during callback processing
+        *self.updating_recent_files.borrow_mut() = true;
+        
+        // Cache the current list to prevent redundant updates
+        *self.last_recent_files.borrow_mut() = Some(current_files);
+        
+        // Invoke all registered callbacks
+        for (i, cb) in self.recent_changed_callbacks.borrow().iter().enumerate() {
+            log::debug!("Invoking recent files callback {}", i);
             cb();
         }
+        
+        // Clear the updating flag
+        *self.updating_recent_files.borrow_mut() = false;
     }
 
     /// Add file to the recent list and notify callbacks
     fn add_recent_file<P: AsRef<Path>>(&self, path: P) {
+        let path = path.as_ref();
+        
+        // Check if this file is already at the top of the recent list to avoid redundant updates
+        let current_files = self.recent_files.borrow().get_files();
+        if let Some(first_file) = current_files.first() {
+            if first_file == path {
+                log::debug!("File {} already at top of recent list, skipping update", path.display());
+                return;
+            }
+        }
+        
+        log::debug!("Adding file to recent list: {}", path.display());
         self.recent_files.borrow_mut().add_file(path);
         self.invoke_recent_changed_callbacks();
     }
@@ -599,12 +668,11 @@ impl FileOperations {
         let path = path.as_ref();
 
         // Create new buffer from file
-        let new_buffer = DocumentBuffer::new_from_file(path)?;
-        let content = new_buffer.read_content()?;
+        let mut new_buffer = DocumentBuffer::new_from_file(path)?;
+        let content = new_buffer.load_and_set_baseline()?; // Use optimized method
 
         // Update our DocumentBuffer FIRST (before editor buffer to ensure preview refresh sees the updated state)
         *self.buffer.borrow_mut() = new_buffer;
-        self.buffer.borrow_mut().set_baseline(&content);
 
         // Update editor (this will trigger preview refresh which should now see the updated DocumentBuffer)
         editor_buffer.set_text(&content);
@@ -772,7 +840,7 @@ pub fn attach_change_tracker(
     editor_buffer: &sourceview5::Buffer,
     modification_tracking_enabled: Rc<RefCell<bool>>,
     title_label: &gtk4::Label,
-) {
+) -> gtk4::glib::SignalHandlerId {
     // Clone buffer for closure capture
     let editor_buffer_clone = editor_buffer.clone();
     editor_buffer_clone.connect_changed({
@@ -805,7 +873,7 @@ pub fn attach_change_tracker(
                 }
             }
         }
-    });
+    })
 }
 
 /// Register all file actions including async dialogs and modification tracking.
@@ -829,8 +897,8 @@ pub fn register_file_actions_async(
     // Create modification tracking flag
     let modification_tracking_enabled = Rc::new(RefCell::new(true));
 
-    // Set up buffer change tracking
-    attach_change_tracker(
+    // Set up buffer change tracking - TODO: store and manage this signal ID
+    let _change_tracker_signal_id = attach_change_tracker(
         file_operations.clone(),
         editor_buffer,
         modification_tracking_enabled.clone(),
@@ -1146,4 +1214,106 @@ pub fn setup_recent_actions(
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::logic::buffer::{DocumentBuffer, RecentFiles};
+    use std::sync::{Arc, Mutex};
+    use tempfile::tempdir;
+    
+    #[test]
+    fn smoke_test_recent_files_cascade_prevention() {
+        let temp_dir = tempdir().expect("Failed to create temp dir");
+        let settings_path = temp_dir.path().join("test_settings.ron");
+        
+        // Create test objects
+        let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
+        let recent_files = Rc::new(RefCell::new(RecentFiles::new(&settings_path)));
+        let file_ops = FileOperations::new(buffer, recent_files);
+        
+        // Track callback invocations
+        let callback_count = Arc::new(Mutex::new(0));
+        let callback_count_clone = Arc::clone(&callback_count);
+        
+        // Register a callback that counts invocations
+        file_ops.register_recent_changed_callback(move || {
+            let mut count = callback_count_clone.lock().unwrap();
+            *count += 1;
+        });
+        
+        // Test initial state
+        let (callbacks, updating, cached) = file_ops.get_callback_stats();
+        assert_eq!(callbacks, 1, "Should have 1 registered callback");
+        assert!(!updating, "Should not be updating initially");
+        assert_eq!(cached, 0, "Should have no cached files initially");
+        
+        // Test adding a file - should trigger callback
+        let test_file1 = temp_dir.path().join("test1.md");
+        std::fs::write(&test_file1, "# Test 1").expect("Failed to write test file");
+        file_ops.add_recent_file(&test_file1);
+        
+        assert_eq!(*callback_count.lock().unwrap(), 1, "First file should trigger callback");
+        
+        // Test adding the same file again - should be deduplicated (file already at top)
+        file_ops.add_recent_file(&test_file1);
+        assert_eq!(*callback_count.lock().unwrap(), 1, "Same file should be deduplicated");
+        
+        // Test adding a different file - should trigger callback
+        let test_file2 = temp_dir.path().join("test2.md");
+        std::fs::write(&test_file2, "# Test 2").expect("Failed to write test file");
+        file_ops.add_recent_file(&test_file2);
+        
+        assert_eq!(*callback_count.lock().unwrap(), 2, "Different file should trigger callback");
+        
+        // Test adding the same file again - should be deduplicated
+        file_ops.add_recent_file(&test_file2);
+        assert_eq!(*callback_count.lock().unwrap(), 2, "Same file at top should be deduplicated");
+        
+        // Test adding the first file again - should trigger callback (moves to top)
+        file_ops.add_recent_file(&test_file1);
+        assert_eq!(*callback_count.lock().unwrap(), 3, "Moving file to top should trigger callback");
+        
+        // Test reset functionality
+        file_ops.reset_cascade_prevention();
+        let (_, updating_after_reset, cached_after_reset) = file_ops.get_callback_stats();
+        assert!(!updating_after_reset, "Should not be updating after reset");
+        assert_eq!(cached_after_reset, 0, "Should have no cached files after reset");
+    }
+    
+    #[test]
+    fn smoke_test_recursive_callback_prevention() {
+        let temp_dir = tempdir().expect("Failed to create temp dir");
+        let settings_path = temp_dir.path().join("test_settings.ron");
+        
+        let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
+        let recent_files = Rc::new(RefCell::new(RecentFiles::new(&settings_path)));
+        let file_ops = Rc::new(FileOperations::new(buffer, recent_files));
+        
+        let callback_count = Arc::new(Mutex::new(0));
+        let callback_count_clone = Arc::clone(&callback_count);
+        let file_ops_clone = file_ops.clone();
+        
+        // Register a callback that tries to add another file (potential infinite loop)
+        file_ops.register_recent_changed_callback(move || {
+            let mut count = callback_count_clone.lock().unwrap();
+            *count += 1;
+            
+            // Try to add another file from within the callback
+            if *count == 1 {
+                // This should be prevented by the updating_recent_files flag
+                let recursive_file = format!("recursive_{}.md", *count);
+                file_ops_clone.add_recent_file(std::path::Path::new(&recursive_file));
+            }
+        });
+        
+        // Add a file - this should trigger the callback, but prevent recursion
+        let test_file = temp_dir.path().join("trigger.md");
+        std::fs::write(&test_file, "# Trigger").expect("Failed to write test file");
+        file_ops.add_recent_file(&test_file);
+        
+        // The callback should only be called once due to recursion prevention
+        assert_eq!(*callback_count.lock().unwrap(), 1, "Callback should only be called once due to recursion prevention");
+    }
 }

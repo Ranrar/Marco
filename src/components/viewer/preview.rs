@@ -74,7 +74,7 @@ pub fn refresh_preview_into_webview(
     document_path: Option<&std::path::Path>,
 ) {
     let base_uri = document_path
-        .and_then(|path| crate::components::viewer::webkit6::generate_base_uri_from_path(path));
+        .and_then(crate::components::viewer::webkit6::generate_base_uri_from_path);
     refresh_preview_into_webview_with_base_uri(
         webview,
         css,

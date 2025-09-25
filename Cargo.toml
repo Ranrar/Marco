@@ -46,6 +46,7 @@ pest_derive = "2.8.1"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "5.0"
+lru = "0.16.1"
 # Test suite dependencies (needed for marco-test binary)
 clap = { version = "4.5", features = ["derive"] }
 similar = { version = "2.7", features = ["inline", "unicode"] }

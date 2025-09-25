@@ -53,6 +53,8 @@ pub fn parse_to_html_cached(input: &str) -> Result<String, String> {
 }
 
 /// Legacy function: Parse markdown text (alias for parse_text) - Used by footer.rs
+/// Still in use
+#[allow(dead_code)]
 pub fn parse_markdown(input: &str) -> Result<pest::iterators::Pairs<'_, Rule>, String> {
     parse_text(input)
 }

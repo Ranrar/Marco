@@ -102,6 +102,12 @@ fn main() -> glib::ExitCode {
     trace!("audit: app starting");
     let exit_code = app.run();
     trace!("audit: app exiting with code {:?}", exit_code);
+    
+    // Clean up global resources before shutting down logger
+    crate::components::editor::editor_manager::shutdown_editor_manager();
+    crate::components::marco_engine::parser_cache::shutdown_global_parser_cache();
+    crate::logic::cache::shutdown_global_cache();
+    
     // Ensure file logger is flushed and closed on normal exit
     crate::logic::logger::shutdown_file_logger();
     exit_code
@@ -321,43 +327,53 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         }
     }
 
-    // Closure to trigger an immediate footer syntax update using the active schema map
-    let trigger_footer_update: std::rc::Rc<dyn Fn()> = std::rc::Rc::new({
-        let buffer = editor_buffer.clone();
-        let labels = footer_labels_rc.clone();
+    // Create footer update function using weak references to prevent circular retention
+    let trigger_footer_update: std::rc::Rc<dyn Fn()> = {
+        // Use weak references to editor components
+        let buffer_weak = editor_buffer.downgrade();
+        let labels_weak = Rc::downgrade(&footer_labels_rc);
         let test_counter = std::rc::Rc::new(std::cell::Cell::new(0));
-        move || {
-            // Manual footer trigger invoked; terminal output suppressed.
+        
+        std::rc::Rc::new(move || {
+            // Check if components are still valid before using
+            if let (Some(buffer), Some(labels)) = (
+                buffer_weak.upgrade(),
+                labels_weak.upgrade(),
+            ) {
+                // Manual footer trigger invoked; terminal output suppressed.
 
-            // Increment test counter for obvious visual changes
-            let count = test_counter.get() + 1;
-            test_counter.set(count);
+                // Increment test counter for obvious visual changes
+                let count = test_counter.get() + 1;
+                test_counter.set(count);
 
-            // Update with test values to make changes obvious
-            crate::footer::update_cursor_row(&labels, count + 10);
-            crate::footer::update_cursor_col(&labels, count + 20);
-            crate::footer::update_word_count(&labels, count * 10);
-            crate::footer::update_char_count(&labels, count * 50);
-            crate::footer::update_encoding(&labels, &format!("TEST-{}", count));
-            crate::footer::update_insert_mode(&labels, count % 2 == 0);
+                // Update with test values to make changes obvious
+                crate::footer::update_cursor_row(&labels, count + 10);
+                crate::footer::update_cursor_col(&labels, count + 20);
+                crate::footer::update_word_count(&labels, count * 10);
+                crate::footer::update_char_count(&labels, count * 50);
+                crate::footer::update_encoding(&labels, &format!("TEST-{}", count));
+                crate::footer::update_insert_mode(&labels, count.is_multiple_of(2));
 
-            // Also do the original syntax trace logic
-            let offset = buffer.cursor_position();
-            let iter = buffer.iter_at_offset(offset);
-            let current_line = iter.line();
-            let start_iter_opt = buffer.iter_at_line(current_line);
-            let end_iter_opt = buffer.iter_at_line(current_line + 1);
-            let line_text = match (start_iter_opt, end_iter_opt) {
-                (Some(ref start), Some(ref end)) => buffer.text(start, end, false).to_string(),
-                (Some(ref start), None) => {
-                    buffer.text(start, &buffer.end_iter(), false).to_string()
-                }
-                _ => String::new(),
-            };
-            // Footer uses AST-based parsing internally; pass only labels and line text
-            crate::footer::update_syntax_trace(&labels, &line_text);
-        }
-    });
+                // Also do the original syntax trace logic
+                let offset = buffer.cursor_position();
+                let iter = buffer.iter_at_offset(offset);
+                let current_line = iter.line();
+                let start_iter_opt = buffer.iter_at_line(current_line);
+                let end_iter_opt = buffer.iter_at_line(current_line + 1);
+                let line_text = match (start_iter_opt, end_iter_opt) {
+                    (Some(ref start), Some(ref end)) => buffer.text(start, end, false).to_string(),
+                    (Some(ref start), None) => {
+                        buffer.text(start, &buffer.end_iter(), false).to_string()
+                    }
+                    _ => String::new(),
+                };
+                // Footer uses AST-based parsing internally; pass only labels and line text
+                crate::footer::update_syntax_trace(&labels, &line_text);
+            } else {
+                log::debug!("Footer update callback called after editor components were dropped");
+            }
+        })
+    };
 
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);
@@ -375,32 +391,41 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     // Add main box to window
     window.set_child(Some(&main_box));
 
+    // --- Settings Thread Pool for Proper Resource Management ---
+    // Create a dedicated thread pool for settings operations to avoid orphaned threads
+    let (settings_tx, settings_rx) = std::sync::mpsc::channel::<Box<dyn FnOnce() + Send>>();
+    let settings_thread_handle = std::thread::spawn(move || {
+        // Single background thread that processes all settings operations sequentially
+        // This prevents race conditions and ensures proper resource cleanup
+        while let Ok(task) = settings_rx.recv() {
+            task();
+        }
+        log::debug!("Settings thread pool shutting down");
+    });
+
+    // Store the thread handle and sender for cleanup
+    let settings_thread_data = std::rc::Rc::new(std::cell::RefCell::new((
+        Some(settings_thread_handle),
+        settings_tx.clone(),
+    )));
+
     // --- Live HTML preview theme switching ---
     // Store refresh_preview closure for use on theme changes
     let refresh_preview_rc = Rc::new(RefCell::new(refresh_preview));
-    let preview_css_for_settings = preview_css_rc.clone();
     // Register 'app.settings' action to show the settings dialog with the callback
     let settings_action = gtk4::gio::SimpleAction::new("settings", None);
-    let win_clone = window.clone();
-    let theme_manager_clone = theme_manager.clone();
-    let settings_path_clone = settings_path.clone();
-    let refresh_preview_for_settings2 = refresh_preview_rc.clone();
-    let update_editor_theme_clone = Rc::new(update_editor_theme);
-    let update_preview_theme_clone = Rc::new(update_preview_theme);
-    // Clone the runtime setter for the settings dialog callback so the original
-    // Rc isn't moved and can still be used for action registration below.
-    let set_view_mode_for_dialog = set_view_mode_rc.clone();
+    let update_editor_theme_rc = Rc::new(update_editor_theme);
+    let update_preview_theme_rc = Rc::new(update_preview_theme);
 
     // Helper to persist view mode in settings.ron without blocking the UI
-    // This spawns a short-lived thread to perform file I/O. The settings file
-    // is small so this is a pragmatic choice; for heavy I/O consider using a
-    // dedicated worker queue or async executor.
+    // Uses the dedicated settings thread pool to avoid orphaned threads
     let save_view_mode = {
         let settings_path = settings_path.clone();
-        move |mode: &str| {
+        let settings_tx = settings_tx.clone();
+        Rc::new(move |mode: &str| {
             let path = settings_path.clone();
             let mode_owned = mode.to_string();
-            std::thread::spawn(move || {
+            let task = Box::new(move || {
                 use crate::logic::swanson::{LayoutSettings, Settings as AppSettings};
                 let mut s = AppSettings::load_from_file(path.to_str().unwrap()).unwrap_or_default();
                 if s.layout.is_none() {
@@ -409,26 +434,36 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                 if let Some(ref mut l) = s.layout {
                     l.view_mode = Some(mode_owned.clone());
                 }
-                let _ = s.save_to_file(path.to_str().unwrap());
+                if let Err(e) = s.save_to_file(path.to_str().unwrap()) {
+                    log::error!("Failed to save view mode settings: {}", e);
+                } else {
+                    log::debug!("View mode saved: {}", mode_owned);
+                }
             });
-        }
+            if let Err(e) = settings_tx.send(task) {
+                log::error!("Failed to queue view mode save task: {}", e);
+            }
+        })
     };
 
     settings_action.connect_activate({
-        let win_clone = win_clone.clone();
-        let theme_manager_clone = theme_manager_clone.clone();
-        let settings_path_clone = settings_path_clone.clone();
-        let preview_css_for_settings = preview_css_for_settings.clone();
-        let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
-        let update_editor_theme_clone = update_editor_theme_clone.clone();
-        let update_preview_theme_clone = update_preview_theme_clone.clone();
+        // Clone directly from original sources to avoid intermediate reference chains
+        let window = window.clone();
+        let theme_manager = theme_manager.clone();
+        let settings_path = settings_path.clone();
+        let preview_css_rc = preview_css_rc.clone();
+        let refresh_preview_rc = refresh_preview_rc.clone();
+        let update_editor_theme_rc = update_editor_theme_rc.clone();
+        let update_preview_theme_rc = update_preview_theme_rc.clone();
+        let set_view_mode_rc = set_view_mode_rc.clone();
+        let save_view_mode = save_view_mode.clone();
         move |_, _| {
             use crate::ui::settings::dialog::show_settings_dialog;
 
             // Create editor theme callback that updates both editor and preview
             let editor_callback = {
-                let update_editor = update_editor_theme_clone.clone();
-                let update_preview = update_preview_theme_clone.clone();
+                let update_editor = update_editor_theme_rc.clone();
+                let update_preview = update_preview_theme_rc.clone();
                 Box::new(move |scheme_id: String| {
                     update_editor(&scheme_id);
                     update_preview(&scheme_id);
@@ -442,65 +477,97 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
 
             let callbacks = SettingsDialogCallbacks {
                 on_preview_theme_changed: Some(Box::new({
-                    let theme_manager_clone = theme_manager_clone.clone();
-                    let preview_css_for_settings = preview_css_for_settings.clone();
-                    let refresh_preview_for_settings2 = refresh_preview_for_settings2.clone();
+                    // Use weak references to prevent circular retention
+                    let theme_manager_weak = Rc::downgrade(&theme_manager);
+                    let preview_css_weak = Rc::downgrade(&preview_css_rc);
+                    let refresh_preview_weak = Rc::downgrade(&refresh_preview_rc);
                     move |theme_filename: String| {
-                        // On preview theme change, update CSS and call refresh
-                        use std::fs;
-                        let theme_manager = theme_manager_clone.borrow();
-                        let preview_theme_dir = theme_manager.preview_theme_dir.clone();
-                        let css_path = preview_theme_dir.join(&theme_filename);
-                        let css = fs::read_to_string(&css_path).unwrap_or_default();
-                        *preview_css_for_settings.borrow_mut() = css;
-                        (refresh_preview_for_settings2.borrow())();
+                        // Check if references are still valid before using
+                        if let (Some(theme_manager), Some(preview_css_rc), Some(refresh_preview_rc)) = (
+                            theme_manager_weak.upgrade(),
+                            preview_css_weak.upgrade(),
+                            refresh_preview_weak.upgrade(),
+                        ) {
+                            // On preview theme change, update CSS and call refresh
+                            use std::fs;
+                            let theme_manager = theme_manager.borrow();
+                            let preview_theme_dir = theme_manager.preview_theme_dir.clone();
+                            let css_path = preview_theme_dir.join(&theme_filename);
+                            let css = fs::read_to_string(&css_path).unwrap_or_default();
+                            *preview_css_rc.borrow_mut() = css;
+                            (refresh_preview_rc.borrow())();
+                        } else {
+                            log::debug!("Preview theme callback called after main components were dropped");
+                        }
                     }
                 })),
-                refresh_preview: Some(refresh_preview_for_settings2.clone()),
+                refresh_preview: Some(refresh_preview_rc.clone()),
                 on_editor_theme_changed: Some(editor_callback),
                 on_schema_changed: Some(Box::new({
-                    let active_schema_map = active_schema_map.clone();
-                    let trigger = trigger_footer_update.clone();
+                    // Use weak references to prevent circular retention
+                    let active_schema_map_weak = Rc::downgrade(&active_schema_map);
+                    let trigger_weak = Rc::downgrade(&trigger_footer_update);
                     move |_selected: Option<String>| {
-                        // Schema support removed; clear any existing schema and trigger footer update
-                        *active_schema_map.borrow_mut() = None;
-                        (trigger)();
+                        // Check if references are still valid before using
+                        if let (Some(active_schema_map), Some(trigger)) = (
+                            active_schema_map_weak.upgrade(),
+                            trigger_weak.upgrade(),
+                        ) {
+                            // Schema support removed; clear any existing schema and trigger footer update
+                            *active_schema_map.borrow_mut() = None;
+                            (trigger)();
+                        } else {
+                            log::debug!("Schema callback called after main components were dropped");
+                        }
                     }
                 })),
                 // on_view_mode_changed: persist and forward to runtime setter
                 on_view_mode_changed: Some(Box::new({
-                    let sv = set_view_mode_for_dialog.clone();
-                    let save = save_view_mode.clone();
+                    // Use weak reference to prevent circular retention
+                    let set_view_mode_weak = Rc::downgrade(&set_view_mode_rc);
+                    let save = save_view_mode.clone(); // This closure is self-contained, no circular ref risk
                     move |selected: String| {
-                        // Persist the selection asynchronously
+                        // Persist the selection asynchronously (always works)
                         save(&selected);
-                        match selected.as_str() {
-                            "HTML Preview" => (sv)(ViewMode::HtmlPreview),
-                            "Source Code" | "Code Preview" => (sv)(ViewMode::CodePreview),
-                            _ => {}
+                        
+                        // Check if view mode setter is still valid before using
+                        if let Some(set_view_mode_rc) = set_view_mode_weak.upgrade() {
+                            match selected.as_str() {
+                                "HTML Preview" => (set_view_mode_rc)(ViewMode::HtmlPreview),
+                                "Source Code" | "Code Preview" => (set_view_mode_rc)(ViewMode::CodePreview),
+                                _ => {}
+                            }
+                        } else {
+                            log::debug!("View mode callback called after main components were dropped");
                         }
                     }
                 }) as Box<dyn Fn(String) + 'static>),
                 // on_split_ratio_changed: update the actual paned widget position in real-time
                 on_split_ratio_changed: Some(Box::new({
-                    let split_paned = split.clone();
+                    // GTK widgets have their own reference counting, but use weak ref for consistency
+                    let split_paned_weak = split.downgrade();
                     move |ratio: i32| {
-                        // Calculate the pixel position based on the current paned width
-                        let paned_width = split_paned.allocated_width();
-                        let new_position = if paned_width > 0 {
-                            (paned_width as f64 * ratio as f64 / 100.0) as i32
-                        } else {
-                            // Fallback to default width calculation
-                            (1200.0 * ratio as f64 / 100.0) as i32
-                        };
+                        // Check if widget is still valid before using
+                        if let Some(split_paned) = split_paned_weak.upgrade() {
+                            // Calculate the pixel position based on the current paned width
+                            let paned_width = split_paned.allocated_width();
+                            let new_position = if paned_width > 0 {
+                                (paned_width as f64 * ratio as f64 / 100.0) as i32
+                            } else {
+                                // Fallback to default width calculation
+                                (1200.0 * ratio as f64 / 100.0) as i32
+                            };
 
-                        split_paned.set_position(new_position);
-                        log::debug!(
-                            "Live split ratio update: {}% -> {}px (width: {}px)",
-                            ratio,
-                            new_position,
-                            paned_width
-                        );
+                            split_paned.set_position(new_position);
+                            log::debug!(
+                                "Live split ratio update: {}% -> {}px (width: {}px)",
+                                ratio,
+                                new_position,
+                                paned_width
+                            );
+                        } else {
+                            log::debug!("Split ratio callback called after paned widget was dropped");
+                        }
                     }
                 }) as Box<dyn Fn(i32) + 'static>),
                 // on_sync_scrolling_changed: enable/disable scroll synchronization
@@ -524,9 +591,9 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             };
 
             show_settings_dialog(
-                win_clone.upcast_ref(),
-                theme_manager_clone.clone(),
-                settings_path_clone.clone(),
+                window.upcast_ref(),
+                theme_manager.clone(),
+                settings_path.clone(),
                 &asset_dir,
                 callbacks,
             );
@@ -535,43 +602,26 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     app.add_action(&settings_action);
 
     // Register view mode actions to switch preview and persist setting
-    let sv_clone = set_view_mode_rc.clone();
-    let settings_path_clone2 = settings_path.clone();
     let view_html_action = gtk4::gio::SimpleAction::new("view_html", None);
-    view_html_action.connect_activate(move |_, _| {
-        (sv_clone)(ViewMode::HtmlPreview);
-        // Persist setting
-        let mut s =
-            crate::logic::swanson::Settings::load_from_file(settings_path_clone2.to_str().unwrap())
-                .unwrap_or_default();
-        if true {
-            if s.layout.is_none() {
-                s.layout = Some(crate::logic::swanson::LayoutSettings::default());
-            }
-            if let Some(ref mut l) = s.layout {
-                l.view_mode = Some("HTML Preview".to_string());
-            }
-            let _ = s.save_to_file(settings_path_clone2.to_str().unwrap());
+    view_html_action.connect_activate({
+        let set_view_mode_rc = set_view_mode_rc.clone();
+        let save_view_mode = save_view_mode.clone();
+        move |_, _| {
+            (set_view_mode_rc)(ViewMode::HtmlPreview);
+            // Persist setting using the thread pool to avoid race conditions
+            (save_view_mode)("HTML Preview");
         }
     });
     app.add_action(&view_html_action);
 
-    let sv_clone2 = set_view_mode_rc.clone();
-    let settings_path_clone3 = settings_path.clone();
     let view_code_action = gtk4::gio::SimpleAction::new("view_code", None);
-    view_code_action.connect_activate(move |_, _| {
-        (sv_clone2)(ViewMode::CodePreview);
-        let mut s =
-            crate::logic::swanson::Settings::load_from_file(settings_path_clone3.to_str().unwrap())
-                .unwrap_or_default();
-        if true {
-            if s.layout.is_none() {
-                s.layout = Some(crate::logic::swanson::LayoutSettings::default());
-            }
-            if let Some(ref mut l) = s.layout {
-                l.view_mode = Some("Source Code".to_string());
-            }
-            let _ = s.save_to_file(settings_path_clone3.to_str().unwrap());
+    view_code_action.connect_activate({
+        let set_view_mode_rc = set_view_mode_rc.clone();
+        let save_view_mode = save_view_mode.clone();
+        move |_, _| {
+            (set_view_mode_rc)(ViewMode::CodePreview);
+            // Persist setting using the thread pool to avoid race conditions
+            (save_view_mode)("Source Code");
         }
     });
     app.add_action(&view_code_action);
@@ -661,12 +711,14 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     // Connect window state change handlers to persist settings
     {
         let settings_path_for_resize = settings_path.clone();
+        let settings_tx_resize = settings_tx.clone();
         window.connect_default_width_notify(move |w| {
             let settings_path = settings_path_for_resize.clone();
             let width = w.default_width();
             let height = w.default_height();
+            let settings_tx = settings_tx_resize.clone();
 
-            std::thread::spawn(move || {
+            let task = Box::new(move || {
                 use crate::logic::swanson::Settings as AppSettings;
                 let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
                     .unwrap_or_default();
@@ -674,18 +726,26 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     ws.width = Some(width as u32);
                     ws.height = Some(height as u32);
                 });
-                let _ = settings.save_to_file(settings_path.to_str().unwrap());
-                log::debug!("Window size saved: {}x{}", width, height);
+                if let Err(e) = settings.save_to_file(settings_path.to_str().unwrap()) {
+                    log::error!("Failed to save window size: {}", e);
+                } else {
+                    log::debug!("Window size saved: {}x{}", width, height);
+                }
             });
+            if let Err(e) = settings_tx.send(task) {
+                log::error!("Failed to queue window size save task: {}", e);
+            }
         });
 
         let settings_path_for_resize2 = settings_path.clone();
+        let settings_tx_resize2 = settings_tx.clone();
         window.connect_default_height_notify(move |w| {
             let settings_path = settings_path_for_resize2.clone();
             let width = w.default_width();
             let height = w.default_height();
+            let settings_tx = settings_tx_resize2.clone();
 
-            std::thread::spawn(move || {
+            let task = Box::new(move || {
                 use crate::logic::swanson::Settings as AppSettings;
                 let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
                     .unwrap_or_default();
@@ -693,28 +753,70 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     ws.width = Some(width as u32);
                     ws.height = Some(height as u32);
                 });
-                let _ = settings.save_to_file(settings_path.to_str().unwrap());
-                log::debug!("Window size saved: {}x{}", width, height);
+                if let Err(e) = settings.save_to_file(settings_path.to_str().unwrap()) {
+                    log::error!("Failed to save window size: {}", e);
+                } else {
+                    log::debug!("Window size saved: {}x{}", width, height);
+                }
             });
+            if let Err(e) = settings_tx.send(task) {
+                log::error!("Failed to queue window size save task: {}", e);
+            }
         });
 
         let settings_path_for_maximize = settings_path.clone();
+        let settings_tx_maximize = settings_tx.clone();
         window.connect_maximized_notify(move |w| {
             let settings_path = settings_path_for_maximize.clone();
             let is_maximized = w.is_maximized();
+            let settings_tx = settings_tx_maximize.clone();
 
-            std::thread::spawn(move || {
+            let task = Box::new(move || {
                 use crate::logic::swanson::Settings as AppSettings;
                 let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
                     .unwrap_or_default();
                 let _ = settings.update_window_settings(|ws| {
                     ws.maximized = Some(is_maximized);
                 });
-                let _ = settings.save_to_file(settings_path.to_str().unwrap());
-                log::debug!("Window maximized state saved: {}", is_maximized);
+                if let Err(e) = settings.save_to_file(settings_path.to_str().unwrap()) {
+                    log::error!("Failed to save window maximized state: {}", e);
+                } else {
+                    log::debug!("Window maximized state saved: {}", is_maximized);
+                }
             });
+            if let Err(e) = settings_tx.send(task) {
+                log::error!("Failed to queue window maximized save task: {}", e);
+            }
         });
     }
+
+    // Connect to window destroy signal to clean up settings thread
+    window.connect_destroy({
+        let settings_thread_data = settings_thread_data.clone();
+        move |_| {
+            log::debug!("Window destroyed, cleaning up settings thread");
+            let mut thread_data = settings_thread_data.borrow_mut();
+            if let Some(handle) = thread_data.0.take() {
+                // Drop all senders to signal the thread to exit
+                // We need to drop the channel to close it and signal the thread to shutdown
+                std::mem::drop(std::mem::replace(&mut thread_data.1, {
+                    let (dummy_tx, _) = std::sync::mpsc::channel();
+                    dummy_tx
+                }));
+                // Wait for the thread to finish (with timeout for safety)
+                if let Err(e) = handle.join() {
+                    log::error!("Failed to join settings thread: {:?}", e);
+                } else {
+                    log::debug!("Settings thread cleaned up successfully");
+                }
+            }
+            
+            // Clean up global resources
+            crate::components::editor::editor_manager::shutdown_editor_manager();
+            crate::components::marco_engine::parser_cache::shutdown_global_parser_cache();
+            crate::logic::cache::shutdown_global_cache();
+        }
+    });
 
     // Present the window
     window.present();

@@ -4,13 +4,14 @@
 //! - Cache parsed AST nodes to avoid repeated parsing
 //! - Cache rendered HTML to avoid repeated rendering
 //! - Use content hash for cache invalidation 
-//! - HashMap-based storage for simplicity
+//! - LRU cache for efficient O(1) eviction and access
 //! - No complex block-level or incremental features
 
-use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, RwLock, LazyLock};
+use lru::LruCache;
+use std::num::NonZeroUsize;
 use anyhow::Result;
 
 use crate::components::marco_engine::ast_node::Node;
@@ -32,7 +33,7 @@ fn calculate_hash(content: &str) -> ContentHash {
     hasher.finish()
 }
 
-/// Cached AST node - simplified structure  
+/// Cached AST node (no manual LRU tracking needed)
 #[derive(Debug, Clone)]
 pub struct CachedAst {
     pub node: Node,
@@ -44,7 +45,7 @@ impl CachedAst {
     }
 }
 
-/// Cached HTML - simplified structure
+/// Cached HTML (no manual LRU tracking needed)
 #[derive(Debug, Clone)]
 pub struct CachedHtml {
     pub html: String,
@@ -56,12 +57,12 @@ impl CachedHtml {
     }
 }
 
-/// Simple parser cache with basic HashMap storage (as per spec)
+/// Simple parser cache with LRU eviction (as per spec)
 pub struct SimpleParserCache {
     /// AST cache: content hash -> cached AST
-    ast_cache: Arc<RwLock<HashMap<ContentHash, CachedAst>>>,
+    ast_cache: Arc<RwLock<LruCache<ContentHash, CachedAst>>>,
     /// HTML cache: (content hash, options hash) -> cached HTML
-    html_cache: Arc<RwLock<HashMap<(ContentHash, ContentHash), CachedHtml>>>,
+    html_cache: Arc<RwLock<LruCache<(ContentHash, ContentHash), CachedHtml>>>,
     /// Cache statistics tracking
     stats: Arc<RwLock<ParserCacheStats>>,
 }
@@ -76,8 +77,8 @@ impl SimpleParserCache {
     /// Create new simple parser cache
     pub fn new() -> Self {
         Self {
-            ast_cache: Arc::new(RwLock::new(HashMap::new())),
-            html_cache: Arc::new(RwLock::new(HashMap::new())),
+            ast_cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(MAX_AST_CACHE_ENTRIES).unwrap()))),
+            html_cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(MAX_HTML_CACHE_ENTRIES).unwrap()))),
             stats: Arc::new(RwLock::new(ParserCacheStats::new())),
         }
     }
@@ -86,11 +87,11 @@ impl SimpleParserCache {
     pub fn parse_with_cache(&self, content: &str) -> Result<Node> {
         let content_hash = calculate_hash(content);
         
-        // Check cache first
+        // Check cache first - LRU cache automatically updates access order
         {
-            if let Ok(cache) = self.ast_cache.read() {
+            if let Ok(mut cache) = self.ast_cache.write() {
                 if let Some(cached) = cache.get(&content_hash) {
-                    // Cache hit - increment counter and return cached AST
+                    // Cache hit - LRU automatically moved to front
                     if let Ok(mut stats) = self.stats.write() {
                         stats.ast_hits += 1;
                     }
@@ -110,7 +111,7 @@ impl SimpleParserCache {
         let ast = build_ast(pairs)
             .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
         
-        // Add to cache with size limits to prevent memory exhaustion
+        // Add to cache - LRU automatically handles eviction when capacity exceeded
         let cached_ast = CachedAst::new(ast.clone(), content_hash);
         if let Ok(mut cache) = self.ast_cache.write() {
             // Check content size before caching
@@ -119,16 +120,9 @@ impl SimpleParserCache {
                 return Ok(ast);
             }
             
-            // Evict oldest entries if cache is full
-            if cache.len() >= MAX_AST_CACHE_ENTRIES {
-                // Simple eviction: remove random entries (could be improved with LRU)
-                let keys_to_remove: Vec<_> = cache.keys().take(cache.len() / 4).cloned().collect();
-                for key in keys_to_remove {
-                    cache.remove(&key);
-                }
-            }
+            // LRU cache automatically evicts least recently used when capacity exceeded
+            cache.put(content_hash, cached_ast);
             
-            cache.insert(content_hash, cached_ast);
             // Update stats entry count
             if let Ok(mut stats) = self.stats.write() {
                 stats.ast_entries = cache.len();
@@ -144,11 +138,11 @@ impl SimpleParserCache {
         let options_hash = self.hash_options(&options);
         let cache_key = (content_hash, options_hash);
         
-        // Check cache first
+        // Check cache first - LRU cache automatically updates access order
         {
-            if let Ok(cache) = self.html_cache.read() {
+            if let Ok(mut cache) = self.html_cache.write() {
                 if let Some(cached) = cache.get(&cache_key) {
-                    // Cache hit - increment counter and return cached HTML
+                    // Cache hit - LRU automatically moved to front
                     if let Ok(mut stats) = self.stats.write() {
                         stats.html_hits += 1;
                     }
@@ -165,7 +159,7 @@ impl SimpleParserCache {
         let ast = self.parse_with_cache(content)?;
         let html = render_html(&ast, options.clone());
         
-        // Add to cache with size limits to prevent memory exhaustion
+        // Add to cache - LRU automatically handles eviction when capacity exceeded
         let cached_html = CachedHtml::new(html.clone(), content_hash, options_hash);
         if let Ok(mut cache) = self.html_cache.write() {
             // Check content size before caching
@@ -174,16 +168,9 @@ impl SimpleParserCache {
                 return Ok(html);
             }
             
-            // Evict oldest entries if cache is full
-            if cache.len() >= MAX_HTML_CACHE_ENTRIES {
-                // Simple eviction: remove random entries (could be improved with LRU)
-                let keys_to_remove: Vec<_> = cache.keys().take(cache.len() / 4).cloned().collect();
-                for key in keys_to_remove {
-                    cache.remove(&key);
-                }
-            }
+            // LRU cache automatically evicts least recently used when capacity exceeded
+            cache.put(cache_key, cached_html);
             
-            cache.insert(cache_key, cached_html);
             // Update stats entry count
             if let Ok(mut stats) = self.stats.write() {
                 stats.html_entries = cache.len();
@@ -203,19 +190,32 @@ impl SimpleParserCache {
         hasher.finish()
     }
     
-    /// Clear all cached entries (used by test files)
-    #[allow(dead_code)]
+    /// Clear all cached entries to free memory
+    /// This is called during application shutdown to prevent memory retention
     pub fn clear(&self) {
+        log::info!("Clearing parser cache");
+        
+        let mut cleared_ast = 0;
+        let mut cleared_html = 0;
+        
+        // Clear AST cache
         if let Ok(mut cache) = self.ast_cache.write() {
+            cleared_ast = cache.len();
             cache.clear();
         }
+        
+        // Clear HTML cache
         if let Ok(mut cache) = self.html_cache.write() {
+            cleared_html = cache.len();
             cache.clear();
         }
+        
         // Reset statistics
         if let Ok(mut stats) = self.stats.write() {
             *stats = ParserCacheStats::new();
         }
+        
+        log::info!("Parser cache cleared: {} AST entries, {} HTML entries", cleared_ast, cleared_html);
     }
     
     /// Get cache statistics (used by test files)
@@ -298,6 +298,12 @@ static GLOBAL_PARSER_CACHE: LazyLock<SimpleParserCache> = LazyLock::new(|| {
 /// Get global parser cache instance
 pub fn global_parser_cache() -> &'static SimpleParserCache {
     &GLOBAL_PARSER_CACHE
+}
+
+/// Shutdown and cleanup the global parser cache
+/// This clears all cached data to prevent memory retention on application exit
+pub fn shutdown_global_parser_cache() {
+    global_parser_cache().clear();
 }
 
 #[cfg(test)]
@@ -426,5 +432,32 @@ mod tests {
         
         // HTML content might be the same but they're cached separately
         assert_eq!(html1, html2); // For this simple case, output should be same
+    }
+
+    #[test]
+    fn smoke_test_global_cache_cleanup() {
+        // Populate global cache
+        let content = "# Global Cache Cleanup Test\n\nTesting issue #16 fix.";
+        let _ast = global_parser_cache().parse_with_cache(content).expect("Parse failed");
+        
+        // Verify global cache has entries
+        let stats_before = global_parser_cache().stats();
+        assert!(stats_before.ast_entries > 0, "Global cache should have entries before cleanup");
+        
+        // Test global cleanup - this is the main focus of issue #16
+        shutdown_global_parser_cache();
+        
+        // Verify global cache is empty after cleanup
+        let stats_after = global_parser_cache().stats();
+        assert_eq!(stats_after.ast_entries, 0, "Global cache should be empty after shutdown");
+        assert_eq!(stats_after.ast_hits, 0, "Global statistics should be reset");
+        assert_eq!(stats_after.ast_misses, 0, "Global statistics should be reset");
+        assert_eq!(stats_after.html_entries, 0, "Global HTML cache should be empty");
+        
+        // Verify global cache still works after cleanup
+        let _ast2 = global_parser_cache().parse_with_cache(content).expect("Parse should work after cleanup");
+        let stats_final = global_parser_cache().stats();
+        assert_eq!(stats_final.ast_misses, 1, "Should work normally after cleanup");
+        assert!(stats_final.ast_entries > 0, "Cache should populate again after cleanup");
     }
 }

@@ -6,6 +6,7 @@ pub mod loaders;
 pub mod logger;
 pub mod menu_items;
 pub mod paths;
+pub mod signal_manager;
 pub mod swanson;
 
 // Re-export commonly used types
