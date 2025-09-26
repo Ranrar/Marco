@@ -32,8 +32,25 @@ impl ScrollSynchronizer {
         self.enabled.set(enabled);
     }
 
-    /// Set the scroll percentage of a ScrolledWindow
+    /// Check if scroll synchronization is currently enabled
+    pub fn is_enabled(&self) -> bool {
+        self.enabled.get()
+    }
+
+    /// Check if a widget has proper allocation for rendering
+    fn has_valid_allocation(widget: &impl IsA<gtk4::Widget>) -> bool {
+        let allocation = widget.allocation();
+        allocation.width() > 0 && allocation.height() > 0
+    }
+
+    /// Set the scroll percentage of a ScrolledWindow with allocation check
     pub fn set_scroll_percentage(sw: &gtk4::ScrolledWindow, percentage: f64) {
+        // Check if the ScrolledWindow has proper allocation before scrolling
+        if !Self::has_valid_allocation(sw) {
+            debug!("Skipping scroll operation - ScrolledWindow has no allocation");
+            return;
+        }
+        
         let adj = sw.vadjustment();
         let upper = adj.upper();
         let page_size = adj.page_size();
@@ -63,8 +80,29 @@ impl ScrollSynchronizer {
         
         // Connect source -> webview synchronization
         source_adj.connect_value_changed(move |source_adj| {
-            // Skip if we're already syncing or if sync is disabled
+            // Skip if we're already syncing, if sync is disabled, or if debouncing
             if is_syncing_clone.get() || !enabled_clone.get() {
+                return;
+            }
+            
+            // Check debouncing - create a minimal sync checker
+            const DEBOUNCE_MS: u64 = 16; // ~60fps
+            thread_local! {
+                static LAST_SYNC: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
+            }
+            
+            let should_sync = LAST_SYNC.with(|last| {
+                let now = std::time::Instant::now();
+                if let Some(last_sync) = last.get() {
+                    if now.duration_since(last_sync).as_millis() < DEBOUNCE_MS as u128 {
+                        return false;
+                    }
+                }
+                last.set(Some(now));
+                true
+            });
+            
+            if !should_sync {
                 return;
             }
             
@@ -102,7 +140,7 @@ impl ScrollSynchronizer {
                     
                     setTimeout(() => {{
                         window.__scroll_sync_guard = false;
-                    }}, 10);
+                    }}, 50);
                 }})();
                 "#,
                 scroll_percentage
@@ -155,6 +193,27 @@ impl ScrollSynchronizer {
         // Connect to notify::title signal to handle scroll position reports
         source_webview.connect_notify_local(Some("title"), move |webview, _| {
             if !enabled_clone.get() || is_syncing_clone.get() {
+                return;
+            }
+            
+            // Debouncing for webview->editor sync
+            const DEBOUNCE_MS: u64 = 16; // ~60fps
+            thread_local! {
+                static LAST_WEBVIEW_SYNC: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
+            }
+            
+            let should_sync = LAST_WEBVIEW_SYNC.with(|last| {
+                let now = std::time::Instant::now();
+                if let Some(last_sync) = last.get() {
+                    if now.duration_since(last_sync).as_millis() < DEBOUNCE_MS as u128 {
+                        return false;
+                    }
+                }
+                last.set(Some(now));
+                true
+            });
+            
+            if !should_sync {
                 return;
             }
             

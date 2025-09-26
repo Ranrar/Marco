@@ -26,6 +26,7 @@ pub type EditorReturn = (
     Box<dyn Fn(&str)>,
     Box<dyn Fn(&str)>,
     sourceview5::Buffer,
+    sourceview5::View,
     Rc<RefCell<bool>>,
     Box<dyn Fn(ViewMode)>,
 );

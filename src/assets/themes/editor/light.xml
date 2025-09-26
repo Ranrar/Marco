@@ -48,6 +48,9 @@
   
   <!-- Spaces and whitespace -->
   <style name="draw-spaces"           foreground="light-line-num"/>
+  
+  <!-- Search highlighting -->
+  <style name="search-match"          foreground="light-text" background="#FFD700" bold="true"/>
 
   <!-- Syntax highlighting for common languages -->
   <!-- Comments -->

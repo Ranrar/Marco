@@ -690,6 +690,7 @@ pub fn create_editor_with_preview_and_buffer(
         update_theme,
         update_preview_theme,
         buffer_rc.as_ref().clone(),
+        source_view.clone(),
         insert_mode_state,
         {
             // Provide a real runtime view-mode setter that switches the Stack

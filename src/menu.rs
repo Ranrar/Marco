@@ -47,6 +47,7 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     edit_menu.append(Some("Cut"), Some("app.cut"));
     edit_menu.append(Some("Copy"), Some("app.copy"));
     edit_menu.append(Some("Paste"), Some("app.paste"));
+    edit_menu.append(Some("Search & Replace"), Some("app.search"));
     menu_model.append_submenu(Some("Edit"), &edit_menu);
     let format_menu = gio::Menu::new();
     format_menu.append(Some("Bold"), Some("app.bold"));

@@ -282,12 +282,13 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
 
     let (
         split,
-        _webview,
+        editor_webview,
         preview_css_rc,
         refresh_preview,
         update_editor_theme,
         update_preview_theme,
         editor_buffer,
+        editor_source_view,
         insert_mode_state,
         set_view_mode,
     ) = create_editor_with_preview_and_buffer(
@@ -625,6 +626,22 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         }
     });
     app.add_action(&view_code_action);
+
+    // Register search & replace action
+    let search_action = gtk4::gio::SimpleAction::new("search", None);
+    search_action.connect_activate({
+        let window = window.clone();
+        let buffer = Rc::new(editor_buffer.clone());
+        let source_view = Rc::new(editor_source_view.clone());
+        let webview = Rc::new(editor_webview.clone());
+        let cache = Rc::new(RefCell::new(crate::logic::cache::SimpleFileCache::new()));
+        move |_, _| {
+            use crate::logic::menu_items::search::show_search_dialog;
+            show_search_dialog(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), Rc::clone(&webview));
+        }
+    });
+    app.add_action(&search_action);
+    app.set_accels_for_action("app.search", &["<Control>f"]);
 
     // Populate the Recent Files submenu from FileOperations' recent list
     // If empty, leave the submenu with its placeholder (no entries) so it appears inactive.
