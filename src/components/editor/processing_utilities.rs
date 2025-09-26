@@ -25,12 +25,10 @@ pub struct ExtensionResult {
     pub error_message: Option<String>,
 }
 
-/// Simple extension manager with async processing and debouncing
+/// Simple extension manager with async processing
 pub struct AsyncExtensionManager {
     /// Enabled extensions (line_wrapping, tab_to_spaces, syntax_coloring, marco_extensions)
     enabled_extensions: HashMap<String, bool>,
-    /// Last processing time for debouncing
-    last_process_time: std::cell::RefCell<Option<Instant>>,
 }
 
 impl AsyncExtensionManager {
@@ -45,7 +43,6 @@ impl AsyncExtensionManager {
 
         Ok(Self {
             enabled_extensions,
-            last_process_time: std::cell::RefCell::new(None),
         })
     }
 
@@ -236,94 +233,7 @@ impl AsyncExtensionManager {
         self.process_extensions_parallel(content, cursor_position, callback)
     }
 
-    /// Process extensions with debouncing: immediate first response + 200ms trailing edge
-    /// This provides responsive feedback while preventing excessive processing during rapid typing
-    pub fn process_extensions_with_debouncing<F>(
-        &self,
-        content: String,
-        cursor_position: Option<u32>,
-        callback: F,
-    ) -> Result<()>
-    where
-        F: Fn(Vec<ExtensionResult>) + 'static + Clone,
-    {
-        let now = Instant::now();
-        let should_process_immediately = {
-            let last_time = self.last_process_time.borrow_mut();
-            if let Some(last) = *last_time {
-                // If more than 500ms since last processing, do immediate (leading edge)
-                now.duration_since(last).as_millis() > 500
-            } else {
-                // First time processing - always immediate
-                true
-            }
-        };
 
-        if should_process_immediately {
-            // Leading edge: Process immediately for responsive feedback
-            self.process_extensions_async(content.clone(), cursor_position, callback.clone())?;
-            
-            // Update last process time
-            *self.last_process_time.borrow_mut() = Some(now);
-        }
-
-        // Trailing edge: Always schedule delayed processing for final result
-        let content_for_trailing = content.clone();
-        let callback_for_trailing = callback.clone();
-        let enabled_extensions = self.enabled_extensions.clone();
-        
-        glib::timeout_add_local_once(std::time::Duration::from_millis(200), move || {
-            // Background processing for trailing edge (final result)
-            glib::spawn_future_local(async move {
-                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>> {
-                    let mut results = Vec::new();
-                    
-                    for (extension_name, &enabled) in &enabled_extensions {
-                        if enabled {
-                            let start_time = Instant::now();
-                            let (processed_content, success, error_message) = match extension_name.as_str() {
-                                "line_wrapping" => Self::process_line_wrapping(&content_for_trailing, cursor_position),
-                                "tab_to_spaces" => Self::process_tab_to_spaces(&content_for_trailing, cursor_position),
-                                "syntax_coloring" => Self::process_syntax_coloring(&content_for_trailing, cursor_position),
-                                "marco_extensions" => Self::process_marco_extensions(&content_for_trailing, cursor_position),
-                                "auto_pairing" => Self::process_auto_pairing(&content_for_trailing, cursor_position),
-                                "markdown_linting" => Self::process_markdown_linting(&content_for_trailing, cursor_position),
-                                _ => (content_for_trailing.clone(), false, Some("Unknown extension".to_string())),
-                            };
-
-                            results.push(ExtensionResult {
-                                extension_name: extension_name.clone(),
-                                processed_content,
-                                cursor_position,
-                                processing_time_ms: start_time.elapsed().as_millis() as u64,
-                                success,
-                                error_message,
-                            });
-                        }
-                    }
-                    
-                    Ok(results)
-                }).await;
-                
-                // Return trailing edge results via GTK-safe callback
-                glib::idle_add_local_once(move || {
-                    match result {
-                        Ok(Ok(results)) => callback_for_trailing(results),
-                        Ok(Err(e)) => {
-                            log::error!("Trailing edge processing error: {}", e);
-                            callback_for_trailing(Vec::new());
-                        }
-                        Err(e) => {
-                            log::error!("Trailing edge task panicked: {:?}", e);
-                            callback_for_trailing(Vec::new());
-                        }
-                    }
-                });
-            });
-        });
-
-        Ok(())
-    }
 
     /// Process line wrapping (✅ DONE as per spec)
     fn process_line_wrapping(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
@@ -562,19 +472,15 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_debounced_processing() {
-        // Note: This test only verifies that the method exists and doesn't panic during setup
-        // Actual debouncing behavior requires a GTK main loop context which isn't available in unit tests
+    fn smoke_test_manager_creation() {
+        // Verify that the manager can be created without issues
         let manager = AsyncExtensionManager::new().expect("Failed to create AsyncExtensionManager");
         
-        // We can test that the debouncing state was initialized
-        assert!(manager.last_process_time.borrow().is_none());
+        // Verify that extensions are enabled by default
+        assert!(!manager.enabled_extensions.is_empty());
         
-        // Cannot test actual debouncing behavior without GTK context and time passing
-        let content = "# Test\n\nContent for debouncing test.".to_string();
-        
-        // In a real GTK application, this would handle debouncing properly
-        // For unit tests, we just verify the structure is correct
+        // Test basic functionality without GTK context
+        let content = "# Test\n\nContent for testing.".to_string();
         assert!(std::mem::size_of_val(&content) > 0);
     }
 }

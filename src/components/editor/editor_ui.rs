@@ -468,49 +468,99 @@ pub fn create_editor_with_preview_and_buffer(
         }
     };
 
+    // Create debouncers for different types of processing
+    let preview_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(300));
+    let extension_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(250));
+    
+    // Track last content for change delta detection
+    let last_content = Rc::new(RefCell::new(String::new()));
+    
     // Also update preview whenever buffer content changes (e.g. when opening a file).
     let refresh_for_signal = std::rc::Rc::clone(&refresh_preview_impl);
     let update_code_for_signal = Rc::clone(&update_html_code_view_rc);
     let view_mode_for_signal = Rc::clone(&current_view_mode);
     let extension_manager_for_signal = extension_manager.clone();
     let buffer_rc_clone = Rc::clone(&buffer_rc);
+    let preview_debouncer_for_signal = Rc::clone(&preview_debouncer);
+    let extension_debouncer_for_signal = Rc::clone(&extension_debouncer);
+    let last_content_for_signal = Rc::clone(&last_content);
     
     buffer_rc_clone.connect_changed(move |buffer| {
-        // Always update HTML preview immediately - this is lightweight
-        refresh_for_signal();
-        
-        // Use our improved debounced extension processing with proper leading + trailing edge
         let current_text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
         let cursor_position = {
             let cursor_iter = buffer.cursor_position();
             if cursor_iter >= 0 { Some(cursor_iter as u32) } else { None }
         };
         
+        // Change delta detection
+        let mut last_content_borrow = last_content_for_signal.borrow_mut();
+        let content_changed = *last_content_borrow != current_text;
+        let change_delta = if content_changed {
+            let old_len = last_content_borrow.len();
+            let new_len = current_text.len();
+            let size_change = (new_len as i32 - old_len as i32).abs();
+            *last_content_borrow = current_text.clone();
+            Some((old_len, new_len, size_change as usize))
+        } else {
+            None
+        };
+        drop(last_content_borrow);
+        
+        // Use debounced HTML preview updates to batch rapid typing
+        let refresh_clone = Rc::clone(&refresh_for_signal);
+        let update_code_clone = Rc::clone(&update_code_for_signal);
+        let view_mode_clone = Rc::clone(&view_mode_for_signal);
+        
+        preview_debouncer_for_signal.debounce(move || {
+            log::debug!("Buffer changed - debounced preview update triggered");
+            
+            // Update HTML preview (leading edge + trailing edge)
+            refresh_clone();
+            
+            // Also update code view if we're currently in CodePreview mode
+            if *view_mode_clone.borrow() == ViewMode::CodePreview {
+                update_code_clone();
+            }
+        });
+        
+        // Use new debounced extension processing with change delta detection
         if let Some(ref manager) = extension_manager_for_signal {
-            if let Ok(manager_ref) = manager.try_borrow() {
-                if let Err(e) = manager_ref.process_extensions_with_debouncing(
-                    current_text,
-                    cursor_position,
-                    |results| {
-                        log::debug!("Extension processing completed: {} results", results.len());
-                        for result in results {
-                            if result.success {
-                                log::debug!("Extension '{}' processed in {}ms", 
-                                    result.extension_name, result.processing_time_ms);
+            let extension_manager_clone = manager.clone();
+            let current_text_clone = current_text.clone();
+            
+            extension_debouncer_for_signal.debounce(move || {
+                log::debug!("Buffer changed - debounced extension processing triggered");
+                
+                // Apply change delta optimization
+                if let Some((old_len, _new_len, size_change)) = change_delta {
+                    // For small changes, we can potentially optimize
+                    if size_change < 10 && old_len > 1000 {
+                        log::debug!("Change delta detected: {} chars changed in {} char document - optimizing", size_change, old_len);
+                        // TODO: Could implement partial processing here in the future
+                    } else {
+                        log::debug!("Large change or small document: processing all extensions");
+                    }
+                }
+                
+                // Process extensions using the simpler parallel method instead of old debouncing
+                if let Ok(manager_ref) = extension_manager_clone.try_borrow() {
+                    if let Err(e) = manager_ref.process_extensions_parallel(
+                        current_text_clone.clone(),
+                        cursor_position,
+                        |results| {
+                            log::debug!("Extension processing completed: {} results", results.len());
+                            for result in results {
+                                if result.success {
+                                    log::debug!("Extension '{}' processed in {}ms", 
+                                        result.extension_name, result.processing_time_ms);
+                                }
                             }
                         }
+                    ) {
+                        log::error!("Failed to trigger extension processing: {}", e);
                     }
-                ) {
-                    log::error!("Failed to trigger extension processing: {}", e);
                 }
-            }
-        }
-        
-        log::debug!("Buffer changed - extension processing triggered");
-        
-        // Also update code view if we're currently in CodePreview mode
-        if *view_mode_for_signal.borrow() == ViewMode::CodePreview {
-            update_code_for_signal();
+            });
         }
     });
 

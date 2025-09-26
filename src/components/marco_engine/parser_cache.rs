@@ -21,10 +21,30 @@ use crate::components::marco_engine::{parse_text, build_ast, render_html};
 /// Simple content hash type
 type ContentHash = u64;
 
+/// Section cache key: (section_hash, section_index)
+type SectionCacheKey = (ContentHash, usize);
+
 /// Cache size limits to prevent memory exhaustion
-const MAX_AST_CACHE_ENTRIES: usize = 500;
-const MAX_HTML_CACHE_ENTRIES: usize = 1000;
-const MAX_CONTENT_SIZE_BYTES: usize = 1024 * 1024; // 1MB per content item
+const MAX_SECTION_CACHE_ENTRIES: usize = 2000; // Sections cache both AST and HTML
+
+/// Split document into logical sections for caching
+/// Sections are split on double newlines (paragraph breaks) and headers
+fn split_into_sections(content: &str) -> Vec<String> {
+    // For now, split on double newlines (paragraph breaks)
+    // This can be enhanced to split on headers later
+    let sections: Vec<String> = content
+        .split("\n\n")
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .collect();
+        
+    // If no double newlines found, treat as single section
+    if sections.is_empty() {
+        vec![content.to_string()]
+    } else {
+        sections
+    }
+}
 
 /// Calculate hash of content for cache key
 fn calculate_hash(content: &str) -> ContentHash {
@@ -33,36 +53,25 @@ fn calculate_hash(content: &str) -> ContentHash {
     hasher.finish()
 }
 
-/// Cached AST node (no manual LRU tracking needed)
-#[derive(Debug, Clone)]
-pub struct CachedAst {
-    pub node: Node,
-}
 
-impl CachedAst {
-    pub fn new(node: Node, _content_hash: ContentHash) -> Self {
-        Self { node }
-    }
-}
 
-/// Cached HTML (no manual LRU tracking needed)
+/// Cached section with both AST and HTML
 #[derive(Debug, Clone)]
-pub struct CachedHtml {
+pub struct CachedSection {
+    pub ast: Node,
     pub html: String,
 }
 
-impl CachedHtml {
-    pub fn new(html: String, _content_hash: ContentHash, _options_hash: ContentHash) -> Self {
-        Self { html }
+impl CachedSection {
+    pub fn new(ast: Node, html: String) -> Self {
+        Self { ast, html }
     }
 }
 
 /// Simple parser cache with LRU eviction (as per spec)
 pub struct SimpleParserCache {
-    /// AST cache: content hash -> cached AST
-    ast_cache: Arc<RwLock<LruCache<ContentHash, CachedAst>>>,
-    /// HTML cache: (content hash, options hash) -> cached HTML
-    html_cache: Arc<RwLock<LruCache<(ContentHash, ContentHash), CachedHtml>>>,
+    /// Section cache: (section_hash, section_index) -> cached section data
+    section_cache: Arc<RwLock<LruCache<SectionCacheKey, CachedSection>>>,
     /// Cache statistics tracking
     stats: Arc<RwLock<ParserCacheStats>>,
 }
@@ -74,139 +83,212 @@ impl Default for SimpleParserCache {
 }
 
 impl SimpleParserCache {
-    /// Create new simple parser cache
+    /// Create new simple parser cache with sectioned caching
     pub fn new() -> Self {
         Self {
-            ast_cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(MAX_AST_CACHE_ENTRIES).unwrap()))),
-            html_cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(MAX_HTML_CACHE_ENTRIES).unwrap()))),
+            section_cache: Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(MAX_SECTION_CACHE_ENTRIES).unwrap()))),
             stats: Arc::new(RwLock::new(ParserCacheStats::new())),
         }
     }
     
-    /// Parse content with AST caching
+    /// Parse content with sectioned AST caching
     pub fn parse_with_cache(&self, content: &str) -> Result<Node> {
-        let content_hash = calculate_hash(content);
+        // For small content, parse directly without sectioning overhead
+        if content.len() < 1024 {
+            return self.parse_directly(content);
+        }
         
-        // Check cache first - LRU cache automatically updates access order
-        {
-            if let Ok(mut cache) = self.ast_cache.write() {
-                if let Some(cached) = cache.get(&content_hash) {
-                    // Cache hit - LRU automatically moved to front
-                    if let Ok(mut stats) = self.stats.write() {
-                        stats.ast_hits += 1;
+        let sections = split_into_sections(content);
+        let mut combined_ast_nodes = Vec::new();
+        let mut cache_hits = 0;
+        let mut cache_misses = 0;
+        
+        // Process each section
+        for (section_index, section_content) in sections.iter().enumerate() {
+            let section_hash = calculate_hash(section_content);
+            let cache_key = (section_hash, section_index);
+            
+            // Check section cache
+            let section_ast = {
+                if let Ok(mut cache) = self.section_cache.write() {
+                    if let Some(cached_section) = cache.get(&cache_key) {
+                        cache_hits += 1;
+                        cached_section.ast.clone()
+                    } else {
+                        cache_misses += 1;
+                        
+                        // Parse section
+                        let section_pairs = parse_text(section_content)
+                            .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
+                        let section_ast = build_ast(section_pairs)
+                            .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
+                        
+                        // Cache the section (HTML will be rendered later)
+                        let cached_section = CachedSection::new(
+                            section_ast.clone(),
+                            String::new() // HTML placeholder
+                        );
+                        cache.put(cache_key, cached_section);
+                        section_ast
                     }
-                    return Ok(cached.node.clone());
+                } else {
+                    // Fallback if cache lock fails
+                    let section_pairs = parse_text(section_content)
+                        .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
+                    build_ast(section_pairs)
+                        .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?
                 }
-            }
+            };
+            
+            combined_ast_nodes.push(section_ast);
         }
         
-        // Cache miss - increment counter and parse
+        // Update statistics
         if let Ok(mut stats) = self.stats.write() {
-            stats.ast_misses += 1;
+            stats.ast_hits += cache_hits;
+            stats.ast_misses += cache_misses;
         }
         
+        // Combine all section ASTs into a single document AST
+        // For now, create a simple document node containing all sections
+        use crate::components::marco_engine::ast_node::Span;
+        Ok(Node::Document { 
+            children: combined_ast_nodes,
+            span: Span { 
+                start: 0, 
+                end: content.len() as u32,
+                line: 1,
+                column: 1
+            }
+        })
+    }
+    
+    /// Parse small content directly without sectioning
+    fn parse_directly(&self, content: &str) -> Result<Node> {
         let pairs = parse_text(content)
             .map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
         
         let ast = build_ast(pairs)
             .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
         
-        // Add to cache - LRU automatically handles eviction when capacity exceeded
-        let cached_ast = CachedAst::new(ast.clone(), content_hash);
-        if let Ok(mut cache) = self.ast_cache.write() {
-            // Check content size before caching
-            if content.len() > MAX_CONTENT_SIZE_BYTES {
-                log::warn!("Content too large for caching: {} bytes", content.len());
-                return Ok(ast);
-            }
-            
-            // LRU cache automatically evicts least recently used when capacity exceeded
-            cache.put(content_hash, cached_ast);
-            
-            // Update stats entry count
-            if let Ok(mut stats) = self.stats.write() {
-                stats.ast_entries = cache.len();
-            }
+        // Update statistics
+        if let Ok(mut stats) = self.stats.write() {
+            stats.ast_misses += 1;
         }
         
         Ok(ast)
     }
     
-    /// Render content with HTML caching
+    /// Render content with sectioned HTML caching
     pub fn render_with_cache(&self, content: &str, options: HtmlOptions) -> Result<String> {
-        let content_hash = calculate_hash(content);
-        let options_hash = self.hash_options(&options);
-        let cache_key = (content_hash, options_hash);
-        
-        // Check cache first - LRU cache automatically updates access order
-        {
-            if let Ok(mut cache) = self.html_cache.write() {
-                if let Some(cached) = cache.get(&cache_key) {
-                    // Cache hit - LRU automatically moved to front
-                    if let Ok(mut stats) = self.stats.write() {
-                        stats.html_hits += 1;
-                    }
-                    return Ok(cached.html.clone());
-                }
-            }
+        // For small content, render directly without sectioning overhead
+        if content.len() < 1024 {
+            return self.render_directly(content, options);
         }
         
-        // Cache miss - increment counter and render
+        let sections = split_into_sections(content);
+        let mut html_parts = Vec::new();
+        let mut cache_hits = 0;
+        let mut cache_misses = 0;
+        
+        // Process each section
+        for (section_index, section_content) in sections.iter().enumerate() {
+            let section_hash = calculate_hash(section_content);
+            let cache_key = (section_hash, section_index);
+            
+            // Check section cache for HTML
+            let section_html = {
+                if let Ok(mut cache) = self.section_cache.write() {
+                    if let Some(cached_section) = cache.get(&cache_key) {
+                        // Check if HTML is already cached for this section
+                        if !cached_section.html.is_empty() {
+                            cache_hits += 1;
+                            cached_section.html.clone()
+                        } else {
+                            // AST is cached but HTML needs to be rendered
+                            cache_misses += 1;
+                            let section_html = render_html(&cached_section.ast, options.clone());
+                            
+                            // Update the cached section with the HTML
+                            let updated_section = CachedSection::new(
+                                cached_section.ast.clone(),
+                                section_html.clone()
+                            );
+                            cache.put(cache_key, updated_section);
+                            section_html
+                        }
+                    } else {
+                        cache_misses += 1;
+                        
+                        // Parse and render section
+                        let section_pairs = parse_text(section_content)
+                            .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
+                        let section_ast = build_ast(section_pairs)
+                            .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
+                        let section_html = render_html(&section_ast, options.clone());
+                        
+                        // Cache both AST and HTML
+                        let cached_section = CachedSection::new(
+                            section_ast,
+                            section_html.clone()
+                        );
+                        cache.put(cache_key, cached_section);
+                        section_html
+                    }
+                } else {
+                    // Fallback if cache lock fails
+                    let section_pairs = parse_text(section_content)
+                        .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
+                    let section_ast = build_ast(section_pairs)
+                        .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
+                    render_html(&section_ast, options.clone())
+                }
+            };
+            
+            html_parts.push(section_html);
+        }
+        
+        // Update statistics
+        if let Ok(mut stats) = self.stats.write() {
+            stats.html_hits += cache_hits;
+            stats.html_misses += cache_misses;
+        }
+        
+        // Combine all section HTML with proper paragraph separation
+        let final_html = html_parts.join("\n\n");
+        Ok(final_html)
+    }
+    
+    /// Render small content directly without sectioning
+    fn render_directly(&self, content: &str, options: HtmlOptions) -> Result<String> {
+        let pairs = parse_text(content)
+            .map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
+        
+        let ast = build_ast(pairs)
+            .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
+        
+        let html = render_html(&ast, options);
+        
+        // Update statistics
         if let Ok(mut stats) = self.stats.write() {
             stats.html_misses += 1;
-        }
-        
-        let ast = self.parse_with_cache(content)?;
-        let html = render_html(&ast, options.clone());
-        
-        // Add to cache - LRU automatically handles eviction when capacity exceeded
-        let cached_html = CachedHtml::new(html.clone(), content_hash, options_hash);
-        if let Ok(mut cache) = self.html_cache.write() {
-            // Check content size before caching
-            if content.len() > MAX_CONTENT_SIZE_BYTES {
-                log::warn!("Content too large for HTML caching: {} bytes", content.len());
-                return Ok(html);
-            }
-            
-            // LRU cache automatically evicts least recently used when capacity exceeded
-            cache.put(cache_key, cached_html);
-            
-            // Update stats entry count
-            if let Ok(mut stats) = self.stats.write() {
-                stats.html_entries = cache.len();
-            }
         }
         
         Ok(html)
     }
     
-    /// Hash HTML options for cache key
-    fn hash_options(&self, options: &HtmlOptions) -> ContentHash {
-        let mut hasher = DefaultHasher::new();
-        // Hash the relevant fields of HtmlOptions
-        options.syntax_highlighting.hash(&mut hasher);
-        options.css_classes.hash(&mut hasher);
-        options.inline_styles.hash(&mut hasher);
-        hasher.finish()
-    }
+
     
     /// Clear all cached entries to free memory
     /// This is called during application shutdown to prevent memory retention
     pub fn clear(&self) {
-        log::info!("Clearing parser cache");
+        log::info!("Clearing sectioned parser cache");
         
-        let mut cleared_ast = 0;
-        let mut cleared_html = 0;
+        let mut cleared_sections = 0;
         
-        // Clear AST cache
-        if let Ok(mut cache) = self.ast_cache.write() {
-            cleared_ast = cache.len();
-            cache.clear();
-        }
-        
-        // Clear HTML cache
-        if let Ok(mut cache) = self.html_cache.write() {
-            cleared_html = cache.len();
+        // Clear section cache
+        if let Ok(mut cache) = self.section_cache.write() {
+            cleared_sections = cache.len();
             cache.clear();
         }
         
@@ -215,19 +297,13 @@ impl SimpleParserCache {
             *stats = ParserCacheStats::new();
         }
         
-        log::info!("Parser cache cleared: {} AST entries, {} HTML entries", cleared_ast, cleared_html);
+        log::info!("Sectioned parser cache cleared: {} section entries", cleared_sections);
     }
     
     /// Get cache statistics (used by test files)
     #[allow(dead_code)]
     pub fn stats(&self) -> ParserCacheStats {
-        let ast_entries = if let Ok(cache) = self.ast_cache.read() {
-            cache.len()
-        } else {
-            0
-        };
-        
-        let html_entries = if let Ok(cache) = self.html_cache.read() {
+        let section_entries = if let Ok(cache) = self.section_cache.read() {
             cache.len()
         } else {
             0
@@ -236,8 +312,9 @@ impl SimpleParserCache {
         // Return actual statistics with current entry counts
         if let Ok(stats) = self.stats.read() {
             let mut result = stats.clone();
-            result.ast_entries = ast_entries;
-            result.html_entries = html_entries;
+            // Sections contain both AST and HTML, so count them for both
+            result.ast_entries = section_entries;
+            result.html_entries = section_entries;
             result
         } else {
             // Fallback if stats can't be read
@@ -246,8 +323,8 @@ impl SimpleParserCache {
                 ast_misses: 0,
                 html_hits: 0,
                 html_misses: 0,
-                ast_entries,
-                html_entries,
+                ast_entries: section_entries,
+                html_entries: section_entries,
             }
         }
     }
@@ -406,6 +483,41 @@ mod tests {
         let _ = stats.ast_entries;
     }
     
+    #[test]
+    fn smoke_test_sectioned_caching() {
+        let cache = SimpleParserCache::new();
+        let options = HtmlOptions::default();
+        
+        // Large document with sections that will change independently (over 1024 bytes to trigger sectioning)
+        let content1 = "# Section 1\n\nThis is the first section with substantial content that needs to be long enough to trigger the sectioned caching mechanism. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\n# Section 2\n\nThis is the second section with different content that also needs to be substantial enough to demonstrate the caching behavior. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.\n\n# Section 3\n\nThis is the third section with even more content to ensure we exceed the minimum size threshold for sectioned caching. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.";
+        
+        let content2 = "# Section 1\n\nThis is the first section with substantial content that needs to be long enough to trigger the sectioned caching mechanism. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\n# Section 2 MODIFIED\n\nThis is the MODIFIED second section with completely different content that should cause a cache miss while other sections remain cached. The modification should demonstrate that only changed sections miss the cache while unchanged sections hit. This tests the core functionality of sectioned caching.\n\n# Section 3\n\nThis is the third section with even more content to ensure we exceed the minimum size threshold for sectioned caching. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo.";
+        
+        // First render - should be all cache misses
+        let _html1 = cache.render_with_cache(content1, options.clone())
+            .expect("Failed to render sectioned HTML");
+        let stats1 = cache.stats();
+        
+        // Second render of same content - should be cache hits
+        let _html2 = cache.render_with_cache(content1, options.clone())
+            .expect("Failed to render sectioned HTML");
+        let stats2 = cache.stats();
+        
+        // Third render with one section changed - should have some hits and some misses
+        let _html3 = cache.render_with_cache(content2, options.clone())
+            .expect("Failed to render sectioned HTML");
+        let stats3 = cache.stats();
+        
+        // Verify sectioned caching is working
+        println!("Stats1 (first render): hits={}, misses={}", stats1.html_hits, stats1.html_misses);
+        println!("Stats2 (second render same): hits={}, misses={}", stats2.html_hits, stats2.html_misses);
+        println!("Stats3 (third render modified): hits={}, misses={}", stats3.html_hits, stats3.html_misses);
+        
+        assert!(stats2.html_hits > stats1.html_hits, "Second render should have cache hits");
+        assert!(stats3.html_hits > stats2.html_hits, "Third render should have additional cache hits for unchanged sections");
+        assert!(stats3.html_misses > stats2.html_misses, "Third render should have cache misses for changed sections");
+    }
+
     #[test]
     fn smoke_test_different_options() {
         let cache = SimpleParserCache::new();
