@@ -289,18 +289,19 @@ impl FileOperations {
 
     /// Saves the current document
     ///
-    /// If the document is untitled, this will show a Save As dialog.
+    /// If the document is untitled, this will return an error since it can't show dialogs.
+    /// Use the async save action instead for new documents.
     ///
     /// # Arguments
-    /// * `parent_window` - Parent window for dialogs
+    /// * `parent_window` - Parent window for dialogs (unused)
     /// * `editor_buffer` - GTK TextBuffer to get content from
     ///
     /// # Returns
     /// * `Ok(())` - File saved successfully
-    /// * `Err(anyhow::Error)` - Operation failed or was cancelled
+    /// * `Err(anyhow::Error)` - Operation failed or document is untitled
     pub fn save_document<W: IsA<gtk4::Window>>(
         &self,
-        parent_window: &W,
+        _parent_window: &W,
         editor_buffer: &gtk4::TextBuffer,
     ) -> Result<()> {
         let buffer = self.buffer.borrow();
@@ -316,47 +317,11 @@ impl FileOperations {
             eprintln!("[FileOps] Saved document");
             Ok(())
         } else {
-            drop(buffer); // Release borrow
-            self.save_as_document(parent_window, editor_buffer)
+            // For untitled documents, we need to use the async save action with dialogs
+            Err(anyhow::anyhow!(
+                "Cannot save untitled document synchronously - use async save action instead"
+            ))
         }
-    }
-
-    /// Saves the document with a new name (Save As)
-    ///
-    /// # Arguments
-    /// * `parent_window` - Parent window for dialogs
-    /// * `editor_buffer` - GTK TextBuffer to get content from
-    ///
-    /// # Returns
-    /// * `Ok(())` - File saved successfully
-    /// * `Err(anyhow::Error)` - Operation failed or was cancelled
-    pub fn save_as_document<W: IsA<gtk4::Window>>(
-        &self,
-        parent_window: &W,
-        editor_buffer: &gtk4::TextBuffer,
-    ) -> Result<()> {
-        let file_path = self.show_save_dialog(parent_window)?;
-
-        // Check if file exists and confirm overwrite
-        if DocumentBuffer::file_exists(&file_path)
-            && !self.confirm_overwrite(parent_window, &file_path)?
-        {
-            return Err(anyhow::anyhow!("Save cancelled: file already exists"));
-        }
-
-        let content = self.get_editor_content(editor_buffer);
-        self.buffer
-            .borrow_mut()
-            .save_as_content(&file_path, &content)?;
-        // After Save As, baseline has been updated inside save_as_content but also set here for safety
-        self.buffer.borrow_mut().set_baseline(&content);
-
-        // Add to recent files
-        self.add_recent_file(&file_path);
-
-        trace!("audit: saved document as: {}", file_path.display());
-        eprintln!("[FileOps] Saved document as: {}", file_path.display());
-        Ok(())
     }
 
     /// Gets the list of recent files for menu display
@@ -574,7 +539,11 @@ impl FileOperations {
             Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
         >,
     {
-        let suggested_name = self.get_document_title();
+        let suggested_name = if self.get_document_title().contains("Untitled") {
+            "Untitled.md".to_string()
+        } else {
+            format!("{}.md", self.get_document_title().replace("*", "").trim())
+        };
         let file_path =
             show_save_dialog(parent_window, "Save Markdown File", Some(&suggested_name)).await?;
         if let Some(path) = file_path {
@@ -622,7 +591,11 @@ impl FileOperations {
                 SaveChangesResult::Save => {
                     let has_file_path = self.buffer.borrow().get_file_path().is_some();
                     if !has_file_path {
-                        let suggested_name = self.get_document_title();
+                        let suggested_name = if self.get_document_title().contains("Untitled") {
+                            "Untitled.md".to_string()
+                        } else {
+                            format!("{}.md", self.get_document_title().replace("*", "").trim())
+                        };
                         let file_path = show_save_dialog(
                             parent_window,
                             "Save Markdown File",
@@ -692,30 +665,7 @@ impl FileOperations {
             .to_string()
     }
 
-    /// Shows a save file dialog  
-    fn show_save_dialog<W: IsA<gtk4::Window>>(
-        &self,
-        _parent_window: &W,
-    ) -> Result<std::path::PathBuf> {
-        // For initial implementation, use a hardcoded save location
-        // TODO: Implement actual file dialog integration
-        Ok(std::path::PathBuf::from("saved_document.md"))
-    }
 
-    /// Confirms file overwrite
-    fn confirm_overwrite<W: IsA<gtk4::Window>>(
-        &self,
-        _parent_window: &W,
-        path: &Path,
-    ) -> Result<bool> {
-        // For initial implementation, always confirm
-        // TODO: Implement actual overwrite confirmation dialog
-        eprintln!(
-            "[FileOps] Would confirm overwrite of {}, auto-confirming for now",
-            path.display()
-        );
-        Ok(true)
-    }
 
     /// Load an initial file on application startup (for command line arguments)
     ///
@@ -1049,23 +999,55 @@ pub fn register_file_actions_async(
         }
     });
 
-    // Save action (synchronous)
+    // Save action (async to support proper dialogs)
     let save_action = gio::SimpleAction::new("save", None);
     save_action.connect_activate({
         let file_ops = file_operations.clone();
         let window = window.clone();
         let editor_buffer = editor_buffer.clone();
         let title_label = title_label.clone();
+        let show_save_dialog = Arc::clone(&show_save_dialog);
         move |_, _| {
-            let file_ops_ref = file_ops.borrow();
-            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-            if let Err(e) = file_ops_ref.save_document(&window, text_buffer) {
-                eprintln!("Error saving document: {}", e);
-            } else {
-                // Update title after successful save
-                let title = file_ops.borrow().get_document_title();
-                title_label.set_text(&title);
-            }
+            let file_ops = file_ops.clone();
+            let window = window.clone();
+            let editor_buffer = editor_buffer.clone();
+            let title_label = title_label.clone();
+            let show_save_dialog = Arc::clone(&show_save_dialog);
+            glib::MainContext::default().spawn_local(async move {
+                #[allow(clippy::await_holding_refcell_ref)]
+                let file_ops_ref = file_ops.borrow();
+                let gtk_window: &gtk4::Window = window.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                
+                // Check if document has a file path already
+                if file_ops_ref.buffer.borrow().get_file_path().is_some() {
+                    // Use the synchronous save for existing files
+                    if let Err(e) = file_ops_ref.save_document(gtk_window, text_buffer) {
+                        eprintln!("Error saving document: {}", e);
+                    } else {
+                        // Update title after successful save
+                        let title = file_ops.borrow().get_document_title();
+                        title_label.set_text(&title);
+                    }
+                } else {
+                    // Use async save as for new files (shows proper dialog)
+                    let result = file_ops_ref.save_as_async(
+                        gtk_window,
+                        text_buffer,
+                        |w, title, suggested| (show_save_dialog)(w, title, suggested),
+                    ).await;
+                    
+                    match result {
+                        Ok(_) => {
+                            let title = file_ops.borrow().get_document_title();
+                            title_label.set_text(&title);
+                        }
+                        Err(e) => {
+                            eprintln!("Error saving document: {}", e);
+                        }
+                    }
+                }
+            });
         }
     });
 
@@ -1098,6 +1080,97 @@ pub fn register_file_actions_async(
     // Dynamic recent-file registration is provided by `setup_recent_actions`
 }
 
+/// Helper function to update recent file actions and menu
+#[allow(clippy::too_many_arguments)]
+fn update_recent_file_actions(
+    app: &gtk4::Application,
+    file_operations: &Rc<RefCell<FileOperations>>,
+    recent_menu: &gio::Menu,
+    window: &gtk4::ApplicationWindow,
+    editor_buffer: &sourceview5::Buffer,
+    title_label: &gtk4::Label,
+    show_save_changes_dialog: &SaveChangesDialogCallback,
+    show_save_dialog: &SaveDialogCallback,
+    recent_action: &gio::SimpleAction,
+) {
+    let list = file_operations.borrow().get_recent_files();
+    crate::logic::menu_items::file::update_recent_files_menu(recent_menu, &list);
+    recent_action.set_enabled(!list.is_empty());
+
+    // Remove old actions
+    for i in 0..5 {
+        let name = format!("open_recent_{}", i);
+        if app.lookup_action(&name).is_some() {
+            app.remove_action(&name);
+        }
+    }
+
+    // Register new actions
+    for (i, path) in list.iter().enumerate() {
+        if i >= 5 {
+            break;
+        }
+        let action_name = format!("open_recent_{}", i);
+        let app_action = gio::SimpleAction::new(&action_name, None);
+        app_action.set_enabled(true);
+        let file_ops_for_action = file_operations.clone();
+        let window_for_action = window.clone();
+        let editor_for_action = editor_buffer.clone();
+        let title_label_for_action = title_label.clone();
+        let show_save_changes_for_action = Arc::clone(show_save_changes_dialog);
+        let show_save_for_action = Arc::clone(show_save_dialog);
+        let path_clone = path.clone();
+        app_action.connect_activate(move |_, _| {
+            let file_ops = file_ops_for_action.clone();
+            let win = window_for_action.clone();
+            let editor = editor_for_action.clone();
+            let title_label_async = title_label_for_action.clone();
+            let show_save_changes_dialog = Arc::clone(&show_save_changes_for_action);
+            let show_save_dialog = Arc::clone(&show_save_for_action);
+            let path_to_open = path_clone.clone();
+            glib::MainContext::default().spawn_local(async move {
+                let gtk_window: &gtk4::Window = win.upcast_ref();
+                let text_buffer: &gtk4::TextBuffer = editor.upcast_ref();
+                #[allow(clippy::await_holding_refcell_ref)]
+                let result = file_ops
+                    .borrow()
+                    .open_file_by_path_async(
+                        &path_to_open,
+                        gtk_window,
+                        text_buffer,
+                        |w, doc_name, action| {
+                            (show_save_changes_dialog)(w, doc_name, action)
+                        },
+                        |w, title, suggested| (show_save_dialog)(w, title, suggested),
+                    )
+                    .await;
+
+                match result {
+                    Ok(_) => {
+                        let title = file_ops.borrow().get_document_title();
+                        title_label_async.set_text(&title);
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to open recent file: {} -> {}",
+                            path_to_open.display(),
+                            e
+                        );
+                    }
+                }
+            });
+        });
+        app.add_action(&app_action);
+    }
+
+    // Update clear_recent action enabled state
+    if let Some(clear_action) = app.lookup_action("clear_recent") {
+        if let Some(simple_action) = clear_action.downcast_ref::<gio::SimpleAction>() {
+            simple_action.set_enabled(!list.is_empty());
+        }
+    }
+}
+
 /// Setup dynamic recent-file actions and menu updates.
 #[allow(clippy::too_many_arguments)]
 pub fn setup_recent_actions(
@@ -1110,109 +1183,48 @@ pub fn setup_recent_actions(
     show_save_changes_dialog: SaveChangesDialogCallback,
     show_save_dialog: SaveDialogCallback,
 ) {
-    // Initialize menu using provided recent_menu from UI
-    crate::logic::menu_items::file::update_recent_files_menu(
-        recent_menu,
-        &file_operations.borrow().get_recent_files(),
-    );
-
     // Create a simple action 'recent' so we can enable/disable the top-level Recent menu entry
     let recent_action = gio::SimpleAction::new("recent", None);
-    recent_action.set_enabled(!file_operations.borrow().get_recent_files().is_empty());
     app.add_action(&recent_action);
 
-    // Clear recent action is managed here via registering the callback below
+    // Initialize menu and actions using the helper function
+    update_recent_file_actions(
+        app,
+        &file_operations,
+        recent_menu,
+        window,
+        editor_buffer,
+        title_label,
+        &show_save_changes_dialog,
+        &show_save_dialog,
+        &recent_action,
+    );
 
     // Register callback so that when recent files change we update menu and action sensitivity
-    // Clone everything we'll need inside the closure so they have independent ownership
     let app_owned = app.clone();
     let window_owned = window.clone();
     let editor_buffer_owned = editor_buffer.clone();
     let title_label_owned = title_label.clone();
     let recent_menu_owned = recent_menu.clone();
     let recent_action_owned = recent_action.clone();
-    // Clone an Rc to the FileOperations for closure capture
     let file_ops_owned = file_operations.clone();
-    // Register callback using a pre-cloned handle so the closure only captures owned values
+    let show_save_changes_owned = Arc::clone(&show_save_changes_dialog);
+    let show_save_owned = Arc::clone(&show_save_dialog);
+
     file_operations
         .borrow()
         .register_recent_changed_callback(move || {
-            let list = file_ops_owned.borrow().get_recent_files();
-            crate::logic::menu_items::file::update_recent_files_menu(&recent_menu_owned, &list);
-            recent_action_owned.set_enabled(!list.is_empty());
-
-            // Remove old actions
-            for i in 0..5 {
-                let name = format!("open_recent_{}", i);
-                if app_owned.lookup_action(&name).is_some() {
-                    app_owned.remove_action(&name);
-                }
-            }
-
-            // Register new actions
-            for (i, path) in list.iter().enumerate() {
-                if i >= 5 {
-                    break;
-                }
-                let action_name = format!("open_recent_{}", i);
-                let app_action = gio::SimpleAction::new(&action_name, None);
-                app_action.set_enabled(true);
-                let file_ops_for_action = file_ops_owned.clone();
-                let window_for_action = window_owned.clone();
-                let editor_for_action = editor_buffer_owned.clone();
-                let title_label_for_action = title_label_owned.clone();
-                let show_save_changes_for_action = Arc::clone(&show_save_changes_dialog);
-                let show_save_for_action = Arc::clone(&show_save_dialog);
-                let path_clone = path.clone();
-                app_action.connect_activate(move |_, _| {
-                    let file_ops = file_ops_for_action.clone();
-                    let win = window_for_action.clone();
-                    let editor = editor_for_action.clone();
-                    let title_label_async = title_label_for_action.clone();
-                    let show_save_changes_dialog = Arc::clone(&show_save_changes_for_action);
-                    let show_save_dialog = Arc::clone(&show_save_for_action);
-                    let path_to_open = path_clone.clone();
-                    glib::MainContext::default().spawn_local(async move {
-                        let gtk_window: &gtk4::Window = win.upcast_ref();
-                        let text_buffer: &gtk4::TextBuffer = editor.upcast_ref();
-                        #[allow(clippy::await_holding_refcell_ref)]
-                        let result = file_ops
-                            .borrow()
-                            .open_file_by_path_async(
-                                &path_to_open,
-                                gtk_window,
-                                text_buffer,
-                                |w, doc_name, action| {
-                                    (show_save_changes_dialog)(w, doc_name, action)
-                                },
-                                |w, title, suggested| (show_save_dialog)(w, title, suggested),
-                            )
-                            .await;
-
-                        match result {
-                            Ok(_) => {
-                                let title = file_ops.borrow().get_document_title();
-                                title_label_async.set_text(&title);
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "Failed to open recent file: {} -> {}",
-                                    path_to_open.display(),
-                                    e
-                                );
-                            }
-                        }
-                    });
-                });
-                app_owned.add_action(&app_action);
-            }
-
-            // Update clear_recent action enabled state
-            if let Some(clear_action) = app_owned.lookup_action("clear_recent") {
-                if let Some(simple_action) = clear_action.downcast_ref::<gio::SimpleAction>() {
-                    simple_action.set_enabled(!list.is_empty());
-                }
-            }
+            update_recent_file_actions(
+                &app_owned,
+                &file_ops_owned,
+                &recent_menu_owned,
+                &window_owned,
+                &editor_buffer_owned,
+                &title_label_owned,
+                &show_save_changes_owned,
+                &show_save_owned,
+                &recent_action_owned,
+            );
         });
 }
 

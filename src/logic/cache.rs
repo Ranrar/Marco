@@ -1,9 +1,8 @@
 //! Simple File Caching System
 //!
-//! Provides basic file and directory caching as per optimization spec:
+//! Provides basic file caching as per optimization spec:
 //! - Cache file content in memory to avoid repeated disk I/O
 //! - Track file modification times for automatic cache invalidation
-//! - Cache directory listings for 30 seconds
 //! - Use weak references to active DocumentBuffers for automatic cleanup
 //! - File monitoring removed to prevent memory leaks and threading issues
 
@@ -47,39 +46,12 @@ impl CachedFile {
     }
 }
 
-/// Simple directory cache entry (as per spec - 30 second TTL)
-#[derive(Debug, Clone)]
-pub struct CachedDirectory {
-    pub files: Vec<PathBuf>,
-    pub directories: Vec<PathBuf>,
-    pub cached_at: SystemTime,
-}
 
-impl CachedDirectory {
-    pub fn new(files: Vec<PathBuf>, directories: Vec<PathBuf>) -> Self {
-        Self {
-            files,
-            directories,
-            cached_at: SystemTime::now(),
-        }
-    }
-
-    /// Check if directory cache is still fresh (30 seconds as per spec)
-    pub fn is_fresh(&self) -> bool {
-        if let Ok(elapsed) = self.cached_at.elapsed() {
-            elapsed.as_secs() < 30
-        } else {
-            false
-        }
-    }
-}
 
 /// Simple file cache with basic functionality as per spec
 pub struct SimpleFileCache {
     /// File content cache (RwLock<HashMap> as per spec)
     content_cache: Arc<RwLock<HashMap<PathBuf, CachedFile>>>,
-    /// Directory listing cache
-    directory_cache: Arc<RwLock<HashMap<PathBuf, CachedDirectory>>>,
 }
 
 impl Default for SimpleFileCache {
@@ -93,7 +65,6 @@ impl SimpleFileCache {
     pub fn new() -> Self {
         Self {
             content_cache: Arc::new(RwLock::new(HashMap::new())),
-            directory_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -153,114 +124,11 @@ impl SimpleFileCache {
         Ok(shared_content)
     }
 
-    /// Search files fast using cached directory listings (as per spec)
-    pub fn search_files_fast<P: AsRef<Path>>(
-        &self,
-        path: P,
-        pattern: Option<&str>,
-    ) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-        let path = path.as_ref().to_path_buf();
 
-        // Check cache first
-        {
-            if let Ok(cache) = self.directory_cache.read() {
-                if let Some(entry) = cache.get(&path) {
-                    if entry.is_fresh() {
-                        // Cache hit - apply pattern filtering and return
-                        return Ok(self.apply_search_pattern(
-                            &entry.files,
-                            &entry.directories,
-                            pattern,
-                        ));
-                    }
-                }
-            }
-        }
 
-        // Cache miss - scan directory and cache
-        let (files, directories) = self.scan_and_cache_directory(path)?;
-        Ok(self.apply_search_pattern(&files, &directories, pattern))
-    }
 
-    /// Apply case-insensitive pattern filtering (as per spec)
-    fn apply_search_pattern(
-        &self,
-        files: &[PathBuf],
-        directories: &[PathBuf],
-        pattern: Option<&str>,
-    ) -> (Vec<PathBuf>, Vec<PathBuf>) {
-        match pattern {
-            Some(search_pattern) if !search_pattern.is_empty() => {
-                let pattern_lower = search_pattern.to_lowercase();
-                let filtered_files = files
-                    .iter()
-                    .filter(|path| {
-                        if let Some(name) = path.file_name() {
-                            name.to_string_lossy()
-                                .to_lowercase()
-                                .contains(&pattern_lower)
-                        } else {
-                            false
-                        }
-                    })
-                    .cloned()
-                    .collect();
 
-                let filtered_dirs = directories
-                    .iter()
-                    .filter(|path| {
-                        if let Some(name) = path.file_name() {
-                            name.to_string_lossy()
-                                .to_lowercase()
-                                .contains(&pattern_lower)
-                        } else {
-                            false
-                        }
-                    })
-                    .cloned()
-                    .collect();
 
-                (filtered_files, filtered_dirs)
-            }
-            _ => {
-                // No pattern - return all results
-                (files.to_vec(), directories.to_vec())
-            }
-        }
-    }
-
-    /// Scan directory and add to cache
-    fn scan_and_cache_directory(&self, path: PathBuf) -> Result<(Vec<PathBuf>, Vec<PathBuf>)> {
-        let entries = fs::read_dir(&path)
-            .with_context(|| format!("Failed to read directory: {}", path.display()))?;
-
-        let mut files = Vec::new();
-        let mut directories = Vec::new();
-
-        for entry in entries {
-            let entry = entry?;
-            let entry_path = entry.path();
-
-            if entry_path.is_dir() {
-                directories.push(entry_path);
-            } else if entry_path.is_file() {
-                files.push(entry_path);
-            }
-        }
-
-        // Sort for consistent output
-        files.sort();
-        directories.sort();
-
-        let cached_dir = CachedDirectory::new(files.clone(), directories.clone());
-
-        // Add to cache
-        if let Ok(mut cache) = self.directory_cache.write() {
-            cache.insert(path, cached_dir);
-        }
-
-        Ok((files, directories))
-    }
 
     /// Invalidate cache entry for specific file
     pub fn invalidate_file<P: AsRef<Path>>(&self, path: P) {
@@ -277,7 +145,6 @@ impl SimpleFileCache {
         log::info!("Clearing file cache");
         
         let mut cleared_files = 0;
-        let mut cleared_dirs = 0;
         
         // Clear file content cache
         if let Ok(mut cache) = self.content_cache.write() {
@@ -285,13 +152,7 @@ impl SimpleFileCache {
             cache.clear();
         }
         
-        // Clear directory cache
-        if let Ok(mut cache) = self.directory_cache.write() {
-            cleared_dirs = cache.len();
-            cache.clear();
-        }
-        
-        log::info!("File cache cleared: {} file entries, {} directory entries", cleared_files, cleared_dirs);
+        log::info!("File cache cleared: {} file entries", cleared_files);
     }
 }
 
