@@ -5,8 +5,8 @@ use log::{debug, error};
 
 pub fn build_editor_tab(settings_path: &str) -> Box {
     use gtk4::{
-        Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, SpinButton,
-        Switch,
+        Adjustment, Align, Box as GtkBox, DropDown, Label, Orientation, Scale, SpinButton,
+        Switch, StringList, PropertyExpression, StringObject, Expression,
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -26,9 +26,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let font_spacer = GtkBox::new(Orientation::Horizontal, 0);
     font_spacer.set_hexpand(true);
 
-    let font_combo = ComboBoxText::new();
-
-    // Load system fonts and populate combo box
+    // Load system fonts and current font setting
     let current_font = {
         let settings = AppSettings::load_from_file(settings_path).unwrap_or_default();
         let editor = settings.editor.unwrap_or_default();
@@ -36,29 +34,44 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     };
     debug!("Current font setting: {}", current_font);
 
-    // Populate with monospace fonts (preferred for code editing) - using cached fonts
+    // Get monospace fonts (preferred for code editing) - using cached fonts
     let monospace_fonts =
         crate::logic::loaders::font_loader::FontLoader::get_cached_monospace_fonts();
     let monospace_names: Vec<String> = monospace_fonts.into_iter().map(|f| f.name).collect();
 
-    for (index, font_name) in monospace_names.iter().enumerate() {
-        font_combo.append_text(font_name);
-        if font_name == &current_font {
-            font_combo.set_active(Some(index as u32));
-        }
-    }
+    // Create searchable DropDown with font list
+    // Step 1: Create StringList from font names
+    let font_string_refs: Vec<&str> = monospace_names.iter().map(|s| s.as_str()).collect();
+    let font_string_list = StringList::new(&font_string_refs);
 
-    // If no font was selected, default to first monospace font
-    if font_combo.active().is_none() && !monospace_names.is_empty() {
-        font_combo.set_active(Some(0));
-    }
+    // Step 2: Create PropertyExpression for search functionality
+    let font_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<Expression>,
+        "string",
+    );
+
+    // Step 3: Create DropDown with search enabled
+    let font_combo = DropDown::new(Some(font_string_list), Some(font_expression));
+    font_combo.set_enable_search(true);
+    // Note: set_search_match_mode may require newer GTK4 version, using default for now
+
+    // Set initial selection based on current font
+    let initial_selection = monospace_names
+        .iter()
+        .position(|font_name| font_name == &current_font)
+        .unwrap_or(0); // Default to first font if current not found
+    font_combo.set_selected(initial_selection as u32);
 
     // Connect font selection change to save settings and trigger runtime updates
     {
         let settings_path = settings_path.to_string();
-        font_combo.connect_changed(move |combo| {
-            if let Some(selected_font) = combo.active_text() {
-                let selected_font = selected_font.to_string();
+        let monospace_names_clone = monospace_names.clone();
+        
+        font_combo.connect_selected_notify(move |combo| {
+            let selected_index = combo.selected() as usize;
+            if let Some(selected_font) = monospace_names_clone.get(selected_index) {
+                let selected_font = selected_font.clone();
                 debug!("Font changed to: {}", selected_font);
 
                 // Load current settings and update font family

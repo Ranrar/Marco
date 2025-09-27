@@ -17,8 +17,8 @@ pub fn build_appearance_tab(
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) -> (gtk4::Box, Rc<RefCell<SignalManager>>) {
     use gtk4::{
-        Adjustment, Align, Box as GtkBox, Button, ComboBoxText, Label, Orientation, Scale,
-        SpinButton,
+        Adjustment, Align, Box as GtkBox, Button, DropDown, Label, Orientation, Scale,
+        SpinButton, StringList, PropertyExpression, StringObject, Expression,
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -80,11 +80,24 @@ pub fn build_appearance_tab(
          on_preview_theme_changed: Rc<Box<dyn Fn(String)>>,
          user_selected_preview_theme: Rc<std::cell::Cell<bool>>,
          html_themes: Vec<crate::logic::loaders::theme_loader::ThemeEntry>|
-         -> (gtk4::Box, ComboBoxText) {
-            let preview_theme_combo = ComboBoxText::new();
-            for entry in &html_themes {
-                preview_theme_combo.append_text(&entry.label);
-            }
+         -> (gtk4::Box, DropDown) {
+            // Create preview theme dropdown with automatic checkmarks
+            // Extract theme labels for the dropdown
+            let theme_labels: Vec<&str> = html_themes.iter().map(|entry| entry.label.as_str()).collect();
+            
+            // Create StringList from theme labels
+            let theme_string_list = StringList::new(&theme_labels);
+            
+            // Create PropertyExpression for string matching (required for DropDown)
+            let theme_expression = PropertyExpression::new(
+                StringObject::static_type(),
+                None::<Expression>,
+                "string",
+            );
+            
+            // Create DropDown with automatic checkmarks
+            let preview_theme_combo = DropDown::new(Some(theme_string_list), Some(theme_expression));
+            
             let current_preview = theme_manager
                 .borrow()
                 .settings
@@ -96,7 +109,7 @@ pub fn build_appearance_tab(
                 .iter()
                 .position(|t| t.filename == current_preview_str)
                 .unwrap_or(0);
-            preview_theme_combo.set_active(Some(preview_active_idx as u32));
+            preview_theme_combo.set_selected(preview_active_idx as u32);
             // Signal - properly managed for cleanup
             {
                 let theme_manager = Rc::clone(&theme_manager);
@@ -106,8 +119,8 @@ pub fn build_appearance_tab(
                 let user_selected_preview_theme = Rc::clone(&user_selected_preview_theme);
                 let signal_manager = signal_manager.clone();
                 
-                let handler_id = preview_theme_combo.connect_changed(move |combo| {
-                    let idx = combo.active().unwrap_or(0) as usize;
+                let handler_id = preview_theme_combo.connect_selected_notify(move |combo| {
+                    let idx = combo.selected() as usize;
                     if let Some(theme_entry) = html_themes.get(idx) {
                         user_selected_preview_theme.set(true);
                         log::info!(
@@ -147,14 +160,27 @@ pub fn build_appearance_tab(
         .as_ref()
         .and_then(|a| a.editor_mode.clone())
         .unwrap_or("marco-light".to_string());
-    let color_mode_combo = ComboBoxText::new();
-    color_mode_combo.append_text("light");
-    color_mode_combo.append_text("dark");
+    // Create color mode dropdown with automatic checkmarks
+    let color_mode_options = ["light", "dark"];
+    
+    // Create StringList from color mode options
+    let color_mode_string_list = StringList::new(&color_mode_options);
+    
+    // Create PropertyExpression for string matching (required for DropDown)
+    let color_mode_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<Expression>,
+        "string",
+    );
+    
+    // Create DropDown with automatic checkmarks
+    let color_mode_combo = DropDown::new(Some(color_mode_string_list), Some(color_mode_expression));
+    
     let active_idx = match current_mode.as_str() {
         "marco-dark" | "dark" => 1,
         _ => 0, // Default to light mode for "marco-light", "light", or any other value
     };
-    color_mode_combo.set_active(Some(active_idx));
+    color_mode_combo.set_selected(active_idx);
     let color_mode_row = add_row(
         "Light/Dark Mode",
         "Choose between light or dark user interface.",
@@ -168,8 +194,8 @@ pub fn build_appearance_tab(
         let on_editor_theme_changed = on_editor_theme_changed.map(Rc::new);
         let signal_manager = signal_manager.clone();
         
-        let handler_id = color_mode_combo.connect_changed(move |combo| {
-            let idx = combo.active().unwrap_or(0);
+        let handler_id = color_mode_combo.connect_selected_notify(move |combo| {
+            let idx = combo.selected();
             let mode = if idx == 1 { "dark" } else { "light" };
             log::info!("Switching color mode to: {}", mode);
             // Update settings struct and persist
@@ -235,12 +261,22 @@ pub fn build_appearance_tab(
     container.append(&custom_css_row);
 
     // UI Font (Dropdown)
-    let ui_font_combo = ComboBoxText::new();
-    ui_font_combo.append_text("System Default");
-    ui_font_combo.append_text("Sans");
-    ui_font_combo.append_text("Serif");
-    ui_font_combo.append_text("Monospace");
-    ui_font_combo.set_active(Some(0));
+    // Create UI font dropdown with automatic checkmarks
+    let ui_font_options = ["System Default", "Sans", "Serif", "Monospace"];
+    
+    // Create StringList from UI font options
+    let ui_font_string_list = StringList::new(&ui_font_options);
+    
+    // Create PropertyExpression for string matching (required for DropDown)
+    let ui_font_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<Expression>,
+        "string",
+    );
+    
+    // Create DropDown with automatic checkmarks
+    let ui_font_combo = DropDown::new(Some(ui_font_string_list), Some(ui_font_expression));
+    ui_font_combo.set_selected(0); // Default to "System Default"
     let ui_font_row = add_row(
         "UI Font",
         "Customize the font used in the application's user interface (menus, sidebars).",

@@ -3,7 +3,7 @@ Cargo.lock
 target
 
 # Not ready
-src/assets/themes/editor/syntax
+src/assets/themes/editor/syntax/styles
 
 # internal dev code
 *.code-workspace

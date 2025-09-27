@@ -19,8 +19,8 @@ pub fn build_layout_tab(
     on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 ) -> Box {
     use gtk4::{
-        Adjustment, Align, Box as GtkBox, ComboBoxText, Label, Orientation, Scale, SpinButton,
-        Switch,
+        Adjustment, Align, Box as GtkBox, DropDown, Label, Orientation, Scale, SpinButton,
+        StringList, PropertyExpression, StringObject, Expression, Switch,
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -40,27 +40,36 @@ pub fn build_layout_tab(
     let view_mode_spacer = GtkBox::new(Orientation::Horizontal, 0);
     view_mode_spacer.set_hexpand(true);
 
-    let view_mode_combo = ComboBoxText::new();
-    view_mode_combo.append_text("HTML Preview");
-    view_mode_combo.append_text("Source Code");
+    let view_mode_options = StringList::new(&["HTML Preview", "Source Code"]);
+    let view_mode_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<&Expression>,
+        "string",
+    );
+    let view_mode_combo = DropDown::new(Some(view_mode_options), Some(view_mode_expression));
+    
     // Set active index based on saved setting if provided.
     let active_index = match initial_view_mode.as_deref() {
         Some(s)
             if s.eq_ignore_ascii_case("source code") || s.eq_ignore_ascii_case("code preview") =>
         {
-            Some(1)
+            1
         }
-        _ => Some(0),
+        _ => 0,
     };
-    view_mode_combo.set_active(active_index);
-    // Connect change handler to notify owner if provided. Convert Option<String>
+    view_mode_combo.set_selected(active_index);
+    // Connect change handler to notify owner if provided. Convert selected index
     // to String when invoking the provided callback so callers receive a
     // straightforward String value.
     if let Some(cb) = on_view_mode_changed {
-        view_mode_combo.connect_changed(move |c| {
-            if let Some(text) = c.active_text() {
-                cb(text.to_string());
-            }
+        view_mode_combo.connect_selected_notify(move |dropdown| {
+            let selected_index = dropdown.selected() as usize;
+            let mode_text = match selected_index {
+                0 => "HTML Preview",
+                1 => "Source Code",
+                _ => "HTML Preview", // Default fallback
+            };
+            cb(mode_text.to_string());
         });
     }
     view_mode_combo.set_halign(Align::End);
@@ -372,10 +381,14 @@ pub fn build_layout_tab(
     let text_dir_spacer = GtkBox::new(Orientation::Horizontal, 0);
     text_dir_spacer.set_hexpand(true);
 
-    let text_dir_combo = ComboBoxText::new();
-    text_dir_combo.append_text("Left-to-Right (LTR)");
-    text_dir_combo.append_text("Right-to-Left (RTL)");
-    text_dir_combo.set_active(Some(0));
+    let text_dir_options = StringList::new(&["Left-to-Right (LTR)", "Right-to-Left (RTL)"]);
+    let text_dir_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<&Expression>,
+        "string",
+    );
+    let text_dir_combo = DropDown::new(Some(text_dir_options), Some(text_dir_expression));
+    text_dir_combo.set_selected(0);
     text_dir_combo.set_halign(Align::End);
 
     text_dir_hbox.append(&text_dir_header);

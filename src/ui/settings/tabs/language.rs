@@ -2,7 +2,7 @@ use gtk4::prelude::*;
 use gtk4::Box;
 
 pub fn build_language_tab() -> Box {
-    use gtk4::{Align, Box as GtkBox, ComboBoxText, Label, Orientation};
+    use gtk4::{Align, Box as GtkBox, DropDown, Label, Orientation, StringList, PropertyExpression, StringObject, Expression};
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-language");
@@ -21,15 +21,24 @@ pub fn build_language_tab() -> Box {
     let lang_spacer = GtkBox::new(Orientation::Horizontal, 0);
     lang_spacer.set_hexpand(true);
 
-    let lang_combo = ComboBoxText::new();
-    lang_combo.append_text("System Default");
-    lang_combo.append_text("English");
-    lang_combo.append_text("Dansk");
-    lang_combo.append_text("Deutsch");
-    lang_combo.append_text("Français");
-    lang_combo.append_text("العربية");
-    lang_combo.append_text("日本語");
-    lang_combo.set_active(Some(0));
+    // Create language dropdown with automatic checkmarks
+    let language_options = [
+        "System Default", "English", "Dansk", "Deutsch", "Français", "العربية", "日本語"
+    ];
+    
+    // Step 1: Create StringList from language options
+    let language_string_list = StringList::new(&language_options);
+    
+    // Step 2: Create PropertyExpression for string matching (required for DropDown)
+    let language_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<Expression>,
+        "string",
+    );
+    
+    // Step 3: Create DropDown with automatic checkmarks
+    let lang_combo = DropDown::new(Some(language_string_list), Some(language_expression));
+    lang_combo.set_selected(0); // Default to "System Default"
     lang_combo.set_halign(Align::End);
 
     lang_hbox.append(&lang_header);

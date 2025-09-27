@@ -1,0 +1,872 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+ Original Author: Jean-Philippe Fleury
+ Copyright (C) 2011 Jean-Philippe Fleury <contact@jpfleury.net>
+ 
+ Extended for Marco - A Markdown Composer
+ Marco Extensions by: Kim Skov Rasmussen
+
+ GtkSourceView is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 2.1 of the License, or (at your option) any later version.
+
+ GtkSourceView is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public License
+ along with this library; if not, see <http://www.gnu.org/licenses/>.
+
+-->
+<!-- Note: this language definition file adds support for standard Markdown syntax
+     and Marco-specific extensions. Standard Markdown syntax is described at:
+     * (fr) <http://michelf.com/projets/php-markdown/syntaxe/>
+     * (en) <http://daringfireball.net/projects/markdown/syntax>
+     
+     Marco extensions include admonitions, tabs, user mentions, executable code,
+     diagrams, enhanced formatting, mathematical expressions, and more. -->
+<language id="markdown" name="Marco Markdown" version="1.0" _section="Markup">
+  <metadata>
+    <property name="mimetypes">text/x-markdown</property>
+    <property name="globs">*.markdown;*.md;*.mkd</property>
+    <property name="block-comment-start">&lt;!--</property>
+    <property name="block-comment-end">--&gt;</property>
+    <property name="suggested-suffix">.md</property>
+  </metadata>
+
+  <styles>
+    <style id="header" name="Header" map-to="def:heading"/>
+    <style id="horizontal-rule" name="Horizontal Rule" map-to="def:thematic-break"/>
+    <style id="list-marker" name="List Marker" map-to="def:list-marker"/>
+    <style id="code-span" name="Code Span" map-to="def:inline-code"/>
+    <style id="code-block" name="Code Block" map-to="def:preformatted-section"/>
+    <style id="blockquote-marker" name="Blockquote Marker" map-to="def:shebang"/>
+    <style id="url" name="URL" map-to="def:link-destination"/>
+    <style id="link-text" name="Link Text" map-to="def:link-text"/>
+    <style id="label" name="Label" map-to="def:preprocessor"/>
+    <style id="attribute-value" name="Attribute Value" map-to="def:constant"/>
+    <style id="image-marker" name="Image Marker" map-to="def:link-symbol"/>
+    <style id="emphasis" name="Emphasis" map-to="def:emphasis"/>
+    <style id="strong-emphasis" name="Strong Emphasis" map-to="def:strong-emphasis"/>
+    <style id="backslash-escape" name="Backslash Escape" map-to="def:special-char"/>
+    <style id="line-break" name="Line Break" map-to="def:note"/>
+    
+    <!-- Marco-specific styles -->
+    <style id="admonition-marker" name="Admonition Marker" map-to="def:keyword"/>
+    <style id="admonition-type" name="Admonition Type" map-to="def:type"/>
+    <style id="admonition-title" name="Admonition Title" map-to="def:string"/>
+    <style id="tab-marker" name="Tab Marker" map-to="def:keyword"/>
+    <style id="tab-name" name="Tab Name" map-to="def:identifier"/>
+    <style id="user-mention" name="User Mention" map-to="def:function"/>
+    <style id="platform-name" name="Platform Name" map-to="def:type"/>
+    <style id="bookmark-marker" name="Bookmark Marker" map-to="def:keyword"/>
+    <style id="bookmark-label" name="Bookmark Label" map-to="def:string"/>
+    <style id="page-tag" name="Page Tag" map-to="def:preprocessor"/>
+    <style id="doc-reference" name="Document Reference" map-to="def:link-destination"/>
+    <style id="toc-marker" name="TOC Marker" map-to="def:keyword"/>
+    <style id="executable-code" name="Executable Code" map-to="def:preformatted-section"/>
+    <style id="script-type" name="Script Type" map-to="def:type"/>
+    <style id="diagram-type" name="Diagram Type" map-to="def:type"/>
+    <style id="highlight" name="Highlight" map-to="def:underlined"/>
+    <style id="strikethrough" name="Strikethrough" map-to="def:strikethrough"/>
+    <style id="superscript" name="Superscript" map-to="def:special-char"/>
+    <style id="subscript" name="Subscript" map-to="def:special-char"/>
+    <style id="task-marker" name="Task Marker" map-to="def:list-marker"/>
+    <style id="math-inline" name="Math Inline" map-to="def:special-constant"/>
+    <style id="math-block" name="Math Block" map-to="def:special-constant"/>
+    <style id="emoji" name="Emoji" map-to="def:special-char"/>
+    <style id="footnote-ref" name="Footnote Reference" map-to="def:link-text"/>
+    <style id="footnote-def" name="Footnote Definition" map-to="def:preprocessor"/>
+    <style id="def-term" name="Definition Term" map-to="def:identifier"/>
+    <style id="def-definition" name="Definition" map-to="def:string"/>
+    <style id="table-header" name="Table Header" map-to="def:identifier"/>
+    <style id="table-separator" name="Table Separator" map-to="def:comment"/>
+    <style id="table-cell" name="Table Cell" map-to="def:base"/>
+    <style id="html-comment" name="HTML Comment" map-to="def:comment"/>
+  </styles>
+
+  <definitions>
+    <!-- Examples:
+         # Header 1 #
+         ## Header 2
+         ###Header 3###
+    -->
+    <context id="atx-header" style-ref="header">
+      <match>^#+.+</match>
+    </context>
+
+    <!-- Examples:
+         Header 1
+         ========
+         Header 2
+         -
+    -->
+    <context id="setext-header-h1" style-ref="header">
+      <start>^([^\n=]+)$</start>
+      <end>^=+[ \t]*$</end>
+    </context>
+
+    <context id="setext-header-h2" style-ref="header">
+      <start>^([^\n-]+)$</start>
+      <end>^-+[ \t]*$</end>
+    </context>
+
+    <!-- Legacy setext header for fallback -->
+    <context id="setext-header-underline" style-ref="header">
+      <match>^(-+|=+)[ \t]*$</match>
+    </context>
+
+    <!-- Examples:
+         - - -
+         **  **  **  **  **
+         _____
+    -->
+    <context id="horizontal-rule" style-ref="horizontal-rule">
+      <match extended="true">
+        ^[ ]{0,3}            # Maximum 3 spaces at the beginning of the line.
+        (
+          (-[ ]{0,2}){3,} | # 3 or more hyphens, with 2 spaces maximum between each hyphen.
+          (_[ ]{0,2}){3,} | # Idem, but with underscores.
+          (\*[ ]{0,2}){3,}  # Idem, but with asterisks.
+        )
+        [ \t]*$              # Optional trailing spaces or tabs.
+      </match>
+    </context>
+
+    <!-- Note about following list and code block contexts: according to the
+         Markdown syntax, to write several paragraphs in a list item, we have
+         to indent each paragraph. Example:
+
+         - Item A (paragraph 1).
+
+             Item A (paragraph 2).
+
+             Item A (paragraph 3).
+
+         - Item B.
+
+         So there is a conflict in terms of syntax highlighting between an
+         indented paragraph inside a list item (4 spaces or 1 tab) and an
+         indented line of code outside a list (also 4 spaces or 1 tab). In this
+         language file, since a full context analysis can't be done (because
+         line break can't be used in regex), the choice was made to highlight
+         code block only from 2 levels of indentation. -->
+
+    <!-- Example (unordered list):
+         * Item
+         + Item
+         - Item
+
+         Example (ordered list):
+         1. Item
+         2. Item
+         3. Item
+    -->
+    <context id="list" style-ref="list-marker">
+      <match extended="true">
+        ^[ ]{0,3}  # Maximum 3 spaces at the beginning of the line.
+        (
+          \*|\+|-| # Asterisk, plus or hyphen for unordered list.
+          [0-9]+\. # Number followed by period for ordered list.
+        )
+        [ \t]+     # Must be followed by at least 1 space or 1 tab.
+      </match>
+    </context>
+
+    <!-- Example:
+                 <em>HTML code</em> displayed <strong>literally</strong>.
+    -->
+    <context id="code-block" class="no-spell-check">
+      <match>^( {8,}|\t{2,})([^ \t]+.*)</match>
+
+      <include>
+        <context sub-pattern="2" style-ref="code-block"/>
+      </include>
+    </context>
+
+    <!-- Note about following code span contexts: within a paragraph, text
+         wrapped with backticks indicates a code span. Markdown allows to use
+         one or more backticks to wrap text, provided that the number is identical
+         on both sides, and the same number of consecutive backticks is not
+         present within the text. The current language file supports code span
+         highlighting with up to 2 backticks surrounding text. -->
+
+    <!-- Examples:
+         Here's a literal HTML tag: `<p>`.
+         `Here's a code span containing ``backticks``.`
+    -->
+    <context id="1-backtick-code-span" class="no-spell-check" style-ref="code-span">
+      <match>(?&lt;!`)`[^`]+(`{2,}[^`]+)*`(?!`)</match>
+    </context>
+
+    <!-- Examples:
+         Here's a literal HTML tag: ``<p>``.
+         ``The grave accent (`) is used in Markdown to indicate a code span.``
+         ``Here's another code span containing ```backticks```.``
+    -->
+    <context id="2-backticks-code-span" class="no-spell-check" style-ref="code-span">
+      <match>(?&lt;!`)``[^`]+((`|`{3,})[^`]+)*``(?!`)</match>
+    </context>
+
+    <context id="3-backticks-code-span" class="no-spell-check" style-ref="code-block">
+      <start>^```.*$</start>
+      <end>^```$</end>
+    </context>
+
+    <!-- Marco Executable Code Blocks -->
+    <context id="executable-code-block" class="no-spell-check" style-ref="executable-code">
+      <start>^```(run@)(bash|zsh|sh|bat|powershell|ps|python|py)$</start>
+      <end>^```$</end>
+      
+      <include>
+        <context sub-pattern="1" where="start" style-ref="script-type"/>
+        <context sub-pattern="2" where="start" style-ref="script-type"/>
+      </include>
+    </context>
+
+    <!-- Marco Diagram Blocks -->
+    <context id="diagram-block" class="no-spell-check" style-ref="code-block">
+      <start>^```(mermaid|graphviz)$</start>
+      <end>^```$</end>
+      
+      <include>
+        <context sub-pattern="1" where="start" style-ref="diagram-type"/>
+      </include>
+    </context>
+
+    <!-- Marco Inline Executable Code -->
+    <context id="inline-executable-code">
+      <match>(run@)(bash|zsh|sh|bat|powershell|ps|python|py)\(([^)]*)\)</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="script-type"/>
+        <context sub-pattern="2" style-ref="script-type"/>
+        <context sub-pattern="3" style-ref="executable-code"/>
+      </include>
+    </context>
+
+    <!-- Example:
+         > Quoted text.
+         > Quoted text with `code span`.
+         >> Blockquote **nested**.
+    -->
+    <!-- Note: blockquote can contain block-level and inline Markdown elements,
+         but the current language file only highlights inline ones (emphasis,
+         link, etc.). -->
+    <context id="blockquote" end-at-line-end="true">
+      <start>^( {0,3}&gt;(?=.)( {0,4}&gt;)*)</start>
+
+      <include>
+        <context sub-pattern="1" where="start" style-ref="blockquote-marker"/>
+        <context ref="1-backtick-code-span"/>
+        <context ref="2-backticks-code-span"/>
+        <context ref="3-backticks-code-span"/>
+        <context ref="automatic-link"/>
+        <context ref="inline-link"/>
+        <context ref="reference-link"/>
+        <context ref="inline-image"/>
+        <context ref="reference-image"/>
+        <context ref="underscores-emphasis"/>
+        <context ref="asterisks-emphasis"/>
+        <context ref="underscores-strong-emphasis"/>
+        <context ref="asterisks-strong-emphasis"/>
+        <context ref="backslash-escape"/>
+        <context ref="line-break"/>
+      </include>
+    </context>
+
+    <!-- Marco Admonition Blocks -->
+    <context id="admonition-block">
+      <start>^(:::)\s*(note|tip|warning|danger|info)(\[([^\]]*)\])?</start>
+      <end>^(:::)</end>
+      
+      <include>
+        <context sub-pattern="1" where="start" style-ref="admonition-marker"/>
+        <context sub-pattern="2" where="start" style-ref="admonition-type"/>
+        <context sub-pattern="4" where="start" style-ref="admonition-title"/>
+        <context sub-pattern="1" where="end" style-ref="admonition-marker"/>
+        <!-- Include all markdown formatting within admonitions -->
+        <context ref="markdown-syntax"/>
+      </include>
+    </context>
+
+    <!-- Marco Emoji Admonitions -->
+    <context id="admonition-emoji-block">
+      <start>^(:::)\[([^\]]+)\]</start>
+      <end>^(:::)</end>
+      
+      <include>
+        <context sub-pattern="1" where="start" style-ref="admonition-marker"/>
+        <context sub-pattern="2" where="start" style-ref="admonition-title"/>
+        <context sub-pattern="1" where="end" style-ref="admonition-marker"/>
+        <context ref="markdown-syntax"/>
+      </include>
+    </context>
+
+    <!-- Marco Tab Blocks -->
+    <context id="tab-block">
+      <start>^(:::)(tab)\s*(.*)$</start>
+      <end>^(:::)</end>
+      
+      <include>
+        <context sub-pattern="1" where="start" style-ref="admonition-marker"/>
+        <context sub-pattern="2" where="start" style-ref="tab-marker"/>
+        <context sub-pattern="3" where="start" style-ref="tab-name"/>
+        <context sub-pattern="1" where="end" style-ref="admonition-marker"/>
+        <context ref="tab-definition"/>
+        <context ref="markdown-syntax"/>
+      </include>
+    </context>
+
+    <!-- Individual Tab Definitions -->
+    <context id="tab-definition">
+      <match>^(@)(tab)\s*(.*)$</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="tab-marker"/>
+        <context sub-pattern="2" style-ref="tab-marker"/>
+        <context sub-pattern="3" style-ref="tab-name"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         <user@example.com>
+         <http://www.example.com/>
+    -->
+    <!-- Note: regular expressions are based from function `_DoAutoLinks` from
+         Markdown.pl (see <http://daringfireball.net/projects/markdown/>). -->
+    <context id="automatic-link" class="no-spell-check">
+      <match case-sensitive="false" extended="true">
+        &lt;
+          (((mailto:)?[a-z0-9.-]+\@[-a-z0-9]+(\.[-a-z0-9]+)*\.[a-z]+) | # E-mail.
+          ((https?|ftp):[^'">\s]+))                                     # URL.
+        &gt;
+      </match>
+
+      <include>
+        <context sub-pattern="1" style-ref="url"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         [link text](http://www.example.com/)
+         [link text](<http://www.example.com/>)
+         [link text]( /folder/page.html "Title" )
+    -->
+    <context id="inline-link">
+      <match extended="true">
+        \[(.*?)\]          # Link text.
+        \(                 # Literal opening parenthesis.
+          [ \t]*           # Optional spaces or tabs after the opening parenthesis.
+          (&lt;(.*?)&gt; | # URL with brackets.
+          (.*?))           # URL without brackets.
+          ([ \t]+(".*?"))? # Optional title.
+          [ \t]*           # Optional spaces or tabs before the closing parenthesis.
+        \)                 # Literal closing parenthesis.
+      </match>
+
+      <include>
+        <context sub-pattern="1" style-ref="link-text"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="4" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="6" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         [link text]
+         [link text][]
+         [link text][link label]
+         [link text] [link label]
+    -->
+    <!-- Note: some assertions are used to differentiate reference link from
+         link label. -->
+    <context id="reference-link">
+      <match>(?&lt;!^ |^  |^   )\[(.*?)\]([ \t]?\[(.*?)\])?(?!:)</match>
+
+      <include>
+        <context sub-pattern="1" style-ref="link-text"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="label"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         [link label]: /folder/page.html
+         [link label]: <http://www.example.com/>
+         [link label]: http://www.example.com/ "Title"
+    -->
+    <context id="link-definition">
+      <match extended="true">
+        ^[ ]{0,3}             # Maximum 3 spaces at the beginning of the line.
+        \[(.+?)\]:            # Link label and colon.
+        [ \t]*                # Optional spaces or tabs.
+        (&lt;([^ \t]+?)&gt; | # URL with brackets.
+        ([^ \t]+?))           # URL without brackets.
+        ([ \t]+(".*?"))?      # Optional title.
+        [ \t]*$               # Optional trailing spaces or tabs.
+      </match>
+
+      <include>
+        <context sub-pattern="1" class="no-spell-check" style-ref="label"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="4" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="6" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         ![alt text](http://www.example.com/image.jpg)
+         ![alt text]( <http://www.example.com/image.jpg> )
+         ![alt text] (/path/to/image.jpg "Title")
+    -->
+    <context id="inline-image">
+      <match extended="true">
+        (!)                     # Leading ! sign.
+        \[(.*?)\][ ]?           # Alternate text for the image (and optional space).
+        \(                      # Literal parenthesis.
+          [ \t]*                # Optional spaces or tabs after the opening parenthesis.
+          (&lt;([^ \t]*?)&gt; | # Image path or URL with brackets.
+          ([^ \t]*?))           # Image path or URL without brackets.
+          ([ \t]+(".*?"))?      # Optional title.
+          [ \t]*                # Optional spaces or tabs before the closing parenthesis.
+        \)                      # Literal parenthesis.
+      </match>
+
+      <include>
+        <context sub-pattern="1" style-ref="image-marker"/>
+        <context sub-pattern="2" style-ref="attribute-value"/>
+        <context sub-pattern="4" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="5" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="6" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         ![alt text][image label]
+         ![alt text] [image label]
+    -->
+    <context id="reference-image">
+      <match>(!)\[(.*?)\] ?\[(.*?)\]</match>
+
+      <include>
+        <context sub-pattern="1" style-ref="image-marker"/>
+        <context sub-pattern="2" style-ref="attribute-value"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="label"/>
+      </include>
+    </context>
+
+    <!-- Marco YouTube Links -->
+    <context id="youtube-link">
+      <match>\[([^\]]+)\]\((https?://(youtu\.be/|www\.youtube\.com/watch\?v=)[\w-]+[^\)]*)\)</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="link-text"/>
+        <context sub-pattern="2" class="no-spell-check" style-ref="url"/>
+      </include>
+    </context>
+
+    <!-- Marco Block Images -->
+    <context id="block-image">
+      <match>(!?)\[([^\]]*)\]\(([^)]*\.(jpg|jpeg|png|gif|webp|svg)[^)]*)\)</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="image-marker"/>
+        <context sub-pattern="2" style-ref="attribute-value"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="url"/>
+      </include>
+    </context>
+
+    <!-- Marco User Mentions -->
+    <context id="user-mention">
+      <match>(@)([a-zA-Z0-9_-]+)\[([^\]]+)\](\(([^)]+)\))?</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="user-mention"/>
+        <context sub-pattern="2" style-ref="user-mention"/>
+        <context sub-pattern="3" style-ref="platform-name"/>
+        <context sub-pattern="5" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Marco Bookmarks -->
+    <context id="bookmark">
+      <match>\[(bookmark):\s*([^\]]+)\]\(([^)=]+)(=(\d+))?\)</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="bookmark-marker"/>
+        <context sub-pattern="2" style-ref="bookmark-label"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="url"/>
+        <context sub-pattern="5" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Marco Page Tags -->
+    <context id="page-tag">
+      <match>\[(page)=(A4|US|\d+)\]</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="page-tag"/>
+        <context sub-pattern="2" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Marco Document References -->
+    <context id="doc-reference">
+      <match>\[(@)(doc)\]\(([^)]+)\)</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="doc-reference"/>
+        <context sub-pattern="2" style-ref="doc-reference"/>
+        <context sub-pattern="3" class="no-spell-check" style-ref="url"/>
+      </include>
+    </context>
+
+    <!-- Marco Table of Contents -->
+    <context id="toc">
+      <match>\[(toc)(=[1-4])?(\]\((@)(doc)\)|\])</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="toc-marker"/>
+        <context sub-pattern="2" style-ref="attribute-value"/>
+        <context sub-pattern="4" style-ref="doc-reference"/>
+        <context sub-pattern="5" style-ref="doc-reference"/>
+      </include>
+    </context>
+
+    <!-- Examples:
+         Lorem _ipsum dolor_ sit amet.
+         Here's an _emphasized text containing an underscore (\_)_.
+    -->
+    <context id="underscores-emphasis" style-ref="emphasis">
+      <match>(?&lt;!_)_[^_ \t].*?(?&lt;!\\|_| |\t)_(?!_)</match>
+    </context>
+
+    <!-- Examples:
+         Lorem *ipsum dolor* sit amet.
+         Here's an *emphasized text containing an asterisk (\*)*.
+    -->
+    <context id="asterisks-emphasis" style-ref="emphasis">
+      <match>(?&lt;!\*)\*[^\* \t].*?(?&lt;!\\|\*| |\t)\*(?!\*)</match>
+    </context>
+
+    <!-- Examples:
+         Lorem __ipsum dolor__ sit amet.
+         Here's a __strongly emphasized text containing an underscore (\_)__.
+    -->
+    <context id="underscores-strong-emphasis" style-ref="strong-emphasis">
+      <match>__[^_ \t].*?(?&lt;!\\|_| |\t)__</match>
+    </context>
+
+    <!-- Examples:
+         Lorem **ipsum dolor** sit amet.
+         Here's a **strongly emphasized text containing an asterisk (\*).**
+    -->
+    <context id="asterisks-strong-emphasis" style-ref="strong-emphasis">
+      <match>\*\*[^\* \t].*?(?&lt;!\\|\*| |\t)\*\*</match>
+    </context>
+
+    <!-- Marco Bold-Italic Combinations -->
+    <context id="bold-italic-triple-asterisk" style-ref="strong-emphasis">
+      <match>\*\*\*[^\* \t].*?(?&lt;!\\|\*| |\t)\*\*\*</match>
+    </context>
+
+    <context id="bold-italic-triple-underscore" style-ref="strong-emphasis">
+      <match>___[^_ \t].*?(?&lt;!\\|_| |\t)___</match>
+    </context>
+
+    <context id="bold-italic-mixed-ast-under" style-ref="strong-emphasis">
+      <match>\*\*_[^_\* \t].*?(?&lt;!\\|_| |\t)_\*\*</match>
+    </context>
+
+    <context id="bold-italic-mixed-under-ast" style-ref="strong-emphasis">
+      <match>__\*[^\*_ \t].*?(?&lt;!\\|\*| |\t)\*__</match>
+    </context>
+
+    <context id="bold-italic-triple-mixed-au" style-ref="strong-emphasis">
+      <match>\*\*\*[^_ \t].*?(?&lt;!\\|_| |\t)___</match>
+    </context>
+
+    <context id="bold-italic-triple-mixed-ua" style-ref="strong-emphasis">
+      <match>___[^\* \t].*?(?&lt;!\\|\*| |\t)\*\*\*</match>
+    </context>
+
+    <!-- Line breaks -->
+    <context id="hard-line-break" style-ref="line-break">
+      <match>( {2,}|\\)$</match>
+    </context>
+
+    <context id="soft-line-break" style-ref="line-break">
+      <match>\n(?![#\-*+>|`~:\[\]!]|\d+\.)</match>
+    </context>
+
+    <!-- Marco Highlight -->
+    <context id="highlight" style-ref="highlight">
+      <match>==[^=\n]*==</match>
+    </context>
+
+    <!-- Marco Strikethrough -->
+    <context id="strikethrough-tilde" style-ref="strikethrough">
+      <match>~~[^~\n]*~~</match>
+    </context>
+
+    <context id="strikethrough-dash" style-ref="strikethrough">
+      <match>--[^-\n]*--</match>
+    </context>
+
+    <!-- Marco Superscript -->
+    <context id="superscript" style-ref="superscript">
+      <match>\^[^\^\s\n]*\^</match>
+    </context>
+
+    <!-- Marco Subscript -->
+    <context id="subscript-arrow" style-ref="subscript">
+      <match>˅[^˅\s\n]*˅</match>
+    </context>
+
+    <context id="subscript-tilde" style-ref="subscript">
+      <match>~(?!~)[^~\s\n]*~</match>
+    </context>
+
+    <!-- Marco Mathematical Expressions -->
+    <context id="math-inline" class="no-spell-check" style-ref="math-inline">
+      <match>\$[^$\n]*(\\\$[^$\n]*)*\$</match>
+    </context>
+
+    <context id="math-block" class="no-spell-check" style-ref="math-block">
+      <start>\$\$</start>
+      <end>\$\$</end>
+    </context>
+
+    <!-- Marco Emoji -->
+    <context id="emoji" style-ref="emoji">
+      <match>:[^:\s\n]+:</match>
+    </context>
+
+    <!-- Task List Items -->
+    <context id="task-list-item">
+      <match>^(\s*[-*+]\s*)(\[[\sxX]\])\s*(.*?)(\s*\(([^:]+):\s*([^)]+)\))?$</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="list-marker"/>
+        <context sub-pattern="2" style-ref="task-marker"/>
+        <context sub-pattern="3" style-ref="def:base"/>
+        <context sub-pattern="5" style-ref="user-mention"/>
+        <context sub-pattern="6" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Inline Task Items (without list markers) -->
+    <context id="inline-task-item">
+      <match>(\[[\sxX]\])\s*(.*?)(\s*\(([^:]+):\s*([^)]+)\))?</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="task-marker"/>
+        <context sub-pattern="2" style-ref="def:base"/>
+        <context sub-pattern="4" style-ref="user-mention"/>
+        <context sub-pattern="5" style-ref="attribute-value"/>
+      </include>
+    </context>
+
+    <!-- Marco Footnotes -->
+    <context id="footnote-reference">
+      <match>\[\^([a-zA-Z0-9_]+)\]</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="footnote-ref"/>
+      </include>
+    </context>
+
+    <context id="inline-footnote">
+      <match>\^\[([^\]]+)\]</match>
+      
+      <include>
+        <context sub-pattern="1" style-ref="footnote-ref"/>
+      </include>
+    </context>
+
+    <context id="footnote-definition">
+      <start>^\[\^([a-zA-Z0-9_]+)\]:\s*</start>
+      <end>^$</end>
+      
+      <include>
+        <context sub-pattern="1" where="start" style-ref="footnote-def"/>
+        <context ref="markdown-syntax"/>
+      </include>
+    </context>
+
+    <!-- Marco Definition Lists -->
+    <context id="definition-term" style-ref="def-term" end-at-line-end="true">
+      <start>^([^:\n]+)(?=\n:\s)</start>
+    </context>
+
+    <context id="definition-definition" style-ref="def-definition" end-at-line-end="true">
+      <start>^:\s+</start>
+      
+      <include>
+        <context ref="markdown-syntax"/>
+      </include>
+    </context>
+
+    <!-- Marco Tables -->
+    <context id="table-with-header">
+      <include>
+        <context ref="table-header-row"/>
+        <context ref="table-separator-line"/>
+        <context ref="table-data-row"/>
+      </include>
+    </context>
+    
+    <context id="table-header-row" style-ref="table-header">
+      <match>^\|.*\|$</match>
+    </context>
+
+    <context id="table-separator-line" style-ref="table-separator">
+      <match>^\|[\s:|-]+\|?$</match>
+    </context>
+
+    <context id="table-data-row" end-at-line-end="true" style-ref="table-cell">
+      <start>^\|</start>
+      <end>\|?$</end>
+      
+      <include>
+        <!-- Allow markdown formatting within table cells -->
+        <context ref="1-backtick-code-span"/>
+        <context ref="inline-link"/>
+        <context ref="underscores-emphasis"/>
+        <context ref="asterisks-emphasis"/>
+        <context ref="underscores-strong-emphasis"/>
+        <context ref="asterisks-strong-emphasis"/>
+        <context ref="highlight"/>
+        <context ref="strikethrough-tilde"/>
+        <context ref="strikethrough-dash"/>
+        <context ref="superscript"/>
+        <context ref="subscript-arrow"/>
+        <context ref="subscript-tilde"/>
+        <context ref="math-inline"/>
+        <context ref="emoji"/>
+      </include>
+    </context>
+
+    <!-- Tables without headers (separator first) -->
+    <context id="table-without-header">
+      <include>
+        <context ref="table-separator-line"/>
+        <context ref="table-data-row"/>
+      </include>
+    </context>
+
+    <!-- HTML Comments -->
+    <context id="html-comment" class="no-spell-check" style-ref="html-comment">
+      <start>&lt;!--</start>
+      <end>--&gt;</end>
+    </context>
+
+    <context id="backslash-escape" style-ref="backslash-escape">
+      <match>\\[\\`*_{}\[\]()#+-.!]</match>
+    </context>
+
+    <!-- Note: a manual line break should be followed by a line containing text,
+         but since line break can't be used in regex, only trailing spaces or tabs
+         are matched. -->
+    <context id="line-break">
+      <match>(?&lt;=[^ \t])([ \t]{2,})$</match>
+
+      <include>
+        <context sub-pattern="1" style-ref="line-break"/>
+      </include>
+    </context>
+
+    <context id="markdown-syntax">
+      <include>
+        <context ref="atx-header"/>
+        <!-- Improved setext headers -->
+        <context ref="setext-header-h1"/>
+        <context ref="setext-header-h2"/>
+        <context ref="setext-header-underline"/>
+        <context ref="horizontal-rule"/>
+        <context ref="list"/>
+        <context ref="code-block"/>
+        <context ref="1-backtick-code-span"/>
+        <context ref="2-backticks-code-span"/>
+        <context ref="3-backticks-code-span"/>
+        <!-- Marco executable and diagram code blocks -->
+        <context ref="executable-code-block"/>
+        <context ref="diagram-block"/>
+        <context ref="blockquote"/>
+        <!-- Marco block extensions -->
+        <context ref="admonition-block"/>
+        <context ref="admonition-emoji-block"/>
+        <context ref="tab-block"/>
+        <!-- Tables -->
+        <context ref="table-with-header"/>
+        <context ref="table-without-header"/>
+        <!-- Definition lists -->
+        <context ref="definition-term"/>
+        <context ref="definition-definition"/>
+        <!-- Footnotes -->
+        <context ref="footnote-definition"/>
+        <context ref="automatic-link"/>
+        <context ref="inline-link"/>
+        <context ref="reference-link"/>
+        <context ref="link-definition"/>
+        <context ref="inline-image"/>
+        <context ref="reference-image"/>
+        <!-- Marco media extensions -->
+        <context ref="youtube-link"/>
+        <context ref="block-image"/>
+        <!-- Marco inline extensions -->
+        <context ref="user-mention"/>
+        <context ref="bookmark"/>
+        <context ref="page-tag"/>
+        <context ref="doc-reference"/>
+        <context ref="toc"/>
+        <context ref="inline-executable-code"/>
+        <!-- Mathematical expressions -->
+        <context ref="math-block"/>
+        <context ref="math-inline"/>
+        <!-- Footnote references -->
+        <context ref="footnote-reference"/>
+        <context ref="inline-footnote"/>
+        <!-- Bold-italic combinations (must come before regular emphasis) -->
+        <context ref="bold-italic-triple-asterisk"/>
+        <context ref="bold-italic-triple-underscore"/>
+        <context ref="bold-italic-mixed-ast-under"/>
+        <context ref="bold-italic-mixed-under-ast"/>
+        <context ref="bold-italic-triple-mixed-au"/>
+        <context ref="bold-italic-triple-mixed-ua"/>
+        <context ref="underscores-emphasis"/>
+        <context ref="asterisks-emphasis"/>
+        <context ref="underscores-strong-emphasis"/>
+        <context ref="asterisks-strong-emphasis"/>
+        <!-- Marco formatting extensions -->
+        <context ref="highlight"/>
+        <context ref="strikethrough-tilde"/>
+        <context ref="strikethrough-dash"/>
+        <context ref="superscript"/>
+        <context ref="subscript-arrow"/>
+        <context ref="subscript-tilde"/>
+        <context ref="emoji"/>
+        <context ref="task-list-item"/>
+        <context ref="inline-task-item"/>
+        <!-- HTML comments -->
+        <context ref="html-comment"/>
+        <context ref="backslash-escape"/>
+        <context ref="line-break"/>
+      </include>
+    </context>
+
+    <replace id="html:embedded-lang-hook-content" ref="markdown-syntax"/>
+
+    <context id="markdown">
+      <include>
+        <context ref="markdown-syntax"/>
+        <!-- Note: even if it's highlighted, Markdown syntax within HTML blocks
+             (e.g., `<div>`) is not processed. -->
+        <context ref="html:html"/>
+      </include>
+    </context>
+  </definitions>
+</language>
