@@ -7,12 +7,27 @@ description = "Marco - A Markdown Composer"
 license = "MIT OR Apache-2.0"
 default-run = "marco"
 
+# Regular build (no test dependencies)
+# cargo build
+#
+# Build with test tools
+# cargo build --features integration-tests
+#
+# Run specific test tools
+# cargo run --bin marco-parser-debug --features integration-tests
+# cargo run --bin marco-test --features integration-tests
+
+# ========================
+# Features
+# ========================
 [features]
 default = []
-# Enable comprehensive CommonMark spec testing (652 tests)
-integration-tests = []
+# Group all test/debug dependencies under a feature
+integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty"]
 
-
+# ========================
+# Binaries
+# ========================
 [[bin]]
 name = "marco"
 path = "src/main.rs"
@@ -20,11 +35,16 @@ path = "src/main.rs"
 [[bin]]
 name = "marco-test"
 path = "tests/test_runner/main.rs"
+required-features = ["integration-tests"]
 
 [[bin]]
 name = "marco-parser-debug"
 path = "tests/parser_debug/main.rs"
+required-features = ["integration-tests"]
 
+# ========================
+# Dependencies
+# ========================
 [dependencies]
 ron = "0.8"
 serde = { version = "1.0", features = ["derive"] }
@@ -47,16 +67,38 @@ emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "5.0"
 lru = "0.16.1"
-# Test suite dependencies (needed for marco-test binary)
-clap = { version = "4.5", features = ["derive"] }
-similar = { version = "2.7", features = ["inline", "unicode"] }
-colored = "2.1"
-atty = "0.2"
 
+# Test suite dependencies (only included when integration-tests feature is enabled)
+clap = { version = "4.5", features = ["derive"], optional = true }
+similar = { version = "2.7", features = ["inline", "unicode"], optional = true }
+colored = { version = "2.1", optional = true }
+atty = { version = "0.2", optional = true }
+
+# ========================
+# Dev/Test-only dependencies
+# ========================
 [dev-dependencies]
-# Basic testing
 criterion = "0.5"
 rand = "0.8"
 
+# ========================
+# Build dependencies
+# ========================
 [build-dependencies]
 serde_json = "1.0"
+
+# ========================
+# Profile optimizations
+# ========================
+[profile.dev]
+opt-level = 0            # fastest compilation for iterative dev
+debug = true             # full debug symbols for backtraces
+incremental = true
+overflow-checks = false  # skip integer overflow checks in dev
+split-debuginfo = 'unpacked'
+
+[profile.release]
+opt-level = 3            # full optimization
+debug = false            # strip debug symbols
+lto = true               # link-time optimization
+codegen-units = 1        # improve release performance with LTO

@@ -1,9 +1,16 @@
-use clap::{Arg, Command};
+#[cfg(feature = "integration-tests")]
 use marco::components::marco_engine::parser::parse_with_rule;
+#[cfg(feature = "integration-tests")]
 use marco::components::marco_engine::{build_ast, parse_markdown, parse_to_html_cached, Rule};
+#[cfg(feature = "integration-tests")]
 use pest::iterators::{Pair, Pairs};
+#[cfg(feature = "integration-tests")]
 use std::io::{self, Read};
 
+#[cfg(feature = "integration-tests")]
+use clap::{Arg, Command};
+
+#[cfg(feature = "integration-tests")]
 fn main() {
     let matches = Command::new("marco-parser-debug")
         .about("Debug Marco parser grammar and AST building")
@@ -83,6 +90,7 @@ fn main() {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn get_input_text(provided: Option<&String>) -> String {
     match provided {
         Some(text) => text.clone(),
@@ -97,6 +105,7 @@ fn get_input_text(provided: Option<&String>) -> String {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn debug_grammar_rule(input: &str, rule_name: &str) {
     println!("=== Grammar Rule Debug: {} ===", rule_name);
     println!("Input: {:?}", input);
@@ -129,6 +138,7 @@ fn debug_grammar_rule(input: &str, rule_name: &str) {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn debug_ast_building(input: &str) {
     println!("=== AST Building Debug ===");
     println!("Input: {:?}", input);
@@ -164,6 +174,7 @@ fn debug_ast_building(input: &str) {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn debug_full_pipeline(input: &str) {
     println!("=== Full Pipeline Debug ===");
     println!("Input: {:?}", input);
@@ -218,6 +229,7 @@ fn debug_full_pipeline(input: &str) {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn debug_setext_headers(input: &str) {
     let test_cases = if input.trim().is_empty() {
         vec![
@@ -271,12 +283,14 @@ fn debug_setext_headers(input: &str) {
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn print_parser_structure(pairs: Pairs<Rule>, base_indent: usize) {
     for pair in pairs {
         print_pair_structure(pair, base_indent);
     }
 }
 
+#[cfg(feature = "integration-tests")]
 fn print_pair_structure(pair: Pair<Rule>, indent: usize) {
     let indent_str = "  ".repeat(indent);
     println!(
@@ -289,4 +303,11 @@ fn print_pair_structure(pair: Pair<Rule>, indent: usize) {
     for inner_pair in pair.into_inner() {
         print_pair_structure(inner_pair, indent + 1);
     }
+}
+
+#[cfg(not(feature = "integration-tests"))]
+fn main() {
+    eprintln!("This binary requires the 'integration-tests' feature to be enabled.");
+    eprintln!("Run with: cargo run --bin marco-parser-debug --features integration-tests");
+    std::process::exit(1);
 }
