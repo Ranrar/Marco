@@ -59,7 +59,6 @@ anyhow = "1.0"
 log = "0.4.27"
 gio = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
-syntect = "5.2"
 tempfile = "3.21.0"
 pest = "2.8.1"
 pest_derive = "2.8.1"

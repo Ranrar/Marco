@@ -8,6 +8,7 @@
         show_invisibles: Some(true),
         tabs_to_spaces: Some(false),
         syntax_colors: Some(true),
+        code_block_syntax: Some(true),
         linting: None,
     )),
     appearance: Some((

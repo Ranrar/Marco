@@ -51,4 +51,368 @@
   
   <!-- Search highlighting -->
   <style name="search-match"          foreground="dark-bg" background="#FFD700" bold="true"/>
+
+  <!-- =============================== -->
+  <!-- Markdown Syntax Highlighting   -->
+  <!-- =============================== -->
+  
+  <!-- Markdown-specific colors -->
+  <color name="md-header"         value="#79B8FF"/>
+  <color name="md-emphasis"       value="#FFD700"/>
+  <color name="md-strong"         value="#FF6B6B"/>
+  <color name="md-code"           value="#B5CEA8"/>
+  <color name="md-link"           value="#4FC1FF"/>
+  <color name="md-url"            value="#4FC1FF"/>
+  <color name="md-list"           value="#FF9F43"/>
+  <color name="md-quote"          value="#6A9955"/>
+  <color name="md-admonition"     value="#E74C3C"/>
+  <color name="md-math"           value="#9C88FF"/>
+  <color name="md-highlight"      value="#F39C12"/>
+  <color name="md-strikethrough"  value="#7F8C8D"/>
+  
+  <!-- Headers -->
+  <style name="markdown:header"             foreground="md-header" bold="true"/>
+  
+  <!-- Text formatting -->
+  <style name="markdown:emphasis"           foreground="md-emphasis" italic="true"/>
+  <style name="markdown:strong-emphasis"   foreground="md-strong" bold="true"/>
+  <style name="markdown:highlight"          foreground="dark-text" background="md-highlight"/>
+  <style name="markdown:strikethrough"     foreground="md-strikethrough" strikethrough="true"/>
+  <style name="markdown:superscript"       foreground="dark-string" scale="0.8"/>
+  <style name="markdown:subscript"         foreground="dark-string" scale="0.8"/>
+  
+  <!-- Code -->
+  <style name="markdown:code-span"         foreground="md-code" background="#2D2D30"/>
+  <style name="markdown:code-block"        foreground="md-code" background="#2D2D30"/>
+  <style name="markdown:executable-code"   foreground="md-code" background="#3A2D30" bold="true"/>
+  
+  <!-- Links and URLs -->
+  <style name="markdown:url"               foreground="md-url" underline="single"/>
+  <style name="markdown:link-text"         foreground="md-link"/>
+  <style name="markdown:label"             foreground="dark-keyword"/>
+  <style name="markdown:image-marker"      foreground="md-link" bold="true"/>
+  <style name="markdown:doc-reference"     foreground="md-url" underline="single"/>
+  
+  <!-- Lists -->
+  <style name="markdown:list-marker"       foreground="md-list" bold="true"/>
+  <style name="markdown:task-marker"       foreground="md-list" bold="true"/>
+  
+  <!-- Quotes and rules -->
+  <style name="markdown:blockquote-marker" foreground="md-quote" bold="true"/>
+  <style name="markdown:horizontal-rule"   foreground="dark-line-num" bold="true"/>
+  
+  <!-- Marco Extensions -->
+  <style name="markdown:admonition-marker" foreground="md-admonition" bold="true"/>
+  <style name="markdown:admonition-type"   foreground="md-admonition" bold="true"/>
+  <style name="markdown:admonition-title"  foreground="dark-string"/>
+  <style name="markdown:tab-marker"        foreground="dark-keyword" bold="true"/>
+  <style name="markdown:tab-name"          foreground="dark-string"/>
+  <style name="markdown:user-mention"      foreground="md-link" bold="true"/>
+  <style name="markdown:platform-name"     foreground="dark-keyword"/>
+  <style name="markdown:bookmark-marker"   foreground="dark-keyword" bold="true"/>
+  <style name="markdown:bookmark-label"    foreground="dark-string"/>
+  <style name="markdown:page-tag"          foreground="dark-keyword" bold="true"/>
+  <style name="markdown:toc-marker"        foreground="dark-keyword" bold="true"/>
+  <style name="markdown:script-type"       foreground="dark-keyword"/>
+  <style name="markdown:diagram-type"      foreground="dark-keyword"/>
+  
+  <!-- Math -->
+  <style name="markdown:math-inline"       foreground="md-math" background="#2A2A3E"/>
+  <style name="markdown:math-block"        foreground="md-math" background="#2A2A3E"/>
+  
+  <!-- Special elements -->
+  <style name="markdown:emoji"             foreground="md-emphasis"/>
+  <style name="markdown:footnote-ref"      foreground="md-link"/>
+  <style name="markdown:footnote-def"      foreground="dark-keyword"/>
+  <style name="markdown:backslash-escape"  foreground="dark-comment"/>
+  <style name="markdown:line-break"        background="dark-current-line"/>
+  <style name="markdown:attribute-value"   foreground="dark-string"/>
+  
+  <!-- Tables -->
+  <style name="markdown:table-header"      foreground="md-header" bold="true"/>
+  <style name="markdown:table-separator"   foreground="dark-comment"/>
+  <style name="markdown:table-cell"        foreground="dark-text"/>
+  
+  <!-- Definition lists -->
+  <style name="markdown:def-term"          foreground="md-strong" bold="true"/>
+  <style name="markdown:def-definition"    foreground="dark-text"/>
+  
+  <!-- HTML -->
+  <style name="markdown:html-comment"      foreground="dark-comment"/>
+
+  <!-- =============================== -->
+  <!-- Generic Language Syntax Colors -->
+  <!-- =============================== -->
+  
+  <!-- Universal colors for programming languages -->
+  <color name="lang-keyword"      value="#569CD6"/>  <!-- Blue keywords -->
+  <color name="lang-string"       value="#CE9178"/>  <!-- Orange strings -->
+  <color name="lang-comment"      value="#6A9955"/>  <!-- Green comments -->
+  <color name="lang-number"       value="#B5CEA8"/>  <!-- Light green numbers -->
+  <color name="lang-function"     value="#DCDCAA"/>  <!-- Yellow functions -->
+  <color name="lang-type"         value="#4EC9B0"/>  <!-- Cyan types -->
+  <color name="lang-variable"     value="#9CDCFE"/>  <!-- Light blue variables -->
+  <color name="lang-constant"     value="#4FC1FF"/>  <!-- Bright blue constants -->
+  <color name="lang-operator"     value="#D4D4D4"/>  <!-- White operators -->
+  <color name="lang-preprocessor" value="#C586C0"/>  <!-- Purple preprocessor -->
+  <color name="lang-special"      value="#FF6B6B"/>  <!-- Red special -->
+  <color name="lang-attribute"    value="#92C5F8"/>  <!-- Light blue attributes -->
+  
+  <!-- Generic syntax styles (work across all languages) -->
+  <style name="def:comment"                foreground="lang-comment" italic="true"/>
+  <style name="def:string"                 foreground="lang-string"/>
+  <style name="def:escaped-character"      foreground="lang-special"/>
+  <style name="def:preprocessor"           foreground="lang-preprocessor"/>
+  <style name="def:keyword"                foreground="lang-keyword" bold="true"/>
+  <style name="def:type"                   foreground="lang-type"/>
+  <style name="def:function"               foreground="lang-function"/>
+  <style name="def:variable"               foreground="lang-variable"/>
+  <style name="def:constant"               foreground="lang-constant"/>
+  <style name="def:special-constant"       foreground="lang-constant" bold="true"/>
+  <style name="def:number"                 foreground="lang-number"/>
+  <style name="def:floating-point"         foreground="lang-number"/>
+  <style name="def:decimal"                foreground="lang-number"/>
+  <style name="def:base-n-integer"         foreground="lang-number"/>
+  <style name="def:complex"                foreground="lang-number"/>
+  <style name="def:character"              foreground="lang-string"/>
+  <style name="def:boolean"                foreground="lang-constant"/>
+  <style name="def:identifier"             foreground="dark-text"/>
+  <style name="def:statement"              foreground="lang-keyword"/>
+  <style name="def:operator"               foreground="lang-operator"/>
+  <style name="def:error"                  foreground="#F44747" background="#FFEBEE"/>
+  <style name="def:warning"                foreground="#FF9800" background="#FFF3E0"/>
+  <style name="def:note"                   foreground="#2196F3" background="#E3F2FD"/>
+  <style name="def:underlined"             underline="single"/>
+  <style name="def:net-address"            foreground="lang-attribute" underline="single"/>
+  
+  <!-- =============================== -->
+  <!-- C/C++ Language Syntax          -->
+  <!-- =============================== -->
+  
+  <style name="c:preprocessor"             foreground="lang-preprocessor"/>
+  <style name="c:included-file"            foreground="lang-string"/>
+  <style name="c:common-defines"           foreground="lang-constant"/>
+  <style name="c:storage-class"            foreground="lang-keyword"/>
+  <style name="c:type"                     foreground="lang-type"/>
+  <style name="c:macro-name"               foreground="lang-function"/>
+  
+  <style name="cpp:module"                 foreground="lang-keyword"/>
+  <style name="cpp:concept"                foreground="lang-type"/>  
+  <style name="cpp:requires"               foreground="lang-keyword"/>
+  
+  <!-- =============================== -->
+  <!-- Java/C#/Kotlin Syntax          -->
+  <!-- =============================== -->
+  
+  <style name="java:storage-class"         foreground="lang-keyword"/>
+  <style name="java:scope-declaration"     foreground="lang-keyword"/>  
+  <style name="java:type"                  foreground="lang-type"/>
+  <style name="java:annotation"            foreground="lang-attribute"/>
+  <style name="java:external"              foreground="lang-preprocessor"/>
+  
+  <style name="csharp:type"                foreground="lang-type"/>
+  <style name="csharp:preprocessor"        foreground="lang-preprocessor"/>
+  <style name="csharp:attribute"           foreground="lang-attribute"/>
+  <style name="csharp:linq"                foreground="lang-function"/>
+  
+  <style name="kotlin:annotation"          foreground="lang-attribute"/>
+  <style name="kotlin:label"               foreground="lang-function"/>
+  
+  <!-- =============================== -->
+  <!-- Python Syntax                  -->
+  <!-- =============================== -->
+  
+  <style name="python:module-handler"      foreground="lang-keyword"/>
+  <style name="python:function-name"       foreground="lang-function"/>
+  <style name="python:class-name"          foreground="lang-type"/>
+  <style name="python:decorator"           foreground="lang-attribute"/>
+  <style name="python:builtin-constant"    foreground="lang-constant"/>
+  <style name="python:builtin-object"      foreground="lang-type"/>
+  <style name="python:builtin-function"    foreground="lang-function"/>
+  <style name="python:string-conversion"   foreground="lang-special"/>
+  <style name="python:special-variable"    foreground="lang-variable" italic="true"/>
+  <style name="python:boolean"             foreground="lang-constant"/>
+  
+  <!-- =============================== -->
+  <!-- JavaScript/TypeScript Syntax   -->
+  <!-- =============================== -->
+  
+  <style name="javascript:object"          foreground="lang-variable"/>
+  <style name="javascript:function"        foreground="lang-function"/>
+  <style name="javascript:properties"      foreground="lang-attribute"/>
+  <style name="javascript:constructors"    foreground="lang-type"/>
+  <style name="javascript:future-words"    foreground="lang-keyword"/>
+  <style name="javascript:regex"           foreground="lang-special"/>
+  <style name="javascript:template-literal" foreground="lang-string" background="#2D2D30"/>
+  
+  <style name="typescript:type"            foreground="lang-type"/>
+  <style name="typescript:interface"       foreground="lang-type"/>
+  <style name="typescript:enum"            foreground="lang-type"/>
+  <style name="typescript:namespace"       foreground="lang-preprocessor"/>
+  <style name="typescript:generic"         foreground="lang-type"/>
+  <style name="typescript:decorator"       foreground="lang-attribute"/>
+  
+  <!-- =============================== -->
+  <!-- Rust Syntax                    -->
+  <!-- =============================== -->
+  
+  <style name="rust:attribute"             foreground="lang-attribute"/>
+  <style name="rust:string"                foreground="lang-string"/>
+  <style name="rust:character"             foreground="lang-string"/>
+  <style name="rust:number"                foreground="lang-number"/>
+  <style name="rust:boolean"               foreground="lang-constant"/>
+  <style name="rust:keyword"               foreground="lang-keyword"/>
+  <style name="rust:type"                  foreground="lang-type"/>
+  <style name="rust:self"                  foreground="lang-variable" italic="true"/>
+  <style name="rust:function"              foreground="lang-function"/>
+  <style name="rust:macro"                 foreground="lang-special" bold="true"/>
+  <style name="rust:lifetime"              foreground="lang-attribute"/>
+  
+  <!-- =============================== -->
+  <!-- Go Syntax                      -->
+  <!-- =============================== -->
+  
+  <style name="go:printf"                  foreground="lang-function"/>
+  <style name="go:sprintf-conversion"      foreground="lang-special"/>
+  <style name="go:type"                    foreground="lang-type"/>
+  
+  <!-- =============================== -->
+  <!-- Web Technologies               -->
+  <!-- =============================== -->
+  
+  <!-- HTML -->
+  <style name="html:tag"                   foreground="lang-keyword"/>
+  <style name="html:attribute-name"        foreground="lang-attribute"/>
+  <style name="html:attribute-value"       foreground="lang-string"/>
+  <style name="html:entity"                foreground="lang-special"/>
+  <style name="html:comment"               foreground="lang-comment" italic="true"/>
+  <style name="html:dtd"                   foreground="lang-preprocessor"/>
+  
+  <!-- CSS -->
+  <style name="css:comment"                foreground="lang-comment" italic="true"/>
+  <style name="css:selector-id"            foreground="lang-special"/>
+  <style name="css:selector-class"         foreground="lang-type"/>
+  <style name="css:selector-pseudo-class"  foreground="lang-function"/>
+  <style name="css:property-name"          foreground="lang-attribute"/>
+  <style name="css:property-value"         foreground="lang-string"/>
+  <style name="css:color"                  foreground="lang-number"/>
+  <style name="css:dimension"              foreground="lang-number"/>
+  <style name="css:function"               foreground="lang-function"/>
+  <style name="css:important"              foreground="lang-special" bold="true"/>
+  
+  <!-- SCSS -->
+  <style name="scss:variable"              foreground="lang-variable"/>
+  <style name="scss:mixin-name"            foreground="lang-function"/>
+  <style name="scss:keyword"               foreground="lang-keyword"/>
+  
+  <!-- =============================== -->
+  <!-- Data Formats                   -->
+  <!-- =============================== -->
+  
+  <!-- JSON -->
+  <style name="json:keyname"               foreground="lang-attribute"/>
+  <style name="json:special-char"          foreground="lang-special"/>
+  
+  <!-- XML -->
+  <style name="xml:tag"                    foreground="lang-keyword"/>
+  <style name="xml:attribute-name"         foreground="lang-attribute"/>
+  <style name="xml:attribute-value"        foreground="lang-string"/>
+  <style name="xml:entity"                 foreground="lang-special"/>
+  <style name="xml:comment"                foreground="lang-comment" italic="true"/>
+  <style name="xml:cdata-section"          foreground="lang-string" background="#2D2D30"/>
+  <style name="xml:processing-instruction" foreground="lang-preprocessor"/>
+  
+  <!-- YAML -->
+  <style name="yaml:scalar"                foreground="lang-string"/>
+  <style name="yaml:anchor"                foreground="lang-special"/>
+  <style name="yaml:tag"                   foreground="lang-type"/>
+  <style name="yaml:map-key"               foreground="lang-attribute"/>
+  <style name="yaml:directive"             foreground="lang-preprocessor"/>
+  
+  <!-- TOML -->
+  <style name="toml:comment"               foreground="lang-comment" italic="true"/>
+  <style name="toml:key"                   foreground="lang-attribute"/>
+  <style name="toml:string"                foreground="lang-string"/>
+  <style name="toml:number"                foreground="lang-number"/>
+  <style name="toml:boolean"               foreground="lang-constant"/>
+  <style name="toml:datetime"              foreground="lang-special"/>
+  
+  <!-- =============================== -->
+  <!-- Shell & System Languages       -->
+  <!-- =============================== -->
+  
+  <!-- Shell -->
+  <style name="sh:variable"                foreground="lang-variable"/>
+  <style name="sh:variable-definition"     foreground="lang-variable" bold="true"/>
+  <style name="sh:function"                foreground="lang-function"/>
+  <style name="sh:string"                  foreground="lang-string"/>
+  <style name="sh:backticks"               foreground="lang-string" background="#2D2D30"/>
+  <style name="sh:here-doc-bound"          foreground="lang-special"/>
+  <style name="sh:subst-expansion"         foreground="lang-variable" background="#2D2D30"/>
+  
+  <!-- PowerShell -->
+  <style name="powershell:variable"        foreground="lang-variable"/>
+  <style name="powershell:command"         foreground="lang-function"/>
+  <style name="powershell:cmdlet"          foreground="lang-keyword"/>
+  <style name="powershell:parameter"       foreground="lang-attribute"/>
+  
+  <!-- SQL -->
+  <style name="sql:comment"                foreground="lang-comment" italic="true"/>
+  <style name="sql:keyword"                foreground="lang-keyword" bold="true"/>
+  <style name="sql:function"               foreground="lang-function"/>
+  <style name="sql:type"                   foreground="lang-type"/>
+  <style name="sql:operator"               foreground="lang-operator"/>
+  <style name="sql:string"                 foreground="lang-string"/>
+  
+  <!-- =============================== -->
+  <!-- Build Systems & DevOps         -->
+  <!-- =============================== -->
+  
+  <!-- CMake -->
+  <style name="cmake:comment"              foreground="lang-comment" italic="true"/>
+  <style name="cmake:function"             foreground="lang-function"/>
+  <style name="cmake:variable"             foreground="lang-variable"/>
+  <style name="cmake:constant"             foreground="lang-constant"/>
+  <style name="cmake:property"             foreground="lang-attribute"/>
+  
+  <!-- Makefile -->
+  <style name="makefile:variable"          foreground="lang-variable"/>
+  <style name="makefile:function"          foreground="lang-function"/>
+  <style name="makefile:assignment"        foreground="lang-operator"/>
+  <style name="makefile:target"            foreground="lang-type" bold="true"/>
+  <style name="makefile:prereq"            foreground="lang-attribute"/>
+  
+  <!-- Docker -->
+  <style name="docker:instruction"         foreground="lang-keyword" bold="true"/>
+  <style name="docker:string"              foreground="lang-string"/>
+  <style name="docker:variable"            foreground="lang-variable"/>
+  
+  <!-- =============================== -->
+  <!-- Other Languages                -->
+  <!-- =============================== -->
+  
+  <!-- Swift -->
+  <style name="swift:attribute"            foreground="lang-attribute"/>
+  <style name="swift:type"                 foreground="lang-type"/>
+  <style name="swift:function"             foreground="lang-function"/>
+  
+  <!-- PHP -->
+  <style name="php:variable"               foreground="lang-variable"/>
+  <style name="php:function"               foreground="lang-function"/>
+  <style name="php:keyword"                foreground="lang-keyword"/>
+  <style name="php:constant"               foreground="lang-constant"/>
+  
+  <!-- Ruby -->
+  <style name="ruby:module-handler"        foreground="lang-keyword"/>
+  <style name="ruby:symbol"                foreground="lang-special"/>
+  <style name="ruby:variable"              foreground="lang-variable"/>
+  <style name="ruby:constant"              foreground="lang-constant"/>
+  <style name="ruby:predefined-variable"   foreground="lang-variable" italic="true"/>
+  
+  <!-- Perl -->
+  <style name="perl:variable"              foreground="lang-variable"/>
+  <style name="perl:keyword"               foreground="lang-keyword"/>
+  <style name="perl:function"              foreground="lang-function"/>
+  <style name="perl:special-variable"      foreground="lang-special"/>
+  
 </style-scheme>
