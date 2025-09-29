@@ -653,8 +653,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         let webview = Rc::new(editor_webview.clone());
         let cache = Rc::new(RefCell::new(crate::logic::cache::SimpleFileCache::new()));
         move |_, _| {
-            use crate::logic::menu_items::search::show_search_dialog;
-            show_search_dialog(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), Rc::clone(&webview));
+            use crate::logic::menu_items::search::show_search_window;
+            show_search_window(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), Rc::clone(&webview));
         }
     });
     app.add_action(&search_action);

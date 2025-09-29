@@ -19,7 +19,7 @@
     )),
     layout: Some((
         view_mode: Some("HTML Preview"),
-        sync_scrolling: Some(false),
+        sync_scrolling: Some(true),
         editor_view_split: None,
         show_line_numbers: Some(true),
         text_direction: None,

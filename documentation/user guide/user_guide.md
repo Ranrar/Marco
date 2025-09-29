@@ -91,11 +91,13 @@ Access recently opened documents through File → Recent Files for quick editing
 - **Paste**: `Ctrl+V` or Edit → Paste
 
 ### Find and Replace
-- **Find**: `Ctrl+F` or Edit → Find
+- **Search & Replace**: `Ctrl+F` or Edit → Search & Replace
+  - Opens in a separate window for multitasking
   - Search for text in your document
   - Case-sensitive option available
   - Navigate through search results
-- **Replace**: `Ctrl+H` or Edit → Replace
+  - Non-blocking workflow allows editing while searching
+- **Replace**: Available in search window
   - Find and replace text
   - Replace individual instances or all occurrences
   - Smart replacement preserves formatting context
@@ -222,7 +224,7 @@ Access through Advanced menu when text is selected:
   Term 2
   :   Definition for term 2
 
-- **Table of Contents**: Insert a dynamic TOC (Advanced → Table of Contents). Automatically generates links to all headings (H1–H4) in your document.
+- **Table of Contents**: Insert a dynamic TOC (Advanced → Table of Contents). Automatically generates links to all headings (H1-H4) in your document.
 
   **Showcase:**
   #### Table of Contents
@@ -310,8 +312,7 @@ Access preferences through View → Preferences:
 - `Ctrl+X` - Cut
 - `Ctrl+C` - Copy
 - `Ctrl+V` - Paste
-- `Ctrl+F` - Find
-- `Ctrl+H` - Replace
+- `Ctrl+F` - Search & Replace (opens in window)
 
 ### Formatting
 - `Ctrl+B` - Bold

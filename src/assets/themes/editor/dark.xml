@@ -51,4 +51,5 @@
   
   <!-- Search highlighting -->
   <style name="search-match"          foreground="dark-bg" background="#FFD700" bold="true"/>
+  <style name="search-match-selected" foreground="white" background="#FF6B35" bold="true"/>
 </style-scheme>

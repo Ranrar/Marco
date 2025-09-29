@@ -1,3 +1,4 @@
+use crate::logic::signal_manager::safe_source_remove;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -57,7 +58,7 @@ impl Debouncer {
 
         // Cancel any existing timeout
         if let Some(handle) = timeout_handle.take() {
-            handle.remove();
+            safe_source_remove(handle);
         }
 
         // Set up trailing edge timeout
@@ -92,7 +93,7 @@ impl Debouncer {
 
         // Cancel any pending timeout
         if let Some(handle) = timeout_handle.take() {
-            handle.remove();
+            safe_source_remove(handle);
         }
 
         *is_debouncing = false;

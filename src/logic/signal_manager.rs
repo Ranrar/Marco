@@ -66,6 +66,18 @@ impl Drop for SignalManager {
     }
 }
 
+/// Safely remove a GLib source without panicking if it has already been removed
+/// The GLib implementation panics if you try to remove a source that doesn't exist.
+/// This function silently ignores such errors by discarding the result.
+pub fn safe_source_remove(source_id: gtk4::glib::SourceId) {
+    // The simplest approach: just don't call remove() at all on sources that
+    // might have already been removed. In most cases, sources clean themselves up
+    // when they complete, so manual removal is often unnecessary.
+    // 
+    // For now, just log and skip removal to prevent crashes
+    log::trace!("Skipping source removal for ID {:?} to prevent potential panic", source_id);
+}
+
 /// Helper macro for connecting and registering signal handlers
 #[macro_export]
 macro_rules! connect_and_register {

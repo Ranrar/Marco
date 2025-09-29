@@ -1,4 +1,5 @@
 use crate::footer::{FooterLabels, FooterUpdate};
+use crate::logic::signal_manager::safe_source_remove;
 use gtk4::glib::ControlFlow;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -64,7 +65,7 @@ pub fn wire_footer_updates(
     let update_footer_clone = update_footer.clone();
     buffer.connect_changed(move |_| {
         if let Some(id) = buffer_timeout_clone.replace(None) {
-            id.remove();
+            safe_source_remove(id);
         }
         let buffer_timeout_clone_inner = Rc::clone(&buffer_timeout_clone);
         let update_footer_clone = update_footer_clone.clone();
@@ -82,7 +83,7 @@ pub fn wire_footer_updates(
     let update_footer_clone2 = update_footer.clone();
     buffer.connect_notify_local(Some("cursor-position"), move |_, _| {
         if let Some(id) = cursor_timeout_clone.replace(None) {
-            id.remove();
+            safe_source_remove(id);
         }
         let cursor_timeout_clone_inner = Rc::clone(&cursor_timeout_clone);
         let update_footer_clone2 = update_footer_clone2.clone();

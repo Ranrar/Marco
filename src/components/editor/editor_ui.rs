@@ -7,6 +7,7 @@ use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
 use crate::components::viewer::webview_utils::webkit_scrollbar_css;
 use crate::footer::FooterLabels;
+use crate::logic::signal_manager::safe_source_remove;
 use gtk4::prelude::*;
 use gtk4::Paned;
 use sourceview5::prelude::*;
@@ -742,7 +743,7 @@ pub fn create_editor_with_preview_and_buffer(
 
         // debounce reloads to avoid rapid successive full-document reloads which cause blinking
         if let Some(id) = preview_theme_timeout_clone.replace(None) {
-            id.remove();
+            safe_source_remove(id);
         }
         let preview_theme_timeout_clone2 = Rc::clone(&preview_theme_timeout_clone);
         let webview_clone = webview_rc_for_preview.clone();

@@ -34,9 +34,8 @@
   )),
   files: Some((
     recent_files: Some([
-      /*[0]*/ "/home/ranrar/Code/projects/marco2/test_syntax_highlighting.md",
+      /*[0]*/ "/home/ranrar/Code/projects/marco2/README.md",
       /*[1]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/01_basic_markdown.md",
-      /*[2]*/ "/home/ranrar/Code/projects/marco2/README.md",
     ]),
     max_recent_files: None,
   )),
