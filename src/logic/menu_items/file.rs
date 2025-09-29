@@ -1242,7 +1242,8 @@ mod tests {
         
         // Create test objects
         let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
-        let recent_files = Rc::new(RefCell::new(RecentFiles::new(&settings_path)));
+        let settings_manager = crate::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
+        let recent_files = Rc::new(RefCell::new(RecentFiles::new(settings_manager)));
         let file_ops = FileOperations::new(buffer, recent_files);
         
         // Track callback invocations
@@ -1300,7 +1301,8 @@ mod tests {
         let settings_path = temp_dir.path().join("test_settings.ron");
         
         let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
-        let recent_files = Rc::new(RefCell::new(RecentFiles::new(&settings_path)));
+        let settings_manager = crate::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
+        let recent_files = Rc::new(RefCell::new(RecentFiles::new(settings_manager)));
         let file_ops = Rc::new(FileOperations::new(buffer, recent_files));
         
         let callback_count = Arc::new(Mutex::new(0));

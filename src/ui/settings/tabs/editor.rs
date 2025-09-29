@@ -1,4 +1,4 @@
-use crate::logic::swanson::{EditorSettings, Settings as AppSettings};
+use crate::logic::swanson::EditorSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::{debug, error};
@@ -7,6 +7,15 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     use gtk4::{
         Adjustment, Align, Box as GtkBox, DropDown, Label, Orientation, Scale, SpinButton,
         Switch, StringList, PropertyExpression, StringObject, Expression,
+    };
+
+    // Initialize SettingsManager for this editor tab
+    let settings_manager_opt = match crate::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
+        Ok(settings_manager) => Some(std::sync::Arc::new(settings_manager)),
+        Err(e) => {
+            debug!("Failed to initialize SettingsManager for editor settings: {}", e);
+            None
+        }
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -26,11 +35,13 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let font_spacer = GtkBox::new(Orientation::Horizontal, 0);
     font_spacer.set_hexpand(true);
 
-    // Load system fonts and current font setting
-    let current_font = {
-        let settings = AppSettings::load_from_file(settings_path).unwrap_or_default();
+    // Load current font setting from SettingsManager
+    let current_font = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
         let editor = settings.editor.unwrap_or_default();
         editor.font.unwrap_or_else(|| "Monospace".to_string())
+    } else {
+        "Monospace".to_string()
     };
     debug!("Current font setting: {}", current_font);
 
@@ -64,8 +75,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     font_combo.set_selected(initial_selection as u32);
 
     // Connect font selection change to save settings and trigger runtime updates
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         let monospace_names_clone = monospace_names.clone();
         
         font_combo.connect_selected_notify(move |combo| {
@@ -74,26 +84,24 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 let selected_font = selected_font.clone();
                 debug!("Font changed to: {}", selected_font);
 
-                // Load current settings and update font family
-                let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+                // Update font setting using SettingsManager
+                if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                    // Ensure editor settings exist
+                    if settings.editor.is_none() {
+                        settings.editor = Some(EditorSettings::default());
+                    }
 
-                // Ensure editor settings exist
-                if settings.editor.is_none() {
-                    settings.editor = Some(EditorSettings::default());
-                }
-
-                // Update font setting
-                if let Some(ref mut editor) = settings.editor {
-                    editor.font = Some(selected_font.clone());
-                }
-
-                // Save settings
-                if let Err(e) = settings.save_to_file(&settings_path) {
+                    // Update font setting
+                    if let Some(ref mut editor) = settings.editor {
+                        editor.font = Some(selected_font.clone());
+                    }
+                }) {
                     error!("Failed to save font setting: {}", e);
                     return;
                 }
 
-                // Create complete editor settings and trigger runtime update
+                // Get updated settings for runtime update
+                let settings = settings_manager_clone.get_settings();
                 let editor = settings.editor.unwrap_or_default();
                 let editor_settings =
                     crate::components::editor::font_config::EditorDisplaySettings {
@@ -150,11 +158,13 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let font_size_spacer = GtkBox::new(Orientation::Horizontal, 0);
     font_size_spacer.set_hexpand(true);
 
-    // Load current font size from settings
-    let current_font_size = {
-        let settings = AppSettings::load_from_file(settings_path).unwrap_or_default();
+    // Load current font size from SettingsManager
+    let current_font_size = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
         let editor = settings.editor.unwrap_or_default();
         editor.font_size.unwrap_or(14) as f64
+    } else {
+        14.0
     };
 
     let font_size_adj = Adjustment::new(current_font_size, 10.0, 24.0, 1.0, 0.0, 0.0);
@@ -162,32 +172,29 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     font_size_spin.set_halign(Align::End);
 
     // Connect font size changes to save settings and trigger runtime updates
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         font_size_adj.connect_value_changed(move |adj| {
             let new_size = adj.value() as u8;
             debug!("Font size changed to: {}px", new_size);
 
-            // Load current settings and update font size
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            // Update font size setting using SettingsManager
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
 
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(EditorSettings::default());
-            }
-
-            // Update font size setting
-            if let Some(ref mut editor) = settings.editor {
-                editor.font_size = Some(new_size);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update font size setting
+                if let Some(ref mut editor) = settings.editor {
+                    editor.font_size = Some(new_size);
+                }
+            }) {
                 error!("Failed to save font size setting: {}", e);
                 return;
             }
 
-            // Create complete editor settings and trigger runtime update
+            // Get updated settings for runtime update
+            let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
             let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
@@ -263,45 +270,44 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let line_height_spacer = GtkBox::new(Orientation::Horizontal, 0);
     line_height_spacer.set_hexpand(true);
 
-    // Load current line height from settings
-    let current_line_height = AppSettings::load_from_file(settings_path)
-        .unwrap_or_default()
-        .editor
-        .and_then(|e| e.line_height)
-        .unwrap_or(1.4) as f64;
+    // Load current line height from SettingsManager
+    let current_line_height = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor
+            .and_then(|e| e.line_height)
+            .unwrap_or(1.4) as f64
+    } else {
+        1.4
+    };
 
     let line_height_adj = Adjustment::new(current_line_height, 1.0, 2.0, 0.05, 0.0, 0.0);
     let line_height_spin = SpinButton::new(Some(&line_height_adj), 0.05, 2);
     line_height_spin.set_halign(Align::End);
 
     // Connect line height changes to save settings and trigger runtime updates
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         line_height_adj.connect_value_changed(move |adj| {
             let new_line_height = adj.value() as f32;
             debug!("Line height changed to: {}", new_line_height);
 
-            // Load current settings and update line height
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            // Update line height setting using SettingsManager
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(crate::logic::swanson::EditorSettings::default());
+                }
 
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(crate::logic::swanson::EditorSettings::default());
-            }
-
-            // Update line height setting
-            if let Some(ref mut editor) = settings.editor {
-                editor.line_height = Some(new_line_height);
-            }
-
-            // Save settings
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update line height setting
+                if let Some(ref mut editor) = settings.editor {
+                    editor.line_height = Some(new_line_height);
+                }
+            }) {
                 error!("Failed to save line height setting: {}", e);
                 return;
             }
 
-            // Create complete editor settings and trigger runtime update
+            // Get updated settings for runtime update
+            let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
             let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
@@ -376,41 +382,41 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let line_wrap_switch = Switch::new();
     line_wrap_switch.set_halign(Align::End);
 
-    // Load current line wrapping setting
-    let current_line_wrapping = AppSettings::load_from_file(settings_path)
-        .unwrap_or_default()
-        .editor
-        .and_then(|e| e.line_wrapping)
-        .unwrap_or(true); // Default to true for better UX
+    // Load current line wrapping setting from SettingsManager
+    let current_line_wrapping = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor
+            .and_then(|e| e.line_wrapping)
+            .unwrap_or(true) // Default to true for better UX
+    } else {
+        true
+    };
     line_wrap_switch.set_active(current_line_wrapping);
 
     // Connect line wrapping changes to save settings and trigger runtime updates
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         line_wrap_switch.connect_state_set(move |_switch, state| {
             let enabled = state;
             debug!("Line wrapping changed to: {}", enabled);
 
-            // Load current settings and update line wrapping
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            // Update line wrapping setting using SettingsManager
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
 
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(EditorSettings::default());
-            }
-
-            // Update line wrapping setting
-            if let Some(ref mut editor) = settings.editor {
-                editor.line_wrapping = Some(enabled);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update line wrapping setting
+                if let Some(ref mut editor) = settings.editor {
+                    editor.line_wrapping = Some(enabled);
+                }
+            }) {
                 error!("Failed to save line wrapping setting: {}", e);
                 return glib::Propagation::Proceed;
             }
 
-            // Create complete editor settings and trigger runtime update
+            // Get updated settings for runtime update
+            let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
             let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
@@ -502,41 +508,41 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let show_invis_switch = Switch::new();
     show_invis_switch.set_halign(Align::End);
 
-    // Load current show invisible characters setting
-    let current_show_invisibles = AppSettings::load_from_file(settings_path)
-        .unwrap_or_default()
-        .editor
-        .and_then(|e| e.show_invisibles)
-        .unwrap_or(false);
+    // Load current show invisible characters setting from SettingsManager
+    let current_show_invisibles = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor
+            .and_then(|e| e.show_invisibles)
+            .unwrap_or(false)
+    } else {
+        false
+    };
     show_invis_switch.set_active(current_show_invisibles);
 
     // Connect show invisibles changes to save settings and trigger runtime updates
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         show_invis_switch.connect_state_set(move |_switch, state| {
             let enabled = state;
             debug!("Show invisibles changed to: {}", enabled);
 
-            // Load current settings and update show invisibles
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            // Update show invisibles setting using SettingsManager
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
 
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(EditorSettings::default());
-            }
-
-            // Update show invisibles setting
-            if let Some(ref mut editor) = settings.editor {
-                editor.show_invisibles = Some(enabled);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update show invisibles setting
+                if let Some(ref mut editor) = settings.editor {
+                    editor.show_invisibles = Some(enabled);
+                }
+            }) {
                 error!("Failed to save show invisibles setting: {}", e);
                 return glib::Propagation::Proceed;
             }
 
-            // Create complete editor settings and trigger runtime update
+            // Get updated settings for runtime update
+            let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
             let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
@@ -598,41 +604,41 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let tabs_to_spaces_switch = Switch::new();
     tabs_to_spaces_switch.set_halign(Align::End);
 
-    // Load current tabs to spaces setting
-    let current_tabs_to_spaces = AppSettings::load_from_file(settings_path)
-        .unwrap_or_default()
-        .editor
-        .and_then(|e| e.tabs_to_spaces)
-        .unwrap_or(false);
+    // Load current tabs to spaces setting from SettingsManager
+    let current_tabs_to_spaces = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor
+            .and_then(|e| e.tabs_to_spaces)
+            .unwrap_or(false)
+    } else {
+        false
+    };
     tabs_to_spaces_switch.set_active(current_tabs_to_spaces);
 
     // Connect tabs to spaces changes to save settings and trigger runtime updates
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         tabs_to_spaces_switch.connect_state_set(move |_switch, state| {
             let enabled = state;
             debug!("Tabs to spaces changed to: {}", enabled);
 
-            // Load current settings and update tabs to spaces
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            // Update tabs to spaces setting using SettingsManager
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
 
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(EditorSettings::default());
-            }
-
-            // Update tabs to spaces setting
-            if let Some(ref mut editor) = settings.editor {
-                editor.tabs_to_spaces = Some(enabled);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update tabs to spaces setting
+                if let Some(ref mut editor) = settings.editor {
+                    editor.tabs_to_spaces = Some(enabled);
+                }
+            }) {
                 error!("Failed to save tabs to spaces setting: {}", e);
                 return glib::Propagation::Proceed;
             }
 
-            // Create complete editor settings and trigger runtime update
+            // Get updated settings for runtime update
+            let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
             let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
@@ -682,41 +688,41 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Syntax Colors (Toggle)
     let syntax_colors_switch = Switch::new();
 
-    // Load current setting
-    let current_syntax_colors = AppSettings::load_from_file(settings_path)
-        .unwrap_or_default()
-        .editor
-        .and_then(|e| e.syntax_colors)
-        .unwrap_or(true);
+    // Load current syntax colors setting from SettingsManager
+    let current_syntax_colors = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor
+            .and_then(|e| e.syntax_colors)
+            .unwrap_or(true)
+    } else {
+        true
+    };
     syntax_colors_switch.set_active(current_syntax_colors);
 
     // Wire to save setting when toggled
-    {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         syntax_colors_switch.connect_state_set(move |_switch, state| {
             let enabled = state;
             debug!("Syntax colors changed to: {}", enabled);
 
-            // Load current settings and update syntax colors
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            // Update syntax colors setting using SettingsManager
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(crate::logic::swanson::EditorSettings::default());
+                }
 
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(crate::logic::swanson::EditorSettings::default());
-            }
-
-            // Update syntax colors setting
-            if let Some(ref mut editor) = settings.editor {
-                editor.syntax_colors = Some(enabled);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update syntax colors setting
+                if let Some(ref mut editor) = settings.editor {
+                    editor.syntax_colors = Some(enabled);
+                }
+            }) {
                 error!("Failed to save syntax colors setting: {}", e);
                 return glib::Propagation::Proceed;
             }
 
-            // Create complete editor settings and trigger runtime update
+            // Get updated settings for runtime update
+            let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
             let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),

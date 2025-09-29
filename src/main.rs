@@ -116,6 +116,7 @@ fn main() -> glib::ExitCode {
 fn build_ui(app: &Application, initial_file: Option<String>) {
     // Import path functions
     use crate::logic::paths::{get_asset_dir_checked, get_settings_path};
+    use crate::logic::swanson::SettingsManager;
     
     // Load and apply menu.css for menu and titlebar styling
     use gtk4 as gtk;
@@ -191,30 +192,26 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         prod_editor_theme_dir
     };
 
-    let theme_manager = Rc::new(RefCell::new(ThemeManager::new(
-        &settings_path,
-        ui_theme_dir,
-        preview_theme_dir.clone(),
-        editor_theme_dir,
-    )));
-
-    // Initialize monospace font cache for fast settings loading
-    if let Err(e) = crate::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
-        log::warn!("Failed to initialize monospace font cache: {}", e);
-    }
-
-    // Initialize the global editor manager for runtime editor settings updates
-    if let Err(e) = crate::components::editor::editor_manager::init_editor_manager(
-        settings_path.to_str().unwrap(),
-    ) {
-        log::warn!("Failed to initialize editor manager: {}", e);
-    }
+    // Initialize centralized settings manager - single source of truth for all settings
+    let settings_manager = match SettingsManager::initialize(settings_path.clone()) {
+        Ok(manager) => manager,
+        Err(e) => {
+            eprintln!("Failed to initialize settings manager: {}", e);
+            eprintln!("Using default settings and continuing...");
+            // Create a fallback settings manager with default settings  
+            match SettingsManager::initialize(settings_path.clone()) {
+                Ok(manager) => manager,
+                Err(_) => {
+                    eprintln!("Critical: Cannot initialize settings. Exiting.");
+                    std::process::exit(1);
+                }
+            }
+        }
+    };
 
     // Initialize file logger according to settings (runtime)
     {
-        let app_settings =
-            crate::logic::swanson::Settings::load_from_file(settings_path.to_str().unwrap())
-                .unwrap_or_default();
+        let app_settings = settings_manager.get_settings();
 
         // Enable logging if RUST_LOG environment variable is set or if configured in settings
         let rust_log_set = std::env::var("RUST_LOG").is_ok();
@@ -235,6 +232,26 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             println!("Logging enabled (level: {:?}), check log files in ./log/ directory", level);
         }
     }
+
+    // Initialize monospace font cache for fast settings loading
+    if let Err(e) = crate::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
+        log::warn!("Failed to initialize monospace font cache: {}", e);
+    }
+
+    // Initialize the global editor manager with settings manager
+    if let Err(e) = crate::components::editor::editor_manager::init_editor_manager(
+        settings_manager.clone(),
+    ) {
+        log::warn!("Failed to initialize editor manager: {}", e);
+    }
+
+    // Initialize theme manager with settings manager
+    let theme_manager = Rc::new(RefCell::new(ThemeManager::new(
+        settings_manager.clone(),
+        ui_theme_dir,
+        preview_theme_dir.clone(),
+        editor_theme_dir,
+    )));
     // Pass settings struct to modules as needed
 
     // Create main vertical box layout
@@ -249,7 +266,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     use crate::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
-    let settings = &theme_manager.borrow().settings;
+    let settings = theme_manager.borrow().get_settings();
     let mut preview_theme_filename = "standard.css".to_string();
     if let Some(appearance) = &settings.appearance {
         if let Some(ref preview_theme) = appearance.preview_theme {
@@ -271,7 +288,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     // Create file operations handler early so we can pass DocumentBuffer to editor
     let file_operations = FileOperations::new(
         Rc::new(RefCell::new(DocumentBuffer::new_untitled())),
-        Rc::new(RefCell::new(RecentFiles::new(&settings_path))),
+        Rc::new(RefCell::new(RecentFiles::new(settings_manager.clone()))),
     );
     let file_operations_rc = Rc::new(RefCell::new(file_operations));
     let document_buffer_ref = Rc::clone(&file_operations_rc.borrow().buffer);
@@ -315,8 +332,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     split.add_css_class("split-view");
 
     // Apply saved view mode from settings at startup (if present)
-    if let Ok(s) = crate::logic::swanson::Settings::load_from_file(settings_path.to_str().unwrap())
     {
+        let s = settings_manager.get_settings();
         if let Some(layout) = s.layout {
             if let Some(vm) = layout.view_mode {
                 match vm.as_str() {
@@ -421,21 +438,21 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     // Helper to persist view mode in settings.ron without blocking the UI
     // Uses the dedicated settings thread pool to avoid orphaned threads
     let save_view_mode = {
-        let settings_path = settings_path.clone();
+        let settings_manager = settings_manager.clone();
         let settings_tx = settings_tx.clone();
         Rc::new(move |mode: &str| {
-            let path = settings_path.clone();
+            let settings_manager = settings_manager.clone();
             let mode_owned = mode.to_string();
             let task = Box::new(move || {
-                use crate::logic::swanson::{LayoutSettings, Settings as AppSettings};
-                let mut s = AppSettings::load_from_file(path.to_str().unwrap()).unwrap_or_default();
-                if s.layout.is_none() {
-                    s.layout = Some(LayoutSettings::default());
-                }
-                if let Some(ref mut l) = s.layout {
-                    l.view_mode = Some(mode_owned.clone());
-                }
-                if let Err(e) = s.save_to_file(path.to_str().unwrap()) {
+                use crate::logic::swanson::LayoutSettings;
+                if let Err(e) = settings_manager.update_settings(|s| {
+                    if s.layout.is_none() {
+                        s.layout = Some(LayoutSettings::default());
+                    }
+                    if let Some(ref mut l) = s.layout {
+                        l.view_mode = Some(mode_owned.clone());
+                    }
+                }) {
                     log::error!("Failed to save view mode settings: {}", e);
                 } else {
                     log::debug!("View mode saved: {}", mode_owned);
@@ -699,51 +716,47 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
 
     // Load and apply saved window state
     {
-        use crate::logic::swanson::Settings as AppSettings;
-        if let Ok(settings) = AppSettings::load_from_file(settings_path.to_str().unwrap()) {
-            if let Some(window_settings) = settings.window {
-                // Apply window size
-                let (width, height) = window_settings.get_window_size();
-                window.set_default_size(width as i32, height as i32);
+        let settings = settings_manager.get_settings();
+        if let Some(window_settings) = settings.window {
+            // Apply window size
+            let (width, height) = window_settings.get_window_size();
+            window.set_default_size(width as i32, height as i32);
 
-                // Apply window position if saved
-                if let Some((x, y)) = window_settings.get_window_position() {
-                    // Note: GTK4 doesn't support programmatic window positioning directly
-                    // This would need platform-specific implementation if required
-                    log::debug!(
-                        "Would restore window position to ({}, {}) if supported",
-                        x,
-                        y
-                    );
-                }
+            // Apply window position if saved
+            if let Some((x, y)) = window_settings.get_window_position() {
+                // Note: GTK4 doesn't support programmatic window positioning directly
+                // This would need platform-specific implementation if required
+                log::debug!(
+                    "Would restore window position to ({}, {}) if supported",
+                    x,
+                    y
+                );
+            }
 
-                // Apply maximized state
-                if window_settings.is_maximized() {
-                    window.maximize();
-                }
+            // Apply maximized state
+            if window_settings.is_maximized() {
+                window.maximize();
             }
         }
     }
 
     // Connect window state change handlers to persist settings
     {
-        let settings_path_for_resize = settings_path.clone();
+        let settings_manager_resize = settings_manager.clone();
         let settings_tx_resize = settings_tx.clone();
         window.connect_default_width_notify(move |w| {
-            let settings_path = settings_path_for_resize.clone();
+            let settings_manager = settings_manager_resize.clone();
             let width = w.default_width();
             let height = w.default_height();
             let settings_tx = settings_tx_resize.clone();
 
             let task = Box::new(move || {
-                use crate::logic::swanson::Settings as AppSettings;
-                let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
-                    .unwrap_or_default();
-                let _ = settings.update_window_settings(|ws| {
-                    ws.width = Some(width as u32);
-                    ws.height = Some(height as u32);
-                });
-                if let Err(e) = settings.save_to_file(settings_path.to_str().unwrap()) {
+                if let Err(e) = settings_manager.update_settings(|s| {
+                    let _ = s.update_window_settings(|ws| {
+                        ws.width = Some(width as u32);
+                        ws.height = Some(height as u32);
+                    });
+                }) {
                     log::error!("Failed to save window size: {}", e);
                 } else {
                     log::debug!("Window size saved: {}x{}", width, height);
@@ -754,23 +767,21 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             }
         });
 
-        let settings_path_for_resize2 = settings_path.clone();
+        let settings_manager_resize2 = settings_manager.clone();
         let settings_tx_resize2 = settings_tx.clone();
         window.connect_default_height_notify(move |w| {
-            let settings_path = settings_path_for_resize2.clone();
+            let settings_manager = settings_manager_resize2.clone();
             let width = w.default_width();
             let height = w.default_height();
             let settings_tx = settings_tx_resize2.clone();
 
             let task = Box::new(move || {
-                use crate::logic::swanson::Settings as AppSettings;
-                let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
-                    .unwrap_or_default();
-                let _ = settings.update_window_settings(|ws| {
-                    ws.width = Some(width as u32);
-                    ws.height = Some(height as u32);
-                });
-                if let Err(e) = settings.save_to_file(settings_path.to_str().unwrap()) {
+                if let Err(e) = settings_manager.update_settings(|s| {
+                    let _ = s.update_window_settings(|ws| {
+                        ws.width = Some(width as u32);
+                        ws.height = Some(height as u32);
+                    });
+                }) {
                     log::error!("Failed to save window size: {}", e);
                 } else {
                     log::debug!("Window size saved: {}x{}", width, height);
@@ -781,21 +792,19 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             }
         });
 
-        let settings_path_for_maximize = settings_path.clone();
+        let settings_manager_maximize = settings_manager.clone();
         let settings_tx_maximize = settings_tx.clone();
         window.connect_maximized_notify(move |w| {
-            let settings_path = settings_path_for_maximize.clone();
+            let settings_manager = settings_manager_maximize.clone();
             let is_maximized = w.is_maximized();
             let settings_tx = settings_tx_maximize.clone();
 
             let task = Box::new(move || {
-                use crate::logic::swanson::Settings as AppSettings;
-                let mut settings = AppSettings::load_from_file(settings_path.to_str().unwrap())
-                    .unwrap_or_default();
-                let _ = settings.update_window_settings(|ws| {
-                    ws.maximized = Some(is_maximized);
-                });
-                if let Err(e) = settings.save_to_file(settings_path.to_str().unwrap()) {
+                if let Err(e) = settings_manager.update_settings(|s| {
+                    let _ = s.update_window_settings(|ws| {
+                        ws.maximized = Some(is_maximized);
+                    });
+                }) {
                     log::error!("Failed to save window maximized state: {}", e);
                 } else {
                     log::debug!("Window maximized state saved: {}", is_maximized);

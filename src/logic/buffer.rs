@@ -1,6 +1,8 @@
 use crate::logic::cache::{cached, global_cache};
+use crate::logic::swanson::SettingsManager;
 use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Manages document buffer state including file path, modification status, and content
 ///
@@ -531,17 +533,17 @@ impl DocumentBuffer {
 /// This struct manages a list of recently opened files through the
 /// swanson settings system for consistent persistence.
 pub struct RecentFiles {
-    settings_path: PathBuf,
+    settings_manager: Arc<SettingsManager>,
 }
 
 impl RecentFiles {
     /// Creates a new recent files manager
     ///
     /// # Arguments
-    /// * `settings_path` - Path to the settings.ron file
-    pub fn new<P: AsRef<Path>>(settings_path: P) -> Self {
+    /// * `settings_manager` - Shared settings manager
+    pub fn new(settings_manager: Arc<SettingsManager>) -> Self {
         Self {
-            settings_path: settings_path.as_ref().to_path_buf(),
+            settings_manager,
         }
     }
 
@@ -562,12 +564,9 @@ impl RecentFiles {
     /// recent.add_file(Path::new("doc1.md"));
     /// ```
     pub fn add_file<P: AsRef<Path>>(&self, path: P) {
-        let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
-            .unwrap_or_default();
-
-        settings.add_recent_file(path);
-
-        if let Err(e) = settings.save_to_file(&self.settings_path) {
+        if let Err(e) = self.settings_manager.update_settings(|settings| {
+            settings.add_recent_file(path);
+        }) {
             eprintln!("[RecentFiles] Failed to save recent file: {}", e);
         }
     }
@@ -577,21 +576,16 @@ impl RecentFiles {
     /// # Returns
     /// Vector of recent file paths (most recent first)
     pub fn get_files(&self) -> Vec<PathBuf> {
-        let settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
-            .unwrap_or_default();
-
+        let settings = self.settings_manager.get_settings();
         settings.get_recent_files()
     }
 
     /// Clears all recent files
     pub fn clear(&self) {
-        let mut settings = crate::logic::swanson::Settings::load_from_file(&self.settings_path)
-            .unwrap_or_default();
-
-        settings.clear_recent_files();
-
-        if let Err(e) = settings.save_to_file(&self.settings_path) {
-            eprintln!("[RecentFiles] Failed to save cleared recent files: {}", e);
+        if let Err(e) = self.settings_manager.update_settings(|settings| {
+            settings.clear_recent_files();
+        }) {
+            eprintln!("[RecentFiles] Failed to clear recent files: {}", e);
         }
     }
 }
@@ -626,7 +620,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let settings_path = temp_dir.path().join("settings.ron");
 
-        let recent = RecentFiles::new(&settings_path);
+        let settings_manager = SettingsManager::initialize(settings_path).unwrap();
+        let recent = RecentFiles::new(settings_manager);
 
         recent.add_file("file1.md");
         recent.add_file("file2.md");
@@ -644,7 +639,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let settings_path = temp_dir.path().join("settings.ron");
 
-        let recent = RecentFiles::new(&settings_path);
+        let settings_manager = SettingsManager::initialize(settings_path).unwrap();
+        let recent = RecentFiles::new(settings_manager);
 
         recent.add_file("file1.md");
         recent.add_file("file2.md");

@@ -12,6 +12,26 @@ use clap::{Arg, Command};
 
 #[cfg(feature = "integration-tests")]
 fn main() {
+    // Initialize settings manager for shared settings
+    let _settings_manager = match marco::logic::paths::get_settings_path() {
+        Ok(settings_path) => {
+            match marco::logic::swanson::SettingsManager::initialize(settings_path) {
+                Ok(manager) => {
+                    eprintln!("Settings initialized for parser debug");
+                    Some(manager)
+                },
+                Err(e) => {
+                    eprintln!("Warning: Failed to initialize settings: {}", e);
+                    None
+                }
+            }
+        },
+        Err(e) => {
+            eprintln!("Warning: Failed to get settings path: {}", e);
+            None
+        }
+    };
+
     let matches = Command::new("marco-parser-debug")
         .about("Debug Marco parser grammar and AST building")
         .version("0.1.0")

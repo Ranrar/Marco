@@ -76,8 +76,33 @@ pub fn get_font_path(font_name: &str) -> Result<PathBuf, AssetError> {
     Ok(asset_dir.join("fonts").join(font_name))
 }
 
-/// Returns the path to settings.ron in the asset directory.
+/// Returns the path to settings.ron in the tests/settings directory.
+/// This ensures all binaries (marco, marco-test, marco-parser-debug) use the same settings.
 pub fn get_settings_path() -> Result<PathBuf, AssetError> {
-    let asset_dir = get_asset_dir_checked()?;
-    Ok(asset_dir.join("settings.ron"))
+    // Always use tests/settings/settings.ron relative to the project root
+    let exe_path = env::current_exe().map_err(AssetError::ExePathError)?;
+    let parent = exe_path.parent().ok_or(AssetError::ParentMissing)?;
+    
+    // Go up from target/debug (or wherever binary is) to find project root
+    let mut project_root = parent.to_path_buf();
+    
+    // Search upward for Cargo.toml to find project root
+    while !project_root.join("Cargo.toml").exists() {
+        project_root = match project_root.parent() {
+            Some(parent) => parent.to_path_buf(),
+            None => return Err(AssetError::AssetDirMissing(project_root)),
+        };
+    }
+    
+    let settings_dir = project_root.join("tests").join("settings");
+    let settings_path = settings_dir.join("settings.ron");
+    
+    // Create the settings directory if it doesn't exist
+    if !settings_dir.exists() {
+        std::fs::create_dir_all(&settings_dir).map_err(|_| {
+            AssetError::AssetDirMissing(settings_dir.clone())
+        })?;
+    }
+    
+    Ok(settings_path)
 }

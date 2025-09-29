@@ -1,4 +1,4 @@
-use crate::logic::swanson::{Settings, WindowSettings};
+use crate::logic::swanson::WindowSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::debug;
@@ -29,6 +29,19 @@ pub fn build_layout_tab(
     container.set_margin_bottom(24);
     container.set_margin_start(32);
     container.set_margin_end(32);
+
+    // Initialize SettingsManager once if settings_path is available
+    let settings_manager_opt = if let Some(settings_path) = settings_path {
+        match crate::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
+            Ok(sm) => Some(sm),
+            Err(e) => {
+                debug!("Failed to initialize SettingsManager in layout tab: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
 
     // View Mode (Dropdown)
     let view_mode_hbox = GtkBox::new(Orientation::Horizontal, 0);
@@ -103,19 +116,13 @@ pub fn build_layout_tab(
 
     let sync_scroll_switch = Switch::new();
 
-    // Load current sync scrolling setting from file
-    let current_sync_scrolling = if let Some(settings_path) = settings_path {
-        match Settings::load_from_file(settings_path) {
-            Ok(settings) => settings
-                .layout
-                .as_ref()
-                .and_then(|l| l.sync_scrolling)
-                .unwrap_or(true), // Default to true if not set
-            Err(e) => {
-                debug!("Failed to load settings for sync scrolling: {}", e);
-                true // Default to true
-            }
-        }
+    // Load current sync scrolling setting using existing SettingsManager
+    let current_sync_scrolling = if let Some(ref settings_manager) = settings_manager_opt {
+        settings_manager.get_settings()
+            .layout
+            .as_ref()
+            .and_then(|l| l.sync_scrolling)
+            .unwrap_or(true)
     } else {
         true // Default to true
     };
@@ -124,27 +131,23 @@ pub fn build_layout_tab(
     sync_scroll_switch.set_halign(Align::End);
 
     // Save sync scrolling setting when it changes
-    if let Some(settings_path) = settings_path {
-        let settings_path = settings_path.to_string();
+    if let Some(ref settings_manager) = settings_manager_opt {
+        let settings_manager_clone = settings_manager.clone();
         sync_scroll_switch.connect_state_set(move |_switch, is_active| {
             debug!("Sync scrolling changed to: {}", is_active);
+            
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure layout settings exist
+                if settings.layout.is_none() {
+                    use crate::logic::swanson::LayoutSettings;
+                    settings.layout = Some(LayoutSettings::default());
+                }
 
-            // Load current settings, update sync scrolling, and save
-            let mut settings = Settings::load_from_file(&settings_path).unwrap_or_default();
-
-            // Ensure layout settings exist
-            if settings.layout.is_none() {
-                use crate::logic::swanson::LayoutSettings;
-                settings.layout = Some(LayoutSettings::default());
-            }
-
-            // Update sync scrolling setting
-            if let Some(ref mut layout) = settings.layout {
-                layout.sync_scrolling = Some(is_active);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update sync scrolling setting
+                if let Some(ref mut layout) = settings.layout {
+                    layout.sync_scrolling = Some(is_active);
+                }
+            }) {
                 debug!("Failed to save sync scrolling setting: {}", e);
             } else {
                 debug!("Sync scrolling saved: {}", is_active);
@@ -192,18 +195,12 @@ pub fn build_layout_tab(
     split_spacer.set_hexpand(true);
 
     // Load current split ratio from settings or use default (60%)
-    let current_split_ratio = if let Some(settings_path) = settings_path {
-        match Settings::load_from_file(settings_path) {
-            Ok(settings) => settings
-                .window
-                .as_ref()
-                .and_then(|w| w.split_ratio)
-                .unwrap_or(60),
-            Err(e) => {
-                debug!("Failed to load settings for split ratio: {}", e);
-                60
-            }
-        }
+    let current_split_ratio = if let Some(ref settings_manager) = settings_manager_opt {
+        settings_manager.get_settings()
+            .window
+            .as_ref()
+            .and_then(|w| w.split_ratio)
+            .unwrap_or(60)
     } else {
         60
     };
@@ -213,27 +210,23 @@ pub fn build_layout_tab(
     split_spin.set_halign(Align::End);
 
     // Save split ratio when it changes
-    if let Some(settings_path) = settings_path {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         split_adj.connect_value_changed(move |adj| {
             let new_ratio = adj.value() as i32;
             debug!("Split ratio changed to: {}%", new_ratio);
 
-            // Load current settings, update split ratio, and save
-            let mut settings = Settings::load_from_file(&settings_path).unwrap_or_default();
+            // Use SettingsManager to update split ratio setting
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure window settings exist
+                if settings.window.is_none() {
+                    settings.window = Some(WindowSettings::default());
+                }
 
-            // Ensure window settings exist
-            if settings.window.is_none() {
-                settings.window = Some(WindowSettings::default());
-            }
-
-            // Update split ratio
-            if let Some(ref mut window) = settings.window {
-                window.split_ratio = Some(new_ratio);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update split ratio
+                if let Some(ref mut window) = settings.window {
+                    window.split_ratio = Some(new_ratio);
+                }
+            }) {
                 debug!("Failed to save split ratio setting: {}", e);
             } else {
                 debug!("Split ratio saved: {}%", new_ratio);
@@ -295,19 +288,13 @@ pub fn build_layout_tab(
 
     let line_numbers_switch = Switch::new();
 
-    // Load current line numbers setting from file
-    let current_line_numbers = if let Some(settings_path) = settings_path {
-        match Settings::load_from_file(settings_path) {
-            Ok(settings) => settings
-                .layout
-                .as_ref()
-                .and_then(|l| l.show_line_numbers)
-                .unwrap_or(true), // Default to true if not set
-            Err(e) => {
-                debug!("Failed to load settings for line numbers: {}", e);
-                true // Default to true
-            }
-        }
+    // Load current line numbers setting from SettingsManager
+    let current_line_numbers = if let Some(ref settings_manager) = settings_manager_opt {
+        settings_manager.get_settings()
+            .layout
+            .as_ref()
+            .and_then(|l| l.show_line_numbers)
+            .unwrap_or(true) // Default to true if not set
     } else {
         true // Default to true
     };
@@ -316,27 +303,23 @@ pub fn build_layout_tab(
     line_numbers_switch.set_halign(Align::End);
 
     // Save line numbers setting when it changes
-    if let Some(settings_path) = settings_path {
-        let settings_path = settings_path.to_string();
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         line_numbers_switch.connect_state_set(move |_switch, is_active| {
             debug!("Line numbers changed to: {}", is_active);
 
-            // Load current settings, update line numbers, and save
-            let mut settings = Settings::load_from_file(&settings_path).unwrap_or_default();
+            // Use SettingsManager to update line numbers setting
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                // Ensure layout settings exist
+                if settings.layout.is_none() {
+                    use crate::logic::swanson::LayoutSettings;
+                    settings.layout = Some(LayoutSettings::default());
+                }
 
-            // Ensure layout settings exist
-            if settings.layout.is_none() {
-                use crate::logic::swanson::LayoutSettings;
-                settings.layout = Some(LayoutSettings::default());
-            }
-
-            // Update line numbers setting
-            if let Some(ref mut layout) = settings.layout {
-                layout.show_line_numbers = Some(is_active);
-            }
-
-            // Save settings
-            if let Err(e) = settings.save_to_file(&settings_path) {
+                // Update line numbers setting
+                if let Some(ref mut layout) = settings.layout {
+                    layout.show_line_numbers = Some(is_active);
+                }
+            }) {
                 debug!("Failed to save line numbers setting: {}", e);
             } else {
                 debug!("Line numbers saved: {}", is_active);

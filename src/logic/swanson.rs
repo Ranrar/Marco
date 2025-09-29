@@ -1,8 +1,18 @@
-//! Robust settings loader/saver using RON and Serde
-use log::trace;
+//! Centralized Settings Manager using RON and Serde
+//! 
+//! This module provides thread-safe, centralized settings management for Marco.
+//! SettingsManager is the single authority for all settings operations.
+
+use log::{trace, warn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use std::time::SystemTime;
+
+/// Type alias for settings change listener callbacks
+type SettingsListener = Box<dyn Fn(&Settings) + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -143,6 +153,372 @@ impl Settings {
         let window_settings = self.get_or_create_window_settings();
         updater(window_settings);
         Ok(())
+    }
+
+    /// Create default settings for the current system
+    pub fn create_default_for_system() -> Self {
+        Settings {
+            editor: Some(EditorSettings {
+                font_size: Some(12),
+                line_wrapping: Some(true),
+                auto_pairing: Some(true),
+                show_invisibles: Some(false),
+                tabs_to_spaces: Some(true),
+                syntax_colors: Some(true),
+                linting: Some(true),
+                ..Default::default()
+            }),
+            appearance: Some(AppearanceSettings {
+                editor_mode: Some("marco-light".to_string()),
+                preview_theme: Some("github".to_string()),
+                ui_font_size: Some(11),
+                ..Default::default() 
+            }),
+            layout: Some(LayoutSettings {
+                view_mode: Some("HTML Preview".to_string()),
+                sync_scrolling: Some(true),
+                editor_view_split: Some(60),
+                show_line_numbers: Some(true),
+                text_direction: Some("ltr".to_string()),
+            }),
+            window: Some(WindowSettings {
+                width: Some(1200),
+                height: Some(800),
+                maximized: Some(false),
+                split_ratio: Some(60),
+                ..Default::default()
+            }),
+            files: Some(FileSettings {
+                recent_files: Some(Vec::new()),
+                max_recent_files: Some(5),
+            }),
+            log_to_file: Some(false),
+            debug: Some(false),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum SettingsError {
+    Io(std::io::Error),
+    Parse(ron::error::SpannedError),
+    Validation(String),
+}
+
+impl std::fmt::Display for SettingsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SettingsError::Io(e) => write!(f, "IO error: {}", e),
+            SettingsError::Parse(e) => write!(f, "Parse error: {}", e),
+            SettingsError::Validation(e) => write!(f, "Validation error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for SettingsError {}
+
+impl From<std::io::Error> for SettingsError {
+    fn from(error: std::io::Error) -> Self {
+        SettingsError::Io(error)
+    }
+}
+
+impl From<ron::error::SpannedError> for SettingsError {
+    fn from(error: ron::error::SpannedError) -> Self {
+        SettingsError::Parse(error)
+    }
+}
+
+impl From<ron::Error> for SettingsError {
+    fn from(error: ron::Error) -> Self {
+        SettingsError::Validation(format!("RON serialization error: {}", error))
+    }
+}
+
+/// Centralized settings manager providing thread-safe access and change notifications
+pub struct SettingsManager {
+    settings: Arc<RwLock<Settings>>,
+    settings_path: PathBuf,
+    change_listeners: Arc<RwLock<HashMap<String, SettingsListener>>>,
+    last_modified: Arc<RwLock<Option<SystemTime>>>,
+}
+
+impl SettingsManager {
+    /// Initialize the settings manager with robust file handling
+    pub fn initialize(settings_path: PathBuf) -> Result<Arc<Self>, SettingsError> {
+        let manager = Arc::new(SettingsManager {
+            settings: Arc::new(RwLock::new(Settings::default())),
+            settings_path: settings_path.clone(),
+            change_listeners: Arc::new(RwLock::new(HashMap::new())),
+            last_modified: Arc::new(RwLock::new(None)),
+        });
+        
+        // Ensure settings file exists and load settings
+        manager.ensure_settings_file_exists()?;
+        manager.reload_settings()?;
+        
+        Ok(manager)
+    }
+    
+    /// Get current settings (read-only clone)
+    pub fn get_settings(&self) -> Settings {
+        self.settings.read().unwrap().clone()
+    }
+    
+    /// Update settings using a closure and notify listeners
+    pub fn update_settings<F>(&self, updater: F) -> Result<(), SettingsError>
+    where
+        F: FnOnce(&mut Settings),
+    {
+        {
+            let mut settings = self.settings.write().unwrap();
+            updater(&mut settings);
+            
+            // Validate settings after update
+            if let Err(validation_errors) = self.validate_settings(&settings) {
+                return Err(SettingsError::Validation(validation_errors));
+            }
+        }
+        
+        // Save to file
+        self.save_settings()?;
+        
+        // Notify listeners
+        self.notify_listeners();
+        
+        Ok(())
+    }
+    
+    /// Register a change listener
+    pub fn register_change_listener<F>(&self, id: String, callback: F)
+    where
+        F: Fn(&Settings) + Send + Sync + 'static,
+    {
+        let mut listeners = self.change_listeners.write().unwrap();
+        listeners.insert(id, Box::new(callback));
+    }
+    
+    /// Remove a change listener
+    pub fn remove_change_listener(&self, id: &str) {
+        let mut listeners = self.change_listeners.write().unwrap();
+        listeners.remove(id);
+    }
+    
+    /// Register a listener specifically for theme/appearance changes
+    pub fn register_theme_listener<F>(&self, id: String, callback: F)
+    where
+        F: Fn(&AppearanceSettings) + Send + Sync + 'static,
+    {
+        self.register_change_listener(id, move |settings| {
+            if let Some(appearance) = &settings.appearance {
+                callback(appearance);
+            }
+        });
+    }
+    
+    /// Register a listener specifically for editor settings changes
+    pub fn register_editor_listener<F>(&self, id: String, callback: F)
+    where
+        F: Fn(&EditorSettings) + Send + Sync + 'static,
+    {
+        self.register_change_listener(id, move |settings| {
+            if let Some(editor) = &settings.editor {
+                callback(editor);
+            }
+        });
+    }
+    
+    /// Register a listener specifically for window settings changes
+    pub fn register_window_listener<F>(&self, id: String, callback: F)
+    where
+        F: Fn(&WindowSettings) + Send + Sync + 'static,
+    {
+        self.register_change_listener(id, move |settings| {
+            if let Some(window) = &settings.window {
+                callback(window);
+            }
+        });
+    }
+    
+    /// Register a listener specifically for layout settings changes
+    pub fn register_layout_listener<F>(&self, id: String, callback: F)
+    where
+        F: Fn(&LayoutSettings) + Send + Sync + 'static,
+    {
+        self.register_change_listener(id, move |settings| {
+            if let Some(layout) = &settings.layout {
+                callback(layout);
+            }
+        });
+    }
+    
+    /// Ensure settings file exists, create with defaults if missing
+    pub fn ensure_settings_file_exists(&self) -> Result<(), SettingsError> {
+        if !self.settings_path.exists() {
+            // Ensure parent directory exists
+            if let Some(parent) = self.settings_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            
+            // Create default settings
+            let default_settings = Settings::create_default_for_system();
+            
+            // Save with pretty formatting
+            let pretty_config = ron::ser::PrettyConfig::new()
+                .enumerate_arrays(true)
+                .indentor("  ".to_string());
+            let ron_content = ron::ser::to_string_pretty(&default_settings, pretty_config)?;
+            
+            fs::write(&self.settings_path, ron_content)?;
+            
+            trace!("Created default settings file at {:?}", self.settings_path);
+        }
+        
+        Ok(())
+    }
+    
+    /// Reload settings from file
+    fn reload_settings(&self) -> Result<(), SettingsError> {
+        let content = fs::read_to_string(&self.settings_path)?;
+        let parsed_settings: Settings = ron::de::from_str(&content)?;
+        
+        // Validate loaded settings
+        if let Err(validation_error) = self.validate_settings(&parsed_settings) {
+            warn!("Settings validation failed, using repaired settings: {}", validation_error);
+            let mut repaired_settings = parsed_settings;
+            self.repair_invalid_settings(&mut repaired_settings);
+            *self.settings.write().unwrap() = repaired_settings;
+        } else {
+            *self.settings.write().unwrap() = parsed_settings;
+        }
+        
+        // Update last modified time
+        if let Ok(metadata) = fs::metadata(&self.settings_path) {
+            if let Ok(modified) = metadata.modified() {
+                *self.last_modified.write().unwrap() = Some(modified);
+            }
+        }
+        
+        Ok(())
+    }
+    
+    /// Save current settings to file
+    fn save_settings(&self) -> Result<(), SettingsError> {
+        let settings = self.settings.read().unwrap();
+        let pretty_config = ron::ser::PrettyConfig::new()
+            .enumerate_arrays(true)
+            .indentor("  ".to_string());
+        let ron_content = ron::ser::to_string_pretty(&*settings, pretty_config)?;
+        
+        fs::write(&self.settings_path, ron_content)?;
+        
+        // Update last modified time
+        if let Ok(metadata) = fs::metadata(&self.settings_path) {
+            if let Ok(modified) = metadata.modified() {
+                *self.last_modified.write().unwrap() = Some(modified);
+            }
+        }
+        
+        trace!("Settings saved to {:?}", self.settings_path);
+        Ok(())
+    }
+    
+    /// Validate settings and return error message if invalid
+    fn validate_settings(&self, settings: &Settings) -> Result<(), String> {
+        let mut errors = Vec::new();
+        
+        // Validate editor settings
+        if let Some(editor) = &settings.editor {
+            if let Some(font_size) = editor.font_size {
+                if !(8..=72).contains(&font_size) {
+                    errors.push(format!("Font size {} is out of valid range (8-72)", font_size));
+                }
+            }
+        }
+        
+        // Validate window settings
+        if let Some(window) = &settings.window {
+            if let Some(width) = window.width {
+                if !(400..=5000).contains(&width) {
+                    errors.push(format!("Window width {} is out of valid range (400-5000)", width));
+                }
+            }
+            if let Some(height) = window.height {
+                if !(300..=4000).contains(&height) {
+                    errors.push(format!("Window height {} is out of valid range (300-4000)", height));
+                }
+            }
+            if let Some(split_ratio) = window.split_ratio {
+                if !(10..=90).contains(&split_ratio) {
+                    errors.push(format!("Split ratio {} is out of valid range (10-90)", split_ratio));
+                }
+            }
+        }
+        
+        // Validate recent files exist
+        if let Some(files) = &settings.files {
+            if let Some(recent_files) = &files.recent_files {
+                for (i, path) in recent_files.iter().enumerate() {
+                    if !path.exists() {
+                        errors.push(format!("Recent file {} does not exist: {:?}", i, path));
+                    }
+                }
+            }
+        }
+        
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
+        }
+    }
+    
+    /// Repair invalid settings by clamping to valid ranges and removing invalid entries
+    fn repair_invalid_settings(&self, settings: &mut Settings) {
+        // Repair editor settings
+        if let Some(editor) = &mut settings.editor {
+            if let Some(font_size) = &mut editor.font_size {
+                *font_size = (*font_size).clamp(8, 72);
+            }
+        }
+        
+        // Repair window settings
+        if let Some(window) = &mut settings.window {
+            if let Some(width) = &mut window.width {
+                *width = (*width).clamp(400, 5000);
+            }
+            if let Some(height) = &mut window.height {
+                *height = (*height).clamp(300, 4000);
+            }
+            if let Some(split_ratio) = &mut window.split_ratio {
+                *split_ratio = (*split_ratio).clamp(10, 90);
+            }
+        }
+        
+        // Remove non-existent recent files
+        if let Some(files) = &mut settings.files {
+            if let Some(recent_files) = &mut files.recent_files {
+                recent_files.retain(|path| path.exists());
+            }
+        }
+    }
+    
+    /// Notify all registered listeners of settings changes
+    fn notify_listeners(&self) {
+        let settings = self.get_settings();
+        let listeners = self.change_listeners.read().unwrap();
+        
+        for (id, listener) in listeners.iter() {
+            // Use trace level to avoid spamming logs
+            trace!("Notifying settings listener: {}", id);
+            listener(&settings);
+        }
+    }
+    
+    /// Get the settings file path
+    pub fn get_settings_path(&self) -> &Path {
+        &self.settings_path
     }
 }
 

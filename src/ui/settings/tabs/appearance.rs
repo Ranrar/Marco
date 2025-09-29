@@ -100,7 +100,7 @@ pub fn build_appearance_tab(
             
             let current_preview = theme_manager
                 .borrow()
-                .settings
+                .get_settings()
                 .appearance
                 .as_ref()
                 .and_then(|a| a.preview_theme.clone());
@@ -152,9 +152,7 @@ pub fn build_appearance_tab(
 
     // --- Compose Tab ---
     // Light/Dark Mode Dropdown
-    use crate::logic::swanson::Settings as AppSettings;
-    let app_settings =
-        AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
+    let app_settings = theme_manager.borrow().get_settings();
     let current_mode = app_settings
         .appearance
         .as_ref()
@@ -189,6 +187,7 @@ pub fn build_appearance_tab(
     container.append(&color_mode_row);
     // Wire dropdown to update theme state and persist user preference
     {
+        let theme_manager_clone = theme_manager.clone();
         let settings_path = settings_path.clone();
         let refresh_preview = Rc::clone(&refresh_preview);
         let on_editor_theme_changed = on_editor_theme_changed.map(Rc::new);
@@ -198,20 +197,13 @@ pub fn build_appearance_tab(
             let idx = combo.selected();
             let mode = if idx == 1 { "dark" } else { "light" };
             log::info!("Switching color mode to: {}", mode);
-            // Update settings struct and persist
-            let mut app_settings =
-                AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
-            if let Some(ref mut appearance) = app_settings.appearance {
-                appearance.editor_mode = Some(mode.to_string());
-            } else {
-                app_settings.appearance = Some(crate::logic::swanson::AppearanceSettings {
-                    editor_mode: Some(mode.to_string()),
-                    ..Default::default()
-                });
+            
+            // Use ThemeManager to update settings instead of direct file operations
+            {
+                let mut theme_mgr = theme_manager_clone.borrow_mut();
+                theme_mgr.set_color_mode(mode, &settings_path);
             }
-            app_settings
-                .save_to_file(settings_path.to_str().unwrap())
-                .ok();
+            
             // Call editor theme change callback if provided
             if let Some(ref callback) = on_editor_theme_changed {
                 let scheme_id = if idx == 1 {

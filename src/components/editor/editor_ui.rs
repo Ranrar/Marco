@@ -19,7 +19,7 @@ pub fn create_editor_with_preview_and_buffer(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     theme_mode: Rc<RefCell<String>>,
     labels: Rc<FooterLabels>,
-    settings_path: &str,
+    _settings_path: &str,
     document_buffer: Option<Rc<RefCell<crate::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     // Implementation largely copied from previous editor.rs but using helper modules
@@ -45,22 +45,20 @@ pub fn create_editor_with_preview_and_buffer(
     let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
         let tm = theme_manager.borrow();
         let style_scheme = tm.current_editor_scheme();
-        let font_family = tm
-            .settings
+        let settings = tm.get_settings();
+        let font_family = settings
             .appearance
             .as_ref()
             .and_then(|a| a.ui_font.as_deref())
             .unwrap_or("Fira Mono")
             .to_string();
-        let font_size_pt = tm
-            .settings
+        let font_size_pt = settings
             .appearance
             .as_ref()
             .and_then(|a| a.ui_font_size)
             .map(|v| v as f64)
             .unwrap_or(10.0);
-        let show_line_numbers = tm
-            .settings
+        let show_line_numbers = settings
             .layout
             .as_ref()
             .and_then(|l| l.show_line_numbers)
@@ -124,24 +122,77 @@ pub fn create_editor_with_preview_and_buffer(
     // Register this editor with the global editor manager to receive settings updates
     {
         let source_view_for_callback = source_view.clone();
-        let settings_path_owned = settings_path.to_string();
         if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
             move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
-                use crate::components::editor::font_config::EditorConfiguration;
                 
                 log::debug!("Applying editor settings update to SourceView: {} {}px", 
                     new_settings.font_family, new_settings.font_size);
                 
-                // Create an EditorConfiguration instance to apply the settings
-                match EditorConfiguration::new(&settings_path_owned) {
-                    Ok(editor_config) => {
-                        editor_config.apply_to_sourceview(&source_view_for_callback, new_settings);
-                        log::debug!("Successfully applied editor settings to SourceView");
-                    },
-                    Err(e) => {
-                        log::error!("Failed to create EditorConfiguration: {}", e);
-                    }
+                // Apply settings directly to avoid RefCell borrow conflicts
+                // This is the same logic as EditorConfiguration::apply_to_sourceview but without the manager
+                
+                // Apply font and line height using CSS
+                let css = format!(
+                    r#"
+                    textview {{
+                        font-family: "{}";
+                        font-size: {}px;
+                        line-height: {};
+                    }}
+                    textview text {{
+                        font-family: "{}";
+                        font-size: {}px;
+                        line-height: {};
+                    }}
+                    "#,
+                    new_settings.font_family, new_settings.font_size, new_settings.line_height,
+                    new_settings.font_family, new_settings.font_size, new_settings.line_height
+                );
+                
+                let css_provider = gtk4::CssProvider::new();
+                css_provider.load_from_data(&css);
+                source_view_for_callback.style_context().add_provider(
+                    &css_provider, 
+                    gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION
+                );
+                
+                // Apply line wrapping
+                let wrap_mode = if new_settings.line_wrapping {
+                    gtk4::WrapMode::Word
+                } else {
+                    gtk4::WrapMode::None
+                };
+                source_view_for_callback.set_wrap_mode(wrap_mode);
+                
+                // Apply tabs to spaces setting
+                source_view_for_callback.set_insert_spaces_instead_of_tabs(new_settings.tabs_to_spaces);
+                
+                // Apply line numbers setting
+                source_view_for_callback.set_show_line_numbers(new_settings.show_line_numbers);
+                
+                // Apply show invisibles setting (whitespace visibility)
+                let space_drawer = source_view_for_callback.space_drawer();
+                if new_settings.show_invisibles {
+                    space_drawer.set_types_for_locations(
+                        sourceview5::SpaceLocationFlags::ALL,
+                        sourceview5::SpaceTypeFlags::SPACE | sourceview5::SpaceTypeFlags::TAB | sourceview5::SpaceTypeFlags::NEWLINE,
+                    );
+                    space_drawer.set_enable_matrix(true);
+                } else {
+                    space_drawer.set_types_for_locations(
+                        sourceview5::SpaceLocationFlags::ALL,
+                        sourceview5::SpaceTypeFlags::NONE,
+                    );
+                    space_drawer.set_enable_matrix(false);
                 }
+                
+                // Apply syntax highlighting setting
+                if let Ok(buffer) = source_view_for_callback.buffer().downcast::<sourceview5::Buffer>() {
+                    buffer.set_highlight_syntax(new_settings.syntax_colors);
+                }
+                
+                log::debug!("Successfully applied editor settings to SourceView: {} {}px", 
+                    new_settings.font_family, new_settings.font_size);
             }
         ) {
             log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);

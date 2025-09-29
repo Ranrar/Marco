@@ -1,8 +1,10 @@
 use crate::components::editor::font_config::{EditorConfiguration, EditorDisplaySettings};
 use crate::components::editor::scroll_sync::ScrollSynchronizer;
+use crate::logic::swanson::SettingsManager;
 use log::debug;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::Arc;
 
 /// A unique identifier for editor instances
 pub type EditorId = u64;
@@ -28,8 +30,8 @@ pub struct EditorManager {
 
 impl EditorManager {
     /// Create a new editor manager
-    pub fn new(settings_path: &str) -> anyhow::Result<Self> {
-        let editor_config = EditorConfiguration::new(settings_path)?;
+    pub fn new(settings_manager: Arc<SettingsManager>) -> anyhow::Result<Self> {
+        let editor_config = EditorConfiguration::new(settings_manager)?;
         Ok(Self {
             editor_callbacks: Rc::new(std::cell::RefCell::new(HashMap::new())),
             line_numbers_callbacks: Rc::new(std::cell::RefCell::new(HashMap::new())),
@@ -169,8 +171,8 @@ thread_local! {
 }
 
 /// Initialize the global editor manager and apply startup settings
-pub fn init_editor_manager(settings_path: &str) -> anyhow::Result<()> {
-    let manager = EditorManager::new(settings_path)?;
+pub fn init_editor_manager(settings_manager: Arc<SettingsManager>) -> anyhow::Result<()> {
+    let manager = EditorManager::new(settings_manager.clone())?;
 
     // Log the startup editor settings for debugging
     let startup_settings = manager.get_current_editor_settings();
@@ -181,6 +183,16 @@ pub fn init_editor_manager(settings_path: &str) -> anyhow::Result<()> {
         startup_settings.line_height,
         startup_settings.line_wrapping
     );
+
+    // Apply initial sync_scrolling setting from settings file
+    let initial_sync_scrolling = settings_manager.get_settings()
+        .layout
+        .as_ref()
+        .and_then(|l| l.sync_scrolling)
+        .unwrap_or(true); // Default to true if not set
+    
+    manager.set_scroll_sync_enabled(initial_sync_scrolling);
+    debug!("Applied initial sync scrolling setting: {}", initial_sync_scrolling);
 
     EDITOR_MANAGER.with(|em| {
         *em.borrow_mut() = Some(Rc::new(std::cell::RefCell::new(manager)));
@@ -301,6 +313,8 @@ pub fn update_line_numbers_globally(show_line_numbers: bool) -> anyhow::Result<(
     }
 }
 
+
+
 /// Set scroll synchronization enabled/disabled globally
 pub fn set_scroll_sync_enabled_globally(enabled: bool) -> anyhow::Result<()> {
     if let Some(manager) = get_editor_manager() {
@@ -325,11 +339,15 @@ mod tests {
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let settings_path = temp_dir.path().join("test_settings.ron");
         
+        // Create a SettingsManager for testing
+        let settings_manager = SettingsManager::initialize(settings_path)
+            .expect("Failed to create test SettingsManager");
+        
         // Ensure manager is not initialized initially
         assert!(get_editor_manager().is_none(), "Manager should not be initialized initially");
         
         // Initialize manager
-        init_editor_manager(settings_path.to_str().unwrap())
+        init_editor_manager(settings_manager)
             .expect("Failed to initialize editor manager");
         
         // Verify manager is initialized and accessible
@@ -362,8 +380,12 @@ mod tests {
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let settings_path = temp_dir.path().join("test_settings.ron");
         
+        // Create a SettingsManager for testing
+        let settings_manager = SettingsManager::initialize(settings_path)
+            .expect("Failed to create test SettingsManager");
+        
         // Initialize manager
-        init_editor_manager(settings_path.to_str().unwrap())
+        init_editor_manager(settings_manager)
             .expect("Failed to initialize editor manager");
         
         // Register callback to track how many times it's called

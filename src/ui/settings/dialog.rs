@@ -143,27 +143,34 @@ fn create_dialog_impl(
     // the caller via the `callbacks` struct.
     let settings_path_clone = settings_path.clone();
     // Read saved view mode so the layout tab can initialize its dropdown.
-    use crate::logic::swanson::Settings as AppSettings;
-    let saved_view_mode: Option<String> =
-        AppSettings::load_from_file(settings_path_clone.to_str().unwrap())
-            .unwrap_or_default()
-            .layout
-            .and_then(|l| l.view_mode);
+    use crate::logic::swanson::SettingsManager;
+    let saved_view_mode: Option<String> = {
+        if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
+            settings_manager.get_settings()
+                .layout
+                .and_then(|l| l.view_mode)
+        } else {
+            None
+        }
+    };
     // Move the optional outer callback into the closure so we don't require Clone
     let outer_on_view = callbacks.on_view_mode_changed;
     let layout_cb = std::boxed::Box::new(move |selected: String| {
-        use crate::logic::swanson::{LayoutSettings, Settings as AppSettings};
-        let mut app_settings =
-            AppSettings::load_from_file(settings_path_clone.to_str().unwrap()).unwrap_or_default();
-        if app_settings.layout.is_none() {
-            app_settings.layout = Some(LayoutSettings::default());
+        use crate::logic::swanson::{LayoutSettings, SettingsManager};
+        if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
+            if let Err(e) = settings_manager.update_settings(|settings| {
+                if settings.layout.is_none() {
+                    settings.layout = Some(LayoutSettings::default());
+                }
+                if let Some(ref mut layout) = settings.layout {
+                    layout.view_mode = Some(selected.clone());
+                }
+            }) {
+                eprintln!("Failed to update view mode setting: {}", e);
+            }
+        } else {
+            eprintln!("Failed to initialize settings manager for view mode update");
         }
-        if let Some(ref mut layout) = app_settings.layout {
-            layout.view_mode = Some(selected.clone());
-        }
-        app_settings
-            .save_to_file(settings_path_clone.to_str().unwrap())
-            .ok();
         // If the caller wanted a direct String callback, call it with the
         // selected value.
         if let Some(ref cb) = outer_on_view {
@@ -226,16 +233,19 @@ fn create_dialog_impl(
 
     // Optionally show Debug tab when `debug` is enabled in settings.ron
     {
-        use crate::logic::swanson::Settings as AppSettings;
-        let app_settings =
-            AppSettings::load_from_file(settings_path.to_str().unwrap()).unwrap_or_default();
-        if app_settings.debug.unwrap_or(false) {
-            // Pass settings path as string to debug tab builder so it can save changes
-            let settings_path_str = settings_path.to_string_lossy().to_string();
-            notebook.append_page(
-                &tabs::debug::build_debug_tab(&settings_path_str),
-                Some(&Label::new(Some("Debug"))),
-            );
+        use crate::logic::swanson::SettingsManager;
+        if let Ok(settings_manager) = SettingsManager::initialize(settings_path.clone()) {
+            let app_settings = settings_manager.get_settings();
+            if app_settings.debug.unwrap_or(false) {
+                // Pass settings path as string to debug tab builder so it can save changes
+                let settings_path_str = settings_path.to_string_lossy().to_string();
+                notebook.append_page(
+                    &tabs::debug::build_debug_tab(&settings_path_str),
+                    Some(&Label::new(Some("Debug"))),
+                );
+            }
+        } else {
+            eprintln!("Failed to initialize settings manager for debug tab visibility check");
         }
     }
 

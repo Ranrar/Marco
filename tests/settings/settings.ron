@@ -1,0 +1,55 @@
+(
+  editor: Some((
+    font: Some("Monospace"),
+    font_size: Some(16),
+    line_height: Some(1.0),
+    line_wrapping: Some(true),
+    auto_pairing: None,
+    show_invisibles: Some(true),
+    tabs_to_spaces: Some(false),
+    syntax_colors: Some(true),
+    linting: None,
+  )),
+  appearance: Some((
+    editor_mode: Some("marco-dark"),
+    preview_theme: Some("marco.css"),
+    ui_font: None,
+    ui_font_size: None,
+  )),
+  layout: Some((
+    view_mode: Some("HTML Preview"),
+    sync_scrolling: Some(false),
+    editor_view_split: None,
+    show_line_numbers: Some(true),
+    text_direction: None,
+  )),
+  language: None,
+  window: Some((
+    width: Some(1374),
+    height: Some(1055),
+    x: None,
+    y: None,
+    maximized: Some(false),
+    split_ratio: Some(40),
+  )),
+  files: Some((
+    recent_files: Some([
+      /*[0]*/ "/home/ranrar/Code/projects/marco2/README.md",
+      /*[1]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/01_basic_markdown.md",
+      /*[2]*/ "/home/ranrar/Code/projects/marco2/documentation/user guide/user_guide.md",
+    ]),
+    max_recent_files: None,
+  )),
+  debug: Some(true),
+  log_to_file: Some(true),
+  active_schema: None,
+  schema_disabled: None,
+  engine: Some((
+    render: Some((
+      html: Some((
+        generate_toc: None,
+        include_metadata: None,
+      )),
+    )),
+  )),
+)

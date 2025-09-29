@@ -1,10 +1,20 @@
 //! Markdown-specific settings tab
-use crate::logic::swanson::Settings as AppSettings;
 use gtk4::prelude::*;
 use gtk4::{Align, Box as GtkBox, Label, Orientation, Switch};
 
 /// Builds the Markdown tab UI for markdown-specific engine settings
 pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
+    // Initialize SettingsManager for this tab
+    let settings_manager = match crate::logic::swanson::SettingsManager::initialize(
+        std::path::PathBuf::from(settings_path)
+    ) {
+        Ok(sm) => sm,
+        Err(_) => {
+            log::warn!("Failed to initialize SettingsManager in markdown tab, using defaults");
+            return GtkBox::new(Orientation::Vertical, 0);
+        }
+    };
+
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("settings-tab-markdown");
     container.set_margin_top(24);
@@ -12,10 +22,9 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     container.set_margin_start(32);
     container.set_margin_end(32);
 
-    // Load current engine settings
+    // Load current engine settings using SettingsManager
     let load_settings = || {
-        AppSettings::load_from_file(settings_path)
-            .unwrap_or_default()
+        settings_manager.get_settings()
             .engine
             .unwrap_or_default()
     };
@@ -38,28 +47,28 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     toc_switch.set_active(toc_enabled);
 
     {
-        let settings_path = settings_path.to_string();
+        let settings_manager_clone = settings_manager.clone();
         toc_switch.connect_state_set(move |_switch, state| {
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
-
-            if settings.engine.is_none() {
-                settings.engine = Some(crate::logic::swanson::EngineSettings::default());
-            }
-            if let Some(ref mut engine) = settings.engine {
-                if engine.render.is_none() {
-                    engine.render = Some(crate::logic::swanson::EngineRenderSettings::default());
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.engine.is_none() {
+                    settings.engine = Some(crate::logic::swanson::EngineSettings::default());
                 }
-                if let Some(ref mut render) = engine.render {
-                    if render.html.is_none() {
-                        render.html = Some(crate::logic::swanson::EngineHtmlSettings::default());
+                if let Some(ref mut engine) = settings.engine {
+                    if engine.render.is_none() {
+                        engine.render = Some(crate::logic::swanson::EngineRenderSettings::default());
                     }
-                    if let Some(ref mut html) = render.html {
-                        html.generate_toc = Some(state);
+                    if let Some(ref mut render) = engine.render {
+                        if render.html.is_none() {
+                            render.html = Some(crate::logic::swanson::EngineHtmlSettings::default());
+                        }
+                        if let Some(ref mut html) = render.html {
+                            html.generate_toc = Some(state);
+                        }
                     }
                 }
+            }) {
+                log::error!("Failed to update TOC setting: {}", e);
             }
-
-            let _ = settings.save_to_file(&settings_path);
             glib::Propagation::Proceed
         });
     }
@@ -104,28 +113,29 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     metadata_switch.set_active(metadata_enabled);
 
     {
-        let settings_path = settings_path.to_string();
+        let settings_manager_clone2 = settings_manager.clone();
         metadata_switch.connect_state_set(move |_switch, state| {
-            let mut settings = AppSettings::load_from_file(&settings_path).unwrap_or_default();
+            if let Err(e) = settings_manager_clone2.update_settings(|settings| {
 
-            if settings.engine.is_none() {
-                settings.engine = Some(crate::logic::swanson::EngineSettings::default());
-            }
-            if let Some(ref mut engine) = settings.engine {
-                if engine.render.is_none() {
-                    engine.render = Some(crate::logic::swanson::EngineRenderSettings::default());
+                if settings.engine.is_none() {
+                    settings.engine = Some(crate::logic::swanson::EngineSettings::default());
                 }
-                if let Some(ref mut render) = engine.render {
-                    if render.html.is_none() {
-                        render.html = Some(crate::logic::swanson::EngineHtmlSettings::default());
+                if let Some(ref mut engine) = settings.engine {
+                    if engine.render.is_none() {
+                        engine.render = Some(crate::logic::swanson::EngineRenderSettings::default());
                     }
-                    if let Some(ref mut html) = render.html {
-                        html.include_metadata = Some(state);
+                    if let Some(ref mut render) = engine.render {
+                        if render.html.is_none() {
+                            render.html = Some(crate::logic::swanson::EngineHtmlSettings::default());
+                        }
+                        if let Some(ref mut html) = render.html {
+                            html.include_metadata = Some(state);
+                        }
                     }
                 }
+            }) {
+                log::error!("Failed to update metadata setting: {}", e);
             }
-
-            let _ = settings.save_to_file(&settings_path);
             glib::Propagation::Proceed
         });
     }
