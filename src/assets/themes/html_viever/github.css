@@ -247,6 +247,16 @@ pre:before {
     opacity: 0.8;
 }
 
+/* Language-specific labels for code blocks using data attribute */
+pre[data-language]:before { 
+    content: attr(data-language); 
+}
+
+/* Fallback for code blocks without data-language attribute */
+pre:not([data-language]):before { 
+    content: "Code"; 
+}
+
 pre code {
     display: block;
     padding: 16px;

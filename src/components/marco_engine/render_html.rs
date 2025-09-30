@@ -52,6 +52,45 @@ impl HtmlRenderer {
         }
     }
 
+    /// Format a language identifier into a human-readable display name
+    /// Examples: "rust" -> "Rust", "javascript" -> "JavaScript", "cpp" -> "C++"
+    fn format_language_name(lang: &str) -> String {
+        match lang.to_lowercase().as_str() {
+            "rust" => "Rust".to_string(),
+            "python" => "Python".to_string(),
+            "javascript" | "js" => "JavaScript".to_string(),
+            "typescript" | "ts" => "TypeScript".to_string(),
+            "html" => "HTML".to_string(),
+            "css" => "CSS".to_string(),
+            "json" => "JSON".to_string(),
+            "xml" => "XML".to_string(),
+            "yaml" | "yml" => "YAML".to_string(),
+            "toml" => "TOML".to_string(),
+            "bash" | "sh" => "Bash".to_string(),
+            "c" => "C".to_string(),
+            "cpp" | "c++" | "cxx" => "C++".to_string(),
+            "java" => "Java".to_string(),
+            "go" => "Go".to_string(),
+            "php" => "PHP".to_string(),
+            "ruby" => "Ruby".to_string(),
+            "sql" => "SQL".to_string(),
+            "markdown" | "md" => "Markdown".to_string(),
+            "shell" => "Shell".to_string(),
+            "powershell" | "ps1" => "PowerShell".to_string(),
+            "dockerfile" => "Dockerfile".to_string(),
+            "makefile" => "Makefile".to_string(),
+            "cmake" => "CMake".to_string(),
+            // For unknown languages, capitalize first letter
+            _ => {
+                let mut chars = lang.chars();
+                match chars.next() {
+                    None => String::new(),
+                    Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+                }
+            }
+        }
+    }
+
     pub fn render(mut self, ast: &Node) -> String {
         self.render_node(ast);
         self.output
@@ -140,6 +179,17 @@ impl HtmlRenderer {
                     }
                 }
 
+                // Add data-language attribute with formatted language name
+                if let Some(lang) = language {
+                    let formatted_name = Self::format_language_name(lang);
+                    write!(
+                        self.output,
+                        " data-language=\"{}\"",
+                        self.escape_html(&formatted_name)
+                    )
+                    .unwrap();
+                }
+
                 write!(self.output, "><code").unwrap();
 
                 if let Some(lang) = language {
@@ -192,16 +242,27 @@ impl HtmlRenderer {
                 .unwrap();
 
                 if let Some(lang) = language {
-                    write!(self.output, " data-language=\"{}\"", self.escape_html(lang)).unwrap();
+                    let formatted_name = Self::format_language_name(lang);
+                    write!(
+                        self.output,
+                        " data-language=\"{}\"",
+                        self.escape_html(&formatted_name)
+                    )
+                    .unwrap();
                 }
 
                 write!(self.output, ">").unwrap();
 
                 // Add header with language info
+                let display_name = if let Some(lang) = language {
+                    Self::format_language_name(lang)
+                } else {
+                    "Code".to_string()
+                };
                 write!(
                     self.output,
                     "<div class=\"code-header\">{}</div>",
-                    self.escape_html(language.as_ref().unwrap_or(&"code".to_string()))
+                    self.escape_html(&display_name)
                 )
                 .unwrap();
 

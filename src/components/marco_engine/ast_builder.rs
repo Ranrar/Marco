@@ -60,13 +60,21 @@ impl AstBuilder {
         for pair in pairs {
             match pair.as_rule() {
                 Rule::document => {
-                    // Extract children from the document rule
+                    // Extract children from the document rule, filtering out NEWLINE tokens
                     for inner_pair in pair.into_inner() {
+                        // Skip NEWLINE tokens as they're only needed for parsing structure
+                        if inner_pair.as_rule() == Rule::NEWLINE {
+                            continue;
+                        }
                         let child = builder
                             .build_node(inner_pair)
                             .map_err(|e| format!("{:?}", e))?;
                         document_children.push(child);
                     }
+                }
+                Rule::NEWLINE => {
+                    // Skip standalone NEWLINE tokens
+                    continue;
                 }
                 _ => {
                     // Handle single non-document rules
@@ -881,6 +889,7 @@ impl AstBuilder {
             // ===========================================
             // SILENT RULES AND HELPERS
             // ===========================================
+            
             _ => {
                 // Handle any remaining rules as unknown for error recovery
                 let content = pair.as_str().to_string();
@@ -1332,7 +1341,7 @@ impl AstBuilder {
         Ok(content_nodes)
     }
 
-    /// Extract fenced code content (helper function)
+    /// Extract fenced code content and language properly
     fn extract_fenced_code_content(
         &self,
         text: &str,
@@ -1342,16 +1351,17 @@ impl AstBuilder {
             return Ok((None, String::new()));
         }
 
-        // Extract language from first line - now supporting variable-length fences
+        // Extract language from first line - improved parsing for variable-length fences
         let first_line = lines[0];
         let language = if first_line.starts_with("```") {
-            // Find where backticks end
+            // Find where backticks end (support 3-5 backticks)
             let backtick_count = first_line.chars().take_while(|&c| c == '`').count();
             if first_line.len() > backtick_count {
                 let lang_part = first_line[backtick_count..].trim();
                 if lang_part.is_empty() {
                     None
                 } else {
+                    // Remove any trailing whitespace or newlines
                     Some(lang_part.to_string())
                 }
             } else {
@@ -1361,13 +1371,17 @@ impl AstBuilder {
             None
         };
 
-        // Extract content (everything except first and last line)
+        // Extract content properly - skip opening and closing fence lines
         let content = if lines.len() > 2 {
-            lines[1..lines.len() - 1].join("\n")
+            // Skip first line (opening fence) and last line (closing fence)
+            let content_lines = &lines[1..lines.len() - 1];
+            content_lines.join("\n")
         } else if lines.len() == 2 {
-            String::new() // Empty code block
+            // Empty code block (just opening and closing fence)
+            String::new()
         } else {
-            lines[0].to_string() // Single line (shouldn't happen with fenced blocks)
+            // Single line - shouldn't happen with proper fenced blocks, but handle gracefully
+            String::new()
         };
 
         Ok((language, content))

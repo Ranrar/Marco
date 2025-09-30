@@ -203,7 +203,7 @@ pre {
 }
 
 pre:before {
-    content: "Code";
+    content: attr(data-language, "Code");
     display: block;
     background-color: var(--pre-bg);
     color: var(--text-secondary);

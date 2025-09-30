@@ -240,7 +240,7 @@ pre {
 }
 
 pre:before {
-    content: "Code";
+    content: attr(data-language, "Code");
     display: block;
     background-color: var(--bg-pre);
     color: var(--text-secondary);
