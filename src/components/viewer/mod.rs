@@ -1,5 +1,6 @@
 pub mod html_format;
 pub mod preview;
+pub mod syntax_highlighter;
 pub mod viewmode;
 pub mod webkit6;
 pub mod webview_js;

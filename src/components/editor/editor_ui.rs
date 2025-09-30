@@ -315,7 +315,9 @@ pub fn create_editor_with_preview_and_buffer(
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    let html_opts = HtmlOptions::default();
+    // Create HtmlOptions with the current theme mode for syntax highlighting
+    let current_theme_mode = theme_mode_rc.borrow().clone();
+    let html_opts = HtmlOptions::with_theme_mode(&current_theme_mode);
     let html_opts_rc = std::rc::Rc::new(html_opts);
 
     // Precreate code scrolled window

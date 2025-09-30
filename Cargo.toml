@@ -66,6 +66,8 @@ emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "5.0"
 lru = "0.16.1"
+syntect = "5.2"
+syntect-assets = "0.23"
 
 # Test suite dependencies (only included when integration-tests feature is enabled)
 clap = { version = "4.5", features = ["derive"], optional = true }

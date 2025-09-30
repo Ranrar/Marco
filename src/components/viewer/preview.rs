@@ -41,14 +41,44 @@ fn generate_test_html(wheel_js: &str) -> String {
     html_with_js
 }
 
+/// Generate CSS for syntax highlighting based on current theme mode
+fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
+    use crate::components::viewer::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
+    
+    // Initialize global highlighter if needed
+    if let Err(e) = global_syntax_highlighter() {
+        log::warn!("[viewer] Failed to initialize syntax highlighter for CSS generation: {}", e);
+        return String::new();
+    }
+    
+    // Generate CSS for the current theme mode
+    match generate_css_with_global(theme_mode) {
+        Ok(css) => {
+            log::debug!("[viewer] Generated syntax highlighting CSS for theme: {}", theme_mode);
+            css
+        }
+        Err(e) => {
+            log::warn!("[viewer] Failed to generate syntax highlighting CSS: {}", e);
+            String::new()
+        }
+    }
+}
+
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
-fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
+/// Uses the current theme mode from params for syntax highlighting
+fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &HtmlOptions, theme_mode: &str) -> String {
     use crate::components::marco_engine::global_parser_cache;
 
+    // Create fresh HtmlOptions with the current theme mode for syntax highlighting
+    let html_options = HtmlOptions {
+        theme_mode: theme_mode.to_string(),
+        ..base_html_options.clone()
+    };
+
     // Use full HTML caching for optimal performance
-    match global_parser_cache().render_with_cache(text, html_options.clone()) {
+    match global_parser_cache().render_with_cache(text, html_options) {
         Ok(html) => {
-            log::debug!("[viewer] HTML rendered and cached successfully");
+            log::debug!("[viewer] HTML rendered and cached successfully with theme '{}'", theme_mode);
             log::debug!(
                 "[viewer] HTML rendered: '{}'",
                 html.chars().take(100).collect::<String>()
@@ -60,6 +90,12 @@ fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
             format!("Error rendering HTML: {}", e)
         }
     }
+}
+
+/// Parse markdown text into HTML using the Marco engine with full HTML caching
+fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
+    // Fallback for backwards compatibility - use light theme if no theme specified
+    parse_markdown_to_html_with_theme(text, html_options, "light")
 }
 
 /// Small helper to wrap markdown -> html and load into webview using the new rendering system.
@@ -149,7 +185,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                                 file_content.len()
                             );
                             let html_body =
-                                parse_markdown_to_html(&file_content, params.html_options);
+                                parse_markdown_to_html_with_theme(&file_content, params.html_options, &params.theme_mode.borrow());
                             let mut html_with_js = html_body;
                             html_with_js.push_str(params.wheel_js);
                             html_with_js
@@ -159,7 +195,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                             log::debug!(
                                 "[viewer] File exists but is empty -> parsing empty content"
                             );
-                            let html_body = parse_markdown_to_html("", params.html_options);
+                            let html_body = parse_markdown_to_html_with_theme("", params.html_options, &params.theme_mode.borrow());
                             let mut html_with_js = html_body;
                             html_with_js.push_str(params.wheel_js);
                             html_with_js
@@ -167,7 +203,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                         Err(e) => {
                             log::error!("[viewer] Failed to read from DocumentBuffer: {}", e);
                             // Fallback to parsing empty text
-                            let html_body = parse_markdown_to_html("", params.html_options);
+                            let html_body = parse_markdown_to_html_with_theme("", params.html_options, &params.theme_mode.borrow());
                             let mut html_with_js = html_body;
                             html_with_js.push_str(params.wheel_js);
                             html_with_js
@@ -186,17 +222,24 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
     } else {
         // GTK TextBuffer has content -> use it directly
         log::debug!("[viewer] GTK buffer has content -> using GTK buffer content");
-        let html_body = parse_markdown_to_html(&text, params.html_options);
+        let html_body = parse_markdown_to_html_with_theme(&text, params.html_options, &params.theme_mode.borrow());
         let mut html_with_js = html_body;
         html_with_js.push_str(params.wheel_js);
         html_with_js
     };
 
-    let html = crate::components::viewer::webkit6::wrap_html_document(
-        &html_body_with_js,
-        &params.css.borrow(),
-        &params.theme_mode.borrow(),
-    );
+    let html = {
+        // Generate syntax highlighting CSS and combine with theme CSS
+        let theme_css = params.css.borrow();
+        let syntax_css = generate_syntax_highlighting_css(&params.theme_mode.borrow());
+        let combined_css = format!("{}\n\n/* Syntax Highlighting CSS */\n{}", *theme_css, syntax_css);
+        
+        crate::components::viewer::webkit6::wrap_html_document(
+            &html_body_with_js,
+            &combined_css,
+            &params.theme_mode.borrow(),
+        )
+    };
     let html_clone = html.clone();
     // Use the provided base URI directly (already converted to string)
     let base_uri_clone = params.base_uri.map(|s| s.to_string());

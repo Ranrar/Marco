@@ -13,6 +13,7 @@ pub struct HtmlOptions {
     pub inline_styles: bool,
     pub class_prefix: String,
     pub sanitize_html: bool,
+    pub theme_mode: String, // "light" or "dark" for syntax highlighting themes
 }
 
 impl Default for HtmlOptions {
@@ -23,6 +24,17 @@ impl Default for HtmlOptions {
             inline_styles: false,
             class_prefix: "marco-".to_string(),
             sanitize_html: true,
+            theme_mode: "light".to_string(), // Default to light theme
+        }
+    }
+}
+
+impl HtmlOptions {
+    /// Create HtmlOptions with a specific theme mode
+    pub fn with_theme_mode(theme_mode: &str) -> Self {
+        Self {
+            theme_mode: theme_mode.to_string(),
+            ..Self::default()
         }
     }
 }
@@ -139,7 +151,29 @@ impl HtmlRenderer {
                     .unwrap();
                 }
                 write!(self.output, ">").unwrap();
-                write!(self.output, "{}", self.escape_html(content)).unwrap();
+
+                // Apply syntax highlighting if enabled and language is specified
+                if self.options.syntax_highlighting {
+                    if let Some(lang) = language {
+                        match self.try_syntax_highlight(content, lang) {
+                            Ok(highlighted_html) => {
+                                // Use highlighted HTML with CSS classes
+                                write!(self.output, "{}", highlighted_html).unwrap();
+                            }
+                            Err(_) => {
+                                // Fallback to escaped plain text
+                                write!(self.output, "{}", self.escape_html(content)).unwrap();
+                            }
+                        }
+                    } else {
+                        // No language specified, use plain text
+                        write!(self.output, "{}", self.escape_html(content)).unwrap();
+                    }
+                } else {
+                    // Syntax highlighting disabled, use plain text
+                    write!(self.output, "{}", self.escape_html(content)).unwrap();
+                }
+
                 write!(self.output, "</code></pre>").unwrap();
             }
 
@@ -944,5 +978,28 @@ impl HtmlRenderer {
                 self.render_node(child);
             }
         }
+    }
+
+    /// Try to apply syntax highlighting to code content
+    /// Returns highlighted HTML on success, error on failure (will fallback to plain text)
+    fn try_syntax_highlight(&self, code: &str, language: &str) -> Result<String, String> {
+        use crate::components::viewer::syntax_highlighter::{global_syntax_highlighter, SYNTAX_HIGHLIGHTER};
+
+        // Ensure global highlighter is initialized (this is fast after first call)
+        global_syntax_highlighter()
+            .map_err(|e| format!("Failed to initialize global syntax highlighter: {}", e))?;
+
+        // Use theme mode from HtmlOptions (connected to Marco's light/dark theme switching)
+        let theme_mode = &self.options.theme_mode;
+
+        // Use the global thread-local instance to avoid repeated allocations
+        SYNTAX_HIGHLIGHTER.with(|highlighter| {
+            let highlighter_ref = highlighter.borrow();
+            let syntax_highlighter = highlighter_ref.as_ref()
+                .ok_or("Global syntax highlighter not initialized")?;
+                
+            syntax_highlighter.highlight_to_html(code, language, theme_mode)
+                .map_err(|e| format!("Syntax highlighting failed: {}", e))
+        })
     }
 }
