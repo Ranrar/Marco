@@ -13,7 +13,7 @@ WHITESPACE = _{ " " | "\t" }
 
 // Matches line endings (cross-platform support)
 // Examples: "\n", "\r\n"
-NEWLINE = _{ "\r\n" | "\n" }
+NEWLINE = { "\r\n" | "\n" }
 
 // Optional indentation - any number of spaces or tabs
 // Examples: "", "  ", "\t\t", " \t "
