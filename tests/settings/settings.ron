@@ -1,7 +1,7 @@
 (
   editor: Some((
     font: Some("Monospace"),
-    font_size: Some(16),
+    font_size: Some(14),
     line_height: Some(1.0),
     line_wrapping: Some(true),
     auto_pairing: None,
@@ -34,10 +34,7 @@
   )),
   files: Some((
     recent_files: Some([
-      /*[0]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/test_syntax_highlighting.md",
-      /*[1]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/test_marco_syntax.md",
-      /*[2]*/ "/home/ranrar/Code/projects/marco2/README.md",
-      /*[3]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/01_basic_markdown.md",
+      /*[0]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/link_handling_test.md",
     ]),
     max_recent_files: None,
   )),

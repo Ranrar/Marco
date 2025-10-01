@@ -6,6 +6,15 @@
 use crate::components::marco_engine::ast_node::Node;
 use std::fmt::Write;
 
+/// Helper function to determine if a URL is external (http/https/www)
+/// Returns true for URLs that should open in the system browser
+fn is_external_url(url: &str) -> bool {
+    let url_lower = url.to_lowercase();
+    url_lower.starts_with("http://") 
+        || url_lower.starts_with("https://") 
+        || url_lower.starts_with("www.")
+}
+
 #[derive(Debug, Clone)]
 pub struct HtmlOptions {
     pub syntax_highlighting: bool,
@@ -549,9 +558,20 @@ impl HtmlRenderer {
             Node::Link {
                 text, url, title, ..
             } => {
-                write!(self.output, "<a href=\"{}\"", self.escape_html(url)).unwrap();
+                // Normalize www. URLs to http:// for proper handling
+                let normalized_url = if url.to_lowercase().starts_with("www.") {
+                    format!("http://{}", url)
+                } else {
+                    url.to_string()
+                };
+                
+                write!(self.output, "<a href=\"{}\"", self.escape_html(&normalized_url)).unwrap();
                 if let Some(title_text) = title {
                     write!(self.output, " title=\"{}\"", self.escape_html(title_text)).unwrap();
+                }
+                // Add target="_blank" for external links to trigger policy decision
+                if is_external_url(&normalized_url) {
+                    write!(self.output, " target=\"_blank\" rel=\"noopener noreferrer\"").unwrap();
                 }
                 write!(self.output, ">").unwrap();
                 for child in text {
@@ -619,9 +639,20 @@ impl HtmlRenderer {
             Node::Bookmark {
                 label, path, line, ..
             } => {
-                write!(self.output, "<a href=\"{}\"", self.escape_html(path)).unwrap();
+                // Normalize www. URLs to http:// for proper handling
+                let normalized_path = if path.to_lowercase().starts_with("www.") {
+                    format!("http://{}", path)
+                } else {
+                    path.to_string()
+                };
+                
+                write!(self.output, "<a href=\"{}\"", self.escape_html(&normalized_path)).unwrap();
                 if let Some(line_num) = line {
                     write!(self.output, " data-line=\"{}\"", line_num).unwrap();
+                }
+                // Add target="_blank" for external links
+                if is_external_url(&normalized_path) {
+                    write!(self.output, " target=\"_blank\" rel=\"noopener noreferrer\"").unwrap();
                 }
                 write!(
                     self.output,
@@ -1062,5 +1093,122 @@ impl HtmlRenderer {
             syntax_highlighter.highlight_to_html(code, language, theme_mode)
                 .map_err(|e| format!("Syntax highlighting failed: {}", e))
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_is_external_url() {
+        // External URLs should return true
+        assert!(is_external_url("http://example.com"));
+        assert!(is_external_url("https://github.com"));
+        assert!(is_external_url("HTTP://EXAMPLE.COM")); // Case insensitive
+        assert!(is_external_url("www.example.com"));
+        assert!(is_external_url("WWW.EXAMPLE.COM")); // Case insensitive
+        
+        // Internal/relative URLs should return false
+        assert!(!is_external_url("#anchor"));
+        assert!(!is_external_url("/absolute/path"));
+        assert!(!is_external_url("relative/path"));
+        assert!(!is_external_url("file:///home/user/doc.md"));
+        assert!(!is_external_url(""));
+    }
+    
+    #[test]
+    fn smoke_test_external_links_have_target_blank() {
+        let options = HtmlOptions::default();
+        let renderer = HtmlRenderer::new(options);
+        
+        // Create a simple link node with dummy span
+        let span = crate::components::marco_engine::ast_node::Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            column: 0,
+        };
+        
+        let link_node = Node::Link {
+            text: vec![Node::Text {
+                content: "Google".to_string(),
+                span: span.clone(),
+            }],
+            url: "https://google.com".to_string(),
+            title: None,
+            span,
+        };
+        
+        let html = renderer.render(&link_node);
+        
+        // External links should have target="_blank" and rel="noopener noreferrer"
+        assert!(html.contains("target=\"_blank\""), "External link should have target=_blank");
+        assert!(html.contains("rel=\"noopener noreferrer\""), "External link should have rel=noopener noreferrer");
+        assert!(html.contains("href=\"https://google.com\""), "Link should have correct href");
+    }
+    
+    #[test]
+    fn smoke_test_internal_links_no_target() {
+        let options = HtmlOptions::default();
+        let renderer = HtmlRenderer::new(options);
+        
+        // Create an anchor link node with dummy span
+        let span = crate::components::marco_engine::ast_node::Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            column: 0,
+        };
+        
+        let link_node = Node::Link {
+            text: vec![Node::Text {
+                content: "Jump".to_string(),
+                span: span.clone(),
+            }],
+            url: "#section".to_string(),
+            title: None,
+            span,
+        };
+        
+        let html = renderer.render(&link_node);
+        
+        // Internal links should NOT have target="_blank"
+        assert!(!html.contains("target=\"_blank\""), "Internal link should not have target=_blank");
+        assert!(html.contains("href=\"#section\""), "Link should have correct href");
+    }
+    
+    #[test]
+    fn smoke_test_www_links_normalized() {
+        let options = HtmlOptions::default();
+        let renderer = HtmlRenderer::new(options);
+        
+        // Create a www. link node with dummy span
+        let span = crate::components::marco_engine::ast_node::Span {
+            start: 0,
+            end: 0,
+            line: 0,
+            column: 0,
+        };
+        
+        let link_node = Node::Link {
+            text: vec![Node::Text {
+                content: "Example".to_string(),
+                span: span.clone(),
+            }],
+            url: "www.example.com".to_string(),
+            title: None,
+            span,
+        };
+        
+        let html = renderer.render(&link_node);
+        
+        // www. links should be normalized to http://www.
+        assert!(html.contains("href=\"http://www.example.com\""), 
+            "www link should be normalized to http://www., got: {}", html);
+        assert!(html.contains("target=\"_blank\""), 
+            "www link should have target=_blank");
+        assert!(html.contains("rel=\"noopener noreferrer\""), 
+            "www link should have rel=noopener noreferrer");
     }
 }

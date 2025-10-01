@@ -87,6 +87,10 @@ pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>) -> WebVi
         // Stop the idle source after one run
         glib::ControlFlow::Break
     });
+    
+    // Setup link handling for external/internal links
+    setup_link_handling(&webview);
+    
     webview.set_vexpand(true);
     webview.set_hexpand(true);
     webview
@@ -478,6 +482,9 @@ pub fn create_html_source_viewer_webview(
         glib::ControlFlow::Break
     });
     
+    // Setup link handling for external/internal links
+    setup_link_handling(&webview);
+    
     webview.set_vexpand(true);
     webview.set_hexpand(true);
     
@@ -631,3 +638,162 @@ pub fn update_code_view_smooth(
 
 // Import SYNTAX_HIGHLIGHTER for use in create_html_source_viewer_webview
 use crate::components::viewer::syntax_highlighter::SYNTAX_HIGHLIGHTER;
+
+/// Helper function to determine if a URI is external (should open in system browser)
+/// or internal (should be handled by WebView).
+///
+/// External URIs:
+/// - http:// or https:// schemes
+/// - www. prefix (treated as http://)
+///
+/// Internal URIs:
+/// - file:// scheme (local files)
+/// - # anchor links (in-page navigation)
+/// - Relative paths
+/// - Empty or None URIs
+fn is_external_uri(uri: &str) -> bool {
+    let uri_lower = uri.to_lowercase();
+    
+    // External: HTTP/HTTPS schemes
+    if uri_lower.starts_with("http://") || uri_lower.starts_with("https://") {
+        return true;
+    }
+    
+    // External: www. prefix (treat as http)
+    if uri_lower.starts_with("www.") {
+        return true;
+    }
+    
+    // Internal: everything else (file://, #anchors, relative paths, etc.)
+    false
+}
+
+/// Open an external URI in the system's default browser.
+/// Cross-platform support for Linux and Windows.
+///
+/// # Arguments
+/// * `uri` - The URI to open (must be http://, https://, or www.)
+///
+/// # Returns
+/// * `Ok(())` if the URI was successfully launched
+/// * `Err(String)` if launching failed
+fn open_external_uri(uri: &str) -> Result<(), String> {
+    // Normalize www. prefix to http://
+    let normalized_uri = if uri.to_lowercase().starts_with("www.") {
+        format!("http://{}", uri)
+    } else {
+        uri.to_string()
+    };
+    
+    log::info!("[webkit6] Opening external URI in system browser: {}", normalized_uri);
+    
+    // Use gio's AppInfo to launch the URI with the system's default handler
+    match gio::AppInfo::launch_default_for_uri(&normalized_uri, None::<&gio::AppLaunchContext>) {
+        Ok(_) => {
+            log::debug!("[webkit6] Successfully launched external URI: {}", normalized_uri);
+            Ok(())
+        }
+        Err(e) => {
+            let error_msg = format!("Failed to open external URI '{}': {}", normalized_uri, e);
+            log::error!("[webkit6] {}", error_msg);
+            Err(error_msg)
+        }
+    }
+}
+
+/// Setup link handling for a WebView.
+/// Intercepts navigation decisions and opens external links in the system browser
+/// while allowing internal navigation to proceed normally.
+///
+/// This function should be called after creating a WebView to enable link handling.
+fn setup_link_handling(webview: &WebView) {
+    use webkit6::prelude::*;
+    
+    webview.connect_decide_policy(|_webview, decision, decision_type| {
+        // Handle both navigation actions and new window actions (target="_blank" links)
+        if decision_type != webkit6::PolicyDecisionType::NavigationAction 
+            && decision_type != webkit6::PolicyDecisionType::NewWindowAction {
+            return false; // Let WebKit handle other decision types
+        }
+        
+        // Try to downcast to NavigationPolicyDecision to get the URI
+        if let Ok(navigation_decision) = decision.clone().downcast::<webkit6::NavigationPolicyDecision>() {
+            // Get the navigation action to extract the request URI
+            if let Some(mut navigation_action) = navigation_decision.navigation_action() {
+                if let Some(request) = navigation_action.request() {
+                    if let Some(uri) = request.uri() {
+                        let uri_str = uri.as_str();
+                        log::debug!("[webkit6] Navigation decision for URI: {}", uri_str);
+                        
+                        // Check if this is an external link
+                        if is_external_uri(uri_str) {
+                            log::info!("[webkit6] External link detected: {}", uri_str);
+                            
+                            // Prevent WebView from loading the external URL
+                            decision.ignore();
+                            
+                            // Open in system browser
+                            if let Err(e) = open_external_uri(uri_str) {
+                                log::warn!("[webkit6] Failed to open external link: {}", e);
+                            }
+                            
+                            return true; // We handled this decision
+                        } else {
+                            log::debug!("[webkit6] Internal/local link, allowing WebView to handle: {}", uri_str);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Let WebKit handle the navigation for internal links
+        false
+    });
+    
+    log::debug!("[webkit6] Link handling setup completed for WebView: {:p}", webview);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_url_classification() {
+        // Test external URLs - should return true
+        assert!(is_external_uri("http://example.com"), "HTTP URL should be external");
+        assert!(is_external_uri("https://example.com"), "HTTPS URL should be external");
+        assert!(is_external_uri("http://example.com/path?query=value"), "HTTP URL with path should be external");
+        assert!(is_external_uri("https://example.com:8080/path"), "HTTPS URL with port should be external");
+        assert!(is_external_uri("www.example.com"), "www URL should be external");
+        assert!(is_external_uri("www.example.com/page"), "www URL with path should be external");
+        
+        // Test internal/local URLs - should return false
+        assert!(!is_external_uri("file:///home/user/document.md"), "file:// URL should be internal");
+        assert!(!is_external_uri("#section-id"), "Anchor link should be internal");
+        assert!(!is_external_uri("#"), "Empty anchor should be internal");
+        assert!(!is_external_uri("relative/path/to/file.html"), "Relative path should be internal");
+        assert!(!is_external_uri("/absolute/path/to/file.html"), "Absolute path should be internal");
+        assert!(!is_external_uri(""), "Empty string should be internal");
+        
+        // Edge cases
+        assert!(!is_external_uri("data:text/html,<h1>Hello</h1>"), "data: URL should be internal");
+        assert!(!is_external_uri("about:blank"), "about: URL should be internal");
+        assert!(is_external_uri("HTTP://EXAMPLE.COM"), "Uppercase HTTP should be external");
+        assert!(is_external_uri("WWW.EXAMPLE.COM"), "Uppercase www should be external");
+    }
+    
+    #[test]
+    fn smoke_test_open_external_uri() {
+        // Test that the function exists and has correct signature
+        // We can't actually test launching browsers in unit tests, but we can verify error handling
+        
+        // Invalid URI should return error
+        let result = open_external_uri("");
+        assert!(result.is_err(), "Empty URI should return error");
+        
+        // These would actually try to open the browser, so we skip them in automated tests
+        // In manual testing, verify:
+        // - open_external_uri("https://example.com") opens browser
+        // - open_external_uri("http://example.com") opens browser
+    }
+}
