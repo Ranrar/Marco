@@ -242,6 +242,8 @@ pub fn create_editor_with_preview_and_buffer(
     let mut initial_track = String::from("#F0F0F0");
     let editor_bg_color: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
     let editor_fg_color: Rc<RefCell<Option<String>>> = Rc::new(RefCell::new(None));
+    let scrollbar_thumb_color: Rc<RefCell<String>> = Rc::new(RefCell::new(initial_thumb.clone()));
+    let scrollbar_track_color: Rc<RefCell<String>> = Rc::new(RefCell::new(initial_track.clone()));
     let editor_dir = theme_manager.borrow().editor_theme_dir.clone();
     if editor_dir.exists() && editor_dir.is_dir() {
         if let Ok(entries) = std::fs::read_dir(&editor_dir) {
@@ -258,10 +260,12 @@ pub fn create_editor_with_preview_and_buffer(
                         let id_search = format!("id=\"{}\"", scheme_id);
                         if contents.contains(&id_search) {
                             if let Some(v) = extract_xml_color_value(&contents, "scrollbar-thumb") {
-                                initial_thumb = v;
+                                initial_thumb = v.clone();
+                                *scrollbar_thumb_color.borrow_mut() = v;
                             }
                             if let Some(v) = extract_xml_color_value(&contents, "scrollbar-track") {
-                                initial_track = v;
+                                initial_track = v.clone();
+                                *scrollbar_track_color.borrow_mut() = v;
                             }
                             if editor_bg_color.borrow().is_none() {
                                 if let Some(v) = extract_xml_color_value(&contents, "dark-bg") {
@@ -369,14 +373,28 @@ pub fn create_editor_with_preview_and_buffer(
     let fg_init_owned = editor_fg_color.borrow().clone();
     let bg_init = bg_init_owned.as_deref();
     let fg_init = fg_init_owned.as_deref();
-    let precreated_code_sw = Rc::new(
-        crate::components::viewer::webkit6::create_html_source_viewer(
-            &pretty_initial,
-            bg_init,
-            fg_init,
-            true,
-        ),
-    );
+    let thumb_init = scrollbar_thumb_color.borrow().clone();
+    let track_init = scrollbar_track_color.borrow().clone();
+    
+    // Create WebView-based code viewer with syntax highlighting
+    let current_theme_for_code = theme_mode_rc.borrow().clone();
+    let webview_code = crate::components::viewer::webkit6::create_html_source_viewer_webview(
+        &pretty_initial,
+        &current_theme_for_code,
+        None, // No base URI needed for code view
+        bg_init, // Pass editor background color
+        fg_init, // Pass editor foreground color
+        Some(&thumb_init), // Pass scrollbar thumb color
+        Some(&track_init), // Pass scrollbar track color
+    ).expect("Failed to create code viewer WebView");
+    
+    // Wrap WebView in ScrolledWindow for consistency
+    let sw = gtk4::ScrolledWindow::new();
+    sw.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+    sw.set_child(Some(&webview_code));
+    sw.add_css_class("editor-scrolled"); // Match editor scrollbar style
+    let precreated_code_sw = Rc::new(sw);
+    
     let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
         Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
 
@@ -482,8 +500,16 @@ pub fn create_editor_with_preview_and_buffer(
         let buffer_for_code = Rc::clone(&buffer_rc);
         let precreated_code_sw_for_code = precreated_code_sw.clone();
         let html_opts_for_code = Rc::clone(&html_opts_rc);
+        let theme_mode_for_code = Rc::clone(&theme_mode_rc);
+        let editor_bg_for_code = Rc::clone(&editor_bg_color);
+        let editor_fg_for_code = Rc::clone(&editor_fg_color);
+        let scrollbar_thumb_for_code = Rc::clone(&scrollbar_thumb_color);
+        let scrollbar_track_for_code = Rc::clone(&scrollbar_track_color);
+        let last_code_view_theme = Rc::new(RefCell::new(String::new()));
         
         Box::new(move || {
+            log::debug!("[editor_ui] update_html_code_view called");
+            
             let text = buffer_for_code
                 .text(
                     &buffer_for_code.start_iter(),
@@ -492,22 +518,90 @@ pub fn create_editor_with_preview_and_buffer(
                 )
                 .to_string();
 
+            log::debug!("[editor_ui] Buffer text length: {} bytes", text.len());
+
             // Generate raw HTML using Marco engine with full HTML caching
             let html_body = match crate::components::marco_engine::global_parser_cache().render_with_cache(&text, html_opts_for_code.as_ref().clone()) {
                 Ok(html) => html,
                 Err(e) => format!("<!-- Error rendering HTML: {} -->", e),
             };
 
+            log::debug!("[editor_ui] Generated HTML length: {} bytes", html_body.len());
+
             // Format the HTML for better readability in code view
             let formatted_html = crate::components::viewer::html_format::pretty_print_html(&html_body);
             
-            // Show formatted HTML for easy reading and debugging
+            log::debug!("[editor_ui] Formatted HTML length: {} bytes", formatted_html.len());
+            
+            // Get current theme mode
+            let current_theme = theme_mode_for_code.borrow().clone();
+            
+            log::debug!("[editor_ui] Current theme: {}", current_theme);
+            
+            // Update the code view
             if let Some(sw_child) = precreated_code_sw_for_code.child() {
-                if let Ok(tv) = sw_child.downcast::<gtk4::TextView>() {
-                    let new_buf = gtk4::TextBuffer::new(None::<&gtk4::TextTagTable>);
-                    new_buf.set_text(&formatted_html);  // Pretty-formatted HTML for readability
-                    tv.set_buffer(Some(&new_buf));
+                log::debug!("[editor_ui] Code view has child widget: {:?}", sw_child.type_());
+                
+                // GTK ScrolledWindow may wrap widgets in a Viewport
+                // Try to get the actual widget (WebView or TextView)
+                let actual_widget = if sw_child.is::<gtk4::Viewport>() {
+                    log::debug!("[editor_ui] Child is Viewport, getting its child");
+                    if let Ok(viewport) = sw_child.downcast::<gtk4::Viewport>() {
+                        viewport.child()
+                    } else {
+                        None
+                    }
+                } else {
+                    Some(sw_child)
+                };
+                
+                if let Some(widget) = actual_widget {
+                    log::debug!("[editor_ui] Actual widget type: {:?}", widget.type_());
+                    
+                    // Get current theme and check if it changed
+                    let theme_changed = *last_code_view_theme.borrow() != current_theme;
+                    if theme_changed {
+                        log::debug!("[editor_ui] Theme changed: {} -> {}", 
+                            last_code_view_theme.borrow(), current_theme);
+                        *last_code_view_theme.borrow_mut() = current_theme.clone();
+                    }
+                    
+                    // Update WebView with smooth transition
+                    if widget.is::<webkit6::WebView>() {
+                        log::debug!("[editor_ui] Widget is WebView, updating with smooth transition");
+                        
+                        if let Ok(webview) = widget.downcast::<webkit6::WebView>() {
+                            // Get editor colors
+                            let bg_owned = editor_bg_for_code.borrow().clone();
+                            let fg_owned = editor_fg_for_code.borrow().clone();
+                            let bg = bg_owned.as_deref();
+                            let fg = fg_owned.as_deref();
+                            
+                            // Get scrollbar colors
+                            let thumb = scrollbar_thumb_for_code.borrow().clone();
+                            let track = scrollbar_track_for_code.borrow().clone();
+                            
+                            // Use smooth update to avoid flickering
+                            if let Err(e) = crate::components::viewer::webkit6::update_code_view_smooth(
+                                &webview,
+                                &formatted_html,
+                                &current_theme,
+                                bg,
+                                fg,
+                                Some(&thumb),
+                                Some(&track),
+                            ) {
+                                log::error!("Failed to smooth update code view: {}", e);
+                            }
+                        }
+                    } else {
+                        log::warn!("[editor_ui] Code view widget is not a WebView: {:?}", widget.type_());
+                    }
+                } else {
+                    log::warn!("[editor_ui] No actual widget found in code view");
                 }
+            } else {
+                log::warn!("[editor_ui] Code view has no child widget");
             }
         }) as Box<dyn Fn()>
     };
@@ -643,10 +737,13 @@ pub fn create_editor_with_preview_and_buffer(
     let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
     let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
     let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
+    let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
+    let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
     let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
     use std::cell::Cell;
     let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
     let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
+    let update_html_code_view_for_preview = Rc::clone(&update_html_code_view_rc);
     let update_preview_theme = Box::new(move |scheme_id: &str| {
         // Re-extract editor bg/fg colors from the selected editor style scheme
         // so the Source Code viewer can match the editor theme.
@@ -677,6 +774,14 @@ pub fn create_editor_with_preview_and_buffer(
                                     extract_xml_color_value(&contents, "light-text")
                                 {
                                     *editor_fg_color_for_preview.borrow_mut() = Some(v);
+                                }
+                                
+                                // Extract scrollbar colors for code view
+                                if let Some(v) = extract_xml_color_value(&contents, "scrollbar-thumb") {
+                                    *scrollbar_thumb_for_preview.borrow_mut() = v;
+                                }
+                                if let Some(v) = extract_xml_color_value(&contents, "scrollbar-track") {
+                                    *scrollbar_track_for_preview.borrow_mut() = v;
                                 }
 
                                 // Register a small CSS provider to update the source preview
@@ -755,6 +860,7 @@ pub fn create_editor_with_preview_and_buffer(
         let wheel_clone = wheel_js_for_preview.clone();
         let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
         let document_buffer_clone = document_buffer_for_preview.as_ref().map(Rc::clone);
+        let update_code_clone = Rc::clone(&update_html_code_view_for_preview);
         let id = glib::timeout_add_local(std::time::Duration::from_millis(150), move || {
             // Extract document path from DocumentBuffer for base URI generation
             let doc_path = document_buffer_clone
@@ -777,6 +883,10 @@ pub fn create_editor_with_preview_and_buffer(
                 &theme_mode_clone,
                 doc_path.as_deref(),
             );
+            
+            // Also update code view if it exists (for theme changes)
+            (update_code_clone)();
+            
             preview_theme_timeout_clone2.set(None);
             glib::ControlFlow::Break
         });
