@@ -455,18 +455,7 @@ impl SettingsManager {
                 }
             }
         }
-        
-        // Validate recent files exist
-        if let Some(files) = &settings.files {
-            if let Some(recent_files) = &files.recent_files {
-                for (i, path) in recent_files.iter().enumerate() {
-                    if !path.exists() {
-                        errors.push(format!("Recent file {} does not exist: {:?}", i, path));
-                    }
-                }
-            }
-        }
-        
+                
         if errors.is_empty() {
             Ok(())
         } else {

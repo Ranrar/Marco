@@ -241,6 +241,8 @@ pub fn build_layout_tab(
             debug!("Calling live split ratio update: {}%", new_ratio);
             callback(new_ratio);
         });
+    } else {
+        debug!("No callback provided for split ratio changes");
     }
 
     split_hbox.append(&split_header);

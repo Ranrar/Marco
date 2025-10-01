@@ -25,16 +25,18 @@
   )),
   language: None,
   window: Some((
-    width: Some(1784),
-    height: Some(1154),
+    width: Some(1767),
+    height: Some(1113),
     x: None,
     y: None,
     maximized: Some(false),
-    split_ratio: Some(40),
+    split_ratio: Some(48),
   )),
   files: Some((
     recent_files: Some([
-      /*[0]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/link_handling_test.md",
+      /*[0]*/ "/home/ranrar/Code/projects/marco2/README.md",
+      /*[1]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/01_basic_markdown.md",
+      /*[2]*/ "/home/ranrar/Code/projects/marco2/tests/markdown_showcase/link_handling_test.md",
     ]),
     max_recent_files: None,
   )),

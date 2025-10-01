@@ -1,8 +1,3 @@
-/// Sets the height of the menu widget (Box or similar)
-pub fn set_menu_height(menu_box: &gtk4::Box, height: i32) {
-    menu_box.set_height_request(height);
-}
-// Helper to convert LayoutState to a human-readable string
 use crate::logic::layoutstate::{layout_state_label, LayoutState};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
@@ -76,16 +71,14 @@ pub fn create_custom_titlebar(
     use crate::logic::paths::get_asset_dir_checked;
     let asset_dir = get_asset_dir_checked();
 
+    // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
-    let titlebar = GtkBox::new(Orientation::Horizontal, 0);
-    titlebar.add_css_class("titlebar");
-    titlebar.set_spacing(0);
-    titlebar.set_margin_top(0);
-    titlebar.set_margin_bottom(0);
-    titlebar.set_margin_start(0);
-    titlebar.set_margin_end(0);
-    set_menu_height(&titlebar, 0); // Minimum height, matches footer
-
+    
+    // Use GTK4 HeaderBar for proper title centering
+    let headerbar = gtk4::HeaderBar::new();
+    headerbar.add_css_class("titlebar");
+    headerbar.set_show_title_buttons(false); // We'll add custom window controls
+    
     // App icon (left) - uses dynamic asset directory path
     let icon_path = asset_dir
         .unwrap_or_else(|_| std::path::PathBuf::from("src/assets"))
@@ -97,29 +90,22 @@ pub fn create_custom_titlebar(
     icon.set_margin_end(5);
     icon.set_valign(Align::Center);
     icon.set_tooltip_text(Some("Marco a markdown composer"));
-    titlebar.append(&icon);
+    headerbar.pack_start(&icon);
 
-    // --- Menu bar (next to title) ---
+    // --- Menu bar (next to icon) ---
     let (menu_bar, recent_menu) = main_menu_structure();
     menu_bar.set_valign(Align::Center);
     menu_bar.add_css_class("menubar");
-    titlebar.append(&menu_bar);
+    headerbar.pack_start(&menu_bar);
 
-    // Centered document title label
+    // Centered document title label as custom title widget
     let title_label = Label::new(None);
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
-    title_label.set_hexpand(true);
-    title_label.set_halign(Align::Center);
     // Start with placeholder
     title_label.set_text("Untitled.md");
-    // Pointer debug suppressed; enable a proper logger if needed.
-    titlebar.append(&title_label);
-
-    // Spacer (expand to push controls to right)
-    let spacer = GtkBox::new(Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
-    titlebar.append(&spacer);
+    // Set as title widget - HeaderBar will automatically center it
+    headerbar.set_title_widget(Some(&title_label));
 
     use gtk4::Image;
 
@@ -152,8 +138,8 @@ pub fn create_custom_titlebar(
 
     // Helper to (re)build the popover content based on state
     let popover = Popover::new();
-    // Attach the popover to the window to ensure it is in a toplevel container
-    popover.set_parent(window);
+    // Attach the popover to the layout button for proper positioning
+    popover.set_parent(&layout_menu_btn);
     // Remove unused duplicate clone
 
     let rebuild_popover: RebuildPopover = Rc::new(RefCell::new(None));
@@ -298,24 +284,14 @@ pub fn create_custom_titlebar(
     let popover_ref = Rc::new(popover);
     let rebuild_popover_for_btn = rebuild_popover.clone();
     let popover_for_btn = popover_ref.clone();
-    layout_menu_btn.connect_clicked(move |btn| {
+    layout_menu_btn.connect_clicked(move |_btn| {
         if let Some(ref rebuild) = *rebuild_popover_for_btn.borrow() {
             rebuild();
         }
-        // Anchor the popover to the button's allocation
-        let alloc = btn.allocation();
-        popover_for_btn.set_pointing_to(Some(&alloc));
+        // Popover is already parented to the button, so just popup
         popover_for_btn.popup();
         trace!("audit: layout menu opened");
     });
-    titlebar.append(&layout_menu_btn);
-
-    // Spacer (24px) between functional buttons and window controls
-    let spacer_between = GtkBox::new(Orientation::Horizontal, 0);
-    spacer_between.set_size_request(1, 1);
-    titlebar.append(&spacer_between);
-
-    // --- Window controls (rightmost) ---
 
     use gtk4::Label;
 
@@ -376,10 +352,14 @@ pub fn create_custom_titlebar(
     btn_max_toggle.add_css_class("topright-btn");
     btn_max_toggle.add_css_class("window-control-btn");
 
-    // Append controls
-    titlebar.append(&btn_min);
-    titlebar.append(&btn_max_toggle);
-    titlebar.append(&btn_close);
+    // Add controls to headerbar from right to left (pack_end order)
+    // Since pack_end adds from right to left, we add in reverse visual order:
+    // First add window controls (they'll be rightmost)
+    headerbar.pack_end(&btn_close);        // Rightmost
+    headerbar.pack_end(&btn_max_toggle);   // Middle
+    headerbar.pack_end(&btn_min);          // Left of window controls
+    // Then add layout button (it will be to the left of window controls)
+    headerbar.pack_end(&layout_menu_btn);  // Left of minimize button
 
     // Minimize and close actions
     let win_clone = window.clone();
@@ -434,7 +414,7 @@ pub fn create_custom_titlebar(
         }
     });
 
-    // Add the titlebar to the WindowHandle
-    handle.set_child(Some(&titlebar));
+    // Add the HeaderBar to the WindowHandle
+    handle.set_child(Some(&headerbar));
     (handle, title_label, recent_menu)
 }

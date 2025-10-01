@@ -331,6 +331,137 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     );
     split.add_css_class("split-view");
 
+    // --- Settings Thread Pool for Proper Resource Management ---
+    // Create early so it's available for split ratio saving
+    let (settings_tx, settings_rx) = std::sync::mpsc::channel::<Box<dyn FnOnce() + Send>>();
+    let settings_thread_handle = std::thread::spawn(move || {
+        // Single background thread that processes all settings operations sequentially
+        // This prevents race conditions and ensures proper resource cleanup
+        while let Ok(task) = settings_rx.recv() {
+            task();
+        }
+        log::debug!("Settings thread pool shutting down");
+    });
+
+    // Store the thread handle and sender for cleanup
+    let settings_thread_data = std::rc::Rc::new(std::cell::RefCell::new((
+        Some(settings_thread_handle),
+        settings_tx.clone(),
+    )));
+
+    // Apply saved split ratio after paned widget is mapped and sized
+    // Use map signal with multiple retry attempts via timeout
+    {
+        let settings_manager_clone = settings_manager.clone();
+        let split_for_init = split.clone();
+        let applied = Rc::new(RefCell::new(false));
+        
+        split_for_init.connect_map(move |paned| {
+            let paned_clone = paned.clone();
+            let settings_manager = settings_manager_clone.clone();
+            let applied_clone = applied.clone();
+            let attempt_counter = Rc::new(RefCell::new(0));
+            
+            // Retry with timeout until widget has allocated width
+            glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
+                if *applied_clone.borrow() {
+                    return glib::ControlFlow::Break;
+                }
+                
+                let paned_width = paned_clone.allocated_width();
+                
+                if paned_width > 0 {
+                    // Successfully got width, apply saved ratio
+                    *applied_clone.borrow_mut() = true;
+                    
+                    let settings = settings_manager.get_settings();
+                    if let Some(window_settings) = settings.window {
+                        let split_ratio = window_settings.get_split_ratio();
+                        let position = (paned_width as f64 * split_ratio as f64 / 100.0) as i32;
+                        
+                        log::info!("[SPLIT INIT] Applying saved ratio: {}% -> {}px (width: {}px)", split_ratio, position, paned_width);
+                        paned_clone.set_position(position);
+                    }
+                    return glib::ControlFlow::Break;
+                }
+                
+                let mut attempt = attempt_counter.borrow_mut();
+                *attempt += 1;
+                if *attempt >= 20 {
+                    // Give up after 1 second (20 * 50ms)
+                    log::warn!("[SPLIT INIT] Failed to get paned width after {} attempts, giving up", *attempt);
+                    *applied_clone.borrow_mut() = true;
+                    return glib::ControlFlow::Break;
+                }
+                
+                glib::ControlFlow::Continue
+            });
+        });
+    }
+
+    // Save split ratio when user finishes manually dragging the divider
+    // Track position changes and save after drag completes (no changes for 200ms)
+    {
+        let settings_manager_clone = settings_manager.clone();
+        let split_for_save = split.clone();
+        let settings_tx_clone = settings_tx.clone();
+        let last_position = Rc::new(RefCell::new(-1i32));
+        let save_timeout: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
+        
+        split_for_save.connect_notify_local(Some("position"), move |paned, _| {
+            let paned_width = paned.allocated_width();
+            if paned_width <= 0 {
+                return;
+            }
+            
+            let position = paned.position();
+            
+            // Check if position actually changed
+            if *last_position.borrow() == position {
+                return;
+            }
+            *last_position.borrow_mut() = position;
+            
+            // Cancel any pending save
+            if let Some(id) = save_timeout.borrow_mut().take() {
+                id.remove();
+            }
+            
+            // Schedule save after 200ms of no changes (drag completed)
+            let settings_manager = settings_manager_clone.clone();
+            let settings_tx = settings_tx_clone.clone();
+            let save_timeout_clone = save_timeout.clone();
+            
+            let timeout_id = glib::timeout_add_local_once(
+                std::time::Duration::from_millis(200),
+                move || {
+                    *save_timeout_clone.borrow_mut() = None;
+                    
+                    let ratio = ((position as f64 / paned_width as f64) * 100.0).round() as i32;
+                    let ratio = ratio.clamp(10, 90);
+                    
+                    let task = Box::new(move || {
+                        if let Err(e) = settings_manager.update_settings(|s| {
+                            let _ = s.update_window_settings(|ws| {
+                                ws.split_ratio = Some(ratio);
+                            });
+                        }) {
+                            log::error!("Failed to save split ratio: {}", e);
+                        } else {
+                            log::info!("[SPLIT SAVE] Drag complete: {}% ({}px / {}px)", ratio, position, paned_width);
+                        }
+                    });
+                    
+                    if let Err(e) = settings_tx.send(task) {
+                        log::error!("Failed to queue split ratio save task: {}", e);
+                    }
+                }
+            );
+            
+            *save_timeout.borrow_mut() = Some(timeout_id);
+        });
+    }
+
     // Apply saved view mode from settings at startup (if present)
     {
         let s = settings_manager.get_settings();
@@ -408,24 +539,6 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
 
     // Add main box to window
     window.set_child(Some(&main_box));
-
-    // --- Settings Thread Pool for Proper Resource Management ---
-    // Create a dedicated thread pool for settings operations to avoid orphaned threads
-    let (settings_tx, settings_rx) = std::sync::mpsc::channel::<Box<dyn FnOnce() + Send>>();
-    let settings_thread_handle = std::thread::spawn(move || {
-        // Single background thread that processes all settings operations sequentially
-        // This prevents race conditions and ensures proper resource cleanup
-        while let Ok(task) = settings_rx.recv() {
-            task();
-        }
-        log::debug!("Settings thread pool shutting down");
-    });
-
-    // Store the thread handle and sender for cleanup
-    let settings_thread_data = std::rc::Rc::new(std::cell::RefCell::new((
-        Some(settings_thread_handle),
-        settings_tx.clone(),
-    )));
 
     // --- Live HTML preview theme switching ---
     // Store refresh_preview closure for use on theme changes
@@ -565,6 +678,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     // GTK widgets have their own reference counting, but use weak ref for consistency
                     let split_paned_weak = split.downgrade();
                     move |ratio: i32| {
+                        log::debug!("[SPLIT LIVE] Callback received ratio: {}%", ratio);
                         // Check if widget is still valid before using
                         if let Some(split_paned) = split_paned_weak.upgrade() {
                             // Calculate the pixel position based on the current paned width
@@ -578,13 +692,13 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
 
                             split_paned.set_position(new_position);
                             log::debug!(
-                                "Live split ratio update: {}% -> {}px (width: {}px)",
+                                "[SPLIT LIVE] Applied ratio: {}% -> {}px (width: {}px)",
                                 ratio,
                                 new_position,
                                 paned_width
                             );
                         } else {
-                            log::debug!("Split ratio callback called after paned widget was dropped");
+                            log::debug!("[SPLIT LIVE] Split paned widget was dropped");
                         }
                     }
                 }) as Box<dyn Fn(i32) + 'static>),

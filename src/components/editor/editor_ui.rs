@@ -14,6 +14,7 @@ use sourceview5::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+
 pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
     preview_theme_dir: &str,
@@ -314,6 +315,114 @@ pub fn create_editor_with_preview_and_buffer(
         let _provider_holder: Rc<RefCell<Option<gtk4::CssProvider>>> =
             Rc::new(RefCell::new(Some(gtk_scroll_provider)));
     }
+
+    // Style the Paned separator dynamically based on scrollbar visibility
+    // When no scrollbar: 12px visible separator
+    // When scrollbar visible: 1px minimal separator (scrollbar acts as divider)
+    let paned_css_provider_holder: Rc<RefCell<Option<gtk4::CssProvider>>> =
+        Rc::new(RefCell::new(None));
+    
+    // Function to generate CSS based on scrollbar visibility
+    let generate_dynamic_paned_css = {
+        let scrollbar_thumb = Rc::clone(&scrollbar_thumb_color);
+        let scrollbar_track = Rc::clone(&scrollbar_track_color);
+        
+        move |scrollbar_visible: bool| -> String {
+            let thumb = scrollbar_thumb.borrow().clone();
+            let track = scrollbar_track.borrow().clone();
+            
+            if scrollbar_visible {
+                // Minimal 1px separator when scrollbar is visible
+                format!(
+                    r#"
+/* Paned separator: minimal (1px) when scrollbar is visible */
+paned > separator {{
+    min-width: 1px;
+    min-height: 1px;
+    background: transparent;
+    border: none;
+}}
+
+paned > separator:active {{
+    min-width: 1px;
+    background: {thumb};
+}}
+                    "#,
+                    thumb = thumb
+                )
+            } else {
+                // 12px visible separator when no scrollbar - solid track color
+                format!(
+                    r#"
+/* Paned separator: 12px solid track color when no scrollbar */
+paned > separator {{
+    min-width: 12px;
+    min-height: 12px;
+    background: {track};
+    border: none;
+}}
+                    "#,
+                    track = track
+                )
+            }
+        }
+    };
+    
+    // Apply initial CSS (assume no scrollbar initially)
+    if let Some(display) = gtk4::gdk::Display::default() {
+        let initial_css = generate_dynamic_paned_css(false);
+        let provider = gtk4::CssProvider::new();
+        provider.load_from_data(&initial_css);
+        gtk4::style_context_add_provider_for_display(
+            &display,
+            &provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+        *paned_css_provider_holder.borrow_mut() = Some(provider);
+        log::debug!("Applied initial paned separator CSS (12px, no scrollbar)");
+    }
+    
+    // Monitor scrollbar visibility and update separator CSS dynamically
+    let paned_css_holder_for_monitor = Rc::clone(&paned_css_provider_holder);
+    let editor_sw_for_monitor = editor_scrolled_window.clone();
+    let generate_css_for_monitor = generate_dynamic_paned_css.clone();
+    
+    // Track last scrollbar state to avoid redundant CSS updates
+    let last_scrollbar_state = Rc::new(RefCell::new(false));
+    
+    // Check scrollbar visibility periodically with fast polling (100ms)
+    glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+        // Get vertical adjustment to check if scrollbar is needed
+        let vadj = editor_sw_for_monitor.vadjustment();
+        let upper = vadj.upper();
+        let page_size = vadj.page_size();
+        let scrollbar_visible = upper > page_size;
+        
+        // Only update CSS if scrollbar visibility state changed
+        let mut last_state = last_scrollbar_state.borrow_mut();
+        if *last_state != scrollbar_visible {
+            *last_state = scrollbar_visible;
+            drop(last_state); // Release borrow before calling closure
+            
+            // Update CSS based on scrollbar visibility using the closure
+            if let Some(display) = gtk4::gdk::Display::default() {
+                let css = generate_css_for_monitor(scrollbar_visible);
+                
+                let provider = gtk4::CssProvider::new();
+                provider.load_from_data(&css);
+                gtk4::style_context_add_provider_for_display(
+                    &display,
+                    &provider,
+                    gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+                *paned_css_holder_for_monitor.borrow_mut() = Some(provider);
+                
+                log::debug!("Paned separator CSS updated: scrollbar_visible={}", scrollbar_visible);
+            }
+        }
+        
+        glib::ControlFlow::Continue
+    });
 
     let buffer_rc: Rc<sourceview5::Buffer> = Rc::new(buffer);
     let css_rc = Rc::new(RefCell::new(css));
@@ -739,6 +848,7 @@ pub fn create_editor_with_preview_and_buffer(
     let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
     let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
     let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
+    let editor_sw_for_preview = editor_scrolled_window.clone(); // For checking scrollbar state
     let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
     use std::cell::Cell;
     let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
@@ -783,6 +893,29 @@ pub fn create_editor_with_preview_and_buffer(
                                 if let Some(v) = extract_xml_color_value(&contents, "scrollbar-track") {
                                     *scrollbar_track_for_preview.borrow_mut() = v;
                                 }
+                                
+                                // Update webkit scrollbar CSS in the preview CSS string
+                                // This ensures the HTML preview scrollbar matches the theme
+                                let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
+                                let new_track = scrollbar_track_for_preview.borrow().clone();
+                                let new_webkit_css = webkit_scrollbar_css(&new_thumb, &new_track);
+                                
+                                // Regenerate the CSS with new webkit scrollbar styling
+                                let mut updated_css = css_rc_for_preview.borrow().clone();
+                                // Remove old webkit scrollbar CSS (everything after the last occurrence of ::-webkit-scrollbar)
+                                if let Some(pos) = updated_css.rfind("::-webkit-scrollbar") {
+                                    // Find the start of the webkit CSS block (search backwards for newline before the comment)
+                                    if let Some(start) = updated_css[..pos].rfind("\n/*") {
+                                        updated_css.truncate(start);
+                                    } else {
+                                        updated_css.truncate(pos);
+                                    }
+                                }
+                                // Append new webkit scrollbar CSS
+                                updated_css.push('\n');
+                                updated_css.push_str(&new_webkit_css);
+                                *css_rc_for_preview.borrow_mut() = updated_css;
+                                log::debug!("Updated webkit scrollbar CSS in preview CSS string");
 
                                 // Register a small CSS provider to update the source preview
                                 if let Some(display) = gtk4::gdk::Display::default() {
@@ -829,11 +962,58 @@ pub fn create_editor_with_preview_and_buffer(
                                         &provider,
                                         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
                                     );
-                                    // Also update the HTML preview CSS so the WebView's
-                                    // scrollbars (::-webkit-scrollbar) match the editor
-                                    // theme at runtime.
-                                    let webkit_css = crate::components::viewer::webview_utils::webkit_scrollbar_css(&thumb, &track);
-                                    css_rc_for_preview.borrow_mut().push_str(&webkit_css);
+                                    
+                                    log::debug!("Updated GTK scrollbar CSS for new theme: thumb={}, track={}", thumb, track);
+                                    
+                                    // Force immediate paned separator CSS update for theme change
+                                    // Check current scrollbar visibility state
+                                    let vadj = editor_sw_for_preview.vadjustment();
+                                    let upper = vadj.upper();
+                                    let page_size = vadj.page_size();
+                                    let scrollbar_visible = upper > page_size;
+                                    
+                                    let paned_css = if scrollbar_visible {
+                                        // Scrollbar visible - use 1px separator
+                                        format!(
+                                            r#"
+paned > separator {{
+    min-width: 1px;
+    min-height: 1px;
+    background: transparent;
+    border: none;
+}}
+
+paned > separator:active {{
+    min-width: 1px;
+    background: {};
+    opacity: 0.5;
+}}
+                                            "#,
+                                            thumb
+                                        )
+                                    } else {
+                                        // No scrollbar - use 12px separator
+                                        format!(
+                                            r#"
+paned > separator {{
+    min-width: 12px;
+    min-height: 12px;
+    background: {};
+    border: none;
+}}
+                                            "#,
+                                            track
+                                        )
+                                    };
+                                    
+                                    let paned_provider = gtk4::CssProvider::new();
+                                    paned_provider.load_from_data(&paned_css);
+                                    gtk4::style_context_add_provider_for_display(
+                                        &display,
+                                        &paned_provider,
+                                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                                    );
+                                    log::debug!("Updated paned separator CSS for theme change: scrollbar_visible={}", scrollbar_visible);
                                 }
                                 break;
                             }

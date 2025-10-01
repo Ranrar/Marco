@@ -5,7 +5,6 @@ use gtk4::prelude::*;
 use std::path::Path;
 use webkit6::prelude::*;
 use webkit6::WebView;
-/// TODO change open link polici to onnly allow open target when klicking
 
 /// Generate a file:// base URI from a document path for resolving relative file references.
 /// If the document has a parent directory, returns a file:// URI for that directory.

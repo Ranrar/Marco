@@ -765,18 +765,25 @@ pub fn update_recent_files_menu(recent_menu: &gio::Menu, recent_files: &[std::pa
                 break;
             } // Limit to 5 recent files
 
+            // Get just the filename (no parent directory context needed per user request)
             let filename = path
                 .file_name()
                 .and_then(|name| name.to_str())
                 .unwrap_or("Unknown");
+            
+            // GTK menus use underscores for mnemonics (keyboard shortcuts)
+            // Single underscore marks the next char as mnemonic and isn't displayed
+            // We need to escape underscores by doubling them to show the actual filename
+            let display_name = filename.replace('_', "__");
 
             let action_name = format!("app.open_recent_{}", i);
-            recent_menu.append(Some(filename), Some(&action_name));
+            recent_menu.append(Some(&display_name), Some(&action_name));
         }
 
-        // Add separator and clear option
-        recent_menu.append(None, None);
-        recent_menu.append(Some("Clear Recent Files"), Some("app.clear_recent"));
+        // Add a visible separator section before the clear option
+        let separator_section = gio::Menu::new();
+        separator_section.append(Some("Clear Recent Files"), Some("app.clear_recent"));
+        recent_menu.append_section(None, &separator_section);
     }
 
     // Recent files menu updated (debug output suppressed).
@@ -1329,5 +1336,43 @@ mod tests {
         
         // The callback should only be called once due to recursion prevention
         assert_eq!(*callback_count.lock().unwrap(), 1, "Callback should only be called once due to recursion prevention");
+    }
+
+    #[test]
+    fn smoke_test_recent_files_display_format() {
+        use std::path::PathBuf;
+        
+        // Test cases: path -> expected display format
+        // Note: GTK menus use _ for mnemonics, so we escape them by doubling
+        let test_cases = vec![
+            (
+                PathBuf::from("/home/user/documents/link_handling_test.md"),
+                "link__handling__test.md"
+            ),
+            (
+                PathBuf::from("/home/user/projects/test_file.md"),
+                "test__file.md"
+            ),
+            (
+                PathBuf::from("/tmp/README.md"),
+                "README.md"
+            ),
+        ];
+        
+        for (path, expected_display) in test_cases {
+            // Simulate the display logic from update_recent_files_menu
+            let filename = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("Unknown");
+            
+            // Escape underscores for GTK mnemonics
+            let display_name = filename.replace('_', "__");
+            
+            assert_eq!(
+                display_name, expected_display,
+                "Display format for {:?} should match", path
+            );
+        }
     }
 }
