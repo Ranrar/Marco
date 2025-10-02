@@ -113,6 +113,20 @@ pub enum Commands {
         /// Specification file to analyze (defaults to all)
         spec: Option<PathBuf>,
     },
+
+    /// Visualize parse tree using ASCII tree format
+    Visualize {
+        /// The markdown text to visualize
+        markdown: String,
+
+        /// Show only this rule (optional, defaults to full document)
+        #[arg(short, long)]
+        rule: Option<String>,
+
+        /// Maximum depth to display (optional)
+        #[arg(short, long)]
+        depth: Option<usize>,
+    },
 }
 
 impl Cli {
@@ -188,6 +202,12 @@ impl Cli {
             Commands::Interactive => self.run_interactive_mode(&runner),
 
             Commands::Stats { spec } => self.run_stats_mode(spec.as_ref()),
+
+            Commands::Visualize {
+                markdown,
+                rule,
+                depth,
+            } => self.run_visualize_mode(markdown, rule.as_deref(), *depth),
         }
     }
 
@@ -527,6 +547,122 @@ impl Cli {
         }
 
         Ok(())
+    }
+
+    /// Run visualization mode
+    fn run_visualize_mode(
+        &self,
+        markdown: &str,
+        rule_name: Option<&str>,
+        max_depth: Option<usize>,
+    ) -> Result<()> {
+        use marco::components::marco_engine::parse_text;
+
+        println!("{}", "Parse Tree Visualization".blue().bold());
+        println!();
+        println!("📝 Input: {:?}", markdown);
+        if let Some(rule) = rule_name {
+            println!("🎯 Rule filter: {}", rule);
+        }
+        if let Some(depth) = max_depth {
+            println!("📊 Max depth: {}", depth);
+        }
+        println!();
+
+        // Parse the markdown
+        let pairs = match parse_text(markdown) {
+            Ok(pairs) => pairs,
+            Err(e) => {
+                eprintln!("{} {}", "Parse error:".red().bold(), e);
+                return Err(anyhow::anyhow!("Failed to parse markdown: {}", e));
+            }
+        };
+
+        println!("{}", "Parse Tree:".green().bold());
+        println!("{}", "=".repeat(70));
+
+        #[cfg(debug_assertions)]
+        {
+            // Use pest_ascii_tree if available in dev dependencies
+            for pair in pairs {
+                self.print_parse_tree(&pair, 0, max_depth, rule_name);
+            }
+        }
+
+        #[cfg(not(debug_assertions))]
+        {
+            println!("Parse tree visualization is only available in debug builds.");
+            println!("Run with: cargo run --bin marco-test --features integration-tests");
+        }
+
+        println!("{}", "=".repeat(70));
+
+        Ok(())
+    }
+
+    /// Print parse tree with optional filtering and depth limits
+    fn print_parse_tree(
+        &self,
+        pair: &pest::iterators::Pair<marco::components::marco_engine::Rule>,
+        depth: usize,
+        max_depth: Option<usize>,
+        filter_rule: Option<&str>,
+    ) {
+        use marco::components::marco_engine::Rule;
+
+        // Check depth limit
+        if let Some(max) = max_depth {
+            if depth >= max {
+                return;
+            }
+        }
+
+        let rule_name = format!("{:?}", pair.as_rule());
+
+        // Check rule filter
+        if let Some(filter) = filter_rule {
+            if !rule_name.to_lowercase().contains(&filter.to_lowercase()) {
+                // Still recurse into children
+                for inner in pair.clone().into_inner() {
+                    self.print_parse_tree(&inner, depth, max_depth, filter_rule);
+                }
+                return;
+            }
+        }
+
+        // Format output
+        let indent = "  ".repeat(depth);
+        let text = pair.as_str();
+        let text_display = if text.len() > 50 {
+            format!("{}...", &text[..47])
+        } else {
+            text.to_string()
+        };
+
+        // Color code by rule type
+        let colored_rule = if rule_name.contains("heading") || rule_name.contains("H1") || rule_name.contains("H2") {
+            rule_name.cyan()
+        } else if rule_name.contains("code") {
+            rule_name.yellow()
+        } else if rule_name.contains("bold") || rule_name.contains("italic") {
+            rule_name.magenta()
+        } else if rule_name.contains("list") {
+            rule_name.green()
+        } else {
+            rule_name.white()
+        };
+
+        println!(
+            "{}├─ {}: {:?}",
+            indent,
+            colored_rule,
+            text_display
+        );
+
+        // Recurse into children
+        for inner in pair.clone().into_inner() {
+            self.print_parse_tree(&inner, depth + 1, max_depth, filter_rule);
+        }
     }
 }
 

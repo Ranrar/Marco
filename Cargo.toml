@@ -60,8 +60,8 @@ log = "0.4.27"
 gio = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
 tempfile = "3.21.0"
-pest = "2.8.1"
-pest_derive = "2.8.1"
+pest = "2.8.2"
+pest_derive = "2.8.2"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "5.0"
@@ -81,6 +81,7 @@ atty = { version = "0.2", optional = true }
 [dev-dependencies]
 criterion = "0.5"
 rand = "0.8"
+pest_ascii_tree = "0.1.0"  # Parse tree visualization for debugging
 
 # ========================
 # Build dependencies

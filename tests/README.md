@@ -47,6 +47,21 @@ cargo run --bin marco-test -- spec --section "Headers"
 # Debug parser issues
 echo "Header\n======" | cargo run --bin marco-parser-debug pipeline
 
+# Visualize parse tree (NEW!)
+cargo run --bin marco-test --features integration-tests -- visualize "# Heading"
+
+# Filter by rule type
+cargo run --bin marco-test --features integration-tests -- \
+    visualize "**bold** text" --rule "bold"
+
+# Limit tree depth
+cargo run --bin marco-test --features integration-tests -- \
+    visualize "complex markdown" --depth 3
+
+# Debug tab handling
+cargo run --bin marco-test --features integration-tests -- \
+    visualize $'\tindented code'
+
 # Test specific grammar rules
 echo "# Header" | cargo run --bin marco-parser-debug grammar --rule heading
 ```
