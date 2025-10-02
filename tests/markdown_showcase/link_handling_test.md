@@ -7,24 +7,24 @@ This document tests all link types defined in `marco_grammar.pest` and their exp
 ## 1. Inline Links - External (Should Open in System Browser)
 
 ### HTTP Links
-[Google Search](http://google.com) - Should open in default browser
-[Google with Path](http://google.com/search?q=rust) - Should open in default browser
+[Google Search](http://google.com) - Should open in default browser (ok)
+[Google with Path](http://google.com/search?q=rust) - Should open in default browser (ok)
 
 ### HTTPS Links
-[GitHub](https://github.com) - Should open in default browser
-[Rust Lang](https://www.rust-lang.org) - Should open in default browser
-[Docs with Port](https://example.com:8080/docs) - Should open in default browser
+[GitHub](https://github.com) - Should open in default browser (ok)
+[Rust Lang](https://www.rust-lang.org) - Should open in default browser (ok)
+[Docs with Port](https://example.com:8080/docs) - Should open in default browser (ok)
 
 ### WWW Links
-[Example Site](www.example.com) - Should open in default browser
-[WWW with Path](www.example.com/page) - Should open in default browser
+[Example Site](www.example.com) - Should open in default browser (ok)
+[WWW with Path](www.example.com/page) - Should open in default browser (ok)
 
 ### Links with Titles (External)
-[GitHub with Title](https://github.com "Visit GitHub Homepage") - Hover to see title, click opens browser
+[GitHub with Title](https://github.com "Visit GitHub Homepage") - Hover to see title, click opens browser (ok)
 
 ### Autolinks (External)
-<https://example.com> - Should open in default browser
-<http://autolink.test.com> - Should open in default browser
+<https://example.com> - Should open in default browser (ok)
+<http://autolink.test.com> - Should open in default browser (ok)
 
 ---
 

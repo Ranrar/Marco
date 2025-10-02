@@ -134,7 +134,7 @@ safe_punct = @{ !(markdown_special) ~ PUNCTUATION }
 
 // Special characters reserved for markdown syntax
 // Examples: "*", "_", "`", "#", "[", "]"
-markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "|" | "$" | "@" | "^" | "=" | "-" | "\\" }
+markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "<" | "|" | "$" | "@" | "^" | "=" | "-" | "\\" }
 
 // Mathematical symbols and operators
 // Examples: "±", "√", "∞", "≈", "π", "α"
@@ -187,6 +187,7 @@ text_no_formatting = _{
   !((" "{2, } | "\\") ~ NEWLINE) ~  // Don't match hard line breaks
   !NEWLINE ~  // Don't match soft line breaks
   !"[" ~  // Stop at potential links
+  !"<" ~  // Stop at potential autolinks
   !"=" ~  // Stop at potential highlight markers
   !(":" ~ (!(":" | WHITESPACE | NEWLINE) ~ ANY)+ ~ ":") ~  // Don't match emoji patterns
   !("~~" ~ (!"~~" ~ (!NEWLINE ~ ANY))+ ~ "~~") ~  // Don't match tilde strikethrough
@@ -195,7 +196,7 @@ text_no_formatting = _{
   !("~" ~ !"~" ~ (!"~" ~ (!WHITESPACE ~ ANY))+ ~ "~") ~  // Don't match subscript tilde patterns
   !("˅" ~ (!"˅" ~ (!WHITESPACE ~ ANY))+ ~ "˅") ~  // Don't match subscript arrow patterns
   ( // Allow spaces before formatting markers but don't include the markers themselves
-  (" " ~ !(("**" | "__" | "*" ~ !"*" | "==" | "$" | "["))) | // Regular content
+  (" " ~ !(("**" | "__" | "*" ~ !"*" | "==" | "$" | "[" | "<"))) | // Regular content
   (word | safe_punct | "\t" | math_symbol | inline_formatting_safe))
 }
 
@@ -229,7 +230,8 @@ code_start = _{ "```" | INDENT_UNIT }
 
 // HTML block start - opening tag
 // Examples: "<div", "<p", "<h1"
-html_start = _{ "<" ~ ASCII_ALPHA }
+// Note: Excludes autolinks (URLs and emails in angle brackets)
+html_start = _{ "<" ~ !(http_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN) ~ ASCII_ALPHA }
 
 // Table marker - pipe character
 // Examples: "|"
@@ -567,7 +569,8 @@ block_comment  = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
 // HTML elements - all HTML is treated as block-level content
 // Simple greedy approach: match everything from < until we find a paragraph break or EOF
 // Examples: "<em>emphasis</em>", "<a href='...'><p>nested content</p></a>", "<img src='...' />"
-block_html = { "<" ~ (!(NEWLINE ~ NEWLINE | EOI) ~ ANY)* }
+// Note: Excludes autolinks (URLs and emails in angle brackets)
+block_html = { "<" ~ !(http_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN) ~ (!(NEWLINE ~ NEWLINE | EOI) ~ ANY)* }
 
 // Main list types - unordered or ordered
 // Examples: "- item 1", "1. first item", "* bullet", "+ another bullet"

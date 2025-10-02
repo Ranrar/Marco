@@ -484,8 +484,18 @@ impl AstBuilder {
 
             // Links and images
             Rule::inline_link => {
-                let (text, url, title) = self.extract_link_parts(pair)?;
-                Ok(Node::link(text, url, title, span))
+                // Check if this is an autolink (starts with <)
+                let text = pair.as_str();
+                if text.starts_with('<') && text.ends_with('>') {
+                    // This is an autolink - strip angle brackets
+                    let url = text[1..text.len()-1].to_string();
+                    let text_nodes = vec![Node::text(url.clone(), span.clone())];
+                    Ok(Node::link(text_nodes, url, None, span))
+                } else {
+                    // Regular link [text](url)
+                    let (text, url, title) = self.extract_link_parts(pair)?;
+                    Ok(Node::link(text, url, title, span))
+                }
             }
 
             Rule::inline_image => {
@@ -494,7 +504,13 @@ impl AstBuilder {
             }
 
             Rule::autolink => {
-                let url = pair.as_str().to_string();
+                let raw = pair.as_str();
+                // Strip angle brackets: <url> -> url
+                let url = if raw.starts_with('<') && raw.ends_with('>') {
+                    raw[1..raw.len()-1].to_string()
+                } else {
+                    raw.to_string()
+                };
                 let text = vec![Node::text(url.clone(), span.clone())];
                 Ok(Node::link(text, url, None, span))
             }

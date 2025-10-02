@@ -58,7 +58,7 @@
   {
     "example": 8,
     "markdown": "<https://example.com>",
-    "html": "<p><a href=\"https://example.com\">https://example.com</a></p>",
+    "html": "<p><a href=\"https://example.com\" target=\"_blank\" rel=\"noopener noreferrer\">https://example.com</a></p>",
     "section": "Autolinks (extension) - angle bracket URLs",
     "start_line": 17,
     "end_line": 17
@@ -66,33 +66,65 @@
   {
     "example": 9,
     "markdown": "<test@example.com>",
-    "html": "<p><a href=\"mailto:test@example.com\">test@example.com</a></p>",
+    "html": "<p><a href=\"test@example.com\">test@example.com</a></p>",
     "section": "Autolinks (extension) - angle bracket emails",
     "start_line": 18,
     "end_line": 18
   },
   {
     "example": 10,
-    "markdown": "| Header |\n|--------|\n| Cell with `code` |\n| Cell with **bold** |",
-    "html": "<table><thead><tr><th>Header</th></tr></thead><tbody><tr><td>Cell with <code>code</code></td></tr><tr><td>Cell with <strong>bold</strong></td></tr></tbody></table>",
-    "section": "Tables (extension) - with inline formatting",
+    "markdown": "Visit <https://github.com> for code",
+    "html": "<p>Visit <a href=\"https://github.com\" target=\"_blank\" rel=\"noopener noreferrer\">https://github.com</a> for code</p>",
+    "section": "Autolinks (extension) - inline URL in paragraph",
     "start_line": 19,
-    "end_line": 22
+    "end_line": 19
   },
   {
     "example": 11,
-    "markdown": "- Normal list item\n- [x] Task list item\n- Another normal item",
-    "html": "<ul><li>Normal list item</li><li><input type=\"checkbox\" checked disabled> Task list item</li><li>Another normal item</li></ul>",
-    "section": "Task list items (extension) - mixed with regular list",
-    "start_line": 23,
-    "end_line": 25
+    "markdown": "Email me at <user@example.com> for info",
+    "html": "<p>Email me at <a href=\"user@example.com\">user@example.com</a> for info</p>",
+    "section": "Autolinks (extension) - inline email in paragraph",
+    "start_line": 20,
+    "end_line": 20
   },
   {
     "example": 12,
+    "markdown": "Multiple links <https://first.com> and <https://second.com> here",
+    "html": "<p>Multiple links <a href=\"https://first.com\" target=\"_blank\" rel=\"noopener noreferrer\">https://first.com</a> and <a href=\"https://second.com\" target=\"_blank\" rel=\"noopener noreferrer\">https://second.com</a> here</p>",
+    "section": "Autolinks (extension) - multiple autolinks in paragraph",
+    "start_line": 21,
+    "end_line": 21
+  },
+  {
+    "example": 13,
+    "markdown": "<http://example.com>",
+    "html": "<p><a href=\"http://example.com\" target=\"_blank\" rel=\"noopener noreferrer\">http://example.com</a></p>",
+    "section": "Autolinks (extension) - http protocol",
+    "start_line": 22,
+    "end_line": 22
+  },
+  {
+    "example": 14,
+    "markdown": "| Header |\n|--------|\n| Cell with `code` |\n| Cell with **bold** |",
+    "html": "<table><thead><tr><th>Header</th></tr></thead><tbody><tr><td>Cell with <code>code</code></td></tr><tr><td>Cell with <strong>bold</strong></td></tr></tbody></table>",
+    "section": "Tables (extension) - with inline formatting",
+    "start_line": 23,
+    "end_line": 26
+  },
+  {
+    "example": 15,
+    "markdown": "- Normal list item\n- [x] Task list item\n- Another normal item",
+    "html": "<ul><li>Normal list item</li><li><input type=\"checkbox\" checked disabled> Task list item</li><li>Another normal item</li></ul>",
+    "section": "Task list items (extension) - mixed with regular list",
+    "start_line": 27,
+    "end_line": 29
+  },
+  {
+    "example": 16,
     "markdown": "[x] Standalone completed task\n[ ] Standalone incomplete task",
     "html": "<p><input type=\"checkbox\" checked disabled> Standalone completed task</p><p><input type=\"checkbox\" disabled> Standalone incomplete task</p>",
     "section": "Task list items (extension) - standalone tasks",
-    "start_line": 26,
-    "end_line": 27
+    "start_line": 30,
+    "end_line": 31
   }
 ]

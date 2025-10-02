@@ -154,8 +154,8 @@ Negative numbers:  (ok)
 
 ### Inline Links
 
-[Basic link](https://example.com)
-[Link with title](https://example.com "Example Website")
+[Basic link](https://example.com) (ok)
+[Link with title](https://example.com "Example Website") (ok)
 [Link to local file](./test.md)
 [Link to absolute path](/home/user/file.txt)
 [Windows path](C:\Windows\System32\file.txt)
@@ -164,8 +164,8 @@ Negative numbers:  (ok)
 
 ### Autolinks
 
-<https://example.com>
-<http://example.com>
+<https://example.com> (ok)
+<http://example.com> (ok)
 <mailto:user@example.com>
 <user@domain.com>
 
