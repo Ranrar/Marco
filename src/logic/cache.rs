@@ -159,6 +159,7 @@ impl SimpleFileCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use tempfile::{tempdir, NamedTempFile};
     use std::io::Write;
     
@@ -205,6 +206,7 @@ mod tests {
     }
     
     #[test]
+    #[serial(file_cache)]
     fn smoke_test_global_cache_cleanup() {
         // Test global cache access
         let cache = global_cache();

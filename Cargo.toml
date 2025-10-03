@@ -46,42 +46,43 @@ required-features = ["integration-tests"]
 # Dependencies
 # ========================
 [dependencies]
-ron = "0.8"
+ron = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 dark-light = "2.0.0"
-regex = "1.10"
-gtk4 = "0.10.0"
+regex = "1.11"
+gtk4 = "0.10.1"
 glib = "0.21"
 sourceview5 = "0.10.0"
 webkit6 = "0.5.0"
 serde_json = "1.0"
 anyhow = "1.0"
-log = "0.4.27"
+log = "0.4.28"
 gio = "0.21"
 chrono = { version = "0.4", features = ["serde"] }
-tempfile = "3.21.0"
-pest = "2.8.2"
-pest_derive = "2.8.2"
+tempfile = "3.23.0"
+pest = "2.8.3"
+pest_derive = "2.8.3"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
-dirs = "5.0"
+dirs = "6.0"
 lru = "0.16.1"
-syntect = "5.2"
+syntect = "5.3"
 syntect-assets = "0.23"
 
 # Test suite dependencies (only included when integration-tests feature is enabled)
 clap = { version = "4.5", features = ["derive"], optional = true }
 similar = { version = "2.7", features = ["inline", "unicode"], optional = true }
-colored = { version = "2.1", optional = true }
+colored = { version = "3.0", optional = true }
 atty = { version = "0.2", optional = true }
 
 # ========================
 # Dev/Test-only dependencies
 # ========================
 [dev-dependencies]
-criterion = "0.5"
-rand = "0.8"
+criterion = "0.7"
+rand = "0.9"
 pest_ascii_tree = "0.1.0"  # Parse tree visualization for debugging
+serial_test = "3.2"  # Serialize test execution to prevent race conditions
 
 # ========================
 # Build dependencies

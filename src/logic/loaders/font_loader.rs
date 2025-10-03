@@ -270,10 +270,12 @@ impl Default for FontLoader {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     use std::time::Duration;
 
     /// Smoke test to verify font cache invalidation works without errors
     #[test]
+    #[serial(font_cache)]
     fn smoke_test_font_cache_invalidation() {
         // Clear any existing cache
         FontLoader::clear_monospace_cache();
@@ -295,6 +297,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(font_cache)]
     fn test_cache_refresh() {
         // Clear cache first
         FontLoader::clear_monospace_cache();
@@ -320,6 +323,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(font_cache)]
     fn test_cache_clear() {
         // Initialize cache first
         let _ = FontLoader::init_monospace_cache();
@@ -340,6 +344,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(font_cache)]
     fn test_fallback_fonts() {
         // Get fallback fonts
         let fallback_fonts = FontLoader::fallback_monospace_fonts();
@@ -358,6 +363,7 @@ mod tests {
 
     /// Test cache expiration behavior (uses shorter timeout for testing)
     #[test]
+    #[serial(font_cache)]
     fn test_cache_expiration_behavior() {
         // This is a conceptual test - in reality, the 30-minute timeout is too long for unit tests
         // But we can test the logic by manually checking cache age
@@ -379,7 +385,8 @@ mod tests {
         println!("Cache expiration behavior test passed (age: {:?})", age);
     }
 
-    #[test] 
+    #[test]
+    #[serial(font_cache)]
     fn demonstrate_cache_performance_improvement() {
         // Clear cache to start fresh
         FontLoader::clear_monospace_cache();

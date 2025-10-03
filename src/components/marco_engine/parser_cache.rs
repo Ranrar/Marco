@@ -305,6 +305,7 @@ pub fn shutdown_global_parser_cache() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
     
     #[test]
     fn smoke_test_parser_cache() {
@@ -381,6 +382,7 @@ mod tests {
     }
     
     #[test]
+    #[serial(global_cache)]
     fn smoke_test_global_cache() {
         // Test global cache access
         let cache = global_parser_cache();
@@ -460,6 +462,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(global_cache)]
     fn smoke_test_global_cache_cleanup() {
         // Populate global cache with large content to trigger sectioning
         let content = "# Global Cache Cleanup Test\n\nTesting issue #16 fix. This document contains enough text to trigger the sectioned caching mechanism. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicando. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Additional padding text to ensure we exceed 1024 bytes threshold for testing purposes. More filler content here to reach the size requirement.\n\n## Section 2\n\nEven more content in another section to test the sectioning mechanism properly and reliably exceed the minimum threshold.";

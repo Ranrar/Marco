@@ -429,6 +429,7 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn test_format_syntax_trace_plain() {
@@ -476,6 +477,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(gtk)]
     fn test_footer_update_functions_update_labels() {
         // Initialize GTK for tests that create widgets. If GTK is already initialized,
         // this is a no-op. If GTK cannot be initialized (e.g., no display), skip the test
@@ -528,6 +530,7 @@ mod tests {
     }
 
     #[test]
+    #[serial(gtk)]
     fn test_apply_footer_update_snapshot() {
         if !gtk4::is_initialized() && gtk4::init().is_err() {
             footer_dbg!("Skipping GTK test - no display available");

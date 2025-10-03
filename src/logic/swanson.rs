@@ -615,3 +615,50 @@ pub struct EngineHtmlSettings {
     /// Include metadata in HTML head (UI setting - not consumed by current Marco engine)
     pub include_metadata: Option<bool>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_ron_0_11_compatibility() {
+        // Test that RON 0.11 can parse the actual settings file
+        let settings_path = "src/assets/settings.ron";
+        
+        // Skip if settings file doesn't exist (CI environment)
+        if !std::path::Path::new(settings_path).exists() {
+            return;
+        }
+        
+        // Test loading settings
+        let result = Settings::load_from_file(settings_path);
+        assert!(result.is_ok(), "Failed to load settings with RON 0.11: {:?}", result.err());
+        
+        let settings = result.unwrap();
+        
+        // Verify some expected fields exist
+        assert!(settings.editor.is_some(), "Editor settings should be present");
+        assert!(settings.appearance.is_some(), "Appearance settings should be present");
+        
+        // Test that we can serialize it back
+        let pretty = ron::ser::PrettyConfig::new();
+        let serialized = ron::ser::to_string_pretty(&settings, pretty);
+        assert!(serialized.is_ok(), "Failed to serialize settings with RON 0.11: {:?}", serialized.err());
+        
+        // Test that the serialized version can be parsed again
+        let reparsed: Result<Settings, _> = ron::de::from_str(&serialized.unwrap());
+        assert!(reparsed.is_ok(), "Failed to reparse serialized settings: {:?}", reparsed.err());
+    }
+    
+    #[test]
+    fn smoke_test_ron_error_types() {
+        // Test that RON 0.11 error types work correctly with our error handling
+        let bad_ron = "( invalid: Some( }";
+        let result: Result<Settings, _> = ron::de::from_str(bad_ron);
+        assert!(result.is_err(), "Should fail to parse invalid RON");
+        
+        // Test that error can be converted to SettingsError
+        let settings_error: SettingsError = result.unwrap_err().into();
+        assert!(matches!(settings_error, SettingsError::Parse(_)));
+    }
+}

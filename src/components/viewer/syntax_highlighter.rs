@@ -236,6 +236,7 @@ pub fn generate_css_with_global(theme_mode: &str) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
     fn smoke_test_syntax_highlighter_creation() {
@@ -310,7 +311,8 @@ mod tests {
         assert!(html.contains("some code")); // Should contain the original code
     }
 
-    #[test]  
+    #[test]
+    #[serial(syntax_highlighter)]
     fn smoke_test_global_highlighter() {
         let result = global_syntax_highlighter();
         assert!(result.is_ok());

@@ -171,9 +171,9 @@ Negative numbers:  (ok)
 
 ### Reference Links
 
-[Reference link][ref1]
-[Another reference][ref2]
-[Case insensitive][REF1]
+[Reference link][ref1] (ok)
+[Another reference][ref2] (ok)
+[Case insensitive][REF1] (ok)
 
 [ref1]: https://example.com
 [ref2]: https://example.com "Reference with title"
@@ -189,7 +189,7 @@ Negative numbers:  (ok)
 ![WebP Test Image](./files/img/test.webp)
 ![SVG Test Image](./files/img/test.svg)
 
-### Reference Images
+### Reference Images  (ok)
 
 ![Reference image][img1]
 ![Another reference image][img2]
