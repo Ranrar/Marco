@@ -115,7 +115,7 @@ fn main() -> glib::ExitCode {
 
 fn build_ui(app: &Application, initial_file: Option<String>) {
     // Import path functions
-    use crate::logic::paths::{get_asset_dir_checked, get_settings_path};
+    use crate::logic::paths::{get_asset_dir_checked, get_settings_path, get_ui_theme_path};
     use crate::logic::swanson::SettingsManager;
     
     // Load and apply menu.css for menu and titlebar styling
@@ -123,25 +123,42 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     use gtk4::gdk::Display;
     use gtk4::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
     let css_provider = CssProvider::new();
-    css_provider.load_from_path("src/assets/themes/ui_elements/menu.css");
-    if let Some(display) = Display::default() {
-        gtk::style_context_add_provider_for_display(
-            &display,
-            &css_provider,
-            STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
+    
+    // Use dynamic path resolution instead of hardcoded relative paths
+    match get_ui_theme_path("menu.css") {
+        Ok(menu_css_path) => {
+            css_provider.load_from_path(menu_css_path.to_str().unwrap_or(""));
+            if let Some(display) = Display::default() {
+                gtk::style_context_add_provider_for_display(
+                    &display,
+                    &css_provider,
+                    STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to load menu.css: {}", e);
+        }
     }
 
     // Load and apply toolbar.css for toolbar styling
     let toolbar_css_provider = CssProvider::new();
-    toolbar_css_provider.load_from_path("src/assets/themes/ui_elements/toolbar.css");
-    if let Some(display) = Display::default() {
-        gtk::style_context_add_provider_for_display(
-            &display,
-            &toolbar_css_provider,
-            STYLE_PROVIDER_PRIORITY_APPLICATION,
-        );
+    match get_ui_theme_path("toolbar.css") {
+        Ok(toolbar_css_path) => {
+            toolbar_css_provider.load_from_path(toolbar_css_path.to_str().unwrap_or(""));
+            if let Some(display) = Display::default() {
+                gtk::style_context_add_provider_for_display(
+                    &display,
+                    &toolbar_css_provider,
+                    STYLE_PROVIDER_PRIORITY_APPLICATION,
+                );
+            }
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to load toolbar.css: {}", e);
+        }
     }
+    
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)

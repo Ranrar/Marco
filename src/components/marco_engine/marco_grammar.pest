@@ -757,7 +757,7 @@ admonition_block = { (admonition_open | admonition_emoji) ~ ((!admonition_close 
 // Examples: "[bookmark: Section 1](./doc.md)", "[bookmark: Code](file.rs=42)"
 bookmark = { "[" ~ KW_BOOKMARK ~ ":" ~ (!"]" ~ ANY)+ ~ "](" ~ local_path ~ ("=" ~ ASCII_DIGIT+)? ~ ")" }
 
-// Page format specifications
+// Page format specifications = A4 or US Coustum page size split = ASCII_DIGIT
 // Examples: "A4", "US", "210", "11"
 page_format = { ^"A4" | ^"US" | ASCII_DIGIT+ }
 

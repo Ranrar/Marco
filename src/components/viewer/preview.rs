@@ -238,6 +238,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
             &html_body_with_js,
             &combined_css,
             &params.theme_mode.borrow(),
+            None, // No background color available in dynamic refresh context
         )
     };
     let html_clone = html.clone();

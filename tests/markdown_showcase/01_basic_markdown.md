@@ -180,28 +180,26 @@ Negative numbers:  (ok)
 
 ## Images
 
-### Inline Images
+### Inline Images (ok)
 
-![Alt text](https://example.com/image.png)
-![Alt text with title](https://example.com/image.jpg "Image Title")
-![Local image](./images/local.png)
-![JPG image](./test.jpg)
-![JPEG image](./test.jpeg)
-![GIF image](./animated.gif)
-![WebP image](./modern.webp)
-![SVG image](./vector.svg)
+![PNG Test Image](./files/img/test.png)
+![JPG Test Image](./files/img/test.jpg "JPG Image Title")
+![JPEG Test Image](./files/img/test.jpeg)
+![Animated GIF](./files/img/animated.gif)
+![WebP Test Image](./files/img/test.webp)
+![SVG Test Image](./files/img/test.svg)
 
 ### Reference Images
 
 ![Reference image][img1]
 ![Another reference image][img2]
 
-[img1]: https://example.com/image1.png
-[img2]: ./local/image2.jpg "Local image with title"
+[img1]: ./files/img/test.png
+[img2]: ./files/img/test.jpg "Local JPG image with title"
 
 ## Code Blocks
 
-### Fenced Code Blocks
+### Fenced Code Blocks (ok)
 
 ```
 Plain code block without language
@@ -316,17 +314,17 @@ $$
 
 ## Special Characters and Escaping
 
-\*Not italic\* because of escapes
-\**Not bold\** because of escapes
-\# Not a heading
-\- Not a list item
-\> Not a blockquote
+\*Not italic\* because of escapes (ok)
+\**Not bold\** because of escapes (error)
+\# Not a heading (ok)
+\- Not a list item (ok)
+\> Not a blockquote (ok)
 
-Regular symbols that don't need escaping: . , ; : ! ?
+Regular symbols that don't need escaping: . , ; : ! ? (think this has to be in one line)
 
-Unicode characters: café, naïve, Москва, 北京, العربية
+Unicode characters: café, naïve, Москва, 北京, العربية (ok)
 
-Emoji characters: 🌟 ⭐ 💫 ✨
+Emoji characters: 🌟 ⭐ 💫 ✨ (ok)
 
 :emoji_style: :another: :custom_emoji:
 
@@ -338,13 +336,13 @@ Here's a paragraph with **bold**, *italic*, `code`, [links](https://example.com)
 > 
 > Multiple paragraphs in blockquote with math: $e = mc^2$
 
-- List item with **bold** and `code`
+- List item with **bold** and `code` (ok)
 - List item with [link](https://example.com) and math $\pi \approx 3.14$
-- List item with ~~strikethrough~~ and ==highlight==
+- List item with ~~strikethrough~~ and ==highlight== (ok)
 
 ## Edge Cases - Basic
 
-### Empty Elements
+### Empty Elements (ok)
 
 **
 
@@ -354,9 +352,9 @@ Here's a paragraph with **bold**, *italic*, `code`, [links](https://example.com)
 
 []()
 
-[](https://example.com)
+[](https://example.com) (has to write excatly the line `[](https://example.com)`)
 
-### Unmatched Formatting
+### Unmatched Formatting (dont know if this is correct)
 
 *This italic is not closed
 
@@ -380,34 +378,34 @@ Here's a paragraph with **bold**, *italic*, `code`, [links](https://example.com)
 Text with * asterisk but not formatting
 Text with _ underscore but not formatting
 Text with `backtick but not code
-Text with ==equals but not highlight==
+Text with ==equals but not highlight
 
 ## Whitespace Handling
 
 Text    with    multiple    spaces
 
-Text	with	tabs	between	words
+Text	with	tabs	between	words (ok)
 
-Line with trailing spaces    
-Next line after hard break
+Line with trailing spaces    (ok)
+Next line after hard break (ok)
 
-Line with trailing tabs		
-Next line after tab hard break
+Line with trailing tabs		(ok)
+Next line after tab hard break (ok)
 
-Text at start of line
+Text at start of line (ok)
   Text with leading spaces
-    Text with more leading spaces
+    Text with more leading spaces (ok)
 
 ## URLs and Email
 
 Automatic URL detection:
-https://example.com should be plain text (not in angle brackets)
+https://example.com should be plain text (ok)
 http://example.com/path?query=value&other=test
-www.example.com should be plain text
+www.example.com should be plain text (ok)
 
 Email addresses:
-user@domain.com should be plain text
-test.email+tag@sub.example.org should be plain text
+user@domain.com should be plain text (ok)
+test.email+tag@sub.example.org should be plain text (ok)
 
 FTP and other protocols:
 ftp://files.example.com

@@ -76,6 +76,22 @@ pub fn get_font_path(font_name: &str) -> Result<PathBuf, AssetError> {
     Ok(asset_dir.join("fonts").join(font_name))
 }
 
+/// Returns the path to a UI theme CSS file in the asset directory.
+/// 
+/// # Arguments
+/// * `theme_file` - The CSS filename (e.g., "menu.css", "toolbar.css")
+/// 
+/// # Examples
+/// ```no_run
+/// use marco::logic::paths::get_ui_theme_path;
+/// let menu_css = get_ui_theme_path("menu.css")?;
+/// let toolbar_css = get_ui_theme_path("toolbar.css")?;
+/// ```
+pub fn get_ui_theme_path(theme_file: &str) -> Result<PathBuf, AssetError> {
+    let asset_dir = get_asset_dir_checked()?;
+    Ok(asset_dir.join("themes").join("ui_elements").join(theme_file))
+}
+
 /// Returns the path to settings.ron in the tests/settings directory.
 /// This ensures all binaries (marco, marco-test, marco-parser-debug) use the same settings.
 pub fn get_settings_path() -> Result<PathBuf, AssetError> {

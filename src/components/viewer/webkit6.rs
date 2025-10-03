@@ -6,6 +6,36 @@ use std::path::Path;
 use webkit6::prelude::*;
 use webkit6::WebView;
 
+/// Parse a hex color string (e.g., "#2b303b") into a gtk4::gdk::RGBA struct.
+/// Supports both 6-digit (#RRGGBB) and 3-digit (#RGB) formats.
+/// Returns None if parsing fails.
+fn parse_hex_to_rgba(hex: &str) -> Option<gtk4::gdk::RGBA> {
+    let hex = hex.trim().trim_start_matches('#');
+    
+    let (r, g, b) = if hex.len() == 6 {
+        // 6-digit format: #RRGGBB
+        let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+        (r, g, b)
+    } else if hex.len() == 3 {
+        // 3-digit format: #RGB -> #RRGGBB
+        let r = u8::from_str_radix(&hex[0..1].repeat(2), 16).ok()?;
+        let g = u8::from_str_radix(&hex[1..2].repeat(2), 16).ok()?;
+        let b = u8::from_str_radix(&hex[2..3].repeat(2), 16).ok()?;
+        (r, g, b)
+    } else {
+        return None;
+    };
+    
+    Some(gtk4::gdk::RGBA::new(
+        r as f32 / 255.0,
+        g as f32 / 255.0,
+        b as f32 / 255.0,
+        1.0,
+    ))
+}
+
 /// Generate a file:// base URI from a document path for resolving relative file references.
 /// If the document has a parent directory, returns a file:// URI for that directory.
 /// This allows relative image paths and other file references in the document to work correctly.
@@ -32,17 +62,22 @@ fn setup_user_content_manager(webview: &WebView) {
     // and use proper JavaScript management through the template system
     log::debug!("[webkit6] Setting up UserContentManager for WebView: {:p}", webview);
 }
-
-/// Create a WebView widget and load the provided HTML string.
-/// If base_uri is provided, it will be used as the base for resolving relative paths.
-pub fn create_html_viewer(html: &str) -> WebView {
-    create_html_viewer_with_base(html, None)
-}
-
 /// Create a WebView widget with an optional base URI for resolving relative paths.
 /// This version allows specifying a base URI to resolve local file references.
-pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>) -> WebView {
+/// Optionally accepts a background_color hex string (e.g., "#2b303b") to set widget background.
+pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>, background_color: Option<&str>) -> WebView {
     let webview = WebView::new();
+
+    // LAYERED DEFENSE - Phase 1: Set GTK widget-level background color immediately
+    // This prevents white flash during WebKit initialization (0ms delay)
+    if let Some(bg_hex) = background_color {
+        if let Some(rgba) = parse_hex_to_rgba(bg_hex) {
+            webview.set_background_color(&rgba);
+            log::debug!("[webkit6] Set widget background color: {}", bg_hex);
+        } else {
+            log::warn!("[webkit6] Failed to parse background color: {}", bg_hex);
+        }
+    }
 
     // Configure WebKit security settings to allow local file access
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
@@ -99,6 +134,12 @@ pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>) -> WebVi
 /// This avoids full page reloads and provides smooth updates while preserving scroll position.
 /// Enhanced to prevent memory leaks by using a more efficient approach.
 pub fn update_html_content_smooth(webview: &WebView, content: &str) {
+    // Early return if webview is not realized yet to prevent GtkGizmo snapshot warnings
+    if !webview.is_realized() {
+        log::debug!("[webkit6] Skipping update: WebView not yet realized");
+        return;
+    }
+    
     let escaped_content = content
         .replace('\\', "\\\\")
         .replace('\'', "\\'")
@@ -173,17 +214,24 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
 
 /// Wraps the HTML body with a full HTML document, injecting the provided CSS string into the <head>.
 /// Enhanced with proper cleanup mechanisms to prevent memory leaks.
-pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
+pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str, background_color: Option<&str>) -> String {
     // Include a named <style> element and small JS helpers so the host can
     // update CSS and theme class without reloading the whole document.
     // Enhanced with cleanup mechanisms to prevent memory accumulation.
+    
+    // Generate inline background style for instant dark mode support (eliminates white flash)
+    let inline_bg_style = if let Some(bg_color) = background_color {
+        format!("body {{ background-color: {} !important; }}\n", bg_color)
+    } else {
+        String::new()
+    };
+    
     let doc = format!(
         r#"<!DOCTYPE html>
 <html class="{}">
     <head>
         <meta charset=\"utf-8\">
-        <style id=\"marco-preview-style\">body {{ font-family: sans-serif; }}
-{}</style>
+        <style id=\"marco-preview-style\">{}{}</style>
         <script>
             // Marco Preview Management Object - prevents global namespace pollution
             window.MarcoPreview = (function() {{
@@ -280,7 +328,7 @@ pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str) -> String {
         <div id="marco-content-container">{}</div>
     </body>
 </html>"#,
-        theme_mode, css, body
+        theme_mode, inline_bg_style, css, body
     );
     doc
 }
@@ -503,6 +551,12 @@ pub fn update_code_view_smooth(
     scrollbar_track: Option<&str>,
 ) -> Result<(), String> {
     use crate::components::viewer::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
+    
+    // Early return if webview is not realized yet to prevent GtkGizmo snapshot warnings
+    if !webview.is_realized() {
+        log::debug!("[webkit6] Skipping code view update: WebView not yet realized");
+        return Ok(());
+    }
     
     // Normalize theme mode
     let normalized_theme = if theme_mode.contains("dark") {

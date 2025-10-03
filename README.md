@@ -148,7 +148,7 @@ Page tags control **page layout and splitting**, useful for export to PDF or str
 [Page=A4]   # Start a page in A4 layout
 [Page=US]   # Start a page in US Letter layout
 [Page=]     # Auto-numbered page
-[Page=65]   # Explicit page number
+[Page=65]   # Explicit line number
 ```
 
 * Red vertical lines in the editor show splits
@@ -157,18 +157,18 @@ Page tags control **page layout and splitting**, useful for export to PDF or str
 
 #### Cross-Document Navigation
 
-Link forward or backward across Markdown files using `[@Page]`:
+Link forward or backward across Markdown files using `[@doc]`:
 
 ```markdown
-[@Page](./chapter_03.md)   # Next document
-[@Page](./chapter_02.md)   # Previous document
+[@doc](./chapter_03.md)   # Next document
+[@doc](./chapter_02.md)   # Previous document
 ```
 
 * Place at the **bottom of the current file** (next page) or **top of target file** (previous page)
 * Marco generates arrows in previews:
 
 ```
-← Previous Page 62 | 63 | Next Page 64 →
+← Previous Page 62 | 63/100 | Next Page 64 →
 ```
 
 * Only **local Markdown files** are supported

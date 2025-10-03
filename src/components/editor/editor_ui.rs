@@ -452,12 +452,25 @@ paned > separator {{
     initial_html_body_with_js.push_str(&wheel_js_rc);
     // Use the CSS stored in css_rc (clone it) to avoid using the moved `css` value.
     let css_clone = css_rc.borrow().clone();
+    
+    // Get editor background color early for instant dark mode support (eliminates white flash)
+    let bg_init_preview = editor_bg_color.borrow().clone();
+    let bg_init_preview_ref = bg_init_preview.as_deref();
+    
+    // LAYERED DEFENSE - Phase 2: Inject inline background style in HTML
     let initial_html = crate::components::viewer::webkit6::wrap_html_document(
         &initial_html_body_with_js,
         &css_clone,
         &theme_mode.borrow(),
+        bg_init_preview_ref, // Pass editor background color for inline style
     );
-    let webview = crate::components::viewer::webkit6::create_html_viewer(&initial_html);
+    
+    // LAYERED DEFENSE - Phase 1 & 3: Set widget background + load HTML
+    let webview = crate::components::viewer::webkit6::create_html_viewer_with_base(
+        &initial_html,
+        None,                // No base URI needed yet
+        bg_init_preview_ref, // Pass editor background color for widget-level background
+    );
     let webview_rc = Rc::new(webview.clone());
 
     // Initialize scroll synchronization between editor and preview

@@ -18,15 +18,15 @@
   )),
   layout: Some((
     view_mode: Some("HTML Preview"),
-    sync_scrolling: Some(true),
+    sync_scrolling: Some(false),
     editor_view_split: None,
     show_line_numbers: Some(true),
     text_direction: None,
   )),
   language: None,
   window: Some((
-    width: Some(1767),
-    height: Some(1113),
+    width: Some(1264),
+    height: Some(735),
     x: None,
     y: None,
     maximized: Some(false),
