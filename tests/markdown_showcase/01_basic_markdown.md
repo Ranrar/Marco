@@ -166,8 +166,8 @@ Negative numbers:  (ok)
 
 <https://example.com> (ok)
 <http://example.com> (ok)
-<mailto:user@example.com>
-<user@domain.com>
+<mailto:user@example.com> (ok)
+<user@domain.com> (ok)
 
 ### Reference Links
 

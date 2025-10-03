@@ -4,6 +4,7 @@
 //! Follows the grammar-centered design from the documentation.
 
 use crate::components::marco_engine::ast_node::Node;
+use std::collections::HashMap;
 use std::fmt::Write;
 
 /// Helper function to determine if a URL should open in a new tab
@@ -53,6 +54,8 @@ impl HtmlOptions {
 pub struct HtmlRenderer {
     output: String,
     options: HtmlOptions,
+    /// Reference definitions: label -> (url, optional title)
+    references: HashMap<String, (String, Option<String>)>,
 }
 
 impl HtmlRenderer {
@@ -60,6 +63,7 @@ impl HtmlRenderer {
         Self {
             output: String::with_capacity(1024),
             options,
+            references: HashMap::new(),
         }
     }
 
@@ -103,8 +107,52 @@ impl HtmlRenderer {
     }
 
     pub fn render(mut self, ast: &Node) -> String {
+        // First pass: collect all reference definitions
+        self.collect_references(ast);
+        // Second pass: render the document
         self.render_node(ast);
         self.output
+    }
+    
+    /// Collect all reference definitions from the AST
+    /// References are case-insensitive according to CommonMark spec
+    fn collect_references(&mut self, node: &Node) {
+        match node {
+            Node::Document { children, .. } => {
+                for child in children {
+                    self.collect_references(child);
+                }
+            }
+            Node::ReferenceDefinition { label, url, title, .. } => {
+                // Store reference with lowercase label for case-insensitive matching
+                let key = label.to_lowercase();
+                self.references.insert(key, (url.clone(), title.clone()));
+            }
+            // Recursively check paragraphs and other containers
+            Node::Paragraph { content, .. } => {
+                for child in content {
+                    self.collect_references(child);
+                }
+            }
+            Node::BlockQuote { content, .. } => {
+                for child in content {
+                    self.collect_references(child);
+                }
+            }
+            Node::List { items, .. } => {
+                for item in items {
+                    self.collect_references(item);
+                }
+            }
+            Node::ListItem { content, .. } => {
+                for child in content {
+                    self.collect_references(child);
+                }
+            }
+            _ => {
+                // No nested children to check in other node types
+            }
+        }
     }
 
     fn render_node(&mut self, node: &Node) {
@@ -876,30 +924,52 @@ impl HtmlRenderer {
             }
 
             Node::ReferenceDefinition {
-                label, url, title, ..
+                ..
             } => {
-                // Reference definitions are typically not rendered in HTML
-                write!(
-                    self.output,
-                    "<!-- Reference definition: [{}]: {} {} -->",
-                    self.escape_html(label),
-                    self.escape_html(url),
-                    title
-                        .as_ref()
-                        .map_or(String::new(), |t| format!("\"{}\"", self.escape_html(t)))
-                )
-                .unwrap();
+                // Reference definitions are not rendered in the output
+                // They are collected during the first pass and used to resolve reference links
             }
 
             Node::ReferenceLink { text, label, .. } => {
-                // Note: In a full implementation, you'd resolve the reference
-                write!(
-                    self.output,
-                    "<a href=\"#ref-{}\" class=\"{}reference-link\">",
-                    self.escape_html(label),
-                    self.options.class_prefix
-                )
-                .unwrap();
+                // Resolve the reference using case-insensitive lookup
+                let key = label.to_lowercase();
+                if let Some((url, title)) = self.references.get(&key) {
+                    // Reference found - render as a normal link
+                    let target_attr = if is_external_url(url) {
+                        " target=\"_blank\" rel=\"noopener noreferrer\""
+                    } else {
+                        ""
+                    };
+                    
+                    if let Some(t) = title {
+                        write!(
+                            self.output,
+                            "<a href=\"{}\" title=\"{}\"{}",
+                            self.escape_html(url),
+                            self.escape_html(t),
+                            target_attr
+                        )
+                        .unwrap();
+                    } else {
+                        write!(
+                            self.output,
+                            "<a href=\"{}\"{}",
+                            self.escape_html(url),
+                            target_attr
+                        )
+                        .unwrap();
+                    }
+                } else {
+                    // Reference not found - render as plain text with brackets
+                    write!(self.output, "[").unwrap();
+                    for child in text {
+                        self.render_node(child);
+                    }
+                    write!(self.output, "][{}]", self.escape_html(label)).unwrap();
+                    return;
+                }
+                
+                write!(self.output, ">").unwrap();
                 for child in text {
                     self.render_node(child);
                 }
@@ -907,15 +977,35 @@ impl HtmlRenderer {
             }
 
             Node::ReferenceImage { alt, label, .. } => {
-                // Note: In a full implementation, you'd resolve the reference
-                write!(
-                    self.output,
-                    "<img src=\"#ref-{}\" alt=\"{}\" class=\"{}reference-image\">",
-                    self.escape_html(label),
-                    self.escape_html(alt),
-                    self.options.class_prefix
-                )
-                .unwrap();
+                // Resolve the reference using case-insensitive lookup
+                let key = label.to_lowercase();
+                if let Some((url, title)) = self.references.get(&key) {
+                    // Reference found - render as a normal image
+                    if let Some(t) = title {
+                        write!(
+                            self.output,
+                            "<img src=\"{}\" alt=\"{}\" title=\"{}\">",
+                            self.escape_html(url),
+                            self.escape_html(alt),
+                            self.escape_html(t)
+                        )
+                        .unwrap();
+                    } else {
+                        write!(
+                            self.output,
+                            "<img src=\"{}\" alt=\"{}\">",
+                            self.escape_html(url),
+                            self.escape_html(alt)
+                        )
+                        .unwrap();
+                    }
+                } else {
+                    // Reference not found - render as plain text with brackets
+                    write!(self.output, "![{}][{}]", 
+                        self.escape_html(alt), 
+                        self.escape_html(label)
+                    ).unwrap();
+                }
             }
 
             // HTML elements
@@ -1213,4 +1303,63 @@ mod tests {
         assert!(html.contains("rel=\"noopener noreferrer\""), 
             "www link should have rel=noopener noreferrer");
     }
+
+    #[test]
+    fn smoke_test_reference_link_resolution() {
+        use crate::components::marco_engine::{parse_text, build_ast};
+        
+        // Test case-insensitive reference resolution
+        let input = r#"[Click here][REF1] and ![alt text][img1]
+
+[ref1]: https://example.com "Example Site"
+[IMG1]: /image.png"#;
+        
+        let pairs = parse_text(input).expect("Parse failed");
+        let ast = build_ast(pairs).expect("AST build failed");
+        
+        let options = HtmlOptions::default();
+        let renderer = HtmlRenderer::new(options);
+        let html = renderer.render(&ast);
+        
+        // Reference link should be resolved (case-insensitive: REF1 -> ref1)
+        assert!(html.contains("href=\"https://example.com\""), 
+            "Reference link should resolve to actual URL, got: {}", html);
+        assert!(html.contains("title=\"Example Site\""), 
+            "Reference link should include title attribute, got: {}", html);
+        assert!(!html.contains("#ref-"), 
+            "Should not contain placeholder references, got: {}", html);
+        
+        // Reference image should be resolved (case-insensitive: img1 -> IMG1)
+        assert!(html.contains("src=\"/image.png\""), 
+            "Reference image should resolve to actual URL, got: {}", html);
+        assert!(html.contains("alt=\"alt text\""), 
+            "Reference image should include alt text, got: {}", html);
+        
+        // Reference definitions should not appear in output (or only as comments)
+        let visible_text = html.replace("<!--", "").replace("-->", "");
+        assert!(!visible_text.contains("[ref1]:"), 
+            "Reference definition should not be visible in output");
+    }
+
+    #[test]
+    fn smoke_test_unresolved_reference() {
+        use crate::components::marco_engine::{parse_text, build_ast};
+        
+        // Test unresolved reference (no definition)
+        let input = "[Click here][undefined]";
+        
+        let pairs = parse_text(input).expect("Parse failed");
+        let ast = build_ast(pairs).expect("AST build failed");
+        
+        let options = HtmlOptions::default();
+        let renderer = HtmlRenderer::new(options);
+        let html = renderer.render(&ast);
+        
+        // Unresolved reference should render as plain text with brackets
+        assert!(html.contains("[Click here][undefined]") || html.contains("Click here"), 
+            "Unresolved reference should fallback to plain text, got: {}", html);
+        assert!(!html.contains("href="), 
+            "Unresolved reference should not create a link, got: {}", html);
+    }
 }
+

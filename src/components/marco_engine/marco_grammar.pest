@@ -78,7 +78,7 @@ document = { (BLANK_LINE* ~ block ~ BLANK_LINE*)* }
 
 // Block-level elements ordered by parsing priority (most specific first)
 // Examples: code blocks, headings, paragraphs, lists, tables
-block = { code_block | math_block | hr | heading | blockquote | table | list | macro_block | footnote_def | reference_definition | reference_link | reference_image | def_list | block_comment | block_html | task_block | paragraph | unknown_block }
+block = { code_block | math_block | hr | heading | blockquote | table | list | macro_block | footnote_def | reference_definition | def_list | block_comment | block_html | task_block | paragraph | unknown_block }
 
 // Error recovery for unrecognized block content
 // Examples: "~~~invalid~~~", "<<weird syntax>>"
@@ -90,7 +90,7 @@ macro_block = { admonition_block | run_block_fenced | diagram_fenced | bookmark 
 
 // Core inline elements ordered by parsing priority (HTML removed - all HTML is block-level)
 // Examples: `code`, **bold**, [links](url), $math$, escaped chars
-inline_core = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_comment | footnote_ref | macro_inline | hard_line_break | soft_line_break | text }
+inline_core = { escaped_char | reference_link | reference_image | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_comment | footnote_ref | macro_inline | hard_line_break | soft_line_break | text }
 
 // Escape sequences for markdown special characters
 // Examples: "\*", "\\", "\[", "\]"
@@ -134,7 +134,7 @@ safe_punct = @{ !(markdown_special) ~ PUNCTUATION }
 
 // Special characters reserved for markdown syntax
 // Examples: "*", "_", "`", "#", "[", "]"
-markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "<" | "|" | "$" | "@" | "^" | "=" | "-" | "\\" }
+markdown_special = _{ "*" | "_" | "`" | "#" | "[" | "]" | "~" | ">" | "<" | "|" | "$" | "@" | "^" | "=" | "-" | "\\" | "!" }
 
 // Mathematical symbols and operators
 // Examples: "±", "√", "∞", "≈", "π", "α"
@@ -178,7 +178,7 @@ formatting_char = { "*" | "_" | "`" | "~" | "=" | "^" | "#" | "$" }
 
 // Text content components for building text rules
 // Examples: words, punctuation, spaces, math symbols (excluding = to avoid conflicts with highlight)
-text_content_chars = { word | safe_punct | !((" "{2, } | "\\") ~ NEWLINE) ~ (" " | "\t") | math_symbol | inline_formatting_safe | ("`" ~ !"`") | "*" | "_" | "^" | "#" | "!" | "$" }
+text_content_chars = { word | safe_punct | !((" "{2, } | "\\") ~ NEWLINE) ~ (" " | "\t") | math_symbol | inline_formatting_safe | ("`" ~ !"`") | "*" | "_" | "^" | "#" | "$" }
 
 // More restrictive text content that stops at formatting boundaries
 // Examples: plain text that doesn't cross `code`, **bold**, or $math$ boundaries
@@ -202,7 +202,7 @@ text_no_formatting = _{
 
 // Block start detection for avoiding text conflicts
 // Examples: "# heading", "> quote", "- list", "```code"
-line_start_marker = _{ (heading_start | hr_start | list_start | blockquote_start | admonition_start | code_start | table_start | html_start) }
+line_start_marker = _{ (heading_start | hr_start | list_start | blockquote_start | admonition_start | code_start | table_start | html_start | reference_def_start) }
 
 // Heading marker - 1-6 hashes followed by space
 // Examples: "# ", "## ", "### "
@@ -237,6 +237,10 @@ html_start = _{ "<" ~ !(http_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_
 // Examples: "|"
 table_start = _{ "|" }
 
+// Reference definition marker - [label]: at line start
+// Examples: "[ref]:", "[img1]:", "[link-123]:"
+reference_def_start = _{ "[" ~ (!"]" ~ ANY)+ ~ "]" ~ ":" }
+
 // Characters safe for inline formatting detection
 // Examples: letters, numbers, some punctuation (excludes markdown specials)
 inline_formatting_safe = _{ !("**" | "__" | "*" | "_" | "```" | "!" | "$$" | "$" | "~" | "\\" | "|") ~ ANY }
@@ -251,7 +255,7 @@ paragraph_line = { inline_no_newline+ }
 
 // Inline elements that don't include newlines (HTML removed - all HTML is block-level)
 // Examples: **bold**, [links](url), `code`, but stops at line boundaries
-inline_no_newline = { escaped_char | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_comment | footnote_ref | macro_inline | hard_line_break | text_no_newline }
+inline_no_newline = { escaped_char | reference_link | reference_image | inline_link | inline_image | autolink | inline_footnote_ref | code_inline | math_inline | emphasis | strikethrough | highlight | superscript | subscript | emoji | inline_comment | footnote_ref | macro_inline | hard_line_break | text_no_newline }
 
 // Text that stops at newlines and block boundaries
 // Examples: "regular text", "some words", but not "# heading" at line start
@@ -388,13 +392,13 @@ mailto            = @{ "mailto:" ~ EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN }
 // "./My Folder/file.txt", "C:\Program Files\app.exe" (spaces allowed in local paths)
 local_path = @{
     // Windows drive paths (both separators) - must come first to avoid conflicts
-    (ASCII_ALPHA ~ (":\\" | ":/")) ~ (!")" ~ !"|" ~ ANY)+
+    (ASCII_ALPHA ~ (":\\" | ":/")) ~ (!")" ~ !"|" ~ !NEWLINE ~ ANY)+
   | // Unix absolute paths
-  "/" ~ (!")" ~ !"|" ~ ANY)+
+  "/" ~ (!")" ~ !"|" ~ !NEWLINE ~ ANY)+
   | // Relative paths
-  (("./" | "../")) ~ (!")" ~ !"|" ~ ANY)+
+  (("./" | "../")) ~ (!")" ~ !"|" ~ !NEWLINE ~ ANY)+
   | // Simple relative paths (no prefix)
-  ASCII_ALPHANUMERIC+ ~ ("/" ~ (!")" ~ !"|" ~ ANY)+)+
+  ASCII_ALPHANUMERIC+ ~ ("/" ~ (!")" ~ !"|" ~ !NEWLINE ~ ANY)+)+
 }
 
 // YouTube video URLs (both short and full formats)
@@ -449,13 +453,13 @@ inline_image = { "!" ~ "[" ~ inline_link_text ~ "](" ~ link_url ~ (WHITESPACE+ ~
 // Reference-style links and images
 // Examples: "[link text][ref]", "![image][ref]"
 block_caption   = { (!"]" ~ ANY)+ }
-reference_link  = { "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" }
-reference_image = { "!" ~ "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" }
+reference_link  = @{ "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" }
+reference_image = @{ "!" ~ "[" ~ block_caption ~ "]" ~ "[" ~ block_caption ~ "]" }
 
 // Reference definitions
 // Examples: "[ref]: https://example.com", "[ref]: url "title""
 ref_title            = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" | "'" ~ (!"'" ~ ANY)* ~ "'" }
-reference_definition = { "[" ~ block_caption ~ "]" ~ ":" ~ WHITESPACE* ~ inline_link ~ (WHITESPACE+ ~ ref_title)? ~ (NEWLINE | EOI) }
+reference_definition = @{ "[" ~ block_caption ~ "]" ~ ":" ~ WHITESPACE* ~ link_url ~ (WHITESPACE+ ~ ref_title)? ~ WHITESPACE* ~ (NEWLINE | EOI) }
 
 // Block-level images and YouTube embeds
 // Examples: "![Large Image](image.png)", "[Video Title](https://youtu.be/id)"

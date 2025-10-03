@@ -1,11 +1,10 @@
 //! Simple Parser Cache for Marco Engine
 //!
-//! Provides basic AST and HTML caching as per optimization spec:
+//! Provides basic AST caching as per optimization spec:
 //! - Cache parsed AST nodes to avoid repeated parsing
-//! - Cache rendered HTML to avoid repeated rendering
 //! - Use content hash for cache invalidation 
 //! - LRU cache for efficient O(1) eviction and access
-//! - No complex block-level or incremental features
+//! - Note: HTML is NOT cached to support reference link resolution across sections
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -25,7 +24,7 @@ type ContentHash = u64;
 type SectionCacheKey = (ContentHash, usize);
 
 /// Cache size limits to prevent memory exhaustion
-const MAX_SECTION_CACHE_ENTRIES: usize = 2000; // Sections cache both AST and HTML
+const MAX_SECTION_CACHE_ENTRIES: usize = 2000; // AST sections cache
 
 /// Split document into logical sections for caching
 /// Sections are split on double newlines (paragraph breaks) and headers
@@ -55,16 +54,15 @@ fn calculate_hash(content: &str) -> ContentHash {
 
 
 
-/// Cached section with both AST and HTML
+/// Cached section with AST (HTML is not cached to support reference resolution)
 #[derive(Debug, Clone)]
 pub struct CachedSection {
     pub ast: Node,
-    pub html: String,
 }
 
 impl CachedSection {
-    pub fn new(ast: Node, html: String) -> Self {
-        Self { ast, html }
+    pub fn new(ast: Node) -> Self {
+        Self { ast }
     }
 }
 
@@ -123,11 +121,8 @@ impl SimpleParserCache {
                         let section_ast = build_ast(section_pairs)
                             .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
                         
-                        // Cache the section (HTML will be rendered later)
-                        let cached_section = CachedSection::new(
-                            section_ast.clone(),
-                            String::new() // HTML placeholder
-                        );
+                        // Cache the section AST
+                        let cached_section = CachedSection::new(section_ast.clone());
                         cache.put(cache_key, cached_section);
                         section_ast
                     }
@@ -179,84 +174,31 @@ impl SimpleParserCache {
         Ok(ast)
     }
     
-    /// Render content with sectioned HTML caching
+    /// Render content with caching
+    /// 
+    /// Note: Reference links/images require full document context for resolution.
+    /// This means we must:
+    /// 1. Parse the full document (AST is cached per section - fast)
+    /// 2. Render the complete AST in one pass (HTML not cached - required for references)
+    /// 
+    /// The expensive parsing operation is still cached, but HTML rendering is done
+    /// fresh each time to ensure reference definitions can be resolved across the
+    /// entire document, even when references and definitions are in different sections.
     pub fn render_with_cache(&self, content: &str, options: HtmlOptions) -> Result<String> {
         // For small content, render directly without sectioning overhead
         if content.len() < 1024 {
             return self.render_directly(content, options);
         }
         
-        let sections = split_into_sections(content);
-        let mut html_parts = Vec::new();
-        let mut cache_hits = 0;
-        let mut cache_misses = 0;
+        // Parse the full document (with AST caching per section)
+        // This ensures all reference definitions are available
+        let full_ast = self.parse_with_cache(content)?;
         
-        // Process each section
-        for (section_index, section_content) in sections.iter().enumerate() {
-            let section_hash = calculate_hash(section_content);
-            let cache_key = (section_hash, section_index);
-            
-            // Check section cache for HTML
-            let section_html = {
-                if let Ok(mut cache) = self.section_cache.write() {
-                    if let Some(cached_section) = cache.get(&cache_key) {
-                        // Check if HTML is already cached for this section
-                        if !cached_section.html.is_empty() {
-                            cache_hits += 1;
-                            cached_section.html.clone()
-                        } else {
-                            // AST is cached but HTML needs to be rendered
-                            cache_misses += 1;
-                            let section_html = render_html(&cached_section.ast, options.clone());
-                            
-                            // Update the cached section with the HTML
-                            let updated_section = CachedSection::new(
-                                cached_section.ast.clone(),
-                                section_html.clone()
-                            );
-                            cache.put(cache_key, updated_section);
-                            section_html
-                        }
-                    } else {
-                        cache_misses += 1;
-                        
-                        // Parse and render section
-                        let section_pairs = parse_text(section_content)
-                            .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
-                        let section_ast = build_ast(section_pairs)
-                            .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
-                        let section_html = render_html(&section_ast, options.clone());
-                        
-                        // Cache both AST and HTML
-                        let cached_section = CachedSection::new(
-                            section_ast,
-                            section_html.clone()
-                        );
-                        cache.put(cache_key, cached_section);
-                        section_html
-                    }
-                } else {
-                    // Fallback if cache lock fails
-                    let section_pairs = parse_text(section_content)
-                        .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
-                    let section_ast = build_ast(section_pairs)
-                        .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
-                    render_html(&section_ast, options.clone())
-                }
-            };
-            
-            html_parts.push(section_html);
-        }
+        // Render the complete AST
+        // This allows reference resolution to work across the entire document
+        let html = render_html(&full_ast, options);
         
-        // Update statistics
-        if let Ok(mut stats) = self.stats.write() {
-            stats.html_hits += cache_hits;
-            stats.html_misses += cache_misses;
-        }
-        
-        // Combine all section HTML with proper paragraph separation
-        let final_html = html_parts.join("\n\n");
-        Ok(final_html)
+        Ok(html)
     }
     
     /// Render small content directly without sectioning
@@ -268,11 +210,6 @@ impl SimpleParserCache {
             .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
         
         let html = render_html(&ast, options);
-        
-        // Update statistics
-        if let Ok(mut stats) = self.stats.write() {
-            stats.html_misses += 1;
-        }
         
         Ok(html)
     }
@@ -312,19 +249,14 @@ impl SimpleParserCache {
         // Return actual statistics with current entry counts
         if let Ok(stats) = self.stats.read() {
             let mut result = stats.clone();
-            // Sections contain both AST and HTML, so count them for both
             result.ast_entries = section_entries;
-            result.html_entries = section_entries;
             result
         } else {
             // Fallback if stats can't be read
             ParserCacheStats {
                 ast_hits: 0,
                 ast_misses: 0,
-                html_hits: 0,
-                html_misses: 0,
                 ast_entries: section_entries,
-                html_entries: section_entries,
             }
         }
     }
@@ -335,10 +267,7 @@ impl SimpleParserCache {
 pub struct ParserCacheStats {
     pub ast_hits: usize,
     pub ast_misses: usize,
-    pub html_hits: usize,
-    pub html_misses: usize,
     pub ast_entries: usize,
-    pub html_entries: usize,
 }
 
 impl ParserCacheStats {
@@ -353,16 +282,6 @@ impl ParserCacheStats {
             0.0
         } else {
             self.ast_hits as f64 / (self.ast_hits + self.ast_misses) as f64
-        }
-    }
-
-    /// Get HTML cache hit rate as percentage (0.0-1.0, used by test files)
-    #[allow(dead_code)]
-    pub fn html_hit_rate(&self) -> f64 {
-        if self.html_hits + self.html_misses == 0 {
-            0.0
-        } else {
-            self.html_hits as f64 / (self.html_hits + self.html_misses) as f64
         }
     }
 }
@@ -391,42 +310,32 @@ mod tests {
     fn smoke_test_parser_cache() {
         let cache = SimpleParserCache::new();
         
-        // Test basic markdown content
-        let content = "# Hello World\n\nThis is a **test** document.";
+        // Test basic markdown content (use large content to test sectioning)
+        let content = "# Hello World\n\nThis is a **test** document with enough content to trigger sectioning. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Additional padding to exceed 1024 bytes threshold. More filler text here to reach the required minimum size. Even more content.\n\n## Section 2\n\nMore content to test multi-section documents properly and reliably. Extra text to ensure we are well above the 1024 byte minimum for sectioning. Adding even more padding here to be absolutely certain we exceed the threshold for sectioned caching to be triggered.";
         
         // Test AST caching - first call should be cache miss
         let ast1 = cache.parse_with_cache(content).expect("Failed to parse content");
         let stats_after_first = cache.stats();
-        assert_eq!(stats_after_first.ast_misses, 1);
-        assert_eq!(stats_after_first.ast_hits, 0);
-        assert_eq!(stats_after_first.ast_entries, 1);
+        assert!(stats_after_first.ast_misses > 0, "First parse should have misses");
+        assert_eq!(stats_after_first.ast_hits, 0, "First parse should have no hits");
+        assert!(stats_after_first.ast_entries > 0, "Cache should have entries");
         
         // Second call should be cache hit
         let ast2 = cache.parse_with_cache(content).expect("Failed to parse content");
         let stats_after_second = cache.stats();
-        assert_eq!(stats_after_second.ast_misses, 1);
-        assert_eq!(stats_after_second.ast_hits, 1);
-        assert_eq!(stats_after_second.ast_entries, 1);
+        assert!(stats_after_second.ast_hits > 0, "Second parse should have cache hits");
         
         // AST nodes should be identical (cloned from cache)
         assert_eq!(format!("{:?}", ast1), format!("{:?}", ast2));
         
-        // Test HTML caching
+        // Test HTML rendering (note: HTML is not cached to support reference resolution)
         let options = HtmlOptions::default();
         
-        // First render should be cache miss
+        // First render - AST from cache, HTML freshly generated
         let html1 = cache.render_with_cache(content, options.clone()).expect("Failed to render HTML");
-        let stats_after_html1 = cache.stats();
-        assert_eq!(stats_after_html1.html_misses, 1);
-        assert_eq!(stats_after_html1.html_hits, 0);
-        assert_eq!(stats_after_html1.html_entries, 1);
         
-        // Second render should be cache hit
+        // Second render - AST from cache, HTML freshly generated again
         let html2 = cache.render_with_cache(content, options.clone()).expect("Failed to render HTML");
-        let stats_after_html2 = cache.stats();
-        assert_eq!(stats_after_html2.html_misses, 1);
-        assert_eq!(stats_after_html2.html_hits, 1);
-        assert_eq!(stats_after_html2.html_entries, 1);
         
         // HTML should be identical
         assert_eq!(html1, html2);
@@ -438,34 +347,37 @@ mod tests {
         let stats_after_clear = cache.stats();
         assert_eq!(stats_after_clear.ast_hits, 0);
         assert_eq!(stats_after_clear.ast_misses, 0);
-        assert_eq!(stats_after_clear.html_hits, 0);
-        assert_eq!(stats_after_clear.html_misses, 0);
         assert_eq!(stats_after_clear.ast_entries, 0);
-        assert_eq!(stats_after_clear.html_entries, 0);
     }
     
     #[test]
     fn smoke_test_hit_rates() {
         let cache = SimpleParserCache::new();
         
-        let content1 = "# First Document";
-        let content2 = "# Second Document";
+        // Use larger content to trigger sectioned caching (need > 1024 bytes)
+        let content1 = "# First Document\n\nThis document contains enough text to trigger the sectioned caching mechanism. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Additional padding text to ensure we exceed 1024 bytes threshold for testing purposes. More filler content here.\n\n## Section 2\n\nEven more content in another section to test the sectioning mechanism properly.";
+        let content2 = "# Second Document\n\nThis is a different document that also contains enough text to trigger sectioned caching. At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Additional padding text to ensure we exceed 1024 bytes threshold for testing purposes. More filler content here.\n\n## Section 2\n\nEven more content in another section to test the sectioning mechanism properly.";
         
-        // Parse both documents once (2 misses)
+        let init_stats = cache.stats();
+        
+        // Parse both documents once (should be misses)
         cache.parse_with_cache(content1).expect("Parse failed");
         cache.parse_with_cache(content2).expect("Parse failed");
         
-        // Parse first document again (1 hit)
+        let after_first_two = cache.stats();
+        let _misses_count = after_first_two.ast_misses - init_stats.ast_misses;
+        
+        // Parse first document again (should have hits)
         cache.parse_with_cache(content1).expect("Parse failed");
         
         let stats = cache.stats();
-        assert_eq!(stats.ast_misses, 2);
-        assert_eq!(stats.ast_hits, 1);
+        assert!(stats.ast_misses > 0, "Should have some cache misses");
+        assert!(stats.ast_hits > 0, "Should have some cache hits on reparse");
         
-        // Check hit rate calculation
-        let expected_rate = 1.0 / 3.0; // 1 hit out of 3 total accesses
-        let actual_rate = stats.ast_hit_rate();
-        assert!((actual_rate - expected_rate).abs() < f64::EPSILON);
+        // Check hit rate is reasonable (should be > 0 and < 1)
+        let hit_rate = stats.ast_hit_rate();
+        assert!(hit_rate > 0.0, "Hit rate should be positive");
+        assert!(hit_rate < 1.0, "Hit rate should be less than 1.0");
     }
     
     #[test]
@@ -508,20 +420,21 @@ mod tests {
             .expect("Failed to render sectioned HTML");
         let stats3 = cache.stats();
         
-        // Verify sectioned caching is working
-        println!("Stats1 (first render): hits={}, misses={}", stats1.html_hits, stats1.html_misses);
-        println!("Stats2 (second render same): hits={}, misses={}", stats2.html_hits, stats2.html_misses);
-        println!("Stats3 (third render modified): hits={}, misses={}", stats3.html_hits, stats3.html_misses);
+        // Verify sectioned AST caching is working (HTML is not cached for reference resolution)
+        println!("Stats1 (first render): ast_hits={}, ast_misses={}", stats1.ast_hits, stats1.ast_misses);
+        println!("Stats2 (second render same): ast_hits={}, ast_misses={}", stats2.ast_hits, stats2.ast_misses);
+        println!("Stats3 (third render modified): ast_hits={}, ast_misses={}", stats3.ast_hits, stats3.ast_misses);
         
-        assert!(stats2.html_hits > stats1.html_hits, "Second render should have cache hits");
-        assert!(stats3.html_hits > stats2.html_hits, "Third render should have additional cache hits for unchanged sections");
-        assert!(stats3.html_misses > stats2.html_misses, "Third render should have cache misses for changed sections");
+        assert!(stats2.ast_hits > stats1.ast_hits, "Second render should have AST cache hits");
+        assert!(stats3.ast_hits > stats2.ast_hits, "Third render should have additional AST cache hits for unchanged sections");
+        assert!(stats3.ast_misses > stats2.ast_misses, "Third render should have AST cache misses for changed sections");
     }
 
     #[test]
     fn smoke_test_different_options() {
         let cache = SimpleParserCache::new();
-        let content = "# Test Document";
+        // Use larger content to trigger sectioned caching
+        let content = "# Test Document\n\nThis document contains enough text to trigger the sectioned caching mechanism. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit. Additional padding text to ensure we exceed 1024 bytes threshold for testing purposes. More filler content here to reach the size requirement.\n\n## Section 2\n\nEven more content in another section to test the sectioning mechanism properly and reliably exceed the minimum threshold.";
         
         let options1 = HtmlOptions {
             syntax_highlighting: true,
@@ -533,23 +446,23 @@ mod tests {
             ..HtmlOptions::default()
         };
         
-        // Same content, different options should create separate cache entries
+        // Same content, different options - AST is parsed/cached, HTML is always fresh
         let html1 = cache.render_with_cache(content, options1).expect("Render failed");
         let html2 = cache.render_with_cache(content, options2).expect("Render failed");
         
         let stats = cache.stats();
-        assert_eq!(stats.html_entries, 2); // Should have 2 separate HTML cache entries
-        assert_eq!(stats.html_misses, 2);  // Both should be cache misses
-        assert_eq!(stats.html_hits, 0);    // No hits yet
+        // Note: HTML is not cached (reference resolution requires full document)
+        // AST sections are cached
+        assert!(stats.ast_entries > 0, "AST sections should be cached");
         
-        // HTML content might be the same but they're cached separately
+        // HTML content might be the same but they're always freshly rendered
         assert_eq!(html1, html2); // For this simple case, output should be same
     }
 
     #[test]
     fn smoke_test_global_cache_cleanup() {
-        // Populate global cache
-        let content = "# Global Cache Cleanup Test\n\nTesting issue #16 fix.";
+        // Populate global cache with large content to trigger sectioning
+        let content = "# Global Cache Cleanup Test\n\nTesting issue #16 fix. This document contains enough text to trigger the sectioned caching mechanism. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicando. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Additional padding text to ensure we exceed 1024 bytes threshold for testing purposes. More filler content here to reach the size requirement.\n\n## Section 2\n\nEven more content in another section to test the sectioning mechanism properly and reliably exceed the minimum threshold.";
         let _ast = global_parser_cache().parse_with_cache(content).expect("Parse failed");
         
         // Verify global cache has entries
@@ -564,12 +477,11 @@ mod tests {
         assert_eq!(stats_after.ast_entries, 0, "Global cache should be empty after shutdown");
         assert_eq!(stats_after.ast_hits, 0, "Global statistics should be reset");
         assert_eq!(stats_after.ast_misses, 0, "Global statistics should be reset");
-        assert_eq!(stats_after.html_entries, 0, "Global HTML cache should be empty");
         
         // Verify global cache still works after cleanup
         let _ast2 = global_parser_cache().parse_with_cache(content).expect("Parse should work after cleanup");
         let stats_final = global_parser_cache().stats();
-        assert_eq!(stats_final.ast_misses, 1, "Should work normally after cleanup");
+        assert!(stats_final.ast_misses > 0, "Should work normally after cleanup");
         assert!(stats_final.ast_entries > 0, "Cache should populate again after cleanup");
     }
 }

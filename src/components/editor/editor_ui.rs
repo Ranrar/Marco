@@ -590,7 +590,6 @@ paned > separator {{
                     wheel_js: &wheel_js_local,
                     theme_mode: &theme_mode,
                     base_uri: base_uri.as_deref(),
-                    document_buffer: document_buffer_capture.as_ref(),
                 };
                 crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
                 
@@ -603,7 +602,6 @@ paned > separator {{
                     html_options: html_opts.as_ref(),
                     buffer: buffer.as_ref(),
                     wheel_js: &wheel_js_local,
-                    document_buffer: document_buffer_capture.as_ref(),
                 };
                 crate::components::viewer::preview::refresh_preview_content_smooth_with_doc_buffer(params);
             }

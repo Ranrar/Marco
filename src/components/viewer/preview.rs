@@ -12,8 +12,6 @@ pub struct PreviewRefreshParams<'a> {
     pub wheel_js: &'a str,
     pub theme_mode: &'a RefCell<String>,
     pub base_uri: Option<&'a str>,
-    pub document_buffer:
-        Option<&'a std::rc::Rc<std::cell::RefCell<crate::logic::buffer::DocumentBuffer>>>,
 }
 
 /// Simplified parameters for smooth content updates
@@ -22,8 +20,6 @@ pub struct SmoothUpdateParams<'a> {
     pub html_options: &'a HtmlOptions,
     pub buffer: &'a sourceview5::Buffer,
     pub wheel_js: &'a str,
-    pub document_buffer:
-        Option<&'a std::rc::Rc<std::cell::RefCell<crate::logic::buffer::DocumentBuffer>>>,
 }
 
 /// Generate test HTML content when the editor is empty
@@ -141,7 +137,6 @@ pub fn refresh_preview_into_webview_with_base_uri(
         wheel_js,
         theme_mode,
         base_uri,
-        document_buffer: None,
     };
     refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
 }
@@ -166,59 +161,10 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
 
     // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
     let html_body_with_js = if text.trim().is_empty() {
-        match params.document_buffer {
-            Some(doc_buf) => {
-                let doc_buf_borrowed = doc_buf.borrow();
-                if doc_buf_borrowed.get_file_path().is_none() {
-                    // Untitled document with empty GTK buffer -> show welcome message
-                    log::debug!(
-                        "[viewer] Empty GTK buffer, untitled document -> showing welcome message"
-                    );
-                    generate_test_html(params.wheel_js)
-                } else {
-                    // File document with empty GTK buffer -> try to read from DocumentBuffer
-                    log::debug!("[viewer] Empty GTK buffer, but file loaded -> trying to read from DocumentBuffer");
-                    match doc_buf_borrowed.read_content() {
-                        Ok(file_content) if !file_content.trim().is_empty() => {
-                            log::debug!(
-                                "[viewer] Successfully read content from DocumentBuffer: {} chars",
-                                file_content.len()
-                            );
-                            let html_body =
-                                parse_markdown_to_html_with_theme(&file_content, params.html_options, &params.theme_mode.borrow());
-                            let mut html_with_js = html_body;
-                            html_with_js.push_str(params.wheel_js);
-                            html_with_js
-                        }
-                        Ok(_) => {
-                            // File exists but is empty
-                            log::debug!(
-                                "[viewer] File exists but is empty -> parsing empty content"
-                            );
-                            let html_body = parse_markdown_to_html_with_theme("", params.html_options, &params.theme_mode.borrow());
-                            let mut html_with_js = html_body;
-                            html_with_js.push_str(params.wheel_js);
-                            html_with_js
-                        }
-                        Err(e) => {
-                            log::error!("[viewer] Failed to read from DocumentBuffer: {}", e);
-                            // Fallback to parsing empty text
-                            let html_body = parse_markdown_to_html_with_theme("", params.html_options, &params.theme_mode.borrow());
-                            let mut html_with_js = html_body;
-                            html_with_js.push_str(params.wheel_js);
-                            html_with_js
-                        }
-                    }
-                }
-            }
-            None => {
-                // No DocumentBuffer and empty GTK buffer -> show welcome message
-                log::debug!(
-                    "[viewer] No DocumentBuffer, empty GTK buffer -> showing welcome message"
-                );
-                generate_test_html(params.wheel_js)
-            }
-        }
+        // GTK buffer is empty -> always show welcome message
+        // (User has intentionally cleared the editor, even if there's a file loaded)
+        log::debug!("[viewer] Empty GTK buffer -> showing welcome message");
+        generate_test_html(params.wheel_js)
     } else {
         // GTK TextBuffer has content -> use it directly
         log::debug!("[viewer] GTK buffer has content -> using GTK buffer content");
@@ -277,53 +223,10 @@ pub fn refresh_preview_content_smooth_with_doc_buffer(params: SmoothUpdateParams
 
     // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
     let html_body_with_js = if text.trim().is_empty() {
-        match params.document_buffer {
-            Some(doc_buf) => {
-                let doc_buf_borrowed = doc_buf.borrow();
-                if doc_buf_borrowed.get_file_path().is_none() {
-                    // Untitled document with empty GTK buffer -> show welcome message
-                    log::debug!("[viewer] Smooth update: Empty GTK buffer, untitled document -> showing welcome message");
-                    generate_test_html(params.wheel_js)
-                } else {
-                    // File document with empty GTK buffer -> try to read from DocumentBuffer
-                    log::debug!("[viewer] Smooth update: Empty GTK buffer, but file loaded -> trying to read from DocumentBuffer");
-                    match doc_buf_borrowed.read_content() {
-                        Ok(file_content) if !file_content.trim().is_empty() => {
-                            log::debug!("[viewer] Smooth update: Successfully read content from DocumentBuffer: {} chars", file_content.len());
-                            let html_body =
-                                parse_markdown_to_html(&file_content, params.html_options);
-                            let mut html_with_js = html_body;
-                            html_with_js.push_str(params.wheel_js);
-                            html_with_js
-                        }
-                        Ok(_) => {
-                            // File exists but is empty
-                            log::debug!("[viewer] Smooth update: File exists but is empty -> parsing empty content");
-                            let html_body = parse_markdown_to_html("", params.html_options);
-                            let mut html_with_js = html_body;
-                            html_with_js.push_str(params.wheel_js);
-                            html_with_js
-                        }
-                        Err(e) => {
-                            log::error!(
-                                "[viewer] Smooth update: Failed to read from DocumentBuffer: {}",
-                                e
-                            );
-                            // Fallback to parsing empty text
-                            let html_body = parse_markdown_to_html("", params.html_options);
-                            let mut html_with_js = html_body;
-                            html_with_js.push_str(params.wheel_js);
-                            html_with_js
-                        }
-                    }
-                }
-            }
-            None => {
-                // No DocumentBuffer and empty GTK buffer -> show welcome message
-                log::debug!("[viewer] Smooth update: No DocumentBuffer, empty GTK buffer -> showing welcome message");
-                generate_test_html(params.wheel_js)
-            }
-        }
+        // GTK buffer is empty -> always show welcome message
+        // (User has intentionally cleared the editor, even if there's a file loaded)
+        log::debug!("[viewer] Smooth update: Empty GTK buffer -> showing welcome message");
+        generate_test_html(params.wheel_js)
     } else {
         // GTK TextBuffer has content -> use it directly
         log::debug!("[viewer] Smooth update: GTK buffer has content -> using GTK buffer content");

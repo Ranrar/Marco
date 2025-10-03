@@ -2197,7 +2197,7 @@ impl AstBuilder {
         &self,
         pair: Pair<Rule>,
     ) -> Result<(String, String, Option<String>), AstError> {
-        let text = pair.as_str();
+        let text = pair.as_str().trim(); // Remove all leading/trailing whitespace
 
         // Parse [label]: url "title" format
         if let Some(close_bracket) = text.find("]: ") {
@@ -2205,17 +2205,28 @@ impl AstBuilder {
                 let label = text[1..close_bracket].to_string();
                 let url_and_title = &text[close_bracket + 3..];
 
-                // Check for title in quotes
-                if let Some(quote_pos) = url_and_title.find(" \"") {
-                    let url = url_and_title[..quote_pos].trim().to_string();
-                    let title_part = &url_and_title[quote_pos + 2..];
-                    let title = if let Some(stripped) = title_part.strip_suffix('"') {
-                        Some(stripped.to_string())
-                    } else {
-                        Some(title_part.to_string())
-                    };
-                    return Ok((label, url, title));
+                // Check for title in double quotes
+                if let Some(quote_start) = url_and_title.find(" \"") {
+                    let url = url_and_title[..quote_start].trim().to_string();
+                    let after_quote = &url_and_title[quote_start + 2..]; // Skip ` "`
+                    
+                    // Find the closing quote
+                    if let Some(quote_end) = after_quote.find('"') {
+                        let title = after_quote[..quote_end].to_string();
+                        return Ok((label, url, Some(title)));
+                    }
+                } else if let Some(quote_start) = url_and_title.find(" '") {
+                    // Handle single quotes
+                    let url = url_and_title[..quote_start].trim().to_string();
+                    let after_quote = &url_and_title[quote_start + 2..]; // Skip ` '`
+                    
+                    // Find the closing quote
+                    if let Some(quote_end) = after_quote.find('\'') {
+                        let title = after_quote[..quote_end].to_string();
+                        return Ok((label, url, Some(title)));
+                    }
                 } else {
+                    // No title
                     let url = url_and_title.trim().to_string();
                     return Ok((label, url, None));
                 }
