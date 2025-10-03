@@ -6,13 +6,15 @@
 use crate::components::marco_engine::ast_node::Node;
 use std::fmt::Write;
 
-/// Helper function to determine if a URL is external (http/https/www)
-/// Returns true for URLs that should open in the system browser
+/// Helper function to determine if a URL should open in a new tab
+/// Returns true for URLs that should have target="_blank"
+/// This includes: http/https URLs, www URLs, and mailto links
 fn is_external_url(url: &str) -> bool {
     let url_lower = url.to_lowercase();
     url_lower.starts_with("http://") 
         || url_lower.starts_with("https://") 
         || url_lower.starts_with("www.")
+        || url_lower.starts_with("mailto:")
 }
 
 #[derive(Debug, Clone)]

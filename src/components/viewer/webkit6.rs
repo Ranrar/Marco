@@ -717,6 +717,11 @@ fn is_external_uri(uri: &str) -> bool {
         return true;
     }
     
+    // External: mailto links (open in email client)
+    if uri_lower.starts_with("mailto:") {
+        return true;
+    }
+    
     // Internal: everything else (file://, #anchors, relative paths, etc.)
     false
 }
@@ -819,6 +824,11 @@ mod tests {
         assert!(is_external_uri("https://example.com:8080/path"), "HTTPS URL with port should be external");
         assert!(is_external_uri("www.example.com"), "www URL should be external");
         assert!(is_external_uri("www.example.com/page"), "www URL with path should be external");
+        
+        // Test mailto links - should return true (open in email client)
+        assert!(is_external_uri("mailto:user@example.com"), "mailto link should be external");
+        assert!(is_external_uri("mailto:admin@localhost"), "mailto with localhost should be external");
+        assert!(is_external_uri("MAILTO:USER@EXAMPLE.COM"), "Uppercase mailto should be external");
         
         // Test internal/local URLs - should return false
         assert!(!is_external_uri("file:///home/user/document.md"), "file:// URL should be internal");

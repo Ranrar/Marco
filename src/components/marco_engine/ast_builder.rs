@@ -488,8 +488,23 @@ impl AstBuilder {
                 let text = pair.as_str();
                 if text.starts_with('<') && text.ends_with('>') {
                     // This is an autolink - strip angle brackets
-                    let url = text[1..text.len()-1].to_string();
-                    let text_nodes = vec![Node::text(url.clone(), span.clone())];
+                    let stripped = &text[1..text.len()-1];
+                    
+                    // Check if it's an email autolink (contains @ and no http/https/mailto)
+                    let is_email = stripped.contains('@') 
+                        && !stripped.starts_with("http://") 
+                        && !stripped.starts_with("https://") 
+                        && !stripped.starts_with("mailto:");
+                    
+                    // Add mailto: prefix for email autolinks
+                    let url = if is_email {
+                        format!("mailto:{}", stripped)
+                    } else {
+                        stripped.to_string()
+                    };
+                    
+                    // Display text should not include mailto: prefix
+                    let text_nodes = vec![Node::text(stripped.to_string(), span.clone())];
                     Ok(Node::link(text_nodes, url, None, span))
                 } else {
                     // Regular link [text](url)
@@ -505,13 +520,27 @@ impl AstBuilder {
 
             Rule::autolink => {
                 let raw = pair.as_str();
-                // Strip angle brackets: <url> -> url
-                let url = if raw.starts_with('<') && raw.ends_with('>') {
-                    raw[1..raw.len()-1].to_string()
+                // Check if this is an email autolink by examining the stripped content
+                // Email autolinks contain '@' character
+                let stripped = if raw.starts_with('<') && raw.ends_with('>') {
+                    &raw[1..raw.len()-1]
                 } else {
-                    raw.to_string()
+                    raw
                 };
-                let text = vec![Node::text(url.clone(), span.clone())];
+                
+                let is_email = stripped.contains('@') && !stripped.starts_with("http://") 
+                    && !stripped.starts_with("https://") && !stripped.starts_with("mailto:");
+                
+                // Build the URL with mailto: prefix for emails
+                let url = if is_email && !stripped.starts_with("mailto:") {
+                    format!("mailto:{}", stripped)
+                } else {
+                    stripped.to_string()
+                };
+                
+                // Display text should not include mailto: prefix
+                let display_text = stripped.to_string();
+                let text = vec![Node::text(display_text, span.clone())];
                 Ok(Node::link(text, url, None, span))
             }
 

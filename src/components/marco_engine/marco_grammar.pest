@@ -378,9 +378,9 @@ http_url = @{ (("https://" | "http://") ~ URL_SAFE+) | ("www." ~ URL_SAFE+) }
 www_url  = @{ "www." ~ URL_SAFE+ }
 
 // Email address components for mailto links
-// Examples: "user@domain.com", "test.email+tag@sub.example.org"
+// Examples: "user@domain.com", "test.email+tag@sub.example.org", "admin@localhost"
 EMAIL_LOCAL       = @{ ASCII_ALPHANUMERIC+ ~ (ASCII_ALPHANUMERIC | "." | "_" | "-" | "+")* }
-EMAIL_FULL_DOMAIN = @{ (ASCII_ALPHANUMERIC+ ~ ".")+ ~ ASCII_ALPHANUMERIC+ }
+EMAIL_FULL_DOMAIN = @{ ASCII_ALPHANUMERIC+ ~ ("." ~ ASCII_ALPHANUMERIC+)* }
 mailto            = @{ "mailto:" ~ EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN }
 
 // Local file paths - relative, absolute, and Windows drive paths
