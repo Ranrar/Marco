@@ -1077,6 +1077,33 @@ pub fn register_file_actions_async(
     });
     app.add_action(&clear_recent_action);
 
+    // Export action (placeholder)
+    let export_action = gio::SimpleAction::new("export", None);
+    export_action.connect_activate(move |_, _| {
+        trace!("audit: export action triggered");
+        eprintln!("[main] Export action - placeholder implementation");
+        // TODO: Implement export to PDF/HTML functionality
+    });
+    app.add_action(&export_action);
+
+    // Document Builder action (placeholder)
+    let document_builder_action = gio::SimpleAction::new("document_builder", None);
+    document_builder_action.connect_activate(move |_, _| {
+        trace!("audit: document builder action triggered");
+        eprintln!("[main] Document Builder action - placeholder implementation");
+        // TODO: Implement document builder functionality
+    });
+    app.add_action(&document_builder_action);
+
+    // Document Splitter action (placeholder)
+    let document_splitter_action = gio::SimpleAction::new("document_splitter", None);
+    document_splitter_action.connect_activate(move |_, _| {
+        trace!("audit: document splitter action triggered");
+        eprintln!("[main] Document Splitter action - placeholder implementation");
+        // TODO: Implement document splitter functionality
+    });
+    app.add_action(&document_splitter_action);
+
     // Set keyboard shortcuts for file actions
     app.set_accels_for_action("app.new", &["<Control>n"]);
     app.set_accels_for_action("app.open", &["<Control>o"]);

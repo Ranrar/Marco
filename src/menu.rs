@@ -13,11 +13,14 @@ type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 
 pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
-    // ...existing code for menu structure...
+    // Main menu model that contains all top-level menu items
     let menu_model = gio::Menu::new();
+    
+    // File menu with document operations and application settings
     let file_menu = gio::Menu::new();
     file_menu.append(Some("New"), Some("app.new"));
     file_menu.append(Some("Open"), Some("app.open"));
+    
     // Recent Files submenu: the application can populate this at runtime.
     // Create the submenu model that will be mutated at runtime.
     let recent_menu = gio::Menu::new();
@@ -33,9 +36,12 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     file_menu.append_item(&recent_menu_item);
     file_menu.append(Some("Save"), Some("app.save"));
     file_menu.append(Some("Save As"), Some("app.save_as"));
+    file_menu.append(Some("Export"), Some("app.export"));
     file_menu.append(Some("Settings"), Some("app.settings"));
     file_menu.append(Some("Quit"), Some("app.quit"));
     menu_model.append_submenu(Some("File"), &file_menu);
+    
+    // Edit menu with text editing and search operations
     let edit_menu = gio::Menu::new();
     edit_menu.append(Some("Undo"), Some("app.undo"));
     edit_menu.append(Some("Redo"), Some("app.redo"));
@@ -44,18 +50,38 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     edit_menu.append(Some("Paste"), Some("app.paste"));
     edit_menu.append(Some("Search & Replace"), Some("app.search"));
     menu_model.append_submenu(Some("Edit"), &edit_menu);
+    
+    // Document menu with builder and splitter tools
+    let document_menu = gio::Menu::new();
+    document_menu.append(Some("Document Builder"), Some("app.document_builder"));
+    document_menu.append(Some("Document Splitter"), Some("app.document_splitter"));
+    menu_model.append_submenu(Some("Document"), &document_menu);
+    
+    // Bookmarks menu (empty for now)
+    let bookmarks_menu = gio::Menu::new();
+    let placeholder_bookmark = gio::MenuItem::new(Some("(No bookmarks)"), None::<&str>);
+    bookmarks_menu.append_item(&placeholder_bookmark);
+    menu_model.append_submenu(Some("Bookmarks"), &bookmarks_menu);
+    
+    // Format menu with text styling options
     let format_menu = gio::Menu::new();
     format_menu.append(Some("Bold"), Some("app.bold"));
     format_menu.append(Some("Italic"), Some("app.italic"));
     format_menu.append(Some("Code"), Some("app.code"));
     menu_model.append_submenu(Some("Format"), &format_menu);
+    
+    // View menu with display and layout options
     let view_menu = gio::Menu::new();
     view_menu.append(Some("HTML Preview"), Some("app.view_html"));
     view_menu.append(Some("Code View"), Some("app.view_code"));
     menu_model.append_submenu(Some("View"), &view_menu);
+    
+    // Help menu with application information
     let help_menu = gio::Menu::new();
     help_menu.append(Some("About"), Some("app.about"));
     menu_model.append_submenu(Some("Help"), &help_menu);
+    
+    // Create the menu bar from the model and apply styling
     let menubar = PopoverMenuBar::from_model(Some(&menu_model));
     menubar.add_css_class("menubar");
     (menubar, recent_menu)
@@ -124,7 +150,7 @@ pub fn create_custom_titlebar(
     layout_menu_btn.add_css_class("window-control-btn");
 
     // State management (single shared instance)
-    let layout_state = Rc::new(RefCell::new(LayoutState::Split));
+    let layout_state = Rc::new(RefCell::new(LayoutState::DualView));
     // Set initial tooltip to the human-readable current layout label
     layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
 
@@ -162,7 +188,7 @@ pub fn create_custom_titlebar(
         // Button 1: Close view (show only editor)
         if matches!(
             state,
-            LayoutState::Split | LayoutState::ViewOnly | LayoutState::ViewWinOnly
+            LayoutState::DualView | LayoutState::ViewOnly | LayoutState::EditorAndViewSeparate
         ) {
             let btn1 = Button::new();
             btn1.add_css_class("layout-btn");
@@ -191,7 +217,7 @@ pub fn create_custom_titlebar(
         // Button 2: Close editor (show only view)
         if matches!(
             state,
-            LayoutState::Split | LayoutState::EditorOnly | LayoutState::EditorAndWin
+            LayoutState::DualView | LayoutState::EditorOnly | LayoutState::EditorAndViewSeparate
         ) {
             let btn2 = Button::new();
             btn2.add_css_class("layout-btn");
@@ -218,7 +244,7 @@ pub fn create_custom_titlebar(
         }
 
         // Button 3: Close view (open view in separate window)
-        if matches!(state, LayoutState::Split | LayoutState::ViewOnly) {
+        if matches!(state, LayoutState::DualView | LayoutState::ViewOnly) {
             let btn3 = Button::new();
             btn3.add_css_class("layout-btn");
             // IcoMoon '8' = detatch
@@ -232,7 +258,7 @@ pub fn create_custom_titlebar(
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
             btn3.connect_clicked(move |_| {
-                let next = LayoutState::EditorAndWin;
+                let next = LayoutState::EditorAndViewSeparate;
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
@@ -244,7 +270,7 @@ pub fn create_custom_titlebar(
         }
 
         // Button 4: Restore default split view
-        if !matches!(state, LayoutState::Split) {
+        if !matches!(state, LayoutState::DualView) {
             let btn4 = Button::new();
             btn4.add_css_class("layout-btn");
             // IcoMoon '7' = editor_preview
@@ -258,7 +284,7 @@ pub fn create_custom_titlebar(
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
             btn4.connect_clicked(move |_| {
-                let next = LayoutState::Split;
+                let next = LayoutState::DualView;
                 *layout_state.borrow_mut() = next;
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
