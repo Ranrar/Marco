@@ -13,6 +13,7 @@ use gtk4::Paned;
 use sourceview5::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
 
 
 pub fn create_editor_with_preview_and_buffer(
@@ -29,20 +30,36 @@ pub fn create_editor_with_preview_and_buffer(
     paned.set_position(600);
     
     // Add constraints to limit paned position (10% to 90% of width)
-    paned.connect_notify_local(Some("position"), move |paned, _| {
-        let width = paned.allocated_width();
-        if width > 0 {
-            let position = paned.position();
-            let min_position = (width as f64 * 0.10) as i32;  // 10%
-            let max_position = (width as f64 * 0.90) as i32;  // 90%
-            
-            if position < min_position {
-                paned.set_position(min_position);
-            } else if position > max_position {
-                paned.set_position(max_position);
+    // Use a flag to prevent cascade events when multiple callbacks call set_position()
+    let position_being_set = Rc::new(RefCell::new(false));
+    {
+        let position_being_set_clone = Rc::clone(&position_being_set);
+        paned.connect_notify_local(Some("position"), move |paned, _| {
+            // Prevent cascade if we're already setting position programmatically
+            if *position_being_set_clone.borrow() {
+                return;
             }
-        }
-    });
+            
+            let width = paned.allocated_width();
+            if width > 0 {
+                let position = paned.position();
+                let min_position = (width as f64 * 0.10) as i32;  // 10%
+                let max_position = (width as f64 * 0.90) as i32;  // 90%
+                
+                if position < min_position || position > max_position {
+                    *position_being_set_clone.borrow_mut() = true;
+                    
+                    if position < min_position {
+                        paned.set_position(min_position);
+                    } else if position > max_position {
+                        paned.set_position(max_position);
+                    }
+                    
+                    *position_being_set_clone.borrow_mut() = false;
+                }
+            }
+        });
+    }
 
     let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
         let tm = theme_manager.borrow();
@@ -1084,8 +1101,12 @@ paned > separator {{
         preview_theme_timeout_clone.set(Some(id));
     }) as Box<dyn Fn(&str)>;
 
+    // Set up split percentage indicator with cascade prevention
+    let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(&paned, Some(Rc::clone(&position_being_set)));
+    let overlay = split_indicator.widget().clone();
+
     (
-        paned,
+        paned,  // Return original paned for compatibility
         webview,
         css_rc,
         Box::new({
@@ -1124,5 +1145,6 @@ paned > separator {{
                 }
             }) as Box<dyn Fn(ViewMode)>
         },
+        overlay,  // Add overlay as 11th element
     )
 }

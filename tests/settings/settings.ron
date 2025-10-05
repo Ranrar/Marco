@@ -25,12 +25,12 @@
   )),
   language: None,
   window: Some((
-    width: Some(1970),
-    height: Some(1301),
+    width: Some(1267),
+    height: Some(860),
     x: None,
     y: None,
     maximized: Some(false),
-    split_ratio: Some(40),
+    split_ratio: Some(50),
   )),
   files: Some((
     recent_files: Some([

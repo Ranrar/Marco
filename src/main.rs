@@ -325,6 +325,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         editor_source_view,
         insert_mode_state,
         set_view_mode,
+        split_overlay,
     ) = create_editor_with_preview_and_buffer(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
@@ -346,7 +347,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         footer_labels_rc.clone(),
         insert_mode_state.clone(),
     );
-    split.add_css_class("split-view");
+    split_overlay.add_css_class("split-view");  // Apply CSS to overlay
 
     // --- Settings Thread Pool for Proper Resource Management ---
     // Create early so it's available for split ratio saving
@@ -543,11 +544,11 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
 
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);
-    main_box.append(&split);
+    main_box.append(&split_overlay);  // Use overlay instead of split
     main_box.append(&footer);
 
     // Set editor area to expand
-    split.set_vexpand(true);
+    split_overlay.set_vexpand(true);  // Use overlay instead of split
 
     // Ensure footer is visible and properly positioned
     footer.set_vexpand(false); // Footer should not expand vertically

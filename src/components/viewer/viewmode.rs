@@ -1,4 +1,4 @@
-use gtk4::Paned;
+use gtk4::{Paned, Overlay};
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -18,8 +18,9 @@ impl std::fmt::Display for ViewMode {
     }
 }
 
+// Keep the original type but add overlay support
 pub type EditorReturn = (
-    Paned,
+    Paned,  // Keep as Paned for backwards compatibility
     webkit6::WebView,
     Rc<RefCell<String>>,
     Box<dyn Fn()>,
@@ -29,4 +30,5 @@ pub type EditorReturn = (
     sourceview5::View,
     Rc<RefCell<bool>>,
     Box<dyn Fn(ViewMode)>,
+    Overlay, // Add overlay as the 11th element
 );

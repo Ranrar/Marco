@@ -4,6 +4,7 @@ pub mod components;
 pub mod footer;
 pub mod logic;
 pub mod theme;
+pub mod ui;
 
 // Re-export commonly used types
 pub use logic::buffer::{DocumentBuffer, RecentFiles};
