@@ -1,0 +1,59 @@
+[package]
+name = "marco"
+version = "0.1.0"
+edition = "2021"
+authors = ["Kim Skov Rasmussen"]
+description = "Marco - A Markdown Composer"
+license = "MIT OR Apache-2.0"
+default-run = "marco"
+
+[features]
+default = []
+integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty"]
+
+[[bin]]
+name = "marco"
+path = "src/main.rs"
+
+[[bin]]
+name = "marco-test"
+path = "../tests/test_runner/main.rs"
+required-features = ["integration-tests"]
+
+[[bin]]
+name = "marco-parser-debug"
+path = "../tests/parser_debug/main.rs"
+required-features = ["integration-tests"]
+
+[dependencies]
+# Core library
+marco_core = { path = "../marco_core" }
+
+# UI dependencies
+gtk4 = { workspace = true }
+glib = { workspace = true }
+gio = { workspace = true }
+sourceview5 = { workspace = true }
+webkit6 = { workspace = true }
+dark-light = { workspace = true }
+
+# Utilities (also in marco_core but needed here)
+anyhow = { workspace = true }
+serde = { workspace = true }
+ron = { workspace = true }
+log = { workspace = true }
+dirs = { workspace = true }
+syntect = { workspace = true }
+syntect-assets = { workspace = true }
+
+# Test suite dependencies
+clap = { workspace = true, optional = true }
+similar = { workspace = true, optional = true }
+colored = { workspace = true, optional = true }
+atty = { workspace = true, optional = true }
+
+[dev-dependencies]
+criterion = { workspace = true }
+rand = { workspace = true }
+serial_test = { workspace = true }
+tempfile = { workspace = true }

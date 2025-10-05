@@ -11,5 +11,4 @@ target
 /.dev
 
 # Program specefik
-/src/bin
 /log

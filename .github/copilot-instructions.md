@@ -4,15 +4,33 @@ Marco is a GTK4-based Rust markdown editor with custom syntax extensions and a p
 
 ## Architecture Overview
 
-Marco follows a clear 3-layer architecture:
+Marco uses a **Cargo workspace** with three crates:
 
-### Core Components (`src/components/`)
-- **`marco_engine/`** - The heart of the project: pest-based parser, AST builder, and HTML renderer
-- **`editor/`** - GTK4 editor UI with SourceView integration  
-- **`viewer/`** - WebKit-based preview rendering
+### Workspace Structure
+- **`marco_core/`** - Pure Rust library: pest-based parser, AST builder, HTML renderer, and core logic (buffer management, settings, paths). No GTK dependencies.
+- **`marco/`** - Full-featured editor binary: GTK4 UI, SourceView5 text editing, WebKit6 preview. Depends on `marco_core`.
+- **`polo/`** - Lightweight viewer binary: GTK4 UI, WebKit6 preview only (no SourceView5). Depends on `marco_core`.
+- **`assets/`** - Centralized at workspace root: themes, fonts, icons, settings.
+
+### Core Components
+
+#### marco_core Library (`marco_core/src/`)
+- **`components/marco_engine/`** - The heart of the project: pest-based parser, AST builder, and HTML renderer
+- **`components/syntax_highlighter/`** - Syntect-based code highlighting for preview
+- **`logic/`** - Pure Rust business logic: buffer management, settings, paths, cache, logging
+
+#### marco Binary (`marco/src/`)
+- **`components/editor/`** - GTK4 editor UI with SourceView5 integration  
+- **`components/viewer/`** - WebKit6-based preview rendering
+- **`components/language/`** - Localization support
+- **`logic/`** - UI-specific logic: GTK signal management, menu handlers
+- **`ui/`** - GTK widgets and split view layout
+
+#### polo Binary (`polo/src/`)
+- Viewer-only application (implementation pending)
 
 ### Marco Engine (Essential Understanding)
-The `marco_engine` provides a simplified 3-function API:
+The `marco_engine` (in marco_core) provides a simplified 3-function API:
 ```rust
 // Core workflow: parse → build_ast → render_html
 let pairs = parse_text(input)?;          // Pest parsing
@@ -20,14 +38,15 @@ let ast = build_ast(pairs)?;             // AST construction
 let html = render_html(&ast, options);   // HTML output
 ```
 
-Key files:
+Key files in `marco_core/src/components/marco_engine/`:
 - `marco_grammar.pest` - Custom markdown grammar with Marco extensions
 - `ast_builder.rs` - Converts pest pairs to AST nodes
 - `render_html.rs` - Outputs HTML from AST
 
 ### Project Structure Patterns
-- `src/main.rs` serves **only** as application gateway - UI logic lives in components
-- `src/lib.rs` re-exports public API for external tools and tests
+- `marco/src/main.rs` serves **only** as application gateway - UI logic lives in components
+- `marco_core/src/lib.rs` re-exports public API for external tools and tests
+- **Import convention**: Use `marco_core::` for core functionality, `crate::` for local modules
 
 ## Development Workflows
 
@@ -39,9 +58,18 @@ The project includes VS Code tasks for pest grammar work:
 Key insight: Grammar issues are tracked in `src/bin/doc/PARSER_ISSUES.md` with resolution status.
 
 ### Build System
-- `build.rs` automatically copies assets from `src/assets/` to `target/*/marco_assets/`
+- **Workspace root**: `Cargo.toml` defines workspace members and shared dependencies
+- **Core build**: `marco_core/build.rs` copies assets from workspace `assets/` to `target/*/marco_assets/`
 - Font loading uses absolute paths via `logic::paths` helpers
 - Cross-platform support handled in `logic::crossplatforms`
+
+Build commands:
+```bash
+cargo build -p marco_core  # Core library only
+cargo build -p marco       # Full editor
+cargo build -p polo        # Viewer only
+cargo build --workspace    # All crates
+```
 
 ## Marco-Specific Patterns
 
@@ -54,15 +82,20 @@ Marco supports unique syntax beyond CommonMark:
 - Admonition blocks with custom icons
 
 ### Error Handling & Logging
-- Panic hook installed early in `main.rs` with logger flush on crash
-- File-based logging via `logic::logger::SimpleFileLogger`
+- Panic hook installed early in `marco/src/main.rs` with logger flush on crash
+- File-based logging via `marco_core::logic::logger::SimpleFileLogger`
 - Parser errors return `Result<T, String>` (not custom error types)
 
 ### Code Organization Rules
-1. **No logic in `main.rs`** - only application setup and UI creation
+1. **No logic in `marco/src/main.rs`** - only application setup and UI creation
 2. **Component isolation** - each component directory is self-contained
-3. **Asset management** - fonts, themes, icons loaded via `logic::paths`
-4. **Library API** - `lib.rs` exposes clean API for external tools
+3. **Core vs UI separation** - Pure Rust logic in `marco_core`, GTK-dependent code in `marco`
+4. **Asset management** - fonts, themes, icons loaded via `logic::paths` from workspace `assets/`
+5. **Library API** - `marco_core/src/lib.rs` exposes clean API for external tools and polo binary
+6. **Import patterns**: 
+   - Use `marco_core::logic::buffer::DocumentBuffer` from marco binary
+   - Use `crate::components::editor::...` for local marco modules
+   - Never use absolute paths like `marco::...` from within marco binary
 
 ## Key Integration Points
 
@@ -72,9 +105,10 @@ Marco supports unique syntax beyond CommonMark:
 - Theme synchronization between editor and preview handled in `theme.rs`
 
 ### Cross-Component Communication
-- `DocumentBuffer` in `logic::buffer` manages file state
-- Footer updates wired through `editor::footer_updates`
-- View mode switching handled in `viewer::viewmode`
+- `DocumentBuffer` in `marco_core::logic::buffer` manages file state
+- Footer updates wired through `marco/src/components/editor/footer_updates.rs`
+- View mode switching handled in `marco/src/components/viewer/viewmode.rs`
+- Theme synchronization between editor and preview in `marco/src/theme.rs`
 
 ## Testing Approach
 
@@ -123,8 +157,8 @@ mod tests {
 - **Performance optimizations** - Ensure smoke tests still pass after changes
 
 ### Secondary Testing Approaches:
-- **Integration tests** in `tests/` directory use lib.rs exports
-- **Parser testing** via bin tools with live content (`src/bin/test_*`)
+- **Integration tests** in `tests/` directory use marco_core lib.rs exports
+- **Parser testing** via bin tools with live content (`tests/parser_debug/`)
 - **Manual testing** preferred over unit tests for UI components
 - **Grammar testing** - always run `test_current_parser` and check `PARSER_ISSUES.md`
 
@@ -134,3 +168,4 @@ mod tests {
 3. **Avoid over-mocking** - Use real objects when possible
 4. **Document test intent** - Clear comments explaining what is being verified
 5. **Fast feedback** - Tests should complete quickly for development workflow
+6. **Run workspace tests** - Use `cargo test --workspace` to test all crates together

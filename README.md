@@ -4,6 +4,41 @@
 
 Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and custom markdown features.
 
+## Project Structure
+
+Marco is organized as a Cargo workspace with three crates:
+
+- **`marco_core`** - Core markdown parsing library (no UI dependencies)
+  - Custom pest-based grammar and parser
+  - AST builder and HTML renderer
+  - Business logic and settings management
+  - Can be used as a standalone library
+
+- **`marco`** - Full-featured markdown editor (main application)
+  - GTK4-based UI with SourceView5 editor
+  - WebKit6 preview rendering
+  - Complete editing and preview experience
+
+- **`polo`** - Viewer-only mode (coming soon)
+  - Lightweight markdown viewer
+  - Simplified UI for reading rendered markdown
+  - No editor dependencies
+
+### Building
+
+```bash
+# Build everything
+cargo build --workspace
+
+# Build specific crates
+cargo build -p marco_core   # Core library only
+cargo build -p marco        # Full editor
+cargo build -p polo         # Viewer only
+
+# Run Marco
+cargo run -p marco
+```
+
 ## Features in Progress
 
 Marco is currently in active development with a focus on perfecting our custom markdown grammar and parser. We're approximately **90% complete** with the core implementation, working on polishing the codebase and ensuring robust parsing of all markdown constructs.

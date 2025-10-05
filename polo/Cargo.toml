@@ -1,0 +1,24 @@
+[package]
+name = "polo"
+version = "0.1.0"
+edition = "2021"
+authors = ["Kim Skov Rasmussen"]
+description = "Polo - Markdown Viewer (Marco's ViewOnly mode)"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+# Core library
+marco_core = { path = "../marco_core" }
+
+# Minimal UI dependencies (no SourceView5)
+gtk4 = { workspace = true }
+glib = { workspace = true }
+gio = { workspace = true }
+webkit6 = { workspace = true }
+dark-light = { workspace = true }
+
+# Utilities
+serde = { workspace = true }
+ron = { workspace = true }
+log = { workspace = true }
+dirs = { workspace = true }

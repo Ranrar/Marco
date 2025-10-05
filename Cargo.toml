@@ -1,107 +1,57 @@
-[package]
-name = "marco"
-version = "0.1.0"
-edition = "2021"
-authors = ["Kim Skov Rasmussen"]
-description = "Marco - A Markdown Composer"
-license = "MIT OR Apache-2.0"
-default-run = "marco"
+[workspace]
+resolver = "2"
+members = ["marco_core", "marco", "polo"]
 
-# Regular build (no test dependencies)
-# cargo build
-#
-# Build with test tools
-# cargo build --features integration-tests
-#
-# Run specific test tools
-# cargo run --bin marco-parser-debug --features integration-tests
-# cargo run --bin marco-test --features integration-tests
-
-# ========================
-# Features
-# ========================
-[features]
-default = []
-# Group all test/debug dependencies under a feature
-integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty"]
-
-# ========================
-# Binaries
-# ========================
-[[bin]]
-name = "marco"
-path = "src/main.rs"
-
-[[bin]]
-name = "marco-test"
-path = "tests/test_runner/main.rs"
-required-features = ["integration-tests"]
-
-[[bin]]
-name = "marco-parser-debug"
-path = "tests/parser_debug/main.rs"
-required-features = ["integration-tests"]
-
-# ========================
-# Dependencies
-# ========================
-[dependencies]
-ron = "0.11"
-serde = { version = "1.0", features = ["derive"] }
-dark-light = "2.0.0"
-regex = "1.11"
-gtk4 = "0.10.1"
-glib = "0.21"
-sourceview5 = "0.10.0"
-webkit6 = "0.5.0"
-serde_json = "1.0"
-anyhow = "1.0"
-log = "0.4.28"
-gio = "0.21"
-chrono = { version = "0.4", features = ["serde"] }
-tempfile = "3.23.0"
+# Shared workspace dependencies
+[workspace.dependencies]
+# Core parsing and serialization (no UI)
 pest = "2.8.3"
 pest_derive = "2.8.3"
+ron = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+regex = "1.11"
+anyhow = "1.0"
+log = "0.4.28"
+chrono = { version = "0.4", features = ["serde"] }
+tempfile = "3.23.0"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "6.0"
 lru = "0.16.1"
+
+# UI dependencies (GTK4 ecosystem)
+gtk4 = "0.10.1"
+glib = "0.21"
+gio = "0.21"
+sourceview5 = "0.10.0"
+webkit6 = "0.5.0"
+dark-light = "2.0.0"
+
+# Syntax highlighting
 syntect = "5.3"
 syntect-assets = "0.23"
 
-# Test suite dependencies (only included when integration-tests feature is enabled)
-clap = { version = "4.5", features = ["derive"], optional = true }
-similar = { version = "2.7", features = ["inline", "unicode"], optional = true }
-colored = { version = "3.0", optional = true }
-atty = { version = "0.2", optional = true }
-
-# ========================
-# Dev/Test-only dependencies
-# ========================
-[dev-dependencies]
+# Test dependencies
+clap = { version = "4.5", features = ["derive"] }
+similar = { version = "2.7", features = ["inline", "unicode"] }
+colored = "3.0"
+atty = "0.2"
 criterion = "0.7"
 rand = "0.9"
-pest_ascii_tree = "0.1.0"  # Parse tree visualization for debugging
-serial_test = "3.2"  # Serialize test execution to prevent race conditions
+pest_ascii_tree = "0.1.0"
+serial_test = "3.2"
 
-# ========================
-# Build dependencies
-# ========================
-[build-dependencies]
-serde_json = "1.0"
-
-# ========================
 # Profile optimizations
-# ========================
 [profile.dev]
-opt-level = 0            # fastest compilation for iterative dev
-debug = true             # full debug symbols for backtraces
+opt-level = 0
+debug = true
 incremental = true
-overflow-checks = false  # skip integer overflow checks in dev
+overflow-checks = false
 split-debuginfo = 'unpacked'
 
 [profile.release]
-opt-level = 3            # full optimization
-debug = false            # strip debug symbols
-lto = true               # link-time optimization
-codegen-units = 1        # improve release performance with LTO
+opt-level = 3
+debug = false
+lto = true
+codegen-units = 1

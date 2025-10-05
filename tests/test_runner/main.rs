@@ -26,9 +26,9 @@ fn main() -> Result<()> {
     }
 
     // Initialize settings manager for shared settings
-    let _settings_manager = match marco::logic::paths::get_settings_path() {
+    let _settings_manager = match marco_core::logic::paths::get_settings_path() {
         Ok(settings_path) => {
-            match marco::logic::swanson::SettingsManager::initialize(settings_path) {
+            match marco_core::logic::swanson::SettingsManager::initialize(settings_path) {
                 Ok(manager) => {
                     eprintln!("Settings initialized for test runner");
                     Some(manager)
