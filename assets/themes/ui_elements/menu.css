@@ -10,6 +10,10 @@
  * - .window-control-btn : window control buttons (minimize/maximize/close)
  *   and used by the top layout button so it matches window control styling
  * - .topright-btn       : spacing helper for right-aligned controls
+ *
+ * Runtime Theme Switching:
+ * - Uses .marco-theme-light and .marco-theme-dark classes on window
+ * - Classes toggled dynamically when theme changes without app restart
  */
 .icon-font {
     font-family: 'icomoon';
@@ -19,22 +23,44 @@
     border: none;
 }
 
-/* Layout-state icons shown inside the layout popover */
-.layout-state {
+/* Layout-state icons shown inside the layout popover - LIGHT MODE */
+.marco-theme-light .layout-state {
+    font-size: 24px;
+    color: #2c3e50;
+    padding: 0px;
+    background: transparent;
+}
+
+.marco-theme-light .layout-state:hover {
+    font-size: 24px;
+    color: #5a6c7d;
+    padding: 0px;
+    background: transparent;
+}
+
+.marco-theme-light .layout-state:active {
+    font-size: 24px;
+    color: #000;
+    padding: 0px;
+    background: transparent;
+}
+
+/* Layout-state icons shown inside the layout popover - DARK MODE */
+.marco-theme-dark .layout-state {
     font-size: 24px;
     color: #f0f5f1;
     padding: 0px;
     background: transparent;
 }
 
-.layout-state:hover {
+.marco-theme-dark .layout-state:hover {
     font-size: 24px;
     color: #9198a1;
     padding: 0px;
     background: transparent;
 }
 
-.layout-state:active {
+.marco-theme-dark .layout-state:active {
     font-size: 24px;
     color: #fff;
     padding: 0px;
@@ -49,10 +75,21 @@
     padding: 0px;
 }
 .layout-btn:hover, .layout-btn:active, .layout-btn:focus { background: transparent; }
-/* menu.css - Styles for menu bar, fonts, and custom icons (normal, hover, active, disabled) */
 
-/* Menu bar container */
-.menubar, .titlebar {
+/* Menu bar container - LIGHT MODE */
+.marco-theme-light .menubar, 
+.marco-theme-light .titlebar {
+    min-height: 32px;
+    background: #e8ecef;
+    border-bottom: 0px solid #ccc;
+    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    font-size: 12px;
+    color: #2c3e50;
+}
+
+/* Menu bar container - DARK MODE */
+.marco-theme-dark .menubar, 
+.marco-theme-dark .titlebar {
     min-height: 32px;
     background: #23272e;
     border-bottom: 0px solid #444;
@@ -61,8 +98,17 @@
     color: #e0e0e0;
 }
 
-/* Menu item base style */
-.menuitem {
+/* Menu item base style - LIGHT MODE */
+.marco-theme-light .menuitem {
+    padding: 0 12px;
+    border-radius: 4px;
+    background: transparent;
+    color: #2c3e50;
+    font-weight: 500;
+}
+
+/* Menu item base style - DARK MODE */
+.marco-theme-dark .menuitem {
     padding: 0 12px;
     border-radius: 4px;
     background: transparent;
@@ -70,33 +116,56 @@
     font-weight: 500;
 }
 
-/* Menu item hover */
-.menuitem:hover {
+/* Menu item hover - LIGHT MODE */
+.marco-theme-light .menuitem:hover {
+    color: #000000;
+}
+
+/* Menu item hover - DARK MODE */
+.marco-theme-dark .menuitem:hover {
     color: #ffffff;
 }
 
-/* Menu item active (pressed) */
-.menuitem:active {
+/* Menu item active (pressed) - LIGHT MODE */
+.marco-theme-light .menuitem:active {
+    color: #0066cc;
+}
+
+/* Menu item active (pressed) - DARK MODE */
+.marco-theme-dark .menuitem:active {
     color: #ffd700;
 }
 
-/* Menu item disabled */
+/* Menu item disabled - both modes */
 .menuitem:disabled {
     background: transparent;
-    color: #888;
     opacity: 0.6;
 }
 
-/* Custom icon base style */
+.marco-theme-light .menuitem:disabled {
+    color: #999;
+}
+
+.marco-theme-dark .menuitem:disabled {
+    color: #888;
+}
 
 /* Window control hover/active states target the icon font directly */
 .window-control-btn .icon-font,
 .topright-btn .icon-font {
     transition: color 0.12s, transform 0.08s;
 }
-.window-control-btn .icon-font { color:#f0f5f1; }
-.window-control-btn:hover .icon-font { color: #9198a1; transform: translateY(0); }
-.window-control-btn:active .icon-font { color: #fff; transform: translateY(0); }
+
+/* Window controls - LIGHT MODE */
+.marco-theme-light .window-control-btn .icon-font { color: #2c3e50; }
+.marco-theme-light .window-control-btn:hover .icon-font { color: #5a6c7d; transform: translateY(0); }
+.marco-theme-light .window-control-btn:active .icon-font { color: #000; transform: translateY(0); }
+
+/* Window controls - DARK MODE */
+.marco-theme-dark .window-control-btn .icon-font { color: #f0f5f1; }
+.marco-theme-dark .window-control-btn:hover .icon-font { color: #9198a1; transform: translateY(0); }
+.marco-theme-dark .window-control-btn:active .icon-font { color: #fff; transform: translateY(0); }
+
 
 /* Window control button base */
 .window-control-btn { background: transparent; border: none; padding: 0 2px; border-radius: 0px; }
@@ -107,8 +176,18 @@
     margin-right: 0px;
 }
 
-/* Centered document title shown in the custom titlebar */
-.title-label {
+/* Centered document title shown in the custom titlebar - LIGHT MODE */
+.marco-theme-light .title-label {
+    font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
+    font-size: 14px;
+    color: #2c3e50;
+    font-weight: 600;
+    padding: 0 0px;
+    margin: 0 0px;
+}
+
+/* Centered document title shown in the custom titlebar - DARK MODE */
+.marco-theme-dark .title-label {
     font-family: 'Segoe UI', 'Roboto', 'Arial', sans-serif;
     font-size: 14px;
     color: #e0e0e0;
@@ -125,4 +204,6 @@
  * - .layout-state        : small icon style used inside the layout popover
  * - .window-control-btn  : window control buttons (minimize / maximize / close)
  * - .topright-btn        : spacing helper for top-right aligned controls
+ * - .marco-theme-light   : CSS class on window for light mode (runtime switching)
+ * - .marco-theme-dark    : CSS class on window for dark mode (runtime switching)
  */

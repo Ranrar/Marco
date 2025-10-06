@@ -16,16 +16,22 @@ type SettingsListener = Box<dyn Fn(&Settings) + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
+    // Marco-specific settings
     pub editor: Option<EditorSettings>,
-    pub appearance: Option<AppearanceSettings>,
     pub layout: Option<LayoutSettings>,
-    pub language: Option<LanguageSettings>,
-    pub window: Option<WindowSettings>,
+    pub window: Option<WindowSettings>,  // Marco window settings
     pub files: Option<FileSettings>,
-    pub debug: Option<bool>,
-    pub log_to_file: Option<bool>,
     pub active_schema: Option<String>,
     pub schema_disabled: Option<bool>,
+    
+    // Polo-specific settings
+    pub polo: Option<PoloSettings>,
+    
+    // Common settings (shared between Marco and Polo)
+    pub appearance: Option<AppearanceSettings>,
+    pub language: Option<LanguageSettings>,
+    pub debug: Option<bool>,
+    pub log_to_file: Option<bool>,
     pub engine: Option<EngineSettings>,
 }
 
@@ -158,6 +164,7 @@ impl Settings {
     /// Create default settings for the current system
     pub fn create_default_for_system() -> Self {
         Settings {
+            // Marco-specific settings
             editor: Some(EditorSettings {
                 font_size: Some(12),
                 line_wrapping: Some(true),
@@ -167,12 +174,6 @@ impl Settings {
                 syntax_colors: Some(true),
                 linting: Some(true),
                 ..Default::default()
-            }),
-            appearance: Some(AppearanceSettings {
-                editor_mode: Some("marco-light".to_string()),
-                preview_theme: Some("github".to_string()),
-                ui_font_size: Some(11),
-                ..Default::default() 
             }),
             layout: Some(LayoutSettings {
                 view_mode: Some("HTML Preview".to_string()),
@@ -192,9 +193,33 @@ impl Settings {
                 recent_files: Some(Vec::new()),
                 max_recent_files: Some(5),
             }),
-            log_to_file: Some(false),
+            active_schema: None,
+            schema_disabled: None,
+            
+            // Polo-specific settings
+            polo: Some(PoloSettings {
+                window: Some(PoloWindowSettings {
+                    width: Some(1000),
+                    height: Some(800),
+                    maximized: Some(false),
+                    ..Default::default()
+                }),
+                last_opened_file: None,
+                auto_refresh: Some(false),
+                refresh_interval_ms: Some(1000),
+            }),
+            
+            // Common settings (shared between Marco and Polo)
+            appearance: Some(AppearanceSettings {
+                editor_mode: Some("marco-light".to_string()),
+                preview_theme: Some("github".to_string()),
+                ui_font_size: Some(11),
+                ..Default::default() 
+            }),
+            language: None,
             debug: Some(false),
-            ..Default::default()
+            log_to_file: Some(false),
+            engine: None,
         }
     }
 }
@@ -591,6 +616,44 @@ impl WindowSettings {
 pub struct FileSettings {
     pub recent_files: Option<Vec<PathBuf>>,
     pub max_recent_files: Option<u8>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PoloSettings {
+    pub window: Option<PoloWindowSettings>,
+    pub last_opened_file: Option<PathBuf>,
+    pub auto_refresh: Option<bool>,  // Future: watch file for changes
+    pub refresh_interval_ms: Option<u32>,  // Future: how often to check for changes
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PoloWindowSettings {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+    pub x: Option<i32>,
+    pub y: Option<i32>,
+    pub maximized: Option<bool>,
+}
+
+impl PoloWindowSettings {
+    /// Get window dimensions or return defaults (optimized for reading)
+    pub fn get_window_size(&self) -> (u32, u32) {
+        (self.width.unwrap_or(1000), self.height.unwrap_or(800))
+    }
+
+    /// Get window position or return None (let window manager decide)
+    pub fn get_window_position(&self) -> Option<(i32, i32)> {
+        if let (Some(x), Some(y)) = (self.x, self.y) {
+            Some((x, y))
+        } else {
+            None
+        }
+    }
+
+    /// Check if window should be maximized
+    pub fn is_maximized(&self) -> bool {
+        self.maximized.unwrap_or(false)
+    }
 }
 
 /// Marco Engine specific settings integrated with main application settings

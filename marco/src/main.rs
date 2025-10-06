@@ -270,6 +270,20 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         editor_theme_dir,
     )));
     // Pass settings struct to modules as needed
+    
+    // Add theme-specific CSS class based on current mode (for runtime GTK UI switching)
+    let current_theme_mode = {
+        let settings = settings_manager.get_settings();
+        let editor_mode = settings
+            .appearance
+            .as_ref()
+            .and_then(|a| a.editor_mode.as_ref())
+            .map(|m| m.as_str())
+            .unwrap_or("light");
+        if editor_mode.contains("dark") { "dark" } else { "light" }
+    };
+    window.add_css_class(&format!("marco-theme-{}", current_theme_mode));
+    log::debug!("Applied theme class: marco-theme-{}", current_theme_mode);
 
     // Create main vertical box layout
     let main_box = GtkBox::new(Orientation::Vertical, 0);
@@ -613,9 +627,18 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             let editor_callback = {
                 let update_editor = update_editor_theme_rc.clone();
                 let update_preview = update_preview_theme_rc.clone();
+                let window_for_theme = window.clone();
                 Box::new(move |scheme_id: String| {
                     update_editor(&scheme_id);
                     update_preview(&scheme_id);
+                    
+                    // Toggle window CSS class for runtime GTK UI theme switching
+                    let new_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
+                    let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
+                    let new_class = format!("marco-theme-{}", new_mode);
+                    window_for_theme.remove_css_class(old_class);
+                    window_for_theme.add_css_class(&new_class);
+                    log::debug!("Switched CSS class from {} to {}", old_class, new_class);
                 }) as Box<dyn Fn(String) + 'static>
             };
 

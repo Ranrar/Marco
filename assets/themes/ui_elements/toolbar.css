@@ -1,17 +1,40 @@
 
-/* Toolbar Button Styling for GTK4 - Compatible Version */
+/* Toolbar Button Styling for GTK4 - Compatible Version with Runtime Theme Switching */
 
-/* Unified toolbar button styling */
-.toolbar-btn,
-.toolbar-headings-btn,
-.toolbar-headings-popover-btn,
-.toolbar-btn-bold,
-.toolbar-btn-italic,
-.toolbar-btn-code,
-.toolbar-btn-strikethrough,
-.toolbar-btn-bullet,
-.toolbar-btn-number {
-    /* Use minimum sizes; avoid max-* which is not supported by GTK CSS */
+/* Unified toolbar button styling - LIGHT MODE */
+.marco-theme-light .toolbar-btn,
+.marco-theme-light .toolbar-headings-btn,
+.marco-theme-light .toolbar-headings-popover-btn,
+.marco-theme-light .toolbar-btn-bold,
+.marco-theme-light .toolbar-btn-italic,
+.marco-theme-light .toolbar-btn-code,
+.marco-theme-light .toolbar-btn-strikethrough,
+.marco-theme-light .toolbar-btn-bullet,
+.marco-theme-light .toolbar-btn-number {
+    min-width: 16px;
+    min-height: 16px;
+    padding: 2px 6px;
+    margin: 2px;
+    border-radius: 6px;
+    border: 0px solid #ccc;
+    color: #2c3e50;
+    font-size: 12px;
+    font-family: "Segoe UI", "Cantarell", "Arial", sans-serif;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s, border 0.15s;
+    opacity: 1;
+}
+
+/* Unified toolbar button styling - DARK MODE */
+.marco-theme-dark .toolbar-btn,
+.marco-theme-dark .toolbar-headings-btn,
+.marco-theme-dark .toolbar-headings-popover-btn,
+.marco-theme-dark .toolbar-btn-bold,
+.marco-theme-dark .toolbar-btn-italic,
+.marco-theme-dark .toolbar-btn-code,
+.marco-theme-dark .toolbar-btn-strikethrough,
+.marco-theme-dark .toolbar-btn-bullet,
+.marco-theme-dark .toolbar-btn-number {
     min-width: 16px;
     min-height: 16px;
     padding: 2px 6px;
@@ -26,48 +49,96 @@
     opacity: 1;
 }
 
-/* Unified hover state for all toolbar buttons */
-.toolbar-btn:hover,
-.toolbar-headings-btn:hover,
-.toolbar-headings-popover-btn:hover,
-.toolbar-btn-bold:hover,
-.toolbar-btn-italic:hover,
-.toolbar-btn-code:hover,
-.toolbar-btn-strikethrough:hover,
-.toolbar-btn-bullet:hover,
-.toolbar-btn-number:hover {
+/* Unified hover state for all toolbar buttons - LIGHT MODE */
+.marco-theme-light .toolbar-btn:hover,
+.marco-theme-light .toolbar-headings-btn:hover,
+.marco-theme-light .toolbar-headings-popover-btn:hover,
+.marco-theme-light .toolbar-btn-bold:hover,
+.marco-theme-light .toolbar-btn-italic:hover,
+.marco-theme-light .toolbar-btn-code:hover,
+.marco-theme-light .toolbar-btn-strikethrough:hover,
+.marco-theme-light .toolbar-btn-bullet:hover,
+.marco-theme-light .toolbar-btn-number:hover {
+    background: transparent;
+    color: #5a6c7d;
+    border-color: #0066cc;
+    opacity: 1;
+}
+
+/* Unified hover state for all toolbar buttons - DARK MODE */
+.marco-theme-dark .toolbar-btn:hover,
+.marco-theme-dark .toolbar-headings-btn:hover,
+.marco-theme-dark .toolbar-headings-popover-btn:hover,
+.marco-theme-dark .toolbar-btn-bold:hover,
+.marco-theme-dark .toolbar-btn-italic:hover,
+.marco-theme-dark .toolbar-btn-code:hover,
+.marco-theme-dark .toolbar-btn-strikethrough:hover,
+.marco-theme-dark .toolbar-btn-bullet:hover,
+.marco-theme-dark .toolbar-btn-number:hover {
     background: transparent;
     color: #9198a1;
     border-color: #4f8cff;
     opacity: 1;
 }
 
-/* Unified active state for all toolbar buttons */
-.toolbar-btn:active,
-.toolbar-headings-btn:active,
-.toolbar-headings-popover-btn:active,
-.toolbar-btn-bold:active,
-.toolbar-btn-italic:active,
-.toolbar-btn-code:active,
-.toolbar-btn-strikethrough:active,
-.toolbar-btn-bullet:active,
-.toolbar-btn-number:active {
+/* Unified active state for all toolbar buttons - LIGHT MODE */
+.marco-theme-light .toolbar-btn:active,
+.marco-theme-light .toolbar-headings-btn:active,
+.marco-theme-light .toolbar-headings-popover-btn:active,
+.marco-theme-light .toolbar-btn-bold:active,
+.marco-theme-light .toolbar-btn-italic:active,
+.marco-theme-light .toolbar-btn-code:active,
+.marco-theme-light .toolbar-btn-strikethrough:active,
+.marco-theme-light .toolbar-btn-bullet:active,
+.marco-theme-light .toolbar-btn-number:active {
+    background: transparent;
+    color: #000;
+    border-color: #0066cc;
+    opacity: 1;
+}
+
+/* Unified active state for all toolbar buttons - DARK MODE */
+.marco-theme-dark .toolbar-btn:active,
+.marco-theme-dark .toolbar-headings-btn:active,
+.marco-theme-dark .toolbar-headings-popover-btn:active,
+.marco-theme-dark .toolbar-btn-bold:active,
+.marco-theme-dark .toolbar-btn-italic:active,
+.marco-theme-dark .toolbar-btn-code:active,
+.marco-theme-dark .toolbar-btn-strikethrough:active,
+.marco-theme-dark .toolbar-btn-bullet:active,
+.marco-theme-dark .toolbar-btn-number:active {
     background: transparent;
     color: #fff;
     border-color: #4f8cff;
     opacity: 1;
 }
 
-/* Unified disabled state for all toolbar buttons */
-.toolbar-btn:disabled,
-.toolbar-headings-btn:disabled,
-.toolbar-headings-popover-btn:disabled,
-.toolbar-btn-bold:disabled,
-.toolbar-btn-italic:disabled,
-.toolbar-btn-code:disabled,
-.toolbar-btn-strikethrough:disabled,
-.toolbar-btn-bullet:disabled,
-.toolbar-btn-number:disabled {
+/* Unified disabled state for all toolbar buttons - LIGHT MODE */
+.marco-theme-light .toolbar-btn:disabled,
+.marco-theme-light .toolbar-headings-btn:disabled,
+.marco-theme-light .toolbar-headings-popover-btn:disabled,
+.marco-theme-light .toolbar-btn-bold:disabled,
+.marco-theme-light .toolbar-btn-italic:disabled,
+.marco-theme-light .toolbar-btn-code:disabled,
+.marco-theme-light .toolbar-btn-strikethrough:disabled,
+.marco-theme-light .toolbar-btn-bullet:disabled,
+.marco-theme-light .toolbar-btn-number:disabled {
+    background: #ddd;
+    color: #999;
+    border-color: #ccc;
+    opacity: 0.6;
+}
+
+/* Unified disabled state for all toolbar buttons - DARK MODE */
+.marco-theme-dark .toolbar-btn:disabled,
+.marco-theme-dark .toolbar-headings-btn:disabled,
+.marco-theme-dark .toolbar-headings-popover-btn:disabled,
+.marco-theme-dark .toolbar-btn-bold:disabled,
+.marco-theme-dark .toolbar-btn-italic:disabled,
+.marco-theme-dark .toolbar-btn-code:disabled,
+.marco-theme-dark .toolbar-btn-strikethrough:disabled,
+.marco-theme-dark .toolbar-btn-bullet:disabled,
+.marco-theme-dark .toolbar-btn-number:disabled {
     background: #555;
     color: #aaa;
     border-color: #555;
@@ -84,23 +155,42 @@
     min-height: 16px;
 }
 
-/* Toolbar container styling */
-.toolbar {
+/* Toolbar container styling - LIGHT MODE */
+.marco-theme-light .toolbar {
     padding: 2px 0px 2px 10px;
-    border-bottom: 0px solid #444;
-    /* GTK CSS does not support `display: flex` or `gap`; use spacing on the container in code if needed */
+    border-bottom: 0px solid #ccc;
 }
 
-/* Separator styling */
-.toolbar-separator {
-    /* Use min-width for compatibility with GTK CSS */
+/* Toolbar container styling - DARK MODE */
+.marco-theme-dark .toolbar {
+    padding: 2px 0px 2px 10px;
+    border-bottom: 0px solid #444;
+}
+
+/* Separator styling - LIGHT MODE */
+.marco-theme-light .toolbar-separator {
+    min-width: 2px;
+    background: #ccc;
+    margin: 0 4px;
+}
+
+/* Separator styling - DARK MODE */
+.marco-theme-dark .toolbar-separator {
     min-width: 2px;
     background: #444;
     margin: 0 4px;
 }
 
-/* Popover styling */
-.toolbar-popover {
+/* Popover styling - LIGHT MODE */
+.marco-theme-light .toolbar-popover {
+    background: #f5f5f5;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    padding: 6px;
+}
+
+/* Popover styling - DARK MODE */
+.marco-theme-dark .toolbar-popover {
     background: #23272e;
     border: 1px solid #444;
     border-radius: 6px;
