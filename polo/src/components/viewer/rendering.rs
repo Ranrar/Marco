@@ -52,6 +52,16 @@ use marco_core::logic::swanson::SettingsManager;
 use std::sync::Arc;
 use webkit6::prelude::WebViewExt;
 
+/// Escape HTML special characters to prevent XSS attacks
+/// Converts &, <, >, ", and ' to their HTML entity equivalents
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+     .replace('<', "&lt;")
+     .replace('>', "&gt;")
+     .replace('"', "&quot;")
+     .replace('\'', "&#39;")
+}
+
 /// Load a markdown file and render it to HTML in the WebView
 pub fn load_and_render_markdown(
     webview: &webkit6::WebView,
@@ -96,7 +106,7 @@ pub fn load_and_render_markdown(
             });
         }
         Err(e) => {
-            // Show error in WebView
+            // Show error in WebView with properly escaped content to prevent XSS
             let error_html = format!(
                 r#"<!DOCTYPE html>
 <html>
@@ -135,7 +145,8 @@ pub fn load_and_render_markdown(
     </div>
 </body>
 </html>"#,
-                file_path, e
+                html_escape(file_path),
+                html_escape(&e.to_string())
             );
             let webview_clone = webview.clone();
             gtk4::glib::idle_add_local_once(move || {
@@ -205,7 +216,7 @@ pub fn parse_markdown_to_html(
             )
         }
         Err(e) => {
-            // Show parse error
+            // Show parse error with properly escaped content to prevent XSS
             format!(
                 r#"<!DOCTYPE html>
 <html>
@@ -243,8 +254,41 @@ pub fn parse_markdown_to_html(
     </div>
 </body>
 </html>"#,
-                e
+                html_escape(&e.to_string())
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_html_escape_basic() {
+        assert_eq!(html_escape("hello"), "hello");
+        assert_eq!(html_escape("hello & world"), "hello &amp; world");
+        assert_eq!(html_escape("<script>"), "&lt;script&gt;");
+        assert_eq!(html_escape("\"quoted\""), "&quot;quoted&quot;");
+        assert_eq!(html_escape("'apostrophe'"), "&#39;apostrophe&#39;");
+    }
+
+    #[test]
+    fn smoke_test_html_escape_xss_prevention() {
+        let malicious = "<script>alert('XSS')</script>";
+        let escaped = html_escape(malicious);
+        assert!(!escaped.contains("<script>"));
+        assert!(escaped.contains("&lt;script&gt;"));
+        assert!(escaped.contains("&#39;XSS&#39;"));
+    }
+
+    #[test]
+    fn smoke_test_html_escape_multiple_chars() {
+        let input = "<div class=\"test\" data-value='123'>A & B</div>";
+        let escaped = html_escape(input);
+        assert_eq!(
+            escaped,
+            "&lt;div class=&quot;test&quot; data-value=&#39;123&#39;&gt;A &amp; B&lt;/div&gt;"
+        );
     }
 }

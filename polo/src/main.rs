@@ -48,6 +48,23 @@ use std::sync::{Arc, RwLock};
 
 const APP_ID: &str = "com.example.Polo";
 
+/// Centralized fatal error handler
+/// 
+/// This function handles unrecoverable errors during application initialization.
+/// It ensures proper cleanup (logger shutdown) before terminating the application.
+/// 
+/// # Arguments
+/// * `message` - User-friendly error message to display
+/// 
+/// # Panics
+/// This function never returns - it always exits the process with code 1
+fn fatal_error(message: &str) -> ! {
+    log::error!("FATAL: {}", message);
+    eprintln!("Fatal error: {}", message);
+    marco_core::logic::logger::shutdown_file_logger();
+    std::process::exit(1);
+}
+
 fn main() -> glib::ExitCode {
     // Initialize logger early
     if let Err(e) = marco_core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
@@ -60,23 +77,18 @@ fn main() -> glib::ExitCode {
     let asset_dir = match get_asset_dir_checked() {
         Ok(asset_dir) => asset_dir,
         Err(e) => {
-            log::error!("Error detecting asset directory: {}", e);
-            eprintln!("Fatal error: Cannot locate asset directory. Polo cannot start.");
-            std::process::exit(1);
+            fatal_error(&format!("Cannot locate asset directory: {}", e));
         }
     };
     
     // Set local font dir for Fontconfig/Pango to find ui_menu.ttf
-    // Handle potential non-UTF-8 paths gracefully
-    let asset_dir_str = match asset_dir.to_str() {
-        Some(path) => path,
-        None => {
-            log::error!("Asset directory path contains invalid UTF-8: {:?}", asset_dir);
-            eprintln!("Fatal error: Asset directory path is not valid UTF-8. Polo cannot start.");
-            std::process::exit(1);
-        }
-    };
-    marco_core::logic::loaders::icon_loader::set_local_font_dir(asset_dir_str);
+    // Use to_string_lossy() to handle potential non-UTF-8 paths gracefully.
+    // On Linux, paths can contain arbitrary bytes, but Fontconfig needs a string.
+    // The lossy conversion will replace invalid UTF-8 sequences with � (U+FFFD),
+    // which is acceptable since such paths are extremely rare and the font system
+    // will simply fail to find the font (non-fatal) rather than crashing.
+    let asset_dir_str = asset_dir.to_string_lossy();
+    marco_core::logic::loaders::icon_loader::set_local_font_dir(&asset_dir_str);
     
     // Verify font is accessible
     match get_font_path("ui_menu.ttf") {
@@ -149,10 +161,7 @@ fn build_ui(app: &Application, file_path: Option<String>) {
     let settings_path = match marco_core::logic::paths::get_settings_path() {
         Ok(path) => path,
         Err(e) => {
-            log::error!("Failed to get settings path: {}", e);
-            log::error!("Polo cannot start without valid settings path");
-            eprintln!("Fatal error: Cannot determine settings location. Polo cannot start.");
-            std::process::exit(1);
+            fatal_error(&format!("Cannot determine settings location: {}", e));
         }
     };
     
@@ -167,9 +176,7 @@ fn build_ui(app: &Application, file_path: Option<String>) {
             match marco_core::logic::swanson::SettingsManager::initialize(settings_path) {
                 Ok(manager) => manager,
                 Err(e) => {
-                    log::error!("Failed to create default settings: {}", e);
-                    eprintln!("Fatal error: Cannot initialize settings. Polo cannot start.");
-                    std::process::exit(1);
+                    fatal_error(&format!("Cannot initialize settings: {}", e));
                 }
             }
         }
@@ -211,6 +218,9 @@ fn build_ui(app: &Application, file_path: Option<String>) {
     });
     
     // Create shared reference to current file path (for theme switching and file opening)
+    // Uses RwLock for interior mutability in GTK callbacks. Since GTK runs in a single-threaded
+    // event loop, lock poisoning is extremely unlikely. All lock accesses gracefully handle
+    // poisoning by using if-let-Ok patterns, treating it as a safe no-op rather than panicking.
     let current_file_path: Arc<RwLock<Option<String>>> = Arc::new(RwLock::new(file_path.clone()));
     
     // Set window title based on whether a file is opened

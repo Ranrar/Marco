@@ -221,6 +221,7 @@ pub fn create_custom_titlebar(
         log::info!("Toggling color mode to: {}", new_mode);
         
         // Save to settings
+        // Clone is necessary because the closure needs to own the value (move semantics)
         let new_mode_clone = new_mode.clone();
         let _ = settings_manager_for_mode.update_settings(move |s| {
             if s.appearance.is_none() {
@@ -326,6 +327,10 @@ fn create_window_controls(
     }
     
     // IcoMoon Unicode glyphs for window controls
+    // These unicode characters reference glyphs in the IcoMoon icon font (ui_menu.ttf)
+    // loaded from assets/fonts/. The font must be loaded via marco_core::logic::loaders::icon_loader
+    // before GTK initialization for these characters to display correctly.
+    //
     // | Unicode | Icon Name             | Description   |
     // |---------|-----------------------|--------------|
     // | \u{34}  | marco-minimize        | Minimize      |
@@ -473,6 +478,8 @@ fn create_theme_dropdown(
             });
             
             // Apply theme to WebView by reloading content with current file
+            // RwLock poisoning is not expected in single-threaded GTK event loop.
+            // If it occurs (extremely unlikely), we simply skip the reload (safe fallback).
             if let Ok(path_guard) = current_file_path.read() {
                 if let Some(ref path) = *path_guard {
                     load_and_render_markdown(
@@ -482,6 +489,10 @@ fn create_theme_dropdown(
                         &settings_manager,
                     );
                     log::debug!("Reloaded WebView with theme: {}", theme_name_with_ext);
+                } else {
+                    // No file loaded - reload empty state with new theme
+                    show_empty_state_with_theme(&webview_clone, &settings_manager);
+                    log::debug!("Reloaded empty state with theme: {}", theme_name_with_ext);
                 }
             }
         }

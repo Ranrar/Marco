@@ -11,6 +11,19 @@
 //!   - Remembers last opened directory
 //!   - Updates window title and settings on file selection
 //!
+//! ### Security Model
+//!
+//! Polo's file access follows the principle of **user permission delegation**:
+//! - Runs with the user's own filesystem permissions
+//! - Can only access files the user can already access
+//! - No elevation of privileges or sandbox escape
+//! - Markdown parsing is safe (no code execution)
+//! - File paths are validated but not restricted beyond OS permissions
+//!
+//! This means Polo cannot access files the user couldn't access via the file manager
+//! or command line. The "unrestricted" file access is actually restricted by the OS
+//! user permission model, which is the appropriate security boundary for a desktop application.
+//!
 //! ## Marco Editor Integration
 //!
 //! - **`show_open_in_editor_dialog`**: Presents two options for opening file in Marco
@@ -102,6 +115,9 @@ pub fn show_open_file_dialog(
                     load_and_render_markdown(&webview, &path_str, &theme, &settings_manager);
                     
                     // Update current file path
+                    // RwLock poisoning is not expected in single-threaded GTK event loop.
+                    // If it occurs (extremely unlikely), we simply retain the old path (safe fallback).
+                    // This prevents the app from crashing on a non-critical state update.
                     if let Ok(mut path_guard) = current_file_path.write() {
                         *path_guard = Some(path_str.clone());
                     }

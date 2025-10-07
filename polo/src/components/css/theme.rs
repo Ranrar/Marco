@@ -109,3 +109,44 @@ pub fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_load_theme_css_marco() {
+        let css = load_theme_css("marco.css");
+        assert!(!css.is_empty(), "Marco theme CSS should not be empty");
+        // Should contain basic CSS rules
+        assert!(
+            css.contains("body") || css.contains("html") || css.contains("font-family"),
+            "CSS should contain at least one basic HTML element"
+        );
+    }
+
+    #[test]
+    fn smoke_test_load_theme_css_fallback() {
+        // Test fallback when theme doesn't exist
+        let css = load_theme_css("nonexistent_theme_12345.css");
+        assert!(!css.is_empty(), "Should return fallback CSS");
+        assert!(css.contains("body"), "Fallback CSS should contain body rules");
+        assert!(css.contains("font-family"), "Fallback CSS should contain font-family");
+    }
+
+    #[test]
+    fn smoke_test_generate_syntax_highlighting_css_light() {
+        let css = generate_syntax_highlighting_css("light");
+        // Note: This might be empty if highlighter fails to initialize
+        // We just verify it doesn't panic and returns a valid string
+        let _ = css; // Verify function doesn't panic
+    }
+
+    #[test]
+    fn smoke_test_generate_syntax_highlighting_css_dark() {
+        let css = generate_syntax_highlighting_css("dark");
+        // Note: This might be empty if highlighter fails to initialize
+        // We just verify it doesn't panic and returns a valid string
+        let _ = css; // Verify function doesn't panic
+    }
+}
