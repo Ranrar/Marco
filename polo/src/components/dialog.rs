@@ -44,8 +44,8 @@
 
 use crate::components::viewer::load_and_render_markdown;
 use gtk4::{
-    prelude::*, Align, ApplicationWindow, Box, Button, Dialog, FileChooserAction,
-    FileChooserDialog, FileFilter, Label, Orientation, ResponseType,
+    prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction,
+    FileChooserDialog, FileFilter, Label, Orientation, ResponseType, Window,
 };
 use marco_core::logic::swanson::SettingsManager;
 use std::path::PathBuf;
@@ -152,43 +152,111 @@ pub fn show_open_file_dialog(
 
 /// Show dialog asking how to open the file in Marco
 pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
-    // Create dialog
-    let dialog = Dialog::builder()
+    // Get current theme mode from parent window
+    let theme_class = if window.has_css_class("marco-theme-dark") {
+        "marco-theme-dark"
+    } else {
+        "marco-theme-light"
+    };
+    
+    // Create a Window instead of deprecated Dialog
+    let dialog = Window::builder()
         .modal(true)
-        .title("Open in Marco Editor")
         .transient_for(window)
-        .destroy_with_parent(true)
+        .default_width(500)
+        .default_height(220)
+        .resizable(false)
         .build();
     
-    // Create content
-    let content_area = dialog.content_area();
-    let vbox = Box::new(Orientation::Vertical, 16);
-    vbox.set_margin_start(24);
-    vbox.set_margin_end(24);
-    vbox.set_margin_top(16);
-    vbox.set_margin_bottom(16);
+    // Apply CSS classes for theming
+    dialog.add_css_class("polo-dialog");
+    dialog.add_css_class(theme_class);
     
-    let label = Label::new(Some("Choose how to open this file in Marco:"));
-    label.set_halign(Align::Start);
-    vbox.append(&label);
+    // Create custom titlebar matching polo's style
+    let headerbar = gtk4::HeaderBar::new();
+    headerbar.add_css_class("titlebar");      // Shared class for Marco's menu.css
+    headerbar.add_css_class("polo-titlebar"); // Polo-specific class for overrides
+    headerbar.set_show_title_buttons(false);  // We'll add custom close button
     
-    // Create three action buttons
+    // Set title in headerbar
+    let title_label = Label::new(Some("Open in Marco Editor"));
+    title_label.set_valign(Align::Center);
+    title_label.add_css_class("title-label");      // Shared class for Marco's menu.css
+    title_label.add_css_class("polo-title-label"); // Polo-specific class
+    headerbar.set_title_widget(Some(&title_label));
+    
+    // Create custom close button with icon font (matching menu.rs pattern)
+    let close_label = Label::new(None);
+    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
+    close_label.set_valign(Align::Center);
+    close_label.add_css_class("icon-font");
+    
+    let btn_close_titlebar = Button::new();
+    btn_close_titlebar.set_child(Some(&close_label));
+    btn_close_titlebar.set_tooltip_text(Some("Close"));
+    btn_close_titlebar.set_valign(Align::Center);
+    btn_close_titlebar.set_margin_start(1);
+    btn_close_titlebar.set_margin_end(1);
+    btn_close_titlebar.set_focusable(false);
+    btn_close_titlebar.set_can_focus(false);
+    btn_close_titlebar.set_has_frame(false);
+    btn_close_titlebar.add_css_class("topright-btn");
+    btn_close_titlebar.add_css_class("window-control-btn");
+    
+    // Wire up close button
+    let dialog_weak_for_close = dialog.downgrade();
+    btn_close_titlebar.connect_clicked(move |_| {
+        if let Some(dialog) = dialog_weak_for_close.upgrade() {
+            dialog.close();
+        }
+    });
+    
+    // Add close button to right side of headerbar
+    headerbar.pack_end(&btn_close_titlebar);
+    
+    dialog.set_titlebar(Some(&headerbar));
+    
+    // Create main content container
+    let vbox = Box::new(Orientation::Vertical, 0);
+    vbox.add_css_class("polo-dialog-content");
+    
+    // Message (removed duplicate title since it's now in titlebar)
+    let message = Label::new(Some("Choose how to open this file in Marco:"));
+    message.add_css_class("polo-dialog-message");
+    message.set_halign(Align::Start);
+    message.set_wrap(true);
+    vbox.append(&message);
+    
+    // Create button container
+    let button_box = Box::new(Orientation::Vertical, 8);
+    button_box.add_css_class("polo-dialog-button-box");
+    
+    // DualView button (primary action)
     let btn_dualview = Button::with_label("DualView");
+    btn_dualview.add_css_class("polo-dialog-button");
+    btn_dualview.add_css_class("primary");
     btn_dualview.set_tooltip_text(Some("Close Polo and open Marco with editor + preview"));
-    btn_dualview.set_margin_top(8);
+    button_box.append(&btn_dualview);
     
+    // Editor and View Separate button
     let btn_separate = Button::with_label("Editor and View Separate");
+    btn_separate.add_css_class("polo-dialog-button");
     btn_separate.set_tooltip_text(Some("Keep Polo open and also open Marco editor"));
-    btn_separate.set_margin_top(8);
+    button_box.append(&btn_separate);
+    
+    // Cancel button container (separate with spacing)
+    let cancel_container = Box::new(Orientation::Horizontal, 0);
+    cancel_container.set_halign(Align::End);
+    cancel_container.set_margin_top(8);
     
     let btn_cancel = Button::with_label("Cancel");
-    btn_cancel.set_margin_top(16);
+    btn_cancel.add_css_class("polo-dialog-button");
+    cancel_container.append(&btn_cancel);
     
-    vbox.append(&btn_dualview);
-    vbox.append(&btn_separate);
-    vbox.append(&btn_cancel);
+    vbox.append(&button_box);
+    vbox.append(&cancel_container);
     
-    content_area.append(&vbox);
+    dialog.set_child(Some(&vbox));
     
     // Handle button clicks
     let file_path = file_path.to_string();

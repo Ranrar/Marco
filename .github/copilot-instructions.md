@@ -2,6 +2,31 @@
 
 Marco is a GTK4-based Rust markdown editor with custom syntax extensions and a pest-based parser. This guide helps AI agents understand the project's architecture and workflows.
 
+## Communication Style
+
+When completing work, **DO NOT create markdown documentation files**. Instead:
+- Write summaries directly in chat responses
+- Use simple tables for data
+- Keep text blocks small and focused
+- Be concise and to-the-point
+
+## Problem-Solving Approach
+
+When facing an issue or problem:
+1. **Review existing code** - Check how similar issues are handled elsewhere in the codebase
+2. **Search online** - Use web search to find solutions, best practices, and documentation
+3. **Analyze the problem** - Break down complex issues into smaller, manageable parts
+4. **Test solutions** - Verify fixes work before considering the task complete
+
+## Development Workflow
+
+### Using Logs for Testing
+Marco uses file-based logging as part of the development workflow:
+- **Run the application**: `cargo run -p marco` or `cargo run -p polo`
+- **Check the log**: Open `log/YYYYMM/YYMMDD.log` (e.g., `log/202510/251007.log`)
+- **Verify behavior**: Look for errors, warnings, or debug messages
+- **Part of testing**: Reading logs is essential before marking work complete
+
 ## Architecture Overview
 
 Marco uses a **Cargo workspace** with three crates:
@@ -55,8 +80,6 @@ The project includes VS Code tasks for pest grammar work:
 - "Debug Pest Grammar (Interactive)" - launches `pest_debugger`
 - "Format Pest Grammar" - runs `pestfmt` on grammar files
 
-Key insight: Grammar issues are tracked in `src/bin/doc/PARSER_ISSUES.md` with resolution status.
-
 ### Build System
 - **Workspace root**: `Cargo.toml` defines workspace members and shared dependencies
 - **Core build**: `marco_core/build.rs` copies assets from workspace `assets/` to `target/*/marco_assets/`
@@ -70,16 +93,6 @@ cargo build -p marco       # Full editor
 cargo build -p polo        # Viewer only
 cargo build --workspace    # All crates
 ```
-
-## Marco-Specific Patterns
-
-### Custom Markdown Extensions
-Marco supports unique syntax beyond CommonMark:
-- `@run(bash: command)` - Executable code snippets with sandbox options
-- `[toc=2](@Page)` - Multi-page table of contents with depth control
-- `[Page=A4]` - Document page splitting and navigation
-- `[@Page](file.md)` - Cross-document navigation arrows
-- Admonition blocks with custom icons
 
 ### Error Handling & Logging
 - Panic hook installed early in `marco/src/main.rs` with logger flush on crash
@@ -169,3 +182,4 @@ mod tests {
 4. **Document test intent** - Clear comments explaining what is being verified
 5. **Fast feedback** - Tests should complete quickly for development workflow
 6. **Run workspace tests** - Use `cargo test --workspace` to test all crates together
+7. **Verify with runtime testing** - Before completing work, run the application (`cargo run -p marco` or `cargo run -p polo`) and check the log file (e.g., `log/202510/251007.log`) to ensure no runtime errors or warnings

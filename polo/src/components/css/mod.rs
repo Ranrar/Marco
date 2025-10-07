@@ -10,6 +10,7 @@
 //! - **`titlebar`**: Titlebar and window background styling
 //! - **`buttons`**: All button types (open-file, mode-toggle, open-editor)
 //! - **`dropdown`**: Theme selection dropdown and popover styling
+//! - **`dialog`**: Custom dialog windows matching app theme
 //! - **`tooltips`**: GTK tooltip styling for both themes
 //! - **`theme`**: Theme CSS loading and syntax highlighting generation
 //!
@@ -44,6 +45,7 @@
 
 pub mod buttons;
 pub mod constants;
+pub mod dialog;
 pub mod dropdown;
 pub mod theme;
 pub mod titlebar;
@@ -82,6 +84,9 @@ pub fn generate_polo_css() -> String {
     
     // Theme dropdown
     css.push_str(&dropdown::generate_css());
+    
+    // Dialog windows
+    css.push_str(&dialog::generate_css());
     
     // Tooltips
     css.push_str(&tooltips::generate_css());
