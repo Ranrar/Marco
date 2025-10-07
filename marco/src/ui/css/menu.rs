@@ -1,0 +1,383 @@
+//! Menu/Titlebar CSS Generation
+//!
+//! Generates CSS for Marco's titlebar, window controls, icon fonts, and layout buttons.
+//! Converted from assets/themes/ui_elements/menu.css
+//!
+//! ## Components Styled
+//!
+//! - `.icon-font`: Icon font styling using icomoon font
+//! - `.layout-state`: Layout buttons inside the layout popover
+//! - `.layout-btn`: Transparent buttons for layout popover
+//! - `.menubar`, `.titlebar`: Menu bar and titlebar container
+//! - `.menuitem`: Menu item buttons
+//! - `.window-control-btn`: Window control buttons (minimize/maximize/close)
+//! - `.topright-btn`: Spacing helper for top-right controls
+//! - `.title-label`: Centered document title in titlebar
+//!
+//! ## Theme Support
+//!
+//! All components have light and dark theme variants using:
+//! - `.marco-theme-light` for light mode
+//! - `.marco-theme-dark` for dark mode
+
+use super::constants::*;
+
+/// Generate complete menu/titlebar CSS for both light and dark themes
+pub fn generate_css() -> String {
+    let mut css = String::with_capacity(8192);
+    
+    // Base icon font styling (theme-independent)
+    css.push_str(&generate_base_styles());
+    
+    // Layout state icons (light theme)
+    css.push_str(&generate_layout_state_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Layout state icons (dark theme)
+    css.push_str(&generate_layout_state_css("marco-theme-dark", &DARK_PALETTE));
+    
+    // Layout buttons (theme-independent)
+    css.push_str(&generate_layout_button_css());
+    
+    // Menubar/Titlebar container (light theme)
+    css.push_str(&generate_menubar_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Menubar/Titlebar container (dark theme)
+    css.push_str(&generate_menubar_css("marco-theme-dark", &DARK_PALETTE));
+    
+    // Menu items (light theme)
+    css.push_str(&generate_menuitem_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Menu items (dark theme)
+    css.push_str(&generate_menuitem_css("marco-theme-dark", &DARK_PALETTE));
+    
+    // Menu items disabled state (theme-independent base + theme-specific colors)
+    css.push_str(&generate_menuitem_disabled_css());
+    
+    // Window control buttons (light theme)
+    css.push_str(&generate_window_controls_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Window control buttons (dark theme)
+    css.push_str(&generate_window_controls_css("marco-theme-dark", &DARK_PALETTE));
+    
+    // Window control button base styles (theme-independent)
+    css.push_str(&generate_window_control_base_css());
+    
+    // Top right button spacing
+    css.push_str(&generate_topright_btn_css());
+    
+    // Title label (light theme)
+    css.push_str(&generate_title_label_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Title label (dark theme)
+    css.push_str(&generate_title_label_css("marco-theme-dark", &DARK_PALETTE));
+    
+    css
+}
+
+/// Generate base icon font styling (theme-independent)
+fn generate_base_styles() -> String {
+    format!(
+        r#"
+/*
+ * Styles for titlebar/menu icons and controls.
+ *
+ * Uses the bundled IcoMoon TTF font (family `icomoon`) for UI icons.
+ * Glyph mapping (U+31..U+39) is documented in `src/logic/icon_loader.rs`.
+ *
+ * Runtime Theme Switching:
+ * - Uses .marco-theme-light and .marco-theme-dark classes on window
+ * - Classes toggled dynamically when theme changes without app restart
+ */
+.icon-font {{
+    font-family: '{icon_family}';
+    font-size: {icon_size};
+    padding: {icon_padding};
+    background: transparent;
+    border: none;
+}}
+"#,
+        icon_family = ICON_FONT_FAMILY,
+        icon_size = ICON_FONT_SIZE,
+        icon_padding = ICON_FONT_PADDING,
+    )
+}
+
+/// Generate layout state icon CSS for a specific theme
+fn generate_layout_state_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Layout-state icons shown inside the layout popover - {theme} */
+.{theme} .layout-state {{
+    font-size: {layout_size};
+    color: {color};
+    padding: {padding};
+    background: transparent;
+}}
+
+.{theme} .layout-state:hover {{
+    font-size: {layout_size};
+    color: {color_hover};
+    padding: {padding};
+    background: transparent;
+}}
+
+.{theme} .layout-state:active {{
+    font-size: {layout_size};
+    color: {color_active};
+    padding: {padding};
+    background: transparent;
+}}
+"#,
+        theme = theme_class,
+        layout_size = LAYOUT_ICON_SIZE,
+        color = palette.layout_icon,
+        color_hover = palette.layout_icon_hover,
+        color_active = palette.layout_icon_active,
+        padding = LAYOUT_STATE_PADDING,
+    )
+}
+
+/// Generate layout button CSS (theme-independent - always transparent)
+fn generate_layout_button_css() -> String {
+    r#"
+/* Buttons inside the layout popover - keep transparent background on hover
+   but allow the glyph color to change */
+.layout-btn {
+    background: transparent;
+    border: none;
+    padding: 0px;
+}
+.layout-btn:hover, .layout-btn:active, .layout-btn:focus { background: transparent; }
+"#
+    .to_string()
+}
+
+/// Generate menubar/titlebar container CSS for a specific theme
+fn generate_menubar_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Menu bar container - {theme} */
+.{theme} .menubar, 
+.{theme} .titlebar {{
+    min-height: {height};
+    background: {bg};
+    border-bottom: {border_width} {border_color};
+    font-family: {font_family};
+    font-size: {font_size};
+    color: {color};
+}}
+"#,
+        theme = theme_class,
+        height = TITLEBAR_HEIGHT,
+        bg = palette.titlebar_bg,
+        border_width = TITLEBAR_BORDER_WIDTH,
+        border_color = palette.titlebar_border,
+        font_family = UI_FONT_FAMILY,
+        font_size = MENU_FONT_SIZE,
+        color = palette.titlebar_foreground,
+    )
+}
+
+/// Generate menu item CSS for a specific theme
+fn generate_menuitem_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Menu item base style - {theme} */
+.{theme} .menuitem {{
+    padding: {padding};
+    border-radius: {radius};
+    background: transparent;
+    color: {color};
+    font-weight: {weight};
+}}
+
+/* Menu item hover - {theme} */
+.{theme} .menuitem:hover {{
+    color: {color_hover};
+}}
+
+/* Menu item active (pressed) - {theme} */
+.{theme} .menuitem:active {{
+    color: {color_active};
+}}
+"#,
+        theme = theme_class,
+        padding = MENU_ITEM_PADDING,
+        radius = MENU_BORDER_RADIUS,
+        color = palette.titlebar_foreground,
+        weight = MENU_ITEM_FONT_WEIGHT,
+        color_hover = palette.menu_hover,
+        color_active = palette.menu_active,
+    )
+}
+
+/// Generate menu item disabled state CSS
+fn generate_menuitem_disabled_css() -> String {
+    format!(
+        r#"
+/* Menu item disabled - both modes */
+.menuitem:disabled {{
+    background: transparent;
+    opacity: {opacity};
+}}
+
+.marco-theme-light .menuitem:disabled {{
+    color: {light_disabled};
+}}
+
+.marco-theme-dark .menuitem:disabled {{
+    color: {dark_disabled};
+}}
+"#,
+        opacity = DISABLED_OPACITY,
+        light_disabled = LIGHT_PALETTE.menu_disabled,
+        dark_disabled = DARK_PALETTE.menu_disabled,
+    )
+}
+
+/// Generate window control button CSS for a specific theme
+fn generate_window_controls_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Window controls - {theme} */
+.{theme} .window-control-btn .icon-font {{ color: {color}; }}
+.{theme} .window-control-btn:hover .icon-font {{ color: {color_hover}; transform: translateY(0); }}
+.{theme} .window-control-btn:active .icon-font {{ color: {color_active}; transform: translateY(0); }}
+"#,
+        theme = theme_class,
+        color = palette.window_control,
+        color_hover = palette.window_control_hover,
+        color_active = palette.window_control_active,
+    )
+}
+
+/// Generate window control button base CSS (theme-independent)
+fn generate_window_control_base_css() -> String {
+    format!(
+        r#"
+/* Window control hover/active states target the icon font directly */
+.window-control-btn .icon-font,
+.topright-btn .icon-font {{
+    transition: {transition};
+}}
+
+/* Window control button base */
+.window-control-btn {{ background: transparent; border: none; padding: {padding}; border-radius: {radius}; }}
+"#,
+        transition = ICON_TRANSITION,
+        padding = WINDOW_CONTROL_PADDING,
+        radius = WINDOW_CONTROL_BORDER_RADIUS,
+    )
+}
+
+/// Generate top right button spacing CSS
+fn generate_topright_btn_css() -> String {
+    format!(
+        r#"
+/* Top right button style */
+.topright-btn {{
+    margin-left: {margin};
+    margin-right: {margin};
+}}
+"#,
+        margin = TOPRIGHT_BTN_MARGIN,
+    )
+}
+
+/// Generate title label CSS for a specific theme
+fn generate_title_label_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Centered document title shown in the custom titlebar - {theme} */
+.{theme} .title-label {{
+    font-family: {font_family};
+    font-size: {font_size};
+    color: {color};
+    font-weight: {weight};
+    padding: {padding};
+    margin: {margin};
+}}
+"#,
+        theme = theme_class,
+        font_family = UI_FONT_FAMILY,
+        font_size = TITLE_LABEL_FONT_SIZE,
+        color = palette.title_label,
+        weight = TITLE_LABEL_FONT_WEIGHT,
+        padding = TITLE_LABEL_PADDING,
+        margin = TITLE_LABEL_MARGIN,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_menu_css_generation() {
+        let css = generate_css();
+        
+        // Verify not empty
+        assert!(!css.is_empty(), "Menu CSS should not be empty");
+        
+        // Verify major components present
+        assert!(css.contains(".icon-font"), "Should contain icon-font class");
+        assert!(css.contains(".layout-state"), "Should contain layout-state class");
+        assert!(css.contains(".menubar"), "Should contain menubar class");
+        assert!(css.contains(".titlebar"), "Should contain titlebar class");
+        assert!(css.contains(".menuitem"), "Should contain menuitem class");
+        assert!(
+            css.contains(".window-control-btn"),
+            "Should contain window-control-btn class"
+        );
+        assert!(css.contains(".title-label"), "Should contain title-label class");
+        
+        // Verify both themes present
+        assert!(
+            css.contains(".marco-theme-light"),
+            "Should contain light theme"
+        );
+        assert!(css.contains(".marco-theme-dark"), "Should contain dark theme");
+        
+        // Verify specific properties
+        assert!(css.contains("icomoon"), "Should use icomoon font");
+        assert!(css.contains("32px"), "Should have 32px titlebar height");
+        
+        // Verify substantial output (at least 3KB)
+        assert!(
+            css.len() > 3000,
+            "Menu CSS should be substantial (got {} bytes)",
+            css.len()
+        );
+    }
+
+    #[test]
+    fn smoke_test_layout_state_generation() {
+        let css = generate_layout_state_css("marco-theme-light", &LIGHT_PALETTE);
+        assert!(css.contains(".layout-state"));
+        assert!(css.contains(":hover"));
+        assert!(css.contains(":active"));
+    }
+
+    #[test]
+    fn smoke_test_menubar_generation() {
+        let css = generate_menubar_css("marco-theme-light", &LIGHT_PALETTE);
+        assert!(css.contains(".menubar"));
+        assert!(css.contains(".titlebar"));
+        assert!(css.contains(TITLEBAR_HEIGHT));
+    }
+
+    #[test]
+    fn smoke_test_window_controls_generation() {
+        let css = generate_window_controls_css("marco-theme-light", &LIGHT_PALETTE);
+        assert!(css.contains(".window-control-btn"));
+        assert!(css.contains(".icon-font"));
+    }
+
+    #[test]
+    fn smoke_test_title_label_generation() {
+        let css = generate_title_label_css("marco-theme-light", &LIGHT_PALETTE);
+        assert!(css.contains(".title-label"));
+        assert!(css.contains(TITLE_LABEL_FONT_SIZE));
+        assert!(css.contains(TITLE_LABEL_FONT_WEIGHT));
+    }
+}

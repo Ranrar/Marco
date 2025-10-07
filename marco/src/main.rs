@@ -115,49 +115,11 @@ fn main() -> glib::ExitCode {
 
 fn build_ui(app: &Application, initial_file: Option<String>) {
     // Import path functions
-    use marco_core::logic::paths::{get_asset_dir_checked, get_settings_path, get_ui_theme_path};
+    use marco_core::logic::paths::{get_asset_dir_checked, get_settings_path};
     use marco_core::logic::swanson::SettingsManager;
     
-    // Load and apply menu.css for menu and titlebar styling
-    use gtk4 as gtk;
-    use gtk4::gdk::Display;
-    use gtk4::{CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
-    let css_provider = CssProvider::new();
-    
-    // Use dynamic path resolution instead of hardcoded relative paths
-    match get_ui_theme_path("menu.css") {
-        Ok(menu_css_path) => {
-            css_provider.load_from_path(menu_css_path.to_str().unwrap_or(""));
-            if let Some(display) = Display::default() {
-                gtk::style_context_add_provider_for_display(
-                    &display,
-                    &css_provider,
-                    STYLE_PROVIDER_PRIORITY_APPLICATION,
-                );
-            }
-        }
-        Err(e) => {
-            eprintln!("Warning: Failed to load menu.css: {}", e);
-        }
-    }
-
-    // Load and apply toolbar.css for toolbar styling
-    let toolbar_css_provider = CssProvider::new();
-    match get_ui_theme_path("toolbar.css") {
-        Ok(toolbar_css_path) => {
-            toolbar_css_provider.load_from_path(toolbar_css_path.to_str().unwrap_or(""));
-            if let Some(display) = Display::default() {
-                gtk::style_context_add_provider_for_display(
-                    &display,
-                    &toolbar_css_provider,
-                    STYLE_PROVIDER_PRIORITY_APPLICATION,
-                );
-            }
-        }
-        Err(e) => {
-            eprintln!("Warning: Failed to load toolbar.css: {}", e);
-        }
-    }
+    // Load CSS using the new modular system
+    crate::ui::css::load_css();
     
     // Create the main window
     let window = ApplicationWindow::builder()
@@ -633,12 +595,16 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                     update_preview(&scheme_id);
                     
                     // Toggle window CSS class for runtime GTK UI theme switching
+                    // This cascades to all descendants (toolbar, footer, menu, etc.)
                     let new_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
                     let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
                     let new_class = format!("marco-theme-{}", new_mode);
+                    
+                    // Update window - this automatically affects all child widgets via CSS cascade
                     window_for_theme.remove_css_class(old_class);
                     window_for_theme.add_css_class(&new_class);
-                    log::debug!("Switched CSS class from {} to {}", old_class, new_class);
+                    
+                    log::debug!("Switched CSS class from {} to {} (window and all descendants)", old_class, new_class);
                 }) as Box<dyn Fn(String) + 'static>
             };
 

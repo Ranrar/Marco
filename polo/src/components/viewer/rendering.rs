@@ -52,6 +52,35 @@ use marco_core::logic::swanson::SettingsManager;
 use std::sync::Arc;
 use webkit6::prelude::WebViewExt;
 
+/// Light theme scrollbar colors (from assets/themes/editor/light.xml)
+const LIGHT_SCROLLBAR_THUMB: &str = "#D0D4D8";
+const LIGHT_SCROLLBAR_TRACK: &str = "#F0F0F0";
+
+/// Dark theme scrollbar colors (from assets/themes/editor/dark.xml)
+const DARK_SCROLLBAR_THUMB: &str = "#3A3F44";
+const DARK_SCROLLBAR_TRACK: &str = "#252526";
+
+/// Generate WebKit scrollbar CSS for HTML preview
+/// Matches the GTK scrollbar styling in the main application
+fn generate_webkit_scrollbar_css(theme_mode: &str) -> String {
+    let (thumb, track) = if theme_mode == "dark" {
+        (DARK_SCROLLBAR_THUMB, DARK_SCROLLBAR_TRACK)
+    } else {
+        (LIGHT_SCROLLBAR_THUMB, LIGHT_SCROLLBAR_TRACK)
+    };
+    
+    format!(
+        r#"
+        /* Match editor scrollbar styling for WebView */
+        ::-webkit-scrollbar {{ width: 12px; height: 12px; background: {}; }}
+        ::-webkit-scrollbar-track {{ background: {}; }}
+        ::-webkit-scrollbar-thumb {{ background: {}; border-radius: 0px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: {}; opacity: 0.9; }}
+        "#,
+        track, track, thumb, thumb
+    )
+}
+
 /// Escape HTML special characters to prevent XSS attacks
 /// Converts &, <, >, ", and ' to their HTML entity equivalents
 fn html_escape(s: &str) -> String {
@@ -182,14 +211,20 @@ pub fn parse_markdown_to_html(
             // Generate syntax highlighting CSS for code blocks
             let syntax_css = generate_syntax_highlighting_css(&theme_mode);
             
-            // Combine theme CSS with syntax highlighting CSS
+            // Generate WebKit scrollbar CSS to match editor
+            let scrollbar_css = generate_webkit_scrollbar_css(&theme_mode);
+            
+            // Combine theme CSS with syntax highlighting CSS and scrollbar CSS
             let combined_css = if !syntax_css.is_empty() {
                 format!(
-                    "{}\n\n/* Syntax Highlighting CSS */\n{}",
-                    theme_css, syntax_css
+                    "{}\n\n/* Syntax Highlighting CSS */\n{}\n\n/* Scrollbar Styling */\n{}",
+                    theme_css, syntax_css, scrollbar_css
                 )
             } else {
-                theme_css
+                format!(
+                    "{}\n\n/* Scrollbar Styling */\n{}",
+                    theme_css, scrollbar_css
+                )
             };
             
             // Create theme class for HTML element (theme-light or theme-dark)

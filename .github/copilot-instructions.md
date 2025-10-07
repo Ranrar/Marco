@@ -50,6 +50,7 @@ Marco uses a **Cargo workspace** with three crates:
 - **`components/language/`** - Localization support
 - **`logic/`** - UI-specific logic: GTK signal management, menu handlers
 - **`ui/`** - GTK widgets and split view layout
+- **`ui/css/`** - Programmatic CSS generation system
 
 #### polo Binary (`polo/src/`)
 - Viewer-only application (implementation pending)
@@ -116,6 +117,19 @@ cargo build --workspace    # All crates
 - Editor uses `sourceview5` for syntax highlighting
 - Preview uses `webkit6` for HTML rendering
 - Theme synchronization between editor and preview handled in `theme.rs`
+
+### GTK CSS System
+Marco uses **programmatic CSS generation** in Rust, applied via GTK's `CssProvider`.
+
+**Structure** (`marco/src/ui/css/`): `mod.rs` (loader), `constants.rs` (colors/spacing), `menu.rs`, `toolbar.rs`, `footer.rs`
+
+**Usage**: `crate::ui::css::load_css();` in `main.rs` - single call generates and applies all CSS
+
+**Global Application**: CSS is applied to the entire GTK display (window-level), not individual widgets. Uses `gtk4::style_context_add_provider_for_display()` with `PRIORITY_APPLICATION`, so all widgets automatically inherit styles via CSS class selectors (`.titlebar`, `.toolbar-button`, etc.)
+
+**Adding Styles**: Edit color in `constants.rs` → update generator function in menu/toolbar/footer module → run `cargo test -p marco --lib ui::css`
+
+**GTK Limitations**: Avoid `:empty` pseudo-class (not supported), use explicit classes instead
 
 ### Cross-Component Communication
 - `DocumentBuffer` in `marco_core::logic::buffer` manages file state

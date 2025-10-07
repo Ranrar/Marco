@@ -360,10 +360,10 @@ fn update_label_immediate(label: &Label, text: &str, use_markup: bool) {
 
 pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     let footer_box = Box::new(Orientation::Horizontal, 10);
-    footer_box.set_margin_top(5);
-    footer_box.set_margin_bottom(5);
-    footer_box.set_margin_start(10);
-    footer_box.set_margin_end(10);
+    footer_box.set_margin_top(0);
+    footer_box.set_margin_bottom(0);
+    footer_box.set_margin_start(0);
+    footer_box.set_margin_end(0);
 
     // Ensure footer is visible and properly allocated
     footer_box.set_visible(true);

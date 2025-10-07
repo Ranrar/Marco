@@ -1,3 +1,4 @@
+pub mod css;
 pub mod menu_items;
 pub mod settings;
 pub mod splitview;
