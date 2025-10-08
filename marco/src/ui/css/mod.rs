@@ -43,6 +43,7 @@
 //! ```
 
 pub mod constants;
+pub mod dialog;
 pub mod footer;
 pub mod menu;
 pub mod toolbar;
@@ -78,6 +79,9 @@ pub fn generate_marco_css() -> String {
     
     // Footer styling
     css.push_str(&footer::generate_css());
+    
+    // Dialog styling
+    css.push_str(&dialog::generate_css());
     
     css
 }
