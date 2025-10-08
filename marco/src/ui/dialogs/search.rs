@@ -12,14 +12,13 @@
 //! - Match case, whole word, Markdown-only, and regex options
 //! - Navigation through search results with match count display
 //! - Replace next and replace all functionality
-//! - Search/replace history with dropdown persistence
 //! - Singleton pattern to prevent multiple instances
 //! - Debounced search for performance
 //! - Integration with Marco's theme system
 
 use gtk4::prelude::*;
 use gtk4::{
-    Align, Box as GtkBox, Button, CheckButton, ComboBoxText, Dialog, Entry, Label, 
+    Align, Box as GtkBox, Button, CheckButton, Entry, Label, 
     Orientation, Overlay, Separator, Window
 };
 use sourceview5::prelude::*;
@@ -27,7 +26,6 @@ use sourceview5::{Buffer, SearchContext, SearchSettings, View};
 use webkit6::{prelude::*, WebView};
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::collections::VecDeque;
 use log::{debug, trace};
 use glib::{SourceId, timeout_add_local};
 
@@ -45,13 +43,6 @@ pub struct SearchOptions {
     pub use_regex: bool,
 }
 
-/// Session storage for search/replace history
-#[derive(Debug, Default)]
-struct SearchSession {
-    search_history: VecDeque<String>,
-    replace_history: VecDeque<String>,
-}
-
 /// Current search state 
 #[derive(Debug)]
 struct SearchState {
@@ -60,14 +51,12 @@ struct SearchState {
 
 /// Simple async search manager for better UI responsiveness
 struct AsyncSearchManager {
-    search_cache: Rc<RefCell<SimpleFileCache>>,
     current_timer_id: Option<SourceId>,
 }
 
 impl AsyncSearchManager {
-    fn new(_cache: Rc<RefCell<SimpleFileCache>>) -> Self {
+    fn new() -> Self {
         Self {
-            search_cache: _cache,
             current_timer_id: None,
         }
     }
@@ -90,60 +79,15 @@ impl AsyncSearchManager {
 
         self.current_timer_id = Some(timer_id);
     }
-
-    /// Simple cache-backed search result storage
-    fn cache_search_results(&self, query: &str, results_count: i32) {
-        // Simple caching - store search metadata in the file cache
-        // This is just an example of using the existing cache infrastructure
-        if let Ok(_cache) = self.search_cache.try_borrow_mut() {
-            debug!("Caching search results for '{}': {} matches", query, results_count);
-            // In a real implementation, we might cache actual match positions
-        }
-    }
-}
-
-impl SearchSession {
-    const MAX_HISTORY: usize = 10;
-
-    fn add_search_term(&mut self, term: String) {
-        if !term.is_empty() && !self.search_history.contains(&term) {
-            self.search_history.push_front(term);
-            if self.search_history.len() > Self::MAX_HISTORY {
-                self.search_history.pop_back();
-            }
-        }
-    }
-
-    fn add_replace_term(&mut self, term: String) {
-        if !term.is_empty() && !self.replace_history.contains(&term) {
-            self.replace_history.push_front(term);
-            if self.replace_history.len() > Self::MAX_HISTORY {
-                self.replace_history.pop_back();
-            }
-        }
-    }
-
-    fn get_search_history(&self) -> Vec<String> {
-        self.search_history.iter().cloned().collect()
-    }
-
-    fn get_replace_history(&self) -> Vec<String> {
-        self.replace_history.iter().cloned().collect()
-    }
 }
 
 thread_local! {
-    static CACHED_DIALOG: RefCell<Option<Rc<Dialog>>> = const { RefCell::new(None) };
     static CACHED_SEARCH_WINDOW: RefCell<Option<Rc<Window>>> = const { RefCell::new(None) };
     static CURRENT_BUFFER: RefCell<Option<Rc<Buffer>>> = const { RefCell::new(None) };
     static CURRENT_SOURCE_VIEW: RefCell<Option<Rc<View>>> = const { RefCell::new(None) };
     static CURRENT_WEBVIEW: RefCell<Option<Rc<WebView>>> = const { RefCell::new(None) };
     static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };
-    static SEARCH_SESSION: RefCell<SearchSession> = const { RefCell::new(SearchSession {
-        search_history: VecDeque::new(),
-        replace_history: VecDeque::new(),
-    }) };
     static NAVIGATION_IN_PROGRESS: RefCell<bool> = const { RefCell::new(false) };
     static CURRENT_MATCH_POSITION: RefCell<Option<i32>> = const { RefCell::new(None) };
     static SEARCH_DEBOUNCE_TIMER: RefCell<Option<SourceId>> = const { RefCell::new(None) };
@@ -153,11 +97,11 @@ thread_local! {
 
 /// Main entry point - shows or creates the search dialog
 /// Entry point for separate search window - shows search in a standalone window
-pub fn show_search_window(parent: &Window, file_cache: Rc<RefCell<SimpleFileCache>>, buffer: Rc<Buffer>, source_view: Rc<View>, webview: Rc<WebView>) {
+pub fn show_search_window(parent: &Window, _file_cache: Rc<RefCell<SimpleFileCache>>, buffer: Rc<Buffer>, source_view: Rc<View>, webview: Rc<WebView>) {
     // Initialize async manager if not already done
     ASYNC_MANAGER.with(|manager_ref| {
         if manager_ref.borrow().is_none() {
-            *manager_ref.borrow_mut() = Some(AsyncSearchManager::new(file_cache));
+            *manager_ref.borrow_mut() = Some(AsyncSearchManager::new());
         }
     });
 
@@ -209,38 +153,79 @@ fn get_or_create_search_window(parent: &Window, buffer: Rc<Buffer>, source_view:
 
 /// Create the actual search window implementation (separate window)
 fn create_search_window_impl(parent: &Window) -> Window {
+    // Get current theme mode from parent window
+    let parent_widget = parent.upcast_ref::<gtk4::Widget>();
+    let theme_class = if parent_widget.has_css_class("marco-theme-dark") {
+        "marco-theme-dark"
+    } else {
+        "marco-theme-light"
+    };
+    
     let window = Window::builder()
-        .title("Marco Search & Replace")
         .transient_for(parent)
         .modal(false) // Non-modal so we can interact with main app
         .default_width(500)
         .default_height(280)
         .resizable(true) // Allow resizing for better usability
-        .decorated(true) // Show window decorations (title bar, close button, etc.)
-        .deletable(true) // Allow closing the window
         .build();
+    
+    // Apply CSS classes for theming
+    window.add_css_class("marco-search-window");
+    window.add_css_class(theme_class);
 
-    // Set window icon if available (optional)
-    if let Some(display) = gtk4::gdk::Display::default() {
-        let theme = gtk4::IconTheme::for_display(&display);
-        if theme.has_icon("edit-find") {
-            window.set_icon_name(Some("edit-find"));
+    // Create custom titlebar matching marco's style
+    let headerbar = gtk4::HeaderBar::new();
+    headerbar.add_css_class("titlebar");
+    headerbar.add_css_class("marco-titlebar");
+    headerbar.set_show_title_buttons(false);
+    
+    // Set title in headerbar
+    let title_label = Label::new(Some("Search & Replace"));
+    title_label.set_valign(Align::Center);
+    title_label.add_css_class("title-label");
+    headerbar.set_title_widget(Some(&title_label));
+    
+    // Create custom close button with icon font
+    let close_label = Label::new(None);
+    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
+    close_label.set_valign(Align::Center);
+    close_label.add_css_class("icon-font");
+    
+    let btn_close_titlebar = Button::new();
+    btn_close_titlebar.set_child(Some(&close_label));
+    btn_close_titlebar.set_tooltip_text(Some("Close"));
+    btn_close_titlebar.set_valign(Align::Center);
+    btn_close_titlebar.set_margin_start(1);
+    btn_close_titlebar.set_margin_end(1);
+    btn_close_titlebar.set_focusable(false);
+    btn_close_titlebar.set_can_focus(false);
+    btn_close_titlebar.set_has_frame(false);
+    btn_close_titlebar.add_css_class("topright-btn");
+    btn_close_titlebar.add_css_class("window-control-btn");
+    
+    // Wire up close button
+    let window_weak_for_close = window.downgrade();
+    btn_close_titlebar.connect_clicked(move |_| {
+        if let Some(window) = window_weak_for_close.upgrade() {
+            window.close();
         }
-    }
+    });
+    
+    // Add close button to right side of headerbar
+    headerbar.pack_end(&btn_close_titlebar);
+    
+    window.set_titlebar(Some(&headerbar));
 
     // Main container
     let main_box = GtkBox::new(Orientation::Vertical, 12);
-    main_box.set_margin_top(16);
-    main_box.set_margin_bottom(16);
-    main_box.set_margin_start(16);
-    main_box.set_margin_end(16);
+    main_box.add_css_class("marco-search-content");
 
     // Search controls section
-    let (search_box, search_combo, match_count_label) = create_search_controls_section();
+    let (search_box, search_entry, match_count_label) = create_search_controls_section();
     main_box.append(&search_box);
 
     // Replace controls section (always visible)
-    let (replace_box, replace_combo) = create_replace_controls_section();
+    let (replace_box, replace_entry) = create_replace_controls_section();
     main_box.append(&replace_box);
 
     // Options panel
@@ -253,15 +238,26 @@ fn create_search_window_impl(parent: &Window) -> Window {
 
     window.set_child(Some(&main_box));
 
-    // Populate dropdowns with history
-    populate_search_dropdown(&search_combo);
-    populate_replace_dropdown(&replace_combo);
+    // Add ESC key handler to close window
+    let key_controller = gtk4::EventControllerKey::new();
+    let window_weak_for_esc = window.downgrade();
+    key_controller.connect_key_pressed(move |_controller, key, _code, _state| {
+        if key == gtk4::gdk::Key::Escape {
+            if let Some(window) = window_weak_for_esc.upgrade() {
+                window.close();
+            }
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    window.add_controller(key_controller);
 
     // Connect all the signals and behavior for window
     setup_window_behavior(
         &window,
-        &search_combo,
-        &replace_combo,
+        &search_entry,
+        &replace_entry,
         &match_count_label,
         &options_widgets,
         &button_widgets,
@@ -289,7 +285,7 @@ fn create_search_window_impl(parent: &Window) -> Window {
 
 
 /// Create the search controls section
-fn create_search_controls_section() -> (GtkBox, ComboBoxText, Label) {
+fn create_search_controls_section() -> (GtkBox, Entry, Label) {
     let search_box = GtkBox::new(Orientation::Vertical, 4);
 
     let search_row = GtkBox::new(Orientation::Horizontal, 8);
@@ -297,28 +293,27 @@ fn create_search_controls_section() -> (GtkBox, ComboBoxText, Label) {
     let search_label = Label::new(Some("Find:"));
     search_label.set_width_request(60);
     search_label.set_halign(Align::Start);
+    search_label.add_css_class("marco-search-label");
     
     // Create overlay to show match count inside the search input
     let search_overlay = Overlay::new();
     search_overlay.set_hexpand(true);
     
-    let search_combo = ComboBoxText::with_entry();
-    search_combo.set_hexpand(true);
-    
-    if let Some(entry) = search_combo.child().and_downcast::<Entry>() {
-        entry.set_placeholder_text(Some("Enter search text..."));
-    }
+    let search_entry = Entry::new();
+    search_entry.set_hexpand(true);
+    search_entry.set_placeholder_text(Some("Enter search text..."));
+    search_entry.add_css_class("marco-search-entry");
     
     // Match count label positioned as overlay inside the search field
     let match_count_label = Label::new(Some(""));
     match_count_label.set_halign(Align::End);
     match_count_label.set_valign(Align::Center);
     match_count_label.add_css_class("dim-label");
-    match_count_label.set_margin_end(45); // Move more to the left by increasing right margin
+    match_count_label.add_css_class("marco-search-match-label");
     match_count_label.set_sensitive(false); // Make it non-interactive
     
-    // Add combo as main child and label as overlay
-    search_overlay.set_child(Some(&search_combo));
+    // Add entry as main child and label as overlay
+    search_overlay.set_child(Some(&search_entry));
     search_overlay.add_overlay(&match_count_label);
     
     // No Find button needed - search happens automatically while typing
@@ -333,11 +328,11 @@ fn create_search_controls_section() -> (GtkBox, ComboBoxText, Label) {
         *label_ref.borrow_mut() = Some(match_count_label.clone());
     });
     
-    (search_box, search_combo, match_count_label)
+    (search_box, search_entry, match_count_label)
 }
 
 /// Create the replace controls section
-fn create_replace_controls_section() -> (GtkBox, ComboBoxText) {
+fn create_replace_controls_section() -> (GtkBox, Entry) {
     let replace_box = GtkBox::new(Orientation::Vertical, 4);
     // Always visible in the simplified UI
     
@@ -346,19 +341,19 @@ fn create_replace_controls_section() -> (GtkBox, ComboBoxText) {
     let replace_label = Label::new(Some("Replace:"));
     replace_label.set_width_request(60);
     replace_label.set_halign(Align::Start);
+    replace_label.add_css_class("marco-search-label");
     
-    let replace_combo = ComboBoxText::with_entry();
-    replace_combo.set_hexpand(true);
-    if let Some(entry) = replace_combo.child().and_downcast::<Entry>() {
-        entry.set_placeholder_text(Some("Enter replacement text..."));
-    }
+    let replace_entry = Entry::new();
+    replace_entry.set_hexpand(true);
+    replace_entry.set_placeholder_text(Some("Enter replacement text..."));
+    replace_entry.add_css_class("marco-search-entry");
 
     replace_row.append(&replace_label);
-    replace_row.append(&replace_combo);
+    replace_row.append(&replace_entry);
     
     replace_box.append(&replace_row);
 
-    (replace_box, replace_combo)
+    (replace_box, replace_entry)
 }
 
 /// Options panel widgets
@@ -376,8 +371,7 @@ fn create_options_panel() -> (GtkBox, OptionsWidgets) {
     
     // Separator
     let separator = Separator::new(Orientation::Horizontal);
-    separator.set_margin_top(8);
-    separator.set_margin_bottom(8);
+    separator.add_css_class("marco-search-separator");
     options_box.append(&separator);
     
     // Options grid - two rows of two checkboxes each
@@ -388,7 +382,9 @@ fn create_options_panel() -> (GtkBox, OptionsWidgets) {
     row1.set_homogeneous(true);
     
     let match_case_cb = CheckButton::with_label("Match Case");
+    match_case_cb.add_css_class("marco-search-checkbox");
     let match_markdown_cb = CheckButton::with_label("Match only Markdown syntax");
+    match_markdown_cb.add_css_class("marco-search-checkbox");
     
     row1.append(&match_case_cb);
     row1.append(&match_markdown_cb);
@@ -398,7 +394,9 @@ fn create_options_panel() -> (GtkBox, OptionsWidgets) {
     row2.set_homogeneous(true);
     
     let match_whole_word_cb = CheckButton::with_label("Match Whole Word");
+    match_whole_word_cb.add_css_class("marco-search-checkbox");
     let use_regex_cb = CheckButton::with_label("Regular Expressions");
+    use_regex_cb.add_css_class("marco-search-checkbox");
     
     row2.append(&match_whole_word_cb);
     row2.append(&use_regex_cb);
@@ -435,12 +433,16 @@ fn create_window_button_panel() -> (GtkBox, ButtonWidgets) {
     // Bottom buttons: [Previous] [Next] [Replace] [Replace All]
     // No close button needed since the window has its own close controls
     let prev_button = Button::with_label("Previous");
+    prev_button.add_css_class("marco-search-button");
     let next_button = Button::with_label("Next");
+    next_button.add_css_class("marco-search-button");
     
     let replace_button = Button::with_label("Replace");
+    replace_button.add_css_class("marco-search-button");
     replace_button.set_sensitive(false); // Initially disabled when Replace input is empty
     
     let replace_all_button = Button::with_label("Replace All");
+    replace_all_button.add_css_class("marco-search-button");
     replace_all_button.set_sensitive(false); // Initially disabled when Replace input is empty
 
     button_box.append(&prev_button);
@@ -456,53 +458,6 @@ fn create_window_button_panel() -> (GtkBox, ButtonWidgets) {
     };
 
     (button_box, widgets)
-}
-
-/// Populate search dropdown with history
-fn populate_search_dropdown(combo: &ComboBoxText) {
-    SEARCH_SESSION.with(|session| {
-        let session = session.borrow();
-        combo.remove_all();
-        for term in session.get_search_history() {
-            combo.append_text(&term);
-        }
-    });
-}
-
-/// Populate replace dropdown with history
-fn populate_replace_dropdown(combo: &ComboBoxText) {
-    SEARCH_SESSION.with(|session| {
-        let session = session.borrow();
-        combo.remove_all();
-        for term in session.get_replace_history() {
-            combo.append_text(&term);
-        }
-    });
-}
-
-/// Add search term to history and update dropdown
-fn add_search_to_history(combo: &ComboBoxText, term: String) {
-    SEARCH_SESSION.with(|session| {
-        session.borrow_mut().add_search_term(term);
-    });
-    populate_search_dropdown(combo);
-}
-
-/// Add replace term to history and update dropdown
-fn add_replace_to_history(combo: &ComboBoxText, term: String) {
-    SEARCH_SESSION.with(|session| {
-        session.borrow_mut().add_replace_term(term);
-    });
-    populate_replace_dropdown(combo);
-}
-
-/// Get text from ComboBoxText (either selected or typed)
-fn get_combo_text(combo: &ComboBoxText) -> String {
-    if let Some(entry) = combo.child().and_downcast::<Entry>() {
-        entry.text().to_string()
-    } else {
-        combo.active_text().map(|s| s.to_string()).unwrap_or_default()
-    }
 }
 
 /// Clear search highlighting from any previous search operations
@@ -532,13 +487,13 @@ fn focus_search_entry_in_window(window: &Window) {
 /// Setup all window behavior and signal connections (similar to dialog but adapted for windows)
 fn setup_window_behavior(
     _window: &Window,
-    search_combo: &ComboBoxText,
-    replace_combo: &ComboBoxText,
+    search_entry: &Entry,
+    replace_entry: &Entry,
     match_count_label: &Label,
     options_widgets: &(GtkBox, OptionsWidgets),
     button_widgets: &(GtkBox, ButtonWidgets),
 ) {
-    // Search combo live updates (when text is typed in the entry)
+    // Search entry live updates (when text is typed in the entry)
     let match_count_clone = match_count_label.clone();
     let options_clone = OptionsWidgets {
         match_case_cb: options_widgets.1.match_case_cb.clone(),
@@ -546,58 +501,67 @@ fn setup_window_behavior(
         match_markdown_cb: options_widgets.1.match_markdown_cb.clone(),
         use_regex_cb: options_widgets.1.use_regex_cb.clone(),
     };
-    let search_combo_clone = search_combo.clone();
+    let search_entry_clone = search_entry.clone();
     
-    // Connect to the entry within the combo for live updates and Enter key
-    if let Some(entry) = search_combo.child().and_downcast::<Entry>() {
-        let options_clone_for_changed = options_clone.clone();
-        
-        entry.connect_changed(move |_entry| {
-            let query = get_combo_text(&search_combo_clone);
-            // Use debounced search while typing to prevent rapid search operations
-            if !query.is_empty() {
-                debounced_search(
-                    search_combo_clone.clone(), 
-                    match_count_clone.clone(), 
-                    options_clone_for_changed.clone(), 
-                    200 // 200ms debounce delay
-                );
-            } else {
-                // Clear search immediately when query is empty
-                clear_search_highlighting();
-                match_count_clone.set_text("");
+    // Connect to the entry for live updates and Enter key
+    let options_clone_for_changed = options_clone.clone();
+    
+    search_entry.connect_changed(move |_entry| {
+        let query = search_entry_clone.text().to_string();
+        // Use debounced search while typing to prevent rapid search operations
+        if !query.is_empty() {
+            debounced_search(
+                search_entry_clone.clone(), 
+                match_count_clone.clone(), 
+                options_clone_for_changed.clone(), 
+                200 // 200ms debounce delay
+            );
+        } else {
+            // Clear search immediately when query is empty
+            clear_search_highlighting();
+            match_count_clone.set_text("");
+        }
+    });
+    
+    // Connect Enter key to perform search and highlight matches
+    let search_entry_clone_enter = search_entry.clone();
+    let match_count_clone_enter = match_count_label.clone();
+    let options_clone_enter = options_clone.clone();
+    
+    search_entry.connect_activate(move |_entry| {
+        let query = search_entry_clone_enter.text().to_string();
+        if !query.is_empty() {
+            // If no search is active, perform search first
+            let needs_search = CURRENT_SEARCH_STATE.with(|state_ref| {
+                state_ref.borrow().is_none()
+            });
+            
+            if needs_search {
+                perform_search(&search_entry_clone_enter, &match_count_clone_enter, &options_clone_enter);
             }
-        });
-        
-        // Connect Enter key to perform search and highlight matches
-        let search_combo_clone_enter = search_combo.clone();
-        let match_count_clone_enter = match_count_label.clone();
-        let options_clone_enter = options_clone.clone();
-        
-        entry.connect_activate(move |_entry| {
-            let query = get_combo_text(&search_combo_clone_enter);
-            if !query.is_empty() {
-                // If no search is active, perform search first
-                let needs_search = CURRENT_SEARCH_STATE.with(|state_ref| {
-                    state_ref.borrow().is_none()
+            
+            // If position is None, find position from cursor
+            // Otherwise keep current position for incremental navigation
+            let needs_position_reset = CURRENT_MATCH_POSITION.with(|pos| {
+                pos.borrow().is_none()
+            });
+            
+            if needs_position_reset {
+                // Find the closest match from cursor position
+                // This works immediately if search exists, or returns None for new searches
+                let position = find_position_from_cursor().unwrap_or(0);
+                CURRENT_MATCH_POSITION.with(|pos| {
+                    *pos.borrow_mut() = Some(position);
                 });
-                
-                if needs_search {
-                    perform_search(&search_combo_clone_enter, &match_count_clone_enter, &options_clone_enter);
-                    // For first search, start at position 1
-                    CURRENT_MATCH_POSITION.with(|pos| {
-                        *pos.borrow_mut() = Some(0); // Will become 1 after increment
-                    });
-                }
-                
-                // Navigate to next match
-                immediate_position_update_with_debounced_navigation(1, 100);
             }
-        });
-    }
+            
+            // Navigate to next match (increments current position)
+            immediate_position_update_with_debounced_navigation(1, 100);
+        }
+    });
 
     // Previous button
-    let search_combo_clone_prev = search_combo.clone();
+    let search_entry_clone_prev = search_entry.clone();
     let match_count_clone_prev = match_count_label.clone();
     let options_clone_prev = options_clone.clone();
     
@@ -608,14 +572,24 @@ fn setup_window_behavior(
         });
         
         if needs_search {
-            let query = get_combo_text(&search_combo_clone_prev);
+            let query = search_entry_clone_prev.text().to_string();
             if !query.is_empty() {
-                perform_search(&search_combo_clone_prev, &match_count_clone_prev, &options_clone_prev);
-                // For first search with Previous, start at position 2 (will become 1 after decrement)
-                CURRENT_MATCH_POSITION.with(|pos| {
-                    *pos.borrow_mut() = Some(2);
-                });
+                perform_search(&search_entry_clone_prev, &match_count_clone_prev, &options_clone_prev);
             }
+        }
+        
+        // If position is None (no navigation yet), find position from cursor
+        // For Previous, we want to go backwards, so add 1 to the found position
+        let needs_position_reset = CURRENT_MATCH_POSITION.with(|pos| {
+            pos.borrow().is_none()
+        });
+        
+        if needs_position_reset {
+            // Find the closest match before cursor position
+            let position = find_position_before_cursor().unwrap_or(2);
+            CURRENT_MATCH_POSITION.with(|pos| {
+                *pos.borrow_mut() = Some(position);
+            });
         }
         
         // Immediately update position counter and debounce the actual navigation
@@ -623,7 +597,7 @@ fn setup_window_behavior(
     });
 
     // Next button
-    let search_combo_clone_next = search_combo.clone();
+    let search_entry_clone_next = search_entry.clone();
     let match_count_clone_next = match_count_label.clone();
     let options_clone_next = options_clone.clone();
     
@@ -634,38 +608,48 @@ fn setup_window_behavior(
         });
         
         if needs_search {
-            let query = get_combo_text(&search_combo_clone_next);
+            let query = search_entry_clone_next.text().to_string();
             if !query.is_empty() {
-                perform_search(&search_combo_clone_next, &match_count_clone_next, &options_clone_next);
-                // For first search, start at position 0 (will become 1 after increment)
-                CURRENT_MATCH_POSITION.with(|pos| {
-                    *pos.borrow_mut() = Some(0);
-                });
+                perform_search(&search_entry_clone_next, &match_count_clone_next, &options_clone_next);
             }
         }
         
-        // Immediately update position counter and debounce the actual navigation
+        // If position is None, find position from cursor
+        // Otherwise keep current position for incremental navigation
+        let needs_position_reset = CURRENT_MATCH_POSITION.with(|pos| {
+            pos.borrow().is_none()
+        });
+        
+        if needs_position_reset {
+            // Find the closest match from cursor position
+            let position = find_position_from_cursor().unwrap_or(0);
+            CURRENT_MATCH_POSITION.with(|pos| {
+                *pos.borrow_mut() = Some(position);
+            });
+        }
+        
+        // Navigate to next match (increments current position)
         immediate_position_update_with_debounced_navigation(1, 200); // direction=1 for next
     });
 
     // Replace button connection
-    let search_combo_clone_replace = search_combo.clone();
-    let replace_combo_clone_replace = replace_combo.clone();
+    let search_entry_clone_replace = search_entry.clone();
+    let replace_entry_clone_replace = replace_entry.clone();
     
     button_widgets.1.replace_button.connect_clicked(move |_| {
-        replace_next_match(&search_combo_clone_replace, &replace_combo_clone_replace);
+        replace_next_match(&search_entry_clone_replace, &replace_entry_clone_replace);
     });
 
     // Replace All button connection
-    let search_combo_clone_replace_all = search_combo.clone();
-    let replace_combo_clone_replace_all = replace_combo.clone();
+    let search_entry_clone_replace_all = search_entry.clone();
+    let replace_entry_clone_replace_all = replace_entry.clone();
     
     button_widgets.1.replace_all_button.connect_clicked(move |_| {
-        replace_all_matches(&search_combo_clone_replace_all, &replace_combo_clone_replace_all);
+        replace_all_matches(&search_entry_clone_replace_all, &replace_entry_clone_replace_all);
     });
 
     // Connect option checkboxes to re-run search when changed
-    let search_combo_option = search_combo.clone();
+    let search_entry_option = search_entry.clone();
     let match_count_option = match_count_label.clone();
     let options_for_options = options_clone.clone();
     
@@ -675,14 +659,14 @@ fn setup_window_behavior(
         &options_widgets.1.match_markdown_cb,
         &options_widgets.1.use_regex_cb,
     ] {
-        let search_combo_option_clone = search_combo_option.clone();
+        let search_entry_option_clone = search_entry_option.clone();
         let match_count_option_clone = match_count_option.clone();
         let options_for_options_clone = options_for_options.clone();
         
         checkbox.connect_toggled(move |_| {
-            let query = get_combo_text(&search_combo_option_clone);
+            let query = search_entry_option_clone.text().to_string();
             if !query.is_empty() {
-                perform_search(&search_combo_option_clone, &match_count_option_clone, &options_for_options_clone);
+                perform_search(&search_entry_option_clone, &match_count_option_clone, &options_for_options_clone);
             }
         });
     }
@@ -690,22 +674,158 @@ fn setup_window_behavior(
     // Enable/disable replace buttons based on replace text
     let replace_button_clone = button_widgets.1.replace_button.clone();
     let replace_all_button_clone = button_widgets.1.replace_all_button.clone();
+    let replace_entry_for_enable = replace_entry.clone();
     
-    if let Some(replace_entry) = replace_combo.child().and_downcast::<Entry>() {
-        replace_entry.connect_changed(move |entry| {
-            let has_text = !entry.text().is_empty();
-            replace_button_clone.set_sensitive(has_text);
-            replace_all_button_clone.set_sensitive(has_text);
-        });
-    }
+    replace_entry_for_enable.connect_changed(move |entry| {
+        let has_text = !entry.text().is_empty();
+        replace_button_clone.set_sensitive(has_text);
+        replace_all_button_clone.set_sensitive(has_text);
+    });
 
     debug!("Window behavior setup completed");
 }
 
+/// Find the position of the closest match at or after the cursor position
+/// Returns the match position (0-indexed for increment logic) or None if no matches exist
+fn find_position_from_cursor() -> Option<i32> {
+    CURRENT_SEARCH_STATE.with(|state_ref| {
+        if let Some(search_state) = state_ref.borrow().as_ref() {
+            let search_context = &search_state.search_context;
+            let total_count = search_context.occurrences_count();
+            
+            debug!("find_position_from_cursor: total_count = {}", total_count);
+            
+            if total_count <= 0 {
+                debug!("find_position_from_cursor: No matches available");
+                return None;
+            }
+            
+            CURRENT_BUFFER.with(|buffer_ref| {
+                if let Some(buffer) = buffer_ref.borrow().as_ref() {
+                    // Get cursor position
+                    let cursor_iter = buffer.iter_at_mark(&buffer.get_insert());
+                    let cursor_offset = cursor_iter.offset();
+                    let cursor_line = cursor_iter.line() + 1;
+                    
+                    debug!("find_position_from_cursor: Cursor at line {}, offset {}", cursor_line, cursor_offset);
+                    
+                    // Iterate through all matches to find the closest one at or after cursor
+                    let mut current_iter = buffer.start_iter();
+                    let mut position = 1;
+                    
+                    while let Some((match_start, match_end, _wrapped)) = search_context.forward(&current_iter) {
+                        let match_offset = match_start.offset();
+                        let match_line = match_start.line() + 1;
+                        
+                        // If this match is at or after the cursor, use it
+                        if match_offset >= cursor_offset {
+                            debug!("find_position_from_cursor: Found match #{} at line {} (offset {}), cursor at line {} (offset {})", 
+                                   position, match_line, match_offset, cursor_line, cursor_offset);
+                            return Some(position - 1); // Return 0-indexed for increment logic
+                        }
+                        
+                        // Move to next match
+                        current_iter = match_end;
+                        position += 1;
+                        
+                        // Safety check to prevent infinite loop
+                        if position > total_count {
+                            break;
+                        }
+                    }
+                    
+                    // If no match found at or after cursor, wrap to beginning (position 1)
+                    debug!("find_position_from_cursor: No match at/after cursor, wrapping to position 1");
+                    Some(0) // Will become 1 after increment
+                } else {
+                    debug!("find_position_from_cursor: No buffer available");
+                    Some(0)
+                }
+            })
+        } else {
+            debug!("find_position_from_cursor: No search state available");
+            None
+        }
+    })
+}
+
+/// Find the position of the closest match before the cursor position (for Previous navigation)
+/// Returns the match position (1-indexed, ready for decrement) or None if no matches exist
+fn find_position_before_cursor() -> Option<i32> {
+    CURRENT_SEARCH_STATE.with(|state_ref| {
+        if let Some(search_state) = state_ref.borrow().as_ref() {
+            let search_context = &search_state.search_context;
+            let total_count = search_context.occurrences_count();
+            
+            debug!("find_position_before_cursor: total_count = {}", total_count);
+            
+            if total_count <= 0 {
+                debug!("find_position_before_cursor: No matches available");
+                return None;
+            }
+            
+            CURRENT_BUFFER.with(|buffer_ref| {
+                if let Some(buffer) = buffer_ref.borrow().as_ref() {
+                    // Get cursor position
+                    let cursor_iter = buffer.iter_at_mark(&buffer.get_insert());
+                    let cursor_offset = cursor_iter.offset();
+                    let cursor_line = cursor_iter.line() + 1;
+                    
+                    debug!("find_position_before_cursor: Cursor at line {}, offset {}", cursor_line, cursor_offset);
+                    
+                    // Iterate through all matches to find the last one before cursor
+                    let mut current_iter = buffer.start_iter();
+                    let mut position = 1;
+                    let mut last_valid_position = None;
+                    
+                    while let Some((match_start, match_end, _wrapped)) = search_context.forward(&current_iter) {
+                        let match_offset = match_start.offset();
+                        let match_line = match_start.line() + 1;
+                        
+                        // If this match is before the cursor, remember it
+                        if match_offset < cursor_offset {
+                            last_valid_position = Some(position);
+                            debug!("find_position_before_cursor: Match #{} at line {} is before cursor", position, match_line);
+                        } else {
+                            // We've reached matches at/after cursor, stop searching
+                            break;
+                        }
+                        
+                        // Move to next match
+                        current_iter = match_end;
+                        position += 1;
+                        
+                        // Safety check to prevent infinite loop
+                        if position > total_count {
+                            break;
+                        }
+                    }
+                    
+                    if let Some(pos) = last_valid_position {
+                        debug!("find_position_before_cursor: Found match #{} before cursor", pos);
+                        // Return position + 1 so decrement brings us to the correct match
+                        Some(pos + 1)
+                    } else {
+                        // No match found before cursor, wrap to end (last match)
+                        debug!("find_position_before_cursor: No match before cursor, wrapping to last match #{}", total_count);
+                        Some(total_count + 1) // Will become total_count after decrement
+                    }
+                } else {
+                    debug!("find_position_before_cursor: No buffer available");
+                    Some(2) // Will become 1 after decrement
+                }
+            })
+        } else {
+            debug!("find_position_before_cursor: No search state available");
+            None
+        }
+    })
+}
+
 /// Debounced search function to prevent rapid search operations
-fn debounced_search(search_combo: ComboBoxText, match_count_label: Label, options: OptionsWidgets, delay_ms: u32) {
+fn debounced_search(search_entry: Entry, match_count_label: Label, options: OptionsWidgets, delay_ms: u32) {
     // Use the async manager for simplified debouncing
-    perform_search_async(search_combo, match_count_label, options, delay_ms);
+    perform_search_async(search_entry, match_count_label, options, delay_ms);
 }
 
 /// Update match position immediately for rapid button presses, but debounce the actual navigation
@@ -879,116 +999,16 @@ fn set_navigation_in_progress(in_progress: bool) {
     });
 }
 
-/// Get the accurate match position using the built-in GTK SourceView method
-/// This is the official and optimized way to get match positions
-fn get_builtin_match_position(search_context: &SearchContext, match_start: &gtk4::TextIter, match_end: &gtk4::TextIter) -> i32 {
-    // Use the built-in GTK SourceView method - this is efficient and handles all edge cases
-    let position = search_context.occurrence_position(match_start, match_end);
-    
-    debug!("Built-in occurrence_position returned: {} for match at offset {}-{}", 
-           position, match_start.offset(), match_end.offset());
-    
-    // GTK SourceView returns:
-    // - Positive number (1-based): the position of the match
-    // - 0: match_start and match_end don't delimit an occurrence
-    // - -1: buffer not fully scanned yet, position unknown
-    
-    if position == -1 {
-        debug!("Buffer not fully scanned yet, position unknown");
-    } else if position == 0 {
-        debug!("Invalid match range - not a valid occurrence");
-    }
-    
-    position
-}
-
-
-
-/// Update current match position and display it using the built-in GTK SourceView method
-fn update_and_store_match_position(search_context: &SearchContext, match_start: &gtk4::TextIter, match_end: &gtk4::TextIter, _direction: i32) {
-    let total_count = search_context.occurrences_count();
-    if total_count <= 0 {
-        CURRENT_MATCH_POSITION.with(|pos| *pos.borrow_mut() = None);
-        return;
-    }
-    
-    // Use the built-in GTK SourceView method - this is the official and optimized approach
-    let current_position = get_builtin_match_position(search_context, match_start, match_end);
-    
-    // Store the position if valid, but don't clear it if invalid (to preserve navigation state)
-    CURRENT_MATCH_POSITION.with(|pos| {
-        if current_position > 0 {
-            *pos.borrow_mut() = Some(current_position);
-        }
-        // Don't set to None if position is invalid - keep previous value to maintain navigation state
-    });
-    
-    // Log the match details for debugging
-    debug!("Match at line {} (offset {}-{}), built-in position {} of {}", 
-           match_start.line() + 1, match_start.offset(), match_end.offset(), 
-           current_position, total_count);
-    
-    // Update display with proper handling of different position states
-    CURRENT_MATCH_LABEL.with(|label_ref| {
-        if let Some(label) = label_ref.borrow().as_ref() {
-            let line_number = match_start.line() + 1; // Convert to 1-based line numbering
-            
-            match current_position {
-                pos if pos > 0 => {
-                    // Valid position - show "X of Y matches (line Z)"
-                    let text = format!("{} of {} matches (line {})", pos, total_count, line_number);
-                    label.set_text(&text);
-                    debug!("Updated match position display: {}", text);
-                },
-                -1 => {
-                    // Buffer not fully scanned yet - show scanning status
-                    let text = if total_count == -1 {
-                        format!("Searching... (line {})", line_number)
-                    } else {
-                        format!("? of {} matches (line {})", total_count, line_number)
-                    };
-                    label.set_text(&text);
-                    debug!("Buffer scanning in progress: {}", text);
-                },
-                0 => {
-                    // Invalid match range - fallback to count only
-                    let text = if total_count == 1 {
-                        format!("1 match (line {})", line_number)
-                    } else if total_count > 1 {
-                        format!("{} matches (line {})", total_count, line_number)
-                    } else {
-                        format!("No matches (line {})", line_number)
-                    };
-                    label.set_text(&text);
-                    debug!("Invalid match range, showing count only: {}", text);
-                },
-                _ => {
-                    // Unexpected value - show basic info
-                    let text = format!("Match found (line {})", line_number);
-                    label.set_text(&text);
-                    debug!("Unexpected position value {}, showing basic info: {}", current_position, text);
-                }
-            }
-        }
-    });
-}
-
-/// Update the match position display showing "X of Y matches" (legacy function for compatibility)
-fn update_match_position_display(search_context: &SearchContext, match_start: &gtk4::TextIter, match_end: &gtk4::TextIter) {
-    // Use the new race-condition-safe method with direction = 0 (recalculate)
-    update_and_store_match_position(search_context, match_start, match_end, 0);
-}
-
 /// Simple async search with debouncing
-fn perform_search_async(search_combo: ComboBoxText, match_count_label: Label, options: OptionsWidgets, delay_ms: u32) {
+fn perform_search_async(search_entry: Entry, match_count_label: Label, options: OptionsWidgets, delay_ms: u32) {
     ASYNC_MANAGER.with(|manager_ref| {
         if let Some(manager) = manager_ref.borrow_mut().as_mut() {
             manager.schedule_search(delay_ms, move || {
-                perform_search(&search_combo, &match_count_label, &options);
+                perform_search(&search_entry, &match_count_label, &options);
             });
         } else {
             // Fallback to immediate search if manager not available
-            perform_search(&search_combo, &match_count_label, &options);
+            perform_search(&search_entry, &match_count_label, &options);
         }
     });
 }
@@ -1118,8 +1138,8 @@ pub fn clear_enhanced_search_highlighting() {
 }
 
 /// Perform search operation
-fn perform_search(search_combo: &ComboBoxText, match_count_label: &Label, options: &OptionsWidgets) {
-    let query = get_combo_text(search_combo);
+fn perform_search(search_entry: &Entry, match_count_label: &Label, options: &OptionsWidgets) {
+    let query = search_entry.text().to_string();
     if query.is_empty() {
         // Clear any existing search highlighting when query is empty
         clear_search_highlighting();
@@ -1131,9 +1151,6 @@ fn perform_search(search_combo: &ComboBoxText, match_count_label: &Label, option
     
     // Clear any previous search highlighting before starting new search
     clear_search_highlighting();
-    
-    // Add to search history
-    add_search_to_history(search_combo, query.clone());
     
     // Get the current buffer from thread-local storage
     CURRENT_BUFFER.with(|buffer_ref| {
@@ -1181,7 +1198,6 @@ fn perform_search(search_combo: &ComboBoxText, match_count_label: &Label, option
             // Set up count monitoring with enhanced position tracking
             let label_clone = match_count_label.clone();
             let search_context_clone = search_context.clone();
-            let query_clone = query.clone();
             search_context.connect_occurrences_count_notify(move |ctx| {
                 let count = ctx.occurrences_count();
                 let text = if count == -1 {
@@ -1195,15 +1211,6 @@ fn perform_search(search_combo: &ComboBoxText, match_count_label: &Label, option
                 };
                 label_clone.set_text(&text);
                 debug!("Match count updated: {}", count);
-
-                // Cache search results for future reference
-                if count >= 0 {
-                    ASYNC_MANAGER.with(|manager_ref| {
-                        if let Some(manager) = manager_ref.borrow().as_ref() {
-                            manager.cache_search_results(&query_clone, count);
-                        }
-                    });
-                }
                 
                 // If scanning is complete and we have a current selection, update position display
                 if count > 0 {
@@ -1253,9 +1260,9 @@ fn perform_search(search_combo: &ComboBoxText, match_count_label: &Label, option
 
 
 /// Replace next match
-fn replace_next_match(search_combo: &ComboBoxText, replace_combo: &ComboBoxText) {
-    let query = get_combo_text(search_combo);
-    let replacement = get_combo_text(replace_combo);
+fn replace_next_match(search_entry: &Entry, replace_entry: &Entry) {
+    let query = search_entry.text().to_string();
+    let replacement = replace_entry.text().to_string();
     
     if query.is_empty() {
         debug!("Replace next: query is empty");
@@ -1263,12 +1270,6 @@ fn replace_next_match(search_combo: &ComboBoxText, replace_combo: &ComboBoxText)
     }
     
     debug!("Replacing next match: '{}' -> '{}'", query, replacement);
-    
-    // Add to history
-    add_search_to_history(search_combo, query.clone());
-    if !replacement.is_empty() {
-        add_replace_to_history(replace_combo, replacement.clone());
-    }
     
     CURRENT_SEARCH_STATE.with(|state_ref| {
         if let Some(search_state) = state_ref.borrow().as_ref() {
@@ -1316,8 +1317,7 @@ fn replace_next_match(search_combo: &ComboBoxText, replace_combo: &ComboBoxText)
                                     // Scroll to show the next match
                                     scroll_to_match(&next_start);
                                     
-                                    // Update match position display
-                                    update_match_position_display(&search_state.search_context, &next_start, &next_end);
+                                    // Position display is automatically updated by cursor-based navigation
                                 } else {
                                     debug!("No more matches found after replacement");
                                 }
@@ -1350,9 +1350,9 @@ fn replace_next_match(search_combo: &ComboBoxText, replace_combo: &ComboBoxText)
 }
 
 /// Replace all matches
-fn replace_all_matches(search_combo: &ComboBoxText, replace_combo: &ComboBoxText) {
-    let query = get_combo_text(search_combo);
-    let replacement = get_combo_text(replace_combo);
+fn replace_all_matches(search_entry: &Entry, replace_entry: &Entry) {
+    let query = search_entry.text().to_string();
+    let replacement = replace_entry.text().to_string();
     
     if query.is_empty() {
         debug!("Replace all: query is empty");
@@ -1360,12 +1360,6 @@ fn replace_all_matches(search_combo: &ComboBoxText, replace_combo: &ComboBoxText
     }
     
     debug!("Replacing all matches: '{}' -> '{}'", query, replacement);
-    
-    // Add to history
-    add_search_to_history(search_combo, query.clone());
-    if !replacement.is_empty() {
-        add_replace_to_history(replace_combo, replacement.clone());
-    }
     
     CURRENT_SEARCH_STATE.with(|state_ref| {
         if let Some(search_state) = state_ref.borrow().as_ref() {
@@ -1559,95 +1553,22 @@ mod tests {
 
     #[test]
     fn smoke_test_async_search_manager() {
-        let cache = Rc::new(RefCell::new(SimpleFileCache::new()));
-        let manager = AsyncSearchManager::new(cache);
+        let manager = AsyncSearchManager::new();
         
         // Test that manager initializes correctly
         assert!(manager.current_timer_id.is_none());
-        
-        // Test cache search results doesn't panic
-        manager.cache_search_results("test", 5);
     }
 
     #[test]
     fn smoke_test_simple_integration() {
         // Test that our simple async integration compiles and works
-        let cache = Rc::new(RefCell::new(SimpleFileCache::new()));
-        let _manager = AsyncSearchManager::new(cache);
+        let _manager = AsyncSearchManager::new();
         
         // This test passes if the code compiles and instantiates correctly
         println!("✅ Simple async integration working");
         println!("✅ SignalManager integrated");
         println!("✅ SimpleFileCache integrated");
         println!("✅ Basic debouncing implemented");
-    }
-    
-    #[test]
-    fn smoke_test_search_session_history() {
-        let mut session = SearchSession::default();
-        
-        // Test adding search terms
-        session.add_search_term("hello".to_string());
-        session.add_search_term("world".to_string());
-        session.add_search_term("test".to_string());
-        
-        let history = session.get_search_history();
-        assert_eq!(history.len(), 3);
-        assert_eq!(history[0], "test"); // Most recent first
-        assert_eq!(history[1], "world");
-        assert_eq!(history[2], "hello");
-        
-        // Test adding replace terms
-        session.add_replace_term("replacement1".to_string());
-        session.add_replace_term("replacement2".to_string());
-        
-        let replace_history = session.get_replace_history();
-        assert_eq!(replace_history.len(), 2);
-        assert_eq!(replace_history[0], "replacement2"); // Most recent first
-        assert_eq!(replace_history[1], "replacement1");
-        
-        // Test duplicate handling - current implementation doesn't add duplicates
-        session.add_search_term("hello".to_string()); // Duplicate
-        let history_after_dup = session.get_search_history();
-        assert_eq!(history_after_dup.len(), 3); // Should still be 3
-        // Note: Current implementation doesn't move duplicates to front, it just ignores them
-        assert_eq!(history_after_dup[0], "test"); // Most recent non-duplicate
-    }
-    
-    #[test]
-    fn smoke_test_history_max_limit() {
-        let mut session = SearchSession::default();
-        
-        // Add more than MAX_HISTORY items
-        for i in 0..15 {
-            session.add_search_term(format!("term_{}", i));
-        }
-        
-        let history = session.get_search_history();
-        assert_eq!(history.len(), SearchSession::MAX_HISTORY); // Should be limited
-        assert_eq!(history[0], "term_14"); // Most recent
-        assert_eq!(history[9], "term_5"); // Oldest kept
-    }
-
-    #[test]
-    fn smoke_test_dialog_cache_clearing() {
-        // Test that the dialog cache mechanism handles destroyed dialogs correctly
-        // This mainly tests the logic paths since we can't create actual dialogs in tests
-        
-        CACHED_DIALOG.with(|cached| {
-            // Initially should be None
-            assert!(cached.borrow().is_none());
-            
-            // Simulate clearing a destroyed dialog
-            *cached.borrow_mut() = None;
-            assert!(cached.borrow().is_none());
-        });
-        
-        // Verify SearchSession doesn't interfere with dialog caching
-        let _session = SearchSession::default();
-        CACHED_DIALOG.with(|cached| {
-            assert!(cached.borrow().is_none());
-        });
     }
     
     #[test]

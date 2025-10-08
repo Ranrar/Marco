@@ -234,7 +234,7 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     // Wait for the dialog to close
     DialogFuture { completed, waker }.await;
     
-    let final_result = result.borrow().clone();
+    let final_result = *result.borrow();
     log::info!("[SaveDialog] Save changes dialog result: {:?}", final_result);
     Ok(final_result)
 }
