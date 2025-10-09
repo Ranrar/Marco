@@ -55,6 +55,12 @@ fn generate_base_dialog_css() -> String {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     }}
     
+    /* Dialog titlebar/headerbar styling */
+    .marco-dialog .marco-titlebar {{
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
+    }}
+    
     .marco-dialog-content {{
         padding: 24px;
         min-width: 400px;
@@ -108,61 +114,68 @@ fn generate_base_search_css() -> String {
         r#"
     /* Search window styling */
     .marco-search-window {{
-        min-width: 500px;
-        min-height: 300px;
+        min-width: 480px;
+        min-height: 260px;
+        border-radius: {border_radius};
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }}
+    
+    /* Search window titlebar/headerbar styling */
+    .marco-search-window .marco-titlebar {{
+        border-bottom-width: 1px;
+        border-bottom-style: solid;
     }}
     
     .marco-search-content {{
-        padding: 16px;
+        padding: 12px 16px;
     }}
     
     .marco-search-row {{
-        margin-bottom: 12px;
+        margin-bottom: 8px;
     }}
     
     .marco-search-entry {{
-        min-height: 32px;
-        padding: 6px 12px;
-        font-size: 14px;
+        min-height: 28px;
+        padding: 4px 10px;
+        font-size: 13px;
         border-radius: {border_radius};
     }}
     
     .marco-search-button {{
-        min-height: 32px;
-        padding: {button_padding};
+        min-height: 28px;
+        padding: 4px 12px;
         border-radius: {border_radius};
-        font-size: 14px;
+        font-size: 13px;
         margin: 0 4px;
         transition: {transition};
     }}
     
     .marco-search-checkbox {{
-        margin: 4px 8px;
-        font-size: 14px;
+        margin: 2px 8px;
+        font-size: 13px;
     }}
     
     .marco-search-checkbox check {{
-        min-width: 16px;
-        min-height: 16px;
+        min-width: 14px;
+        min-height: 14px;
     }}
     
     .marco-search-label {{
-        font-size: 14px;
+        font-size: 13px;
     }}
     
     .marco-search-separator {{
-        margin-top: 8px;
-        margin-bottom: 8px;
+        margin-top: 6px;
+        margin-bottom: 6px;
         min-height: 1px;
     }}
     
     .marco-search-match-label {{
-        font-size: 13px;
-        margin-right: 45px;
+        font-size: 12px;
+        margin-right: 8px;
     }}
 "#,
         border_radius = TOOLBAR_BORDER_RADIUS,
-        button_padding = TOOLBAR_BUTTON_PADDING,
         transition = STANDARD_TRANSITION,
     )
 }
@@ -173,12 +186,17 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         r#"
     /* {theme} - Dialog styles */
     .{theme} .marco-dialog {{
-        background: {titlebar_bg};
+        background: {dialog_bg};
         border: 1px solid {border};
     }}
     
+    /* Dialog titlebar border color */
+    .{theme} .marco-dialog .marco-titlebar {{
+        border-bottom-color: {border};
+    }}
+    
     .{theme} .marco-dialog-content {{
-        background: {titlebar_bg};
+        background: {dialog_bg};
     }}
     
     .{theme} .marco-dialog-title {{
@@ -226,6 +244,25 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         color: #ffffff;
     }}
     
+    /* Warning action button (Cancel) */
+    .{theme} .marco-dialog-button.warning-action {{
+        background: #f0ad4e;
+        color: #ffffff;
+        border-color: #f0ad4e;
+    }}
+    
+    .{theme} .marco-dialog-button.warning-action:hover {{
+        background: #ec971f;
+        border-color: #ec971f;
+        color: #ffffff;
+    }}
+    
+    .{theme} .marco-dialog-button.warning-action:active {{
+        background: #d58512;
+        border-color: #d58512;
+        color: #ffffff;
+    }}
+    
     /* Suggested action button (Save As...) */
     .{theme} .marco-dialog-button.suggested-action {{
         background: {toolbar_button_hover_border};
@@ -247,15 +284,21 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     
     /* Search window theme styles */
     .{theme} .marco-search-window {{
-        background: {titlebar_bg};
+        background: {dialog_bg};
+        border: 1px solid {border};
+    }}
+    
+    /* Search window titlebar border color */
+    .{theme} .marco-search-window .marco-titlebar {{
+        border-bottom-color: {border};
     }}
     
     .{theme} .marco-search-content {{
-        background: {titlebar_bg};
+        background: {dialog_bg};
     }}
     
     .{theme} .marco-search-entry {{
-        background: {toolbar_popover_bg};
+        background: {dialog_bg};
         color: {titlebar_foreground};
         border: 1px solid {toolbar_border};
         border-radius: 4px;
@@ -269,7 +312,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
     
     .{theme} .marco-search-entry:focus {{
-        background: {toolbar_popover_bg};
+        background: {dialog_bg};
         border-color: {toolbar_button_hover_border};
         outline: none;
         caret-color: {titlebar_foreground};
@@ -277,7 +320,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
     
     .{theme} entry.marco-search-entry {{
-        background: {toolbar_popover_bg};
+        background: {dialog_bg};
         color: {titlebar_foreground};
         border: 1px solid {toolbar_border};
         border-radius: 4px;
@@ -291,7 +334,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
     
     .{theme} entry.marco-search-entry:focus {{
-        background: {toolbar_popover_bg};
+        background: {dialog_bg};
         border-color: {toolbar_button_hover_border};
         outline: none;
         caret-color: {titlebar_foreground};
@@ -299,26 +342,27 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
     
     .{theme} .marco-search-button {{
-        background: transparent;
-        color: {titlebar_foreground};
-        border: 1px solid {toolbar_border};
+        background: {toolbar_button_hover_border};
+        color: #ffffff;
+        border: 1px solid {toolbar_button_hover_border};
     }}
     
     .{theme} .marco-search-button:hover {{
-        background: {toolbar_popover_bg};
-        border-color: {toolbar_button_hover_border};
-        color: {toolbar_button_hover};
+        background: {toolbar_button_hover};
+        border-color: {toolbar_button_hover};
+        color: #ffffff;
     }}
     
     .{theme} .marco-search-button:active {{
-        background: {toolbar_popover_bg};
-        color: {toolbar_button_active};
+        background: {toolbar_button_active};
+        border-color: {toolbar_button_active};
+        color: #ffffff;
     }}
     
     .{theme} .marco-search-button:disabled {{
-        background: transparent;
-        color: {toolbar_border};
+        background: {toolbar_border};
         border-color: {toolbar_border};
+        color: {titlebar_foreground};
         opacity: 0.5;
     }}
     
@@ -360,7 +404,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
 "#,
         theme = theme_class,
-        titlebar_bg = palette.titlebar_bg,
+        dialog_bg = if theme_class.contains("light") { "#FAFAFA" } else { "#1E1E1E" },
         titlebar_foreground = palette.titlebar_foreground,
         border = palette.titlebar_border,
         toolbar_border = palette.toolbar_border,

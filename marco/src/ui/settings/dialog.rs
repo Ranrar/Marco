@@ -2,7 +2,7 @@
 // This ensures user preferences are not lost when changing schema or other options.
 // Settings structure
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Button, Dialog, Label, Notebook, Orientation, Window};
+use gtk4::{Align, Box as GtkBox, Button, Label, Notebook, Orientation, Window};
 
 use crate::logic::signal_manager::SignalManager;
 use crate::ui::settings::tabs;
@@ -39,7 +39,7 @@ type RefreshPreviewCallback = Rc<RefCell<Box<dyn Fn()>>>;
 // Cached dialog storage using thread-local storage for GTK single-threaded environment
 // Also cache the parent window to detect when dialog should use same parent
 thread_local! {
-    static CACHED_DIALOG: RefCell<Option<(Weak<Dialog>, Weak<Window>)>> = const { RefCell::new(None) };
+    static CACHED_DIALOG: RefCell<Option<(Weak<Window>, Weak<Window>)>> = const { RefCell::new(None) };
 }
 
 /// Get or create the settings dialog, reusing existing if possible
@@ -49,7 +49,7 @@ fn get_or_create_cached_dialog(
     settings_path: PathBuf,
     asset_dir: &std::path::Path,
     callbacks: SettingsDialogCallbacks,
-) -> Rc<Dialog> {
+) -> Rc<Window> {
     CACHED_DIALOG.with(|cached| {
         // Check if we have a valid cached dialog with the same parent
         if let Some((weak_dialog, weak_parent)) = cached.borrow().as_ref() {
@@ -123,15 +123,113 @@ fn create_dialog_impl(
     settings_path: PathBuf,
     asset_dir: &std::path::Path,
     callbacks: SettingsDialogCallbacks,
-) -> Dialog {
-    let dialog = Dialog::builder()
+) -> Window {
+    // Detect parent window theme
+    let parent_widget = parent.upcast_ref::<gtk4::Widget>();
+    let theme_class = if parent_widget.has_css_class("marco-theme-dark") {
+        "marco-theme-dark"
+    } else {
+        "marco-theme-light"
+    };
+    
+    // Create Window instead of Dialog
+    let window = Window::builder()
         .transient_for(parent)
         .modal(true)
-        .title("Settings")
+        .default_width(650)
+        .default_height(550)
+        .resizable(false)
         .build();
+    
+    // Apply CSS classes for theming
+    window.add_css_class("marco-settings-window");
+    window.add_css_class(theme_class);
+    
+    // Set up runtime theme synchronization
+    // Monitor parent window for CSS class changes and update settings window accordingly
+    {
+        let window_weak = window.downgrade();
+        let parent_weak = parent.downgrade();
+        
+        // Connect to parent's CSS class changes
+        // We'll poll for changes using a timeout since GTK doesn't have a direct CSS class change signal
+        let poll_interval = std::time::Duration::from_millis(100);
+        glib::timeout_add_local(poll_interval, move || {
+            // Check if both windows still exist
+            if let (Some(settings_win), Some(parent_win)) = (window_weak.upgrade(), parent_weak.upgrade()) {
+                let parent_widget = parent_win.upcast_ref::<gtk4::Widget>();
+                let settings_widget = settings_win.upcast_ref::<gtk4::Widget>();
+                
+                // Detect current parent theme
+                let parent_is_dark = parent_widget.has_css_class("marco-theme-dark");
+                let settings_is_dark = settings_widget.has_css_class("marco-theme-dark");
+                
+                // If themes don't match, synchronize
+                if parent_is_dark != settings_is_dark {
+                    if parent_is_dark {
+                        // Switch to dark theme
+                        settings_widget.remove_css_class("marco-theme-light");
+                        settings_widget.add_css_class("marco-theme-dark");
+                        trace!("Settings dialog switched to dark theme");
+                    } else {
+                        // Switch to light theme
+                        settings_widget.remove_css_class("marco-theme-dark");
+                        settings_widget.add_css_class("marco-theme-light");
+                        trace!("Settings dialog switched to light theme");
+                    }
+                }
+                
+                // Continue polling if settings window is visible
+                if settings_win.is_visible() {
+                    glib::ControlFlow::Continue
+                } else {
+                    glib::ControlFlow::Break
+                }
+            } else {
+                // One or both windows destroyed, stop polling
+                glib::ControlFlow::Break
+            }
+        });
+    }
+    
+    // Create custom HeaderBar matching marco's style
+    let headerbar = gtk4::HeaderBar::new();
+    headerbar.add_css_class("titlebar");
+    headerbar.add_css_class("marco-titlebar");
+    headerbar.set_show_title_buttons(false);
+    
+    // Set title in headerbar
+    let title_label = Label::new(Some("Settings"));
+    title_label.set_valign(Align::Center);
+    title_label.add_css_class("title-label");
+    headerbar.set_title_widget(Some(&title_label));
+    
+    // Create custom close button with icon font
+    let close_label = Label::new(None);
+    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
+    close_label.set_valign(Align::Center);
+    close_label.add_css_class("icon-font");
+    
+    let btn_close_titlebar = Button::new();
+    btn_close_titlebar.set_child(Some(&close_label));
+    btn_close_titlebar.set_tooltip_text(Some("Close"));
+    btn_close_titlebar.set_valign(Align::Center);
+    btn_close_titlebar.set_margin_start(1);
+    btn_close_titlebar.set_margin_end(1);
+    btn_close_titlebar.set_focusable(false);
+    btn_close_titlebar.set_can_focus(false);
+    btn_close_titlebar.set_has_frame(false);
+    btn_close_titlebar.add_css_class("topright-btn");
+    btn_close_titlebar.add_css_class("window-control-btn");
+    
+    // Add close button to right side of headerbar
+    headerbar.pack_end(&btn_close_titlebar);
+    
+    window.set_titlebar(Some(&headerbar));
 
     let notebook = Notebook::new();
     notebook.set_tab_pos(gtk4::PositionType::Top);
+    notebook.add_css_class("marco-settings-notebook");
 
     // Add each tab
     notebook.append_page(
@@ -251,49 +349,90 @@ fn create_dialog_impl(
 
     // Layout: notebook + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
+    content_box.add_css_class("marco-settings-content");
     content_box.append(&notebook);
 
-    let button_box = GtkBox::new(Orientation::Horizontal, 0);
-    button_box.set_halign(Align::End);
+    // Create close button wrapped in a table-like frame for alignment
     let close_button = Button::with_label("Close");
-    let dialog_clone = dialog.clone();
-    close_button.connect_clicked({
+    close_button.add_css_class("marco-settings-close-button");
+    close_button.set_halign(Align::End);
+    close_button.set_valign(Align::Center);
+    
+    // Wrap close button in frame matching the settings rows
+    let close_frame = gtk4::Frame::new(None);
+    close_frame.add_css_class("marco-settings-close-frame");
+    close_frame.set_height_request(70);  // Match ROW_FIXED_HEIGHT
+    close_frame.set_vexpand(false);
+    
+    let close_inner_box = GtkBox::new(Orientation::Horizontal, 0);
+    close_inner_box.set_margin_start(12);
+    close_inner_box.set_margin_end(12);
+    close_inner_box.set_margin_top(8);
+    close_inner_box.set_margin_bottom(8);
+    close_inner_box.set_halign(Align::Fill);
+    close_inner_box.set_valign(Align::Center);
+    
+    // Add expanding spacer to push button to the right
+    let spacer = GtkBox::new(Orientation::Horizontal, 0);
+    spacer.set_hexpand(true);
+    
+    close_inner_box.append(&spacer);
+    close_inner_box.append(&close_button);
+    
+    close_frame.set_child(Some(&close_inner_box));
+    
+    // Add some top margin to separate from tabs
+    close_frame.set_margin_top(4);
+    
+    content_box.append(&close_frame);
+    
+    let window_clone = window.clone();
+    let window_weak_for_titlebar = window.downgrade();
+    
+    // Connect titlebar close button
+    btn_close_titlebar.connect_clicked({
         let signal_managers = signal_managers.clone();
+        let window_weak = window_weak_for_titlebar.clone();
         move |_| {
-            trace!("audit: settings dialog closed");
+            trace!("audit: settings dialog closed via titlebar button");
             // Clean up all signal handlers before closing
             for manager in &signal_managers {
                 manager.borrow_mut().disconnect_all();
             }
-            dialog_clone.close();
+            if let Some(window) = window_weak.upgrade() {
+                window.close();
+            }
         }
     });
-    close_button.set_margin_start(0);
-    close_button.set_margin_end(8);
-    close_button.set_margin_bottom(8);
-    close_button.set_margin_top(8);
-    button_box.append(&close_button);
-    content_box.append(&button_box);
+    
+    // Connect bottom close button
+    close_button.connect_clicked({
+        let signal_managers = signal_managers.clone();
+        move |_| {
+            trace!("audit: settings dialog closed via close button");
+            // Clean up all signal handlers before closing
+            for manager in &signal_managers {
+                manager.borrow_mut().disconnect_all();
+            }
+            window_clone.close();
+        }
+    });
 
-    // Ensure signal handlers are cleaned up if dialog is destroyed
-    // NOTE: GTK "destroy" signal is emitted when the widget is being deallocated from memory.
-    // This happens automatically when: user closes dialog, parent window closes, app shuts down,
-    // or the widget is programmatically destroyed. This is our last chance to clean up resources
-    // before the widget memory is freed by GTK's reference counting system.
-    dialog.connect_destroy({
+    // Ensure signal handlers are cleaned up if window is closed
+    window.connect_close_request({
         let signal_managers = signal_managers.clone();
         move |_| {
             for manager in &signal_managers {
                 manager.borrow_mut().disconnect_all();
             }
-            log::debug!("Settings dialog destroyed - cleaned up signal handlers");
+            log::debug!("Settings window closed - cleaned up signal handlers");
+            glib::Propagation::Proceed
         }
     });
 
-    dialog.set_default_size(700, 600);
-    dialog.set_child(Some(&content_box));
+    window.set_child(Some(&content_box));
     
-    dialog
+    window
 }
 
 #[cfg(test)]

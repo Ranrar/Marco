@@ -1,13 +1,13 @@
 (
   editor: Some((
-    font: None,
-    font_size: Some(12),
-    line_height: None,
+    font: Some("Monospace"),
+    font_size: Some(14),
+    line_height: Some(1.0),
     line_wrapping: Some(true),
     auto_pairing: Some(true),
     show_invisibles: Some(false),
-    tabs_to_spaces: Some(true),
-    syntax_colors: Some(true),
+    tabs_to_spaces: Some(false),
+    syntax_colors: Some(false),
     linting: Some(true),
   )),
   layout: Some((
@@ -18,8 +18,8 @@
     text_direction: Some("ltr"),
   )),
   window: Some((
-    width: Some(1727),
-    height: Some(1096),
+    width: Some(1294),
+    height: Some(890),
     x: None,
     y: None,
     maximized: Some(false),
@@ -51,12 +51,19 @@
   )),
   appearance: Some((
     editor_mode: Some("marco-dark"),
-    preview_theme: Some("github.css"),
+    preview_theme: Some("marco.css"),
     ui_font: None,
     ui_font_size: Some(11),
   )),
   language: None,
   debug: Some(false),
   log_to_file: Some(false),
-  engine: None,
+  engine: Some((
+    render: Some((
+      html: Some((
+        generate_toc: Some(false),
+        include_metadata: Some(false),
+      )),
+    )),
+  )),
 )

@@ -164,8 +164,8 @@ fn create_search_window_impl(parent: &Window) -> Window {
     let window = Window::builder()
         .transient_for(parent)
         .modal(false) // Non-modal so we can interact with main app
-        .default_width(500)
-        .default_height(280)
+        .default_width(480)
+        .default_height(240)
         .resizable(true) // Allow resizing for better usability
         .build();
     
@@ -217,7 +217,7 @@ fn create_search_window_impl(parent: &Window) -> Window {
     window.set_titlebar(Some(&headerbar));
 
     // Main container
-    let main_box = GtkBox::new(Orientation::Vertical, 12);
+    let main_box = GtkBox::new(Orientation::Vertical, 8);
     main_box.add_css_class("marco-search-content");
 
     // Search controls section
@@ -367,7 +367,7 @@ pub struct OptionsWidgets {
 
 /// Create the options panel with checkboxes
 fn create_options_panel() -> (GtkBox, OptionsWidgets) {
-    let options_box = GtkBox::new(Orientation::Vertical, 8);
+    let options_box = GtkBox::new(Orientation::Vertical, 6);
     
     // Separator
     let separator = Separator::new(Orientation::Horizontal);
@@ -375,7 +375,7 @@ fn create_options_panel() -> (GtkBox, OptionsWidgets) {
     options_box.append(&separator);
     
     // Options grid - two rows of two checkboxes each
-    let options_grid = GtkBox::new(Orientation::Vertical, 4);
+    let options_grid = GtkBox::new(Orientation::Vertical, 3);
     
     // First row
     let row1 = GtkBox::new(Orientation::Horizontal, 16);
@@ -426,9 +426,9 @@ pub struct ButtonWidgets {
 /// Create the button panel
 /// Create the button panel for search window (no close button needed)
 fn create_window_button_panel() -> (GtkBox, ButtonWidgets) {
-    let button_box = GtkBox::new(Orientation::Horizontal, 8);
+    let button_box = GtkBox::new(Orientation::Horizontal, 6);
     button_box.set_halign(Align::End);
-    button_box.set_margin_top(16);
+    button_box.set_margin_top(8);
 
     // Bottom buttons: [Previous] [Next] [Replace] [Replace All]
     // No close button needed since the window has its own close controls

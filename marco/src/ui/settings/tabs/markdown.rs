@@ -1,6 +1,9 @@
 //! Markdown-specific settings tab
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Label, Orientation, Switch};
+use gtk4::{Box as GtkBox, Orientation, Switch};
+
+// Import unified helper and section header helper
+use super::helpers::{add_setting_row};
 
 /// Builds the Markdown tab UI for markdown-specific engine settings
 pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
@@ -16,11 +19,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
-    container.add_css_class("settings-tab-markdown");
-    container.set_margin_top(24);
-    container.set_margin_bottom(24);
-    container.set_margin_start(32);
-    container.set_margin_end(32);
+    container.add_css_class("marco-settings-tab");
 
     // Load current engine settings using SettingsManager
     let load_settings = || {
@@ -29,13 +28,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
             .unwrap_or_default()
     };
 
-    // === HTML RENDERING SETTINGS ===
-    let html_header = Label::new(Some("HTML Output Configuration"));
-    html_header.set_markup("<b>HTML Output Configuration</b>");
-    html_header.set_halign(Align::Start);
-    html_header.set_xalign(0.0);
-    html_header.set_margin_bottom(16);
-    container.append(&html_header);
+
 
     // Table of Contents Generation
     let toc_enabled = load_settings()
@@ -44,6 +37,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         .and_then(|h| h.generate_toc)
         .unwrap_or(false);
     let toc_switch = Switch::new();
+    toc_switch.add_css_class("marco-switch");
     toc_switch.set_active(toc_enabled);
 
     {
@@ -73,35 +67,14 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         });
     }
 
-    // Generate Table of Contents (Toggle)
-    let toc_hbox = GtkBox::new(Orientation::Horizontal, 0);
-    let toc_header = Label::new(Some("Generate Table of Contents"));
-    toc_header.set_markup("<b>Generate Table of Contents</b>");
-    toc_header.set_halign(Align::Start);
-    toc_header.set_xalign(0.0);
-
-    let toc_spacer = GtkBox::new(Orientation::Horizontal, 0);
-    toc_spacer.set_hexpand(true);
-
-    toc_switch.set_halign(Align::End);
-
-    toc_hbox.append(&toc_header);
-    toc_hbox.append(&toc_spacer);
-    toc_hbox.append(&toc_switch);
-    toc_hbox.set_margin_top(8);
-    toc_hbox.set_margin_bottom(4);
-    container.append(&toc_hbox);
-
-    // Description text under header
-    let toc_description = Label::new(Some(
+    // Create TOC row using unified helper (first row after section header)
+    let toc_row = add_setting_row(
+        "Generate Table of Contents",
         "Automatically create a navigation table of contents from document headings.",
-    ));
-    toc_description.set_halign(Align::Start);
-    toc_description.set_xalign(0.0);
-    toc_description.set_wrap(true);
-    toc_description.add_css_class("dim-label");
-    toc_description.set_margin_bottom(12);
-    container.append(&toc_description);
+        &toc_switch,
+        true  // First row after section header - no additional top margin
+    );
+    container.append(&toc_row);
 
     // Include HTML Metadata
     let metadata_enabled = load_settings()
@@ -110,13 +83,13 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         .and_then(|h| h.include_metadata)
         .unwrap_or(false);
     let metadata_switch = Switch::new();
+    metadata_switch.add_css_class("marco-switch");
     metadata_switch.set_active(metadata_enabled);
 
     {
         let settings_manager_clone2 = settings_manager.clone();
         metadata_switch.connect_state_set(move |_switch, state| {
             if let Err(e) = settings_manager_clone2.update_settings(|settings| {
-
                 if settings.engine.is_none() {
                     settings.engine = Some(marco_core::logic::swanson::EngineSettings::default());
                 }
@@ -140,33 +113,14 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         });
     }
 
-    // Include HTML Metadata (Toggle)
-    let metadata_hbox = GtkBox::new(Orientation::Horizontal, 0);
-    let metadata_header = Label::new(Some("Include HTML Metadata"));
-    metadata_header.set_markup("<b>Include HTML Metadata</b>");
-    metadata_header.set_halign(Align::Start);
-    metadata_header.set_xalign(0.0);
-
-    let metadata_spacer = GtkBox::new(Orientation::Horizontal, 0);
-    metadata_spacer.set_hexpand(true);
-
-    metadata_switch.set_halign(Align::End);
-
-    metadata_hbox.append(&metadata_header);
-    metadata_hbox.append(&metadata_spacer);
-    metadata_hbox.append(&metadata_switch);
-    metadata_hbox.set_margin_top(8);
-    metadata_hbox.set_margin_bottom(4);
-    container.append(&metadata_hbox);
-
-    // Description text under header
-    let metadata_description = Label::new(Some("Add document metadata (title, author, description) to HTML head section for better SEO and document identification."));
-    metadata_description.set_halign(Align::Start);
-    metadata_description.set_xalign(0.0);
-    metadata_description.set_wrap(true);
-    metadata_description.add_css_class("dim-label");
-    metadata_description.set_margin_bottom(12);
-    container.append(&metadata_description);
+    // Create metadata row using unified helper
+    let metadata_row = add_setting_row(
+        "Include HTML Metadata",
+        "Add document metadata (title, author, description) to HTML head section for better SEO and document identification.",
+        &metadata_switch,
+        false  // Not first row
+    );
+    container.append(&metadata_row);
 
     container
 }

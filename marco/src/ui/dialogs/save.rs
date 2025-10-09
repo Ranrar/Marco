@@ -146,6 +146,7 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     // Cancel button
     let btn_cancel = Button::with_label("Cancel");
     btn_cancel.add_css_class("marco-dialog-button");
+    btn_cancel.add_css_class("warning-action");
     button_box.append(&btn_cancel);
     
     // Save As... button (suggested action)

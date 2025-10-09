@@ -18,6 +18,9 @@
 //! - **`menu`**: Titlebar, window controls, icon fonts, and layout buttons
 //! - **`toolbar`**: Toolbar buttons, icons, and styling
 //! - **`footer`**: Footer elements, status indicators, and styling
+//! - **`dialog`**: Dialog windows and modal styling
+//! - **`controls`**: GTK4 control widgets (DropDown, Switch, Scale, SpinButton, Entry)
+//! - **`settings`**: Settings dialog and tab layouts
 //!
 //! ## CSS Generation Flow
 //!
@@ -43,9 +46,11 @@
 //! ```
 
 pub mod constants;
+pub mod controls;
 pub mod dialog;
 pub mod footer;
 pub mod menu;
+pub mod settings;
 pub mod toolbar;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
@@ -69,7 +74,7 @@ const FALLBACK_CSS: &str = r#"
 
 /// Generate all Marco-specific CSS from modular components
 pub fn generate_marco_css() -> String {
-    let mut css = String::with_capacity(16384); // Larger capacity for Marco's more complex UI
+    let mut css = String::with_capacity(24576); // Increased capacity for controls + settings
     
     // Menu/titlebar styling
     css.push_str(&menu::generate_css());
@@ -82,6 +87,12 @@ pub fn generate_marco_css() -> String {
     
     // Dialog styling
     css.push_str(&dialog::generate_css());
+    
+    // Control widgets styling
+    css.push_str(&controls::generate_css());
+    
+    // Settings dialog styling
+    css.push_str(&settings::generate_css());
     
     css
 }
