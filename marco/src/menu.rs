@@ -117,9 +117,14 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
 /// Returns a WindowHandle containing the custom menu bar and all controls.
 /// Returns a WindowHandle and the central title `Label` so callers can update the
 /// document title (and modification marker) dynamically.
+///
+/// # Arguments
+/// * `window` - The application window
+/// * `on_layout_change` - Optional callback triggered when layout state changes
 pub fn create_custom_titlebar(
     window: &gtk4::ApplicationWindow,
-) -> (WindowHandle, Label, gio::Menu) {
+    on_layout_change: Option<Rc<dyn Fn(LayoutState, LayoutState)>>,
+) -> (WindowHandle, Label, gio::Menu, Rc<RefCell<LayoutState>>) {
     // Get the asset directory for dynamic path resolution
     use marco_core::logic::paths::get_asset_dir_checked;
     let asset_dir = get_asset_dir_checked();
@@ -202,6 +207,7 @@ pub fn create_custom_titlebar(
     let popover_clone = popover.clone();
     // Clone the layout menu button so the rebuild closure can update its tooltip
     let layout_menu_btn_for_rebuild = layout_menu_btn.clone();
+    let on_layout_change_clone = on_layout_change.clone();
     *rebuild_popover.borrow_mut() = Some(Box::new(move || {
         let state = *layout_state_clone2.borrow();
         // Update the layout button tooltip to reflect the current state
@@ -229,9 +235,15 @@ pub fn create_custom_titlebar(
             btn1.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            let on_change = on_layout_change_clone.clone();
             btn1.connect_clicked(move |_| {
+                let prev = *layout_state.borrow();
                 let next = LayoutState::EditorOnly;
                 *layout_state.borrow_mut() = next;
+                // Trigger layout change callback
+                if let Some(ref callback) = on_change {
+                    callback(next, prev);
+                }
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -258,9 +270,15 @@ pub fn create_custom_titlebar(
             btn2.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            let on_change = on_layout_change_clone.clone();
             btn2.connect_clicked(move |_| {
+                let prev = *layout_state.borrow();
                 let next = LayoutState::ViewOnly;
                 *layout_state.borrow_mut() = next;
+                // Trigger layout change callback
+                if let Some(ref callback) = on_change {
+                    callback(next, prev);
+                }
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -284,9 +302,15 @@ pub fn create_custom_titlebar(
             btn3.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            let on_change = on_layout_change_clone.clone();
             btn3.connect_clicked(move |_| {
+                let prev = *layout_state.borrow();
                 let next = LayoutState::EditorAndViewSeparate;
                 *layout_state.borrow_mut() = next;
+                // Trigger layout change callback
+                if let Some(ref callback) = on_change {
+                    callback(next, prev);
+                }
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -310,9 +334,15 @@ pub fn create_custom_titlebar(
             btn4.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            let on_change = on_layout_change_clone.clone();
             btn4.connect_clicked(move |_| {
+                let prev = *layout_state.borrow();
                 let next = LayoutState::DualView;
                 *layout_state.borrow_mut() = next;
+                // Trigger layout change callback
+                if let Some(ref callback) = on_change {
+                    callback(next, prev);
+                }
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -469,5 +499,5 @@ pub fn create_custom_titlebar(
 
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));
-    (handle, title_label, recent_menu)
+    (handle, title_label, recent_menu, layout_state)
 }

@@ -5,6 +5,7 @@ pub mod layoutstate;
 pub mod loaders;
 pub mod logger;
 pub mod paths;
+pub mod api;
 pub mod swanson;
 
 // Re-export commonly used types

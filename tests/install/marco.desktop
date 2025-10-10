@@ -8,3 +8,15 @@ Icon=marco
 Categories=Office;TextEditor;
 StartupNotify=true
 Version=1.0
+# Desktop Actions for context menu
+Actions=Edit;View;
+
+[Desktop Action Edit]
+Name=Edit with Marco
+Exec=marco %f
+Icon=marco
+
+[Desktop Action View]
+Name=View with Polo
+Exec=polo %f
+Icon=marco

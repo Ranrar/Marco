@@ -117,6 +117,11 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     // Import path functions
     use marco_core::logic::paths::{get_asset_dir_checked, get_settings_path};
     use marco_core::logic::swanson::SettingsManager;
+    use marco_core::logic::layoutstate::LayoutState;
+    
+    // Type alias for layout callback to improve readability
+    type LayoutCallback = Rc<dyn Fn(LayoutState, LayoutState)>;
+    type LayoutCallbackPlaceholder = Rc<RefCell<Option<LayoutCallback>>>;
     
     // Load CSS using the new modular system
     crate::ui::css::load_css();
@@ -130,8 +135,20 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         .build();
     window.add_css_class("main-window");
 
+    // Create the main window - will wire up layout manager later after paned is created
+    let layout_callback_placeholder: LayoutCallbackPlaceholder = Rc::new(RefCell::new(None));
+
     // --- Custom VS Code-like draggable titlebar from menu.rs ---
-    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(&window);
+    let layout_callback_for_menu = layout_callback_placeholder.clone();
+    let (titlebar_handle, title_label, recent_menu, layout_state_rc) = menu::create_custom_titlebar(
+        &window,
+        Some(Rc::new(move |new_state, prev_state| {
+            // Call the actual layout manager callback when it's wired up
+            if let Some(ref callback) = *layout_callback_for_menu.borrow() {
+                callback(new_state, prev_state);
+            }
+        })),
+    );
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- ThemeManager and settings.ron path ---
@@ -285,6 +302,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     );
     let file_operations_rc = Rc::new(RefCell::new(file_operations));
     let document_buffer_ref = Rc::clone(&file_operations_rc.borrow().buffer);
+    let document_buffer_ref_clone = document_buffer_ref.clone();
 
     // Active markdown schema support removed; footer uses AST parser directly.
     let _schema_root = asset_dir.join("markdown_schema");
@@ -324,6 +342,26 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         insert_mode_state.clone(),
     );
     split_overlay.add_css_class("split-view");  // Apply CSS to overlay
+
+    // --- Layout Manager Setup ---
+    use crate::components::layout_manager::LayoutManager;
+    
+    // Track current document for Polo launching
+    let current_document_path: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
+    
+    // Create layout manager
+    let layout_manager = Rc::new(LayoutManager::new(
+        split.clone(),
+        current_document_path.clone(),
+    ));
+    
+    // Wire up the layout change callback
+    let layout_manager_for_callback = layout_manager.clone();
+    let _layout_state_for_callback = layout_state_rc.clone();
+    *layout_callback_placeholder.borrow_mut() = Some(Rc::new(move |new_state, prev_state| {
+        log::info!("Layout change triggered: {:?} -> {:?}", prev_state, new_state);
+        layout_manager_for_callback.apply_layout_state(new_state, prev_state);
+    }));
 
     // --- Settings Thread Pool for Proper Resource Management ---
     // Create early so it's available for split ratio saving
@@ -828,6 +866,21 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
             },
             |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
         );
+    }
+
+    // Track current document path for layout manager
+    {
+        let layout_manager_clone = layout_manager.clone();
+        let doc_buffer_clone = document_buffer_ref_clone.clone();
+        
+        // Poll for file path changes (simple approach)
+        glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+            if let Ok(buffer) = doc_buffer_clone.try_borrow() {
+                let current_path = buffer.file_path.clone();
+                layout_manager_clone.set_current_document(current_path);
+            }
+            glib::ControlFlow::Continue
+        });
     }
 
     // Apply startup editor settings to ensure editor uses settings.ron values

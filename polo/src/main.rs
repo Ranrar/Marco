@@ -110,33 +110,48 @@ fn main() -> glib::ExitCode {
     app.connect_command_line(|app, cmd_line| {
         let args: Vec<String> = cmd_line.arguments().iter().map(|s| s.to_string_lossy().to_string()).collect();
         
-        // Parse arguments
-        if args.len() > 1 {
-            for arg in &args[1..] {
-                if arg == "--help" || arg == "-h" {
-                    println!("Polo - Lightweight Markdown Viewer");
-                    println!("\nUsage:");
-                    println!("  polo <file.md>           Open markdown file");
-                    println!("  polo --debug <file.md>   Open with debug logging");
-                    println!("  polo --help              Show this help message");
-                    return 0.into();
-                } else if arg == "--debug" {
-                    // Debug flag already handled by logger init
-                    continue;
-                } else if arg.ends_with(".md") || arg.ends_with(".markdown") {
-                    // Found markdown file
-                    build_ui(app, Some(arg.clone()));
-                    return 0.into();
-                } else if !arg.starts_with('-') {
-                    // Treat as file path
-                    build_ui(app, Some(arg.clone()));
-                    return 0.into();
+        // Parse arguments for API mode
+        let mut simple_view_mode = false;
+        let mut file_to_open: Option<String> = None;
+        let mut i = 1;
+        
+        while i < args.len() {
+            let arg = &args[i];
+            
+            if arg == "--help" || arg == "-h" {
+                println!("Polo - Lightweight Markdown Viewer");
+                println!("\nUsage:");
+                println!("  polo <file.md>                Open markdown file");
+                println!("  polo --api <key> <file.md>    Open in minimal view (requires key)");
+                println!("  polo --debug <file.md>        Open with debug logging");
+                println!("  polo --help                   Show this help message");
+                return 0.into();
+            } else if arg == "--api" {
+                // Expect key as next argument
+                if i + 1 < args.len() {
+                    let key = &args[i + 1];
+                    if marco_core::logic::api::validate_simple_view_key(key) {
+                        simple_view_mode = true;
+                        log::info!("API mode activated with valid key");
+                        i += 1; // Skip the key argument
+                    } else {
+                        log::warn!("Invalid API key provided, using normal mode");
+                    }
+                } else {
+                    log::warn!("--api requires a key argument");
                 }
+            } else if arg == "--debug" {
+                // Debug flag already handled by logger init
+            } else if arg.ends_with(".md") || arg.ends_with(".markdown") || !arg.starts_with('-') {
+                // Found file to open
+                file_to_open = Some(arg.clone());
             }
+            
+            i += 1;
         }
         
-        // No file specified - open empty Polo
-        build_ui(app, None);
+        // Build UI with API mode flag
+        build_ui_with_mode(app, file_to_open, simple_view_mode);
         0.into()
     });
 
@@ -144,7 +159,7 @@ fn main() -> glib::ExitCode {
     app.connect_open(|app, files, _hint| {
         if let Some(file) = files.first() {
             if let Some(path) = file.path() {
-                build_ui(app, Some(path.to_string_lossy().to_string()));
+                build_ui_with_mode(app, Some(path.to_string_lossy().to_string()), false);
             }
         }
     });
@@ -156,7 +171,7 @@ fn main() -> glib::ExitCode {
     exit_code
 }
 
-fn build_ui(app: &Application, file_path: Option<String>) {
+fn build_ui_with_mode(app: &Application, file_path: Option<String>, simple_view: bool) {
     // Initialize settings manager early
     let settings_path = match marco_core::logic::paths::get_settings_path() {
         Ok(path) => path,
@@ -181,6 +196,11 @@ fn build_ui(app: &Application, file_path: Option<String>) {
             }
         }
     };
+    
+    // Log simple view mode status
+    if simple_view {
+        log::info!("Running in API mode - minimal UI");
+    }
     
     // Load settings
     let settings = settings_manager.get_settings();
@@ -279,8 +299,8 @@ fn build_ui(app: &Application, file_path: Option<String>) {
     if let Some(ref path) = file_path_for_render {
         load_and_render_markdown(&webview, path, &saved_theme, &settings_manager);
     } else {
-        // Show empty state with theme awareness
-        show_empty_state_with_theme(&webview, &settings_manager);
+        // Show empty state with theme awareness and API mode flag
+        show_empty_state_with_theme(&webview, &settings_manager, simple_view);
     }
     
     // Create custom titlebar (needs webview and file_path for theme switching)
@@ -290,7 +310,8 @@ fn build_ui(app: &Application, file_path: Option<String>) {
         &saved_theme, 
         settings_manager.clone(),
         webview.clone(),
-        current_file_path.clone()
+        current_file_path.clone(),
+        simple_view,
     );
     window.set_titlebar(Some(&titlebar_handle));
     

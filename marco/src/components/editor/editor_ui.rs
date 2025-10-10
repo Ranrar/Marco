@@ -29,38 +29,14 @@ pub fn create_editor_with_preview_and_buffer(
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
     
-    // Add constraints to limit paned position (10% to 90% of width)
-    // Use a flag to prevent cascade events when multiple callbacks call set_position()
+    // Note: Position constraints (10% to 90%) are enforced in:
+    // 1. Settings UI slider (Adjustment bounds in layout.rs)
+    // 2. Manual drag save logic (clamp in main.rs)
+    // This allows layout manager to programmatically set 0% or 100% for EditorOnly/ViewOnly modes
+    
+    // Keep position_being_set flag for split indicator cascade prevention
     let position_being_set = Rc::new(RefCell::new(false));
-    {
-        let position_being_set_clone = Rc::clone(&position_being_set);
-        paned.connect_notify_local(Some("position"), move |paned, _| {
-            // Prevent cascade if we're already setting position programmatically
-            if *position_being_set_clone.borrow() {
-                return;
-            }
-            
-            let width = paned.allocated_width();
-            if width > 0 {
-                let position = paned.position();
-                let min_position = (width as f64 * 0.10) as i32;  // 10%
-                let max_position = (width as f64 * 0.90) as i32;  // 90%
-                
-                if position < min_position || position > max_position {
-                    *position_being_set_clone.borrow_mut() = true;
-                    
-                    if position < min_position {
-                        paned.set_position(min_position);
-                    } else if position > max_position {
-                        paned.set_position(max_position);
-                    }
-                    
-                    *position_being_set_clone.borrow_mut() = false;
-                }
-            }
-        });
-    }
-
+    
     let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
         let tm = theme_manager.borrow();
         let style_scheme = tm.current_editor_scheme();

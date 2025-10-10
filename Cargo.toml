@@ -19,6 +19,7 @@ emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "6.0"
 lru = "0.16.1"
+which = "7.0"
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.1"

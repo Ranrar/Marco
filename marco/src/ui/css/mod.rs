@@ -49,6 +49,7 @@ pub mod constants;
 pub mod controls;
 pub mod dialog;
 pub mod footer;
+pub mod layout;
 pub mod menu;
 pub mod settings;
 pub mod toolbar;
@@ -93,6 +94,9 @@ pub fn generate_marco_css() -> String {
     
     // Settings dialog styling
     css.push_str(&settings::generate_css());
+    
+    // Layout mode styling (document mode, etc.)
+    css.push_str(&layout::generate_css());
     
     css
 }

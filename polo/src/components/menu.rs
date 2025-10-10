@@ -56,6 +56,10 @@ use webkit6::WebView;
 /// 
 /// Returns a tuple of (WindowHandle, Button) where the Button is the "Open in Editor" button
 /// that should be enabled/disabled based on whether a file is open.
+/// 
+/// # Arguments
+/// 
+/// * `simple_view` - If true, creates a minimal API-mode titlebar with only icon, title, and window controls
 pub fn create_custom_titlebar(
     window: &ApplicationWindow,
     filename: &str,
@@ -63,6 +67,7 @@ pub fn create_custom_titlebar(
     settings_manager: Arc<SettingsManager>,
     webview: WebView,
     current_file_path: Arc<RwLock<Option<String>>>,
+    simple_view: bool,
 ) -> (WindowHandle, Button) {
     use marco_core::logic::paths::get_asset_dir_checked;
     
@@ -90,63 +95,74 @@ pub fn create_custom_titlebar(
     icon.set_tooltip_text(Some("Polo - Markdown Viewer"));
     headerbar.pack_start(&icon);
     
-    // "Open in Editor" button (create first so we can reference it in "Open" callback)
-    let open_editor_btn = Button::with_label("Open in Editor");
-    open_editor_btn.add_css_class("polo-open-editor-btn");
-    open_editor_btn.set_valign(Align::Center);
-    open_editor_btn.set_margin_end(6);
-    open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
+    // Create a placeholder button that we'll return (required for function signature)
+    // In API mode, this won't be added to the UI
+    let open_editor_btn: Button;
     
-    // Check if a file is currently open and enable/disable button accordingly
-    let has_file = current_file_path.read().ok()
-        .and_then(|guard| guard.as_ref().cloned())
-        .is_some();
-    open_editor_btn.set_sensitive(has_file);
-    if !has_file {
-        open_editor_btn.set_tooltip_text(Some("Open a file first to edit in Marco"));
-    }
-    
-    // Wire up "Open in Editor" action
-    let window_weak_for_editor = window.downgrade();
-    let current_file_path_for_editor = current_file_path.clone();
-    open_editor_btn.connect_clicked(move |_| {
-        if let Some(window) = window_weak_for_editor.upgrade() {
-            if let Ok(path_guard) = current_file_path_for_editor.read() {
-                if let Some(ref path) = *path_guard {
-                    show_open_in_editor_dialog(&window, path);
-                } else {
-                    log::warn!("No file path available to open in editor");
+    // Only create interactive buttons if NOT in API mode
+    if !simple_view {
+        // "Open in Editor" button (create first so we can reference it in "Open" callback)
+        open_editor_btn = Button::with_label("Open in Editor");
+        open_editor_btn.add_css_class("polo-open-editor-btn");
+        open_editor_btn.set_valign(Align::Center);
+        open_editor_btn.set_margin_end(6);
+        open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
+        
+        // Check if a file is currently open and enable/disable button accordingly
+        let has_file = current_file_path.read().ok()
+            .and_then(|guard| guard.as_ref().cloned())
+            .is_some();
+        open_editor_btn.set_sensitive(has_file);
+        if !has_file {
+            open_editor_btn.set_tooltip_text(Some("Open a file first to edit in Marco"));
+        }
+        
+        // Wire up "Open in Editor" action
+        let window_weak_for_editor = window.downgrade();
+        let current_file_path_for_editor = current_file_path.clone();
+        open_editor_btn.connect_clicked(move |_| {
+            if let Some(window) = window_weak_for_editor.upgrade() {
+                if let Ok(path_guard) = current_file_path_for_editor.read() {
+                    if let Some(ref path) = *path_guard {
+                        show_open_in_editor_dialog(&window, path);
+                    } else {
+                        log::warn!("No file path available to open in editor");
+                    }
                 }
             }
-        }
-    });
-    
-    // "Open" button (left side)
-    let open_file_btn = Button::with_label("Open");
-    open_file_btn.add_css_class("polo-open-file-btn");
-    open_file_btn.set_valign(Align::Center);
-    open_file_btn.set_margin_end(6);
-    open_file_btn.set_tooltip_text(Some("Open a markdown file"));
-    
-    // Wire up "Open" action - pass open_editor_btn reference
-    let window_weak = window.downgrade();
-    let webview_clone = webview.clone();
-    let settings_manager_clone = settings_manager.clone();
-    let current_file_path_clone = current_file_path.clone();
-    let open_editor_btn_clone = open_editor_btn.clone();
-    open_file_btn.connect_clicked(move |_| {
-        if let Some(window) = window_weak.upgrade() {
-            show_open_file_dialog(
-                &window,
-                webview_clone.clone(),
-                settings_manager_clone.clone(),
-                current_file_path_clone.clone(),
-                &open_editor_btn_clone,
-            );
-        }
-    });
-    headerbar.pack_start(&open_file_btn);
-    headerbar.pack_start(&open_editor_btn);
+        });
+        
+        // "Open" button (left side)
+        let open_file_btn = Button::with_label("Open");
+        open_file_btn.add_css_class("polo-open-file-btn");
+        open_file_btn.set_valign(Align::Center);
+        open_file_btn.set_margin_end(6);
+        open_file_btn.set_tooltip_text(Some("Open a markdown file"));
+        
+        // Wire up "Open" action - pass open_editor_btn reference
+        let window_weak = window.downgrade();
+        let webview_clone = webview.clone();
+        let settings_manager_clone = settings_manager.clone();
+        let current_file_path_clone = current_file_path.clone();
+        let open_editor_btn_clone = open_editor_btn.clone();
+        open_file_btn.connect_clicked(move |_| {
+            if let Some(window) = window_weak.upgrade() {
+                show_open_file_dialog(
+                    &window,
+                    webview_clone.clone(),
+                    settings_manager_clone.clone(),
+                    current_file_path_clone.clone(),
+                    &open_editor_btn_clone,
+                );
+            }
+        });
+        headerbar.pack_start(&open_file_btn);
+        headerbar.pack_start(&open_editor_btn);
+    } else {
+        // API mode - create a hidden placeholder button
+        open_editor_btn = Button::new();
+        log::debug!("API mode - skipping Open and Open in Editor buttons");
+    }
     
     // Filename label (centered as title widget)
     // Show just "Polo" if no file is opened (filename is "Untitled")
@@ -163,25 +179,28 @@ pub fn create_custom_titlebar(
     
     // RIGHT SIDE: Theme dropdown, window controls
     
-    // Theme dropdown
-    let theme_dropdown = create_theme_dropdown(
-        initial_theme,
-        settings_manager.clone(),
-        webview.clone(),
-        current_file_path.clone(),
-    );
-    theme_dropdown.set_valign(Align::Center);
-    theme_dropdown.set_margin_end(6);
-    theme_dropdown.set_tooltip_text(Some("Select preview theme"));
-    
-    // Light/Dark mode toggle button
-    let dark_mode_btn = Button::new();
-    dark_mode_btn.set_valign(Align::Center);
-    dark_mode_btn.set_margin_end(6);
-    dark_mode_btn.set_focusable(false);
-    dark_mode_btn.set_can_focus(false);
-    dark_mode_btn.set_has_frame(true);
-    dark_mode_btn.add_css_class("polo-mode-toggle-btn");
+    // Only add theme controls if NOT in API mode
+    if !simple_view {
+        // Theme dropdown
+        let theme_dropdown = create_theme_dropdown(
+            initial_theme,
+            settings_manager.clone(),
+            webview.clone(),
+            current_file_path.clone(),
+            simple_view,
+        );
+        theme_dropdown.set_valign(Align::Center);
+        theme_dropdown.set_margin_end(6);
+        theme_dropdown.set_tooltip_text(Some("Select preview theme"));
+        
+        // Light/Dark mode toggle button
+        let dark_mode_btn = Button::new();
+        dark_mode_btn.set_valign(Align::Center);
+        dark_mode_btn.set_margin_end(6);
+        dark_mode_btn.set_focusable(false);
+        dark_mode_btn.set_can_focus(false);
+        dark_mode_btn.set_has_frame(true);
+        dark_mode_btn.add_css_class("polo-mode-toggle-btn");
     
     // Determine current mode from settings
     let current_mode = {
@@ -288,7 +307,7 @@ pub fn create_custom_titlebar(
                 );
             } else {
                 // No file loaded - reload empty state with new theme
-                show_empty_state_with_theme(&webview_for_mode, &settings_manager_for_mode);
+                show_empty_state_with_theme(&webview_for_mode, &settings_manager_for_mode, simple_view);
             }
         }
     });
@@ -304,9 +323,21 @@ pub fn create_custom_titlebar(
     headerbar.pack_end(&btn_max_toggle); // Middle
     headerbar.pack_end(&btn_min); // Left of window controls
                                    // Then add dark mode toggle (left of window controls)
-    headerbar.pack_end(&dark_mode_btn); // Left of minimize button
-                                         // Then add theme dropdown (left of dark mode button)
-    headerbar.pack_end(&theme_dropdown); // Left of dark mode button
+        headerbar.pack_end(&dark_mode_btn); // Left of minimize button
+                                             // Then add theme dropdown (left of dark mode button)
+        headerbar.pack_end(&theme_dropdown); // Left of dark mode button
+    } else {
+        // API mode - only add window controls
+        log::debug!("API mode - skipping theme dropdown and mode toggle");
+        
+        // Create window control buttons
+        let (btn_min, btn_max_toggle, btn_close) =
+            create_window_controls(window, &settings_manager);
+        
+        headerbar.pack_end(&btn_close);
+        headerbar.pack_end(&btn_max_toggle);
+        headerbar.pack_end(&btn_min);
+    }
     
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));
@@ -435,6 +466,7 @@ fn create_theme_dropdown(
     settings_manager: Arc<SettingsManager>,
     webview: WebView,
     current_file_path: Arc<RwLock<Option<String>>>,
+    simple_view: bool,
 ) -> DropDown {
     // List available themes from assets/themes/html_viever/ (without .css extension)
     let theme_list = list_available_themes();
@@ -505,7 +537,7 @@ fn create_theme_dropdown(
                     log::debug!("Reloaded WebView with theme: {}", theme_name_with_ext);
                 } else {
                     // No file loaded - reload empty state with new theme
-                    show_empty_state_with_theme(&webview_clone, &settings_manager);
+                    show_empty_state_with_theme(&webview_clone, &settings_manager, simple_view);
                     log::debug!("Reloaded empty state with theme: {}", theme_name_with_ext);
                 }
             }

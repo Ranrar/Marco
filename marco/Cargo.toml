@@ -45,6 +45,7 @@ log = { workspace = true }
 dirs = { workspace = true }
 syntect = { workspace = true }
 syntect-assets = { workspace = true }
+which = { workspace = true }
 
 # Test suite dependencies
 clap = { workspace = true, optional = true }

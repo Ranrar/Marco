@@ -25,6 +25,7 @@ use webkit6::prelude::WebViewExt;
 pub fn show_empty_state_with_theme(
     webview: &webkit6::WebView,
     settings_manager: &Arc<SettingsManager>,
+    api_mode: bool,
 ) {
     // Determine theme_mode from settings (same logic as markdown rendering)
     let theme_mode = get_theme_mode(settings_manager);
@@ -32,6 +33,21 @@ pub fn show_empty_state_with_theme(
     // Create theme class for HTML element (theme-light or theme-dark)
     let theme_class = format!("theme-{}", theme_mode);
     log::debug!("Empty state using theme class: {}", theme_class);
+    
+    // Choose message based on whether we're in API mode (launched from Marco)
+    let (title, message1, message2) = if api_mode {
+        (
+            "✨",
+            "Start Writing, Watch the Magic",
+            "Your words in Marco transform into beautiful markdown here"
+        )
+    } else {
+        (
+            "📄",
+            "Welcome to Polo",
+            "Open a markdown file to get started"
+        )
+    };
     
     let html = format!(
         r#"<!DOCTYPE html>
@@ -94,13 +110,13 @@ pub fn show_empty_state_with_theme(
 </head>
 <body>
     <div class="empty-state">
-        <h1>📄</h1>
-        <p>Welcome to Polo</p>
-        <p>Open a markdown file to get started</p>
+        <h1>{}</h1>
+        <p>{}</p>
+        <p>{}</p>
     </div>
 </body>
 </html>"#,
-        theme_class
+        theme_class, title, message1, message2
     );
     
     let webview_clone = webview.clone();
