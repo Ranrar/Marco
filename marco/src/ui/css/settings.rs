@@ -41,8 +41,8 @@ fn generate_base_settings_css() -> String {
         r#"
     /* Settings window base styles */
     .marco-settings-window {{
-        min-width: 650px;
-        min-height: 550px;
+        min-width: 600px;
+        min-height: 500px;
     }}
     
     .marco-settings-content {{
@@ -57,12 +57,12 @@ fn generate_base_settings_css() -> String {
     }}
     
     .marco-settings-notebook > header {{
-        padding: 1px 12px 0px 12px;
+        padding: 1px 10px 0px 10px;
         background: transparent;
     }}
     
     .marco-settings-notebook > header > tabs {{
-        min-height: 18px;
+        min-height: 16px;
         background: transparent;
         border: none;
         box-shadow: none;
@@ -70,10 +70,10 @@ fn generate_base_settings_css() -> String {
     
     .marco-settings-notebook > header > tabs > tab {{
         min-width: 0px;
-        min-height: 14px;
-        padding: 6px 12px;
+        min-height: 12px;
+        padding: 5px 10px;
         border-radius: {tab_radius} {tab_radius} 0 0;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 500;
         transition: {transition};
         background: transparent;
@@ -87,24 +87,24 @@ fn generate_base_settings_css() -> String {
     
     /* Tab content area */
     .marco-settings-tab {{
-        padding: 16px 24px;
+        padding: 12px 18px;
     }}
     
     /* Setting sections */
     .marco-settings-section {{
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }}
     
     /* Setting rows (title + control) */
     .marco-settings-row {{
-        min-height: 40px;
-        padding: 4px 0;
-        margin-bottom: 4px;
+        min-height: 36px;
+        padding: 3px 0;
+        margin-bottom: 3px;
     }}
     
     /* Setting row frame (table-like borders) */
     .marco-settings-row-frame {{
-        min-height: 70px;
+        min-height: 56px;
         border-width: 1px;
         border-style: solid;
         border-radius: 4px;
@@ -120,7 +120,7 @@ fn generate_base_settings_css() -> String {
     
     /* Setting headers (bold titles) */
     .marco-settings-header {{
-        font-size: 14px;
+        font-size: 13px;
         font-weight: 600;
         margin: 0;
         padding: 0;
@@ -128,16 +128,16 @@ fn generate_base_settings_css() -> String {
     
     /* Setting descriptions (dimmed text) */
     .marco-settings-description {{
-        font-size: 13px;
-        line-height: 1.4;
+        font-size: 12px;
+        line-height: 1.3;
         margin-top: 2px;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
         opacity: 0.8;
     }}
     
     /* Close button frame (matches setting row frames) */
     .marco-settings-close-frame {{
-        min-height: 70px;
+        min-height: 56px;
         border-width: 0;
         border-top-width: 1px;
         border-style: solid;
@@ -148,18 +148,19 @@ fn generate_base_settings_css() -> String {
     
     /* Close button at bottom */
     .marco-settings-close-button {{
-        min-width: 100px;
-        min-height: 32px;
+        min-width: 90px;
+        min-height: {close_button_height};
         padding: {button_padding};
         border-radius: {button_radius};
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 500;
         margin: 0;
         transition: {transition};
     }}
 "#,
         tab_radius = TOOLBAR_BORDER_RADIUS,
-        button_padding = TOOLBAR_BUTTON_PADDING,
+        close_button_height = DIALOG_BUTTON_MIN_HEIGHT,
+        button_padding = DIALOG_BUTTON_PADDING,
         button_radius = TOOLBAR_BORDER_RADIUS,
         transition = STANDARD_TRANSITION,
     )

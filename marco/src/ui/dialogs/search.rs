@@ -164,7 +164,7 @@ fn create_search_window_impl(parent: &Window) -> Window {
     let window = Window::builder()
         .transient_for(parent)
         .modal(false) // Non-modal so we can interact with main app
-        .default_width(480)
+        .default_width(420)
         .default_height(240)
         .resizable(true) // Allow resizing for better usability
         .build();

@@ -37,8 +37,11 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     document_name: &str,
     action: &str,
 ) -> Result<SaveChangesResult> {
+    // ========================================================================
+    // Dialog Window Setup
+    // ========================================================================
+    
     // Get current theme mode from parent window
-    // Cast to Widget to access has_css_class method
     let theme_class = if let Some(widget) = parent.dynamic_cast_ref::<gtk4::Widget>() {
         if widget.has_css_class("marco-theme-dark") {
             "marco-theme-dark"
@@ -49,34 +52,37 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
         "marco-theme-light" // Default to light theme
     };
     
-    // Create a Window instead of deprecated MessageDialog
+    // Create dialog window
     let dialog = Window::builder()
         .modal(true)
         .transient_for(parent)
-        .default_width(500)
+        .default_width(380)
         .default_height(180)
         .resizable(false)
         .build();
     
-    // Apply CSS classes for theming
+    // Apply theme CSS classes
     dialog.add_css_class("marco-dialog");
     dialog.add_css_class(theme_class);
     
-    // Create custom titlebar matching marco's style
+    // ========================================================================
+    // Custom Titlebar
+    // ========================================================================
+    
     let headerbar = gtk4::HeaderBar::new();
     headerbar.add_css_class("titlebar");
     headerbar.add_css_class("marco-titlebar");
     headerbar.set_show_title_buttons(false);
     
-    // Set title in headerbar
+    // Title label
     let title_label = Label::new(Some("Save Changes?"));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
     
-    // Create custom close button with icon font
+    // Close button with icon
     let close_label = Label::new(None);
-    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
+    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>");
     close_label.set_valign(Align::Center);
     close_label.add_css_class("icon-font");
     
@@ -92,25 +98,31 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     btn_close_titlebar.add_css_class("topright-btn");
     btn_close_titlebar.add_css_class("window-control-btn");
     
-    // Shared state for dialog result
+    headerbar.pack_end(&btn_close_titlebar);
+    dialog.set_titlebar(Some(&headerbar));
+    
+    // ========================================================================
+    // Shared Result State
+    // ========================================================================
+    
     let result = Rc::new(RefCell::new(SaveChangesResult::Cancel));
     
-    // Wire up close button (Cancel action)
+    // ========================================================================
+    // Event Handlers - Titlebar & Keyboard
+    // ========================================================================
+    
+    // Titlebar close button (Cancel action)
     let dialog_weak_for_close = dialog.downgrade();
     let result_for_close = result.clone();
     btn_close_titlebar.connect_clicked(move |_| {
+        log::info!("[SaveDialog] User clicked titlebar close (cancel)");
         *result_for_close.borrow_mut() = SaveChangesResult::Cancel;
         if let Some(dialog) = dialog_weak_for_close.upgrade() {
             dialog.close();
         }
     });
     
-    // Add close button to right side of headerbar
-    headerbar.pack_end(&btn_close_titlebar);
-    
-    dialog.set_titlebar(Some(&headerbar));
-    
-    // Add ESC key handler to cancel (same as cancel button)
+    // ESC key handler (Cancel action)
     let key_controller = gtk4::EventControllerKey::new();
     let dialog_weak_for_esc = dialog.downgrade();
     let result_for_esc = result.clone();
@@ -128,9 +140,16 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     });
     dialog.add_controller(key_controller);
     
-    // Create main content container
+    // ========================================================================
+    // Create main content container with structured layout
+    // ========================================================================
+    
     let vbox = Box::new(Orientation::Vertical, 0);
     vbox.add_css_class("marco-dialog-content");
+    
+    // ------------------------------------------------------------------------
+    // Message Section
+    // ------------------------------------------------------------------------
     
     // Primary message
     let primary_message = Label::new(Some(&format!(
@@ -139,35 +158,46 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     )));
     primary_message.add_css_class("marco-dialog-title");
     primary_message.set_halign(Align::Start);
+    primary_message.set_valign(Align::Start);
     primary_message.set_wrap(true);
+    primary_message.set_xalign(0.0);
+    primary_message.set_max_width_chars(45);  // Constrain width to button area
     vbox.append(&primary_message);
     
     // Secondary message
     let secondary_message = Label::new(Some("Your changes will be lost if you don't save them."));
     secondary_message.add_css_class("marco-dialog-message");
     secondary_message.set_halign(Align::Start);
+    secondary_message.set_valign(Align::Start);
     secondary_message.set_wrap(true);
+    secondary_message.set_xalign(0.0);
+    secondary_message.set_max_width_chars(45);  // Constrain width to button area
     vbox.append(&secondary_message);
     
-    // Create button container (horizontal layout)
+    // ------------------------------------------------------------------------
+    // Button Section (left-aligned to match text)
+    // ------------------------------------------------------------------------
+    
     let button_box = Box::new(Orientation::Horizontal, 8);
     button_box.add_css_class("marco-dialog-button-box");
-    button_box.set_halign(Align::End);
+    button_box.set_halign(Align::Start);
+    button_box.set_valign(Align::End);
     
-    // Close without Saving button (destructive action)
+    // Discard button (destructive action)
     let btn_discard = Button::with_label("Close without Saving");
     btn_discard.add_css_class("marco-dialog-button");
     btn_discard.add_css_class("destructive-action");
     btn_discard.set_tooltip_text(Some("Discard changes and close"));
     button_box.append(&btn_discard);
     
-    // Cancel button
+    // Cancel button (warning action)
     let btn_cancel = Button::with_label("Cancel");
     btn_cancel.add_css_class("marco-dialog-button");
     btn_cancel.add_css_class("warning-action");
+    btn_cancel.set_tooltip_text(Some("Return to editing"));
     button_box.append(&btn_cancel);
     
-    // Save As... button (suggested action)
+    // Save button (suggested action - primary)
     let btn_save = Button::with_label("Save As...");
     btn_save.add_css_class("marco-dialog-button");
     btn_save.add_css_class("suggested-action");
@@ -178,7 +208,10 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     
     dialog.set_child(Some(&vbox));
     
-    // Handle button clicks
+    // ========================================================================
+    // Event Handlers - Button Actions
+    // ========================================================================
+    
     let dialog_weak = dialog.downgrade();
     
     // Discard button - close without saving
@@ -214,10 +247,16 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
         }
     });
     
-    // Show dialog and wait for it to close
+    // ========================================================================
+    // Show Dialog and Wait for Result
+    // ========================================================================
+    
     dialog.present();
     
-    // Create a future that completes when the dialog closes
+    // ========================================================================
+    // Async Future - Wait for Dialog to Close
+    // ========================================================================
+    
     struct DialogFuture {
         completed: Rc<RefCell<bool>>,
         waker: Rc<RefCell<Option<Waker>>>,
@@ -253,7 +292,8 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     // Wait for the dialog to close
     DialogFuture { completed, waker }.await;
     
+    // Return the result
     let final_result = *result.borrow();
-    log::info!("[SaveDialog] Save changes dialog result: {:?}", final_result);
+    log::info!("[SaveDialog] Dialog closed with result: {:?}", final_result);
     Ok(final_result)
 }

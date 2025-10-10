@@ -177,8 +177,8 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
 /// Standard titlebar/menubar height in pixels
 pub const TITLEBAR_HEIGHT: &str = "32px";
 
-/// Toolbar button padding (2px vertical, 6px horizontal)
-pub const TOOLBAR_BUTTON_PADDING: &str = "2px 6px";
+/// Toolbar button padding (matches dialog button padding)
+pub const TOOLBAR_BUTTON_PADDING: &str = "2px 8px";
 
 /// Menu item padding (0 vertical, 12px horizontal)
 pub const MENU_ITEM_PADDING: &str = "0 12px";
@@ -231,6 +231,34 @@ pub const FOOTER_MIN_HEIGHT: &str = "26px";
 
 /// Toolbar padding
 pub const TOOLBAR_PADDING: &str = "2px 5px";
+
+// ============================================================================
+// Dialog & Control Size Constants (Compact UI)
+// ============================================================================
+
+/// Dialog button minimum height (compact)
+pub const DIALOG_BUTTON_MIN_HEIGHT: &str = "24px";
+
+/// Dialog button padding
+pub const DIALOG_BUTTON_PADDING: &str = "2px 8px";
+
+/// Standard control widget minimum height (DropDown, Entry, SpinButton)
+pub const CONTROL_MIN_HEIGHT: &str = "26px";
+
+/// Search entry minimum height (extra compact)
+pub const SEARCH_ENTRY_MIN_HEIGHT: &str = "22px";
+
+/// Search button minimum height
+pub const SEARCH_BUTTON_MIN_HEIGHT: &str = "24px";
+
+/// Switch minimum width (compact)
+pub const SWITCH_MIN_WIDTH: &str = "42px";
+
+/// Switch minimum height (compact)
+pub const SWITCH_MIN_HEIGHT: &str = "20px";
+
+/// Switch slider size (compact)
+pub const SWITCH_SLIDER_SIZE: &str = "16px";
 
 /// Toolbar popover padding
 pub const TOOLBAR_POPOVER_PADDING: &str = "6px";
@@ -314,16 +342,19 @@ pub const ICON_TRANSITION: &str = "color 0.12s, transform 0.08s";
 // ============================================================================
 
 /// Minimum width for toolbar buttons
-pub const TOOLBAR_BUTTON_MIN_WIDTH: &str = "16px";
+pub const TOOLBAR_BUTTON_MIN_WIDTH: &str = "24px";
 
-/// Minimum height for toolbar buttons
-pub const TOOLBAR_BUTTON_MIN_HEIGHT: &str = "16px";
+/// Minimum height for toolbar buttons (matches dialog buttons)
+pub const TOOLBAR_BUTTON_MIN_HEIGHT: &str = "24px";
 
 /// Toolbar icon min dimensions
 pub const TOOLBAR_ICON_SIZE: &str = "16px";
 
 /// Toolbar icon margin (right side)
 pub const TOOLBAR_ICON_MARGIN: &str = "4px";
+
+/// Toolbar button spacing
+pub const TOOLBAR_BUTTON_SPACING: &str = "4px";
 
 // ============================================================================
 // Border Constants
@@ -341,8 +372,8 @@ pub const TITLEBAR_BORDER_WIDTH: &str = "0px solid";
 /// Toolbar popover border width
 pub const TOOLBAR_POPOVER_BORDER_WIDTH: &str = "1px solid";
 
-/// Toolbar button border width (for disabled state)
-pub const TOOLBAR_BUTTON_BORDER_WIDTH: &str = "0px solid";
+/// Toolbar button border width (matches other buttons)
+pub const TOOLBAR_BUTTON_BORDER_WIDTH: &str = "1px solid";
 
 /// Window control button border radius
 pub const WINDOW_CONTROL_BORDER_RADIUS: &str = "0px";

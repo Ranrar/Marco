@@ -17,8 +17,8 @@ pub struct ToolbarButtons {
 }
 
 pub fn create_toolbar_structure() -> Box {
-    // Create basic toolbar structure
-    let toolbar = Box::new(Orientation::Horizontal, 5);
+    // Create basic toolbar structure with spacing between buttons
+    let toolbar = Box::new(Orientation::Horizontal, 4);  // 4px spacing between children
     toolbar.add_css_class("toolbar");
     toolbar.set_margin_top(0);
     toolbar.set_margin_bottom(0);
@@ -27,7 +27,6 @@ pub fn create_toolbar_structure() -> Box {
 
     // Create headings button with popover
     let headings_button = Button::with_label("H1");
-    headings_button.set_size_request(16, 16);
     headings_button.set_tooltip_text(Some("Headings"));
     headings_button.add_css_class("toolbar-headings-btn");
 
@@ -37,7 +36,6 @@ pub fn create_toolbar_structure() -> Box {
     let popover_box = Box::new(Orientation::Vertical, 4);
     for heading in &["H1", "H2", "H3", "H4", "H5", "H6"] {
         let btn = Button::with_label(heading);
-        btn.set_size_request(16, 16);
         btn.set_tooltip_text(Some(&format!("Insert {}", heading)));
         btn.add_css_class("toolbar-headings-popover-btn");
         popover_box.append(&btn);
@@ -53,46 +51,42 @@ pub fn create_toolbar_structure() -> Box {
 
     // Separator
     let sep1 = Separator::new(Orientation::Vertical);
+    sep1.add_css_class("toolbar-separator");
     toolbar.append(&sep1);
 
     // Text formatting buttons
     let bold_button = Button::with_label("𝐁");
-    bold_button.set_size_request(16, 16);
     bold_button.set_tooltip_text(Some("Bold"));
     bold_button.add_css_class("toolbar-btn-bold");
     toolbar.append(&bold_button);
 
     let italic_button = Button::with_label("𝐼");
-    italic_button.set_size_request(16, 16);
     italic_button.set_tooltip_text(Some("Italic"));
     italic_button.add_css_class("toolbar-btn-italic");
     toolbar.append(&italic_button);
 
     let code_button = Button::with_label("{ }");
-    code_button.set_size_request(16, 16);
     code_button.set_tooltip_text(Some("Code"));
     code_button.add_css_class("toolbar-btn-code");
     toolbar.append(&code_button);
 
     let strikethrough_button = Button::with_label("S̶");
-    strikethrough_button.set_size_request(16, 16);
     strikethrough_button.set_tooltip_text(Some("Strikethrough"));
     strikethrough_button.add_css_class("toolbar-btn-strikethrough");
     toolbar.append(&strikethrough_button);
 
     // Separator
     let sep2 = Separator::new(Orientation::Vertical);
+    sep2.add_css_class("toolbar-separator");
     toolbar.append(&sep2);
 
     // List buttons
     let bullet_button = Button::with_label("• ");
-    bullet_button.set_size_request(16, 16);
     bullet_button.set_tooltip_text(Some("Bullet List"));
     bullet_button.add_css_class("toolbar-btn-bullet");
     toolbar.append(&bullet_button);
 
     let number_button = Button::with_label("1.");
-    number_button.set_size_request(16, 16);
     number_button.set_tooltip_text(Some("Numbered List"));
     number_button.add_css_class("toolbar-btn-number");
     toolbar.append(&number_button);

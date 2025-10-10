@@ -7,13 +7,13 @@ use gtk4::prelude::*;
 use gtk4::{Align, Box as GtkBox, Label, Orientation, Frame};
 
 // UI Constants for table-like structure
-const ROW_FIXED_HEIGHT: i32 = 70;        // Reduced from 90 to 70
-const ROW_PADDING_HORIZONTAL: i32 = 12;  // Reduced from 16 to 12
-const ROW_PADDING_VERTICAL: i32 = 8;     // Reduced from 12 to 8
-const HEADER_LABEL_HEIGHT: i32 = 18;     // Reduced from 20 to 18
-const CONTROL_WIDTH: i32 = 180;          // Reduced from 200 to 180
-const DESC_MARGIN_TOP: i32 = 4;          // Reduced from 6 to 4
-const LEFT_COLUMN_WIDTH: i32 = 400;      // Reduced from 450 to 400
+const ROW_FIXED_HEIGHT: i32 = 56;        // More compact: 70 → 56
+const ROW_PADDING_HORIZONTAL: i32 = 10;  // More compact: 12 → 10
+const ROW_PADDING_VERTICAL: i32 = 6;     // More compact: 8 → 6
+const HEADER_LABEL_HEIGHT: i32 = 16;     // More compact: 18 → 16
+const CONTROL_WIDTH: i32 = 160;          // More compact: 180 → 160
+const DESC_MARGIN_TOP: i32 = 3;          // More compact: 4 → 3
+const LEFT_COLUMN_WIDTH: i32 = 360;      // More compact: 400 → 360
 
 /// Create a standardized settings row with header, description, and right-aligned control
 ///

@@ -57,14 +57,17 @@ fn generate_dropdown_css() -> String {
     
     // Base dropdown sizing (theme-independent)
     css.push_str(
+        &format!(
         r#"
     /* DropDown base styles */
-    dropdown.marco-dropdown {
-        min-width: 150px;
-        min-height: 32px;
-        font-size: 14px;
-    }
-"#
+    dropdown.marco-dropdown {{
+        min-width: 140px;
+        min-height: {control_height};
+        font-size: 12px;
+    }}
+"#,
+        control_height = CONTROL_MIN_HEIGHT,
+        )
     );
     
     // Light theme dropdown
@@ -131,7 +134,7 @@ fn generate_dropdown_css() -> String {
         background: transparent;
         color: {foreground};
         border: none;
-        padding: 6px 12px;
+        padding: 4px 10px;
     }}
     
     .marco-theme-light dropdown.marco-dropdown > popover listview > row:hover {{
@@ -262,7 +265,7 @@ fn generate_dropdown_css() -> String {
         background: transparent;
         color: {foreground};
         border: none;
-        padding: 6px 12px;
+        padding: 4px 10px;
     }}
     
     .marco-theme-dark dropdown.marco-dropdown > popover listview > row:hover {{
@@ -338,15 +341,15 @@ fn generate_switch_css() -> String {
         r#"
     /* Switch base styles */
     switch.marco-switch {{
-        min-width: 52px;
-        min-height: 26px;
-        border-radius: 13px;
+        min-width: {switch_width};
+        min-height: {switch_height};
+        border-radius: calc({switch_height} / 2);
     }}
     
     switch.marco-switch > slider {{
-        min-width: 22px;
-        min-height: 22px;
-        border-radius: 11px;
+        min-width: {slider_size};
+        min-height: {slider_size};
+        border-radius: calc({slider_size} / 2);
     }}
     
     /* Switch - Light Theme */
@@ -403,10 +406,13 @@ fn generate_switch_css() -> String {
     }}
     
     .marco-theme-dark switch.marco-switch:checked > slider {{
-        background: #f0f0f0;
+        background: #ffffff;
         outline: none;
     }}
 "#,
+        switch_width = SWITCH_MIN_WIDTH,
+        switch_height = SWITCH_MIN_HEIGHT,
+        slider_size = SWITCH_SLIDER_SIZE,
         light_border = LIGHT_PALETTE.titlebar_border,
         light_accent = LIGHT_PALETTE.toolbar_button_hover_border,
         dark_border = DARK_PALETTE.titlebar_border,
@@ -551,18 +557,17 @@ fn generate_scale_css() -> String {
 }
 
 /// Generate SpinButton widget CSS
-/// Generate SpinButton widget CSS
 fn generate_spinbutton_css() -> String {
     format!(
         r#"
     /* SpinButton base styles */
     spinbutton.marco-spinbutton {{
-        min-height: 32px;
+        min-height: {control_height};
         border-radius: {radius};
     }}
     
     spinbutton.marco-spinbutton > text {{
-        min-height: 30px;
+        min-height: calc({control_height} - 2px);
         padding: 0 8px;
     }}
     
@@ -571,7 +576,7 @@ fn generate_spinbutton_css() -> String {
     }}
     
     spinbutton.marco-spinbutton > button {{
-        min-width: 24px;
+        min-width: 20px;
         border-radius: 0;
     }}
     
@@ -663,6 +668,7 @@ fn generate_spinbutton_css() -> String {
         outline: none;
     }}
 "#,
+        control_height = CONTROL_MIN_HEIGHT,
         radius = TOOLBAR_BORDER_RADIUS,
         light_border = LIGHT_PALETTE.titlebar_border,
         light_fg = LIGHT_PALETTE.titlebar_foreground,
@@ -681,10 +687,10 @@ fn generate_entry_css() -> String {
         r#"
     /* Entry base styles */
     entry.marco-entry {{
-        min-height: 32px;
-        padding: 6px 12px;
+        min-height: {control_height};
+        padding: 3px 8px;
         border-radius: {radius};
-        font-size: 14px;
+        font-size: 12px;
     }}
     
     /* Entry - Light Theme */
@@ -715,6 +721,7 @@ fn generate_entry_css() -> String {
         outline: none;
     }}
 "#,
+        control_height = CONTROL_MIN_HEIGHT,
         radius = TOOLBAR_BORDER_RADIUS,
         light_fg = LIGHT_PALETTE.titlebar_foreground,
         light_border = LIGHT_PALETTE.titlebar_border,

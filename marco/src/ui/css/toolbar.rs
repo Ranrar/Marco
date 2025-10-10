@@ -165,6 +165,7 @@ fn generate_toolbar_buttons_base_css(theme_class: &str, palette: &ColorPalette) 
     padding: {padding};
     margin: {margin};
     border-radius: {radius};
+    background: transparent;
     border: {border_width} {border_color};
     color: {color};
     font-size: {font_size};

@@ -62,35 +62,35 @@ fn generate_base_dialog_css() -> String {
     }}
     
     .marco-dialog-content {{
-        padding: 24px;
-        min-width: 400px;
+        padding: 20px 20px 20px 20px;
+        min-width: 280px;
     }}
     
     .marco-dialog-title {{
-        font-size: 16px;
+        font-size: 15px;
         font-weight: 600;
-        margin-bottom: 12px;
+        margin-bottom: 10px;
     }}
     
     .marco-dialog-message {{
-        font-size: 14px;
+        font-size: 13px;
         line-height: 1.5;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }}
     
     .marco-dialog-button-box {{
-        margin-top: 16px;
+        margin-top: 14px;
         padding: 0;
     }}
     
     .marco-dialog-button {{
-        min-width: 100px;
-        min-height: 32px;
+        min-width: 90px;
+        min-height: {button_height};
         padding: {button_padding};
         border-radius: {border_radius};
-        font-size: 14px;
+        font-size: 12px;
         font-weight: 500;
-        margin: 0 4px;
+        margin: 0 3px;
         transition: {transition};
     }}
     
@@ -103,7 +103,8 @@ fn generate_base_dialog_css() -> String {
     }}
 "#,
         border_radius = TOOLBAR_BORDER_RADIUS,
-        button_padding = TOOLBAR_BUTTON_PADDING,
+        button_height = DIALOG_BUTTON_MIN_HEIGHT,
+        button_padding = DIALOG_BUTTON_PADDING,
         transition = STANDARD_TRANSITION,
     )
 }
@@ -114,7 +115,7 @@ fn generate_base_search_css() -> String {
         r#"
     /* Search window styling */
     .marco-search-window {{
-        min-width: 480px;
+        min-width: 420px;
         min-height: 260px;
         border-radius: {border_radius};
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
@@ -127,55 +128,57 @@ fn generate_base_search_css() -> String {
     }}
     
     .marco-search-content {{
-        padding: 12px 16px;
+        padding: 10px 14px;
     }}
     
     .marco-search-row {{
-        margin-bottom: 8px;
+        margin-bottom: 6px;
     }}
     
     .marco-search-entry {{
-        min-height: 28px;
-        padding: 4px 10px;
-        font-size: 13px;
+        min-height: {search_entry_height};
+        padding: 2px 8px;
+        font-size: 12px;
         border-radius: {border_radius};
     }}
     
     .marco-search-button {{
-        min-height: 28px;
-        padding: 4px 12px;
+        min-height: {search_button_height};
+        padding: 2px 8px;
         border-radius: {border_radius};
-        font-size: 13px;
-        margin: 0 4px;
+        font-size: 12px;
+        margin: 0 3px;
         transition: {transition};
     }}
     
     .marco-search-checkbox {{
-        margin: 2px 8px;
-        font-size: 13px;
+        margin: 2px 6px;
+        font-size: 12px;
     }}
     
     .marco-search-checkbox check {{
-        min-width: 14px;
-        min-height: 14px;
+        min-width: 13px;
+        min-height: 13px;
     }}
     
     .marco-search-label {{
-        font-size: 13px;
+        font-size: 12px;
     }}
     
     .marco-search-separator {{
-        margin-top: 6px;
-        margin-bottom: 6px;
+        margin-top: 5px;
+        margin-bottom: 5px;
         min-height: 1px;
     }}
     
     .marco-search-match-label {{
-        font-size: 12px;
-        margin-right: 8px;
+        font-size: 11px;
+        margin-right: 6px;
     }}
 "#,
         border_radius = TOOLBAR_BORDER_RADIUS,
+        search_entry_height = SEARCH_ENTRY_MIN_HEIGHT,
+        search_button_height = SEARCH_BUTTON_MIN_HEIGHT,
         transition = STANDARD_TRANSITION,
     )
 }

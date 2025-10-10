@@ -136,8 +136,8 @@ fn create_dialog_impl(
     let window = Window::builder()
         .transient_for(parent)
         .modal(false) // Non-modal so user can edit text in main window
-        .default_width(650)
-        .default_height(550)
+        .default_width(600)
+        .default_height(500)
         .resizable(false)
         .build();
     
@@ -376,14 +376,14 @@ fn create_dialog_impl(
     // Wrap close button in frame matching the settings rows
     let close_frame = gtk4::Frame::new(None);
     close_frame.add_css_class("marco-settings-close-frame");
-    close_frame.set_height_request(70);  // Match ROW_FIXED_HEIGHT
+    close_frame.set_height_request(56);  // Match ROW_FIXED_HEIGHT (reduced from 70 to 56)
     close_frame.set_vexpand(false);
     
     let close_inner_box = GtkBox::new(Orientation::Horizontal, 0);
-    close_inner_box.set_margin_start(12);
-    close_inner_box.set_margin_end(12);
-    close_inner_box.set_margin_top(8);
-    close_inner_box.set_margin_bottom(8);
+    close_inner_box.set_margin_start(10);
+    close_inner_box.set_margin_end(10);
+    close_inner_box.set_margin_top(6);
+    close_inner_box.set_margin_bottom(6);
     close_inner_box.set_halign(Align::Fill);
     close_inner_box.set_valign(Align::Center);
     
