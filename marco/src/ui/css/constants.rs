@@ -198,6 +198,34 @@ pub const MENU_BORDER_RADIUS: &str = "4px";
 /// Toolbar button margins
 pub const TOOLBAR_BUTTON_MARGIN: &str = "2px";
 
+// ============================================================================
+// Popover Menu Constants (Marco Standard)
+// ============================================================================
+
+/// Popover menu border radius (standard 6px matching Polo)
+pub const POPOVER_BORDER_RADIUS: &str = "6px";
+
+/// Popover menu contents padding
+pub const POPOVER_CONTENTS_PADDING: &str = "4px";
+
+/// Popover menu item padding (matches Polo dropdown: 4px 8px)
+pub const POPOVER_ITEM_PADDING: &str = "4px 8px";
+
+/// Popover menu item margin (minimal spacing between items)
+pub const POPOVER_ITEM_MARGIN: &str = "1px 2px";
+
+/// Popover menu item min height
+pub const POPOVER_ITEM_MIN_HEIGHT: &str = "20px";
+
+/// Popover arrow size
+pub const POPOVER_ARROW_SIZE: &str = "16px";
+
+/// Popover separator margin
+pub const POPOVER_SEPARATOR_MARGIN: &str = "6px 4px";
+
+/// Popover separator height
+pub const POPOVER_SEPARATOR_HEIGHT: &str = "1px";
+
 /// Minimum footer height
 pub const FOOTER_MIN_HEIGHT: &str = "26px";
 

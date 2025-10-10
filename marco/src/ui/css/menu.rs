@@ -44,6 +44,24 @@ pub fn generate_css() -> String {
     // Menubar/Titlebar container (dark theme)
     css.push_str(&generate_menubar_css("marco-theme-dark", &DARK_PALETTE));
     
+    // PopoverMenuBar and popover styling (light theme)
+    css.push_str(&generate_popover_menu_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // PopoverMenuBar and popover styling (dark theme)
+    css.push_str(&generate_popover_menu_css("marco-theme-dark", &DARK_PALETTE));
+    
+    // Universal popover styling for SourceView5/WebKit6 context menus (light theme)
+    css.push_str(&generate_universal_popover_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Universal popover styling for SourceView5/WebKit6 context menus (dark theme)
+    css.push_str(&generate_universal_popover_css("marco-theme-dark", &DARK_PALETTE));
+    
+    // Menu buttons (light theme)
+    css.push_str(&generate_menu_button_css("marco-theme-light", &LIGHT_PALETTE));
+    
+    // Menu buttons (dark theme)
+    css.push_str(&generate_menu_button_css("marco-theme-dark", &DARK_PALETTE));
+    
     // Menu items (light theme)
     css.push_str(&generate_menuitem_css("marco-theme-light", &LIGHT_PALETTE));
     
@@ -175,6 +193,324 @@ fn generate_menubar_css(theme_class: &str, palette: &ColorPalette) -> String {
         font_family = UI_FONT_FAMILY,
         font_size = MENU_FONT_SIZE,
         color = palette.titlebar_foreground,
+    )
+}
+
+/// Generate popover menu CSS following Polo's simpler approach
+fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* PopoverMenuBar - remove all decorations from menu items - {theme} */
+.{theme} menubar,
+.{theme} menubar > item,
+.{theme} menubar > item label,
+.{theme} menubar > item button,
+.{theme} menubar > item box {{
+    border: 0px solid transparent;
+    border-top: 0px solid transparent;
+    border-bottom: 0px solid transparent;
+    border-left: 0px solid transparent;
+    border-right: 0px solid transparent;
+    outline: 0px solid transparent;
+    outline-width: 0px;
+    border-width: 0px;
+    box-shadow: none;
+    text-decoration: none;
+}}
+
+.{theme} menubar > item {{
+    background: transparent;
+    color: {color};
+    padding: 4px 8px;
+    font-size: {font_size};
+}}
+
+.{theme} menubar > item:hover {{
+    background: transparent;
+    color: {color_hover};
+}}
+
+.{theme} menubar > item:active,
+.{theme} menubar > item.active {{
+    background: transparent;
+    color: {color_active};
+}}
+
+.{theme} menubar > item:focus {{
+    background: transparent;
+}}
+
+.{theme} menubar > item label {{
+    color: inherit;
+}}
+
+/* Popover menu styling - {theme} - Marco standard design matching Polo */
+.{theme} popover.menu,
+.{theme} popover.background {{
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}}
+
+/* Style the popover arrow - subtle and matching the background */
+.{theme} popover.menu > arrow {{
+    background: {popover_bg};
+    border: none;
+    min-height: {arrow_size};
+    min-width: {arrow_size};
+    -gtk-icon-shadow: {shadow};
+}}
+
+/* Arrow background shape - blends seamlessly with contents */
+.{theme} popover.menu > arrow.top {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-up-symbolic"));
+}}
+
+.{theme} popover.menu > arrow.bottom {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-down-symbolic"));
+}}
+
+.{theme} popover.menu > arrow.left {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-left-symbolic"));
+}}
+
+.{theme} popover.menu > arrow.right {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-right-symbolic"));
+}}
+
+/* Style the contents node - Marco standard with proper padding */
+.{theme} popover.menu > contents {{
+    background: {popover_bg};
+    color: {color};
+    border: none;
+    box-shadow: {shadow};
+    border-radius: {popover_radius};
+    padding: {contents_padding};
+}}
+
+/* Menu items inside popover - Marco standard with smooth transitions */
+.{theme} popover.menu modelbutton {{
+    background: transparent;
+    color: {color};
+    padding: {item_padding};
+    border-radius: {popover_radius};
+    min-height: {item_min_height};
+    font-size: {font_size};
+    font-weight: {font_weight};
+    margin: {item_margin};
+    transition: background 0.15s, color 0.15s;
+}}
+
+.{theme} popover.menu modelbutton:hover {{
+    background: {item_hover_bg};
+    color: {color};
+}}
+
+.{theme} popover.menu modelbutton:active {{
+    background: {item_hover_bg};
+    color: {color};
+}}
+
+.{theme} popover.menu modelbutton:disabled {{
+    color: {disabled};
+    opacity: 0.5;
+}}
+
+/* Labels inside menu items - inherit font properties */
+.{theme} popover.menu modelbutton label {{
+    color: inherit;
+    font-weight: inherit;
+}}
+
+.{theme} popover.menu separator {{
+    background: {border};
+    min-height: {separator_height};
+    margin: {separator_margin};
+}}"#,
+        theme = theme_class,
+        color = palette.titlebar_foreground,
+        color_hover = palette.menu_hover,
+        color_active = palette.menu_active,
+        popover_bg = if theme_class.contains("light") { "#ffffff" } else { "#2d2d2d" },
+        border = palette.titlebar_border,
+        disabled = palette.menu_disabled,
+        item_hover_bg = if theme_class.contains("light") { "#e8e8e8" } else { "#3d3d3d" },
+        shadow = if theme_class.contains("light") {
+            "0 2px 6px rgba(0, 0, 0, 0.15)"
+        } else {
+            "0 2px 6px rgba(0, 0, 0, 0.4)"
+        },
+        font_size = MENU_FONT_SIZE,
+        font_weight = MENU_ITEM_FONT_WEIGHT,
+        popover_radius = POPOVER_BORDER_RADIUS,
+        contents_padding = POPOVER_CONTENTS_PADDING,
+        item_padding = POPOVER_ITEM_PADDING,
+        item_margin = POPOVER_ITEM_MARGIN,
+        item_min_height = POPOVER_ITEM_MIN_HEIGHT,
+        arrow_size = POPOVER_ARROW_SIZE,
+        separator_margin = POPOVER_SEPARATOR_MARGIN,
+        separator_height = POPOVER_SEPARATOR_HEIGHT,
+    )
+}
+
+/// Generate universal popover CSS for all popovers (including SourceView5 and WebKit6 context menus)
+fn generate_universal_popover_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Universal popover styling - {theme} - Applies to ALL popovers including SourceView/WebKit context menus */
+.{theme} popover:not(.menu) {{
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}}
+
+/* Universal popover arrow styling */
+.{theme} popover:not(.menu) > arrow {{
+    background: {popover_bg};
+    border: none;
+    min-height: {arrow_size};
+    min-width: {arrow_size};
+    -gtk-icon-shadow: {shadow};
+}}
+
+/* Arrow directional styling */
+.{theme} popover:not(.menu) > arrow.top {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-up-symbolic"));
+}}
+
+.{theme} popover:not(.menu) > arrow.bottom {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-down-symbolic"));
+}}
+
+.{theme} popover:not(.menu) > arrow.left {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-left-symbolic"));
+}}
+
+.{theme} popover:not(.menu) > arrow.right {{
+    -gtk-icon-source: -gtk-recolor(url("arrow-right-symbolic"));
+}}
+
+/* Universal popover contents styling */
+.{theme} popover:not(.menu) > contents {{
+    background: {popover_bg};
+    color: {color};
+    border: none;
+    box-shadow: {shadow};
+    border-radius: {popover_radius};
+    padding: {contents_padding};
+}}
+
+/* Universal menu items (for context menus) */
+.{theme} popover:not(.menu) modelbutton,
+.{theme} popover:not(.menu) menuitem {{
+    background: transparent;
+    color: {color};
+    padding: {item_padding};
+    border-radius: {popover_radius};
+    min-height: {item_min_height};
+    font-size: {font_size};
+    font-weight: {font_weight};
+    margin: {item_margin};
+    transition: background 0.15s, color 0.15s;
+}}
+
+.{theme} popover:not(.menu) modelbutton:hover,
+.{theme} popover:not(.menu) menuitem:hover {{
+    background: {item_hover_bg};
+    color: {color};
+}}
+
+.{theme} popover:not(.menu) modelbutton:active,
+.{theme} popover:not(.menu) menuitem:active {{
+    background: {item_hover_bg};
+    color: {color};
+}}
+
+.{theme} popover:not(.menu) modelbutton:disabled,
+.{theme} popover:not(.menu) menuitem:disabled {{
+    color: {disabled};
+    opacity: 0.5;
+}}
+
+/* Labels inside universal popover items */
+.{theme} popover:not(.menu) modelbutton label,
+.{theme} popover:not(.menu) menuitem label {{
+    color: inherit;
+    font-weight: inherit;
+}}
+
+/* Universal popover separators */
+.{theme} popover:not(.menu) separator {{
+    background: {border};
+    min-height: {separator_height};
+    margin: {separator_margin};
+}}
+"#,
+        theme = theme_class,
+        color = palette.titlebar_foreground,
+        popover_bg = if theme_class.contains("light") { "#ffffff" } else { "#2d2d2d" },
+        border = palette.titlebar_border,
+        disabled = palette.menu_disabled,
+        item_hover_bg = if theme_class.contains("light") { "#e8e8e8" } else { "#3d3d3d" },
+        shadow = if theme_class.contains("light") {
+            "0 2px 6px rgba(0, 0, 0, 0.15)"
+        } else {
+            "0 2px 6px rgba(0, 0, 0, 0.4)"
+        },
+        font_size = MENU_FONT_SIZE,
+        font_weight = MENU_ITEM_FONT_WEIGHT,
+        popover_radius = POPOVER_BORDER_RADIUS,
+        contents_padding = POPOVER_CONTENTS_PADDING,
+        item_padding = POPOVER_ITEM_PADDING,
+        item_margin = POPOVER_ITEM_MARGIN,
+        item_min_height = POPOVER_ITEM_MIN_HEIGHT,
+        arrow_size = POPOVER_ARROW_SIZE,
+        separator_margin = POPOVER_SEPARATOR_MARGIN,
+        separator_height = POPOVER_SEPARATOR_HEIGHT,
+    )
+}
+
+/// Generate menu button CSS for custom menu buttons
+fn generate_menu_button_css(theme_class: &str, palette: &ColorPalette) -> String {
+    format!(
+        r#"
+/* Menu buttons - custom styled buttons for menubar - {theme} */
+.{theme} .menu-button {{
+    background: transparent;
+    color: {color};
+    border: none;
+    border-radius: 5px;
+    padding: 2px 8px;
+    margin: 4px 1px;
+    font-size: {font_size};
+    font-weight: 400;
+    min-height: 16px;
+    transition: background 80ms ease, color 80ms ease;
+    box-shadow: none;
+    outline: none;
+}}
+
+.{theme} .menu-button:hover {{
+    background: {hover_bg};
+    color: {color};
+}}
+
+.{theme} .menu-button:active {{
+    background: {active_bg};
+    color: {color};
+}}
+
+.{theme} .menu-button:focus {{
+    outline: none;
+    box-shadow: none;
+    background: transparent;
+}}
+"#,
+        theme = theme_class,
+        color = palette.titlebar_foreground,
+        hover_bg = "rgba(90, 93, 94, 0.31)",
+        active_bg = "rgba(90, 93, 94, 0.45)",
+        font_size = MENU_FONT_SIZE,
     )
 }
 

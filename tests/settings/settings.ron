@@ -26,13 +26,7 @@
     split_ratio: Some(50),
   )),
   files: Some((
-    recent_files: Some([
-      /*[0]*/ "/home/ranrar/Code/projects/marco/polo/README.md",
-      /*[1]*/ "/home/ranrar/Code/projects/marco/README.md",
-      /*[2]*/ "/home/ranrar/Code/projects/marco/tests/markdown_showcase/README.md",
-      /*[3]*/ "/home/ranrar/Code/projects/marco/polo/CODE_REVIEW.md",
-      /*[4]*/ "/home/ranrar/Code/projects/marco/tests/markdown_showcase/test_syntax_highlighting.md",
-    ]),
+    recent_files: Some([]),
     max_recent_files: Some(5),
   )),
   active_schema: None,

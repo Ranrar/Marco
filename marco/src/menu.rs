@@ -3,8 +3,7 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use gtk4::gio;
-use gtk4::PopoverMenuBar;
-use gtk4::{self, prelude::*, Align, Box as GtkBox, Button, Label, WindowHandle};
+use gtk4::{self, prelude::*, Align, Box as GtkBox, Button, Label, WindowHandle, Orientation};
 use log::trace;
 
 // Type alias for the complex rebuild callback type
@@ -12,10 +11,26 @@ type RebuildCallback = Box<dyn Fn()>;
 type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 
-pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
-    // Main menu model that contains all top-level menu items
-    let menu_model = gio::Menu::new();
+/// Helper function to create a menu button with a popover
+fn create_menu_button(label: &str, menu: &gio::Menu) -> Button {
+    let button = Button::with_label(label);
+    button.add_css_class("menu-button");
+    button.set_has_frame(false);
     
+    // Create popover with the menu model
+    let popover = gtk4::PopoverMenu::from_model(Some(menu));
+    popover.set_parent(&button);
+    
+    // Connect button click to show popover
+    let popover_clone = popover.clone();
+    button.connect_clicked(move |_| {
+        popover_clone.popup();
+    });
+    
+    button
+}
+
+pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     // File menu with document operations and application settings
     let file_menu = gio::Menu::new();
     file_menu.append(Some("New"), Some("app.new"));
@@ -39,7 +54,6 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     file_menu.append(Some("Export"), Some("app.export"));
     file_menu.append(Some("Settings"), Some("app.settings"));
     file_menu.append(Some("Quit"), Some("app.quit"));
-    menu_model.append_submenu(Some("File"), &file_menu);
     
     // Edit menu with text editing and search operations
     let edit_menu = gio::Menu::new();
@@ -49,42 +63,55 @@ pub fn main_menu_structure() -> (PopoverMenuBar, gio::Menu) {
     edit_menu.append(Some("Copy"), Some("app.copy"));
     edit_menu.append(Some("Paste"), Some("app.paste"));
     edit_menu.append(Some("Search & Replace"), Some("app.search"));
-    menu_model.append_submenu(Some("Edit"), &edit_menu);
     
     // Document menu with builder and splitter tools
     let document_menu = gio::Menu::new();
     document_menu.append(Some("Document Builder"), Some("app.document_builder"));
     document_menu.append(Some("Document Splitter"), Some("app.document_splitter"));
-    menu_model.append_submenu(Some("Document"), &document_menu);
     
     // Bookmarks menu (empty for now)
     let bookmarks_menu = gio::Menu::new();
     let placeholder_bookmark = gio::MenuItem::new(Some("(No bookmarks)"), None::<&str>);
     bookmarks_menu.append_item(&placeholder_bookmark);
-    menu_model.append_submenu(Some("Bookmarks"), &bookmarks_menu);
     
     // Format menu with text styling options
     let format_menu = gio::Menu::new();
     format_menu.append(Some("Bold"), Some("app.bold"));
     format_menu.append(Some("Italic"), Some("app.italic"));
     format_menu.append(Some("Code"), Some("app.code"));
-    menu_model.append_submenu(Some("Format"), &format_menu);
     
     // View menu with display and layout options
     let view_menu = gio::Menu::new();
     view_menu.append(Some("HTML Preview"), Some("app.view_html"));
     view_menu.append(Some("Code View"), Some("app.view_code"));
-    menu_model.append_submenu(Some("View"), &view_menu);
     
     // Help menu with application information
     let help_menu = gio::Menu::new();
     help_menu.append(Some("About"), Some("app.about"));
-    menu_model.append_submenu(Some("Help"), &help_menu);
     
-    // Create the menu bar from the model and apply styling
-    let menubar = PopoverMenuBar::from_model(Some(&menu_model));
-    menubar.add_css_class("menubar");
-    (menubar, recent_menu)
+    // Create horizontal box for menu buttons
+    let menu_box = GtkBox::new(Orientation::Horizontal, 0);
+    menu_box.add_css_class("menubar");
+    
+    // Create menu buttons
+    let file_btn = create_menu_button("File", &file_menu);
+    let edit_btn = create_menu_button("Edit", &edit_menu);
+    let document_btn = create_menu_button("Document", &document_menu);
+    let bookmarks_btn = create_menu_button("Bookmarks", &bookmarks_menu);
+    let format_btn = create_menu_button("Format", &format_menu);
+    let view_btn = create_menu_button("View", &view_menu);
+    let help_btn = create_menu_button("Help", &help_menu);
+    
+    // Add buttons to the box
+    menu_box.append(&file_btn);
+    menu_box.append(&edit_btn);
+    menu_box.append(&document_btn);
+    menu_box.append(&bookmarks_btn);
+    menu_box.append(&format_btn);
+    menu_box.append(&view_btn);
+    menu_box.append(&help_btn);
+    
+    (menu_box, recent_menu)
 }
 
 /// Returns a WindowHandle containing the custom menu bar and all controls.
