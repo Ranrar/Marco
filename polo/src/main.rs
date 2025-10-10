@@ -44,7 +44,7 @@ use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
 use webkit6::prelude::WebViewExt;
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 const APP_ID: &str = "com.example.Polo";
 
@@ -110,8 +110,9 @@ fn main() -> glib::ExitCode {
     app.connect_command_line(|app, cmd_line| {
         let args: Vec<String> = cmd_line.arguments().iter().map(|s| s.to_string_lossy().to_string()).collect();
         
-        // Parse arguments for API mode
-        let mut simple_view_mode = false;
+        // Parse arguments for IPC mode
+        let mut session_key: Option<String> = None;
+        let mut socket_name: Option<String> = None;
         let mut file_to_open: Option<String> = None;
         let mut i = 1;
         
@@ -121,24 +122,30 @@ fn main() -> glib::ExitCode {
             if arg == "--help" || arg == "-h" {
                 println!("Polo - Lightweight Markdown Viewer");
                 println!("\nUsage:");
-                println!("  polo <file.md>                Open markdown file");
-                println!("  polo --api <key> <file.md>    Open in minimal view (requires key)");
-                println!("  polo --debug <file.md>        Open with debug logging");
-                println!("  polo --help                   Show this help message");
+                println!("  polo <file.md>                              Open markdown file");
+                println!("  polo --session <key> --socket <name> [file] IPC mode (Marco integration)");
+                println!("  polo --debug <file.md>                      Open with debug logging");
+                println!("  polo --help                                 Show this help message");
                 return 0.into();
-            } else if arg == "--api" {
-                // Expect key as next argument
+            } else if arg == "--session" {
+                // IPC session key
                 if i + 1 < args.len() {
-                    let key = &args[i + 1];
-                    if marco_core::logic::api::validate_simple_view_key(key) {
-                        simple_view_mode = true;
-                        log::info!("API mode activated with valid key");
-                        i += 1; // Skip the key argument
-                    } else {
-                        log::warn!("Invalid API key provided, using normal mode");
-                    }
+                    session_key = Some(args[i + 1].clone());
+                    log::info!("IPC session key provided: [REDACTED]");
+                    i += 1; // Skip the key argument
                 } else {
-                    log::warn!("--api requires a key argument");
+                    log::error!("--session requires a key argument");
+                    return 1.into();
+                }
+            } else if arg == "--socket" {
+                // IPC socket name
+                if i + 1 < args.len() {
+                    socket_name = Some(args[i + 1].clone());
+                    log::info!("IPC socket provided: {}", args[i + 1]);
+                    i += 1; // Skip the socket argument
+                } else {
+                    log::error!("--socket requires a name argument");
+                    return 1.into();
                 }
             } else if arg == "--debug" {
                 // Debug flag already handled by logger init
@@ -150,8 +157,13 @@ fn main() -> glib::ExitCode {
             i += 1;
         }
         
-        // Build UI with API mode flag
-        build_ui_with_mode(app, file_to_open, simple_view_mode);
+        // Build UI with IPC mode if both session and socket are provided
+        let ipc_mode = session_key.is_some() && socket_name.is_some();
+        if ipc_mode {
+            log::info!("Running in IPC mode - Marco integration active");
+        }
+        
+        build_ui_with_mode(app, file_to_open, ipc_mode, session_key, socket_name);
         0.into()
     });
 
@@ -159,7 +171,7 @@ fn main() -> glib::ExitCode {
     app.connect_open(|app, files, _hint| {
         if let Some(file) = files.first() {
             if let Some(path) = file.path() {
-                build_ui_with_mode(app, Some(path.to_string_lossy().to_string()), false);
+                build_ui_with_mode(app, Some(path.to_string_lossy().to_string()), false, None, None);
             }
         }
     });
@@ -171,7 +183,81 @@ fn main() -> glib::ExitCode {
     exit_code
 }
 
-fn build_ui_with_mode(app: &Application, file_path: Option<String>, simple_view: bool) {
+fn build_ui_with_mode(
+    app: &Application,
+    file_path: Option<String>,
+    ipc_mode: bool,
+    session_key: Option<String>,
+    socket_name: Option<String>,
+) {
+    // Store Compass connection if in IPC mode (keep connection alive)
+    let compass_connection: Option<Arc<Mutex<components::compass::Compass>>> = if ipc_mode {
+        if let (Some(key), Some(socket)) = (session_key.clone(), socket_name.clone()) {
+            log::info!("Initializing Compass IPC client");
+            use components::compass::Compass;
+            
+            match Compass::connect(&socket, key) {
+                Ok(mut compass) => {
+                    log::info!("Connected to Marco via IPC");
+                    
+                    // Fetch session data from Marco
+                    match compass.fetch_session() {
+                        Ok(session_info) => {
+                            log::info!("Session data received - theme: {}, editor_theme: {}",
+                                      session_info.theme, session_info.editor_theme);
+                            // TODO: Use session data to configure Polo
+                        }
+                        Err(e) => {
+                            log::error!("Failed to fetch session data: {}", e);
+                        }
+                    }
+                    
+                    // Start command listener in background thread
+                    // TODO: Wire these callbacks to actual UI updates
+                    match compass.listen_for_commands(
+                        |html, scroll_pos| {
+                            log::info!("Received RefreshContent ({} bytes, scroll: {:?})", html.len(), scroll_pos);
+                            // TODO: Update WebKit view with new HTML
+                        },
+                        |theme, editor_theme| {
+                            log::info!("Received UpdateTheme (theme: {}, editor: {})", theme, editor_theme);
+                            // TODO: Update theme
+                        },
+                        |position| {
+                            log::info!("Received ScrollTo (pos: {})", position);
+                            // TODO: Scroll WebKit view
+                        },
+                        || {
+                            log::info!("Received Shutdown command");
+                            // TODO: Close Polo gracefully
+                        },
+                    ) {
+                        Ok(handle) => {
+                            log::info!("Command listener thread started");
+                            // Store handle if we need to join later
+                            std::mem::forget(handle); // Let it run until process exits
+                        }
+                        Err(e) => {
+                            log::error!("Failed to start command listener: {}", e);
+                        }
+                    }
+                    
+                    // Keep compass alive in Arc<Mutex<>> for sharing across threads
+                    Some(Arc::new(Mutex::new(compass)))
+                }
+                Err(e) => {
+                    log::error!("Failed to connect to Marco: {}", e);
+                    None
+                }
+            }
+        } else {
+            log::error!("IPC mode requires both session key and socket name");
+            None
+        }
+    } else {
+        None
+    };
+    
     // Initialize settings manager early
     let settings_path = match marco_core::logic::paths::get_settings_path() {
         Ok(path) => path,
@@ -197,9 +283,9 @@ fn build_ui_with_mode(app: &Application, file_path: Option<String>, simple_view:
         }
     };
     
-    // Log simple view mode status
-    if simple_view {
-        log::info!("Running in API mode - minimal UI");
+    // Log IPC mode status
+    if ipc_mode {
+        log::info!("Running in IPC mode - Marco integration active");
     }
     
     // Load settings
@@ -299,8 +385,8 @@ fn build_ui_with_mode(app: &Application, file_path: Option<String>, simple_view:
     if let Some(ref path) = file_path_for_render {
         load_and_render_markdown(&webview, path, &saved_theme, &settings_manager);
     } else {
-        // Show empty state with theme awareness and API mode flag
-        show_empty_state_with_theme(&webview, &settings_manager, simple_view);
+        // Show empty state with theme awareness and IPC mode flag
+        show_empty_state_with_theme(&webview, &settings_manager, ipc_mode);
     }
     
     // Create custom titlebar (needs webview and file_path for theme switching)
@@ -311,7 +397,7 @@ fn build_ui_with_mode(app: &Application, file_path: Option<String>, simple_view:
         settings_manager.clone(),
         webview.clone(),
         current_file_path.clone(),
-        simple_view,
+        ipc_mode,
     );
     window.set_titlebar(Some(&titlebar_handle));
     

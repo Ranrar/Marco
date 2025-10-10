@@ -22,3 +22,6 @@ serde = { workspace = true }
 ron = { workspace = true }
 log = { workspace = true }
 dirs = { workspace = true }
+
+# IPC communication
+interprocess = { workspace = true }

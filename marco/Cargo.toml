@@ -47,6 +47,9 @@ syntect = { workspace = true }
 syntect-assets = { workspace = true }
 which = { workspace = true }
 
+# IPC communication
+interprocess = { workspace = true }
+
 # Test suite dependencies
 clap = { workspace = true, optional = true }
 similar = { workspace = true, optional = true }

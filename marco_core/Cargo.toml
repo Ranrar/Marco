@@ -27,6 +27,10 @@ fontconfig = { workspace = true }
 dirs = { workspace = true }
 lru = { workspace = true }
 
+# IPC and session management
+interprocess = { workspace = true }
+uuid = { workspace = true }
+
 # Syntax highlighting (needed for code blocks)
 syntect = { workspace = true }
 syntect-assets = { workspace = true }

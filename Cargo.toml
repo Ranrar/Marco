@@ -21,6 +21,10 @@ dirs = "6.0"
 lru = "0.16.1"
 which = "7.0"
 
+# IPC and session management
+interprocess = "2.2"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.1"
 glib = "0.21"

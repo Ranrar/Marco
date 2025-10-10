@@ -24,6 +24,7 @@ pub fn create_editor_with_preview_and_buffer(
     labels: Rc<FooterLabels>,
     _settings_path: &str,
     document_buffer: Option<Rc<RefCell<marco_core::logic::buffer::DocumentBuffer>>>,
+    layout_manager: Option<Rc<RefCell<Option<Rc<crate::components::layout_manager::LayoutManager>>>>>,
 ) -> EditorReturn {
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
@@ -537,6 +538,7 @@ paned > separator {{
         let last_css_hash_clone = Rc::clone(&last_css_hash);
         let last_document_path_clone = Rc::clone(&last_document_path);
         let document_buffer_capture = document_buffer_for_refresh.clone();
+        let layout_manager_for_refresh = layout_manager.clone();
         std::rc::Rc::new(move || {
             let is_first_load = *is_initial_load_clone.borrow();
             
@@ -597,6 +599,26 @@ paned > separator {{
                     wheel_js: &wheel_js_local,
                 };
                 crate::components::viewer::preview::refresh_preview_content_smooth_with_doc_buffer(params);
+            }
+            
+            // Send HTML to Polo if layout manager is available (EditorAndViewSeparate mode)
+            if let Some(ref layout_mgr_wrapper) = layout_manager_for_refresh {
+                // Try to get the actual layout manager from the wrapper
+                if let Some(ref layout_mgr) = *layout_mgr_wrapper.borrow() {
+                    // Generate HTML for Polo (without WebKit-specific JS)
+                    let text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
+                    if !text.trim().is_empty() {
+                        use crate::components::viewer::preview::parse_markdown_to_html;
+                        let html_body = parse_markdown_to_html(&text, html_opts.as_ref());
+                        
+                        // Send to Polo (scroll sync will be added in later task)
+                        if let Err(e) = layout_mgr.send_refresh_to_polo(html_body, None) {
+                            log::warn!("Failed to send refresh to Polo: {}", e);
+                        } else {
+                            log::debug!("Sent HTML refresh to Polo ({} chars)", text.len());
+                        }
+                    }
+                }
             }
         })
     };

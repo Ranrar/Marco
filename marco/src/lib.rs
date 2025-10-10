@@ -1,5 +1,6 @@
 // Library entry point for integration tests and consumers.
 // Re-export the internal modules needed by tests.
+pub mod beacon;  // IPC server for Marco ↔ Polo communication
 pub mod components;
 pub mod footer;
 pub mod logic;  // UI-specific logic (menu_items, signal_manager)

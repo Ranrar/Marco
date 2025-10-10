@@ -15,3 +15,6 @@ pub use components::marco_engine::{parse_document, parse_with_rule, ParseResult}
 
 // Re-export HTML rendering
 pub use components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
+
+// Re-export IPC API components
+pub use components::api::{ApiRequest, ApiResponse, ApiNotification, SessionInfo, SessionData, SessionManager};

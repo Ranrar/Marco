@@ -23,7 +23,7 @@
     x: None,
     y: None,
     maximized: Some(false),
-    split_ratio: Some(50),
+    split_ratio: Some(90),
   )),
   files: Some((
     recent_files: Some([
@@ -42,7 +42,7 @@
       y: None,
       maximized: Some(false),
     )),
-    last_opened_file: Some("/home/ranrar/Code/projects/marco/README.md"),
+    last_opened_file: Some("/home/ranrar/Code/projects/marco/documentation/marco_polo_ipc_architecture.md"),
     auto_refresh: None,
     refresh_interval_ms: None,
   )),

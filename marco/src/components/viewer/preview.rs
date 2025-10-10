@@ -89,7 +89,7 @@ fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &HtmlOptions
 }
 
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
-fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
+pub fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
     // Fallback for backwards compatibility - use light theme if no theme specified
     parse_markdown_to_html_with_theme(text, html_options, "light")
 }

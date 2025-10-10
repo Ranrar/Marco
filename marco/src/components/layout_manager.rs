@@ -10,10 +10,13 @@ use gtk4::prelude::*;
 use gtk4::Paned;
 use log::{debug, error, info, warn};
 use marco_core::logic::layoutstate::LayoutState;
+use marco_core::{SessionManager, SessionData};
+use crate::beacon::{Beacon, generate_socket_name};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 /// Callback type for layout state reversion when Polo closes
 type PoloCloseCallback = Box<dyn Fn()>;
@@ -32,6 +35,12 @@ pub struct LayoutManager {
     polo_process: Rc<RefCell<Option<Child>>>,
     /// Callback to trigger when Polo closes naturally
     polo_close_callback: Rc<RefCell<Option<PoloCloseCallback>>>,
+    /// Session manager for IPC communication
+    session_manager: Arc<SessionManager>,
+    /// Active beacon IPC server (if any) - Arc<Mutex<>> for thread safety
+    beacon: Arc<Mutex<Option<Beacon>>>,
+    /// Current session key (if any)
+    current_session_key: Rc<RefCell<Option<String>>>,
 }
 
 impl LayoutManager {
@@ -39,6 +48,7 @@ impl LayoutManager {
     pub fn new(
         paned: Paned,
         current_document: Rc<RefCell<Option<PathBuf>>>,
+        session_manager: Arc<SessionManager>,
     ) -> Self {
         Self {
             paned,
@@ -47,6 +57,9 @@ impl LayoutManager {
             position_being_set: Rc::new(RefCell::new(false)),
             polo_process: Rc::new(RefCell::new(None)),
             polo_close_callback: Rc::new(RefCell::new(None)),
+            session_manager,
+            beacon: Arc::new(Mutex::new(None)),
+            current_session_key: Rc::new(RefCell::new(None)),
         }
     }
 
@@ -175,26 +188,52 @@ impl LayoutManager {
         }
     }
 
-    /// Launch Polo viewer with API key for current document (or empty if no document)
+    /// Launch Polo viewer with IPC session for current document
     fn launch_polo_viewer(&self) -> Result<(), String> {
         let document = self.current_document.borrow();
         
-        // Generate API key for secure Polo communication
-        let api_key = marco_core::logic::api::generate_simple_view_key();
+        // Generate session key
+        let session_key = SessionManager::generate_session_key();
+        info!("Generated session key: [REDACTED]");
+        
+        // Create session data
+        let session_data = SessionData::new(
+            session_key.clone(),
+            document.clone(),           // Option<PathBuf>
+            "github".to_string(),       // TODO: Get from settings
+            "dark".to_string(),          // TODO: Get from settings
+            false,                      // read_only
+        );
+        
+        // Register session
+        self.session_manager.create_session(session_data);
+        
+        // Generate socket name
+        let socket_name = generate_socket_name(&session_key);
+        debug!("IPC socket: {}", socket_name);
+        
+        // Create beacon IPC server
+        let beacon = Beacon::new(&socket_name, self.session_manager.clone())?;
+        info!("Beacon IPC server started at: {}", socket_name);
+        
+        // Store beacon and session key
+        *self.beacon.lock().unwrap() = Some(beacon);
+        *self.current_session_key.borrow_mut() = Some(session_key.clone());
         
         // Get the polo binary path (try cargo target first, then system PATH)
         let polo_path = self.find_polo_binary()?;
         
-        // Build command with API key
+        // Build command with session key and socket name
         let mut cmd = Command::new(&polo_path);
-        cmd.arg("--api").arg(&api_key);
+        cmd.arg("--session").arg(&session_key);
+        cmd.arg("--socket").arg(&socket_name);
         
-        // Add document path if available, otherwise Polo will show empty state
+        // Add document path if available, otherwise Polo will fetch from session
         if let Some(ref doc_path) = *document {
-            info!("Launching Polo viewer with API key for: {:?}", doc_path);
+            info!("Launching Polo viewer with session for: {:?}", doc_path);
             cmd.arg(doc_path.to_string_lossy().as_ref());
         } else {
-            info!("Launching Polo viewer with API key (no document)");
+            info!("Launching Polo viewer with session (no document)");
         }
         
         // Launch Polo
@@ -207,13 +246,72 @@ impl LayoutManager {
         let child_id = child.id();
         info!("Polo viewer launched successfully (PID: {})", child_id);
         
+        // Update session with Polo PID
+        self.session_manager.set_polo_pid(&session_key, child_id);
+        
         // Store the process handle
         *self.polo_process.borrow_mut() = Some(child);
         
         // Start monitoring for Polo process exit
         self.start_polo_monitor();
         
+        // Start accepting IPC connections from Polo (in background thread)
+        self.start_beacon_handler();
+        
         Ok(())
+    }
+    
+    /// Start accepting IPC connections from Polo in a background thread
+    fn start_beacon_handler(&self) {
+        let beacon = self.beacon.clone();
+        
+        // Spawn a thread to handle IPC connections
+        // This thread will block on accept() without freezing the GTK main loop
+        std::thread::spawn(move || {
+            loop {
+                // Check if beacon exists, and if so, accept connections
+                let should_accept = {
+                    let beacon_guard = beacon.lock().unwrap();
+                    beacon_guard.is_some()
+                };
+                
+                if should_accept {
+                    // Now lock again and accept (we can't hold the lock during accept)
+                    let beacon_guard = beacon.lock().unwrap();
+                    if let Some(ref beacon_server) = *beacon_guard {
+                        // We need to release the lock before the blocking call
+                        // So we can't borrow beacon_server across the drop
+                        // Instead, accept while holding the lock (brief hold)
+                        drop(beacon_guard);
+                        
+                        // Re-acquire lock for accept
+                        let result = {
+                            let guard = beacon.lock().unwrap();
+                            if let Some(ref server) = *guard {
+                                server.accept_connection()
+                            } else {
+                                break; // Beacon was removed
+                            }
+                        };
+                        
+                        match result {
+                            Ok(()) => {
+                                info!("Beacon handled IPC connection successfully");
+                            }
+                            Err(e) => {
+                                error!("Beacon connection error: {}", e);
+                                // If the listener is broken, stop the thread
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // No beacon - stop the thread
+                    debug!("Beacon handler thread stopping (no beacon)");
+                    break;
+                }
+            }
+        });
     }
 
     /// Start monitoring Polo process for natural exit
@@ -283,6 +381,16 @@ impl LayoutManager {
                 }
             }
         }
+        
+        // Clean up session and beacon
+        if let Some(session_key) = self.current_session_key.borrow_mut().take() {
+            debug!("Removing session: [REDACTED]");
+            self.session_manager.remove_session(&session_key);
+        }
+        
+        // Drop the beacon (closes socket)
+        *self.beacon.lock().unwrap() = None;
+        debug!("Beacon IPC server stopped");
     }
 
     /// Find the Polo binary (checks cargo target directory first, then PATH)
@@ -310,7 +418,60 @@ impl LayoutManager {
         self.paned.set_position(position);
         *self.position_being_set.borrow_mut() = false;
     }
-
+    
+    /// Send RefreshContent command to active Polo instance
+    ///
+    /// This is called when the editor buffer changes to update the preview.
+    ///
+    /// # Arguments
+    ///
+    /// * `html` - The rendered HTML content
+    /// * `scroll_position` - Optional normalized scroll position (0.0 to 1.0)
+    ///
+    /// # Returns
+    ///
+    /// Ok(()) if command sent successfully, Err if no active Polo or send failed
+    pub fn send_refresh_to_polo(&self, html: String, scroll_position: Option<f64>) -> Result<(), String> {
+        // Get current session key
+        let session_key = match self.current_session_key.borrow().as_ref() {
+            Some(key) => key.clone(),
+            None => {
+                debug!("No active Polo session - skipping refresh");
+                return Ok(()); // Not an error, just no viewer active
+            }
+        };
+        
+        // Get beacon and send command
+        let beacon_guard = self.beacon.lock()
+            .map_err(|e| format!("Failed to lock beacon: {}", e))?;
+        
+        if let Some(ref beacon) = *beacon_guard {
+            use marco_core::components::api::protocol::ServerCommand;
+            beacon.send_command(&session_key, ServerCommand::refresh_content(html, scroll_position))
+        } else {
+            debug!("Beacon not active - skipping refresh");
+            Ok(()) // Not an error, just no beacon
+        }
+    }
+    
+    /// Send UpdateTheme command to active Polo instance
+    pub fn send_theme_to_polo(&self, theme: String, editor_theme: String) -> Result<(), String> {
+        let session_key = match self.current_session_key.borrow().as_ref() {
+            Some(key) => key.clone(),
+            None => return Ok(()),
+        };
+        
+        let beacon_guard = self.beacon.lock()
+            .map_err(|e| format!("Failed to lock beacon: {}", e))?;
+        
+        if let Some(ref beacon) = *beacon_guard {
+            use marco_core::components::api::protocol::ServerCommand;
+            beacon.send_command(&session_key, ServerCommand::update_theme(theme, editor_theme))
+        } else {
+            Ok(())
+        }
+    }
+    
     /// Get the previous layout state (for return functionality)
     pub fn previous_state(&self) -> Option<LayoutState> {
         *self.previous_state.borrow()
@@ -344,10 +505,10 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_api_key_generation() {
-        // Verify API key generation works
-        let key = marco_core::logic::api::generate_simple_view_key();
+    fn smoke_test_session_key_generation() {
+        // Verify session key generation works
+        let key = marco_core::SessionManager::generate_session_key();
         assert!(!key.is_empty());
-        assert!(key.len() > 8); // Should be a reasonable length hex string
+        assert!(key.len() >= 32); // UUID v4 format (with hyphens removed it's 32 chars)
     }
 }

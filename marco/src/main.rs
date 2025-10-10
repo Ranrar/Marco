@@ -1,4 +1,5 @@
 use webkit6::prelude::*;
+mod beacon;  // IPC server
 mod components;
 mod footer;
 mod logic;
@@ -308,6 +309,14 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let _schema_root = asset_dir.join("markdown_schema");
     let active_schema_map: Rc<RefCell<Option<()>>> = Rc::new(RefCell::new(None));
 
+    // --- Layout Manager Setup (Part 1: Create placeholder for editor) ---
+    use crate::components::layout_manager::LayoutManager;
+    use marco_core::SessionManager;
+    use std::sync::Arc;
+    
+    // Create shared layout manager wrapper (filled after editor creation)
+    let layout_manager_wrapper: Rc<RefCell<Option<Rc<LayoutManager>>>> = Rc::new(RefCell::new(None));
+
     let (
         split,
         editor_webview,
@@ -328,14 +337,13 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         footer_labels_rc.clone(),
         settings_path.to_str().unwrap(),
         Some(document_buffer_ref),
+        Some(layout_manager_wrapper.clone()), // Pass wrapper that will be filled later
     );
 
     // Wrap setter into Rc so it can be cloned into action callbacks
     let set_view_mode_rc: Rc<Box<dyn Fn(ViewMode)>> = Rc::new(set_view_mode);
 
     // Wire up live footer updates using the actual editor buffer
-    // Wire footer updates directly: wire_footer_updates will run callbacks on
-    // the main loop and call `apply_footer_update` directly.
     wire_footer_updates(
         &editor_buffer,
         footer_labels_rc.clone(),
@@ -343,8 +351,9 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     );
     split_overlay.add_css_class("split-view");  // Apply CSS to overlay
 
-    // --- Layout Manager Setup ---
-    use crate::components::layout_manager::LayoutManager;
+    // --- Layout Manager Setup (Part 2: Create actual manager and fill wrapper) ---
+    // Create session manager for IPC communication
+    let session_manager = Arc::new(SessionManager::new());
     
     // Track current document for Polo launching
     let current_document_path: Rc<RefCell<Option<PathBuf>>> = Rc::new(RefCell::new(None));
@@ -353,7 +362,11 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let layout_manager = Rc::new(LayoutManager::new(
         split.clone(),
         current_document_path.clone(),
+        session_manager,
     ));
+    
+    // Fill the wrapper so editor can now access it
+    *layout_manager_wrapper.borrow_mut() = Some(layout_manager.clone());
     
     // Wire up the layout change callback
     let layout_manager_for_callback = layout_manager.clone();

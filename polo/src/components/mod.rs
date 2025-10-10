@@ -29,6 +29,7 @@
 //!     └── rendering.rs
 //! ```
 
+pub mod compass;  // IPC client for Marco ↔ Polo communication
 pub mod css;
 pub mod dialog;
 pub mod menu;
