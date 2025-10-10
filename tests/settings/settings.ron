@@ -5,7 +5,7 @@
     line_height: Some(1.0),
     line_wrapping: Some(true),
     auto_pairing: Some(true),
-    show_invisibles: Some(false),
+    show_invisibles: Some(true),
     tabs_to_spaces: Some(false),
     syntax_colors: Some(false),
     linting: Some(true),

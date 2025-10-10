@@ -110,6 +110,24 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     
     dialog.set_titlebar(Some(&headerbar));
     
+    // Add ESC key handler to cancel (same as cancel button)
+    let key_controller = gtk4::EventControllerKey::new();
+    let dialog_weak_for_esc = dialog.downgrade();
+    let result_for_esc = result.clone();
+    key_controller.connect_key_pressed(move |_controller, key, _code, _state| {
+        if key == gtk4::gdk::Key::Escape {
+            log::info!("[SaveDialog] User pressed ESC (cancel)");
+            *result_for_esc.borrow_mut() = SaveChangesResult::Cancel;
+            if let Some(dialog) = dialog_weak_for_esc.upgrade() {
+                dialog.close();
+            }
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    dialog.add_controller(key_controller);
+    
     // Create main content container
     let vbox = Box::new(Orientation::Vertical, 0);
     vbox.add_css_class("marco-dialog-content");

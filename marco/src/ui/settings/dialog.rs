@@ -132,10 +132,10 @@ fn create_dialog_impl(
         "marco-theme-light"
     };
     
-    // Create Window instead of Dialog
+    // Create Window instead of Dialog (non-modal to allow editing while settings is open)
     let window = Window::builder()
         .transient_for(parent)
-        .modal(true)
+        .modal(false) // Non-modal so user can edit text in main window
         .default_width(650)
         .default_height(550)
         .resizable(false)
@@ -144,6 +144,21 @@ fn create_dialog_impl(
     // Apply CSS classes for theming
     window.add_css_class("marco-settings-window");
     window.add_css_class(theme_class);
+    
+    // Add ESC key handler to close window (like search dialog)
+    let key_controller = gtk4::EventControllerKey::new();
+    let window_weak_for_esc = window.downgrade();
+    key_controller.connect_key_pressed(move |_controller, key, _code, _state| {
+        if key == gtk4::gdk::Key::Escape {
+            if let Some(window) = window_weak_for_esc.upgrade() {
+                window.close();
+            }
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    window.add_controller(key_controller);
     
     // Set up runtime theme synchronization
     // Monitor parent window for CSS class changes and update settings window accordingly
