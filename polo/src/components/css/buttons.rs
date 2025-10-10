@@ -104,6 +104,13 @@ pub fn generate_mode_toggle_button_css() -> String {
         border-color: {border_hover};
     }}
     
+    .marco-theme-light .polo-mode-toggle-btn:disabled {{
+        background: {disabled_bg};
+        color: {disabled_fg};
+        border-color: {disabled_border};
+        opacity: 0.5;
+    }}
+    
     /* Make emoji dark for light mode */
     .marco-theme-light .polo-mode-toggle-btn label {{
         filter: grayscale(100%) brightness(0.3);
@@ -116,10 +123,14 @@ pub fn generate_mode_toggle_button_css() -> String {
     .marco-theme-light .polo-mode-toggle-btn:active label {{
         filter: grayscale(100%) brightness(0);
     }}
+    
+    .marco-theme-light .polo-mode-toggle-btn:disabled label {{
+        filter: grayscale(100%) brightness(0.5);
+    }}
 "#,
         min_width = BUTTON_MIN_WIDTH,
         min_height = BUTTON_MIN_HEIGHT,
-        padding = MODE_TOGGLE_PADDING,
+        padding = BUTTON_PADDING,  // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
         border = LIGHT_PALETTE.border,
         radius = BORDER_RADIUS,
         foreground = LIGHT_PALETTE.foreground,
@@ -128,6 +139,9 @@ pub fn generate_mode_toggle_button_css() -> String {
         hover_accent = LIGHT_PALETTE.hover_accent,
         border_hover = LIGHT_PALETTE.border_hover,
         active_text = LIGHT_PALETTE.active_text,
+        disabled_bg = LIGHT_PALETTE.disabled_bg,
+        disabled_fg = LIGHT_PALETTE.disabled_fg,
+        disabled_border = LIGHT_PALETTE.disabled_border,
     ));
     
     // Dark theme (brighten emoji)
@@ -158,6 +172,13 @@ pub fn generate_mode_toggle_button_css() -> String {
         border-color: {border_hover};
     }}
     
+    .marco-theme-dark .polo-mode-toggle-btn:disabled {{
+        background: {disabled_bg};
+        color: {disabled_fg};
+        border-color: {disabled_border};
+        opacity: 0.5;
+    }}
+    
     /* Make emoji bright for dark mode */
     .marco-theme-dark .polo-mode-toggle-btn label {{
         filter: grayscale(100%) brightness(2);
@@ -170,10 +191,14 @@ pub fn generate_mode_toggle_button_css() -> String {
     .marco-theme-dark .polo-mode-toggle-btn:active label {{
         filter: grayscale(100%) brightness(3);
     }}
+    
+    .marco-theme-dark .polo-mode-toggle-btn:disabled label {{
+        filter: grayscale(100%) brightness(1.5);
+    }}
 "#,
         min_width = BUTTON_MIN_WIDTH,
         min_height = BUTTON_MIN_HEIGHT,
-        padding = MODE_TOGGLE_PADDING,
+        padding = BUTTON_PADDING,  // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
         border = DARK_PALETTE.border,
         radius = BORDER_RADIUS,
         foreground = DARK_PALETTE.foreground,
@@ -182,6 +207,9 @@ pub fn generate_mode_toggle_button_css() -> String {
         hover_accent = DARK_PALETTE.hover_accent,
         border_hover = DARK_PALETTE.border_hover,
         active_text = DARK_PALETTE.active_text,
+        disabled_bg = DARK_PALETTE.disabled_bg,
+        disabled_fg = DARK_PALETTE.disabled_fg,
+        disabled_border = DARK_PALETTE.disabled_border,
     ));
     
     css
@@ -215,6 +243,13 @@ fn generate_standard_button_css(theme_class: &str, button_class: &str, palette: 
         color: {active_text};
         border-color: {border_hover};
     }}
+    
+    .{theme} .{button}:disabled {{
+        background: {disabled_bg};
+        color: {disabled_fg};
+        border-color: {disabled_border};
+        opacity: 0.5;
+    }}
 "#,
         button = button_class,
         theme = theme_class,
@@ -229,6 +264,9 @@ fn generate_standard_button_css(theme_class: &str, button_class: &str, palette: 
         hover_accent = palette.hover_accent,
         border_hover = palette.border_hover,
         active_text = palette.active_text,
+        disabled_bg = palette.disabled_bg,
+        disabled_fg = palette.disabled_fg,
+        disabled_border = palette.disabled_border,
     )
 }
 

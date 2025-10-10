@@ -284,7 +284,7 @@ fn build_ui(app: &Application, file_path: Option<String>) {
     }
     
     // Create custom titlebar (needs webview and file_path for theme switching)
-    let titlebar_handle = create_custom_titlebar(
+    let (titlebar_handle, _open_editor_btn) = create_custom_titlebar(
         &window, 
         filename.as_deref().unwrap_or("Untitled"),
         &saved_theme, 

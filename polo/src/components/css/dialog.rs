@@ -1,19 +1,28 @@
 //! Dialog CSS Generation
 //!
 //! Generates CSS for custom dialog windows that match Polo's theme.
+//! Aligned with Marco's compact sizing standards (24px buttons, 20px padding).
 //!
 //! ## Components Styled
 //!
 //! - `.polo-dialog`: Main dialog window styling
-//! - `.polo-dialog-content`: Content area with proper spacing
-//! - `.polo-dialog-title`: Dialog title text
-//! - `.polo-dialog-message`: Dialog message/description text
+//! - `.polo-dialog-content`: Content area with proper spacing (20px padding, 340px min-width)
+//! - `.polo-dialog-title`: Dialog title text (15px font, 600 weight)
+//! - `.polo-dialog-message`: Dialog message/description text (13px font)
 //! - `.polo-dialog-button-box`: Action button container
-//! - `.polo-dialog-button`: Action buttons (primary, secondary, cancel)
+//! - `.polo-dialog-button`: Action buttons (24px height, matches Marco)
 //!
 //! ## Theme Support
 //!
 //! Generates rules for both `.marco-theme-light` and `.marco-theme-dark` classes.
+//!
+//! ## Sizing Standards
+//!
+//! All sizing constants match Marco's recent compact optimizations:
+//! - Button height: 24px (reduced from 32px)
+//! - Content padding: 20px (reduced from 24px)
+//! - Min-width: 340px (reduced from 400px)
+//! - Font sizes: 15px title, 13px message, 12px buttons
 //!
 //! ## Usage
 //!
@@ -23,6 +32,7 @@
 //! 3. Add theme class: `.add_css_class("marco-theme-light")` or `"marco-theme-dark"`
 //! 4. Use `.transient_for(parent)` for modal behavior
 //! 5. Use `.set_modal(true)` for modal dialogs
+//! 6. Set `.set_max_width_chars(45)` on label text for proper wrapping
 
 use super::constants::*;
 
@@ -40,35 +50,35 @@ pub fn generate_css() -> String {
     }}
     
     .polo-dialog-content {{
-        padding: 24px;
-        min-width: 400px;
+        padding: {content_padding};
+        min-width: {content_min_width};
     }}
     
     .polo-dialog-title {{
-        font-size: 16px;
-        font-weight: 600;
-        margin-bottom: 12px;
+        font-size: {title_font_size};
+        font-weight: {title_font_weight};
+        margin-bottom: 10px;
     }}
     
     .polo-dialog-message {{
-        font-size: 14px;
+        font-size: {message_font_size};
         line-height: 1.5;
-        margin-bottom: 20px;
+        margin-bottom: 16px;
     }}
     
     .polo-dialog-button-box {{
-        margin-top: 16px;
+        margin-top: 14px;
         padding: 0;
     }}
     
     .polo-dialog-button {{
-        min-width: 80px;
-        min-height: 32px;
+        min-width: {button_min_width};
+        min-height: {button_min_height};
         padding: {button_padding};
         border-radius: {border_radius};
-        font-size: 14px;
-        font-weight: 500;
-        margin: 0 4px;
+        font-size: {button_font_size};
+        font-weight: {button_font_weight};
+        margin: 0 3px;
         transition: {transition};
     }}
     
@@ -81,7 +91,16 @@ pub fn generate_css() -> String {
     }}
 "#,
         border_radius = BORDER_RADIUS,
-        button_padding = BUTTON_PADDING,
+        content_padding = DIALOG_CONTENT_PADDING,
+        content_min_width = DIALOG_MIN_CONTENT_WIDTH,
+        title_font_size = DIALOG_TITLE_FONT_SIZE,
+        title_font_weight = DIALOG_TITLE_FONT_WEIGHT,
+        message_font_size = DIALOG_MESSAGE_FONT_SIZE,
+        button_min_width = DIALOG_BUTTON_MIN_WIDTH,
+        button_min_height = DIALOG_BUTTON_MIN_HEIGHT,
+        button_padding = DIALOG_BUTTON_PADDING,
+        button_font_size = DIALOG_BUTTON_FONT_SIZE,
+        button_font_weight = DIALOG_BUTTON_FONT_WEIGHT,
         transition = STANDARD_TRANSITION,
     ));
     
@@ -199,7 +218,8 @@ mod tests {
         
         // Verify essential properties
         assert!(css.contains("border-radius: 6px"));
-        assert!(css.contains("min-width: 400px"));
+        assert!(css.contains("min-width: 340px")); // Updated to compact size
+        assert!(css.contains("min-height: 24px")); // Updated to compact size
         assert!(css.contains("transition:"));
         
         // Verify not empty
@@ -211,8 +231,8 @@ mod tests {
     fn smoke_test_dialog_has_proper_spacing() {
         let css = generate_css();
         
-        // Verify spacing properties
-        assert!(css.contains("padding: 24px"));
+        // Verify spacing properties (updated to compact sizing)
+        assert!(css.contains("padding: 20px")); // Updated from 24px
         assert!(css.contains("margin-bottom:"));
         assert!(css.contains("margin-top:"));
     }

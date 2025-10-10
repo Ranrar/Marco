@@ -53,6 +53,9 @@ use std::sync::{Arc, RwLock};
 use webkit6::WebView;
 
 /// Create custom titlebar with icon, filename, theme dropdown, and "Open in Editor" button
+/// 
+/// Returns a tuple of (WindowHandle, Button) where the Button is the "Open in Editor" button
+/// that should be enabled/disabled based on whether a file is open.
 pub fn create_custom_titlebar(
     window: &ApplicationWindow,
     filename: &str,
@@ -60,7 +63,7 @@ pub fn create_custom_titlebar(
     settings_manager: Arc<SettingsManager>,
     webview: WebView,
     current_file_path: Arc<RwLock<Option<String>>>,
-) -> WindowHandle {
+) -> (WindowHandle, Button) {
     use marco_core::logic::paths::get_asset_dir_checked;
     
     // Get asset directory for icons
@@ -87,43 +90,28 @@ pub fn create_custom_titlebar(
     icon.set_tooltip_text(Some("Polo - Markdown Viewer"));
     headerbar.pack_start(&icon);
     
-    // "Open" button (left side)
-    let open_file_btn = Button::with_label("Open");
-    open_file_btn.add_css_class("polo-open-file-btn");
-    open_file_btn.set_valign(Align::Center);
-    open_file_btn.set_margin_end(6);
-    open_file_btn.set_tooltip_text(Some("Open a markdown file"));
-    
-    // Wire up "Open" action
-    let window_weak = window.downgrade();
-    let webview_clone = webview.clone();
-    let settings_manager_clone = settings_manager.clone();
-    let current_file_path_clone = current_file_path.clone();
-    open_file_btn.connect_clicked(move |_| {
-        if let Some(window) = window_weak.upgrade() {
-            show_open_file_dialog(
-                &window,
-                webview_clone.clone(),
-                settings_manager_clone.clone(),
-                current_file_path_clone.clone(),
-            );
-        }
-    });
-    headerbar.pack_start(&open_file_btn);
-    
-    // "Open in Editor" button (left side)
+    // "Open in Editor" button (create first so we can reference it in "Open" callback)
     let open_editor_btn = Button::with_label("Open in Editor");
     open_editor_btn.add_css_class("polo-open-editor-btn");
     open_editor_btn.set_valign(Align::Center);
     open_editor_btn.set_margin_end(6);
     open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
     
+    // Check if a file is currently open and enable/disable button accordingly
+    let has_file = current_file_path.read().ok()
+        .and_then(|guard| guard.as_ref().cloned())
+        .is_some();
+    open_editor_btn.set_sensitive(has_file);
+    if !has_file {
+        open_editor_btn.set_tooltip_text(Some("Open a file first to edit in Marco"));
+    }
+    
     // Wire up "Open in Editor" action
-    let window_weak = window.downgrade();
-    let current_file_path_clone = current_file_path.clone();
+    let window_weak_for_editor = window.downgrade();
+    let current_file_path_for_editor = current_file_path.clone();
     open_editor_btn.connect_clicked(move |_| {
-        if let Some(window) = window_weak.upgrade() {
-            if let Ok(path_guard) = current_file_path_clone.read() {
+        if let Some(window) = window_weak_for_editor.upgrade() {
+            if let Ok(path_guard) = current_file_path_for_editor.read() {
                 if let Some(ref path) = *path_guard {
                     show_open_in_editor_dialog(&window, path);
                 } else {
@@ -132,6 +120,32 @@ pub fn create_custom_titlebar(
             }
         }
     });
+    
+    // "Open" button (left side)
+    let open_file_btn = Button::with_label("Open");
+    open_file_btn.add_css_class("polo-open-file-btn");
+    open_file_btn.set_valign(Align::Center);
+    open_file_btn.set_margin_end(6);
+    open_file_btn.set_tooltip_text(Some("Open a markdown file"));
+    
+    // Wire up "Open" action - pass open_editor_btn reference
+    let window_weak = window.downgrade();
+    let webview_clone = webview.clone();
+    let settings_manager_clone = settings_manager.clone();
+    let current_file_path_clone = current_file_path.clone();
+    let open_editor_btn_clone = open_editor_btn.clone();
+    open_file_btn.connect_clicked(move |_| {
+        if let Some(window) = window_weak.upgrade() {
+            show_open_file_dialog(
+                &window,
+                webview_clone.clone(),
+                settings_manager_clone.clone(),
+                current_file_path_clone.clone(),
+                &open_editor_btn_clone,
+            );
+        }
+    });
+    headerbar.pack_start(&open_file_btn);
     headerbar.pack_start(&open_editor_btn);
     
     // Filename label (centered as title widget)
@@ -297,7 +311,7 @@ pub fn create_custom_titlebar(
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));
     
-    handle
+    (handle, open_editor_btn)
 }
 
 /// Create window control buttons (minimize, maximize/restore, close)

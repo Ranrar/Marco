@@ -58,6 +58,7 @@ pub fn show_open_file_dialog(
     webview: WebView,
     settings_manager: Arc<SettingsManager>,
     current_file_path: Arc<RwLock<Option<String>>>,
+    open_editor_btn: &Button,
 ) {
     use gtk4::gio;
     
@@ -97,6 +98,7 @@ pub fn show_open_file_dialog(
     
     // Handle response
     let window_weak = window.downgrade();
+    let open_editor_btn = open_editor_btn.clone();
     dialog.connect_response(move |dialog, response| {
         if response == ResponseType::Accept {
             if let Some(file) = dialog.file() {
@@ -121,6 +123,10 @@ pub fn show_open_file_dialog(
                     if let Ok(mut path_guard) = current_file_path.write() {
                         *path_guard = Some(path_str.clone());
                     }
+                    
+                    // Enable "Open in Editor" button now that we have a file
+                    open_editor_btn.set_sensitive(true);
+                    open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
                     
                     // Update window title
                     if let Some(window) = window_weak.upgrade() {
@@ -163,8 +169,8 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     let dialog = Window::builder()
         .modal(true)
         .transient_for(window)
-        .default_width(500)
-        .default_height(220)
+        .default_width(420)
+        .default_height(200)
         .resizable(false)
         .build();
     
@@ -225,6 +231,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     message.add_css_class("polo-dialog-message");
     message.set_halign(Align::Start);
     message.set_wrap(true);
+    message.set_max_width_chars(45); // Constrain text width to match Marco's compact sizing
     vbox.append(&message);
     
     // Create button container

@@ -122,7 +122,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         foreground = palette.foreground,
         border = palette.border,
         radius = BORDER_RADIUS,
-        padding = MODE_TOGGLE_PADDING,
+        padding = BUTTON_PADDING,  // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
         transition = STANDARD_TRANSITION,
         hover_accent = palette.hover_accent,
         border_hover = palette.border_hover,
