@@ -3,13 +3,92 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use gtk4::gio;
-use gtk4::{self, prelude::*, Align, Box as GtkBox, Button, Label, WindowHandle, Orientation};
+use gtk4::{self, prelude::*, Align, Box as GtkBox, Button, Label, Paned, WindowHandle, Orientation};
 use log::trace;
 
 // Type alias for the complex rebuild callback type
 type RebuildCallback = Box<dyn Fn()>;
 type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
+
+/// Helper function to reparent WebView back to main window from preview window
+///
+/// This encapsulates the common reparenting logic used by all layout button handlers.
+/// Returns `true` if reparenting was performed or WebView was already in main window.
+fn reparent_webview_to_main_window(
+    webview_rc_opt: &Option<Rc<RefCell<webkit6::WebView>>>,
+    split_opt: &Option<Paned>,
+    preview_window_opt: &Option<Rc<RefCell<Option<crate::components::viewer::previewwindow::PreviewWindow>>>>,
+    tracker_opt: &Option<crate::components::viewer::controller::WebViewLocationTracker>,
+    guard_opt: &Option<crate::components::viewer::switcher::ReparentGuard>,
+    layout_mode: &str, // For logging purposes
+) -> bool {
+    use crate::components::viewer::controller::WebViewLocation;
+    use crate::components::viewer::switcher::move_webview_to_main_window;
+
+    if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) =
+        (webview_rc_opt, split_opt, preview_window_opt, tracker_opt, guard_opt)
+    {
+        log::debug!("{}: Current WebView location: {:?}", layout_mode, tracker.current());
+
+        // If WebView is in preview window, move it back
+        if tracker.current() == WebViewLocation::PreviewWindow {
+            log::info!("{}: WebView is in preview window, moving back", layout_mode);
+            if guard.try_begin() {
+                let webview_borrow = webview_rc.borrow();
+                let preview_window_borrow = preview_window_opt.borrow();
+
+                if let Some(ref preview_window) = *preview_window_borrow {
+                    match move_webview_to_main_window(&webview_borrow, split, preview_window, true) {
+                        Ok(_) => {
+                            tracker.set(WebViewLocation::MainWindow);
+                            preview_window.hide();
+
+                            // Ensure Stack shows html_preview after reparenting
+                            if let Some(stack_widget) = split.end_child() {
+                                if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
+                                    stack.set_visible_child_name("html_preview");
+                                    log::debug!("{}: Stack set to show html_preview", layout_mode);
+                                }
+                            }
+
+                            log::info!("{}: WebView moved back to main window", layout_mode);
+                        }
+                        Err(e) => {
+                            log::error!("{}: Failed to move WebView back: {}", layout_mode, e);
+                            guard.end();
+                            return false;
+                        }
+                    }
+                } else {
+                    log::warn!("{}: Preview window is None", layout_mode);
+                    guard.end();
+                    return false;
+                }
+
+                guard.end();
+                return true;
+            } else {
+                log::warn!("{}: Failed to acquire reparent guard", layout_mode);
+                return false;
+            }
+        } else {
+            log::info!("{}: WebView already in main window, no reparenting needed", layout_mode);
+            
+            // Even if already in main window, ensure Stack shows html_preview
+            if let Some(stack_widget) = split.end_child() {
+                if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
+                    stack.set_visible_child_name("html_preview");
+                    log::debug!("{}: Stack set to show html_preview (no reparenting)", layout_mode);
+                }
+            }
+            return true;
+        }
+    }
+
+    log::debug!("{}: Reparenting state not available", layout_mode);
+    false
+}
 
 /// Helper function to create a menu button with a popover
 fn create_menu_button(label: &str, menu: &gio::Menu) -> Button {
@@ -119,6 +198,12 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
 /// document title (and modification marker) dynamically.
 pub fn create_custom_titlebar(
     window: &gtk4::ApplicationWindow,
+    webview_rc: Option<Rc<RefCell<webkit6::WebView>>>,
+    split: Option<Paned>,
+    preview_window_opt: Option<Rc<RefCell<Option<crate::components::viewer::previewwindow::PreviewWindow>>>>,
+    webview_location_tracker: Option<crate::components::viewer::controller::WebViewLocationTracker>,
+    reparent_guard: Option<crate::components::viewer::switcher::ReparentGuard>,
+    split_controller: Option<crate::components::viewer::controller::SplitController>,
 ) -> (WindowHandle, Label, gio::Menu) {
     // Get the asset directory for dynamic path resolution
     use marco_core::logic::paths::get_asset_dir_checked;
@@ -178,6 +263,11 @@ pub fn create_custom_titlebar(
 
     // State management (single shared instance)
     let layout_state = Rc::new(RefCell::new(LayoutState::DualView));
+    // Track the previous layout state before switching to EditorAndViewSeparate
+    // This allows us to return to the exact state when closing the preview window
+    let previous_layout_state = Rc::new(RefCell::new(LayoutState::DualView));
+    // Track the split position when in DualView mode
+    let previous_split_position = Rc::new(RefCell::new(0i32));
     // Set initial tooltip to the human-readable current layout label
     layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
 
@@ -195,10 +285,22 @@ pub fn create_custom_titlebar(
     popover.set_parent(&layout_menu_btn);
     // Remove unused duplicate clone
 
+    // Create window weak reference for reparenting logic (before rebuild closure)
+    // Clone reparenting parameters for capture in rebuild closure
+    let window_weak_for_reparent = window.downgrade();
+    let webview_rc_for_rebuild = webview_rc.clone();
+    let split_for_rebuild = split.clone();
+    let preview_window_opt_for_rebuild = preview_window_opt.clone();
+    let webview_location_tracker_for_rebuild = webview_location_tracker.clone();
+    let reparent_guard_for_rebuild = reparent_guard.clone();
+    let split_controller_for_rebuild = split_controller.clone();
+
     let rebuild_popover: RebuildPopover = Rc::new(RefCell::new(None));
 
     let weak_rebuild_popover: WeakRebuildPopover = Rc::downgrade(&rebuild_popover);
     let layout_state_clone2 = layout_state.clone(); // Used for popover logic
+    let previous_layout_state_clone = previous_layout_state.clone(); // Used for tracking state before EditorAndViewSeparate
+    let previous_split_position_clone = previous_split_position.clone(); // Used for tracking split position
     let popover_clone = popover.clone();
     // Clone the layout menu button so the rebuild closure can update its tooltip
     let layout_menu_btn_for_rebuild = layout_menu_btn.clone();
@@ -229,9 +331,34 @@ pub fn create_custom_titlebar(
             btn1.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            
+            // Clone reparenting state for the handler
+            let webview_rc_opt = webview_rc_for_rebuild.clone();
+            let split_opt = split_for_rebuild.clone();
+            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+            let split_controller_opt = split_controller_for_rebuild.clone();
+            
             btn1.connect_clicked(move |_| {
                 let next = LayoutState::EditorOnly;
                 *layout_state.borrow_mut() = next;
+                
+                // Handle reparenting if needed (from EditorAndViewSeparate back to EditorOnly)
+                reparent_webview_to_main_window(
+                    &webview_rc_opt,
+                    &split_opt,
+                    &preview_window_opt_clone,
+                    &webview_location_tracker_opt,
+                    &reparent_guard_opt,
+                    "EditorOnly",
+                );
+                
+                // Set split controller to EditorOnly mode (locks at 100%)
+                if let Some(controller) = &split_controller_opt {
+                    controller.set_mode(next);
+                }
+                
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -258,9 +385,34 @@ pub fn create_custom_titlebar(
             btn2.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            
+            // Clone reparenting state for the handler
+            let webview_rc_opt = webview_rc_for_rebuild.clone();
+            let split_opt = split_for_rebuild.clone();
+            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+            let split_controller_opt = split_controller_for_rebuild.clone();
+            
             btn2.connect_clicked(move |_| {
                 let next = LayoutState::ViewOnly;
                 *layout_state.borrow_mut() = next;
+                
+                // Handle reparenting if needed (from EditorAndViewSeparate back to ViewOnly)
+                reparent_webview_to_main_window(
+                    &webview_rc_opt,
+                    &split_opt,
+                    &preview_window_opt_clone,
+                    &webview_location_tracker_opt,
+                    &reparent_guard_opt,
+                    "ViewOnly",
+                );
+                
+                // Set split controller to ViewOnly mode (locks at 0%)
+                if let Some(controller) = &split_controller_opt {
+                    controller.set_mode(next);
+                }
+                
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -284,9 +436,191 @@ pub fn create_custom_titlebar(
             btn3.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            
+            // Use the reparenting state clones from outer scope (before rebuild closure)
+            let webview_rc_opt = webview_rc_for_rebuild.clone();
+            let split_opt = split_for_rebuild.clone();
+            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+            let window_weak = window_weak_for_reparent.clone();
+            let split_controller_opt = split_controller_for_rebuild.clone();
+            let previous_layout_state_for_btn3 = previous_layout_state_clone.clone();
+            let previous_split_position_for_btn3 = previous_split_position_clone.clone();
+            
             btn3.connect_clicked(move |_| {
+                // Store the current layout state before switching to EditorAndViewSeparate
+                // This allows us to return to the exact same state when closing the preview window
+                let current_state = *layout_state.borrow();
+                *previous_layout_state_for_btn3.borrow_mut() = current_state;
+                
+                // If currently in DualView, also store the split position
+                if current_state == LayoutState::DualView {
+                    if let Some(ref split) = split_opt {
+                        let current_position = split.position();
+                        *previous_split_position_for_btn3.borrow_mut() = current_position;
+                        log::info!("Storing previous DualView split position: {}", current_position);
+                    }
+                }
+                
+                log::info!("Storing previous layout state: {:?} before switching to EditorAndViewSeparate", current_state);
+                
                 let next = LayoutState::EditorAndViewSeparate;
                 *layout_state.borrow_mut() = next;
+                
+                // Set split controller to EditorAndViewSeparate mode first (locks at 100%)
+                if let Some(controller) = &split_controller_opt {
+                    controller.set_mode(next);
+                }
+                
+                // Perform WebView reparenting if all required state is available
+                if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) = 
+                    (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt) 
+                {
+                    use crate::components::viewer::previewwindow::PreviewWindow;
+                    use crate::components::viewer::switcher::move_webview_to_preview_window;
+                    use crate::components::viewer::controller::WebViewLocation;
+                    
+                    // Only reparent if WebView is currently in main window
+                    if tracker.current() == WebViewLocation::MainWindow {
+                        // Try to acquire reparent guard
+                        if guard.try_begin() {
+                            // Create or reuse preview window
+                            let should_reparent = {
+                                let mut opt_borrow = preview_window_opt.borrow_mut();
+                                if opt_borrow.is_none() {
+                                    if let Some(window) = window_weak.upgrade() {
+                                        if let Some(app) = window.application() {
+                                            let new_preview_window = PreviewWindow::new(&window, &app);
+                                            
+                                            // Set up close callback to handle window closing
+                                            // Use a weak reference for preview_window_opt to prevent circular reference
+                                            // (PreviewWindow → callback → preview_window_opt creates a cycle)
+                                            let layout_state_for_callback = layout_state.clone();
+                                            let previous_layout_state_for_callback = previous_layout_state_for_btn3.clone();
+                                            let previous_split_position_for_callback = previous_split_position_for_btn3.clone();
+                                            let webview_rc_for_callback = webview_rc.clone();
+                                            let split_for_callback = split.clone();
+                                            let tracker_for_callback = tracker.clone();
+                                            let guard_for_callback = guard.clone();
+                                            // CRITICAL: Use weak reference here to break circular reference
+                                            let preview_window_opt_weak = Rc::downgrade(preview_window_opt);
+                                            let weak_rebuild_for_callback = weak_rebuild.clone();
+                                            let split_controller_for_callback = split_controller_opt.clone();
+                                            
+                                            new_preview_window.set_on_close_callback(move || {
+                                                use crate::components::viewer::switcher::move_webview_to_main_window;
+                                                use crate::components::viewer::controller::WebViewLocation;
+                                                
+                                                log::info!("Preview window close callback triggered");
+                                                
+                                                // Upgrade the weak reference for preview_window_opt
+                                                let preview_window_opt = match preview_window_opt_weak.upgrade() {
+                                                    Some(p) => p,
+                                                    None => {
+                                                        log::warn!("preview_window_opt dropped, aborting callback");
+                                                        return;
+                                                    }
+                                                };
+                                                
+                                                // Restore to the previous layout state (the state before EditorAndViewSeparate)
+                                                let previous_state = *previous_layout_state_for_callback.borrow();
+                                                *layout_state_for_callback.borrow_mut() = previous_state;
+                                                log::info!("Restoring to previous layout state: {:?}", previous_state);
+                                                
+                                                // Update split controller to the previous mode
+                                                // For DualView, this will restore the split position via idle callback
+                                                if let Some(ref controller) = split_controller_for_callback {
+                                                    controller.set_mode(previous_state);
+                                                    log::info!("Split controller set to {:?} mode", previous_state);
+                                                }
+                                                
+                                                // If restoring to DualView, also restore the split position
+                                                if previous_state == LayoutState::DualView {
+                                                    let saved_position = *previous_split_position_for_callback.borrow();
+                                                    if saved_position > 0 {
+                                                        // Use idle callback to set position after layout is complete
+                                                        let split_for_position = split_for_callback.clone();
+                                                        glib::idle_add_local_once(move || {
+                                                            split_for_position.set_position(saved_position);
+                                                            log::info!("Restored DualView split position to: {}", saved_position);
+                                                        });
+                                                    }
+                                                }
+                                                
+                                                // Reparent WebView back if it's in the preview window
+                                                if tracker_for_callback.current() == WebViewLocation::PreviewWindow
+                                                    && guard_for_callback.try_begin() {
+                                                        let webview_borrow = webview_rc_for_callback.borrow();
+                                                        let preview_window_borrow = preview_window_opt.borrow();
+                                                        
+                                                        if let Some(ref preview_window) = *preview_window_borrow {
+                                                            match move_webview_to_main_window(&webview_borrow, &split_for_callback, preview_window, true) {
+                                                                Ok(_) => {
+                                                                    tracker_for_callback.set(WebViewLocation::MainWindow);
+                                                                    
+                                                                    // Ensure Stack shows html_preview
+                                                                    if let Some(stack_widget) = split_for_callback.end_child() {
+                                                                        if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
+                                                                            stack.set_visible_child_name("html_preview");
+                                                                            log::info!("Stack set to show html_preview after window close");
+                                                                        }
+                                                                    }
+                                                                    
+                                                                    log::info!("WebView reparented back to main window after preview window close");
+                                                                }
+                                                                Err(e) => {
+                                                                    log::error!("Failed to reparent WebView after window close: {}", e);
+                                                                }
+                                                            }
+                                                        }
+                                                        guard_for_callback.end();
+                                                    }
+                                                
+                                                // Rebuild popover to show DualView as active
+                                                if let Some(rc) = weak_rebuild_for_callback.upgrade() {
+                                                    if let Some(ref rebuild) = *rc.borrow() {
+                                                        rebuild();
+                                                    }
+                                                }
+                                            });
+                                            
+                                            *opt_borrow = Some(new_preview_window);
+                                            log::info!("Created new preview window for EditorAndViewSeparate mode with close callback");
+                                        }
+                                    }
+                                }
+                                opt_borrow.is_some()
+                            };
+                            
+                            if should_reparent {
+                                // Borrow webview and preview_window for reparenting
+                                let webview_borrow = webview_rc.borrow();
+                                let preview_window_borrow = preview_window_opt.borrow();
+                                
+                                if let Some(ref preview_window) = *preview_window_borrow {
+                                    // Perform reparenting
+                                    match move_webview_to_preview_window(&webview_borrow, split, preview_window) {
+                                        Ok(_) => {
+                                            tracker.set(WebViewLocation::PreviewWindow);
+                                            log::info!("Successfully moved WebView to preview window");
+                                            preview_window.show();
+                                            // Split position is already set to 100% by SplitController
+                                        }
+                                        Err(e) => {
+                                            log::error!("Failed to move WebView to preview window: {}", e);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            guard.end();
+                        } else {
+                            log::warn!("Cannot reparent WebView: reparenting already in progress");
+                        }
+                    }
+                }
+                
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -310,9 +644,34 @@ pub fn create_custom_titlebar(
             btn4.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
+            
+            // Clone reparenting state for the handler
+            let webview_rc_opt = webview_rc_for_rebuild.clone();
+            let split_opt = split_for_rebuild.clone();
+            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+            let split_controller_opt = split_controller_for_rebuild.clone();
+            
             btn4.connect_clicked(move |_| {
                 let next = LayoutState::DualView;
                 *layout_state.borrow_mut() = next;
+                
+                // Handle reparenting if needed (from EditorAndViewSeparate back to DualView)
+                reparent_webview_to_main_window(
+                    &webview_rc_opt,
+                    &split_opt,
+                    &preview_window_opt_clone,
+                    &webview_location_tracker_opt,
+                    &reparent_guard_opt,
+                    "DualView",
+                );
+                
+                // Set split controller to DualView mode (unlocks split, 50% position)
+                if let Some(controller) = &split_controller_opt {
+                    controller.set_mode(next);
+                }
+                
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();

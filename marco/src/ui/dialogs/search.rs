@@ -85,7 +85,7 @@ thread_local! {
     static CACHED_SEARCH_WINDOW: RefCell<Option<Rc<Window>>> = const { RefCell::new(None) };
     static CURRENT_BUFFER: RefCell<Option<Rc<Buffer>>> = const { RefCell::new(None) };
     static CURRENT_SOURCE_VIEW: RefCell<Option<Rc<View>>> = const { RefCell::new(None) };
-    static CURRENT_WEBVIEW: RefCell<Option<Rc<WebView>>> = const { RefCell::new(None) };
+    static CURRENT_WEBVIEW: RefCell<Option<Rc<RefCell<WebView>>>> = const { RefCell::new(None) };
     static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };
     static NAVIGATION_IN_PROGRESS: RefCell<bool> = const { RefCell::new(false) };
@@ -97,7 +97,7 @@ thread_local! {
 
 /// Main entry point - shows or creates the search dialog
 /// Entry point for separate search window - shows search in a standalone window
-pub fn show_search_window(parent: &Window, _file_cache: Rc<RefCell<SimpleFileCache>>, buffer: Rc<Buffer>, source_view: Rc<View>, webview: Rc<WebView>) {
+pub fn show_search_window(parent: &Window, _file_cache: Rc<RefCell<SimpleFileCache>>, buffer: Rc<Buffer>, source_view: Rc<View>, webview: Rc<RefCell<WebView>>) {
     // Initialize async manager if not already done
     ASYNC_MANAGER.with(|manager_ref| {
         if manager_ref.borrow().is_none() {
@@ -114,7 +114,7 @@ pub fn show_search_window(parent: &Window, _file_cache: Rc<RefCell<SimpleFileCac
 
 /// Get or create the singleton search dialog
 /// Get or create the singleton search window
-fn get_or_create_search_window(parent: &Window, buffer: Rc<Buffer>, source_view: Rc<View>, webview: Rc<WebView>) -> Rc<Window> {
+fn get_or_create_search_window(parent: &Window, buffer: Rc<Buffer>, source_view: Rc<View>, webview: Rc<RefCell<WebView>>) -> Rc<Window> {
     // Store the current buffer, source view, and webview
     CURRENT_BUFFER.with(|buf| {
         *buf.borrow_mut() = Some(buffer);
@@ -1501,7 +1501,7 @@ fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
                             scroll_percentage
                         );
                         
-                        webview.evaluate_javascript(&js_code, None, None, None::<&gio::Cancellable>, |result| {
+                        webview.borrow().evaluate_javascript(&js_code, None, None, None::<&gio::Cancellable>, |result| {
                             if let Err(e) = result {
                                 debug!("JavaScript preview scroll sync error: {:?}", e);
                             }

@@ -130,9 +130,8 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         .build();
     window.add_css_class("main-window");
 
-    // --- Custom VS Code-like draggable titlebar from menu.rs ---
-    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(&window);
-    window.set_titlebar(Some(&titlebar_handle));
+    // --- Create window first, but defer titlebar creation until after editor ---
+    window.add_css_class("main-window");
 
     // --- ThemeManager and settings.ron path ---
     let settings_path = get_settings_path().unwrap_or_else(|_| {
@@ -302,6 +301,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         insert_mode_state,
         set_view_mode,
         split_overlay,
+        split_controller,
     ) = create_editor_with_preview_and_buffer(
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
@@ -324,6 +324,28 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         insert_mode_state.clone(),
     );
     split_overlay.add_css_class("split-view");  // Apply CSS to overlay
+
+    // --- WebView Reparenting State for EditorAndViewSeparate Mode ---
+    use crate::components::viewer::controller::WebViewLocationTracker;
+    use crate::components::viewer::previewwindow::PreviewWindow;
+    
+    let webview_location_tracker = WebViewLocationTracker::new();
+    let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
+    let reparent_guard = crate::components::viewer::switcher::ReparentGuard::new();
+
+    log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode");
+
+    // --- Create custom titlebar now that we have webview and reparenting state ---
+    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(
+        &window,
+        Some(editor_webview.clone()),
+        Some(split.clone()),
+        Some(preview_window_opt.clone()),
+        Some(webview_location_tracker.clone()),
+        Some(reparent_guard.clone()),
+        Some(split_controller.clone()),
+    );
+    window.set_titlebar(Some(&titlebar_handle));
 
     // --- Settings Thread Pool for Proper Resource Management ---
     // Create early so it's available for split ratio saving
@@ -771,11 +793,11 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
         let window = window.clone();
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
-        let webview = Rc::new(editor_webview.clone());
+        let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
         let cache = Rc::new(RefCell::new(marco_core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
             use crate::ui::dialogs::search::show_search_window;
-            show_search_window(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), Rc::clone(&webview));
+            show_search_window(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), webview.clone());
         }
     });
     app.add_action(&search_action);

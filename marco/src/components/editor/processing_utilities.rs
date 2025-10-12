@@ -1,8 +1,8 @@
 //! Simple Async Extension Processing - FIXED for GTK Threading
 //!
 //! Background processing for editor extensions as per optimization spec:
-//! - Line wrapping (✅ DONE)
-//! - Tab to spaces conversion (✅ DONE)  
+//! - Line wrapping
+//! - Tab to spaces conversion
 //! - Syntax coloring (🔄 NOT DONE YET)
 //! - Marco-specific extensions (🔄 NOT DONE YET: @run, [toc], [Page])
 //! - Auto-pairing (📋 FUTURE)

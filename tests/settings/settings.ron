@@ -18,15 +18,18 @@
     text_direction: Some("ltr"),
   )),
   window: Some((
-    width: Some(1294),
-    height: Some(890),
+    width: Some(1797),
+    height: Some(1153),
     x: None,
     y: None,
     maximized: Some(false),
     split_ratio: Some(50),
   )),
   files: Some((
-    recent_files: Some([]),
+    recent_files: Some([
+      /*[0]*/ "/home/ranrar/Code/projects/marco/README.md",
+      /*[1]*/ "/home/ranrar/Code/projects/marco/documentation/Native_GTK_Window_Implementation_Guide.md",
+    ]),
     max_recent_files: Some(5),
   )),
   active_schema: None,
@@ -39,19 +42,19 @@
       y: None,
       maximized: Some(false),
     )),
-    last_opened_file: Some("/home/ranrar/Code/projects/marco/README.md"),
+    last_opened_file: Some("/home/ranrar/Code/projects/marco/documentation/Native_GTK_Window_Implementation_Guide.md"),
     auto_refresh: None,
     refresh_interval_ms: None,
   )),
   appearance: Some((
-    editor_mode: Some("dark"),
+    editor_mode: Some("marco-dark"),
     preview_theme: Some("marco.css"),
     ui_font: None,
     ui_font_size: Some(11),
   )),
   language: None,
-  debug: Some(false),
-  log_to_file: Some(false),
+  debug: Some(true),
+  log_to_file: Some(true),
   engine: Some((
     render: Some((
       html: Some((

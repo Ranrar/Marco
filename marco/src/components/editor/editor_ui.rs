@@ -29,37 +29,9 @@ pub fn create_editor_with_preview_and_buffer(
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
     
-    // Add constraints to limit paned position (10% to 90% of width)
-    // Use a flag to prevent cascade events when multiple callbacks call set_position()
-    let position_being_set = Rc::new(RefCell::new(false));
-    {
-        let position_being_set_clone = Rc::clone(&position_being_set);
-        paned.connect_notify_local(Some("position"), move |paned, _| {
-            // Prevent cascade if we're already setting position programmatically
-            if *position_being_set_clone.borrow() {
-                return;
-            }
-            
-            let width = paned.allocated_width();
-            if width > 0 {
-                let position = paned.position();
-                let min_position = (width as f64 * 0.10) as i32;  // 10%
-                let max_position = (width as f64 * 0.90) as i32;  // 90%
-                
-                if position < min_position || position > max_position {
-                    *position_being_set_clone.borrow_mut() = true;
-                    
-                    if position < min_position {
-                        paned.set_position(min_position);
-                    } else if position > max_position {
-                        paned.set_position(max_position);
-                    }
-                    
-                    *position_being_set_clone.borrow_mut() = false;
-                }
-            }
-        });
-    }
+    // Create split controller to manage position constraints and locking
+    use crate::components::viewer::controller::SplitController;
+    let split_controller = SplitController::new(paned.clone());
 
     let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
         let tm = theme_manager.borrow();
@@ -488,7 +460,8 @@ paned > separator {{
         None,                // No base URI needed yet
         bg_init_preview_ref, // Pass editor background color for widget-level background
     );
-    let webview_rc = Rc::new(webview.clone());
+    // Wrap WebView in Rc<RefCell<>> for shared ownership during reparenting
+    let webview_rc = Rc::new(RefCell::new(webview.clone()));
 
     // Initialize scroll synchronization between editor and preview
     if let Some(global_sync) =
@@ -600,7 +573,7 @@ paned > separator {{
                     .and_then(|buf| buf.borrow().get_base_uri_for_webview());
                 
                 let params = crate::components::viewer::preview::PreviewRefreshParams {
-                    webview: webview.as_ref(),
+                    webview: &webview.borrow(),
                     css: &css,
                     html_options: html_opts.as_ref(),
                     buffer: buffer.as_ref(),
@@ -615,7 +588,7 @@ paned > separator {{
             } else {
                 // Use smooth updates for subsequent content changes
                 let params = crate::components::viewer::preview::SmoothUpdateParams {
-                    webview: webview.as_ref(),
+                    webview: &webview.borrow(),
                     html_options: html_opts.as_ref(),
                     buffer: buffer.as_ref(),
                     wheel_js: &wheel_js_local,
@@ -1083,7 +1056,7 @@ paned > separator {{
             }
             
             refresh_preview_into_webview(
-                webview_clone.as_ref(),
+                &webview_clone.borrow(),
                 &css_clone,
                 &html_opts_clone,
                 &buffer_clone,
@@ -1101,13 +1074,13 @@ paned > separator {{
         preview_theme_timeout_clone.set(Some(id));
     }) as Box<dyn Fn(&str)>;
 
-    // Set up split percentage indicator with cascade prevention
-    let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(&paned, Some(Rc::clone(&position_being_set)));
+    // Set up split percentage indicator with cascade prevention from split controller
+    let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(&paned, Some(split_controller.position_being_set()));
     let overlay = split_indicator.widget().clone();
 
     (
         paned,  // Return original paned for compatibility
-        webview,
+        webview_rc,  // Return wrapped WebView for reparenting support
         css_rc,
         Box::new({
             let r = std::rc::Rc::clone(&refresh_preview_impl);
@@ -1145,6 +1118,7 @@ paned > separator {{
                 }
             }) as Box<dyn Fn(ViewMode)>
         },
-        overlay,  // Add overlay as 11th element
+        overlay,           // 10: Overlay widget
+        split_controller,  // 11: Split position controller
     )
 }

@@ -354,7 +354,7 @@ Planned and desired improvements
 - Language plugin system (add new language support via plugins)
 - Advanced syntax features with linting support
 - Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
-- Multiple layout modes: editor+preview (standard), editor only, preview only, detachable preview
+- [x] Multiple layout modes: editor+preview (standard), editor only, preview only, detachable preview
 - Export / Save as HTML or PDF
 - Page size presets for export (A4, US Letter)
 - [x] Scroll sync between editor and preview

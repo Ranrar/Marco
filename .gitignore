@@ -12,3 +12,4 @@ target
 
 # Program specefik
 /log
+tests/settings/settings.ron
