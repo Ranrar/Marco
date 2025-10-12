@@ -102,9 +102,9 @@ _ _ _
 
 - First item
 - Second item
-  - Nested item 1
-  - Nested item 2
-    - Deep nested item
+    - Nested item 1
+    - Nested item 2
+    	- Deep nested item
 - Third item
 
 Alternative markers:  (ok)
@@ -123,9 +123,9 @@ Mixed markers (should still work):  (ok)
 
 1. First item
 2. Second item
-   1. Nested item 1
-   2. Nested item 2
-      1. Deep nested item
+    1. Nested item 1
+    2. Nested item 2
+		1. Deep nested item
 3. Third item
 
 Different numbering:  (ok)
@@ -261,7 +261,7 @@ Code inside markdown inside HTML
 
 ### Indented Code Blocks
 
-    This is an indented code block
+    This is an indented code block (not working)
     using four spaces
     
     function indentedCode() {
@@ -272,7 +272,7 @@ Code inside markdown inside HTML
 	multiple lines
 	with tab characters
 
-## Mathematical Content
+## Mathematical Content (not working)
 
 ### Inline Math
 

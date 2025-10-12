@@ -2,8 +2,8 @@ use std::process::Command;
 
 // Grammar and parser tests
 mod parser_tests {
-    use marco::components::marco_engine::{parse_to_html_cached, Rule};
-    use marco::{parse_document, parse_with_rule, ParseResult};
+    use marco_core::components::marco_engine::{parse_to_html_cached, Rule};
+    use marco_core::{parse_document, parse_with_rule, ParseResult};
 
     #[test]
     fn test_setext_h1_grammar() {
@@ -368,7 +368,7 @@ fn test_marco_test_binary_failure_case() {
 #[test]
 fn test_marco_engine_smoke_test() {
     // Basic smoke test for Marco engine through test runner
-    use marco::components::marco_engine::parse_to_html_cached;
+    use marco_core::components::marco_engine::parse_to_html_cached;
 
     let result = parse_to_html_cached("# Test Header");
     assert!(result.is_ok(), "Marco engine should parse basic markdown");

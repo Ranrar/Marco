@@ -2631,8 +2631,27 @@ impl AstBuilder {
             Ok(pairs) => {
                 let mut children = Vec::new();
                 for pair in pairs {
-                    let node = self.build_node(pair)?;
-                    children.push(node);
+                    // Filter out NEWLINE tokens just like in main build() function
+                    if pair.as_rule() == Rule::NEWLINE {
+                        continue;
+                    }
+                    
+                    match pair.as_rule() {
+                        Rule::document => {
+                            // Extract children from the document rule, filtering out NEWLINE tokens
+                            for inner_pair in pair.into_inner() {
+                                if inner_pair.as_rule() == Rule::NEWLINE {
+                                    continue;
+                                }
+                                let node = self.build_node(inner_pair)?;
+                                children.push(node);
+                            }
+                        }
+                        _ => {
+                            let node = self.build_node(pair)?;
+                            children.push(node);
+                        }
+                    }
                 }
                 Ok(children)
             }

@@ -133,7 +133,7 @@ impl Cli {
     /// Create a runner configuration from CLI arguments
     pub fn create_runner_config(&self) -> RunnerConfig {
         RunnerConfig {
-            html_options: marco::components::marco_engine::HtmlOptions::default(),
+            html_options: marco_core::components::marco_engine::HtmlOptions::default(),
             use_cache: true,
             normalize_whitespace: self.normalize_whitespace,
             verbose: self.verbose,
@@ -556,7 +556,7 @@ impl Cli {
         rule_name: Option<&str>,
         max_depth: Option<usize>,
     ) -> Result<()> {
-        use marco::components::marco_engine::parse_text;
+        use marco_core::components::marco_engine::parse_text;
 
         println!("{}", "Parse Tree Visualization".blue().bold());
         println!();
@@ -603,12 +603,12 @@ impl Cli {
     /// Print parse tree with optional filtering and depth limits
     fn print_parse_tree(
         &self,
-        pair: &pest::iterators::Pair<marco::components::marco_engine::Rule>,
+        pair: &pest::iterators::Pair<marco_core::components::marco_engine::Rule>,
         depth: usize,
         max_depth: Option<usize>,
         filter_rule: Option<&str>,
     ) {
-        use marco::components::marco_engine::Rule;
+        use marco_core::components::marco_engine::Rule;
 
         // Check depth limit
         if let Some(max) = max_depth {

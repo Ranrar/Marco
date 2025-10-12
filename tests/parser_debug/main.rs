@@ -1,7 +1,7 @@
 #[cfg(feature = "integration-tests")]
-use marco::components::marco_engine::parser::parse_with_rule;
+use marco_core::components::marco_engine::parser::parse_with_rule;
 #[cfg(feature = "integration-tests")]
-use marco::components::marco_engine::{build_ast, parse_markdown, parse_to_html_cached, Rule};
+use marco_core::components::marco_engine::{build_ast, parse_markdown, parse_to_html_cached, Rule};
 #[cfg(feature = "integration-tests")]
 use pest::iterators::{Pair, Pairs};
 #[cfg(feature = "integration-tests")]
@@ -13,9 +13,9 @@ use clap::{Arg, Command};
 #[cfg(feature = "integration-tests")]
 fn main() {
     // Initialize settings manager for shared settings
-    let _settings_manager = match marco::logic::paths::get_settings_path() {
+    let _settings_manager = match marco_core::logic::paths::get_settings_path() {
         Ok(settings_path) => {
-            match marco::logic::swanson::SettingsManager::initialize(settings_path) {
+            match marco_core::logic::swanson::SettingsManager::initialize(settings_path) {
                 Ok(manager) => {
                     eprintln!("Settings initialized for parser debug");
                     Some(manager)

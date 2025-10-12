@@ -6,7 +6,7 @@
 use crate::diff::{create_unified_diff, DiffConfig};
 use crate::spec::{TestCase, TestResult, TestSpec, TestSummary};
 use anyhow::{Context, Result};
-use marco::components::marco_engine::HtmlOptions;
+use marco_core::components::marco_engine::HtmlOptions;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -57,13 +57,13 @@ impl TestRunner {
     pub fn process_markdown(&self, markdown: &str) -> Result<String, String> {
         if self.config.use_cache {
             // Use cached processing for better performance
-            use marco::components::marco_engine::global_parser_cache;
+            use marco_core::components::marco_engine::global_parser_cache;
             global_parser_cache()
                 .render_with_cache(markdown, self.config.html_options.clone())
                 .map_err(|e| format!("Failed to render HTML (cached): {}", e))
         } else {
             // Use direct non-cached processing for testing
-            use marco::components::marco_engine::{build_ast, parse_text, render_html};
+            use marco_core::components::marco_engine::{build_ast, parse_text, render_html};
             let pairs = parse_text(markdown)?;
             let ast = build_ast(pairs)?;
             Ok(render_html(&ast, self.config.html_options.clone()))

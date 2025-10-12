@@ -9,7 +9,7 @@ default-run = "marco"
 
 [features]
 default = []
-integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty"]
+integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty", "dep:pest", "dep:serde_json"]
 
 [[bin]]
 name = "marco"
@@ -24,6 +24,10 @@ required-features = ["integration-tests"]
 name = "marco-parser-debug"
 path = "../tests/parser_debug/main.rs"
 required-features = ["integration-tests"]
+
+[[test]]
+name = "integration_test_suite"
+path = "../tests/integration_test_suite.rs"
 
 [dependencies]
 # Core library
@@ -51,9 +55,12 @@ clap = { workspace = true, optional = true }
 similar = { workspace = true, optional = true }
 colored = { workspace = true, optional = true }
 atty = { workspace = true, optional = true }
+pest = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
 rand = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
+pest = { workspace = true }

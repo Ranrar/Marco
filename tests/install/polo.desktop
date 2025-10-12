@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Polo
+Comment=A lightweight GTK4-based markdown viewer
+Exec=polo %F
+Type=Application
+MimeType=text/markdown;text/x-markdown;
+Icon=polo
+Categories=Office;Viewer;
+StartupNotify=true
+Version=1.0

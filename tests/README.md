@@ -17,37 +17,37 @@ Comprehensive testing infrastructure for Marco markdown editor with advanced par
 ### Integration Tests with Parser Utilities
 ```bash
 # Run comprehensive integration test suite (14 tests)
-cargo test --test integration_test_suite
+cargo test --package marco --test integration_test_suite
 
 # Run specific parser tests module
-cargo test parser_tests
+cargo test --package marco --test integration_test_suite parser_tests
 
 # Run with verbose output
-cargo test --test integration_test_suite -- --nocapture
+cargo test --package marco --test integration_test_suite -- --nocapture
 ```
 
 ### CLI Testing Tools
 ```bash
-# Test markdown strings
-cargo run --bin marco-test -- string "# Hello **World**"
+# Test markdown strings (requires integration-tests feature)
+cargo run --bin marco-test --features integration-tests -- string "# Hello **World**"
 
 # Multi-line input
 echo "Header
-======" | cargo run --bin marco-test -- string
+======" | cargo run --bin marco-test --features integration-tests -- string
 
 # Run CommonMark specification tests
-cargo run --bin marco-test -- spec --file tests/spec/commonmark.json
+cargo run --bin marco-test --features integration-tests -- spec --file tests/spec/commonmark.json
 
 # Test specific sections
-cargo run --bin marco-test -- spec --section "Headers"
+cargo run --bin marco-test --features integration-tests -- spec --section "Headers"
 ```
 
 ### Grammar Debugging
 ```bash
-# Debug parser issues
-echo "Header\n======" | cargo run --bin marco-parser-debug pipeline
+# Debug parser issues (requires integration-tests feature)
+echo "Header\n======" | cargo run --bin marco-parser-debug --features integration-tests pipeline
 
-# Visualize parse tree (NEW!)
+# Visualize parse tree
 cargo run --bin marco-test --features integration-tests -- visualize "# Heading"
 
 # Filter by rule type
@@ -63,16 +63,20 @@ cargo run --bin marco-test --features integration-tests -- \
     visualize $'\tindented code'
 
 # Test specific grammar rules
-echo "# Header" | cargo run --bin marco-parser-debug grammar --rule heading
+echo "# Header" | cargo run --bin marco-parser-debug --features integration-tests grammar --rule heading
+
+# Test nested code blocks
+cargo run --bin marco-parser-debug --features integration-tests pipeline < tests/markdown_showcase/test_nested_code.md
 ```
 
 ## Parser Utility Functions
 
-The integration test suite now uses enhanced parser utility functions for clean, readable testing:
+The integration test suite uses enhanced parser utility functions for clean, readable testing:
 
 ```rust
-// Available utility functions from marco crate
-use marco::{ParseResult, parse_document, parse_with_rule};
+// Import from marco_core
+use marco_core::components::marco_engine::{parse_to_html_cached, Rule};
+use marco_core::{parse_document, parse_with_rule, ParseResult};
 
 // Type alias for consistent error handling
 type ParseResult<T> = Result<T, String>;
@@ -104,23 +108,26 @@ The `integration_test_suite.rs` contains 14 comprehensive tests:
 
 ## Parser Debugging
 
-The `marco-parser-debug` tool provides interactive debugging:
+The `marco-parser-debug` tool provides interactive debugging (requires `--features integration-tests`):
 
 ```bash
-# Build debug tool
-cargo build --bin marco-parser-debug
+# Build debug tool with integration-tests feature
+cargo build --bin marco-parser-debug --features integration-tests
 
 # Test specific grammar rules
-echo "# Header" | cargo run --bin marco-parser-debug grammar --rule heading
+echo "# Header" | cargo run --bin marco-parser-debug --features integration-tests grammar --rule heading
 
 # Debug AST building
-echo "Header\n======" | cargo run --bin marco-parser-debug ast
+echo "Header\n======" | cargo run --bin marco-parser-debug --features integration-tests ast
 
 # Full pipeline debug (grammar → AST → HTML)
-echo "Header\n======" | cargo run --bin marco-parser-debug pipeline
+echo "Header\n======" | cargo run --bin marco-parser-debug --features integration-tests pipeline
+
+# Test nested code blocks
+cargo run --bin marco-parser-debug --features integration-tests pipeline < tests/markdown_showcase/test_nested_code.md
 
 # Setext header specialist
-echo "" | cargo run --bin marco-parser-debug setext
+echo "" | cargo run --bin marco-parser-debug --features integration-tests setext
 ```
 
 ### Available Commands
@@ -132,10 +139,10 @@ echo "" | cargo run --bin marco-parser-debug setext
 
 ### Debugging Workflow
 
-1. **Identify Issue**: `marco-test string "problem" --expected "output"`
-2. **Debug Grammar**: `echo "problem" | marco-parser-debug grammar --rule specific_rule`
-3. **Analyze Pipeline**: `echo "problem" | marco-parser-debug pipeline`
-4. **Fix Code**: Update parser, AST builder, or renderer
+1. **Identify Issue**: `cargo run --bin marco-test --features integration-tests -- string "problem" --expected "output"`
+2. **Debug Grammar**: `echo "problem" | cargo run --bin marco-parser-debug --features integration-tests grammar --rule specific_rule`
+3. **Analyze Pipeline**: `echo "problem" | cargo run --bin marco-parser-debug --features integration-tests pipeline`
+4. **Fix Code**: Update parser, AST builder, or renderer in `marco_core`
 5. **Validate Fix**: Re-run integration tests and CLI tools
 
 ## Test Specifications
@@ -163,15 +170,18 @@ echo "" | cargo run --bin marco-parser-debug setext
 ### Performance & Benchmarking
 ```bash
 # Performance testing with integration suite
-cargo test test_parser_performance_with_parse_result -- --nocapture
+cargo test --package marco --test integration_test_suite test_parser_performance_with_parse_result -- --nocapture
 
 # Benchmark parsing different document sizes
-cargo test --test integration_test_suite --release
+cargo test --package marco --test integration_test_suite --release
 ```
 
 ### Grammar Rule Testing
 ```rust
-// Test specific grammar rules with utility functions
+// Test specific grammar rules with utility functions from marco_core
+use marco_core::{parse_with_rule, ParseResult};
+use marco_core::components::marco_engine::Rule;
+
 fn test_custom_grammar() {
     let result = parse_with_rule("^superscript^", Rule::superscript);
     assert!(result.is_ok(), "Should parse superscript successfully");
@@ -185,7 +195,9 @@ fn test_custom_grammar() {
 
 ### Error Handling Validation
 ```rust
-// Test error conditions with ParseResult
+// Test error conditions with ParseResult from marco_core
+use marco_core::{parse_document, ParseResult};
+
 fn test_error_handling() {
     let result = parse_document("invalid markdown ]]");
     assert!(result.is_err(), "Should fail on invalid syntax");
@@ -199,21 +211,21 @@ fn test_error_handling() {
 
 ### Command Line Usage
 ```bash
-# Fail fast on specification tests
-cargo run --bin marco-test -- spec --file tests/spec/commonmark.json --fail-fast
+# Fail fast on specification tests (requires integration-tests feature)
+cargo run --bin marco-test --features integration-tests -- spec --file tests/spec/commonmark.json --fail-fast
 
 # Test specific sections only
-cargo run --bin marco-test -- spec --section "Headers"
+cargo run --bin marco-test --features integration-tests -- spec --section "Headers"
 
 # Multi-line input with heredoc
-cargo run --bin marco-test -- string << 'EOF'
+cargo run --bin marco-test --features integration-tests -- string << 'EOF'
 Complex markdown
 ================
 With multiple lines
 EOF
 
 # Interactive specification testing
-cargo run --bin marco-test -- interactive
+cargo run --bin marco-test --features integration-tests -- interactive
 ```
 
 ### Integration Testing Guidelines
@@ -227,6 +239,8 @@ cargo run --bin marco-test -- interactive
 Marco prioritizes **smoke tests** for reliable, fast validation:
 
 ```rust
+use marco_core::{parse_document, components::marco_engine::parse_to_html_cached};
+
 #[test]
 fn smoke_test_parser_functionality() {
     // Test basic parsing without complex setup
@@ -240,8 +254,18 @@ fn smoke_test_parser_functionality() {
 ```
 
 ### Development Workflow
-1. **Write failing test** using parser utilities
-2. **Debug with CLI tools** to understand parsing issues
-3. **Fix grammar/parser** incrementally
+1. **Write failing test** using parser utilities from `marco_core`
+2. **Debug with CLI tools** (requires `--features integration-tests`) to understand parsing issues
+3. **Fix grammar/parser** incrementally in `marco_core/src/components/marco_engine/`
 4. **Validate with integration tests** to ensure no regressions
 5. **Add smoke tests** for new functionality
+
+## Architecture
+
+Marco is organized as a Cargo workspace with three crates:
+
+- **`marco_core`** - Pure Rust library with parser, AST builder, HTML renderer (no GTK dependencies)
+- **`marco`** - Full-featured editor binary (GTK4 UI, depends on marco_core)
+- **`polo`** - Lightweight viewer binary (depends on marco_core)
+
+Test binaries (`marco-test`, `marco-parser-debug`) are defined in `marco/Cargo.toml` but use `marco_core` for all parsing/rendering functionality. They require the `integration-tests` feature flag to build.
