@@ -23,15 +23,10 @@
     x: None,
     y: None,
     maximized: Some(false),
-    split_ratio: Some(90),
+    split_ratio: Some(50),
   )),
   files: Some((
     recent_files: Some([
-      /*[0]*/ "/home/ranrar/Code/projects/marco/documentation/user guide/user_guide.md",
-      /*[1]*/ "/home/ranrar/Code/projects/marco/tests/markdown_showcase/01_basic_markdown.md",
-      /*[2]*/ "/home/ranrar/Code/projects/marco/tests/markdown_showcase/test_syntax_highlighting.md",
-      /*[3]*/ "/home/ranrar/Code/projects/marco/README.md",
-      /*[4]*/ "/home/ranrar/Code/projects/marco/documentation/Native_GTK_Window_Implementation_Guide.md",
     ]),
     max_recent_files: Some(5),
   )),
@@ -45,7 +40,7 @@
       y: None,
       maximized: Some(false),
     )),
-    last_opened_file: Some("/home/ranrar/Code/projects/marco/documentation/Native_GTK_Window_Implementation_Guide.md"),
+    last_opened_file: Some(""),
     auto_refresh: None,
     refresh_interval_ms: None,
   )),
@@ -56,8 +51,8 @@
     ui_font_size: Some(11),
   )),
   language: None,
-  debug: Some(true),
-  log_to_file: Some(true),
+  debug: Some(false),
+  log_to_file: Some(false),
   engine: Some((
     render: Some((
       html: Some((

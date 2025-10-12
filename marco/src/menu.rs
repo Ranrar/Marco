@@ -193,22 +193,38 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     (menu_box, recent_menu)
 }
 
+use crate::components::viewer::controller::{SplitController, WebViewLocationTracker};
+use crate::components::viewer::previewwindow::PreviewWindow;
+use crate::components::viewer::switcher::ReparentGuard;
+
+/// Configuration for creating the custom titlebar
+pub struct TitlebarConfig<'a> {
+    pub window: &'a gtk4::ApplicationWindow,
+    pub webview_rc: Option<Rc<RefCell<webkit6::WebView>>>,
+    pub split: Option<Paned>,
+    pub preview_window_opt: Option<Rc<RefCell<Option<PreviewWindow>>>>,
+    pub webview_location_tracker: Option<WebViewLocationTracker>,
+    pub reparent_guard: Option<ReparentGuard>,
+    pub split_controller: Option<SplitController>,
+    pub asset_root: &'a std::path::Path,
+}
+
 /// Returns a WindowHandle containing the custom menu bar and all controls.
 /// Returns a WindowHandle and the central title `Label` so callers can update the
 /// document title (and modification marker) dynamically.
-pub fn create_custom_titlebar(
-    window: &gtk4::ApplicationWindow,
-    webview_rc: Option<Rc<RefCell<webkit6::WebView>>>,
-    split: Option<Paned>,
-    preview_window_opt: Option<Rc<RefCell<Option<crate::components::viewer::previewwindow::PreviewWindow>>>>,
-    webview_location_tracker: Option<crate::components::viewer::controller::WebViewLocationTracker>,
-    reparent_guard: Option<crate::components::viewer::switcher::ReparentGuard>,
-    split_controller: Option<crate::components::viewer::controller::SplitController>,
-) -> (WindowHandle, Label, gio::Menu) {
-    // Get the asset directory for dynamic path resolution
-    use marco_core::logic::paths::get_asset_dir_checked;
-    let asset_dir = get_asset_dir_checked();
-
+pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, gio::Menu) {
+    // Destructure config for easier access
+    let TitlebarConfig {
+        window,
+        webview_rc,
+        split,
+        preview_window_opt,
+        webview_location_tracker,
+        reparent_guard,
+        split_controller,
+        asset_root,
+    } = config;
+    
     // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
     
@@ -218,9 +234,7 @@ pub fn create_custom_titlebar(
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
     
     // App icon (left) - uses dynamic asset directory path
-    let icon_path = asset_dir
-        .unwrap_or_else(|_| std::path::PathBuf::from("src/assets"))
-        .join("icons/favicon.png");
+    let icon_path = asset_root.join("icons/favicon.png");
     let icon = Image::from_file(&icon_path);
     icon.set_pixel_size(16);
     icon.set_halign(Align::Start);

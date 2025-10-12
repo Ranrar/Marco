@@ -110,12 +110,13 @@ pub fn get_theme_mode(settings_manager: &Arc<SettingsManager>) -> String {
 }
 
 /// List available HTML preview themes from assets directory
-pub fn list_available_themes() -> Vec<String> {
-    use marco_core::logic::paths::get_asset_dir_checked;
-    use std::path::PathBuf;
-    
-    let asset_dir = get_asset_dir_checked().unwrap_or_else(|_| PathBuf::from("assets"));
-    let themes_dir = asset_dir.join("themes/html_viever");
+///
+/// # Arguments
+/// * `asset_root` - The asset root directory path
+///
+/// **Note**: Prefer using `SharedPaths::list_preview_themes()` from the new paths API.
+pub fn list_available_themes_from_path(asset_root: &std::path::Path) -> Vec<String> {
+    let themes_dir = asset_root.join("themes/html_viever");
     
     let mut themes = Vec::new();
     
@@ -129,11 +130,6 @@ pub fn list_available_themes() -> Vec<String> {
                 }
             }
         }
-    }
-    
-    // Ensure we have at least one theme
-    if themes.is_empty() {
-        themes.push("marco".to_string());  // Without .css extension
     }
     
     themes.sort();
@@ -195,7 +191,19 @@ mod tests {
 
     #[test]
     fn smoke_test_list_available_themes() {
-        let themes = list_available_themes();
+        use marco_core::components::paths::{PoloPaths, PathProvider, workspace_root};
+        use std::path::PathBuf;
+        
+        // Try to get PoloPaths, fall back to development workspace root for tests
+        let asset_root = if let Ok(polo_paths) = PoloPaths::new() {
+            polo_paths.asset_root().clone()
+        } else if let Some(root) = workspace_root() {
+            root.join("assets")
+        } else {
+            PathBuf::from("assets") // Fallback for test environment
+        };
+        
+        let themes = list_available_themes_from_path(&asset_root);
         
         // Should have at least one theme (fallback)
         assert!(!themes.is_empty(), "Should have at least one theme");

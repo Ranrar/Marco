@@ -19,8 +19,8 @@ use crate::components::editor::footer_updates::wire_footer_updates;
 use crate::components::viewer::viewmode::ViewMode;
 use crate::theme::ThemeManager;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
+use marco_core::components::paths::MarcoPaths;
 use std::cell::RefCell;
-use std::path::PathBuf;
 use std::rc::Rc;
 // MarkdownSyntaxMap compatibility removed; footer uses AST parser directly
 use crate::logic::menu_items::file::FileOperations;
@@ -58,25 +58,32 @@ fn main() -> glib::ExitCode {
     }));
 
     // path detection and environment setup
-    use marco_core::logic::paths::{get_asset_dir_checked, get_font_path, get_settings_path};
-    let asset_dir = match get_asset_dir_checked() {
-        Ok(asset_dir) => asset_dir,
+    use marco_core::components::paths::{MarcoPaths, PathProvider};
+    let marco_paths = match MarcoPaths::new() {
+        Ok(paths) => paths,
         Err(e) => {
-            eprintln!("Error detecting asset directory: {}", e);
+            eprintln!("Error initializing Marco paths: {:?}", e);
             std::process::exit(1);
         }
     };
+    
     // Set local font dir for Fontconfig/Pango
-    marco_core::logic::loaders::icon_loader::set_local_font_dir(asset_dir.to_str().unwrap());
+    // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
+    // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
+    let asset_root_for_fonts = marco_paths.asset_root();
+    marco_core::logic::loaders::icon_loader::set_local_font_dir(
+        asset_root_for_fonts.to_str().expect("Invalid asset root path")
+    );
 
-    // Example: Load font and settings paths
-    match get_font_path("ui_menu.ttf") {
-        Ok(_font_path) => {}
-        Err(e) => eprintln!("Font error: {}", e),
+    // Verify critical paths exist (optional, for debugging)
+    let ui_menu_font = marco_paths.shared().font("ui_menu.ttf");
+    if !ui_menu_font.exists() {
+        eprintln!("Warning: UI menu font not found at {:?}", ui_menu_font);
     }
-    match get_settings_path() {
-        Ok(_settings_path) => {}
-        Err(e) => eprintln!("Settings error: {}", e),
+    
+    let settings_path = marco_paths.settings_file();
+    if !settings_path.exists() {
+        eprintln!("Warning: Settings file not found at {:?}", settings_path);
     }
 
     let app = Application::builder()
@@ -84,19 +91,23 @@ fn main() -> glib::ExitCode {
         .flags(gtk4::gio::ApplicationFlags::HANDLES_OPEN)
         .build();
 
+    // Clone marco_paths for closures
+    let marco_paths_for_open = std::rc::Rc::new(marco_paths);
+    let marco_paths_for_activate = marco_paths_for_open.clone();
+
     // Handle file opening via command line or file manager
-    app.connect_open(|app, files, _hint| {
+    app.connect_open(move |app, files, _hint| {
         let file_path = if !files.is_empty() {
             Some(files[0].path().unwrap().to_string_lossy().to_string())
         } else {
             None
         };
-        build_ui(app, file_path);
+        build_ui(app, file_path, marco_paths_for_open.clone());
     });
 
     // Handle normal activation (no files)
-    app.connect_activate(|app| {
-        build_ui(app, None);
+    app.connect_activate(move |app| {
+        build_ui(app, None, marco_paths_for_activate.clone());
     });
 
     trace!("audit: app starting");
@@ -113,9 +124,9 @@ fn main() -> glib::ExitCode {
     exit_code
 }
 
-fn build_ui(app: &Application, initial_file: Option<String>) {
-    // Import path functions
-    use marco_core::logic::paths::{get_asset_dir_checked, get_settings_path};
+fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<MarcoPaths>) {
+    // Import path functions and settings manager
+    use marco_core::components::paths::PathProvider;
     use marco_core::logic::swanson::SettingsManager;
     
     // Load CSS using the new modular system
@@ -134,41 +145,10 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     window.add_css_class("main-window");
 
     // --- ThemeManager and settings.ron path ---
-    let settings_path = get_settings_path().unwrap_or_else(|_| {
-        // Fallback to development path if asset detection fails
-        let config_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        config_dir.join("src/assets/settings.ron")
-    });
-    let asset_dir = get_asset_dir_checked().unwrap_or_else(|_| {
-        // Fallback to development paths if asset detection fails
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-    });
-    
-    let dev_ui_theme_dir = asset_dir.join("themes/gtk4");
-    let prod_ui_theme_dir = asset_dir.join("themes/ui");
-    let ui_theme_dir = if dev_ui_theme_dir.exists() {
-        dev_ui_theme_dir
-    } else {
-        prod_ui_theme_dir
-    };
-
-    // Use src/assets/themes/html_viever for preview themes in dev, /themes/ in prod
-    let dev_preview_theme_dir = asset_dir.join("themes/html_viever");
-    let prod_preview_theme_dir = asset_dir.join("themes");
-    let preview_theme_dir = if dev_preview_theme_dir.exists() {
-        dev_preview_theme_dir
-    } else {
-        prod_preview_theme_dir
-    };
-
-    // Use src/assets/themes/editor for editor style schemes in dev, /themes/editor in prod
-    let dev_editor_theme_dir = asset_dir.join("themes/editor");
-    let prod_editor_theme_dir = asset_dir.join("themes/editor");
-    let editor_theme_dir = if dev_editor_theme_dir.exists() {
-        dev_editor_theme_dir
-    } else {
-        prod_editor_theme_dir
-    };
+    let asset_root = marco_paths.asset_root().clone();
+    let settings_path = marco_paths.settings_file();
+    let editor_theme_dir = marco_paths.editor_themes_dir();
+    let preview_theme_dir = marco_paths.shared().preview_themes_dir();
 
     // Initialize centralized settings manager - single source of truth for all settings
     let settings_manager = match SettingsManager::initialize(settings_path.clone()) {
@@ -224,9 +204,10 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     }
 
     // Initialize theme manager with settings manager
+    // Note: ui_theme_dir is deprecated and unused in ThemeManager
     let theme_manager = Rc::new(RefCell::new(ThemeManager::new(
         settings_manager.clone(),
-        ui_theme_dir,
+        asset_root.clone(), // Placeholder - ui_theme_dir is unused
         preview_theme_dir.clone(),
         editor_theme_dir,
     )));
@@ -286,7 +267,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     let document_buffer_ref = Rc::clone(&file_operations_rc.borrow().buffer);
 
     // Active markdown schema support removed; footer uses AST parser directly.
-    let _schema_root = asset_dir.join("markdown_schema");
+    let _schema_root = asset_root.join("markdown_schema");
     let active_schema_map: Rc<RefCell<Option<()>>> = Rc::new(RefCell::new(None));
 
     let (
@@ -336,15 +317,16 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
     log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode");
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
-    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(
-        &window,
-        Some(editor_webview.clone()),
-        Some(split.clone()),
-        Some(preview_window_opt.clone()),
-        Some(webview_location_tracker.clone()),
-        Some(reparent_guard.clone()),
-        Some(split_controller.clone()),
-    );
+    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(menu::TitlebarConfig {
+        window: &window,
+        webview_rc: Some(editor_webview.clone()),
+        split: Some(split.clone()),
+        preview_window_opt: Some(preview_window_opt.clone()),
+        webview_location_tracker: Some(webview_location_tracker.clone()),
+        reparent_guard: Some(reparent_guard.clone()),
+        split_controller: Some(split_controller.clone()),
+        asset_root: &asset_root,
+    });
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- Settings Thread Pool for Proper Resource Management ---
@@ -755,7 +737,7 @@ fn build_ui(app: &Application, initial_file: Option<String>) {
                 window.upcast_ref(),
                 theme_manager.clone(),
                 settings_path.clone(),
-                &asset_dir,
+                &asset_root,
                 callbacks,
             );
         }

@@ -41,14 +41,13 @@
 //! - **`create_theme_dropdown`**: Builds and wires theme selector dropdown
 
 use crate::components::dialog::{show_open_file_dialog, show_open_in_editor_dialog};
-use crate::components::utils::{apply_gtk_theme_preference, list_available_themes};
+use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{
     prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar,
     Image, Label, PropertyExpression, StringList, StringObject, WindowHandle,
 };
 use marco_core::logic::swanson::SettingsManager;
-use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
 
@@ -63,13 +62,8 @@ pub fn create_custom_titlebar(
     settings_manager: Arc<SettingsManager>,
     webview: WebView,
     current_file_path: Arc<RwLock<Option<String>>>,
+    asset_root: &std::path::Path,
 ) -> (WindowHandle, Button) {
-    use marco_core::logic::paths::get_asset_dir_checked;
-    
-    // Get asset directory for icons
-    let asset_dir =
-        get_asset_dir_checked().unwrap_or_else(|_| PathBuf::from("assets"));
-    
     // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
     
@@ -80,7 +74,7 @@ pub fn create_custom_titlebar(
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
     
     // LEFT SIDE: App icon + filename
-    let icon_path = asset_dir.join("icons/favicon.png");
+    let icon_path = asset_root.join("icons/favicon.png");
     let icon = Image::from_file(&icon_path);
     icon.set_pixel_size(16);
     icon.set_halign(Align::Start);
@@ -134,6 +128,7 @@ pub fn create_custom_titlebar(
     let settings_manager_clone = settings_manager.clone();
     let current_file_path_clone = current_file_path.clone();
     let open_editor_btn_clone = open_editor_btn.clone();
+    let asset_root_for_dialog = asset_root.to_path_buf();
     open_file_btn.connect_clicked(move |_| {
         if let Some(window) = window_weak.upgrade() {
             show_open_file_dialog(
@@ -142,6 +137,7 @@ pub fn create_custom_titlebar(
                 settings_manager_clone.clone(),
                 current_file_path_clone.clone(),
                 &open_editor_btn_clone,
+                &asset_root_for_dialog,
             );
         }
     });
@@ -169,6 +165,7 @@ pub fn create_custom_titlebar(
         settings_manager.clone(),
         webview.clone(),
         current_file_path.clone(),
+        asset_root,
     );
     theme_dropdown.set_valign(Align::Center);
     theme_dropdown.set_margin_end(6);
@@ -215,6 +212,7 @@ pub fn create_custom_titlebar(
     let mode_label_clone = mode_label.clone();
     let dark_mode_btn_clone = dark_mode_btn.clone();
     let window_for_theme = window.clone();
+    let asset_root_for_mode = asset_root.to_path_buf();
     dark_mode_btn.connect_clicked(move |_| {
         // Toggle mode
         let new_mode = {
@@ -285,6 +283,7 @@ pub fn create_custom_titlebar(
                     path,
                     &theme,
                     &settings_manager_for_mode,
+                    &asset_root_for_mode,
                 );
             } else {
                 // No file loaded - reload empty state with new theme
@@ -435,9 +434,10 @@ fn create_theme_dropdown(
     settings_manager: Arc<SettingsManager>,
     webview: WebView,
     current_file_path: Arc<RwLock<Option<String>>>,
+    asset_root: &std::path::Path,
 ) -> DropDown {
     // List available themes from assets/themes/html_viever/ (without .css extension)
-    let theme_list = list_available_themes();
+    let theme_list = list_available_themes_from_path(asset_root);
     
     // Create StringList from theme names
     let string_list = StringList::new(
@@ -471,6 +471,7 @@ fn create_theme_dropdown(
     // Save theme changes to COMMON appearance settings (shared with Marco)
     let theme_list_clone = theme_list.clone();
     let webview_clone = webview.clone();
+    let asset_root_for_theme = asset_root.to_path_buf();
     dropdown.connect_selected_notify(move |dd| {
         let selected = dd.selected() as usize;
         if let Some(theme_name) = theme_list_clone.get(selected) {
@@ -501,6 +502,7 @@ fn create_theme_dropdown(
                         path,
                         &theme_name_with_ext,
                         &settings_manager,
+                        &asset_root_for_theme,
                     );
                     log::debug!("Reloaded WebView with theme: {}", theme_name_with_ext);
                 } else {

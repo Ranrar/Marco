@@ -59,6 +59,7 @@ pub fn show_open_file_dialog(
     settings_manager: Arc<SettingsManager>,
     current_file_path: Arc<RwLock<Option<String>>>,
     open_editor_btn: &Button,
+    asset_root: &std::path::Path,
 ) {
     use gtk4::gio;
     
@@ -99,6 +100,7 @@ pub fn show_open_file_dialog(
     // Handle response
     let window_weak = window.downgrade();
     let open_editor_btn = open_editor_btn.clone();
+    let asset_root_owned = asset_root.to_path_buf();
     dialog.connect_response(move |dialog, response| {
         if response == ResponseType::Accept {
             if let Some(file) = dialog.file() {
@@ -114,7 +116,7 @@ pub fn show_open_file_dialog(
                         .unwrap_or_else(|| "github.css".to_string());
                     
                     // Load and render the file
-                    load_and_render_markdown(&webview, &path_str, &theme, &settings_manager);
+                    load_and_render_markdown(&webview, &path_str, &theme, &settings_manager, &asset_root_owned);
                     
                     // Update current file path
                     // RwLock poisoning is not expected in single-threaded GTK event loop.

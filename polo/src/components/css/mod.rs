@@ -54,8 +54,6 @@ pub mod titlebar;
 pub mod tooltips;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
-use marco_core::logic::paths::get_asset_dir_checked;
-use std::path::PathBuf;
 
 /// Minimal fallback CSS if menu.css cannot be loaded
 /// Note: This should rarely be used - menu.css is the canonical source
@@ -99,14 +97,16 @@ pub fn generate_polo_css() -> String {
     css
 }
 
-/// Load CSS for Polo styling
+/// Load CSS for Polo styling with asset root
 /// This loads Marco's menu.css for consistent UI styling and adds Polo-specific styles
-pub fn load_css() {
+///
+/// # Arguments
+/// * `asset_root` - The asset root directory path
+pub fn load_css_from_path(asset_root: &std::path::Path) {
     let css_provider = CssProvider::new();
     
     // Load Marco's menu.css for consistent UI styling
-    let asset_dir = get_asset_dir_checked().unwrap_or_else(|_| PathBuf::from("assets"));
-    let menu_css_path = asset_dir.join("themes/ui_elements/menu.css");
+    let menu_css_path = asset_root.join("themes/ui_elements/menu.css");
     
     let menu_css = if let Ok(css) = std::fs::read_to_string(&menu_css_path) {
         log::debug!("Loaded menu.css from: {}", menu_css_path.display());
@@ -131,6 +131,8 @@ pub fn load_css() {
         );
     }
 }
+
+
 
 #[cfg(test)]
 mod tests {

@@ -44,13 +44,14 @@
 //! 2. Syntax highlighting CSS (code block styling)
 //! 3. Generated HTML content
 
-use marco_core::logic::paths::get_asset_dir_checked;
-use std::path::PathBuf;
 
-/// Load CSS content for a theme
-pub fn load_theme_css(theme: &str) -> String {
-    let asset_dir = get_asset_dir_checked().unwrap_or_else(|_| PathBuf::from("assets"));
-    let theme_path = asset_dir.join(format!("themes/html_viever/{}", theme));
+/// Load CSS content for a theme from the given asset root
+///
+/// # Arguments
+/// * `theme` - Theme filename (e.g., "marco.css", "github.css")
+/// * `asset_root` - The asset root directory path
+pub fn load_theme_css_from_path(theme: &str, asset_root: &std::path::Path) -> String {
+    let theme_path = asset_root.join(format!("themes/html_viever/{}", theme));
     
     match std::fs::read_to_string(&theme_path) {
         Ok(css) => css,
@@ -87,6 +88,8 @@ pub fn load_theme_css(theme: &str) -> String {
     }
 }
 
+
+
 /// Generate CSS for syntax highlighting based on current theme mode
 pub fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
     use marco_core::components::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
@@ -116,7 +119,19 @@ mod tests {
 
     #[test]
     fn smoke_test_load_theme_css_marco() {
-        let css = load_theme_css("marco.css");
+        use marco_core::components::paths::{PoloPaths, PathProvider, workspace_root};
+        use std::path::PathBuf;
+        
+        // Try to get PoloPaths, fall back to development workspace root for tests
+        let asset_root = if let Ok(polo_paths) = PoloPaths::new() {
+            polo_paths.asset_root().clone()
+        } else if let Some(root) = workspace_root() {
+            root.join("assets")
+        } else {
+            PathBuf::from("assets") // Fallback for test environment
+        };
+        
+        let css = load_theme_css_from_path("marco.css", &asset_root);
         assert!(!css.is_empty(), "Marco theme CSS should not be empty");
         // Should contain basic CSS rules
         assert!(
@@ -127,8 +142,20 @@ mod tests {
 
     #[test]
     fn smoke_test_load_theme_css_fallback() {
+        use marco_core::components::paths::{PoloPaths, PathProvider, workspace_root};
+        use std::path::PathBuf;
+        
+        // Try to get PoloPaths, fall back to development workspace root for tests
+        let asset_root = if let Ok(polo_paths) = PoloPaths::new() {
+            polo_paths.asset_root().clone()
+        } else if let Some(root) = workspace_root() {
+            root.join("assets")
+        } else {
+            PathBuf::from("assets") // Fallback for test environment
+        };
+        
         // Test fallback when theme doesn't exist
-        let css = load_theme_css("nonexistent_theme_12345.css");
+        let css = load_theme_css_from_path("nonexistent_theme_12345.css", &asset_root);
         assert!(!css.is_empty(), "Should return fallback CSS");
         assert!(css.contains("body"), "Fallback CSS should contain body rules");
         assert!(css.contains("font-family"), "Fallback CSS should contain font-family");

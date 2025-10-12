@@ -37,11 +37,12 @@
 
 mod components;
 
-use components::css::load_css;
+use components::css::load_css_from_path;
 use components::menu::create_custom_titlebar;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
+use marco_core::components::paths::PoloPaths;
 use webkit6::prelude::WebViewExt;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -73,32 +74,29 @@ fn main() -> glib::ExitCode {
     }
 
     // Setup font directory for IcoMoon icon font (MUST be done before GTK init)
-    use marco_core::logic::paths::{get_asset_dir_checked, get_font_path};
-    let asset_dir = match get_asset_dir_checked() {
-        Ok(asset_dir) => asset_dir,
+    use marco_core::components::paths::{PoloPaths, PathProvider};
+    let polo_paths = match PoloPaths::new() {
+        Ok(paths) => paths,
         Err(e) => {
-            fatal_error(&format!("Cannot locate asset directory: {}", e));
+            fatal_error(&format!("Cannot initialize Polo paths: {:?}", e));
         }
     };
     
-    // Set local font dir for Fontconfig/Pango to find ui_menu.ttf
-    // Use to_string_lossy() to handle potential non-UTF-8 paths gracefully.
-    // On Linux, paths can contain arbitrary bytes, but Fontconfig needs a string.
-    // The lossy conversion will replace invalid UTF-8 sequences with � (U+FFFD),
-    // which is acceptable since such paths are extremely rare and the font system
-    // will simply fail to find the font (non-fatal) rather than crashing.
-    let asset_dir_str = asset_dir.to_string_lossy();
-    marco_core::logic::loaders::icon_loader::set_local_font_dir(&asset_dir_str);
+    // Set local font dir for Fontconfig/Pango
+    // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
+    // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
+    let asset_root_for_fonts = polo_paths.asset_root();
+    marco_core::logic::loaders::icon_loader::set_local_font_dir(
+        asset_root_for_fonts.to_str().expect("Invalid asset root path")
+    );
     
     // Verify font is accessible
-    match get_font_path("ui_menu.ttf") {
-        Ok(font_path) => {
-            log::debug!("Icon font loaded: {}", font_path.display());
-        }
-        Err(e) => {
-            log::warn!("Font loading warning: {}", e);
-            log::warn!("Icon font may not display correctly");
-        }
+    let ui_menu_font = polo_paths.shared().font("ui_menu.ttf");
+    if !ui_menu_font.exists() {
+        log::warn!("UI menu font not found at {:?}", ui_menu_font);
+        log::warn!("Icon font may not display correctly");
+    } else {
+        log::debug!("Icon font loaded: {}", ui_menu_font.display());
     }
 
     let app = Application::builder()
@@ -106,8 +104,13 @@ fn main() -> glib::ExitCode {
         .flags(gio::ApplicationFlags::HANDLES_OPEN | gio::ApplicationFlags::HANDLES_COMMAND_LINE)
         .build();
 
+    // Wrap polo_paths in Rc for sharing across closures
+    let polo_paths = std::rc::Rc::new(polo_paths);
+    let polo_paths_for_cmdline = polo_paths.clone();
+    let polo_paths_for_open = polo_paths.clone();
+
     // Handle command-line arguments
-    app.connect_command_line(|app, cmd_line| {
+    app.connect_command_line(move |app, cmd_line| {
         let args: Vec<String> = cmd_line.arguments().iter().map(|s| s.to_string_lossy().to_string()).collect();
         
         // Parse arguments
@@ -125,26 +128,26 @@ fn main() -> glib::ExitCode {
                     continue;
                 } else if arg.ends_with(".md") || arg.ends_with(".markdown") {
                     // Found markdown file
-                    build_ui(app, Some(arg.clone()));
+                    build_ui(app, Some(arg.clone()), polo_paths_for_cmdline.clone());
                     return 0.into();
                 } else if !arg.starts_with('-') {
                     // Treat as file path
-                    build_ui(app, Some(arg.clone()));
+                    build_ui(app, Some(arg.clone()), polo_paths_for_cmdline.clone());
                     return 0.into();
                 }
             }
         }
         
         // No file specified - open empty Polo
-        build_ui(app, None);
+        build_ui(app, None, polo_paths_for_cmdline.clone());
         0.into()
     });
 
     // Handle file opening via file manager (drag & drop, right-click)
-    app.connect_open(|app, files, _hint| {
+    app.connect_open(move |app, files, _hint| {
         if let Some(file) = files.first() {
             if let Some(path) = file.path() {
-                build_ui(app, Some(path.to_string_lossy().to_string()));
+                build_ui(app, Some(path.to_string_lossy().to_string()), polo_paths_for_open.clone());
             }
         }
     });
@@ -156,14 +159,11 @@ fn main() -> glib::ExitCode {
     exit_code
 }
 
-fn build_ui(app: &Application, file_path: Option<String>) {
+fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::Rc<PoloPaths>) {
+    use marco_core::components::paths::PathProvider;
+    
     // Initialize settings manager early
-    let settings_path = match marco_core::logic::paths::get_settings_path() {
-        Ok(path) => path,
-        Err(e) => {
-            fatal_error(&format!("Cannot determine settings location: {}", e));
-        }
-    };
+    let settings_path = polo_paths.settings_file();
     
     let settings_manager = match marco_core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
         Ok(manager) => {
@@ -207,7 +207,8 @@ fn build_ui(app: &Application, file_path: Option<String>) {
     log::debug!("Using window size: {}x{}", window_width, window_height);
     
     // Load CSS styling
-    load_css();
+    let asset_root = polo_paths.asset_root();
+    load_css_from_path(asset_root);
     
     // Apply GTK dark mode preference based on settings
     apply_gtk_theme_preference(&settings_manager);
@@ -276,21 +277,24 @@ fn build_ui(app: &Application, file_path: Option<String>) {
     
     // Load and render the markdown file
     let file_path_for_render = file_path.clone();
+    let asset_root_for_render = polo_paths.asset_root();
     if let Some(ref path) = file_path_for_render {
-        load_and_render_markdown(&webview, path, &saved_theme, &settings_manager);
+        load_and_render_markdown(&webview, path, &saved_theme, &settings_manager, asset_root_for_render);
     } else {
         // Show empty state with theme awareness
         show_empty_state_with_theme(&webview, &settings_manager);
     }
     
     // Create custom titlebar (needs webview and file_path for theme switching)
+    let asset_root = polo_paths.asset_root();
     let (titlebar_handle, _open_editor_btn) = create_custom_titlebar(
         &window, 
         filename.as_deref().unwrap_or("Untitled"),
         &saved_theme, 
         settings_manager.clone(),
         webview.clone(),
-        current_file_path.clone()
+        current_file_path.clone(),
+        asset_root,
     );
     window.set_titlebar(Some(&titlebar_handle));
     

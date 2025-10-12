@@ -41,6 +41,11 @@ fn main() {
     let fonts_dst = marco_root.join("fonts");
     copy_dir_recursive(&fonts_src, &fonts_dst);
 
+    // Copy icons
+    let icons_src = asset_root.join("icons");
+    let icons_dst = marco_root.join("icons");
+    copy_dir_recursive(&icons_src, &icons_dst);
+
     // Copy documentation
     let doc_src = asset_root.join("documentation");
     let doc_dst = marco_root.join("documentation");

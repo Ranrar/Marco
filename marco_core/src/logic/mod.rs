@@ -4,7 +4,6 @@ pub mod crossplatforms;
 pub mod layoutstate;
 pub mod loaders;
 pub mod logger;
-pub mod paths;
 pub mod swanson;
 
 // Re-export commonly used types

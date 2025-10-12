@@ -45,10 +45,11 @@
 //! - Generated syntax highlighting CSS (theme-aware)
 //! - Theme class on `<html>` element (`.theme-light` or `.theme-dark`)
 
-use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css};
+use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
 use marco_core::components::marco_engine::{global_parser_cache, HtmlOptions};
 use marco_core::logic::swanson::SettingsManager;
+use std::path::Path;
 use std::sync::Arc;
 use webkit6::prelude::WebViewExt;
 
@@ -97,11 +98,12 @@ pub fn load_and_render_markdown(
     file_path: &str,
     theme: &str,
     settings_manager: &Arc<SettingsManager>,
+    asset_root: &Path,
 ) {
     match std::fs::read_to_string(file_path) {
         Ok(content) => {
             // Parse markdown to HTML using marco_core
-            let html = parse_markdown_to_html(&content, theme, settings_manager);
+            let html = parse_markdown_to_html(&content, theme, settings_manager, asset_root);
             
             // Generate base URI for relative resource resolution (images, links, etc.)
             // Format: file:///absolute/path/to/directory/ (with trailing slash)
@@ -190,6 +192,7 @@ pub fn parse_markdown_to_html(
     content: &str,
     theme: &str,
     settings_manager: &Arc<SettingsManager>,
+    asset_root: &Path,
 ) -> String {
     // Determine theme_mode (light/dark) from settings
     let theme_mode = get_theme_mode(settings_manager);
@@ -206,7 +209,7 @@ pub fn parse_markdown_to_html(
     match global_parser_cache().render_with_cache(content, html_options) {
         Ok(html) => {
             // Load theme CSS
-            let theme_css = load_theme_css(theme);
+            let theme_css = load_theme_css_from_path(theme, asset_root);
             
             // Generate syntax highlighting CSS for code blocks
             let syntax_css = generate_syntax_highlighting_css(&theme_mode);
