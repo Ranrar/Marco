@@ -447,7 +447,6 @@ impl HtmlRenderer {
                 content, alignment, ..
             } => {
                 // TableCell content is rendered by the table logic above
-                // TODO: Use alignment for cell styling in future enhancement
                 if let Some(_align) = alignment {
                     // Alignment will be used for CSS class generation
                 }

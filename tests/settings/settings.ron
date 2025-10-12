@@ -18,8 +18,8 @@
     text_direction: Some("ltr"),
   )),
   window: Some((
-    width: Some(1797),
-    height: Some(1153),
+    width: Some(1534),
+    height: Some(1002),
     x: None,
     y: None,
     maximized: Some(false),

@@ -794,7 +794,6 @@ paned > separator {{
                     // For small changes, we can potentially optimize
                     if size_change < 10 && old_len > 1000 {
                         log::debug!("Change delta detected: {} chars changed in {} char document - optimizing", size_change, old_len);
-                        // TODO: Could implement partial processing here in the future
                     } else {
                         log::debug!("Large change or small document: processing all extensions");
                     }
