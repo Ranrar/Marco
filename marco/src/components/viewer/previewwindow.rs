@@ -93,8 +93,11 @@ impl PreviewWindow {
             .default_height(600)
             .build();
 
-        // Set transient-for relationship for proper window management
-        window.set_transient_for(Some(parent_window));
+        // NOTE: Do NOT set transient-for - this prevents minimize/maximize from working
+        // Transient windows are treated as dialogs by window managers and typically can't be minimized
+        // window.set_transient_for(Some(parent_window));  // REMOVED
+        
+        // Still destroy with parent to ensure cleanup
         window.set_destroy_with_parent(true);
         window.set_hide_on_close(true); // Hide instead of destroy
 
@@ -192,11 +195,12 @@ impl PreviewWindow {
             btn.set_valign(Align::Center);
             btn.set_margin_start(1);
             btn.set_margin_end(1);
-            btn.set_focusable(false);
-            btn.set_can_focus(false);
+            btn.set_focusable(true);  // Changed from false to true
+            btn.set_can_focus(true);  // Changed from false to true
             btn.set_has_frame(false);
             btn.add_css_class("topright-btn");
             btn.add_css_class("window-control-btn");
+            log::debug!("Created button with tooltip: {}", tooltip);
             btn
         };
 
@@ -210,6 +214,11 @@ impl PreviewWindow {
 
         let btn_min = icon_button("\u{34}", "Minimize");
         let btn_close = icon_button("\u{39}", "Close");
+
+        log::debug!("Created minimize button, visible: {}, sensitive: {}", 
+            btn_min.is_visible(), btn_min.is_sensitive());
+        log::debug!("Created close button, visible: {}, sensitive: {}", 
+            btn_close.is_visible(), btn_close.is_sensitive());
 
         // Create a single toggle button for maximize/restore
         let max_label = Label::new(None);
@@ -236,6 +245,9 @@ impl PreviewWindow {
         btn_max_toggle.add_css_class("topright-btn");
         btn_max_toggle.add_css_class("window-control-btn");
 
+        log::debug!("Created maximize toggle button, visible: {}, sensitive: {}", 
+            btn_max_toggle.is_visible(), btn_max_toggle.is_sensitive());
+
         // Add controls to headerbar from right to left (pack_end order)
         headerbar.pack_end(&btn_close);        // Rightmost
         headerbar.pack_end(&btn_max_toggle);   // Middle
@@ -244,8 +256,9 @@ impl PreviewWindow {
         // Minimize action
         let win_clone = window.clone();
         btn_min.connect_clicked(move |_| {
+            log::info!("Preview window minimize button clicked - handler called");
             win_clone.minimize();
-            log::debug!("Preview window minimize clicked");
+            log::info!("Preview window minimize() called");
         });
 
         // Close action - just close the window (callback will be triggered via close_request)
@@ -259,23 +272,24 @@ impl PreviewWindow {
         let label_for_toggle = max_label.clone();
         let window_for_toggle = window.clone();
         btn_max_toggle.connect_clicked(move |_| {
+            log::info!("Preview window maximize/restore button clicked - handler called");
             if window_for_toggle.is_maximized() {
                 window_for_toggle.unmaximize();
                 label_for_toggle
                     .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
-                log::debug!("Preview window unmaximized");
+                log::info!("Preview window unmaximized");
             } else {
                 window_for_toggle.maximize();
                 label_for_toggle
                     .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
-                log::debug!("Preview window maximized");
+                log::info!("Preview window maximized");
             }
         });
 
-        // Also listen to notify::is-maximized to catch external maximize events
+        // Keep glyph in sync if window is maximized/unmaximized externally
         let label_for_notify = max_label.clone();
-        window.connect_maximized_notify(move |win| {
-            if win.is_maximized() {
+        window.connect_notify_local(Some("is-maximized"), move |w, _| {
+            if w.is_maximized() {
                 label_for_notify
                     .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
             } else {

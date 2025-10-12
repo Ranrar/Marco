@@ -26,8 +26,7 @@
     split_ratio: Some(50),
   )),
   files: Some((
-    recent_files: Some([
-    ]),
+    recent_files: Some([]),
     max_recent_files: Some(5),
   )),
   active_schema: None,
@@ -51,8 +50,8 @@
     ui_font_size: Some(11),
   )),
   language: None,
-  debug: Some(false),
-  log_to_file: Some(false),
+  debug: Some(true),
+  log_to_file: Some(true),
   engine: Some((
     render: Some((
       html: Some((
