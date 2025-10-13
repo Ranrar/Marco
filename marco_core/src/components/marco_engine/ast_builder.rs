@@ -638,17 +638,6 @@ impl AstBuilder {
                 })
             }
 
-            // Bookmarks: [bookmark:label](path=line)
-            Rule::bookmark => {
-                let (label, path, line) = self.extract_bookmark_parts(pair)?;
-                Ok(Node::Bookmark {
-                    label,
-                    path,
-                    line,
-                    span,
-                })
-            }
-
             // Admonitions: :::note[title], :::warning, etc.
             Rule::admonition_block => {
                 let (kind, _title, content) = self.extract_admonition_parts(pair)?;
@@ -1789,39 +1778,6 @@ impl AstBuilder {
         }
 
         Ok(("user".to_string(), None, None))
-    }
-
-    /// Extract bookmark parts: [bookmark:label](path=line)
-    fn extract_bookmark_parts(
-        &self,
-        pair: Pair<Rule>,
-    ) -> Result<(String, String, Option<u32>), AstError> {
-        let text = pair.as_str();
-
-        // Parse [bookmark:label](path=line) format
-        if text.starts_with("[bookmark:") {
-            if let Some(close_bracket) = text.find("](") {
-                let label = text[10..close_bracket].to_string();
-
-                let remaining = &text[close_bracket + 2..];
-                if let Some(close_paren) = remaining.find(')') {
-                    let path_and_line = &remaining[..close_paren];
-
-                    // Check for line number after =
-                    if let Some(eq_pos) = path_and_line.find('=') {
-                        let path = path_and_line[..eq_pos].to_string();
-                        let line_str = &path_and_line[eq_pos + 1..];
-                        let line = line_str.parse::<u32>().ok();
-                        return Ok((label, path, line));
-                    } else {
-                        let path = path_and_line.to_string();
-                        return Ok((label, path, None));
-                    }
-                }
-            }
-        }
-
-        Ok(("bookmark".to_string(), text.to_string(), None))
     }
 
     /// Extract admonition parts: :::note[title]

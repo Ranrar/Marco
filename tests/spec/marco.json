@@ -73,90 +73,50 @@
   },
   {
     "example": 10,
-    "markdown": "[bookmark:Important Section](./document.md=42)",
-    "html": "<a href=\"./document.md#L42\" class=\"bookmark\" data-line=\"42\">Important Section</a>",
-    "section": "Bookmarks - with line number",
+    "markdown": ":smile: emoji in text :rocket:",
+    "html": "<p><span class=\"emoji\">smile</span> emoji in text <span class=\"emoji\">rocket</span></p>",
+    "section": "Emoji",
     "start_line": 25,
     "end_line": 25
   },
   {
     "example": 11,
-    "markdown": "[bookmark:Config File](./config.toml)",
-    "html": "<a href=\"./config.toml\" class=\"bookmark\">Config File</a>",
-    "section": "Bookmarks - without line number",
-    "start_line": 26,
-    "end_line": 26
-  },
-  {
-    "example": 12,
-    "markdown": ":smile: emoji in text :rocket:",
-    "html": "<p><span class=\"emoji\">smile</span> emoji in text <span class=\"emoji\">rocket</span></p>",
-    "section": "Emoji",
-    "start_line": 27,
-    "end_line": 27
-  },
-  {
-    "example": 13,
     "markdown": ":::\ntabs Example\n@tab First Tab\nFirst tab content\n\n@tab Second Tab\nSecond tab content\n:::",
     "html": "<div class=\"tabs\" data-title=\"Example\"><div class=\"tab-headers\"><button class=\"tab-header active\" data-tab=\"0\">First Tab</button><button class=\"tab-header\" data-tab=\"1\">Second Tab</button></div><div class=\"tab-contents\"><div class=\"tab-content active\" data-tab=\"0\"><p>First tab content</p></div><div class=\"tab-content\" data-tab=\"1\"><p>Second tab content</p></div></div></div>",
     "section": "Tabs",
-    "start_line": 28,
+    "start_line": 26,
+    "end_line": 33
+  },
+  {
+    "example": 12,
+    "markdown": "Text with subscript~content~ alternative.",
+    "html": "<p>Text with <sub>content</sub> alternative.</p>",
+    "section": "Subscript - tilde variant",
+    "start_line": 34,
+    "end_line": 34
+  },
+  {
+    "example": 13,
+    "markdown": "Task with metadata [x] Task done (user: 2024-01-15)",
+    "html": "<p><input type=\"checkbox\" checked disabled data-user=\"user\" data-date=\"2024-01-15\"> Task done</p>",
+    "section": "Task Lists - with metadata",
+    "start_line": 35,
     "end_line": 35
   },
   {
     "example": 14,
-    "markdown": "[page=A4]",
-    "html": "<div class=\"page-break\" data-format=\"A4\"></div>",
-    "section": "Page Tags",
-    "start_line": 36,
-    "end_line": 36
-  },
-  {
-    "example": 15,
-    "markdown": "[toc=3]",
-    "html": "<div class=\"table-of-contents\" data-depth=\"3\"></div>",
-    "section": "Table of Contents",
-    "start_line": 37,
-    "end_line": 37
-  },
-  {
-    "example": 16,
-    "markdown": "[@doc](./other-document.md)",
-    "html": "<a href=\"./other-document.md\" class=\"doc-reference\">./other-document.md</a>",
-    "section": "Document References",
-    "start_line": 38,
-    "end_line": 38
-  },
-  {
-    "example": 17,
-    "markdown": "Text with subscript~content~ alternative.",
-    "html": "<p>Text with <sub>content</sub> alternative.</p>",
-    "section": "Subscript - tilde variant",
-    "start_line": 39,
-    "end_line": 39
-  },
-  {
-    "example": 18,
-    "markdown": "Task with metadata [x] Task done (user: 2024-01-15)",
-    "html": "<p><input type=\"checkbox\" checked disabled data-user=\"user\" data-date=\"2024-01-15\"> Task done</p>",
-    "section": "Task Lists - with metadata",
-    "start_line": 40,
-    "end_line": 40
-  },
-  {
-    "example": 19,
     "markdown": ":::\n[🔥] Custom Emoji Title\nCustom admonition with emoji.\n:::",
     "html": "<div class=\"admonition custom\" data-icon=\"🔥\"><div class=\"admonition-title\">Custom Emoji Title</div><div class=\"admonition-content\"><p>Custom admonition with emoji.</p></div></div>",
     "section": "Admonitions - emoji style",
-    "start_line": 41,
-    "end_line": 44
+    "start_line": 36,
+    "end_line": 39
   },
   {
-    "example": 20,
+    "example": 15,
     "markdown": "```\n@run bash\necho \"Hello World\"\n```",
     "html": "<div class=\"run-block\" data-lang=\"bash\"><pre><code>echo \"Hello World\"</code></pre><button class=\"run-button\" data-lang=\"bash\">Run</button></div>",
     "section": "Run Blocks",
-    "start_line": 45,
-    "end_line": 48
+    "start_line": 40,
+    "end_line": 43
   }
 ]

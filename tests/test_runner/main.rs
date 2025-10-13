@@ -15,6 +15,7 @@ mod runner;
 mod spec;
 
 use anyhow::Result;
+use marco_core::components::paths::PathProvider;
 
 #[cfg(feature = "integration-tests")]
 fn main() -> Result<()> {
@@ -26,8 +27,9 @@ fn main() -> Result<()> {
     }
 
     // Initialize settings manager for shared settings
-    let _settings_manager = match marco_core::logic::paths::get_settings_path() {
-        Ok(settings_path) => {
+    let _settings_manager = match marco_core::components::paths::MarcoPaths::new() {
+        Ok(paths) => {
+            let settings_path = paths.shared().settings_file();
             match marco_core::logic::swanson::SettingsManager::initialize(settings_path) {
                 Ok(manager) => {
                     eprintln!("Settings initialized for test runner");

@@ -49,9 +49,6 @@ KW_INFO    = @{ ^"info" }
 
 // Marco extension keywords
 // Examples: "bookmark", "BOOKMARK"
-KW_BOOKMARK = @{ ^"bookmark" }
-KW_PAGE     = @{ ^"page" }
-KW_DOC      = @{ ^"doc" }
 KW_TOC      = @{ ^"toc" }
 KW_TAB      = @{ ^"tab" }
 
@@ -86,7 +83,7 @@ unknown_block = { (!NEWLINE ~ ANY)+ }
 
 // Marco-specific block extensions
 // Examples: admonitions, executable code, diagrams, bookmarks
-macro_block = { admonition_block | run_block_fenced | diagram_fenced | bookmark | block_youtube | block_image | tab_block }
+macro_block = { admonition_block | run_block_fenced | diagram_fenced | block_youtube | block_image | tab_block }
 
 // Core inline elements ordered by parsing priority (HTML removed - all HTML is block-level)
 // Examples: `code`, **bold**, [links](url), $math$, escaped chars
@@ -110,7 +107,7 @@ inline = { inline_core | inline_task_item }
 
 // Marco-specific inline extensions
 // Examples: @user[platform], [page=A4], [toc], [@doc](file)
-macro_inline = { user_mention | run_inline | page_tag | toc | doc_ref }
+macro_inline = { user_mention | run_inline | toc }
 
 // Combined emphasis rules for proper precedence
 // Examples: ***bold italic***, **bold**, *italic*
@@ -231,7 +228,7 @@ code_start = _{ "```" | INDENT_UNIT }
 // HTML block start - opening tag
 // Examples: "<div", "<p", "<h1"
 // Note: Excludes autolinks (URLs and emails in angle brackets)
-html_start = _{ "<" ~ !(http_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN) ~ ASCII_ALPHA }
+html_start = _{ "<" ~ !(https_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN) ~ ASCII_ALPHA }
 
 // Table marker - pipe character
 // Examples: "|"
@@ -378,7 +375,7 @@ subscript       =  { subscript_arrow | subscript_tilde }
 
 // HTTP/HTTPS URLs and www domains
 // Examples: "https://example.com", "http://site.org", "www.example.com"
-http_url = @{ (("https://" | "http://") ~ URL_SAFE+) | ("www." ~ URL_SAFE+) }
+https_url = @{ (("https://" | "http://") ~ URL_SAFE+) | ("www." ~ URL_SAFE+) }
 www_url  = @{ "www." ~ URL_SAFE+ }
 
 // Email address components for mailto links
@@ -411,12 +408,12 @@ image_ext = @{ "." ~ (^"jpg" | ^"jpeg" | ^"png" | ^"gif" | ^"webp" | ^"svg") }
 
 // Image URLs combining URL patterns with image extensions
 // Examples: "https://example.com/image.png", "./local/image.jpg"
-image_url = @{ (http_url | www_url | local_path) ~ image_ext }
+image_url = @{ (https_url | www_url | local_path) ~ image_ext }
 
 // General link URL matcher for all link types
 // Examples: "https://site.com", "mailto:user@domain.com", "./file.txt"
 link_url = @{
-    http_url
+    https_url
   | www_url
   | mailto
   | local_path
@@ -574,7 +571,7 @@ block_comment  = _{ "<!--" ~ (!"-->" ~ ANY)* ~ "-->" }
 // Simple greedy approach: match everything from < until we find a paragraph break or EOF
 // Examples: "<em>emphasis</em>", "<a href='...'><p>nested content</p></a>", "<img src='...' />"
 // Note: Excludes autolinks (URLs and emails in angle brackets)
-block_html = { "<" ~ !(http_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN) ~ (!(NEWLINE ~ NEWLINE | EOI) ~ ANY)* }
+block_html = { "<" ~ !(https_url | www_url | mailto | EMAIL_LOCAL ~ "@" ~ EMAIL_FULL_DOMAIN) ~ (!(NEWLINE ~ NEWLINE | EOI) ~ ANY)* }
 
 // Main list types - unordered or ordered
 // Examples: "- item 1", "1. first item", "* bullet", "+ another bullet"
@@ -757,33 +754,13 @@ admo_nest = { admonition_block | (!admonition_close ~ ANY)+ }
 // Examples: ":::note\nContent\n:::", ":::tip\nUnclosed content"
 admonition_block = { (admonition_open | admonition_emoji) ~ ((!admonition_close ~ ANY) | admo_nest)* ~ (admonition_close | &EOI) }
 
-// Bookmark reference with optional line number
-// Examples: "[bookmark: Section 1](./doc.md)", "[bookmark: Code](file.rs=42)"
-bookmark = { "[" ~ KW_BOOKMARK ~ ":" ~ (!"]" ~ ANY)+ ~ "](" ~ local_path ~ ("=" ~ ASCII_DIGIT+)? ~ ")" }
-
-// Page format specifications = A4 or US Coustum page size split = ASCII_DIGIT
-// Examples: "A4", "US", "210", "11"
-page_format = { ^"A4" | ^"US" | ASCII_DIGIT+ }
-
-// Page tag for document formatting
-// Examples: "[page=A4]", "[page=US]", "[page=210]"
-page_tag = { "[" ~ KW_PAGE ~ "=" ~ page_format? ~ "]" }
-
-// Document reference link
-// Examples: "[@doc](./other.md)", "[@doc](../docs/api.md)"
-doc_ref = { "[" ~ "@" ~ KW_DOC ~ "]" ~ "(" ~ local_path ~ ")" }
-
 // Table of contents with optional depth and document reference
 // Examples: "[toc]", "[toc=3]", "[toc=2](@doc)"
-toc = { "[" ~ KW_TOC ~ toc_depth? ~ "]" ~ toc_doc? }
+toc = { "[" ~ KW_TOC ~ toc_depth? ~ "]"}
 
 // TOC depth limit (1-4 heading levels)
 // Examples: "=1", "=2", "=3", "=4"
 toc_depth = { "=" ~ ("1" | "2" | "3" | "4") }
-
-// TOC for external document
-// Examples: "(@doc)"
-toc_doc = { "(" ~ "@" ~ KW_DOC ~ ")" }
 
 // Supported script types for executable code
 // Examples: "bash", "python", "powershell", "zsh"

@@ -57,7 +57,19 @@ impl TestSpec {
             });
         }
 
-        let tests: Vec<TestCase> = serde_json::from_str(&content)?;
+        // Load raw JSON values and filter out comment objects
+        let raw_values: Vec<serde_json::Value> = serde_json::from_str(&content)?;
+        let tests: Vec<TestCase> = raw_values
+            .into_iter()
+            .filter_map(|value| {
+                // Skip objects that don't have the required 'markdown' field (comment objects)
+                if value.get("markdown").is_none() {
+                    return None;
+                }
+                // Try to deserialize to TestCase
+                serde_json::from_value(value).ok()
+            })
+            .collect();
 
         Ok(TestSpec {
             tests,
