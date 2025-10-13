@@ -11,8 +11,12 @@
 ## Quick Commands
 
 ```bash
-# Install
+# Install (builds automatically if needed)
 bash tests/install/install.sh
+
+# Install without rebuilding (if binaries exist)
+bash tests/install/install.sh
+# → Answer 'N' when asked to rebuild
 
 # Uninstall (interactive)
 bash tests/install/uninstall.sh

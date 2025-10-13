@@ -75,11 +75,30 @@ else
     CONVERT_AVAILABLE=true
 fi
 
-echo "Building Marco and Polo..."
+# Check if cargo is available
+if ! command -v cargo &> /dev/null; then
+    echo "Error: cargo (Rust toolchain) not found."
+    echo "Install Rust from: https://rustup.rs/"
+    exit 1
+fi
 
-# 1. Build the release binaries (marco and polo)
-cargo build --release -p marco
-cargo build --release -p polo
+# Check if binaries already exist
+if [ -f "target/release/marco" ] && [ -f "target/release/polo" ]; then
+    echo "Found existing release binaries."
+    read -p "Rebuild binaries? (y/N): " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        echo "Building Marco and Polo..."
+        cargo build --release -p marco
+        cargo build --release -p polo
+    else
+        echo "Using existing binaries."
+    fi
+else
+    echo "Building Marco and Polo (this may take a few minutes)..."
+    cargo build --release -p marco
+    cargo build --release -p polo
+fi
 
 # 2. Create user bin directory if needed
 mkdir -p "$HOME/.local/bin"

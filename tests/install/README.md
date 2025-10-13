@@ -10,12 +10,15 @@ bash tests/install/install.sh
 ```
 
 This automated script will:
-1. Build both binaries in release mode
-2. Install executables to `~/.local/bin/`
-3. Install desktop entries for application menu integration
-4. Install system icons at multiple resolutions
-5. Install shared assets to `~/.local/share/marco/`
-6. Update desktop database and icon cache
+1. Check for existing binaries (and ask if you want to rebuild)
+2. Build both binaries in release mode if needed
+3. Install executables to `~/.local/bin/`
+4. Install desktop entries for application menu integration
+5. Install system icons at multiple resolutions
+6. Install shared assets to `~/.local/share/marco/`
+7. Update desktop database and icon cache
+
+**Note:** The script automatically detects if binaries already exist and asks if you want to rebuild them. This means you can simply run the install script without manually building first!
 
 ## Installation Locations
 

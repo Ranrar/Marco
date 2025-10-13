@@ -2,307 +2,64 @@
   <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/user%20guide/logo.png" />
 </p>
 
-Marco — a lightweight Rust Markdown Composer, it is a GTK-based editor written in Rust. It's an experimental, extensible editor focused on structured editing, syntax-aware features, and custom markdown features.
-
-## Project Structure
-
-Marco is organized as a Cargo workspace with three crates:
-
-- **`marco_core`** - Core markdown parsing library (no UI dependencies)
-  - Custom pest-based grammar and parser
-  - AST builder and HTML renderer
-  - Business logic and settings management
-  - Can be used as a standalone library
-
-- **`marco`** - Full-featured markdown editor (main application)
-  - GTK4-based UI with SourceView5 editor
-  - WebKit6 preview rendering
-  - Complete editing and preview experience
-
-- **`polo`** - Viewer-only mode (coming soon)
-  - Lightweight markdown viewer
-  - Simplified UI for reading rendered markdown
-  - No editor dependencies
-
-### Building
-
-```bash
-# Build everything
-cargo build --workspace
-
-# Build specific crates
-cargo build -p marco_core   # Core library only
-cargo build -p marco        # Full editor
-cargo build -p polo         # Viewer only
-
-# Run Marco
-cargo run -p marco
-```
-
-## Features in Progress
-
-Marco is currently in active development with a focus on perfecting our custom markdown grammar and parser. We're approximately **90% complete** with the core implementation, working on polishing the codebase and ensuring robust parsing of all markdown constructs.
-
-**Current development focus:**
-- Fine-tuning the **pest-based grammar** for comprehensive markdown support
-- Polishing the **AST builder** and **HTML renderer** components
-- Implementing robust **error handling** and **edge case coverage**
-- Optimizing **parser performance** and **memory usage**
-
-Below is a **preview of whats coming**:
-
-- Structured **grammar and AST** for Markdown parsing
-- Fully-featured **renderer** for inline and block elements
-- Interactive **TOC, bookmarks, and page navigation**
-- **Run code snippets** safely from the preview
-- Enhanced **admonition blocks** and **mentions**
-- Smooth **cross-document navigation** and page splitting
-
-You can see a **live snippet** of the Markdown features were working on in the roadmap below. This is just the beginning — soon, Marco will let you edit, preview, and navigate Markdown like never before.
+**Marco** is a fast, native Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.  
+**Polo**, its companion viewer, lets you open and read Markdown documents with identical rendering and minimal resource use.  
+Both are built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
 
 <p align="center">
   <img src="documentation/Screenshot/Screenshot from 2025-09-17 22-21-06.png" />
 </p>
 <a href="documentation/Screenshot">View more screenshots</a>
 
-## Text Formatting
+## Quickstart
 
-* **Headings**: Use `#` at the start of a line to create titles and subtitles. These show up in the Table of Contents and help structure your document.
-* **Bold**: Surround text with `**` to make it stand out.
-* **Italic**: Surround text with `__` to add gentle emphasis.
-* **Strikethrough**: Surround text with `--` to mark something as removed or outdated.
-* **Highlight**: Surround text with `==` to draw attention without bolding.
-* **Emoji**: Write `:smile:` and it will show 😊.
+Ready to try Marco? Installation is simple and takes less than a minute:
 
-## Code, Math and Diagrams
+```bash
+# Clone and install
+git clone https://github.com/Ranrar/marco.git
+cd marco
+bash tests/install/install.sh
 
-* **Inline code**: use text between backticks `` ` `` to show short code snippets.
-* **Code blocks**: Use triple backticks to create larger blocks of code. You can even add a language for syntax highlighting.
-* **inline Math**: Put formulas between `$...$` for inline math.
-* **Math block**: Use `$$...$$` for larger math expressions that display on their own line.
-* **Diagrams**: Use special fenced blocks (like Mermaid or Graphviz) to render flowcharts, graphs, or diagrams directly in your document.
+# Launch and start writing!
+marco    # Full editor with live preview
+polo     # Lightweight viewer
+```
+
+The install script automatically builds everything and sets up desktop integration. No manual configuration needed—just run and write!
+
+For detailed installation options, see [tests/install/README.md](tests/install/README.md).
+
+## Why Marco?
+
+I started building Marco because I couldn't find a simple, reliable Markdown editor for Linux.  
+As an IT systems manager, I've always preferred **local software** — fast, safe, and running entirely on my own machine, not in the cloud.  
+In my daily work, I write a lot of **technical documentation and manuals**, so I needed a tool that could handle complex documents efficiently and reliably.
+
+That idea became a personal challenge: to create a complete Markdown editor from the ground up — with a **custom-built parser** and a design focused on performance, clarity, and long-term potential.
 
 ---
 
-## Run code directly from Marco Preview
+Most Markdown editors focus on simplicity. Marco focuses on **precision**.
 
-Marco lets you run code snippets **directly from your Markdown preview**, making your documentation interactive and hands-on.
+It's built for developers, engineers, and writers who need:
+- **Native performance** — no Electron, no lag, built in Rust + GTK4  
+- **Structured documents** — full control over headings, blocks, and formatting  
+- **Custom Markdown grammar** — powered by Pest for extensibility and AST-level parsing  
+- **Seamless preview** — rendered with WebKit and perfectly synced with the editor  
 
-* **Supported languages**: Bash, Zsh, Sh, Bat, PowerShell, and Python.
+Whether you're writing technical docs, tutorials, or long-form text, Marco turns Markdown into a professional writing tool — fast, clear, and extensible.
 
-* **Safety first**: Marco always asks before running code. You can choose to run it in a **sandbox** (safe, isolated) or at the **system level**. Nothing runs automatically.
+## Marco Markdown Flavor
 
-* **How it works**:
+Marco extends **CommonMark** with features designed for technical and long-form writing:
 
-  * Use an **inline command** like:
+- **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
+- **Document navigation** — automatic TOC, bookmarks, and cross-file links  
+- **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons  
+- **Structured formatting** — semantic elements for headings, notes, and exports  
 
-    ```markdown
-    @run(bash: echo "Hello World")
-    ```
-  * Or use a **fenced run block**:
-
-    ````markdown
-    ```run@python
-    print("Hello from Python")
-    ```
-    ````
-
-* **Immediate feedback**: The results are shown **right inside the preview**, so you see the output without leaving your document.
-Perfect for **tutorials, documentation, and examples** where readers can try things out directly.
-
----
-
-## Structure & Layout
-
-* **Blockquotes**: Start a line with `>` to create a quote block.
-* **Horizontal rule**: Use `---` for a visual divider.
-* **Tables**: Create tables with headers, rows, and alignment. Great for structured data.
-* **Task lists**: Write checkboxes with `- [ ]` or `- [x]` to track tasks.
-* **Ordered lists**: Use `1.` `2.` `3.` for numbered steps.
-* **Definition lists**: Use `term : explanation` for dictionary-style lists.
-
----
-
-## Links, Media & Embeds
-
-* **URLs**: Just paste a web link (http/https/www).
-* **Email links**: Use `mailto:` to link to an email address.
-* **Local files**: Link to files inside your project.
-* **Images**: Insert images with a link to their file.
-* **YouTube**: Paste a YouTube URL for an embedded video.
-* **Inline links**: `[Text](url)` for a standard link.
-* **Block images / YouTube**: Show media as its own block, with captions if needed.
-
----
-
-## Table of Contents, Bookmarks & Page Navigation
-
-Marco Markdown adds **powerful navigation features** to your Markdown documents, making them feel like interactive books or manuals.
-
-
-### Table of Contents (TOC)
-
-Automatically generate a **Table of Contents** from your headings.
-
-* Shows headings in a hierarchy (H1-H6)
-* Can only be **local** (current page) and can span multiple linked pages
-* Optional depth: limit how many heading levels appear
-* Collapsible sections supported
-
-**Example usage:**
-
-```markdown
-[toc]          # Local TOC
-[toc=2]        # Limit depth to H1-H2
-[toc=2](@Page) # Include linked pages in the TOC
-```
-
-TOC entries are linked to headings in your document, providing **clickable navigation** in previews or exports.
-
-### Bookmarks
-
-Bookmarks link to a **specific file and line number**, making it easy to jump between sections or highlight important points.
-
-```markdown
-[Bookmark: Project Overview](./project_overview.md=254)
-```
-
-* Links are **local to your project**
-* Line numbers are optional; Marco fills them automatically if missing
-* Preview shows a **colored snippet or icon**, like a real bookmark
-
-Use bookmarks for **quick navigation or highlighting sections** across files.
-
-### Page Tags & References
-
-#### In-Document Page Splits
-
-Page tags control **page layout and splitting**, useful for export to PDF or structured previews.
-
-```markdown
-[Page=A4]   # Start a page in A4 layout
-[Page=US]   # Start a page in US Letter layout
-[Page=]     # Auto-numbered page
-[Page=65]   # Explicit line number
-```
-
-* Red vertical lines in the editor show splits
-* Marco automatically tracks page numbers
-* Works together with TOC and bookmarks
-
-#### Cross-Document Navigation
-
-Link forward or backward across Markdown files using `[@doc]`:
-
-```markdown
-[@doc](./chapter_03.md)   # Next document
-[@doc](./chapter_02.md)   # Previous document
-```
-
-* Place at the **bottom of the current file** (next page) or **top of target file** (previous page)
-* Marco generates arrows in previews:
-
-```
-← Previous Page 62 | 63/100 | Next Page 64 →
-```
-
-* Only **local Markdown files** are supported
-* Works seamlessly with TOC and bookmarks for a unified reading experience
-
-### Unified Navigation Flow
-
-Combine **page splits** (`[Page=]`) with **cross-document references** (`[@Page]`) to create a smooth, book-like flow:
-
-| File            | Action / Marker            | Description                          |
-| --------------- | -------------------------- | ------------------------------------ |
-| `chapter_02.md` | `[Page=]`                  | Start a new page (in-document split) |
-|                 | `[Page=]`                  | Last page of chapter                 |
-|                 | `[@Page](./chapter_03.md)` | Next chapter link                    |
-| `chapter_03.md` | `[@Page](./chapter_02.md)` | Previous chapter link                |
-|                 | `[Page=]`                  | First in-document split              |
-|                 | `[Page=]`                  | Last in-document split               |
-|                 | `[@Page](./chapter_04.md)` | Next chapter link                    |
-
-
-* **Arrows** guide readers between pages and chapters
-* Works with TOC for multi-page or multi-file documents
-* Keeps your Markdown structured, navigable, and export-ready
-
----
-
-## Admonition Blocks
-
-Admonitions create **highlighted blocks** for notes, tips, warnings, info, or custom icons — helping important information stand out.
-
-### Predefined Types
-
-Use one of the built-in types: `note`, `tip`, `warning`, `danger`, `info`.
-
-```markdown
-:::note
-Some **content** with Markdown `syntax`.
-:::
-```
-
-With an optional title:
-
-```markdown
-:::note[Optional Title]
-Some **content** with Markdown formatting.
-:::
-```
-
-* Content supports full Markdown
-* Title is plain Markdown (no emoji/icons allowed)
-* The block ends with `:::`
-
-
-### Custom Emoji / Icon
-
-Use a custom emoji to visually represent the block type:
-
-```markdown
-:::[:smile:] Some **content** with Markdown `syntax`. :::
-```
-
-With an optional title:
-
-```markdown
-:::[:smile: Your Title]
-Some **content** with Markdown formatting.
-:::
-```
-
-* Emoji goes inside `[ ]` and acts as the block type
-* Optional title comes after the emoji (Markdown allowed)
-* Content continues until the closing `:::`
-
----
-
-## Callouts / Mentions
-
-Mentions let you **tag people and link to their public profiles**. The format is:
-
-```
-@username[platform](Optional Display Name)
-```
-
-* **@username** → The account name (**required**)
-* **\[platform]** → The platform (**required**)
-* **(Optional Display Name)** → A custom name to show instead of the username
-
----
-
-### Examples
-
-| Mention Syntax                        | Displayed As           | Link / Profile |
-|--------------------------------------|----------------------|----------------|
-| `@ranrar[github]`                     | @ranrar              | https://github.com/ranrar |
-| `@ranrar[github](Kim Skov Rasmussen)` | Kim Skov Rasmussen   | https://github.com/ranrar |
-| `@someone[twitter](Jane Doe)`         | Jane Doe             | https://twitter.com/someone |
-| `@teammate[slack](Project Lead)`      | Project Lead         | Slack profile link |
-
----
+Powered by a **Pest-based parser**, Marco turns Markdown into a full document model (AST) for advanced features like live TOC generation, PDF page layouts, and multi-document navigation.
 
 ## Architecture & internals
 
@@ -316,32 +73,11 @@ Mentions let you **tag people and link to their public profiles**. The format is
 
 - **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
 
-## Quickstart
-
-Prerequisites
-- Rust toolchain (stable) with `cargo`
-- GTK4 development libraries installed on your system (for Linux: libgtk-4-dev or distro equivalent)
-
-Build and run locally
-
-1. Build:
-
-	cargo build --release
-
-2. Run the app (from repo root):
-
-	cargo run --release
-
-Run tests
-
-	cargo test --lib --tests -- --nocapture
-
-## Project layout (high level)
-
-- `src/` — application code (UI components, logic, menus, theme)
-- `logic/` — core parsing, loaders, buffer and layout code
-- `tests/` — integration and unit tests
-- `Cargo.toml` — Rust manifest and dependencies
+**Current development focus:**
+- Fine-tuning the **pest-based grammar** for comprehensive markdown support
+- Polishing the **AST builder** and **HTML renderer** components
+- Implementing robust **error handling** and **edge case coverage**
+- Optimizing **parser performance** and **memory usage**
 
 ## Roadmap
 
@@ -360,7 +96,7 @@ Planned and desired improvements
 - [x] Scroll sync between editor and preview
 - Context menus & toolbar: Quick access to formatting and actions
 - Smart code blocks: 100+ programming languages,
-- Intelligent search
+- [x] Intelligent search
 - Syntax highlighting
 
 
@@ -376,7 +112,7 @@ We welcome contributions of all sizes. Short workflow:
 
 Code style & expectations:
 
-- Keep UI code in `src/ui/` and business logic in `logic/`.
+- Keep UI code in `marco/src/ui/` and business logic in `marco_core/src/logic/`.
 - Follow Rust idioms (use `Result<T, E>`, avoid panics in library code).
 - Add unit tests and integration tests in `tests/` when applicable.
 
@@ -384,16 +120,14 @@ Code style & expectations:
 
 If you'd like to make a high-impact contribution, consider one of these areas — open an issue first so we can coordinate:
 
-- Collaborative editing (Yjs / CRDT): add a `components/collab/` backend that implements a `CollabBackend` trait and provide in-process tests for concurrent patches and cursor sync.
-- AI-assisted tools: add a `components/ai/` interface for suggestions/edits; keep adapters off the UI thread and provide a small example implementation.
+- Collaborative editing (Yjs / CRDT): add a `marco/src/components/collab/` backend that implements a `CollabBackend` trait and provide in-process tests for concurrent patches and cursor sync.
+- AI-assisted tools: add a `marco/src/components/ai/` interface for suggestions/edits; keep adapters off the UI thread and provide a small example implementation.
 
 ### Component docs & assets
 
 Reference locations for contributors working on components and translations:
 
-- [src/components/ai/README.md](src/components/ai/README.md) — AI component guidance and interface notes
-- [src/components/collab/README.md](src/components/collab/README.md) — Collaboration integration notes and references
-- [src/components/language/README.md](src/components/language/README.md) — Localization provider contract and workflow
-- [src/assets/language/language matrix.md](src/assets/language/language%20matrix.md) — language implementation matrix
-
-If you add new component folders, please include a short `README.md` in the folder that explains the contract, tests, and how to run the component's dev harness.
+- [marco/src/components/ai/README.md](marco/src/components/ai/README.md) — AI component guidance and interface notes
+- [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
+- [marco/src/components/language/README.md](marco/src/components/language/README.md) — Localization provider contract and workflow
+- [assets/language/language matrix.md](assets/language/language%20matrix.md) — language implementation matrix
