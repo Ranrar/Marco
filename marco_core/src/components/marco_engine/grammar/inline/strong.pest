@@ -1,0 +1,55 @@
+// Strong emphasis (bold): **text** or __text__
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
+// Implements left-flanking and right-flanking delimiter rules with double delimiters
+
+// Main strong emphasis rule - try both double asterisk and double underscore
+strong = {
+    strong_asterisk
+  | strong_underscore
+}
+
+// Double asterisk strong emphasis: **text**
+// Same flanking rules as emphasis but with double delimiters
+// Left-flanking: opening ** not followed by whitespace
+// Right-flanking: closing ** not preceded by whitespace
+strong_asterisk = ${
+    ASTERISK ~ ASTERISK // Opening **
+  ~ !WHITESPACE // Not followed by whitespace
+  ~ strong_inner_asterisk // Content
+  ~ !WHITESPACE // Must not be whitespace before closing **
+  ~ ASTERISK ~ ASTERISK // Closing **
+}
+
+// Double underscore strong emphasis: __text__
+// Stricter rules: underscore cannot work inside words (CommonMark Rule 2)
+// Same flanking rules as asterisk
+strong_underscore = ${
+    UNDERSCORE ~ UNDERSCORE // Opening __
+  ~ !WHITESPACE // Not followed by whitespace
+  ~ strong_inner_underscore // Content
+  ~ !WHITESPACE // Must not be whitespace before closing __
+  ~ UNDERSCORE ~ UNDERSCORE // Closing __
+}
+
+// Inner content for double asterisk strong emphasis
+// Matches everything except asterisk pairs, newline
+// Can contain spaces but stops before whitespace+asterisk pattern
+// Can contain single emphasis (nested)
+strong_inner_asterisk = @{
+    (!(ASTERISK ~ ASTERISK) // Not double asterisk
+  ~ !NEWLINE // Not a newline
+  ~ !(WHITESPACE ~ ASTERISK ~ ASTERISK) // Not whitespace followed by **
+  ~ ANY // Any character
+  )+
+}
+
+// Inner content for double underscore strong emphasis
+// Matches everything except underscore pairs, newline
+// Can contain spaces but stops before whitespace+underscore pattern
+strong_inner_underscore = @{
+    (!(UNDERSCORE ~ UNDERSCORE) // Not double underscore
+  ~ !NEWLINE // Not a newline
+  ~ !(WHITESPACE ~ UNDERSCORE ~ UNDERSCORE) // Not whitespace followed by __
+  ~ ANY // Any character
+  )+
+}

@@ -1,0 +1,28 @@
+// Shared definitions for block-level parsing
+// These rules are used across multiple block types
+
+// Whitespace handling
+WHITESPACE = _{ " " | "\t" }
+NEWLINE = { "\r\n" | "\n" }
+BLANK_LINE = { WHITESPACE* ~ NEWLINE }
+
+// Indentation
+INDENT_0_3 = { " "{0,3} }         // 0-3 spaces (not full indent)
+INDENT_4 = { " "{4} }             // Exactly 4 spaces
+INDENT_TAB = { "\t" }             // Tab as indent
+INDENT = { INDENT_4 | INDENT_TAB } // One indent unit
+
+// Line content (unparsed text to be handled by inline parser)
+line_content = @{ (!NEWLINE ~ ANY)* }
+
+// Special characters
+HASH = { "#" }
+EQUALS = { "=" }
+DASH = { "-" }
+ASTERISK = { "*" }
+UNDERSCORE = { "_" }
+BACKTICK = { "`" }
+TILDE = { "~" }
+QUOTE = { ">" }
+SPACE = { " " }
+TAB = { "\t" }

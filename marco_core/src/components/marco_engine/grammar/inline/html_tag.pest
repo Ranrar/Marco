@@ -1,0 +1,123 @@
+// CommonMark Section 6.6 - Raw HTML (Inline HTML Tags)
+// 
+// HTML tags in inline context include:
+// - Opening tags: <tag>, <tag attr="value">
+// - Closing tags: </tag>
+// - Self-closing tags: <tag />
+// - HTML comments: <!-- comment -->
+// - Processing instructions: <?php code ?>
+// - Declarations: <!DOCTYPE html>
+// - CDATA sections: <![CDATA[content]]>
+// 
+// Key rules:
+// - Tag names: ASCII letter followed by letters/digits/hyphens
+// - Attributes: name="value" or name='value' or name=value
+// - Backslash escapes do NOT work in HTML (raw content)
+// - No line endings allowed in inline HTML tags
+// 
+// Grammar matches CommonMark spec examples 613-632
+
+// Main rule: try specific patterns before general ones (order matters!)
+html_tag = {
+    html_comment
+  | processing_instruction
+  | declaration
+  | cdata_section
+  | closing_tag
+  | self_closing_tag
+  | opening_tag
+}
+
+// HTML Comment: <!-- content -->
+// Can contain hyphens but not the closing sequence
+html_comment = ${
+    "<!--" ~ html_comment_content ~ "-->"
+}
+
+html_comment_content = @{
+    (!("-->") ~ ANY)*
+}
+
+// Processing Instruction: <?php echo $x; ?>
+processing_instruction = ${
+    "<?" ~ processing_instruction_content ~ "?>"
+}
+
+processing_instruction_content = @{
+    (!("?>") ~ ANY)*
+}
+
+// Declaration: <!DOCTYPE html>
+declaration = ${
+    "<!" ~ ASCII_ALPHA ~ declaration_content ~ ">"
+}
+
+declaration_content = @{
+    (!(">") ~ ANY)*
+}
+
+// CDATA Section: <![CDATA[content]]>
+cdata_section = ${
+    "<![CDATA[" ~ cdata_content ~ "]]>"
+}
+
+cdata_content = @{
+    (!("]]>") ~ ANY)*
+}
+
+// Closing Tag: </div>
+closing_tag = ${
+    "</" ~ tag_name ~ optional_whitespace ~ ">"
+}
+
+// Self-Closing Tag: <br />, <img src="x" />
+self_closing_tag = ${
+    "<" ~ tag_name ~ attribute* ~ optional_whitespace ~ "/>"
+}
+
+// Opening Tag: <div>, <a href="url">
+opening_tag = ${
+    "<" ~ tag_name ~ attribute* ~ optional_whitespace ~ ">"
+}
+
+// Tag Name: ASCII letter followed by letters/digits/hyphens
+tag_name = @{
+    ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-")*
+}
+
+// Attribute: name="value" or name='value' or name=value
+attribute = {
+    optional_whitespace ~ attribute_name ~ "=" ~ attribute_value
+}
+
+// Attribute Name: letter/_/: followed by letters/digits/_/./:/-
+attribute_name = @{
+    (ASCII_ALPHA | "_" | ":") ~ (ASCII_ALPHANUMERIC | "_" | "." | ":" | "-")*
+}
+
+// Attribute Value: unquoted, single-quoted, or double-quoted
+attribute_value = {
+    double_quoted_value
+  | single_quoted_value
+  | unquoted_value
+}
+
+// Double-Quoted Value: "value"
+double_quoted_value = @{
+    "\"" ~ (!"\"" ~ ANY)* ~ "\""
+}
+
+// Single-Quoted Value: 'value'
+single_quoted_value = @{
+    "'" ~ (!"'" ~ ANY)* ~ "'"
+}
+
+// Unquoted Value: no spaces, quotes, or special chars
+unquoted_value = @{
+    (!(" " | "\t" | "\n" | "\r\n" | "\"" | "'" | "=" | "<" | ">" | "`") ~ ANY)+
+}
+
+// Optional Whitespace: spaces, tabs (no line endings in inline context)
+optional_whitespace = _{
+    (" " | "\t")*
+}

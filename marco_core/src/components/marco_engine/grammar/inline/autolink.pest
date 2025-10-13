@@ -1,0 +1,58 @@
+// Autolinks: <url> and <email>
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#autolinks
+// URI autolinks: <scheme:path> where scheme is 2-32 ASCII letters/digits/+.-
+// Email autolinks: <user@domain> following HTML5 email pattern
+
+// Main autolink rule - try email first (more specific pattern)
+autolink = {
+    email_autolink
+  | uri_autolink
+}
+
+// URI autolink: <absolute_uri>
+// Absolute URI = scheme:path
+// Scheme = 2-32 characters: ASCII letter + (letters|digits|+|.|-)*
+uri_autolink = ${
+    ANGLE_OPEN ~ scheme ~ COLON ~ uri_path ~ ANGLE_CLOSE
+}
+
+// Scheme: 2-32 characters starting with ASCII letter
+// Followed by letters, digits, +, ., or -
+// Must be followed by colon (positive lookahead to distinguish from email)
+scheme = @{
+    ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "+" | "." | "-"){1, 31} ~ &COLON // Peek ahead: must be followed by colon
+}
+
+// URI path: any characters except space, <, >, and newline
+// Simplified to avoid complex control character ranges
+uri_path = @{
+    (!ANGLE_CLOSE ~ !WHITESPACE ~ !NEWLINE ~ ANY)*
+}
+
+// Email autolink: <email_address>
+// Email address follows HTML5 pattern (simplified)
+// local@domain where:
+// - local: alphanumeric + .!#$%&'*+/=?^_`{|}~-
+// - domain: alphanumeric with optional hyphens, dots for subdomains
+// Using @ (atomic) to prevent all whitespace insertion
+email_autolink = @{
+    "<" ~ (ASCII_ALPHANUMERIC | "." | "!" | "#" | "$" | "%" | "&" | "'" | "*" | "+" | "/" | "=" | "?" | "^" | "_" | "`" | "{" | "|" | "}" | "~" | "-")+ ~ "@" ~ (ASCII_ALPHANUMERIC | "-" | ".")+ ~ ">"
+}
+
+// Local part of email: alphanumeric + special chars
+// Can't start/end with dot
+email_local = {
+    (ASCII_ALPHANUMERIC | "." | "!" | "#" | "$" | "%" | "&" | "'" | "*" | "+" | "/" | "=" | "?" | "^" | "_" | "`" | "{" | "|" | "}" | "~" | "-")+
+}
+
+// Domain part of email: subdomain(.subdomain)*
+// Each subdomain: alphanumeric, can contain hyphens (not at start/end)
+email_domain = {
+    email_subdomain ~ ("." ~ email_subdomain)*
+}
+
+// Email subdomain: alphanumeric + optional hyphens in middle
+email_subdomain = {
+    ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "-"){0, 61} ~ ASCII_ALPHANUMERIC
+  | ASCII_ALPHANUMERIC
+}

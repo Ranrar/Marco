@@ -1,0 +1,16 @@
+// ATX headings: # Heading
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#atx-headings
+// Allows 0-3 spaces before #, requires space after # (unless heading is empty)
+
+atx_heading = ${
+    INDENT_0_3                    // 0-3 spaces allowed before #
+    ~ atx_level                   // 1-6 hash marks
+    ~ (" " ~ atx_rest)?           // Optional: literal space + rest of line
+    ~ NEWLINE
+}
+
+atx_level = @{ HASH{1,6} }        // Capture 1-6 hashes
+
+atx_rest = @{                     // Everything after the space
+    (!NEWLINE ~ ANY)*
+}

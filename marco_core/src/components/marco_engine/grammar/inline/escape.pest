@@ -1,0 +1,54 @@
+// Backslash Escapes
+// 
+// Any ASCII punctuation character may be backslash-escaped per CommonMark spec.
+// Backslashes before other characters are treated as literal backslashes.
+// 
+// CommonMark spec (2.4): Backslash escapes allow literal punctuation characters
+// that would otherwise have special meaning in Markdown syntax.
+// 
+// All 32 escapable ASCII punctuation characters:
+// ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+// 
+// Notes:
+// - Backslash escapes do NOT work inside code spans, code blocks, autolinks, or raw HTML
+// - A backslash at the end of a line is a hard line break (handled separately)
+// - An escaped backslash itself (\\) produces a single backslash
+
+// Main escape rule: backslash followed by any ASCII punctuation character
+escape = { BACKSLASH ~ escapable_char }
+
+// All 32 ASCII punctuation characters that can be escaped
+escapable_char = {
+    "!"
+  | "\""
+  | "#"
+  | "$"
+  | "%"
+  | "&"
+  | "'"
+  | "("
+  | ")"
+  | "*"
+  | "+"
+  | ","
+  | "-"
+  | "."
+  | "/"
+  | ":"
+  | ";"
+  | "<"
+  | "="
+  | ">"
+  | "?"
+  | "@"
+  | "["
+  | "\\"
+  | "]"
+  | "^"
+  | "_"
+  | "`"
+  | "{"
+  | "|"
+  | "}"
+  | "~"
+}

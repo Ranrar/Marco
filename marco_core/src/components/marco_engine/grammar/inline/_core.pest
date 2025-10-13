@@ -1,0 +1,67 @@
+// Shared definitions for inline-level parsing
+// These rules are used across multiple inline types
+
+// Whitespace (doesn't consume in inline context)
+SPACE      =  { " " }
+TAB        =  { "\t" }
+NEWLINE    =  { "\n" | "\r\n" }
+WHITESPACE = _{ SPACE | TAB | NEWLINE }
+// Silent rule for whitespace matching
+
+// Special characters that trigger inline parsing
+ASTERISK      = { "*" }
+UNDERSCORE    = { "_" }
+BACKTICK      = { "`" }
+BRACKET_OPEN  = { "[" }
+BRACKET_CLOSE = { "]" }
+PAREN_OPEN    = { "(" }
+PAREN_CLOSE   = { ")" }
+ANGLE_OPEN    = { "<" }
+ANGLE_CLOSE   = { ">" }
+EXCLAMATION   = { "!" }
+BACKSLASH     = { "\\" }
+
+// Character classes
+punctuation_char = {
+    "!"
+  | "\""
+  | "#"
+  | "$"
+  | "%"
+  | "&"
+  | "'"
+  | "("
+  | ")"
+  | "*"
+  | "+"
+  | ","
+  | "-"
+  | "."
+  | "/"
+  | ":"
+  | ";"
+  | "<"
+  | "="
+  | ">"
+  | "?"
+  | "@"
+  | "["
+  | "\\"
+  | "]"
+  | "^"
+  | "_"
+  | "`"
+  | "{"
+  | "|"
+  | "}"
+  | "~"
+}
+
+whitespace_char = { " " | "\t" | "\n" | "\r" }
+
+// Character class helpers
+ASCII_ALPHANUMERIC = { ASCII_ALPHA | ASCII_DIGIT }
+
+// Additional characters for autolinks
+COLON = { ":" }
+AT    = { "@" }

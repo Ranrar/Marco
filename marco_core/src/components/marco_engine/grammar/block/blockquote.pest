@@ -1,0 +1,15 @@
+// Blockquote: > quoted text
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#block-quotes
+// Can be nested and contain other blocks
+
+blockquote = {
+    blockquote_line+              // One or more quoted lines
+}
+
+blockquote_line = ${
+    INDENT_0_3                    // 0-3 spaces allowed
+    ~ ">"                         // Quote marker
+    ~ " "?                        // Optional space after >
+    ~ line_content                // Rest of line
+    ~ NEWLINE
+}

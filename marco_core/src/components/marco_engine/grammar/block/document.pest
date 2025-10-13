@@ -1,0 +1,45 @@
+// Document root - entry point for block parsing
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#appendix-a-parsing-strategy
+// A document is a sequence of blocks separated by optional blank lines
+
+document = {
+    SOI                           // Start of input
+    ~ BLANK_LINE*                 // Optional leading blank lines
+    ~ (block ~ BLANK_LINE*)*      // Blocks with optional blank lines
+    ~ EOI                         // End of input
+}
+
+// Block dispatcher - tries each block type in priority order
+// Order matters: more specific rules must come before general ones
+block = {
+    thematic_break                // Must check first (can be ambiguous with setext)
+  | atx_heading                   // ATX headings (# style)
+  | setext_heading                // Setext headings (underline style)
+  | fenced_code_block             // Fenced code (``` or ~~~)
+  | indented_code_block           // 4-space indented code
+  | blockquote                    // > quoted text
+  | paragraph                     // Fallback - must be last
+}
+
+// Paragraph - one or more non-blank lines
+// This is the fallback block type for now
+// TODO: Add proper interruption rules
+paragraph = {
+    paragraph_line              // First line
+    ~ (                         // Subsequent lines
+        !BLANK_LINE             // Not a blank line
+        ~ !thematic_break       // Not a thematic break
+        ~ !atx_heading          // Not a heading
+        ~ paragraph_line
+    )*
+}
+
+paragraph_line = {
+    !thematic_break             // Don't start with ---
+    ~ !atx_heading              // Don't start with #
+    ~ !fenced_code_block        // Don't start with ```
+    ~ !blockquote               // Don't start with >
+    ~ !indented_code_block      // Don't start with 4 spaces
+    ~ line_content              // Actual content
+    ~ NEWLINE
+}

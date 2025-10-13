@@ -1,0 +1,49 @@
+// Code spans: `inline code`
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#code-spans
+// Backtick strings are parsed from left to right, looking for a backtick string that closes the opener
+// The closer must be a backtick string of equal length
+// Code span content: all characters between opening and closing backticks
+// Line endings are converted to spaces
+// Leading and trailing spaces/line endings are removed if both present
+
+// Main code span rule - try different backtick counts
+code_span = {
+    code_span_triple // Try ``` first (longest)
+
+  | code_span_double // Then ``
+
+  | code_span_single // Finally `
+}
+
+// Code span with triple backticks: ```code```
+code_span_triple = ${
+    BACKTICK ~ BACKTICK ~ BACKTICK ~ code_span_content_triple ~ BACKTICK ~ BACKTICK ~ BACKTICK
+}
+
+// Content for triple backtick code span
+// Everything except three backticks in a row
+code_span_content_triple = @{
+    (!(BACKTICK ~ BACKTICK ~ BACKTICK) ~ ANY)*
+}
+
+// Code span with double backticks: ``code``
+code_span_double = ${
+    BACKTICK ~ BACKTICK ~ code_span_content_double ~ BACKTICK ~ BACKTICK
+}
+
+// Content for double backtick code span
+// Everything except two backticks in a row
+code_span_content_double = @{
+    (!(BACKTICK ~ BACKTICK) ~ ANY)*
+}
+
+// Code span with single backtick: `code`
+code_span_single = ${
+    BACKTICK ~ code_span_content_single ~ BACKTICK
+}
+
+// Content for single backtick code span
+// Everything except a single backtick
+code_span_content_single = @{
+    (!BACKTICK ~ ANY)*
+}

@@ -1,0 +1,10 @@
+// Block-level main grammar
+// This file will be loaded via #[grammar] attributes in Rust
+// Pest doesn't support @import - instead we use multiple #[grammar] attributes
+// All rules from individual files will be composed in block_parser.rs
+
+// This file can be empty or contain entry-point documentation
+// The actual composition happens in Rust via:
+// #[grammar = "components/marco_engine/grammar/block/_core.pest"]
+// #[grammar = "components/marco_engine/grammar/block/thematic_break.pest"]
+// etc.

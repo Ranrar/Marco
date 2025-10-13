@@ -1,0 +1,24 @@
+// Hard Line Breaks
+// 
+// A line ending preceded by two or more spaces or a backslash is parsed as a hard line break.
+// Hard line breaks render as <br /> in HTML.
+// 
+// CommonMark spec (6.7): Hard line breaks separate inline content within a block.
+// They can occur inside emphasis, links, and other inline constructs, but NOT inside
+// code spans or HTML tags.
+// 
+// Two patterns:
+// 1. Two or more spaces followed by newline: `foo  \n`
+// 2. Backslash followed by newline: `foo\\\n`
+// 
+// Leading spaces at the beginning of the next line are ignored.
+// Hard line breaks do not work at the end of a paragraph or block element.
+
+// Main line break rule: either spaces pattern or backslash pattern
+line_break = { line_break_spaces | line_break_backslash }
+
+// Two or more spaces followed by newline
+line_break_spaces = ${ " "{2, } ~ ("\n" | "\r\n") }
+
+// Backslash followed by newline
+line_break_backslash = ${ "\\" ~ ("\n" | "\r\n") }

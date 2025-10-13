@@ -1,0 +1,14 @@
+// Thematic break (horizontal rule)
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#thematic-breaks
+// Examples: ---, ***, ___
+// Must have at least 3 characters with optional spaces between them
+
+thematic_break = {
+    INDENT_0_3                      // 0-3 spaces allowed
+    ~ thematic_char                 // First character
+    ~ (SPACE* ~ thematic_char){2,}  // At least 2 more (with optional spaces)
+    ~ SPACE*                        // Trailing spaces
+    ~ NEWLINE
+}
+
+thematic_char = { DASH | ASTERISK | UNDERSCORE }

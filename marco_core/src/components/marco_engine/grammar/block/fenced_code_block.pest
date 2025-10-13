@@ -1,0 +1,45 @@
+// Fenced code block with ``` or ~~~
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#fenced-code-blocks
+// Syntax: ```info_string\ncode\n```
+
+fenced_code_block = ${
+    fence_open
+    ~ fence_content
+    ~ fence_close
+}
+
+// Opening fence: ``` or ~~~ (at least 3 characters)
+fence_open = {
+    INDENT_0_3                     // 0-3 spaces allowed
+    ~ fence_marker                 // Opening fence markers
+    ~ fence_info?                  // Optional info string (language)
+    ~ NEWLINE
+}
+
+fence_marker = @{
+    BACKTICK{3,} | TILDE{3,}      // At least 3 backticks or tildes
+}
+
+// Info string (e.g., "rust", "python", "bash")
+// Cannot contain backticks if fence uses backticks
+fence_info = @{
+    (!NEWLINE ~ ANY)+
+}
+
+// Code content: everything until closing fence
+fence_content = @{
+    (
+        !fence_close                // Not a closing fence
+        ~ (!NEWLINE ~ ANY)*         // Line content
+        ~ NEWLINE                   // Newline
+    )*
+}
+
+// Closing fence: must be at least as long as opening
+// For now, simplified: any fence of same type closes
+fence_close = {
+    INDENT_0_3
+    ~ fence_marker                 // Same type as opening
+    ~ (!NEWLINE ~ ANY)*            // Optional trailing content (ignored)
+    ~ NEWLINE
+}

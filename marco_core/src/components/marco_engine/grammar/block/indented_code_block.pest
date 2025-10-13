@@ -1,0 +1,12 @@
+// Indented code block: 4 spaces or 1 tab
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#indented-code-blocks
+
+indented_code_block = {
+    indented_code_line+           // One or more indented lines
+}
+
+indented_code_line = ${
+    INDENT                        // Exactly 4 spaces or 1 tab
+    ~ line_content                // Code content
+    ~ NEWLINE
+}

@@ -13,6 +13,7 @@ pub mod ast_node;
 pub mod grammar;
 pub mod parser;
 pub mod parser_cache;
+pub mod parsers;
 pub mod render_html;
 
 // Re-export main types for the 3-function API (removed errors module)

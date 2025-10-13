@@ -1,0 +1,52 @@
+// Emphasis (italic): *text* or _text*
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#emphasis-and-strong-emphasis
+// Implements left-flanking and right-flanking delimiter rules
+
+// Main emphasis rule - try both asterisk and underscore
+emphasis = {
+    emphasis_asterisk
+  | emphasis_underscore
+}
+
+// Asterisk emphasis: *text*
+// Simpler rules: asterisk can work inside words
+// Left-flanking: opening * not followed by whitespace
+// Right-flanking: closing * not preceded by whitespace
+emphasis_asterisk = ${
+    ASTERISK ~ !WHITESPACE // Opening * not followed by whitespace
+  ~ emphasis_inner_asterisk // Content
+  ~ !WHITESPACE // Must not be whitespace before closing *
+  ~ ASTERISK
+}
+
+// Underscore emphasis: _text_
+// Stricter rules: underscore cannot work inside words (CommonMark Rule 2)
+// Same flanking rules as asterisk
+emphasis_underscore = ${
+    UNDERSCORE ~ !WHITESPACE // Opening _ not followed by whitespace
+  ~ emphasis_inner_underscore // Content
+  ~ !WHITESPACE // Must not be whitespace before closing _
+  ~ UNDERSCORE
+}
+
+// Inner content for asterisk emphasis
+// Matches everything except asterisk, newline
+// Can contain spaces but stops before whitespace+asterisk pattern
+emphasis_inner_asterisk = @{
+    (!ASTERISK // Not an asterisk
+  ~ !NEWLINE // Not a newline
+  ~ !(WHITESPACE ~ ASTERISK) // Not whitespace followed by asterisk
+  ~ ANY // Any character
+  )+
+}
+
+// Inner content for underscore emphasis
+// Matches everything except underscore, newline
+// Can contain spaces but stops before whitespace+underscore pattern
+emphasis_inner_underscore = @{
+    (!UNDERSCORE // Not an underscore
+  ~ !NEWLINE // Not a newline
+  ~ !(WHITESPACE ~ UNDERSCORE) // Not whitespace followed by underscore
+  ~ ANY // Any character
+  )+
+}

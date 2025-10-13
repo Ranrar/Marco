@@ -1,0 +1,24 @@
+// Setext headings: underlined with === or ---
+// CommonMark spec: https://spec.commonmark.org/0.31.2/#setext-headings
+// Level 1: ===, Level 2: ---
+
+setext_heading = {
+    setext_content
+    ~ setext_underline
+}
+
+setext_content = {
+    (!NEWLINE ~ ANY)+             // Heading text (one line)
+    ~ NEWLINE
+}
+
+setext_underline = ${
+    INDENT_0_3                    // 0-3 spaces allowed
+    ~ setext_marker               // === or ---
+    ~ NEWLINE
+}
+
+setext_marker = @{
+    "="{1,}                       // One or more = (level 1)
+  | "-"{1,}                       // One or more - (level 2)
+}
