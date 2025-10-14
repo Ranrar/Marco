@@ -14,6 +14,9 @@ use pest_derive::Parser;
 #[grammar = "components/marco_engine/grammar/inline/escape.pest"]
 #[grammar = "components/marco_engine/grammar/inline/line_break.pest"]
 #[grammar = "components/marco_engine/grammar/inline/html_tag.pest"]
+#[grammar = "components/marco_engine/grammar/inline/link.pest"]
+#[grammar = "components/marco_engine/grammar/inline/image.pest"]
+#[grammar = "components/marco_engine/grammar/inline/inline_content.pest"]
 pub struct InlineParser;
 
 /// Parse inline content from a string
@@ -1134,6 +1137,740 @@ mod tests {
         let result2 = parse_inline_rule(Rule::line_break, input_backslash);
         
         assert!(result1.is_ok() && result2.is_ok(), "Both line break variants should parse");
+    }
+
+    // ========================================================================
+    // Phase 4: Inline Content Parser Tests
+    // ========================================================================
+    // Tests for inline_content rule that orchestrates all inline elements
+    // with proper precedence and combination handling
+
+    // ------------------------------------------------------------------------
+    // Precedence Tests - Verify correct parsing order
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn phase4_precedence_code_span_protects_asterisks() {
+        // Code spans should protect their content from emphasis parsing
+        let input = "`*not emphasis*`";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse code span with asterisks inside");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        assert_eq!(content.as_rule(), Rule::inline_content);
+        
+        // Verify it contains a code_span element (not emphasis)
+        let inner: Vec<_> = content.into_inner().collect();
+        assert_eq!(inner.len(), 1, "Should have exactly 1 element");
+        assert_eq!(inner[0].as_rule(), Rule::code_span, "Should be code_span, not emphasis");
+    }
+
+    #[test]
+    fn phase4_precedence_code_span_protects_underscores() {
+        // Code spans should protect underscores from emphasis parsing
+        let input = "`_not emphasis_`";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse code span with underscores inside");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert_eq!(inner[0].as_rule(), Rule::code_span);
+    }
+
+    #[test]
+    fn phase4_precedence_autolink_before_emphasis() {
+        // Autolinks should be processed before emphasis
+        let input = "<http://example.com>";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse autolink");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert_eq!(inner[0].as_rule(), Rule::autolink);
+    }
+
+    #[test]
+    fn phase4_precedence_html_tag_protects_content() {
+        // HTML tags should not have markdown processed in attributes
+        let input = "<a href=\"*url*\">";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse HTML tag");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert_eq!(inner[0].as_rule(), Rule::html_tag);
+    }
+
+    #[test]
+    fn phase4_precedence_escape_prevents_emphasis() {
+        // Escaped asterisks should not start emphasis
+        let input = "\\*not emphasis\\*";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse escaped asterisks");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        // Should have escape + text + escape (not emphasis)
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.len() >= 2, "Should have multiple elements");
+        assert_eq!(inner[0].as_rule(), Rule::escape);
+    }
+
+    #[test]
+    fn phase4_precedence_line_break_in_content() {
+        // Line breaks should be recognized in inline content
+        // Note: Current text rule is greedy and may consume content before line break detection
+        // This is a known limitation - full CommonMark compliance requires more sophisticated parsing
+        let input = "  \nmore";  // Start with line break
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse content with line break at start");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        // Should have line_break at start
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::line_break), "Should contain line_break");
+    }
+
+    #[test]
+    fn phase4_precedence_strong_before_emphasis() {
+        // When both strong and emphasis possible, try strong first
+        let input = "**bold**";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse strong emphasis");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert_eq!(inner[0].as_rule(), Rule::strong, "Should match strong, not emphasis");
+    }
+
+    // ------------------------------------------------------------------------
+    // Combination Tests - Multiple inline elements together
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn phase4_combination_emphasis_and_text() {
+        // Simple combination: emphasis + text
+        let input = "*italic* and plain text";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse emphasis with text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.len() >= 2, "Should have emphasis and text elements");
+        assert_eq!(inner[0].as_rule(), Rule::emphasis);
+        assert_eq!(inner[1].as_rule(), Rule::text);
+    }
+
+    #[test]
+    fn phase4_combination_strong_and_emphasis() {
+        // Combination: strong + emphasis (not nested)
+        let input = "**bold** and *italic*";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse strong and emphasis separately");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.len() >= 3, "Should have strong, text, and emphasis");
+        assert_eq!(inner[0].as_rule(), Rule::strong);
+        assert_eq!(inner[2].as_rule(), Rule::emphasis);
+    }
+
+    #[test]
+    fn phase4_combination_code_span_with_text() {
+        // Code span followed by text
+        let input = "`code` and text";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse code span with text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.len() >= 2);
+        assert_eq!(inner[0].as_rule(), Rule::code_span);
+        assert_eq!(inner[1].as_rule(), Rule::text);
+    }
+
+    #[test]
+    fn phase4_combination_multiple_emphasis() {
+        // Multiple emphasis elements in sequence
+        let input = "*one* *two* *three*";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse multiple emphasis elements");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        let emphasis_count = inner.iter().filter(|p| p.as_rule() == Rule::emphasis).count();
+        assert_eq!(emphasis_count, 3, "Should have 3 emphasis elements");
+    }
+
+    #[test]
+    fn phase4_combination_autolink_with_text() {
+        // Autolink in text context
+        let input = "Visit <http://example.com> for info";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse autolink with surrounding text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::autolink));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::text));
+    }
+
+    #[test]
+    fn phase4_combination_html_tag_with_text() {
+        // HTML tag in text context
+        let input = "Some <br /> text";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse HTML tag with text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::html_tag));
+    }
+
+    #[test]
+    fn phase4_combination_mixed_formatting() {
+        // Mix of different inline elements
+        let input = "**bold** and *italic* with `code`";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse mixed inline elements");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::strong));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::emphasis));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::code_span));
+    }
+
+    // ------------------------------------------------------------------------
+    // Delimiter Run Tests - Edge cases for delimiter matching
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn phase4_delimiter_unmatched_asterisk() {
+        // Single unmatched asterisk should be text
+        let input = "text * more text";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse unmatched asterisk as text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        // All should be text (unmatched delimiter treated as literal)
+        assert!(inner.iter().all(|p| p.as_rule() == Rule::text), "Unmatched * should be plain text");
+    }
+
+    #[test]
+    fn phase4_delimiter_mixed_delimiters() {
+        // Asterisk and underscore don't match each other - this is invalid markdown
+        // The parser may fail or treat them as text depending on implementation
+        let input = "*emphasis_";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        // This may fail or succeed - both are acceptable for malformed input
+        // The key is it shouldn't crash or cause undefined behavior
+        if result.is_ok() {
+            // If it parses, verify it doesn't create invalid AST
+            let pairs = result.unwrap();
+            let content = pairs.into_iter().next().unwrap();
+            let _ = content.into_inner().collect::<Vec<_>>();
+            // Successfully collected elements - no crash
+        }
+        // If it fails, that's also acceptable for invalid markdown
+    }
+
+    #[test]
+    fn phase4_delimiter_intraword_asterisks() {
+        // Intraword emphasis with asterisks
+        let input = "un*frigging*believable";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should handle intraword emphasis");
+    }
+
+    #[test]
+    fn phase4_delimiter_adjacent_emphasis() {
+        // Adjacent emphasis elements
+        let input = "*one**two*";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should handle adjacent emphasis delimiters");
+    }
+
+    #[test]
+    fn phase4_delimiter_triple_asterisks() {
+        // Triple asterisks ***text***
+        let input = "***text***";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse triple asterisks");
+        // Could match as strong containing emphasis, or just text
+    }
+
+    // ------------------------------------------------------------------------
+    // Real-World Scenario Tests
+    // ------------------------------------------------------------------------
+
+    #[test]
+    fn phase4_realworld_sentence_with_formatting() {
+        // Realistic sentence with multiple formatting
+        let input = "This is **really** *important* information!";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse realistic formatted sentence");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::strong));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::emphasis));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::text));
+    }
+
+    #[test]
+    fn phase4_realworld_code_with_explanation() {
+        // Code span with surrounding explanation
+        let input = "Use the `println!()` function to output text.";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse code with explanation");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::code_span));
+    }
+
+    #[test]
+    fn phase4_realworld_link_text() {
+        // Text that looks like it could be a link (but we haven't implemented link parsing yet)
+        let input = "Visit example.com for more info";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse plain text with domain name");
+    }
+
+    #[test]
+    fn phase4_realworld_email_autolink() {
+        // Email autolink in sentence
+        let input = "Contact me at <user@example.com> anytime.";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse email autolink in text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::autolink));
+    }
+
+    #[test]
+    fn phase4_realworld_escaped_characters() {
+        // Text with escaped special characters
+        let input = "Use \\* for emphasis, not \\*\\*";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse text with escapes");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        let escape_count = inner.iter().filter(|p| p.as_rule() == Rule::escape).count();
+        assert!(escape_count >= 2, "Should have at least 2 escapes");
+    }
+
+    #[test]
+    fn phase4_realworld_long_content() {
+        // Longer realistic content
+        let input = "The `Parser` trait in **Rust** is *very* powerful. It allows you to parse <https://example.com> and more.";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse long realistic content");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        // Should have mix of code_span, strong, emphasis, autolink, text
+        assert!(inner.len() > 5, "Should have multiple elements");
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::code_span));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::strong));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::emphasis));
+        assert!(inner.iter().any(|p| p.as_rule() == Rule::autolink));
+    }
+
+    #[test]
+    fn phase4_realworld_plain_text_only() {
+        // Plain text with no formatting
+        let input = "This is just plain text without any special formatting.";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse plain text");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        let inner: Vec<_> = content.into_inner().collect();
+        assert_eq!(inner.len(), 1, "Should have single text element");
+        assert_eq!(inner[0].as_rule(), Rule::text);
+    }
+
+    #[test]
+    fn phase4_realworld_empty_content() {
+        // Empty inline content (edge case)
+        let input = "";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        // Empty content may fail or succeed depending on grammar (+ vs *)
+        // Currently using + (one or more), so this should fail
+        assert!(result.is_err(), "Empty content should fail with + quantifier");
+    }
+
+    // ========================================
+    // Phase 5: Link Tests (CommonMark 6.5)
+    // ========================================
+
+    #[test]
+    fn phase5_link_basic_url() {
+        // Basic inline link with plain URL
+        let input = "[link](/uri)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse basic link");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_rule(), Rule::inline_link);
+        assert_eq!(link.as_str(), "[link](/uri)");
+    }
+
+    #[test]
+    fn phase5_link_with_title_double_quotes() {
+        // Link with title using double quotes
+        let input = r#"[link](/uri "title")"#;
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with double-quoted title");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_with_title_single_quotes() {
+        // Link with title using single quotes
+        let input = "[link](/uri 'title')";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with single-quoted title");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_with_title_parentheses() {
+        // Link with title using parentheses
+        let input = "[link](/uri (title))";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with parentheses-quoted title");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_angle_bracket_destination() {
+        // Link with angle-bracket wrapped destination
+        let input = "[link](<http://example.com>)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with angle-bracket destination");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_angle_bracket_with_spaces() {
+        // Angle brackets allow spaces in URLs
+        let input = "[link](<http://example.com/foo bar>)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with spaces in angle-bracket destination");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_plain_with_parentheses() {
+        // Plain destination can have balanced parentheses
+        let input = "[link](/url(with)(parens))";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with balanced parentheses in destination");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_empty_destination() {
+        // Link with empty destination
+        let input = "[link]()";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        // Empty destination should fail - destinations need at least one character
+        assert!(result.is_err(), "Should fail: empty destination not allowed");
+    }
+
+    #[test]
+    fn phase5_link_escaped_characters_in_text() {
+        // Link text with escaped characters
+        let input = r"[link \[\]](/uri)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with escaped brackets in text");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_escaped_characters_in_destination() {
+        // Destination with escaped characters
+        let input = r"[link](/uri\(with\)escapes)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with escaped characters in destination");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_whitespace_padding() {
+        // Link with whitespace around destination and title
+        let input = r#"[link](  /uri  "title"  )"#;
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_ok(), "Should parse link with whitespace padding");
+        let pairs = result.unwrap();
+        let link = pairs.into_iter().next().unwrap();
+        assert_eq!(link.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_link_no_space_between_brackets() {
+        // No space allowed between ] and (
+        let input = "[link] (/uri)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_err(), "Should fail: space between ] and ( not allowed");
+    }
+
+    #[test]
+    fn phase5_link_multiline_text_fails() {
+        // Link text cannot contain newlines
+        let input = "[link\ntext](/uri)";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_err(), "Should fail: newlines not allowed in link text");
+    }
+
+    #[test]
+    fn phase5_link_title_multiline_fails() {
+        // Title cannot contain newlines
+        let input = "[link](/uri \"title\nline2\")";
+        let result = parse_inline_rule(Rule::inline_link, input);
+        
+        assert!(result.is_err(), "Should fail: newlines not allowed in title");
+    }
+
+    #[test]
+    fn phase5_link_in_inline_content() {
+        // Test link within inline_content context
+        let input = "Check out [this link](/uri) for more info.";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse inline content with link");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        // Phase 7: inline_link is now a child of link rule
+        let has_link = content.into_inner().any(|p| {
+            p.as_rule() == Rule::inline_link || p.as_rule() == Rule::link
+        });
+        assert!(has_link, "Should contain a link element (inline_link or link)");
+    }
+
+    // ========================================
+    // Phase 5: Image Tests (CommonMark 6.4)
+    // ========================================
+
+    #[test]
+    fn phase5_image_basic() {
+        // Basic inline image with plain URL
+        let input = "![alt](/uri)";
+        let result = parse_inline_rule(Rule::inline_image, input);
+        
+        assert!(result.is_ok(), "Should parse basic image");
+        let pairs = result.unwrap();
+        let image = pairs.into_iter().next().unwrap();
+        assert_eq!(image.as_rule(), Rule::inline_image);
+        assert_eq!(image.as_str(), "![alt](/uri)");
+    }
+
+    #[test]
+    fn phase5_image_with_title() {
+        // Image with title
+        let input = r#"![alt](/uri "title")"#;
+        let result = parse_inline_rule(Rule::inline_image, input);
+        
+        assert!(result.is_ok(), "Should parse image with title");
+        let pairs = result.unwrap();
+        let image = pairs.into_iter().next().unwrap();
+        assert_eq!(image.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_image_empty_alt() {
+        // Image with empty alt text
+        let input = "![](/uri)";
+        let result = parse_inline_rule(Rule::inline_image, input);
+        
+        assert!(result.is_ok(), "Should parse image with empty alt text");
+        let pairs = result.unwrap();
+        let image = pairs.into_iter().next().unwrap();
+        assert_eq!(image.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_image_angle_bracket_destination() {
+        // Image with angle-bracket wrapped destination
+        let input = "![alt](<http://example.com/image.png>)";
+        let result = parse_inline_rule(Rule::inline_image, input);
+        
+        assert!(result.is_ok(), "Should parse image with angle-bracket destination");
+        let pairs = result.unwrap();
+        let image = pairs.into_iter().next().unwrap();
+        assert_eq!(image.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_image_escaped_alt_text() {
+        // Alt text with escaped characters
+        let input = r"![alt \[\]](/uri)";
+        let result = parse_inline_rule(Rule::inline_image, input);
+        
+        assert!(result.is_ok(), "Should parse image with escaped brackets in alt");
+        let pairs = result.unwrap();
+        let image = pairs.into_iter().next().unwrap();
+        assert_eq!(image.as_str(), input);
+    }
+
+    #[test]
+    fn phase5_image_multiline_alt_fails() {
+        // Alt text cannot contain newlines
+        let input = "![alt\ntext](/uri)";
+        let result = parse_inline_rule(Rule::inline_image, input);
+        
+        assert!(result.is_err(), "Should fail: newlines not allowed in alt text");
+    }
+
+    #[test]
+    fn phase5_image_in_inline_content() {
+        // Test image within inline_content context
+        let input = "Here is an image: ![logo](/logo.png) in text.";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse inline content with image");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        // Phase 7: inline_image is now a child of image rule
+        let has_image = content.into_inner().any(|p| {
+            p.as_rule() == Rule::inline_image || p.as_rule() == Rule::image
+        });
+        assert!(has_image, "Should contain an image element (inline_image or image)");
+    }
+
+    #[test]
+    fn phase5_image_before_link_precedence() {
+        // Test that images take precedence over links (both start with [)
+        let input = "![image](/img.png) and [link](/uri)";
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse both image and link");
+        let mut pairs = result.unwrap();
+        let content = pairs.next().unwrap();
+        
+        // Phase 7: Check for image and link rules (which contain inline_image and inline_link)
+        let elements: Vec<_> = content.into_inner()
+            .filter(|p| {
+                p.as_rule() == Rule::inline_image || p.as_rule() == Rule::image ||
+                p.as_rule() == Rule::inline_link || p.as_rule() == Rule::link
+            })
+            .collect();
+        
+        assert!(elements.len() >= 2, "Should have both image and link elements");
+        // First element should be image-related
+        assert!(
+            elements[0].as_rule() == Rule::inline_image || elements[0].as_rule() == Rule::image,
+            "First should be image"
+        );
+        // Second element should be link-related
+        let has_link = elements.iter().any(|e| {
+            e.as_rule() == Rule::inline_link || e.as_rule() == Rule::link
+        });
+        assert!(has_link, "Should contain a link element");
+    }
+
+    #[test]
+    fn phase5_realworld_links_and_images_mixed() {
+        // Real-world example with mixed content
+        let input = r#"Check ![logo](/logo.png) and visit [our site](http://example.com "Official Site") for more."#;
+        let result = parse_inline_rule(Rule::inline_content, input);
+        
+        assert!(result.is_ok(), "Should parse mixed content with images and links");
+        let pairs = result.unwrap();
+        let content = pairs.into_iter().next().unwrap();
+        
+        // Phase 7: Count both direct inline_image/inline_link AND parent image/link rules
+        let image_count = content.clone().into_inner()
+            .filter(|p| p.as_rule() == Rule::inline_image || p.as_rule() == Rule::image)
+            .count();
+        let link_count = content.into_inner()
+            .filter(|p| p.as_rule() == Rule::inline_link || p.as_rule() == Rule::link)
+            .count();
+        
+        assert_eq!(image_count, 1, "Should have one image");
+        assert_eq!(link_count, 1, "Should have one link");
     }
 }
 

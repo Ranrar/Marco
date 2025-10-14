@@ -19,7 +19,6 @@ use std::collections::HashMap;
 /// Enhanced AST Builder with comprehensive rule coverage
 pub struct AstBuilder {
     /// Cache for efficient span creation (currently unused but planned for optimization)
-    #[allow(dead_code)]
     span_cache: HashMap<String, Span>,
     /// Current nesting depth for nested code blocks
     nesting_depth: u8,

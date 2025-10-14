@@ -26,13 +26,10 @@ fence_info = @{
     (!NEWLINE ~ ANY)+
 }
 
-// Code content: everything until closing fence
+// Code content: lines between fences
+// Simplified: capture all content atomically without trying to lookahead for fence_close
 fence_content = @{
-    (
-        !fence_close                // Not a closing fence
-        ~ (!NEWLINE ~ ANY)*         // Line content
-        ~ NEWLINE                   // Newline
-    )*
+    ((!NEWLINE ~ ANY)* ~ NEWLINE)*
 }
 
 // Closing fence: must be at least as long as opening

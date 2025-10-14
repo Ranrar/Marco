@@ -15,6 +15,15 @@ INDENT = { INDENT_4 | INDENT_TAB } // One indent unit
 // Line content (unparsed text to be handled by inline parser)
 line_content = @{ (!NEWLINE ~ ANY)* }
 
+// Escape sequence: backslash followed by ASCII punctuation
+// Used in reference definitions for escaping brackets and other special chars
+// Full list per CommonMark: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+escape = @{
+    "\\" ~ ("!" | "\"" | "#" | "$" | "%" | "&" | "'" | "(" | ")" | "*" 
+          | "+" | "," | "-" | "." | "/" | ":" | ";" | "<" | "=" | ">" | "?" 
+          | "@" | "[" | "\\" | "]" | "^" | "_" | "`" | "{" | "|" | "}" | "~")
+}
+
 // Special characters
 HASH = { "#" }
 EQUALS = { "=" }

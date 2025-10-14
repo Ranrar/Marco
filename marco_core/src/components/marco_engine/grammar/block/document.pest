@@ -18,6 +18,8 @@ block = {
   | fenced_code_block             // Fenced code (``` or ~~~)
   | indented_code_block           // 4-space indented code
   | blockquote                    // > quoted text
+  | list                          // Lists (ordered, unordered, task)
+  | reference_definition          // Link reference definitions [label]: url "title"
   | paragraph                     // Fallback - must be last
 }
 
@@ -40,6 +42,7 @@ paragraph_line = {
     ~ !fenced_code_block        // Don't start with ```
     ~ !blockquote               // Don't start with >
     ~ !indented_code_block      // Don't start with 4 spaces
+    ~ !list_marker              // Don't start with list markers
     ~ line_content              // Actual content
     ~ NEWLINE
 }

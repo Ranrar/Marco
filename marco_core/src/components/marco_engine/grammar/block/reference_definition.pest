@@ -1,0 +1,118 @@
+// reference_definition.pest
+// CommonMark 0.31.2 Section 4.7: Link reference definitions
+// 
+// Syntax: [label]: destination "optional title"
+// 
+// A link reference definition consists of:
+// 1. A link label (brackets with 1-999 chars, may contain escaped brackets)
+// 2. A colon (:)
+// 3. Optional whitespace (including up to one line ending)
+// 4. A link destination
+// 5. Optional whitespace and link title
+// 
+// Labels are case-insensitive and normalized (Unicode case fold + collapse whitespace)
+// Definitions cannot be indented 4+ spaces (would become code block)
+// Definitions cannot interrupt paragraphs
+// Title may span multiple lines but cannot contain blank lines
+
+// Main entry point for link reference definitions
+reference_definition = {
+    INDENT_0_3 ~ reference_label ~ ":" ~ SPACE* ~ NEWLINE? ~ SPACE* ~ reference_destination ~ (SPACE* ~ NEWLINE? ~ SPACE* ~ reference_title)? ~ SPACE* ~ NEWLINE
+}
+
+// Link label: [label]
+// Must have 1-999 characters between brackets
+// Can contain escaped brackets \[ \]
+// Cannot contain unescaped brackets or blank lines
+reference_label = @{
+    "[" ~ reference_label_content ~ "]"
+}
+
+reference_label_content = {
+    (reference_label_char | escape){1, 999}
+}
+
+reference_label_char = {
+    !("[" | "]" | "\\" | NEWLINE) ~ ANY
+}
+
+// Link destination: URL or <URL>
+// Plain destination: no spaces, balanced parens allowed
+// Angle bracket destination: <url> allows spaces inside
+reference_destination = {
+    reference_angle_bracket_destination
+  | reference_plain_destination
+}
+
+// Angle bracket destination: <http://example.com>
+// Allows spaces inside brackets
+reference_angle_bracket_destination = @{
+    "<" ~ reference_angle_dest_content ~ ">"
+}
+
+reference_angle_dest_content = {
+    reference_angle_dest_char*
+}
+
+reference_angle_dest_char = {
+    !("<" | ">" | "\\" | NEWLINE) ~ ANY
+  | escape
+}
+
+// Plain destination: http://example.com
+// No spaces allowed, but balanced parentheses OK
+reference_plain_destination = @{
+    reference_plain_dest_char+
+}
+
+reference_plain_dest_char = {
+    !(" " | "\t" | NEWLINE | "<" | ">") ~ ANY
+}
+
+// Link title: "title", 'title', or (title)
+// May span multiple lines but no blank lines
+// Three quote styles allowed
+reference_title = {
+    reference_double_quoted_title
+  | reference_single_quoted_title
+  | reference_paren_quoted_title
+}
+
+// Double-quoted title: "title"
+reference_double_quoted_title = @{
+    "\"" ~ reference_title_double_content ~ "\""
+}
+
+reference_title_double_content = {
+    (reference_title_double_char | escape)*
+}
+
+reference_title_double_char = {
+    !("\"" | "\\" | NEWLINE ~ NEWLINE) ~ ANY
+}
+
+// Single-quoted title: 'title'
+reference_single_quoted_title = @{
+    "'" ~ reference_title_single_content ~ "'"
+}
+
+reference_title_single_content = {
+    (reference_title_single_char | escape)*
+}
+
+reference_title_single_char = {
+    !("'" | "\\" | NEWLINE ~ NEWLINE) ~ ANY
+}
+
+// Parenthesis-quoted title: (title)
+reference_paren_quoted_title = @{
+    "(" ~ reference_title_paren_content ~ ")"
+}
+
+reference_title_paren_content = {
+    (reference_title_paren_char | escape)*
+}
+
+reference_title_paren_char = {
+    !("(" | ")" | "\\" | NEWLINE ~ NEWLINE) ~ ANY
+}

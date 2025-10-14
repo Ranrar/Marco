@@ -1,0 +1,152 @@
+// CommonMark Section 6.5 - Links
+// Phase 5: Inline links [text](url "title")
+// Phase 7: Reference links [text][label], [label][], [label]
+// 
+// An inline link consists of:
+// - Link text: `[` + inline content + `]`
+// - Link destination: `(` + URL (plain or angle-bracket wrapped) + optional title + `)`
+// 
+// A reference link consists of:
+// - Link text: `[` + inline content + `]`
+// - Link label: `[label]` (full), `[]` (collapsed), or nothing (shortcut)
+// - Resolved via link reference definition elsewhere in document
+// 
+// Key rules:
+// - Link text can contain inline elements (emphasis, strong, code, etc.)
+// - Links cannot contain other links (nested links not allowed)
+// - Code spans, autolinks, HTML tags bind tighter than link brackets
+// - Brackets bind tighter than emphasis/strong markers
+// - Destinations can be: plain URLs or <url> (with spaces allowed inside <>)
+// - Titles can use ", ', or () delimiters
+// - No whitespace between `]` and `(` for inline links
+// - No whitespace between `]` and `[` for reference links
+// - Label matching is case-insensitive with normalized whitespace
+// 
+// Grammar matches CommonMark spec examples 481-566 (inline), 495-533 (reference)
+
+// Main link dispatcher - tries reference types first, then inline
+link = {
+    link_full_reference
+  | link_collapsed_reference
+  | link_shortcut_reference
+  | inline_link
+}
+
+// Inline link: [text](url "title")
+inline_link = ${
+    "[" ~ link_text ~ "]" ~ "(" ~ link_destination_with_title ~ ")"
+}
+
+// Full reference link: [text][label]
+link_full_reference = ${
+    "[" ~ link_text ~ "]" ~ "[" ~ link_reference_label ~ "]"
+}
+
+// Collapsed reference link: [label][]
+link_collapsed_reference = ${
+    "[" ~ link_reference_label ~ "]" ~ "[" ~ "]"
+}
+
+// Shortcut reference link: [label]
+// Must be followed by lookahead to ensure not inline link or full/collapsed reference
+link_shortcut_reference = ${
+    "[" ~ link_reference_label ~ "]" ~ !("(" | "[")
+}
+
+// Reference label: 1-999 characters for label matching
+// Used in full, collapsed, and shortcut references
+// Labels are normalized: case-insensitive, whitespace collapsed
+link_reference_label = {
+    link_reference_label_char+
+}
+
+link_reference_label_char = {
+    escape
+  | !("]" | "[" | NEWLINE) ~ ANY
+}
+
+// Link text: inline content (but no nested links - enforced in AST builder)
+// For now, we'll use a simplified approach: any characters except unescaped ]
+// Full implementation would need to handle nested brackets and inline elements
+link_text = {
+    link_text_char*
+}
+
+link_text_char = {
+    escape
+  | !("]" | NEWLINE) ~ ANY
+}
+
+// Link destination with optional title
+link_destination_with_title = {
+    SPACE* ~ link_destination ~ (SPACE+ ~ link_title)? ~ SPACE*
+}
+
+// Link destination: either angle-bracket wrapped or plain
+link_destination = {
+    link_angle_bracket_destination
+  | link_plain_destination
+}
+
+// Angle bracket destination: <url> (allows spaces, no line breaks or unescaped < >)
+link_angle_bracket_destination = ${
+    "<" ~ link_angle_dest_char* ~ ">"
+}
+
+link_angle_dest_char = {
+    escape
+  | !(">" | "<" | NEWLINE) ~ ANY
+}
+
+// Plain destination: no spaces or control chars, balanced parentheses
+link_plain_destination = {
+    link_plain_dest_char+
+}
+
+link_plain_dest_char = {
+    escape
+  | !("(" | ")" | " " | "\t" | NEWLINE | "<" | ">") ~ ANY
+  | "(" ~ link_plain_dest_inner ~ ")"
+}
+
+// Inner parentheses (allows nesting)
+link_plain_dest_inner = {
+    link_plain_dest_char*
+}
+
+// Link title: ", ', or () delimited
+link_title = {
+    link_double_quoted_title
+  | link_single_quoted_title
+  | link_paren_quoted_title
+}
+
+// Double quote title: "title"
+link_double_quoted_title = ${
+    "\"" ~ link_double_title_char* ~ "\""
+}
+
+link_double_title_char = {
+    escape
+  | !("\"" | NEWLINE) ~ ANY
+}
+
+// Single quote title: 'title'
+link_single_quoted_title = ${
+    "'" ~ link_single_title_char* ~ "'"
+}
+
+link_single_title_char = {
+    escape
+  | !("'" | NEWLINE) ~ ANY
+}
+
+// Parentheses title: (title)
+link_paren_quoted_title = ${
+    "(" ~ link_paren_title_char* ~ ")"
+}
+
+link_paren_title_char = {
+    escape
+  | !("(" | ")" | NEWLINE) ~ ANY
+}

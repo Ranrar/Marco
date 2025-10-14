@@ -13,6 +13,8 @@ use pest_derive::Parser;
 #[grammar = "components/marco_engine/grammar/block/fenced_code_block.pest"]
 #[grammar = "components/marco_engine/grammar/block/indented_code_block.pest"]
 #[grammar = "components/marco_engine/grammar/block/blockquote.pest"]
+#[grammar = "components/marco_engine/grammar/block/list.pest"]
+#[grammar = "components/marco_engine/grammar/block/reference_definition.pest"]
 #[grammar = "components/marco_engine/grammar/block/document.pest"]
 pub struct BlockParser;
 
@@ -192,5 +194,93 @@ fn main() {}
 "#;
         let result = parse_blocks(input);
         assert!(result.is_ok(), "Should parse complex document with multiple block types");
+    }
+    
+    // List tests - Phase 6
+    #[test]
+    fn smoke_test_bullet_list_dash() {
+        let input = "- First item\n- Second item\n";
+        let result = BlockParser::parse(Rule::list, input);
+        assert!(result.is_ok(), "Should parse dash bullet list: {:?}", result.err());
+    }
+    
+    #[test]
+    fn smoke_test_bullet_list_asterisk() {
+        let input = "* Item one\n* Item two\n";
+        let result = BlockParser::parse(Rule::list, input);
+        assert!(result.is_ok(), "Should parse asterisk bullet list: {:?}", result.err());
+    }
+    
+    #[test]
+    fn smoke_test_ordered_list() {
+        let input = "1. First\n2. Second\n3. Third\n";
+        let result = BlockParser::parse(Rule::list, input);
+        assert!(result.is_ok(), "Should parse ordered list: {:?}", result.err());
+    }
+    
+    #[test]
+    fn smoke_test_task_list() {
+        let input = "- [ ] Unchecked task\n- [x] Checked task\n";
+        let result = BlockParser::parse(Rule::task_list, input);
+        assert!(result.is_ok(), "Should parse task list: {:?}", result.err());
+    }
+    
+    #[test]
+    fn smoke_test_list_markers() {
+        // Test bullet markers
+        let dash = BlockParser::parse(Rule::bullet_list_marker, "- ");
+        assert!(dash.is_ok(), "Should parse dash marker: {:?}", dash.err());
+        
+        let plus = BlockParser::parse(Rule::bullet_list_marker, "+ ");
+        assert!(plus.is_ok(), "Should parse plus marker: {:?}", plus.err());
+        
+        let asterisk = BlockParser::parse(Rule::bullet_list_marker, "* ");
+        assert!(asterisk.is_ok(), "Should parse asterisk marker: {:?}", asterisk.err());
+        
+        // Test ordered markers
+        let dot = BlockParser::parse(Rule::ordered_list_marker, "1. ");
+        assert!(dot.is_ok(), "Should parse dot delimiter: {:?}", dot.err());
+        
+        let paren = BlockParser::parse(Rule::ordered_list_marker, "1) ");
+        assert!(paren.is_ok(), "Should parse paren delimiter: {:?}", paren.err());
+    }
+
+    // ============================================================
+    // Phase 7: Reference Definitions Tests
+    // ============================================================
+
+    #[test]
+    fn smoke_test_reference_definition_basic() {
+        let input = "[foo]: /url\n";
+        let result = BlockParser::parse(Rule::reference_definition, input);
+        assert!(result.is_ok(), "Should parse basic reference definition: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_reference_definition_with_title() {
+        let input = "[foo]: /url \"title\"\n";
+        let result = BlockParser::parse(Rule::reference_definition, input);
+        assert!(result.is_ok(), "Should parse reference with title: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_reference_definition_angle_bracket() {
+        let input = "[foo]: <http://example.com>\n";
+        let result = BlockParser::parse(Rule::reference_definition, input);
+        assert!(result.is_ok(), "Should parse angle bracket destination: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_reference_definition_single_quote_title() {
+        let input = "[foo]: /url 'title'\n";
+        let result = BlockParser::parse(Rule::reference_definition, input);
+        assert!(result.is_ok(), "Should parse single quote title: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_reference_definition_paren_title() {
+        let input = "[foo]: /url (title)\n";
+        let result = BlockParser::parse(Rule::reference_definition, input);
+        assert!(result.is_ok(), "Should parse paren title: {:?}", result.err());
     }
 }

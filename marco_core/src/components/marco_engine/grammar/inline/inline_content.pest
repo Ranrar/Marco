@@ -1,0 +1,89 @@
+// CommonMark Section 6 - Inline Content Parser
+// 
+// This file orchestrates all inline elements with proper precedence rules.
+// 
+// Precedence (highest to lowest):
+// 1. Backslash escapes (highest - processed first)
+// 2. Code spans (protect their content from further parsing)
+// 3. Autolinks (processed before other inline elements)
+// 4. HTML tags (raw HTML, no markdown processing inside)
+// 5. Images (![ before links) - includes inline and reference images (Phase 7)
+// 6. Links ([text](url)) - includes inline and reference links (Phase 7)
+// 7. Line breaks (hard line breaks)
+// 8. Strong emphasis (** or __)
+// 9. Emphasis (* or _)
+// 10. Plain text (lowest - fallback)
+// 
+// This ordering ensures that:
+// - Escapes work everywhere (even in code spans conceptually, though code spans ignore them)
+// - Code spans and autolinks protect their content from emphasis parsing
+// - HTML attributes don't get markdown processing
+// - Images tried before links (![ vs [)
+// - Link brackets bind tighter than emphasis markers
+// - Emphasis and strong can nest properly
+// - Reference-style links/images tried before inline variants (within link/image rules)
+
+// Main inline content rule - a sequence of inline elements
+inline_content = {
+    inline_element+
+}
+
+// Inline element dispatcher - tries each type in precedence order
+// Made silent (_) to avoid extra nesting in parse tree
+inline_element = _{
+    escape // Highest: backslash escapes
+
+  | code_span // Protects content from parsing
+
+  | autolink // URIs and emails processed early
+
+  | html_tag // Raw HTML tags
+
+  | image // Images: ![alt][label], ![label][], ![label], ![alt](url) (Phase 7)
+
+  | link // Links: [text][label], [label][], [label], [text](url) (Phase 7)
+
+  | line_break // Hard line breaks (2+ spaces or backslash)
+
+  | strong // ** or __ (before single emphasis)
+
+  | emphasis // * or _ (after double emphasis)
+
+  | text // Lowest: plain text fallback
+}
+
+// Plain text - any characters that aren't special inline markers
+// Stops at special characters that could start inline elements
+text = ${
+    text_char+
+}
+
+text_char = {
+    !(ASTERISK // Could start emphasis or strong
+  | UNDERSCORE // Could start emphasis or strong
+  | BACKTICK // Could start code span
+  | BACKSLASH // Could start escape
+  | "<" // Could start autolink or HTML tag
+  | "[" // Could start link
+  | "!" // Could start image (![)
+  | " " ~ " " // Could start line break (2+ spaces)
+  | NEWLINE // End of inline content
+  ) ~ ANY
+}
+
+// Note on delimiter runs and nesting:
+// 
+// The current implementation handles simple delimiter matching.
+// For full CommonMark compliance with delimiter runs, we would need:
+// 1. Left-flanking delimiter run detection
+// 2. Right-flanking delimiter run detection
+// 3. Can-open and can-close semantics
+// 4. Proper nesting depth tracking
+// 
+// This is a complex state machine that may require:
+// - Custom Rust code for delimiter run matching
+// - Or PrattParser for operator precedence
+// - Or manual AST post-processing
+// 
+// For now, we implement basic matching which handles most common cases.
+// Full delimiter run semantics can be added in the AST builder phase.

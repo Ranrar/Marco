@@ -1,0 +1,145 @@
+// CommonMark Section 6.4 - Images
+// Phase 5: Inline images ![alt](url "title")
+// Phase 7: Reference images ![alt][label], ![label][], ![label]
+// 
+// An inline image consists of:
+// - Opening: `![`
+// - Alt text: plain text (not parsed as inline content)
+// - Closing: `]`
+// - Image destination: `(` + URL (plain or angle-bracket wrapped) + optional title + `)`
+// 
+// A reference image consists of:
+// - Opening: `![`
+// - Alt text: plain text
+// - Closing: `]`
+// - Image label: `[label]` (full), `[]` (collapsed), or nothing (shortcut)
+// - Resolved via link reference definition elsewhere in document
+// 
+// Key rules:
+// - Alt text is plain text, not parsed as markdown
+// - Otherwise identical structure to reference links
+// - No whitespace between `]` and `(` for inline images
+// - No whitespace between `]` and `[` for reference images
+// - Label matching is case-insensitive with normalized whitespace
+// 
+// Grammar matches CommonMark spec examples 567-588 (inline), 589-601 (reference)
+
+// Main image dispatcher - tries reference types first, then inline
+image = {
+    image_full_reference
+  | image_collapsed_reference
+  | image_shortcut_reference
+  | inline_image
+}
+
+// Inline image: ![alt](url "title")
+inline_image = ${
+    "![" ~ image_alt_text ~ "]" ~ "(" ~ image_destination_with_title ~ ")"
+}
+
+// Full reference image: ![alt][label]
+image_full_reference = ${
+    "![" ~ image_alt_text ~ "]" ~ "[" ~ image_reference_label ~ "]"
+}
+
+// Collapsed reference image: ![label][]
+image_collapsed_reference = ${
+    "![" ~ image_reference_label ~ "]" ~ "[" ~ "]"
+}
+
+// Shortcut reference image: ![label]
+// Must be followed by lookahead to ensure not inline image or full/collapsed reference
+image_shortcut_reference = ${
+    "![" ~ image_reference_label ~ "]" ~ !("(" | "[")
+}
+
+// Reference label: 1-999 characters for label matching
+// Used in full, collapsed, and shortcut references
+image_reference_label = {
+    image_reference_label_char+
+}
+
+image_reference_label_char = {
+    escape
+  | !("]" | "[" | NEWLINE) ~ ANY
+}
+
+// Alt text: plain text, not parsed as markdown (simpler than link text)
+image_alt_text = {
+    image_alt_char*
+}
+
+image_alt_char = {
+    escape
+  | !("]" | NEWLINE) ~ ANY
+}
+
+// Image destination with optional title (same as links)
+image_destination_with_title = {
+    SPACE* ~ image_destination ~ (SPACE+ ~ image_title)? ~ SPACE*
+}
+
+// Image destination: either angle-bracket wrapped or plain
+image_destination = {
+    image_angle_bracket_dest
+  | image_plain_dest
+}
+
+// Angle bracket destination: <url>
+image_angle_bracket_dest = ${
+    "<" ~ image_angle_dest_char* ~ ">"
+}
+
+image_angle_dest_char = {
+    escape
+  | !(">" | "<" | NEWLINE) ~ ANY
+}
+
+// Plain destination: no spaces
+image_plain_dest = {
+    image_plain_dest_char+
+}
+
+image_plain_dest_char = {
+    escape
+  | !("(" | ")" | " " | "\t" | NEWLINE | "<" | ">") ~ ANY
+  | "(" ~ image_plain_dest_inner ~ ")"
+}
+
+image_plain_dest_inner = {
+    image_plain_dest_char*
+}
+
+// Image title: ", ', or () delimited (same as links)
+image_title = {
+    image_double_quoted_title
+  | image_single_quoted_title
+  | image_paren_quoted_title
+}
+
+image_double_quoted_title = ${
+    "\"" ~ image_double_title_char* ~ "\""
+}
+
+image_double_title_char = {
+    escape
+  | !("\"" | NEWLINE) ~ ANY
+}
+
+image_single_quoted_title = ${
+    "'" ~ image_single_title_char* ~ "'"
+}
+
+image_single_title_char = {
+    escape
+  | !("'" | NEWLINE) ~ ANY
+}
+
+image_paren_quoted_title = ${
+    "(" ~ image_paren_title_char* ~ ")"
+}
+
+image_paren_title_char = {
+    escape
+  | !("(" | ")" | NEWLINE) ~ ANY
+}

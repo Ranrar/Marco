@@ -1,0 +1,175 @@
+// list.pest - CommonMark list structures (ordered, unordered, task lists)
+//
+// CommonMark Spec Sections: 5.2 (List items), 5.3 (Lists)
+// 
+// Key principles:
+// - List marker can be preceded by 0-3 spaces of indentation
+// - Bullet markers: - + *
+// - Ordered markers: 1-9 digits followed by . or )
+// - Indentation after marker determines content alignment
+// - Nested lists require proper indentation calculation
+// - Tight vs loose lists based on blank lines
+//
+// References:
+// - https://spec.commonmark.org/0.31.2/#list-items
+// - https://spec.commonmark.org/0.31.2/#lists
+
+// ============================================================================
+// List Markers
+// ============================================================================
+
+/// Bullet list marker: -, +, or *
+/// Must be followed by at least one space or tab
+bullet_list_marker = @{
+    ("-" | "+" | "*") ~ (" " | "\t")+
+}
+
+/// Ordered list marker: 1-9 digits followed by . or )
+/// Must be followed by at least one space or tab
+/// Note: Numbers must be 1-9 digits (not 10+) per CommonMark spec
+ordered_list_marker = @{
+    ASCII_DIGIT{1,9} ~ ("." | ")") ~ (" " | "\t")+
+}
+
+/// Task list marker (GFM extension): [ ] or [x] or [X]
+/// Must follow a list marker and be followed by whitespace
+task_list_marker = @{
+    "[" ~ (" " | "x" | "X") ~ "]" ~ (" " | "\t")+
+}
+
+/// Generic list marker (bullet or ordered)
+list_marker = {
+    bullet_list_marker | ordered_list_marker
+}
+
+// ============================================================================
+// List Item Components
+// ============================================================================
+
+/// Indentation before list marker (0-3 spaces allowed)
+list_indent = @{ " "{0,3} }
+
+/// List item content - text and inline elements
+/// Content continues until next list marker or block element
+/// Can be empty (just marker followed by newline) or contain text
+list_item_content = {
+    ((!NEWLINE ~ !list_marker ~ ANY)+ ~ NEWLINE) | NEWLINE
+}
+
+/// Continuation line - properly indented content in multi-line list item
+/// Indentation must match or exceed marker position + spaces after marker
+continuation_line = {
+    " "{1,} ~ list_item_content
+}
+
+/// Blank line within list item (allowed, affects tight/loose status)
+list_blank_line = {
+    NEWLINE
+}
+
+// ============================================================================
+// List Item Structure
+// ============================================================================
+
+/// Basic list item: marker + optional task marker + content
+/// Example: "- First item"
+/// Example: "1. Ordered item"
+/// Example: "- [ ] Task item"
+basic_list_item = {
+    list_indent ~ list_marker ~ task_list_marker? ~ list_item_content
+}
+
+/// List item with continuation lines (multi-paragraph items)
+/// Example:
+///   - First line
+///     Second line indented
+///     
+///     Second paragraph
+list_item_with_continuation = {
+    basic_list_item ~ (list_blank_line | continuation_line)*
+}
+
+/// Complete list item (may contain nested lists)
+list_item = {
+    list_item_with_continuation | basic_list_item
+}
+
+// ============================================================================
+// List Structure
+// ============================================================================
+
+/// Unordered list - sequence of bullet list items
+unordered_list = {
+    (list_indent ~ bullet_list_marker ~ task_list_marker? ~ list_item_content)+
+}
+
+/// Ordered list - sequence of numbered list items
+ordered_list = {
+    (list_indent ~ ordered_list_marker ~ task_list_marker? ~ list_item_content)+
+}
+
+/// Generic list (bullet or ordered)
+/// Note: Mixing marker types creates separate lists per CommonMark
+list = {
+    unordered_list | ordered_list
+}
+
+/// Task list (GFM extension) - list with checkbox markers
+task_list = {
+    (list_indent ~ list_marker ~ task_list_marker ~ list_item_content)+
+}
+
+// ============================================================================
+// Nested Lists
+// ============================================================================
+
+/// Sublist - nested list within a list item
+/// Requires additional indentation based on parent marker width
+/// Example:
+///   - Parent item
+///     - Nested item (2 spaces indent)
+///       - Deeper nesting (4 spaces indent)
+nested_list_item = {
+    list_indent ~ list_marker ~ task_list_marker? ~ list_item_content ~
+    (NEWLINE ~ " "{2,} ~ list)?
+}
+
+/// List with nesting support
+nested_list = {
+    nested_list_item+
+}
+
+// ============================================================================
+// List Types (Tight vs Loose)
+// ============================================================================
+
+/// Tight list - no blank lines between items, paragraphs not wrapped in <p>
+/// Example:
+///   - One
+///   - Two
+///   - Three
+tight_list = {
+    (list_item ~ (!NEWLINE{2,} ~ list_item)*) ~ NEWLINE?
+}
+
+/// Loose list - blank lines between items or within items
+/// Paragraphs wrapped in <p> tags
+/// Example:
+///   - One
+///   
+///   - Two
+///   
+///   - Three
+loose_list = {
+    list_item ~ (NEWLINE{2,} ~ list_item)+ ~ NEWLINE?
+}
+
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
+/// Main rule for parsing lists - tries all list types
+/// Order matters: task lists first, then nested, then tight/loose
+list_block = {
+    SOI? ~ (task_list | nested_list | loose_list | tight_list | list) ~ EOI?
+}
