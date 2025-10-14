@@ -7,7 +7,13 @@
 //! - Essential 3-function API: parse → build_ast → render
 //! - Block-level AST/HTML caching for performance optimization
 
-// Import modules directly (no subfolders)
+// NEW: Phase 2 modular architecture (being built incrementally)
+pub mod api;
+pub mod builders;
+pub mod renderers;
+pub mod span;
+
+// EXISTING: Current implementation (will be refactored in phases 2.2-2.8)
 pub mod ast_builder;
 pub mod ast_node;
 pub mod grammar;
