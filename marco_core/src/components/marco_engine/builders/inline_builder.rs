@@ -9,18 +9,12 @@
 
 use crate::components::marco_engine::{
     ast_node::{Node, Span},  // Use Span from ast_node module
-    builders::helpers,
+    builders::{helpers, AstError},  // Use centralized AstError
     grammar::Rule,
 };
 use pest::iterators::Pair;
 
-/// Error type for inline building operations
-#[derive(Debug, Clone)]
-pub enum InlineError {
-    ParseError(String),
-    InvalidRule(String),
-    MissingContent(String),
-}
+// AstError removed - using AstError from mod.rs
 
 /// Builder for inline-level AST nodes
 pub struct InlineBuilder;
@@ -32,7 +26,7 @@ impl InlineBuilder {
     }
 
     /// Build an inline node from a Pest pair
-    pub fn build_inline_node(&self, pair: Pair<Rule>) -> Result<Node, InlineError> {
+    pub fn build_inline_node(&self, pair: Pair<Rule>) -> Result<Node, AstError> {
         let span = helpers::create_span(&pair);
 
         match pair.as_rule() {
@@ -115,7 +109,7 @@ impl InlineBuilder {
 
             _ => {
                 // Unknown or unsupported inline rule
-                Err(InlineError::InvalidRule(format!(
+                Err(AstError::InvalidStructure(format!(
                     "Unsupported inline rule: {:?}",
                     pair.as_rule()
                 )))
@@ -124,7 +118,7 @@ impl InlineBuilder {
     }
 
     /// Build all inline children of a pair
-    fn build_inline_children(&self, pair: Pair<Rule>) -> Result<Vec<Node>, InlineError> {
+    fn build_inline_children(&self, pair: Pair<Rule>) -> Result<Vec<Node>, AstError> {
         let mut children = Vec::new();
         for inner_pair in pair.into_inner() {
             let child = self.build_inline_node(inner_pair)?;
@@ -134,7 +128,7 @@ impl InlineBuilder {
     }
 
     /// Extract inline code content
-    fn extract_inline_code_content(&self, pair: &Pair<Rule>) -> Result<String, InlineError> {
+    fn extract_inline_code_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
         let text = pair.as_str();
         
         // Remove backtick delimiters
@@ -147,7 +141,7 @@ impl InlineBuilder {
     fn extract_link_content(
         &self,
         pair: Pair<Rule>,
-    ) -> Result<(Vec<Node>, String, Option<String>), InlineError> {
+    ) -> Result<(Vec<Node>, String, Option<String>), AstError> {
         let mut text_nodes = Vec::new();
         let mut url = String::new();
         let mut title: Option<String> = None;
@@ -166,7 +160,7 @@ impl InlineBuilder {
     fn extract_image_content(
         &self,
         pair: Pair<Rule>,
-    ) -> Result<(String, String, Option<String>), InlineError> {
+    ) -> Result<(String, String, Option<String>), AstError> {
         let alt_text = pair.as_str().to_string();
         let url = alt_text.clone();
         let title: Option<String> = None;

@@ -9,19 +9,13 @@
 
 use crate::components::marco_engine::{
     ast_node::{Node, Span},  // Use Span from ast_node, not the new span module
-    builders::helpers,
+    builders::{helpers, AstError},  // Use AstError from mod.rs
     grammar::Rule,
 };
 use pest::iterators::{Pair, Pairs};
 use std::collections::HashMap;
 
-/// Error type for AST building operations
-#[derive(Debug, Clone)]
-pub enum AstError {
-    ParseError(String),
-    InvalidRule(String),
-    MissingContent(String),
-}
+// AstError is now imported from builders/mod.rs which has Display impl
 
 /// Builder for block-level AST nodes
 pub struct BlockBuilder {
@@ -76,6 +70,13 @@ impl BlockBuilder {
             Rule::document => {
                 let children = self.build_children(pair)?;
                 Ok(Node::document(children, span))
+            }
+
+            Rule::block => {
+                // Block is a dispatcher rule - recurse into the actual block type
+                let inner_pair = pair.into_inner().next()
+                    .ok_or_else(|| AstError::MissingContent("Empty block rule".to_string()))?;
+                self.build_block_node(inner_pair)
             }
 
             Rule::paragraph => {
@@ -152,7 +153,7 @@ impl BlockBuilder {
 
             _ => {
                 // Unknown rule - return error for now
-                Err(AstError::InvalidRule(format!(
+                Err(AstError::InvalidStructure(format!(
                     "Unsupported block rule: {:?}",
                     pair.as_rule()
                 )))

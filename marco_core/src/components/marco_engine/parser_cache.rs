@@ -14,7 +14,7 @@ use std::num::NonZeroUsize;
 use anyhow::Result;
 
 use crate::components::marco_engine::ast_node::Node;
-use crate::components::marco_engine::render_html::HtmlOptions;
+use crate::components::marco_engine::renderers::HtmlOptions;
 use crate::components::marco_engine::{parse_text, build_ast, render_html};
 
 /// Simple content hash type

@@ -1,62 +1,66 @@
-//! # Simplified Marco AST Node Definitions
+//! # CommonMark AST Node Definitions
 //!
-//! This module contains the simplified Abstract Syntax Tree (AST) node definitions for the Marco
-//! markup language parser. Following the grammar-centered design principle from the documentation.
+//! This module contains the Abstract Syntax Tree (AST) node definitions for the CommonMark
+//! markdown parser. Following the grammar-centered design principle from the documentation.
 //!
 //! ## Design Principles
 //!
-//! - **Grammar-Centered**: Direct 1:1 mapping with marco.pest rules
+//! - **Grammar-Centered**: Direct 1:1 mapping with CommonMark grammar rules
 //! - **Simplicity**: Single Node enum without enterprise abstractions
 //! - **Essential Fields Only**: No over-engineering with metadata variants
 //! - **Span-Aware**: Every node tracks source location for error reporting
+//! - **CommonMark Focus**: Marco-specific extensions removed (tables kept as GFM extension)
 //!
 //! ## Node Categories
 //!
 //! ### Document Structure
 //! - `Document`: Root container for all content
 //!
-//! ### Block Elements
+//! ### Block Elements (CommonMark)
 //! - `Heading`: All heading types (ATX and Setext unified)
 //! - `Paragraph`: Regular text content
 //! - `CodeBlock`: All code block types (fenced and indented unified)
-//! - `MathBlock`: Math display blocks
 //! - `List`: Ordered and unordered lists
-//! - `ListItem`: Individual list items with optional task checkbox
-//! - `Table`: Table structure with headers and rows
+//! - `ListItem`: Individual list items with optional task checkbox (GFM)
 //! - `BlockQuote`: Quoted content
 //! - `HorizontalRule`: Thematic breaks
-//! - `DefinitionList`: Definition list container
-//! - `DefinitionTerm`: Definition terms
-//! - `DefinitionDescription`: Definition descriptions
+//! - `Table` / `TableCell`: Tables (GFM extension - kept for compatibility)
 //!
-//! ### Inline Elements
+//! ### Inline Elements (CommonMark)
 //! - `Text`: Plain text content
 //! - `Strong`: Bold text
 //! - `Emphasis`: Italic text
-//! - `Strikethrough`: Struck through text
-//! - `Highlight`: Highlighted text
-//! - `Superscript`: Superscript text
-//! - `Subscript`: Subscript text
+//! - `Strikethrough`: Struck through text (GFM extension)
 //! - `Code`: Inline code
-//! - `MathInline`: Inline math
 //! - `Link`: Links with text and URL
 //! - `Image`: Images with alt text and URL
-//! - `LineBreak`: Line breaks (all types unified)
+//! - `LineBreak`: Line breaks (hard and soft)
 //! - `EscapedChar`: Escaped characters
 //!
-//! ### Marco Extensions
-//! - `UserMention`: User mentions with platform
-//! - `Bookmark`: Bookmarks with path and line
-//! - `TabBlock`: Tab containers
-//! - `Tab`: Individual tabs
-//! - `Admonition`: Note/warning/tip blocks
-//! - `TableOfContents`: Auto-generated TOCs
-//! - `RunInline`: Inline executable code
-//! - `RunBlock`: Block executable code
-//! - `DiagramBlock`: Mermaid/GraphViz diagrams
+//! ### References & Footnotes (CommonMark)
+//! - `ReferenceDefinition`: Link/image reference definitions
+//! - `ReferenceLink` / `ReferenceImage`: Reference-style links and images
+//! - `FootnoteDef` / `FootnoteRef` / `InlineFootnoteRef`: Footnote support
 //!
-//! ### Error Recovery
+//! ### HTML & Error Recovery
+//! - `HtmlBlock`: Raw HTML blocks
 //! - `Unknown`: For unrecognized content during parsing
+//!
+//! ## Removed Marco Extensions
+//!
+//! The following Marco-specific node types have been removed (Phase 2.4):
+//! - ❌ `NestedCodeBlock` - Russian-doll nested code blocks
+//! - ❌ `MathBlock` / `MathInline` - LaTeX math expressions
+//! - ❌ `Highlight` / `Superscript` / `Subscript` - Extended inline formatting
+//! - ❌ `Emoji` - Emoji shortcodes
+//! - ❌ `UserMention` - @username mentions
+//! - ❌ `Bookmark` - File bookmarks
+//! - ❌ `TabBlock` / `Tab` - Tabbed content
+//! - ❌ `Admonition` - Note/warning/tip blocks
+//! - ❌ `TableOfContents` - Auto-generated TOCs
+//! - ❌ `RunInline` / `RunBlock` - Executable code
+//! - ❌ `DiagramBlock` - Mermaid/GraphViz diagrams
+//! - ❌ `DefinitionList` / `DefinitionTerm` / `DefinitionDescription` - Definition lists
 
 use serde::{Deserialize, Serialize};
 
@@ -112,19 +116,6 @@ pub enum Node {
         span: Span,
     },
 
-    /// Nested code block (Marco extension) - supports recursive fenced code blocks
-    /// This enables Russian-doll style nested code blocks where inner fenced blocks
-    /// are recursively parsed rather than treated as literal text
-    NestedCodeBlock {
-        language: Option<String>, // Programming language if specified
-        level: u8,                // Nesting level (1-3)
-        content: Vec<Node>,       // Parsed inner content (can contain more NestedCodeBlock nodes)
-        span: Span,
-    },
-
-    /// Math block $$formula$$
-    MathBlock { content: String, span: Span },
-
     /// List (ordered or unordered)
     List {
         ordered: bool,    // true for numbered lists
@@ -164,18 +155,6 @@ pub enum Node {
     /// Horizontal rule (---, ***, ___)
     HorizontalRule { span: Span },
 
-    /// Definition list container
-    DefinitionList {
-        items: Vec<Node>, // DefinitionTerm and DefinitionDescription nodes
-        span: Span,
-    },
-
-    /// Definition term
-    DefinitionTerm { content: Vec<Node>, span: Span },
-
-    /// Definition description
-    DefinitionDescription { content: Vec<Node>, span: Span },
-
     // ===========================================
     // INLINE ELEMENTS
     // ===========================================
@@ -191,27 +170,8 @@ pub enum Node {
     /// Strikethrough ~~text~~
     Strikethrough { content: Vec<Node>, span: Span },
 
-    /// Highlight ==text==
-    Highlight { content: Vec<Node>, span: Span },
-
-    /// Superscript ^text^
-    Superscript { content: Vec<Node>, span: Span },
-
-    /// Subscript ~text~
-    Subscript { content: Vec<Node>, span: Span },
-
     /// Inline code `code`
     Code { content: String, span: Span },
-
-    /// Inline math $formula$
-    MathInline { content: String, span: Span },
-
-    /// Emoji :name:
-    Emoji {
-        shortcode: String, // e.g., "smile", "heart", "thumbs_up"
-        unicode: String,   // e.g., "😊", "❤️", "👍"
-        span: Span,
-    },
 
     /// Links [text](url "title")
     Link {
@@ -237,74 +197,6 @@ pub enum Node {
 
     /// Escaped character \x
     EscapedChar { character: char, span: Span },
-
-    // ===========================================
-    // MARCO EXTENSIONS
-    // ===========================================
-    /// User mention @username[platform]
-    UserMention {
-        username: String,
-        platform: Option<String>, // github, twitter, slack, etc.
-        display_name: Option<String>,
-        span: Span,
-    },
-
-    /// Bookmark [bookmark:label](path=line)
-    Bookmark {
-        label: String,
-        path: String,
-        line: Option<u32>,
-        span: Span,
-    },
-
-    /// Tab container :::tab
-    TabBlock {
-        title: Option<String>,
-        tabs: Vec<Node>, // Tab nodes
-        span: Span,
-    },
-
-    /// Individual tab @tab
-    Tab {
-        name: Option<String>,
-        content: Vec<Node>,
-        span: Span,
-    },
-
-    /// Admonition block :::note
-    Admonition {
-        kind: String, // "note", "warning", "tip", "danger", "info"
-        content: Vec<Node>,
-        span: Span,
-    },
-
-    /// Table of contents [toc=3]
-    TableOfContents {
-        depth: Option<u8>,        // Heading depth limit
-        document: Option<String>, // Optional document reference
-        span: Span,
-    },
-
-    /// Inline executable code run@bash(command)
-    RunInline {
-        script_type: String, // bash, python, etc.
-        command: String,
-        span: Span,
-    },
-
-    /// Block executable code ```run@python
-    RunBlock {
-        script_type: String, // bash, python, etc.
-        content: String,
-        span: Span,
-    },
-
-    /// Diagram block ```mermaid
-    DiagramBlock {
-        diagram_type: String, // "mermaid", "graphviz"
-        content: String,
-        span: Span,
-    },
 
     // ===========================================
     // FOOTNOTES AND REFERENCES
@@ -406,33 +298,9 @@ impl Node {
         }
     }
 
-    /// Create a new nested code block node (Marco extension)
-    pub fn nested_code_block(
-        language: Option<String>,
-        level: u8,
-        content: Vec<Node>,
-        span: Span,
-    ) -> Self {
-        Node::NestedCodeBlock {
-            language,
-            level,
-            content,
-            span,
-        }
-    }
-
     /// Create a new inline code node
     pub fn code(content: String, span: Span) -> Self {
         Node::Code { content, span }
-    }
-
-    /// Create a new emoji node
-    pub fn emoji(shortcode: String, unicode: String, span: Span) -> Self {
-        Node::Emoji {
-            shortcode,
-            unicode,
-            span,
-        }
     }
 
     /// Create a new list node
@@ -512,34 +380,9 @@ impl Node {
         Node::HorizontalRule { span }
     }
 
-    /// Create a new math block node
-    pub fn math_block(content: String, span: Span) -> Self {
-        Node::MathBlock { content, span }
-    }
-
-    /// Create a new math inline node
-    pub fn math_inline(content: String, span: Span) -> Self {
-        Node::MathInline { content, span }
-    }
-
     /// Create a new strikethrough node
     pub fn strikethrough(content: Vec<Node>, span: Span) -> Self {
         Node::Strikethrough { content, span }
-    }
-
-    /// Create a new highlight node
-    pub fn highlight(content: Vec<Node>, span: Span) -> Self {
-        Node::Highlight { content, span }
-    }
-
-    /// Create a new superscript node
-    pub fn superscript(content: Vec<Node>, span: Span) -> Self {
-        Node::Superscript { content, span }
-    }
-
-    /// Create a new subscript node
-    pub fn subscript(content: Vec<Node>, span: Span) -> Self {
-        Node::Subscript { content, span }
     }
 
     /// Create a new line break node

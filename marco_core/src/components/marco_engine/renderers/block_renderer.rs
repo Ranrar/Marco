@@ -4,44 +4,14 @@
 //! Marco extensions NOT included (tables, admonitions, tabs, run blocks, etc.)
 
 use crate::components::marco_engine::ast_node::Node;
+use crate::components::marco_engine::renderers::HtmlOptions; // Use HtmlOptions from mod.rs
 use crate::components::syntax_highlighter::SyntaxHighlighter;
 use std::collections::HashMap;
 use std::fmt::Write;
 
 use super::helpers;
 
-#[derive(Debug, Clone)]
-pub struct HtmlOptions {
-    pub syntax_highlighting: bool,
-    pub css_classes: bool,
-    pub inline_styles: bool,
-    pub class_prefix: String,
-    pub sanitize_html: bool,
-    pub theme_mode: String, // "light" or "dark" for syntax highlighting themes
-}
-
-impl Default for HtmlOptions {
-    fn default() -> Self {
-        Self {
-            syntax_highlighting: true,
-            css_classes: true,
-            inline_styles: false,
-            class_prefix: "marco-".to_string(),
-            sanitize_html: true,
-            theme_mode: "light".to_string(), // Default to light theme
-        }
-    }
-}
-
-impl HtmlOptions {
-    /// Create HtmlOptions with a specific theme mode
-    pub fn with_theme_mode(theme_mode: &str) -> Self {
-        Self {
-            theme_mode: theme_mode.to_string(),
-            ..Self::default()
-        }
-    }
-}
+// HtmlOptions moved to renderers/mod.rs to avoid duplication
 
 pub struct BlockRenderer {
     output: String,
