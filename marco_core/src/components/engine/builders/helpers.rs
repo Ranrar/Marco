@@ -8,26 +8,26 @@
 
 use crate::components::engine::{
     ast_node::{Node, Span},  // Use Span from ast_node module
-    grammar::Rule,
 };
 use pest::iterators::Pair;
+use pest::RuleType;
 
-/// Create span from pest pair with proper line/column tracking
-pub fn create_span(pair: &Pair<Rule>) -> Span {
+/// Create span from pest pair with proper line/column tracking (generic over any Rule type)
+pub fn create_span<R: RuleType>(pair: &Pair<R>) -> Span {
     Span::from_pest(pair)
 }
 
-/// Build all children of a Pest pair into AST nodes
+/// Build all children of a Pest pair into AST nodes (generic placeholder)
 ///
 /// **TODO**: Phase 2.2 - This is a temporary stub.
 /// Will need to properly implement with builder once ast_builder.rs is split
-pub fn build_children_stub(_pair: Pair<Rule>) -> Result<Vec<Node>, String> {
+pub fn build_children_stub<R: RuleType>(_pair: Pair<R>) -> Result<Vec<Node>, String> {
     // Temporary stub - will be implemented properly in Phase 2.2
     Ok(Vec::new())
 }
 
-/// Extract text content from a pair
-pub fn extract_text_content(pair: &Pair<Rule>) -> String {
+/// Extract text content from a pair (generic over any Rule type)
+pub fn extract_text_content<R: RuleType>(pair: &Pair<R>) -> String {
     pair.as_str().to_string()
 }
 

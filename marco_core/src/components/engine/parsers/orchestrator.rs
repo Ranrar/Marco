@@ -19,10 +19,13 @@
 // - **CommonMark compliance**: Two-stage parsing matches spec architecture
 // - **Performance**: Can cache block and inline parsing separately
 
-use pest::iterators::{Pair, Pairs};
 use pest::Parser;
 use super::block_parser::{BlockParser, Rule as BlockRule};
 use super::inline_parser::{InlineParser, Rule as InlineRule};
+use crate::components::engine::{
+    ast_node::Node,
+    builders::{BlockBuilder, InlineBuilder},
+};
 
 /// Unified Rule enum that wraps both Block and Inline rules
 /// This provides a single Rule type for the public API while maintaining
@@ -68,100 +71,80 @@ pub enum Rule {
     EOI,
 }
 
-/// Parse markdown document using two-stage architecture
+/// Parse markdown document using two-stage architecture and build AST
 ///
 /// # Arguments
 /// * `input` - Markdown text to parse
 ///
 /// # Returns
-/// * `Ok(String)` - JSON representation of parse tree (for debugging)
-/// * `Err(String)` - Parse error message
+/// * `Ok(Node)` - Root AST node representing the document
+/// * `Err(String)` - Parse or build error message
 ///
 /// # Example
-/// ```rust
-/// use marco_core::parsers::orchestrator::parse_document;
+/// ```rust,no_run
+/// use marco_core::components::engine::parsers::orchestrator::parse_document;
 ///
 /// let markdown = "# Hello\n\nThis is **bold** text.";
-/// let result = parse_document(markdown);
-/// assert!(result.is_ok());
+/// let ast = parse_document(markdown).unwrap();
 /// ```
-pub fn parse_document(input: &str) -> Result<String, String> {
-    // Stage 1: Parse block structure
-    let block_pairs = BlockParser::parse(BlockRule::document, input)
-        .map_err(|e| format!("Block parse error: {}", e))?;
-    
-    // Stage 2: For each block that contains inline content, parse it
-    // For now, return a debug representation
-    // TODO: Implement proper inline parsing recursion
-    
-    let mut result = String::from("Block structure:\n");
-    for pair in block_pairs {
-        result.push_str(&format_block_pair(pair, 0));
-    }
-    
-    Ok(result)
-}
-
-/// Format a block-level pair for debugging (recursive)
-fn format_block_pair(pair: Pair<BlockRule>, depth: usize) -> String {
-    let indent = "  ".repeat(depth);
-    let rule_name = format!("{:?}", pair.as_rule());
-    let text = pair.as_str();
-    let preview = if text.len() > 50 {
-        format!("{}...", &text[..50])
+pub fn parse_document(input: &str) -> Result<Node, String> {
+    // Normalize input: ensure it ends with a newline for EOF handling
+    // CommonMark requires trailing newlines, but we want to be lenient
+    let normalized_input = if input.is_empty() || input.ends_with('\n') {
+        input.to_string()
     } else {
-        text.to_string()
+        format!("{}\n", input)
     };
     
-    let mut result = format!("{}{}: {:?}\n", indent, rule_name, preview);
+    // Stage 1: Parse block structure
+    let block_pairs = BlockParser::parse(BlockRule::document, &normalized_input)
+        .map_err(|e| format!("Block parse error: {}", e))?;
     
-    for inner in pair.into_inner() {
-        result.push_str(&format_block_pair(inner, depth + 1));
-    }
-    
-    result
+    // Stage 2: Build AST using BlockBuilder
+    // The BlockBuilder will handle creating the document node and all block-level children
+    let mut builder = BlockBuilder::new();
+    builder.build_document(block_pairs)
+        .map_err(|e| format!("AST build error: {}", e))
 }
 
 /// Parse inline content (second stage)
 ///
-/// This function takes a block of text and parses inline elements within it.
+/// This function takes a block of text and parses inline elements within it,
+/// returning an AST node.
 ///
 /// # Arguments
 /// * `input` - Text content from a block to parse inline elements
 ///
 /// # Returns
-/// * `Ok(String)` - JSON representation of inline parse tree
+/// * `Ok(Node)` - AST node containing the inline elements
 /// * `Err(String)` - Parse error message
-pub fn parse_inline_content(input: &str) -> Result<String, String> {
+pub fn parse_inline_content(input: &str) -> Result<Node, String> {
     let inline_pairs = InlineParser::parse(InlineRule::inline_content, input)
         .map_err(|e| format!("Inline parse error: {}", e))?;
     
-    let mut result = String::from("Inline structure:\n");
+    // Build AST using InlineBuilder
+    let builder = InlineBuilder::new();
+    let mut children = Vec::new();
+    
     for pair in inline_pairs {
-        result.push_str(&format_inline_pair(pair, 0));
+        match builder.build_inline_node(pair) {
+            Ok(node) => children.push(node),
+            Err(e) => return Err(format!("Inline AST build error: {}", e)),
+        }
     }
     
-    Ok(result)
-}
-
-/// Format an inline-level pair for debugging (recursive)
-fn format_inline_pair(pair: Pair<InlineRule>, depth: usize) -> String {
-    let indent = "  ".repeat(depth);
-    let rule_name = format!("{:?}", pair.as_rule());
-    let text = pair.as_str();
-    let preview = if text.len() > 50 {
-        format!("{}...", &text[..50])
+    // Return a text node containing all inline elements
+    // TODO: Better handling of multiple inline elements
+    if children.len() == 1 {
+        Ok(children.into_iter().next().unwrap())
     } else {
-        text.to_string()
-    };
-    
-    let mut result = format!("{}{}: {:?}\n", indent, rule_name, preview);
-    
-    for inner in pair.into_inner() {
-        result.push_str(&format_inline_pair(inner, depth + 1));
+        // Combine into a single text representation for now
+        let combined_text = children.iter()
+            .map(|n| format!("{:?}", n))
+            .collect::<Vec<_>>()
+            .join("");
+        Ok(Node::text(combined_text, crate::components::engine::ast_node::Span::new(0, 0, 1, 1)))
     }
-    
-    result
 }
 
 #[cfg(test)]
@@ -173,8 +156,6 @@ mod tests {
         let input = "# Hello World\n\nThis is text.";
         let result = parse_document(input);
         assert!(result.is_ok(), "Should parse basic document");
-        let output = result.unwrap();
-        assert!(output.contains("document"), "Should contain 'document' in output");
     }
 
     #[test]
@@ -189,8 +170,5 @@ mod tests {
         let input = "This is **bold** and *italic* text.";
         let result = parse_inline_content(input);
         assert!(result.is_ok(), "Should parse inline content");
-        let output = result.unwrap();
-        assert!(output.contains("inline_content") || output.contains("Inline"), 
-                "Should contain inline markers");
     }
 }

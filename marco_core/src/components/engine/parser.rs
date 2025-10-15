@@ -1,12 +1,13 @@
-//! Simplified parser module for Marco engine
+//! Simplified parser module for Marco engine (Two-Stage Parser)
 //!
-//! Contains only essential parsing functionality:
-//! - Direct Pest parser usage (MarcoParser)
-//! - Basic Rule enum re-export
-//! - Simple error handling
+//! Contains parsing functionality for the new two-stage architecture:
+//! - Block parser (BlockParser) for document structure
+//! - Orchestrator for full document parsing
+//! - Basic error handling
 
-// Re-export the essential Pest parser
-pub use crate::components::engine::grammar::{MarcoParser, Rule};
+// Re-export the block parser and rules
+pub use crate::components::engine::grammar::{BlockParser, BlockRule};
+pub use crate::components::engine::parsers::orchestrator;
 
 // Re-export basic Pest types that might be needed
 pub use pest::iterators::Pairs;
@@ -16,40 +17,35 @@ pub use pest::Parser;
 ///
 /// Uses String for errors following Marco's simplified architecture pattern.
 /// Primarily used by test utilities and external API consumers.
-#[allow(dead_code)]
 pub type ParseResult<T> = Result<T, String>;
 
 /// Convenience function for parsing complete markdown documents.
 ///
-/// Parses input using Rule::document and provides consistent error handling.
-/// This function is primarily used by the integration test suite and external
-/// API consumers who need to parse full markdown documents.
+/// Uses the new two-stage parser orchestrator to build a complete AST.
+/// This is the recommended way to parse markdown documents.
 ///
 /// # Arguments
 /// * `input` - The markdown text to parse
 ///
 /// # Returns
-/// * `Ok(Pairs)` - Successfully parsed pest pairs
+/// * `Ok(Node)` - Successfully parsed AST
 /// * `Err(String)` - Parse error with descriptive message
-#[allow(dead_code)]
-pub fn parse_document(input: &str) -> ParseResult<Pairs<'_, Rule>> {
-    MarcoParser::parse(Rule::document, input).map_err(|e| e.to_string())
+pub fn parse_document(input: &str) -> Result<crate::components::engine::ast_node::Node, String> {
+    orchestrator::parse_document(input)
 }
 
-/// Convenience function for testing specific grammar rules.
+/// Convenience function for testing specific block grammar rules.
 ///
-/// Allows parsing input with any specific Rule, useful for unit testing
-/// individual grammar rules and debugging parser behavior. This function
-/// is extensively used by the integration test suite for grammar validation.
+/// Allows parsing input with any specific BlockRule, useful for unit testing
+/// individual grammar rules and debugging parser behavior.
 ///
 /// # Arguments
 /// * `input` - The text to parse
-/// * `rule` - The specific grammar rule to test against
+/// * `rule` - The specific block grammar rule to test against
 ///
 /// # Returns
 /// * `Ok(Pairs)` - Successfully parsed pest pairs
 /// * `Err(String)` - Parse error with descriptive message
-#[allow(dead_code)]
-pub fn parse_with_rule(input: &str, rule: Rule) -> ParseResult<Pairs<'_, Rule>> {
-    MarcoParser::parse(rule, input).map_err(|e| e.to_string())
+pub fn parse_with_rule(input: &str, rule: BlockRule) -> ParseResult<Pairs<'_, BlockRule>> {
+    BlockParser::parse(rule, input).map_err(|e| e.to_string())
 }

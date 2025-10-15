@@ -1,4 +1,4 @@
-use marco_core::components::engine::render_html::HtmlOptions;
+use marco_core::components::engine::renderers::HtmlOptions;
 use gtk4::prelude::*;
 use std::cell::RefCell;
 use webkit6::prelude::*;

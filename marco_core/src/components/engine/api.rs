@@ -1,28 +1,24 @@
 //! Marco Engine Public API
 //!
-//! Provides a clean, simple API for markdown processing:
+//! Provides a clean, simple API for markdown processing using the two-stage parser:
 //! - `parse_markdown()` - Parse markdown to AST
 //! - `render_to_html()` - Render AST to HTML
 //! - `parse_and_render()` - One-step convenience function
 //!
-//! Uses the modular builders and renderers architecture.
-//!
-//! **Status**: Phase 2.5 - New modular API implementation
+//! Uses the modular builders and renderers architecture with two-stage parsing.
 
 use crate::components::engine::{
     ast_node::Node,
-    grammar::{MarcoParser, Rule},
-    builders::{AstError, BlockBuilder},
+    parsers::orchestrator,
     renderers::{HtmlOptions, block_renderer::BlockRenderer},
 };
-use pest::Parser;
 
-/// Parse markdown text to AST using modular builders
+/// Parse markdown text to AST using the new two-stage parser
 ///
 /// # Example
 ///
 /// ```rust,no_run
-/// use marco_core::components::marco_engine::api;
+/// use marco_core::components::engine::api;
 ///
 /// let ast = api::parse_markdown("# Hello World").unwrap();
 /// ```
@@ -33,14 +29,8 @@ use pest::Parser;
 /// - Pest parsing fails (invalid syntax)
 /// - AST building fails (invalid structure)
 pub fn parse_markdown(input: &str) -> Result<Node, String> {
-    // Step 1: Parse with Pest
-    let pairs = MarcoParser::parse(Rule::document, input)
-        .map_err(|e| format!("Parse error: {}", e))?;
-    
-    // Step 2: Build AST with modular builder
-    let mut builder = BlockBuilder::new();
-    builder.build_document(pairs)
-        .map_err(|e| format!("AST build error: {}", e))
+    // Use the orchestrator's two-stage parsing
+    orchestrator::parse_document(input)
 }
 
 
@@ -49,7 +39,7 @@ pub fn parse_markdown(input: &str) -> Result<Node, String> {
 /// # Example
 ///
 /// ```rust,no_run
-/// use marco_core::components::marco_engine::{api, renderers::HtmlOptions};
+/// use marco_core::components::engine::{api, renderers::HtmlOptions};
 ///
 /// let ast = api::parse_markdown("# Hello").unwrap();
 /// let html = api::render_to_html(&ast, HtmlOptions::default());
@@ -65,7 +55,7 @@ pub fn render_to_html(ast: &Node, options: HtmlOptions) -> String {
 /// # Example
 ///
 /// ```rust,no_run
-/// use marco_core::components::marco_engine::{api, renderers::HtmlOptions};
+/// use marco_core::components::engine::{api, renderers::HtmlOptions};
 ///
 /// let html = api::parse_and_render("# Hello", HtmlOptions::default()).unwrap();
 /// ```

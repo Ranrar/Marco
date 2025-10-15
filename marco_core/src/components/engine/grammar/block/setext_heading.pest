@@ -15,7 +15,7 @@ setext_content = {
 setext_underline = ${
     INDENT_0_3                    // 0-3 spaces allowed
     ~ setext_marker               // === or ---
-    ~ NEWLINE
+    ~ NEWLINE?                    // Optional NEWLINE (for EOF cases)
 }
 
 setext_marker = @{

@@ -6,17 +6,17 @@ use pest::iterators::Pairs;
 use pest_derive::Parser;
 
 #[derive(Parser)]
-#[grammar = "components/marco_engine/grammar/inline/_core.pest"]
-#[grammar = "components/marco_engine/grammar/inline/emphasis.pest"]
-#[grammar = "components/marco_engine/grammar/inline/strong.pest"]
-#[grammar = "components/marco_engine/grammar/inline/code_span.pest"]
-#[grammar = "components/marco_engine/grammar/inline/autolink.pest"]
-#[grammar = "components/marco_engine/grammar/inline/escape.pest"]
-#[grammar = "components/marco_engine/grammar/inline/line_break.pest"]
-#[grammar = "components/marco_engine/grammar/inline/html_tag.pest"]
-#[grammar = "components/marco_engine/grammar/inline/link.pest"]
-#[grammar = "components/marco_engine/grammar/inline/image.pest"]
-#[grammar = "components/marco_engine/grammar/inline/inline_content.pest"]
+#[grammar = "components/engine/grammar/inline/_core.pest"]
+#[grammar = "components/engine/grammar/inline/emphasis.pest"]
+#[grammar = "components/engine/grammar/inline/strong.pest"]
+#[grammar = "components/engine/grammar/inline/code_span.pest"]
+#[grammar = "components/engine/grammar/inline/autolink.pest"]
+#[grammar = "components/engine/grammar/inline/escape.pest"]
+#[grammar = "components/engine/grammar/inline/line_break.pest"]
+#[grammar = "components/engine/grammar/inline/html_tag.pest"]
+#[grammar = "components/engine/grammar/inline/link.pest"]
+#[grammar = "components/engine/grammar/inline/image.pest"]
+#[grammar = "components/engine/grammar/inline/inline_content.pest"]
 pub struct InlineParser;
 
 /// Parse inline content from a string

@@ -38,5 +38,5 @@ fence_close = {
     INDENT_0_3
     ~ fence_marker                 // Same type as opening
     ~ (!NEWLINE ~ ANY)*            // Optional trailing content (ignored)
-    ~ NEWLINE
+    ~ NEWLINE?                     // Optional newline (for EOF)
 }

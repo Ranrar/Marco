@@ -52,27 +52,26 @@ pub use parser_cache::global_parser_cache;
 pub use renderers::HtmlOptions;
 
 // ============================================================================
+// ============================================================================
 // SIMPLIFIED 3-FUNCTION API (LEGACY - Use api:: functions instead)
 // ============================================================================
 
-use pest::Parser;
-
-/// Parse markdown text into Pest pairs (LEGACY - use api::parse_markdown instead)
+/// Parse markdown text into AST (LEGACY - use api::parse_markdown instead)
 ///
 /// **Deprecated**: Use `api::parse_markdown()` for new code
 #[deprecated(since = "0.2.0", note = "Use api::parse_markdown() instead")]
-pub fn parse_text(input: &str) -> Result<pest::iterators::Pairs<'_, Rule>, String> {
-    MarcoParser::parse(Rule::document, input).map_err(|e| e.to_string())
+pub fn parse_text(input: &str) -> Result<Node, String> {
+    // Redirect to new orchestrator-based API
+    api::parse_markdown(input)
 }
 
-/// Build AST from Pest pairs (LEGACY - integrated into api::parse_markdown)
+/// Build AST from already-parsed content (LEGACY - no longer needed)
 ///
-/// **Deprecated**: Use `api::parse_markdown()` which does this internally
+/// **Deprecated**: Use `api::parse_markdown()` which does parsing and building together
 #[deprecated(since = "0.2.0", note = "Use api::parse_markdown() instead")]
-pub fn build_ast(pairs: pest::iterators::Pairs<'_, Rule>) -> Result<Node, String> {
-    let mut builder = builders::BlockBuilder::new();
-    builder.build_document(pairs)
-        .map_err(|e| format!("AST build error: {}", e))
+pub fn build_ast(input: &str) -> Result<Node, String> {
+    // Since we can't accept Pest pairs anymore (different Rule types), just parse fresh
+    api::parse_markdown(input)
 }
 
 /// Render AST to HTML (LEGACY - use api::render_to_html instead)
@@ -91,13 +90,4 @@ pub fn render_html(ast: &Node, options: HtmlOptions) -> String {
 pub fn parse_to_html_cached(input: &str) -> Result<String, String> {
     global_parser_cache().render_with_cache(input, HtmlOptions::default())
         .map_err(|e| format!("Block-level HTML caching failed: {}", e))
-}
-
-/// Parse markdown to Pest pairs (LEGACY - for backwards compatibility)
-///
-/// **Deprecated**: Use `api::parse_markdown()` instead
-#[deprecated(since = "0.2.0", note = "Use api::parse_markdown() for AST")]
-#[allow(dead_code)]
-pub fn parse_markdown_legacy(input: &str) -> Result<pest::iterators::Pairs<'_, Rule>, String> {
-    parse_text(input)
 }

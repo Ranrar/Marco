@@ -10,10 +10,10 @@ pub mod ui;
 pub use marco_core::logic::buffer::{DocumentBuffer, RecentFiles};
 
 // Re-export the Marco parser from core
-pub use marco_core::{parse_markdown, AstBuilder, MarcoParser, Rule};
+pub use marco_core::{parse_markdown, render_to_html, parse_and_render, Node};
 
 // Re-export parser utilities for testing and convenience
 pub use marco_core::{parse_document, parse_with_rule, ParseResult};
 
-// Re-export HTML rendering
-pub use marco_core::components::engine::render_html::{HtmlOptions, HtmlRenderer};
+// Re-export HTML rendering options
+pub use marco_core::components::engine::renderers::HtmlOptions;

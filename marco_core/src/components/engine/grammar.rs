@@ -1,25 +1,31 @@
-// DEPRECATED: Old monolithic grammar system
-//
-// This file contains the legacy MarcoParser which used a single monolithic
-// grammar file (marco_grammar.pest - now archived). 
-//
-// **DO NOT USE FOR NEW CODE** - Use the new two-stage parser instead:
-//   - parsers::block_parser::BlockParser (block-level parsing)
-//   - parsers::inline_parser::InlineParser (inline-level parsing)  
-//   - parsers::orchestrator::parse_document (unified API)
-//
-// This legacy parser is retained temporarily for backward compatibility
-// during the migration period. It will be removed in a future release.
-//
-// Archived grammar location:
-//   marco_core/src/components/marco_engine/grammar/archive/marco_grammar.pest.old
+//! Two-Stage Parser Grammar Module
+//!
+//! This module re-exports the new two-stage parser architecture that replaces
+//! the old monolithic MarcoParser.
+//!
+//! **New Architecture**:
+//! - `BlockParser` - Parses document structure (headings, lists, code blocks, etc.)
+//! - `InlineParser` - Parses inline content (bold, italic, links, etc.)
+//! - `orchestrator` - Coordinates two-stage parsing and AST building
+//!
+//! The old monolithic grammar has been removed. All parsing now uses the modular
+//! two-stage approach with separate block and inline grammars.
 
-use pest_derive::Parser;
+// Re-export block parser (primary parser for document structure)
+pub use crate::components::engine::parsers::block_parser::BlockParser;
+pub use crate::components::engine::parsers::block_parser::Rule as BlockRule;
 
+// Re-export inline parser
+pub use crate::components::engine::parsers::inline_parser::InlineParser;
+pub use crate::components::engine::parsers::inline_parser::Rule as InlineRule;
+
+// Re-export orchestrator Rule as the primary Rule type
+pub use crate::components::engine::parsers::orchestrator::Rule;
+
+// For backward compatibility, alias BlockParser as MarcoParser
+// This allows existing code to continue using MarcoParser while we migrate
 #[deprecated(
     since = "0.2.0",
-    note = "Use parsers::orchestrator::parse_document() with the new two-stage parser instead"
+    note = "Use BlockParser directly or orchestrator::parse_document() instead"
 )]
-#[derive(Parser)]
-#[grammar = "components/marco_engine/grammar/archive/marco_grammar.pest.old"]
-pub struct MarcoParser;
+pub type MarcoParser = BlockParser;

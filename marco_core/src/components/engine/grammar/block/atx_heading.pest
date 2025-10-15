@@ -6,7 +6,7 @@ atx_heading = ${
     INDENT_0_3                    // 0-3 spaces allowed before #
     ~ atx_level                   // 1-6 hash marks
     ~ (" " ~ atx_rest)?           // Optional: literal space + rest of line
-    ~ NEWLINE
+    ~ NEWLINE?                    // Optional NEWLINE (for EOF cases)
 }
 
 atx_level = @{ HASH{1,6} }        // Capture 1-6 hashes

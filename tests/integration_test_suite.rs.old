@@ -2,8 +2,11 @@ use std::process::Command;
 
 // Grammar and parser tests
 mod parser_tests {
-    use marco_core::components::engine::{parse_to_html_cached, Rule};
-    use marco_core::{parse_document, parse_with_rule, ParseResult};
+    use marco_core::components::engine::{parse_to_html_cached, grammar::BlockRule as Rule};
+    use marco_core::{parse_document, parse_with_rule};
+    
+    // Type alias for test results
+    type ParseResult<T> = Result<T, String>;
 
     #[test]
     fn test_setext_h1_grammar() {

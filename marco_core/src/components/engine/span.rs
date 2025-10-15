@@ -38,9 +38,9 @@ impl Span {
         }
     }
 
-    /// Create a span from pest Pair
-    pub fn from_pest(
-        pair: &pest::iterators::Pair<crate::components::engine::grammar::Rule>,
+    /// Create a span from pest Pair (generic over any Rule type)
+    pub fn from_pest<R: pest::RuleType>(
+        pair: &pest::iterators::Pair<R>,
     ) -> Self {
         let span = pair.as_span();
         let (line, column) = span.start_pos().line_col();

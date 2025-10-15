@@ -25,6 +25,6 @@ pub use components::engine::{MarcoParser, Rule, Node};
 pub use components::engine::renderers::HtmlOptions;
 
 // Parser utilities (deprecated - use api functions instead)
-#[deprecated(since = "0.2.0", note = "Use components::marco_engine::parser module directly")]
+#[deprecated(since = "0.2.0", note = "Use components::engine::parser module directly")]
 pub use components::engine::parser::{ParseResult, parse_document, parse_with_rule};
 

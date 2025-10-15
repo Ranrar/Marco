@@ -115,11 +115,9 @@ impl SimpleParserCache {
                     } else {
                         cache_misses += 1;
                         
-                        // Parse section
-                        let section_pairs = parse_text(section_content)
+                        // Parse section using the new two-stage parser
+                        let section_ast = crate::components::engine::api::parse_markdown(section_content)
                             .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
-                        let section_ast = build_ast(section_pairs)
-                            .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?;
                         
                         // Cache the section AST
                         let cached_section = CachedSection::new(section_ast.clone());
@@ -128,10 +126,8 @@ impl SimpleParserCache {
                     }
                 } else {
                     // Fallback if cache lock fails
-                    let section_pairs = parse_text(section_content)
-                        .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?;
-                    build_ast(section_pairs)
-                        .map_err(|e| anyhow::anyhow!("Section AST build error: {}", e))?
+                    crate::components::engine::api::parse_markdown(section_content)
+                        .map_err(|e| anyhow::anyhow!("Section parse error: {}", e))?
                 }
             };
             
@@ -160,11 +156,8 @@ impl SimpleParserCache {
     
     /// Parse small content directly without sectioning
     fn parse_directly(&self, content: &str) -> Result<Node> {
-        let pairs = parse_text(content)
+        let ast = crate::components::engine::api::parse_markdown(content)
             .map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
-        
-        let ast = build_ast(pairs)
-            .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
         
         // Update statistics
         if let Ok(mut stats) = self.stats.write() {
@@ -203,11 +196,8 @@ impl SimpleParserCache {
     
     /// Render small content directly without sectioning
     fn render_directly(&self, content: &str, options: HtmlOptions) -> Result<String> {
-        let pairs = parse_text(content)
+        let ast = crate::components::engine::api::parse_markdown(content)
             .map_err(|e| anyhow::anyhow!("Parse error: {}", e))?;
-        
-        let ast = build_ast(pairs)
-            .map_err(|e| anyhow::anyhow!("AST build error: {}", e))?;
         
         let html = render_html(&ast, options);
         
