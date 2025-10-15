@@ -1,4 +1,4 @@
-use marco_core::components::marco_engine::render_html::HtmlOptions;
+use marco_core::components::engine::render_html::HtmlOptions;
 use gtk4::prelude::*;
 use std::cell::RefCell;
 use webkit6::prelude::*;
@@ -63,7 +63,7 @@ fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
 /// Uses the current theme mode from params for syntax highlighting
 fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &HtmlOptions, theme_mode: &str) -> String {
-    use marco_core::components::marco_engine::global_parser_cache;
+    use marco_core::components::engine::global_parser_cache;
 
     // Create fresh HtmlOptions with the current theme mode for syntax highlighting
     let html_options = HtmlOptions {

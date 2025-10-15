@@ -13,9 +13,9 @@ use lru::LruCache;
 use std::num::NonZeroUsize;
 use anyhow::Result;
 
-use crate::components::marco_engine::ast_node::Node;
-use crate::components::marco_engine::renderers::HtmlOptions;
-use crate::components::marco_engine::{parse_text, build_ast, render_html};
+use crate::components::engine::ast_node::Node;
+use crate::components::engine::renderers::HtmlOptions;
+use crate::components::engine::{parse_text, build_ast, render_html};
 
 /// Simple content hash type
 type ContentHash = u64;
@@ -146,7 +146,7 @@ impl SimpleParserCache {
         
         // Combine all section ASTs into a single document AST
         // For now, create a simple document node containing all sections
-        use crate::components::marco_engine::ast_node::Span;
+        use crate::components::engine::ast_node::Span;
         Ok(Node::Document { 
             children: combined_ast_nodes,
             span: Span { 

@@ -7,7 +7,7 @@
 //!
 //! Phase 2.3 will extract this from render_html.rs
 
-use crate::components::marco_engine::{ast_node::Node, renderers::HtmlOptions};
+use crate::components::engine::{ast_node::Node, renderers::HtmlOptions};
 
 /// Renderer for inline-level nodes
 pub struct InlineRenderer {

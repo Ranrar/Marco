@@ -6,7 +6,7 @@
 //! - Label normalization
 //! - Child node building
 
-use crate::components::marco_engine::{
+use crate::components::engine::{
     ast_node::{Node, Span},  // Use Span from ast_node module
     grammar::Rule,
 };

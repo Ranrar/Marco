@@ -6,7 +6,7 @@
 //! - Simple error handling
 
 // Re-export the essential Pest parser
-pub use crate::components::marco_engine::grammar::{MarcoParser, Rule};
+pub use crate::components::engine::grammar::{MarcoParser, Rule};
 
 // Re-export basic Pest types that might be needed
 pub use pest::iterators::Pairs;

@@ -7,7 +7,7 @@
 //!
 //! **Phase 2.2**: Extracted from ast_builder.rs, Marco extensions removed
 
-use crate::components::marco_engine::{
+use crate::components::engine::{
     ast_node::{Node, Span},  // Use Span from ast_node, not the new span module
     builders::{helpers, AstError},  // Use AstError from mod.rs
     grammar::Rule,

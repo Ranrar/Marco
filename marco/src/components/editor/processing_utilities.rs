@@ -326,7 +326,7 @@ impl AsyncExtensionManager {
     /// Process Marco extensions (@run, [toc], [Page]) - Now implemented!
     fn process_marco_extensions(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
         // Use the cached parsing for better performance
-        match marco_core::components::marco_engine::parse_to_html_cached(content) {
+        match marco_core::components::engine::parse_to_html_cached(content) {
             Ok(_html_output) => {
                 // For editor processing, we return the original content but indicate success
                 // The HTML output would be used separately for preview updates

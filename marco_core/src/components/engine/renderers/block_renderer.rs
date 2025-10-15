@@ -3,8 +3,8 @@
 //! Handles rendering of block-level AST nodes (Document, Heading, Paragraph, etc.)
 //! Marco extensions NOT included (tables, admonitions, tabs, run blocks, etc.)
 
-use crate::components::marco_engine::ast_node::Node;
-use crate::components::marco_engine::renderers::HtmlOptions; // Use HtmlOptions from mod.rs
+use crate::components::engine::ast_node::Node;
+use crate::components::engine::renderers::HtmlOptions; // Use HtmlOptions from mod.rs
 use crate::components::syntax_highlighter::SyntaxHighlighter;
 use std::collections::HashMap;
 use std::fmt::Write;
@@ -398,10 +398,10 @@ impl BlockRenderer {
             Node::LineBreak { break_type, .. } => {
                 // Hard breaks become <br>, soft breaks become space
                 match break_type {
-                    crate::components::marco_engine::ast_node::LineBreakType::Hard => {
+                    crate::components::engine::ast_node::LineBreakType::Hard => {
                         write!(self.output, "<br>").unwrap();
                     }
-                    crate::components::marco_engine::ast_node::LineBreakType::Soft => {
+                    crate::components::engine::ast_node::LineBreakType::Soft => {
                         write!(self.output, " ").unwrap();
                     }
                 }
@@ -543,7 +543,7 @@ impl BlockRenderer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::components::marco_engine::ast_node::Span;
+    use crate::components::engine::ast_node::Span;
 
     fn empty_span() -> Span {
         Span::new(0, 0, 0, 0)

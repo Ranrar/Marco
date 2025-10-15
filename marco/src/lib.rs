@@ -16,4 +16,4 @@ pub use marco_core::{parse_markdown, AstBuilder, MarcoParser, Rule};
 pub use marco_core::{parse_document, parse_with_rule, ParseResult};
 
 // Re-export HTML rendering
-pub use marco_core::components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
+pub use marco_core::components::engine::render_html::{HtmlOptions, HtmlRenderer};

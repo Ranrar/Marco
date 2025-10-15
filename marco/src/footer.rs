@@ -17,7 +17,7 @@
 //! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
-use marco_core::components::marco_engine::global_parser_cache;
+use marco_core::components::engine::global_parser_cache;
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 use std::rc::Rc;

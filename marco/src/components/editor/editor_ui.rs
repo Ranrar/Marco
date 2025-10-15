@@ -1,7 +1,7 @@
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
 use crate::components::editor::processing_utilities::AsyncExtensionManager;
-use marco_core::components::marco_engine::render_html::HtmlOptions;
+use marco_core::components::engine::render_html::HtmlOptions;
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
@@ -427,7 +427,7 @@ paned > separator {{
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
 
-    let initial_html_body = match marco_core::components::marco_engine::global_parser_cache().render_with_cache(&initial_text, html_opts_rc.as_ref().clone()) {
+    let initial_html_body = match marco_core::components::engine::global_parser_cache().render_with_cache(&initial_text, html_opts_rc.as_ref().clone()) {
         Ok(html) => html,
         Err(e) => format!("Error rendering HTML: {}", e),
     };
@@ -631,7 +631,7 @@ paned > separator {{
             log::debug!("[editor_ui] Buffer text length: {} bytes", text.len());
 
             // Generate raw HTML using Marco engine with full HTML caching
-            let html_body = match marco_core::components::marco_engine::global_parser_cache().render_with_cache(&text, html_opts_for_code.as_ref().clone()) {
+            let html_body = match marco_core::components::engine::global_parser_cache().render_with_cache(&text, html_opts_for_code.as_ref().clone()) {
                 Ok(html) => html,
                 Err(e) => format!("<!-- Error rendering HTML: {} -->", e),
             };

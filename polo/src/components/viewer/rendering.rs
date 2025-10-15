@@ -47,7 +47,7 @@
 
 use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
-use marco_core::components::marco_engine::{global_parser_cache, HtmlOptions};
+use marco_core::components::engine::{global_parser_cache, HtmlOptions};
 use marco_core::logic::swanson::SettingsManager;
 use std::path::Path;
 use std::sync::Arc;

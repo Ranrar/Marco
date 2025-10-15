@@ -116,7 +116,7 @@ fn main() -> glib::ExitCode {
     
     // Clean up global resources before shutting down logger
     crate::components::editor::editor_manager::shutdown_editor_manager();
-    marco_core::components::marco_engine::parser_cache::shutdown_global_parser_cache();
+    marco_core::components::engine::parser_cache::shutdown_global_parser_cache();
     marco_core::logic::cache::shutdown_global_cache();
     
     // Ensure file logger is flushed and closed on normal exit
@@ -964,7 +964,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
-            marco_core::components::marco_engine::parser_cache::shutdown_global_parser_cache();
+            marco_core::components::engine::parser_cache::shutdown_global_parser_cache();
             marco_core::logic::cache::shutdown_global_cache();
         }
     });

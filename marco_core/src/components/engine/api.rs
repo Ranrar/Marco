@@ -9,7 +9,7 @@
 //!
 //! **Status**: Phase 2.5 - New modular API implementation
 
-use crate::components::marco_engine::{
+use crate::components::engine::{
     ast_node::Node,
     grammar::{MarcoParser, Rule},
     builders::{AstError, BlockBuilder},

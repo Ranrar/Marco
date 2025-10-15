@@ -437,7 +437,7 @@ impl Span {
 
     /// Create a span from pest Pair
     pub fn from_pest(
-        pair: &pest::iterators::Pair<crate::components::marco_engine::grammar::Rule>,
+        pair: &pest::iterators::Pair<crate::components::engine::grammar::Rule>,
     ) -> Self {
         let span = pair.as_span();
         let (line, column) = span.start_pos().line_col();

@@ -1,7 +1,7 @@
 #[cfg(feature = "integration-tests")]
-use marco_core::components::marco_engine::parser::parse_with_rule;
+use marco_core::components::engine::parser::parse_with_rule;
 #[cfg(feature = "integration-tests")]
-use marco_core::components::marco_engine::{build_ast, parse_markdown, parse_to_html_cached, Rule};
+use marco_core::components::engine::{build_ast, parse_markdown, parse_to_html_cached, Rule};
 #[cfg(feature = "integration-tests")]
 use pest::iterators::{Pair, Pairs};
 #[cfg(feature = "integration-tests")]
