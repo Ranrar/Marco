@@ -127,13 +127,83 @@ pub enum Commands {
         #[arg(short, long)]
         depth: Option<usize>,
     },
+
+    /// Debug CSS generation and find issues
+    Css {
+        /// Dump full CSS instead of analysis
+        #[arg(long)]
+        full: bool,
+
+        /// Analyze specific line range (format: start:end)
+        #[arg(long)]
+        range: Option<String>,
+
+        /// List all CSS selectors
+        #[arg(long)]
+        selectors: bool,
+    },
+
+    /// Debug parser functionality
+    Debug {
+        #[command(subcommand)]
+        command: DebugCommands,
+    },
+
+    /// Run performance benchmarks
+    Benchmark {
+        /// Markdown input to benchmark (reads from stdin if not provided)
+        markdown: Option<String>,
+
+        /// Number of iterations (default: 100)
+        #[arg(short, long, default_value = "100")]
+        iterations: usize,
+
+        /// Run full benchmark suite with various samples
+        #[arg(long)]
+        suite: bool,
+
+        /// Test parser cache performance
+        #[arg(long)]
+        cache: bool,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum DebugCommands {
+    /// Debug grammar rule parsing
+    Grammar {
+        /// Markdown input to parse
+        markdown: String,
+
+        /// Rule name to focus on (e.g., "heading", "code_block")
+        #[arg(short, long, default_value = "document")]
+        rule: String,
+    },
+
+    /// Debug AST building
+    Ast {
+        /// Markdown input to build AST from
+        markdown: String,
+    },
+
+    /// Debug full pipeline (parse → AST → HTML)
+    Pipeline {
+        /// Markdown input for full pipeline
+        markdown: String,
+    },
+
+    /// Debug setext header parsing specifically
+    Setext {
+        /// Setext header input (optional, uses defaults if not provided)
+        markdown: Option<String>,
+    },
 }
 
 impl Cli {
     /// Create a runner configuration from CLI arguments
     pub fn create_runner_config(&self) -> RunnerConfig {
         RunnerConfig {
-            html_options: marco_core::components::marco_engine::HtmlOptions::default(),
+            html_options: marco_core::HtmlOptions::default(),
             use_cache: true,
             normalize_whitespace: self.normalize_whitespace,
             verbose: self.verbose,
@@ -208,6 +278,21 @@ impl Cli {
                 rule,
                 depth,
             } => self.run_visualize_mode(markdown, rule.as_deref(), *depth),
+
+            Commands::Css {
+                full,
+                range,
+                selectors,
+            } => self.run_css_mode(*full, range.as_deref(), *selectors),
+
+            Commands::Debug { command } => self.run_debug_mode(command),
+
+            Commands::Benchmark {
+                markdown,
+                iterations,
+                suite,
+                cache,
+            } => self.run_benchmark_mode(markdown.as_deref(), *iterations, *suite, *cache),
         }
     }
 
@@ -556,7 +641,7 @@ impl Cli {
         rule_name: Option<&str>,
         max_depth: Option<usize>,
     ) -> Result<()> {
-        use marco_core::components::marco_engine::parse_text;
+        use marco_core::parse_markdown;
 
         println!("{}", "Parse Tree Visualization".blue().bold());
         println!();
@@ -570,99 +655,127 @@ impl Cli {
         println!();
 
         // Parse the markdown
-        let pairs = match parse_text(markdown) {
-            Ok(pairs) => pairs,
+        let ast = match parse_markdown(markdown) {
+            Ok(ast) => ast,
             Err(e) => {
                 eprintln!("{} {}", "Parse error:".red().bold(), e);
                 return Err(anyhow::anyhow!("Failed to parse markdown: {}", e));
             }
         };
 
-        println!("{}", "Parse Tree:".green().bold());
+        println!("{}", "AST Structure:".green().bold());
         println!("{}", "=".repeat(70));
-
-        #[cfg(debug_assertions)]
-        {
-            // Use pest_ascii_tree if available in dev dependencies
-            for pair in pairs {
-                self.print_parse_tree(&pair, 0, max_depth, rule_name);
-            }
-        }
-
-        #[cfg(not(debug_assertions))]
-        {
-            println!("Parse tree visualization is only available in debug builds.");
-            println!("Run with: cargo run --bin marco-test --features integration-tests");
-        }
-
+        println!("{:#?}", ast);
         println!("{}", "=".repeat(70));
 
         Ok(())
     }
 
-    /// Print parse tree with optional filtering and depth limits
-    fn print_parse_tree(
+    /// Run CSS debugging mode
+    fn run_css_mode(&self, full: bool, range: Option<&str>, selectors: bool) -> Result<()> {
+        use crate::css_debug;
+
+        if selectors {
+            println!("{}", "CSS Selectors:".blue().bold());
+            let selector_list = css_debug::list_css_selectors();
+            for selector in selector_list {
+                println!("  {}", selector);
+            }
+            return Ok(());
+        }
+
+        if let Some(range_str) = range {
+            let parts: Vec<&str> = range_str.split(':').collect();
+            if parts.len() != 2 {
+                return Err(anyhow::anyhow!(
+                    "Invalid range format. Use start:end (e.g., 420:430)"
+                ));
+            }
+
+            let start: usize = parts[0]
+                .parse()
+                .context("Invalid start line number")?;
+            let end: usize = parts[1].parse().context("Invalid end line number")?;
+
+            println!("{}", css_debug::analyze_css_range(start, end));
+            return Ok(());
+        }
+
+        if full {
+            println!("{}", "Full CSS Output:".blue().bold());
+            println!("{}", "=".repeat(70));
+            println!("{}", css_debug::dump_full_css());
+            println!("{}", "=".repeat(70));
+        } else {
+            println!("{}", css_debug::dump_css_analysis());
+        }
+
+        Ok(())
+    }
+
+    /// Run debug mode
+    fn run_debug_mode(&self, command: &DebugCommands) -> Result<()> {
+        use crate::parser_debug;
+
+        match command {
+            DebugCommands::Grammar { markdown, rule } => {
+                let output = parser_debug::debug_grammar_rule(markdown, rule)?;
+                println!("{}", output);
+            }
+            DebugCommands::Ast { markdown } => {
+                let output = parser_debug::debug_ast_building(markdown)?;
+                println!("{}", output);
+            }
+            DebugCommands::Pipeline { markdown } => {
+                let output = parser_debug::debug_full_pipeline(markdown)?;
+                println!("{}", output);
+            }
+            DebugCommands::Setext { markdown } => {
+                let output = parser_debug::debug_setext_headers(markdown.as_deref())?;
+                println!("{}", output);
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Run benchmark mode
+    fn run_benchmark_mode(
         &self,
-        pair: &pest::iterators::Pair<marco_core::components::marco_engine::Rule>,
-        depth: usize,
-        max_depth: Option<usize>,
-        filter_rule: Option<&str>,
-    ) {
-        use marco_core::components::marco_engine::Rule;
+        markdown: Option<&str>,
+        iterations: usize,
+        suite: bool,
+        cache: bool,
+    ) -> Result<()> {
+        use crate::benchmark;
 
-        // Check depth limit
-        if let Some(max) = max_depth {
-            if depth >= max {
-                return;
-            }
+        if suite {
+            println!("{}", benchmark::run_benchmark_suite());
+            return Ok(());
         }
 
-        let rule_name = format!("{:?}", pair.as_rule());
-
-        // Check rule filter
-        if let Some(filter) = filter_rule {
-            if !rule_name.to_lowercase().contains(&filter.to_lowercase()) {
-                // Still recurse into children
-                for inner in pair.clone().into_inner() {
-                    self.print_parse_tree(&inner, depth, max_depth, filter_rule);
-                }
-                return;
-            }
-        }
-
-        // Format output
-        let indent = "  ".repeat(depth);
-        let text = pair.as_str();
-        let text_display = if text.len() > 50 {
-            format!("{}...", &text[..47])
+        let markdown_content = if let Some(content) = markdown {
+            content.to_string()
         } else {
-            text.to_string()
+            // Read from stdin
+            use std::io::{self, Read};
+            let mut buffer = String::new();
+            io::stdin()
+                .read_to_string(&mut buffer)
+                .context("Failed to read markdown from stdin")?;
+            buffer
         };
 
-        // Color code by rule type
-        let colored_rule = if rule_name.contains("heading") || rule_name.contains("H1") || rule_name.contains("H2") {
-            rule_name.cyan()
-        } else if rule_name.contains("code") {
-            rule_name.yellow()
-        } else if rule_name.contains("bold") || rule_name.contains("italic") {
-            rule_name.magenta()
-        } else if rule_name.contains("list") {
-            rule_name.green()
+        if cache {
+            println!("{}", benchmark::benchmark_parser_cache(&markdown_content, iterations));
         } else {
-            rule_name.white()
-        };
-
-        println!(
-            "{}├─ {}: {:?}",
-            indent,
-            colored_rule,
-            text_display
-        );
-
-        // Recurse into children
-        for inner in pair.clone().into_inner() {
-            self.print_parse_tree(&inner, depth + 1, max_depth, filter_rule);
+            println!("{}", "Running benchmark...".blue().bold());
+            let result = benchmark::benchmark_markdown(&markdown_content, iterations);
+            println!();
+            println!("{}", result.format());
         }
+
+        Ok(())
     }
 }
 

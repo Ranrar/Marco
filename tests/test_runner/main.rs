@@ -13,6 +13,12 @@ mod interactive;
 mod runner;
 #[cfg(feature = "integration-tests")]
 mod spec;
+#[cfg(feature = "integration-tests")]
+mod css_debug;
+#[cfg(feature = "integration-tests")]
+mod parser_debug;
+#[cfg(feature = "integration-tests")]
+mod benchmark;
 
 use anyhow::Result;
 use marco_core::components::paths::PathProvider;

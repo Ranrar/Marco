@@ -20,15 +20,9 @@ name = "marco-test"
 path = "../tests/test_runner/main.rs"
 required-features = ["integration-tests"]
 
-[[bin]]
-name = "marco-parser-debug"
-path = "../tests/parser_debug/main.rs"
-required-features = ["integration-tests"]
-
-# Temporarily disabled during parser migration - needs updating for two-stage parser
-# [[test]]
-# name = "integration_test_suite"
-# path = "../tests/integration_test_suite.rs"
+[[test]]
+name = "integration_test_suite"
+path = "../tests/integration_test_suite.rs"
 
 [dependencies]
 # Core library
