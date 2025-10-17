@@ -212,13 +212,35 @@ impl BlockRenderer {
                 write!(self.output, "</code></pre>").unwrap();
             }
 
-            Node::List { ordered, items, .. } => {
+            Node::List { ordered, items, is_tight, start_number, .. } => {
                 let tag = if *ordered { "ol" } else { "ul" };
-                write!(self.output, "<{}>", tag).unwrap();
-                for item in items {
-                    self.render_node(item);
+                
+                // Open list tag with optional start attribute for ordered lists
+                if *ordered {
+                    if let Some(start) = start_number {
+                        write!(self.output, r#"<{} start="{}">"#, tag, start).unwrap();
+                    } else {
+                        write!(self.output, "<{}>", tag).unwrap();
+                    }
+                } else {
+                    write!(self.output, "<{}>", tag).unwrap();
                 }
+                
+                // Add newline after opening tag (CommonMark format)
+                write!(self.output, "\n").unwrap();
+                
+                // Render items
+                for item in items {
+                    // Pass tight/loose info to item rendering
+                    if let Node::ListItem { content, checked, indent_level, is_loose, span } = item {
+                        self.render_list_item(content, *checked, *indent_level, *is_loose);
+                    } else {
+                        self.render_node(item);
+                    }
+                }
+                
                 write!(self.output, "</{}>", tag).unwrap();
+                write!(self.output, "\n").unwrap();
             }
 
             Node::ListItem {
@@ -480,11 +502,85 @@ impl BlockRenderer {
                 }
             }
 
+            Node::HtmlBlock { content, .. } => {
+                // Raw HTML block - output as-is without escaping
+                // Content is already HTML, so no need to escape
+                write!(self.output, "{}", content).unwrap();
+                // Add newline for proper block separation
+                writeln!(self.output).unwrap();
+            }
+
             // Marco extensions are NOT supported - ignore them
             _ => {
                 // Ignore unsupported Marco extension nodes
             }
         }
+    }
+
+    /// Render a list item with tight/loose formatting
+    fn render_list_item(
+        &mut self,
+        content: &[Node],
+        checked: Option<bool>,
+        indent_level: Option<u8>,
+        is_loose: bool, // true if item should be wrapped in <p> tags
+    ) {
+        write!(self.output, "<li").unwrap();
+
+        // Build class string combining task item and indentation classes
+        let mut classes = Vec::new();
+
+        if let Some(is_checked) = checked {
+            if is_checked {
+                classes.push(format!("{}task-item checked", self.options.class_prefix));
+            } else {
+                classes.push(format!("{}task-item", self.options.class_prefix));
+            }
+        }
+
+        if let Some(indent) = indent_level {
+            if indent > 0 {
+                classes.push(format!(
+                    "{}indent-level-{}",
+                    self.options.class_prefix, indent
+                ));
+            }
+        }
+
+        if !classes.is_empty() {
+            write!(self.output, r#" class="{}""#, classes.join(" ")).unwrap();
+        }
+
+        write!(self.output, ">").unwrap();
+
+        // For loose lists, wrap content in <p> tags
+        if is_loose {
+            write!(self.output, "\n<p>").unwrap();
+        }
+
+        // Render content - separate inline content from nested lists
+        let mut has_nested_list = false;
+        for child in content {
+            if matches!(child, Node::List { .. }) {
+                has_nested_list = true;
+                // Add newline before nested list
+                write!(self.output, "\n").unwrap();
+                self.render_node(child);
+            } else {
+                self.render_node(child);
+            }
+        }
+
+        // Close <p> tag for loose lists
+        if is_loose {
+            write!(self.output, "</p>\n").unwrap();
+        } else if has_nested_list {
+            // Add newline before closing tag if there's a nested list
+            // (even in tight lists)
+            // Don't add extra newline - nested list already added one
+        }
+
+        write!(self.output, "</li>\n").unwrap();
     }
 
     fn render_standalone_list_item(&mut self, node: &Node) {
@@ -608,17 +704,20 @@ mod tests {
                 vec![Node::text("Item 1".to_string(), empty_span())],
                 None,
                 None,
+                false, // tight item
                 empty_span(),
             ),
             Node::list_item(
                 vec![Node::text("Item 2".to_string(), empty_span())],
                 None,
                 None,
+                false, // tight item
                 empty_span(),
             ),
         ];
 
-        let ast = Node::list(false, list_items, empty_span());
+        // Create a tight unordered list with no start number
+        let ast = Node::list(false, list_items, true, None, empty_span());
 
         let renderer = BlockRenderer::new(HtmlOptions::default());
         let html = renderer.render(&ast);

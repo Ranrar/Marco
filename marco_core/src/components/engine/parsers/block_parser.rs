@@ -12,6 +12,7 @@ use pest_derive::Parser;
 #[grammar = "components/engine/grammar/block/setext_heading.pest"]
 #[grammar = "components/engine/grammar/block/fenced_code_block.pest"]
 #[grammar = "components/engine/grammar/block/indented_code_block.pest"]
+#[grammar = "components/engine/grammar/block/html_block.pest"]
 #[grammar = "components/engine/grammar/block/blockquote.pest"]
 #[grammar = "components/engine/grammar/block/list.pest"]
 #[grammar = "components/engine/grammar/block/reference_definition.pest"]
@@ -318,5 +319,123 @@ fn main() {}
         let input = "[foo]: /url (title)\n";
         let result = BlockParser::parse(Rule::reference_definition, input);
         assert!(result.is_ok(), "Should parse paren title: {:?}", result.err());
+    }
+
+    // ============================================================
+    // Phase 3: HTML Blocks Tests (7 types)
+    // ============================================================
+
+    #[test]
+    fn smoke_test_html_block_type1_script() {
+        let input = "<script>\nalert('hello');\n</script>\n";
+        let result = BlockParser::parse(Rule::html_block_type1, input);
+        assert!(result.is_ok(), "Should parse Type 1 script tag: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type1_pre() {
+        let input = "<pre>\npreformatted text\n</pre>\n";
+        let result = BlockParser::parse(Rule::html_block_type1, input);
+        assert!(result.is_ok(), "Should parse Type 1 pre tag: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type1_style() {
+        let input = "<style>\nbody { color: red; }\n</style>\n";
+        let result = BlockParser::parse(Rule::html_block_type1, input);
+        assert!(result.is_ok(), "Should parse Type 1 style tag: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type1_textarea() {
+        let input = "<textarea>\ntext content\n</textarea>\n";
+        let result = BlockParser::parse(Rule::html_block_type1, input);
+        assert!(result.is_ok(), "Should parse Type 1 textarea tag: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type2_comment() {
+        let input = "<!-- This is a comment -->\n";
+        let result = BlockParser::parse(Rule::html_block_type2, input);
+        assert!(result.is_ok(), "Should parse Type 2 HTML comment: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type2_multiline_comment() {
+        let input = "<!-- This is\na multi-line\ncomment -->\n";
+        let result = BlockParser::parse(Rule::html_block_type2, input);
+        assert!(result.is_ok(), "Should parse Type 2 multi-line comment: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type3_processing_instruction() {
+        let input = "<?xml version=\"1.0\"?>\n";
+        let result = BlockParser::parse(Rule::html_block_type3, input);
+        assert!(result.is_ok(), "Should parse Type 3 processing instruction: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type4_declaration() {
+        let input = "<!DOCTYPE html>\n";
+        let result = BlockParser::parse(Rule::html_block_type4, input);
+        assert!(result.is_ok(), "Should parse Type 4 declaration: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type5_cdata() {
+        let input = "<![CDATA[data here]]>\n";
+        let result = BlockParser::parse(Rule::html_block_type5, input);
+        assert!(result.is_ok(), "Should parse Type 5 CDATA: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type6_div() {
+        let input = "<div>\ncontent\n</div>\n\n";
+        let result = BlockParser::parse(Rule::html_block_type6, input);
+        assert!(result.is_ok(), "Should parse Type 6 div block: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type6_table() {
+        let input = "<table>\n<tr><td>cell</td></tr>\n</table>\n\n";
+        let result = BlockParser::parse(Rule::html_block_type6, input);
+        assert!(result.is_ok(), "Should parse Type 6 table block: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type7_span() {
+        let input = "<span>text</span>\n\n";
+        let result = BlockParser::parse(Rule::html_block_type7, input);
+        assert!(result.is_ok(), "Should parse Type 7 span tag: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_type7_self_closing() {
+        let input = "<br />\n\n";
+        let result = BlockParser::parse(Rule::html_block_type7, input);
+        assert!(result.is_ok(), "Should parse Type 7 self-closing tag: {:?}", result.err());
+    }
+
+    #[test]
+    fn smoke_test_html_block_dispatcher() {
+        // Test the main html_block dispatcher with different types
+        let type1 = "<script>code</script>\n";
+        assert!(BlockParser::parse(Rule::html_block, type1).is_ok(), "html_block should match type1");
+        
+        let type2 = "<!-- comment -->\n";
+        assert!(BlockParser::parse(Rule::html_block, type2).is_ok(), "html_block should match type2");
+        
+        let type6 = "<div>content</div>\n\n";
+        assert!(BlockParser::parse(Rule::html_block, type6).is_ok(), "html_block should match type6");
+    }
+
+    #[test]
+    fn smoke_test_html_block_case_insensitive() {
+        // HTML tags should be case-insensitive
+        let upper = "<SCRIPT>code</SCRIPT>\n";
+        assert!(BlockParser::parse(Rule::html_block_type1, upper).is_ok(), "Should parse uppercase SCRIPT");
+        
+        let mixed = "<ScRiPt>code</script>\n";
+        assert!(BlockParser::parse(Rule::html_block_type1, mixed).is_ok(), "Should parse mixed case script");
     }
 }

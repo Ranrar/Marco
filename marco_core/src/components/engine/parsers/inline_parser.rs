@@ -16,6 +16,7 @@ use pest_derive::Parser;
 #[grammar = "components/engine/grammar/inline/html_tag.pest"]
 #[grammar = "components/engine/grammar/inline/link.pest"]
 #[grammar = "components/engine/grammar/inline/image.pest"]
+#[grammar = "components/engine/grammar/inline/entity.pest"]
 #[grammar = "components/engine/grammar/inline/inline_content.pest"]
 pub struct InlineParser;
 
@@ -1727,6 +1728,156 @@ mod tests {
             p.as_rule() == Rule::inline_link || p.as_rule() == Rule::link
         });
         assert!(has_link, "Should contain a link element (inline_link or link)");
+    }
+
+    // ========================================
+    // Phase 4: Entity Reference Tests
+    // ========================================
+
+    #[test]
+    fn smoke_test_entity_named_simple() {
+        let input = "&nbsp;";
+        let result = parse_inline_rule(Rule::entity_reference, input);
+        
+        match &result {
+            Err(e) => eprintln!("Parse error: {}", e),
+            Ok(pairs) => {
+                for pair in pairs.clone() {
+                    eprintln!("{:?}", pair);
+                }
+            }
+        }
+        
+        assert!(result.is_ok(), "Should parse named entity &nbsp;");
+        let pairs = result.unwrap();
+        let entity = pairs.into_iter().next().unwrap();
+        assert_eq!(entity.as_rule(), Rule::entity_reference);
+        assert_eq!(entity.as_str(), "&nbsp;");
+    }
+
+    #[test]
+    fn smoke_test_entity_named_common() {
+        let tests = vec![
+            ("&amp;", "ampersand"),
+            ("&lt;", "less than"),
+            ("&gt;", "greater than"),
+            ("&quot;", "quote"),
+            ("&copy;", "copyright"),
+        ];
+        
+        for (input, name) in tests {
+            let result = parse_inline_rule(Rule::entity_reference, input);
+            assert!(result.is_ok(), "Should parse {} entity: {}", name, input);
+            
+            let pairs = result.unwrap();
+            let entity = pairs.into_iter().next().unwrap();
+            assert_eq!(entity.as_str(), input);
+        }
+    }
+
+    #[test]
+    fn smoke_test_entity_decimal_simple() {
+        let input = "&#35;";
+        let result = parse_inline_rule(Rule::entity_reference, input);
+        
+        match &result {
+            Err(e) => eprintln!("Parse error: {}", e),
+            Ok(pairs) => {
+                for pair in pairs.clone() {
+                    eprintln!("{:?}", pair);
+                }
+            }
+        }
+        
+        assert!(result.is_ok(), "Should parse decimal entity &#35;");
+        let pairs = result.unwrap();
+        let entity = pairs.into_iter().next().unwrap();
+        assert_eq!(entity.as_rule(), Rule::entity_reference);
+        assert_eq!(entity.as_str(), "&#35;");
+    }
+
+    #[test]
+    fn smoke_test_entity_decimal_various() {
+        let tests = vec![
+            "&#32;",   // space
+            "&#169;",  // copyright symbol
+            "&#8364;", // euro sign
+        ];
+        
+        for input in tests {
+            let result = parse_inline_rule(Rule::entity_reference, input);
+            assert!(result.is_ok(), "Should parse decimal entity: {}", input);
+            
+            let pairs = result.unwrap();
+            let entity = pairs.into_iter().next().unwrap();
+            assert_eq!(entity.as_str(), input);
+        }
+    }
+
+    #[test]
+    fn smoke_test_entity_hex_lowercase() {
+        let input = "&#x23;";
+        let result = parse_inline_rule(Rule::entity_reference, input);
+        
+        match &result {
+            Err(e) => eprintln!("Parse error: {}", e),
+            Ok(pairs) => {
+                for pair in pairs.clone() {
+                    eprintln!("{:?}", pair);
+                }
+            }
+        }
+        
+        assert!(result.is_ok(), "Should parse hex entity &#x23;");
+        let pairs = result.unwrap();
+        let entity = pairs.into_iter().next().unwrap();
+        assert_eq!(entity.as_rule(), Rule::entity_reference);
+        assert_eq!(entity.as_str(), "&#x23;");
+    }
+
+    #[test]
+    fn smoke_test_entity_hex_uppercase() {
+        let input = "&#X1F4A9;";
+        let result = parse_inline_rule(Rule::entity_reference, input);
+        
+        assert!(result.is_ok(), "Should parse hex entity with uppercase X: &#X1F4A9;");
+        let pairs = result.unwrap();
+        let entity = pairs.into_iter().next().unwrap();
+        assert_eq!(entity.as_str(), "&#X1F4A9;");
+    }
+
+    #[test]
+    fn smoke_test_entity_hex_various() {
+        let tests = vec![
+            "&#xa9;",    // copyright
+            "&#X20AC;",  // euro (uppercase X)
+            "&#x1F600;", // emoji
+        ];
+        
+        for input in tests {
+            let result = parse_inline_rule(Rule::entity_reference, input);
+            assert!(result.is_ok(), "Should parse hex entity: {}", input);
+            
+            let pairs = result.unwrap();
+            let entity = pairs.into_iter().next().unwrap();
+            assert_eq!(entity.as_str(), input);
+        }
+    }
+
+    #[test]
+    fn smoke_test_entity_invalid_no_semicolon() {
+        // Should not parse without semicolon
+        let input = "&nbsp";
+        let result = parse_inline_rule(Rule::entity_reference, input);
+        assert!(result.is_err(), "Should not parse entity without semicolon: &nbsp");
+    }
+
+    #[test]
+    fn smoke_test_entity_invalid_no_name() {
+        // Should not parse with empty name
+        let input = "&;";
+        let result = parse_inline_rule(Rule::entity_reference, input);
+        assert!(result.is_err(), "Should not parse entity with no name: &;");
     }
 
     // ========================================

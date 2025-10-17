@@ -10,6 +10,7 @@ license = "MIT OR Apache-2.0"
 # Core parsing dependencies
 pest = { workspace = true }
 pest_derive = { workspace = true }
+phf = { workspace = true }
 
 # Serialization
 ron = { workspace = true }

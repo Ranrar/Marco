@@ -12,13 +12,14 @@ document = {
 // Block dispatcher - tries each block type in priority order
 // Order matters: more specific rules must come before general ones
 block = {
-    thematic_break                // Must check first (can be ambiguous with setext)
+    html_block                    // HTML blocks (must be first - take precedence)
+  | thematic_break                // Must check early (can be ambiguous with setext)
   | atx_heading                   // ATX headings (# style)
-  | setext_heading                // Setext headings (underline style)
+  | list                          // Lists (ordered, unordered, task) - MUST be before setext
+  | setext_heading                // Setext headings (underline style) - MUST be after list
   | fenced_code_block             // Fenced code (``` or ~~~)
   | indented_code_block           // 4-space indented code
   | blockquote                    // > quoted text
-  | list                          // Lists (ordered, unordered, task)
   | reference_definition          // Link reference definitions [label]: url "title"
   | paragraph                     // Fallback - must be last
 }

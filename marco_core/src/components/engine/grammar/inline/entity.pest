@@ -1,0 +1,82 @@
+// ============================================================================
+// Entity and Numeric Character References
+// CommonMark 0.31.2 Section 6.2
+//
+// Status: ✅ COMPLETE (Phase 4 - October 16, 2025)
+// Tests: 101 passing (39 parser + 31 integration + 31 edge cases)
+//
+// Supports three types of entity references:
+// 1. Named entities: &nbsp; &amp; &lt; &gt; &quot; etc. (~100 common, 2,231 full spec)
+// 2. Decimal numeric: &#35; &#169; &#128640; etc.
+// 3. Hexadecimal numeric: &#x23; &#X23; &#xA9; &#x1F4A9; etc.
+//
+// Features:
+// - Atomic parsing (@{}) for performance
+// - Case-sensitive named entities (per HTML5 spec)
+// - Case-insensitive hex prefix (x or X)
+// - Unicode support: emoji, Greek letters, math symbols, accents
+// - NULL character (&#0;) replaced with U+FFFD
+// - Surrogate range (0xD800-0xDFFF) rejected
+// - Invalid entities render literally
+//
+// Important: Entity references MUST end with semicolon (;)
+// ============================================================================
+
+// Main entity reference rule
+// Format: & + entity_type + ;
+entity_reference = @{
+    "&" ~ (named_entity | decimal_entity | hex_entity) ~ ";"
+}
+
+// ============================================================================
+// Named Entities (HTML5 Entity Names)
+// ============================================================================
+// Note: This is a simplified pattern that matches valid entity name format.
+// Actual validation and decoding happens in entity_table.rs
+// Entity names are case-sensitive per HTML5 spec
+//
+// Valid entity name pattern:
+// - Starts with ASCII letter
+// - Can contain letters, digits
+// - Typically 2-32 characters long (most common entities are 2-8 chars)
+//
+// The entity_table.rs module will validate if the name exists and decode it.
+// If invalid, the extract_entity_reference() method will render it literally.
+// ============================================================================
+
+named_entity = @{
+    // Match valid HTML5 entity name pattern
+    // Letters and digits only, 1-32 characters
+    // Examples: nbsp, amp, lt, gt, quot, copy, Agrave, Alpha, etc.
+    ASCII_ALPHA ~ (ASCII_ALPHANUMERIC){0,31}
+}
+
+// ============================================================================
+// Decimal Numeric Character Reference
+// ============================================================================
+// Format: &#<digits>;
+// Examples: &#35; (produces #), &#169; (produces ©), &#128640; (produces 🚀)
+// Valid range: 0 to 0x10FFFF (1,114,111 decimal)
+// Excludes surrogate range: 0xD800-0xDFFF
+// Validation of range happens in entity_table.rs decode_decimal_entity()
+// ============================================================================
+
+decimal_entity = @{
+    "#" ~ ASCII_DIGIT+
+}
+
+// ============================================================================
+// Hexadecimal Numeric Character Reference
+// ============================================================================
+// Format: &#x<hex_digits>; or &#X<hex_digits>;
+// Examples: &#x23; (produces #), &#xA9; (produces ©), &#x1F4A9; (produces 💩)
+// Case-insensitive: Both 'x' and 'X' are valid
+// Hex digits: 0-9, a-f, A-F
+// Valid range: 0 to 0x10FFFF
+// Excludes surrogate range: 0xD800-0xDFFF
+// Validation of range happens in entity_table.rs decode_hex_entity()
+// ============================================================================
+
+hex_entity = @{
+    "#" ~ ^"x" ~ ASCII_HEX_DIGIT+
+}

@@ -7,6 +7,7 @@ members = ["marco_core", "marco", "polo"]
 # Core parsing and serialization (no UI)
 pest = "2.8.3"
 pest_derive = "2.8.3"
+phf = { version = "0.13.1", features = ["macros"] }
 ron = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

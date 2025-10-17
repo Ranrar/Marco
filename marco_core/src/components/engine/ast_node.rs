@@ -117,17 +117,23 @@ pub enum Node {
     },
 
     /// List (ordered or unordered)
+    /// Phase 5.1: Now supports nested lists via child lists in ListItem nodes
     List {
-        ordered: bool,    // true for numbered lists
-        items: Vec<Node>, // ListItem nodes
+        ordered: bool,               // true for numbered lists
+        items: Vec<Node>,            // ListItem nodes (which may contain nested List nodes)
+        is_tight: bool,              // true for tight lists (no <p> tags), false for loose (with <p> tags)
+        start_number: Option<usize>, // Starting number for ordered lists (None or Some(1) = default)
         span: Span,
     },
 
     /// List item with optional task checkbox
+    /// Phase 5.1: Can contain nested List nodes within content for nested list support
+    /// Structure: content contains Text/Emphasis/etc AND nested List nodes
     ListItem {
-        content: Vec<Node>,       // Item content
+        content: Vec<Node>,       // Item content - may include nested List nodes
         checked: Option<bool>,    // For task lists: None, Some(false), Some(true)
         indent_level: Option<u8>, // Indentation level (0 = no indent, 1+ = indented)
+        is_loose: bool,           // true if this specific item is loose (needs <p> wrapping)
         span: Span,
     },
 
@@ -239,8 +245,19 @@ pub enum Node {
     // ===========================================
     // HTML ELEMENTS
     // ===========================================
-    /// Block HTML <div>...</div>
-    HtmlBlock { content: String, span: Span },
+    /// HTML Block (7 types per CommonMark spec section 4.6)
+    /// Type 1: script, pre, style, textarea
+    /// Type 2: HTML comments
+    /// Type 3: Processing instructions
+    /// Type 4: Declarations (e.g., <!DOCTYPE>)
+    /// Type 5: CDATA sections
+    /// Type 6: Block-level tags (div, table, etc.)
+    /// Type 7: Generic tags
+    HtmlBlock {
+        block_type: u8,  // 1-7 for the 7 HTML block types
+        content: String, // Raw HTML content preserved as-is
+        span: Span,
+    },
 
     // ===========================================
     // ERROR RECOVERY
@@ -304,10 +321,18 @@ impl Node {
     }
 
     /// Create a new list node
-    pub fn list(ordered: bool, items: Vec<Node>, span: Span) -> Self {
+    pub fn list(
+        ordered: bool,
+        items: Vec<Node>,
+        is_tight: bool,
+        start_number: Option<usize>,
+        span: Span,
+    ) -> Self {
         Node::List {
             ordered,
             items,
+            is_tight,
+            start_number,
             span,
         }
     }
@@ -317,12 +342,14 @@ impl Node {
         content: Vec<Node>,
         checked: Option<bool>,
         indent_level: Option<u8>,
+        is_loose: bool,
         span: Span,
     ) -> Self {
         Node::ListItem {
             content,
             checked,
             indent_level,
+            is_loose,
             span,
         }
     }
@@ -378,6 +405,15 @@ impl Node {
     /// Create a new horizontal rule node
     pub fn horizontal_rule(span: Span) -> Self {
         Node::HorizontalRule { span }
+    }
+
+    /// Create a new HTML block node
+    pub fn html_block(block_type: u8, content: String, span: Span) -> Self {
+        Node::HtmlBlock {
+            block_type,
+            content,
+            span,
+        }
     }
 
     /// Create a new strikethrough node

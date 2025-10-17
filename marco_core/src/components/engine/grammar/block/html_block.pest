@@ -1,0 +1,299 @@
+// HTML Blocks - CommonMark Spec Section 4.6
+// https://spec.commonmark.org/0.31.2/#html-blocks
+//
+// HTML blocks are sequences of HTML tags and content that are treated as raw HTML.
+// There are 7 types of HTML blocks, each with different start and end conditions.
+// HTML blocks cannot interrupt a paragraph.
+
+// Main HTML block dispatcher - tries each type in order (1-7)
+html_block = {
+    html_block_type1
+  | html_block_type2
+  | html_block_type3
+  | html_block_type4
+  | html_block_type5
+  | html_block_type6
+  | html_block_type7
+}
+
+// ============================================================================
+// Type 1: script, pre, style, textarea tags
+// Start: <script, <pre, <style, or <textarea (case-insensitive)
+// End: Corresponding closing tag (</script>, </pre>, </style>, </textarea>)
+// These tags can span multiple lines and consume everything until closing tag
+// ============================================================================
+
+html_block_type1 = {
+    html_type1_script
+  | html_type1_pre
+  | html_type1_style
+  | html_type1_textarea
+}
+
+html_type1_script = {
+    INDENT_0_3
+    ~ ^"<script"
+    ~ (WHITESPACE | ">" | NEWLINE)  // Must be followed by whitespace, >, or newline
+    ~ html_type1_script_content
+}
+
+html_type1_script_content = @{
+    (
+        !^"</script>" ~ ANY
+    )*
+    ~ ^"</script>"
+    ~ line_content  // Rest of line after closing tag
+    ~ NEWLINE
+}
+
+html_type1_pre = {
+    INDENT_0_3
+    ~ ^"<pre"
+    ~ (WHITESPACE | ">" | NEWLINE)
+    ~ html_type1_pre_content
+}
+
+html_type1_pre_content = @{
+    (
+        !^"</pre>" ~ ANY
+    )*
+    ~ ^"</pre>"
+    ~ line_content
+    ~ NEWLINE
+}
+
+html_type1_style = {
+    INDENT_0_3
+    ~ ^"<style"
+    ~ (WHITESPACE | ">" | NEWLINE)
+    ~ html_type1_style_content
+}
+
+html_type1_style_content = @{
+    (
+        !^"</style>" ~ ANY
+    )*
+    ~ ^"</style>"
+    ~ line_content
+    ~ NEWLINE
+}
+
+html_type1_textarea = {
+    INDENT_0_3
+    ~ ^"<textarea"
+    ~ (WHITESPACE | ">" | NEWLINE)
+    ~ html_type1_textarea_content
+}
+
+html_type1_textarea_content = @{
+    (
+        !^"</textarea>" ~ ANY
+    )*
+    ~ ^"</textarea>"
+    ~ line_content
+    ~ NEWLINE
+}
+
+// ============================================================================
+// Type 2: HTML comments
+// Start: <!--
+// End: -->
+// ============================================================================
+
+html_block_type2 = {
+    INDENT_0_3
+    ~ "<!--"
+    ~ html_type2_content
+}
+
+html_type2_content = @{
+    (
+        !"-->" ~ ANY
+    )*
+    ~ "-->"
+    ~ line_content
+    ~ NEWLINE
+}
+
+// ============================================================================
+// Type 3: Processing instructions
+// Start: <?
+// End: ?>
+// ============================================================================
+
+html_block_type3 = {
+    INDENT_0_3
+    ~ "<?"
+    ~ html_type3_content
+}
+
+html_type3_content = @{
+    (
+        !"?>" ~ ANY
+    )*
+    ~ "?>"
+    ~ line_content
+    ~ NEWLINE
+}
+
+// ============================================================================
+// Type 4: Declarations
+// Start: <! followed by an uppercase ASCII letter
+// End: >
+// Example: <!DOCTYPE html>
+// ============================================================================
+
+html_block_type4 = {
+    INDENT_0_3
+    ~ "<!"
+    ~ ASCII_ALPHA_UPPER
+    ~ html_type4_content
+}
+
+html_type4_content = @{
+    (
+        !">" ~ ANY
+    )*
+    ~ ">"
+    ~ line_content
+    ~ NEWLINE
+}
+
+// ============================================================================
+// Type 5: CDATA sections
+// Start: <![CDATA[
+// End: ]]>
+// ============================================================================
+
+html_block_type5 = {
+    INDENT_0_3
+    ~ "<![CDATA["
+    ~ html_type5_content
+}
+
+html_type5_content = @{
+    (
+        !"]]>" ~ ANY
+    )*
+    ~ "]]>"
+    ~ line_content
+    ~ NEWLINE
+}
+
+// ============================================================================
+// Type 6: Block-level HTML tags
+// Start: Opening or closing tag for one of 59 specific block-level elements
+// End: Blank line
+// List of tags per CommonMark spec section 4.6
+// ============================================================================
+
+html_block_type6 = {
+    INDENT_0_3
+    ~ html_type6_tag
+    ~ html_type6_content
+}
+
+html_type6_tag = {
+    (html_type6_open_tag | html_type6_close_tag)
+    ~ line_content
+    ~ NEWLINE
+}
+
+html_type6_open_tag = {
+    "<"
+    ~ html_block_tag_name
+    ~ (WHITESPACE+ ~ html_attributes)?
+    ~ WHITESPACE*
+    ~ ">"
+}
+
+html_type6_close_tag = {
+    "</"
+    ~ html_block_tag_name
+    ~ WHITESPACE*
+    ~ ">"
+}
+
+// The 59 block-level tag names from CommonMark spec
+html_block_tag_name = {
+    ^"address" | ^"article" | ^"aside" | ^"base" | ^"basefont"
+  | ^"blockquote" | ^"body" | ^"caption" | ^"center" | ^"col"
+  | ^"colgroup" | ^"dd" | ^"details" | ^"dialog" | ^"dir"
+  | ^"div" | ^"dl" | ^"dt" | ^"fieldset" | ^"figcaption"
+  | ^"figure" | ^"footer" | ^"form" | ^"frame" | ^"frameset"
+  | ^"h1" | ^"h2" | ^"h3" | ^"h4" | ^"h5" | ^"h6"
+  | ^"head" | ^"header" | ^"hr" | ^"html" | ^"iframe"
+  | ^"legend" | ^"li" | ^"link" | ^"main" | ^"menu"
+  | ^"menuitem" | ^"nav" | ^"noframes" | ^"ol" | ^"optgroup"
+  | ^"option" | ^"p" | ^"param" | ^"section" | ^"search"
+  | ^"summary" | ^"table" | ^"tbody" | ^"td" | ^"tfoot"
+  | ^"th" | ^"thead" | ^"title" | ^"tr" | ^"track" | ^"ul"
+}
+
+html_attributes = @{
+    (!">" ~ ANY)+
+}
+
+html_type6_content = @{
+    (
+        !BLANK_LINE
+        ~ line_content
+        ~ NEWLINE
+    )*
+    ~ BLANK_LINE?  // Terminated by blank line
+}
+
+// ============================================================================
+// Type 7: Generic HTML tags (complete open/close/self-closing tags)
+// Start: A complete open tag, closing tag, or self-closing tag
+// End: Blank line
+// This is the most permissive type - any HTML tag not covered by types 1-6
+// ============================================================================
+
+html_block_type7 = {
+    INDENT_0_3
+    ~ html_type7_tag
+    ~ html_type7_content
+}
+
+html_type7_tag = {
+    (html_type7_open_tag | html_type7_close_tag | html_type7_self_closing)
+    ~ line_content
+    ~ NEWLINE
+}
+
+html_type7_open_tag = {
+    "<"
+    ~ html_tag_name
+    ~ (WHITESPACE+ ~ html_attributes)?
+    ~ WHITESPACE*
+    ~ ">"
+}
+
+html_type7_close_tag = {
+    "</"
+    ~ html_tag_name
+    ~ WHITESPACE*
+    ~ ">"
+}
+
+html_type7_self_closing = {
+    "<"
+    ~ html_tag_name
+    ~ (WHITESPACE+ ~ html_attributes)?
+    ~ WHITESPACE*
+    ~ "/>"
+}
+
+html_tag_name = @{
+    ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "-")*
+}
+
+html_type7_content = @{
+    (
+        !BLANK_LINE
+        ~ line_content
+        ~ NEWLINE
+    )*
+    ~ BLANK_LINE?  // Terminated by blank line
+}

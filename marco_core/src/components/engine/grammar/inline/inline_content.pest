@@ -49,6 +49,8 @@ inline_element = _{
 
   | emphasis // * or _ (after double emphasis)
 
+  | entity_reference // Entity and numeric character references (Phase 4)
+
   | text // Lowest: plain text fallback
 }
 
@@ -66,6 +68,7 @@ text_char = {
   | "<" // Could start autolink or HTML tag
   | "[" // Could start link
   | "!" // Could start image (![)
+  | "&" // Could start entity reference
   | " " ~ " " // Could start line break (2+ spaces)
   | NEWLINE // End of inline content
   ) ~ ANY
