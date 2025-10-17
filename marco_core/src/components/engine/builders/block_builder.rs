@@ -85,7 +85,9 @@ impl BlockBuilder {
 
             Rule::paragraph => {
                 // Parse inline content within the paragraph
-                let text = pair.as_str().trim();
+                // IMPORTANT: Preserve internal newlines per CommonMark spec
+                // Only trim leading/trailing whitespace, not internal newlines
+                let text = pair.as_str().trim_start().trim_end();
                 let indent_level = helpers::calculate_indent_from_span(&pair.as_span());
                 let inline_nodes = self.parse_inline_content(text, span.clone())?;
                 
@@ -256,84 +258,76 @@ impl BlockBuilder {
         // Extract starting number before consuming pair (for ordered lists)
         let extracted_start_number = self.extract_starting_number(&pair);
 
-        // Phase 5.1: First, collect ALL items with their indentation levels and type
-        let mut flat_items: Vec<(usize, Node, bool)> = Vec::new(); // (indent_level, node, is_ordered)
+        // Phase 5.1 REVISED: Collect flat items with their indentation
+        let mut flat_items: Vec<(usize, Node, bool, Option<usize>)> = Vec::new(); // (indent_level, node, is_ordered, start_number)
         let mut first_item_is_ordered = false;
+        let mut prev_newline_pos: usize = 0; // Track position of previous newline for indent calculation
         
         for inner_pair in pair.into_inner() {
             let inner_rule = inner_pair.as_rule();
             
             match inner_rule {
-                // Phase 5.1: New unified list_item structure with nested support
+                // Phase 5.1 HYBRID: list_item is now atomic - contains indentation + marker + content
                 Rule::list_item => {
-                    // list_item = INDENT_OPT? ~ (unordered_item | ordered_item) ~ nested_list?
                     let item_text = inner_pair.as_str();
                     let item_span = helpers::create_span(&inner_pair);
                     
-                    // Calculate indentation from column position
-                    let indent_level = if item_span.column > 0 {
-                        (item_span.column - 1) as usize
+                    // Calculate indentation from span position:
+                    // indentation = (current_start) - (prev_newline + 1)
+                    let indent_level = if prev_newline_pos > 0 {
+                        (item_span.start as usize).saturating_sub(prev_newline_pos + 1)
                     } else {
-                        0
+                        // First item - use column position
+                        if item_span.column > 0 {
+                            (item_span.column - 1) as usize
+                        } else {
+                            0
+                        }
                     };
                     
-                    let mut is_item_ordered = false;
-                    let mut content_nodes = Vec::new();
+                    // Determine if ordered or unordered by checking marker
+                    let is_item_ordered = item_text.trim_start().chars().next()
+                        .map(|c| c.is_ascii_digit())
+                        .unwrap_or(false);
                     
-                    // Process children: unordered_item/ordered_item and optional nested_list
-                    for child_pair in inner_pair.into_inner() {
-                        match child_pair.as_rule() {
-                            Rule::unordered_item => {
-                                is_item_ordered = false;
-                                // Extract content from unordered_item
-                                let content_str = self.extract_list_item_content(child_pair.as_str());
-                                content_nodes = self.parse_inline_content(&content_str, item_span.clone())?;
-                            }
-                            Rule::ordered_item => {
-                                is_item_ordered = true;
-                                // Extract content from ordered_item
-                                let content_str = self.extract_list_item_content(child_pair.as_str());
-                                content_nodes = self.parse_inline_content(&content_str, item_span.clone())?;
-                            }
-                            Rule::nested_list => {
-                                // nested_list = NEWLINE ~ NESTED_INDENT ~ list
-                                // Skip NEWLINE and NESTED_INDENT (silent), get the list
-                                let mut nested_children = child_pair.into_inner();
-                                let _newline = nested_children.next(); // Skip NEWLINE
-                                let nested_list_pair = nested_children.next()
-                                    .ok_or_else(|| AstError::MissingContent("nested_list missing list rule".to_string()))?;
-                                let nested_node = self.build_list_node(nested_list_pair, item_span.clone())?;
-                                content_nodes.push(nested_node);
-                            }
-                            _ => {}
-                        }
-                    }
+                    // Extract starting number for ordered items
+                    let start_number = if is_item_ordered {
+                        self.extract_starting_number_from_text(item_text)
+                    } else {
+                        None
+                    };
                     
-                    // Create list item node
-                    // Phase 5.1: Use None for indent_level since nesting is now structural
+                    // Extract content: skip indentation + marker + space
+                    let content_str = self.extract_list_item_content(item_text);
+                    let content_nodes = self.parse_inline_content(&content_str, item_span.clone())?;
+                    
+                    // Create list item node (will be reorganized into tree by build_nested_list_tree)
                     let item_is_loose = !is_tight;
-                    let list_item = Node::list_item(content_nodes, None, None, item_is_loose, item_span);
+                    let list_item = Node::list_item(content_nodes, None, Some(indent_level as u8), item_is_loose, item_span);
                     
                     // Track first item type for list
                     if flat_items.is_empty() {
                         first_item_is_ordered = is_item_ordered;
                     }
                     
-                    flat_items.push((indent_level, list_item, is_item_ordered));
+                    flat_items.push((indent_level, list_item, is_item_ordered, start_number));
+                }
+                Rule::NEWLINE => {
+                    // Track newline position for next item's indent calculation
+                    prev_newline_pos = inner_pair.as_span().start() as usize;
                 }
                 _ => {
                     // Other nodes - add with 0 indentation and unordered
                     if let Ok(node) = self.build_block_node(inner_pair) {
-                        flat_items.push((0, node, false));
+                        flat_items.push((0, node, false, None));
                     }
                 }
             }
         }
         
-        // Phase 5.1: Build tree from flat items based on indentation
-        // NOTE: With new grammar, nested_list is already handled recursively,
-        // so we may just need to return flat_items directly as the tree
-        let items: Vec<Node> = flat_items.into_iter().map(|(_, node, _)| node).collect();
+        // Phase 5.1 REVISED: Use build_nested_list_tree to reorganize flat items into proper tree structure
+        let base_indent = flat_items.first().map(|(ind, _, _, _)| *ind).unwrap_or(0);
+        let items = self.build_nested_list_tree(flat_items, base_indent)?;
 
         // Determine list type and starting number from first item
         let ordered = first_item_is_ordered;
@@ -346,92 +340,102 @@ impl BlockBuilder {
         Ok(Node::list(ordered, items, is_tight, start_number, span))
     }
     
+    /// Extract starting number from list item text (for ordered lists)
+    fn extract_starting_number_from_text(&self, text: &str) -> Option<usize> {
+        let trimmed = text.trim_start();
+        let digits: String = trimmed.chars().take_while(|c| c.is_ascii_digit()).collect();
+        digits.parse::<usize>().ok()
+    }
+    
     /// Build a nested tree structure from flat items based on indentation
-    /// Phase 5.1: Core nesting algorithm
+    /// Simplified approach based on CommonMark spec:
+    /// - Items at the same indentation level (±1 space) are siblings
+    /// - Items indented 2+ spaces more are children
     fn build_nested_list_tree(
         &mut self,
-        flat_items: Vec<(usize, Node, bool)>, // (indent, node, is_ordered)
+        flat_items: Vec<(usize, Node, bool, Option<usize>)>, // (indent, node, is_ordered, start_number)
         base_indent: usize,
     ) -> Result<Vec<Node>, AstError> {
         let mut result = Vec::new();
         let mut i = 0;
         
         while i < flat_items.len() {
-            let (indent, item, _item_ordered) = &flat_items[i];
+            let (indent, item, _item_ordered, _) = &flat_items[i];
             
-            // Items at base level
-            if *indent == base_indent {
-                // Look ahead for child items (indented more)
+            // Determine if this item is at the current level or should be nested
+            if *indent < base_indent + 2 {
+                // This item is at the current level (0-1 space difference)
+                
+                // Look ahead for children (items with indent >= base + 2)
                 let mut j = i + 1;
                 let mut children = Vec::new();
                 
-                while j < flat_items.len() && flat_items[j].0 > base_indent {
-                    children.push(flat_items[j].clone());
-                    j += 1;
+                // Collect all items that are indented enough to be children
+                while j < flat_items.len() {
+                    let (child_indent, _, _, _) = &flat_items[j];
+                    if *child_indent >= base_indent + 2 {
+                        children.push(flat_items[j].clone());
+                        j += 1;
+                    } else {
+                        // Next item is at same level or less, stop collecting children
+                        break;
+                    }
                 }
                 
                 if children.is_empty() {
-                    // No children - add item as-is
-                    result.push(item.clone());
+                    // No children - add item with indent_level reset to None
+                    if let Node::ListItem { content, checked, indent_level: _, is_loose, span } = item {
+                        result.push(Node::list_item(content.clone(), *checked, None, *is_loose, span.clone()));
+                    } else {
+                        result.push(item.clone());
+                    }
                     i += 1;
                 } else {
-                    // Has children - determine nesting level
-                    // Find minimum child indent (should be base + 2-4 for proper nesting)
-                    let min_child_indent = children.iter().map(|(ind, _, _)| *ind).min().unwrap_or(base_indent);
+                    // Has children - create nested list
+                    let min_child_indent = children.iter().map(|(ind, _, _, _)| *ind).min().unwrap_or(base_indent + 2);
                     
-                    // Check if children should be nested (2-4 space increase)
-                    if min_child_indent >= base_indent + 2 && min_child_indent <= base_indent + 4 {
-                        // Build nested list from children (recursively)
-                        let nested_items = self.build_nested_list_tree(children.clone(), min_child_indent)?;
-                        
-                        // Determine if nested list is ordered - check first child at min_child_indent
-                        let nested_ordered = children.iter()
-                            .find(|(ind, _, _)| *ind == min_child_indent)
-                            .map(|(_, _, is_ord)| *is_ord)
-                            .unwrap_or(false);
-                        
-                        // Reset indent_level for nested items (they're now relative to their parent)
-                        let normalized_nested_items: Vec<Node> = nested_items.into_iter().map(|node| {
-                            if let Node::ListItem { content, checked, indent_level: _, is_loose, span } = node {
-                                // Reset indent to None - item is now properly nested
-                                Node::list_item(content, checked, None, is_loose, span)
-                            } else {
-                                node
-                            }
-                        }).collect();
-                        
-                        // Create nested list node
-                        let nested_span = Span { start: 0, end: 0, line: 0, column: 0 };
-                        let nested_list = Node::list(
-                            nested_ordered,
-                            normalized_nested_items,
-                            true, // Nested lists inherit tightness - simplified for now
-                            None,
-                            nested_span,
-                        );
-                        
-                        // Add nested list to parent item's content
-                        if let Node::ListItem { content, checked, indent_level, is_loose, span } = item {
-                            let mut new_content = content.clone();
-                            new_content.push(nested_list);
-                            result.push(Node::list_item(new_content, *checked, *indent_level, *is_loose, span.clone()));
+                    // Recursively build the nested list
+                    let nested_items = self.build_nested_list_tree(children.clone(), min_child_indent)?;
+                    
+                    // Determine if nested list is ordered and get starting number
+                    let (nested_ordered, nested_start) = children.iter()
+                        .find(|(ind, _, _, _)| *ind == min_child_indent)
+                        .map(|(_, _, is_ord, start)| (*is_ord, *start))
+                        .unwrap_or((false, None));
+                    
+                    // Reset indent_level for nested items
+                    let normalized_nested_items: Vec<Node> = nested_items.into_iter().map(|node| {
+                        if let Node::ListItem { content, checked, indent_level: _, is_loose, span } = node {
+                            Node::list_item(content, checked, None, is_loose, span)
                         } else {
-                            result.push(item.clone());
+                            node
                         }
-                        
-                        i = j; // Skip children, we've processed them
+                    }).collect();
+                    
+                    // Create nested list node
+                    let nested_span = Span { start: 0, end: 0, line: 0, column: 0 };
+                    let nested_list = Node::list(
+                        nested_ordered,
+                        normalized_nested_items,
+                        true, // Inherit tightness
+                        nested_start,
+                        nested_span,
+                    );
+                    
+                    // Add nested list to parent item's content
+                    if let Node::ListItem { content, checked, indent_level: _, is_loose, span } = item {
+                        let mut new_content = content.clone();
+                        new_content.push(nested_list);
+                        result.push(Node::list_item(new_content, *checked, None, *is_loose, span.clone()));
                     } else {
-                        // Children don't meet nesting criteria - treat as siblings
                         result.push(item.clone());
-                        i += 1;
                     }
+                    
+                    i = j; // Skip processed children
                 }
-            } else if *indent < base_indent {
-                // Item has less indentation than expected - shouldn't happen
-                // but handle gracefully by stopping
-                break;
             } else {
-                // Item has more indentation than base - skip (will be handled as child)
+                // This item is indented more than expected - should have been processed as a child
+                // Skip it (safety check)
                 i += 1;
             }
         }
@@ -906,7 +910,8 @@ impl BlockBuilder {
             .ok_or_else(|| AstError::MissingContent("No inline_content pair found".to_string()))?;
         
         // Build inline AST nodes from the children of inline_content
-        let inline_builder = InlineBuilder::new();
+        // Pass source text for lookbehind validation
+        let inline_builder = InlineBuilder::with_source(text.to_string());
         let mut nodes = Vec::new();
         
         // Iterate through the children of inline_content

@@ -75,8 +75,9 @@ image_alt_char = {
 }
 
 // Image destination with optional title (same as links)
+// Allow empty destination: ![alt]() is valid per CommonMark
 image_destination_with_title = {
-    SPACE* ~ image_destination ~ (SPACE+ ~ image_title)? ~ SPACE*
+    SPACE* ~ image_destination? ~ (SPACE+ ~ image_title)? ~ SPACE*
 }
 
 // Image destination: either angle-bracket wrapped or plain

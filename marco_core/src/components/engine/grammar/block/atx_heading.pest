@@ -5,7 +5,10 @@
 atx_heading = ${
     INDENT_0_3                    // 0-3 spaces allowed before #
     ~ atx_level                   // 1-6 hash marks
-    ~ (" " ~ atx_rest)?           // Optional: literal space + rest of line
+    ~ (                           // Require either...
+        (" " ~ atx_rest)          //   - space + content, or
+        | &NEWLINE                //   - newline (empty heading)
+    )
     ~ NEWLINE?                    // Optional NEWLINE (for EOF cases)
 }
 

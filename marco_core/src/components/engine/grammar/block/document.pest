@@ -25,14 +25,16 @@ block = {
 }
 
 // Paragraph - one or more non-blank lines
-// This is the fallback block type for now
-// TODO: Add proper interruption rules
+// Proper interruption rules per CommonMark spec
 paragraph = {
     paragraph_line              // First line
     ~ (                         // Subsequent lines
         !BLANK_LINE             // Not a blank line
         ~ !thematic_break       // Not a thematic break
-        ~ !atx_heading          // Not a heading
+        ~ !atx_heading          // Not an ATX heading
+        ~ !setext_heading       // Not a setext heading starting
+        ~ !fenced_code_block    // Not a fenced code block
+        ~ !html_block           // Not an HTML block
         ~ paragraph_line
     )*
 }

@@ -78,8 +78,9 @@ link_text_char = {
 }
 
 // Link destination with optional title
+// Allow empty destination: [link]() is valid per CommonMark
 link_destination_with_title = {
-    SPACE* ~ link_destination ~ (SPACE+ ~ link_title)? ~ SPACE*
+    SPACE* ~ link_destination? ~ (SPACE+ ~ link_title)? ~ SPACE*
 }
 
 // Link destination: either angle-bracket wrapped or plain

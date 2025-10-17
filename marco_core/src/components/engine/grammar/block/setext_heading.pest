@@ -14,8 +14,10 @@ setext_content = {
 
 setext_underline = ${
     INDENT_0_3                    // 0-3 spaces allowed
-    ~ setext_marker               // === or ---
-    ~ NEWLINE?                    // Optional NEWLINE (for EOF cases)
+    ~ setext_marker               // === or --- (ONLY these characters)
+    ~ &(WHITESPACE* ~ NEWLINE)    // Must be followed by optional spaces then newline (positive lookahead)
+    ~ WHITESPACE*                 // Consume trailing spaces
+    ~ NEWLINE?                    // Consume newline (for EOF cases)
 }
 
 setext_marker = @{

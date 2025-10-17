@@ -258,7 +258,7 @@ fn main() {}
     #[test]
     fn smoke_test_task_list() {
         let input = "- [ ] Unchecked task\n- [x] Checked task\n";
-        let result = BlockParser::parse(Rule::task_list, input);
+        let result = BlockParser::parse(Rule::list, input);
         assert!(result.is_ok(), "Should parse task list: {:?}", result.err());
     }
     

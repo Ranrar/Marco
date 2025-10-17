@@ -11,18 +11,31 @@ use crate::components::engine::{
     ast_node::{Node, Span},  // Use Span from ast_node module
     builders::{helpers, AstError},  // Use centralized AstError
     grammar::InlineRule as Rule,  // Use InlineRule from two-stage parser
+    lookbehind,  // Lookbehind validation for emphasis delimiters
 };
 use pest::iterators::Pair;
 
 // AstError removed - using AstError from mod.rs
 
 /// Builder for inline-level AST nodes
-pub struct InlineBuilder;
+pub struct InlineBuilder {
+    /// Full source text for lookbehind/lookahead validation
+    source_text: Option<String>,
+}
 
 impl InlineBuilder {
-    /// Create a new inline builder
+    /// Create a new inline builder without source text
     pub fn new() -> Self {
-        Self
+        Self {
+            source_text: None,
+        }
+    }
+
+    /// Create a new inline builder with source text for lookbehind validation
+    pub fn with_source(source_text: String) -> Self {
+        Self {
+            source_text: Some(source_text),
+        }
     }
 
     /// Build an inline node from a Pest pair
@@ -47,6 +60,13 @@ impl InlineBuilder {
             }
 
             Rule::strong_asterisk | Rule::strong_underscore => {
+                // Validate delimiters using lookbehind rules
+                if !self.validate_emphasis_delimiters(&pair, &span) {
+                    // Delimiters don't meet CommonMark left/right-flanking rules
+                    // Return as plain text instead
+                    return Ok(Node::text(pair.as_str().to_string(), span));
+                }
+                
                 // Extract the inner content text and recursively parse it
                 let content_text = self.extract_formatting_content(&pair)?;
                 let children = self.parse_inline_text_recursively(&content_text, &span)?;
@@ -61,6 +81,13 @@ impl InlineBuilder {
             }
 
             Rule::emphasis_asterisk | Rule::emphasis_underscore => {
+                // Validate delimiters using lookbehind rules
+                if !self.validate_emphasis_delimiters(&pair, &span) {
+                    // Delimiters don't meet CommonMark left/right-flanking rules
+                    // Return as plain text instead
+                    return Ok(Node::text(pair.as_str().to_string(), span));
+                }
+                
                 // Extract the inner content text and recursively parse it
                 let content_text = self.extract_formatting_content(&pair)?;
                 let children = self.parse_inline_text_recursively(&content_text, &span)?;
@@ -117,8 +144,19 @@ impl InlineBuilder {
             }
 
             Rule::line_break => {
-                // New grammar just has "line_break" instead of hard/soft distinction
-                Ok(Node::hard_line_break(span))
+                // Process inner rules to determine break type
+                let inner = pair.into_inner().next()
+                    .ok_or_else(|| AstError::InvalidStructure("Expected hard or soft line break".to_string()))?;
+                
+                match inner.as_rule() {
+                    Rule::hard_line_break => {
+                        Ok(Node::hard_line_break(span))
+                    }
+                    Rule::soft_line_break => {
+                        Ok(Node::soft_line_break(span))
+                    }
+                    _ => Err(AstError::InvalidStructure(format!("Unexpected line break type: {:?}", inner.as_rule())))
+                }
             }
 
             Rule::escape => {
@@ -177,6 +215,82 @@ impl InlineBuilder {
 
     /// Extract text content from strong/emphasis formatting rules
     /// Strips the delimiter characters (**/__/*/_) and returns inner text
+    /// Validate emphasis/strong delimiters using lookbehind rules
+    ///
+    /// Returns true if the delimiter is valid according to CommonMark left/right-flanking rules
+    fn validate_emphasis_delimiters(&self, pair: &Pair<Rule>, span: &Span) -> bool {
+        // If we don't have source text, skip validation (fallback to grammar-only check)
+        let source = match &self.source_text {
+            Some(s) => s,
+            None => return true, // No validation without source text
+        };
+
+        let text = pair.as_str();
+        
+        let start_pos = span.start as usize;
+        let end_pos = span.end as usize;
+        
+        match pair.as_rule() {
+            Rule::emphasis_asterisk => {
+                // Check if opening * is left-flanking and closing * is right-flanking
+                lookbehind::can_asterisk_open_emphasis(source, start_pos)
+                    && lookbehind::can_asterisk_close_emphasis(source, end_pos - 1)
+            }
+            Rule::emphasis_underscore => {
+                // Check if opening _ is left-flanking and closing _ is right-flanking
+                // (with additional intraword restrictions)
+                lookbehind::can_underscore_open_emphasis(source, start_pos)
+                    && lookbehind::can_underscore_close_emphasis(source, end_pos - 1)
+            }
+            Rule::strong_asterisk => {
+                // Check if opening ** is left-flanking and closing ** is right-flanking
+                lookbehind::is_left_flanking(source, start_pos, 2)
+                    && lookbehind::is_right_flanking(source, end_pos - 2, 2)
+            }
+            Rule::strong_underscore => {
+                // For __, additional intraword restrictions apply (similar to single _)
+                // CommonMark spec says __ cannot be used for intraword emphasis
+                if !lookbehind::is_left_flanking(source, start_pos, 2) {
+                    return false;
+                }
+                if !lookbehind::is_right_flanking(source, end_pos - 2, 2) {
+                    return false;
+                }
+                
+                // Additional check: if opening __ is also right-flanking, must be preceded by punct
+                if lookbehind::is_right_flanking(source, start_pos, 2) {
+                    let prev_char = if start_pos == 0 {
+                        return false;
+                    } else {
+                        source[..start_pos].chars().rev().next()
+                    };
+                    if let Some(c) = prev_char {
+                        if !lookbehind::is_punctuation(c) {
+                            return false;
+                        }
+                    }
+                }
+                
+                // Check closing delimiter similarly
+                if lookbehind::is_left_flanking(source, end_pos - 2, 2) {
+                    let next_char = if end_pos >= source.len() {
+                        return false;
+                    } else {
+                        source[end_pos..].chars().next()
+                    };
+                    if let Some(c) = next_char {
+                        if !lookbehind::is_punctuation(c) {
+                            return false;
+                        }
+                    }
+                }
+                
+                true
+            }
+            _ => true, // Unknown rule, don't validate
+        }
+    }
+
     fn extract_formatting_content(&self, pair: &Pair<Rule>) -> Result<String, AstError> {
         let text = pair.as_str();
         
@@ -389,27 +503,88 @@ impl InlineBuilder {
 
     /// Extract URL from link_destination (strips <> if present)
     fn extract_link_destination(&self, pair: Pair<Rule>) -> Result<String, AstError> {
-        let inner = pair.into_inner().next().ok_or_else(|| {
-            AstError::MissingContent("Empty link destination".to_string())
-        })?;
+        let inner = pair.into_inner().next();
+        
+        // Handle empty destination: [link]() is valid
+        let inner = match inner {
+            Some(i) => i,
+            None => return Ok(String::new()),
+        };
 
-        match inner.as_rule() {
+        let url = match inner.as_rule() {
             Rule::link_angle_bracket_destination => {
                 // Strip compound-atomic delimiters: <url>
                 let content = inner.as_str();
-                Ok(content.trim_start_matches('<').trim_end_matches('>').to_string())
+                let url = content.trim_start_matches('<').trim_end_matches('>');
+                // Process escapes and encode spaces
+                self.process_url_escapes_and_encoding(url)
             }
             Rule::link_plain_destination => {
-                // Plain destination, no stripping needed
-                Ok(inner.as_str().to_string())
+                // Plain destination - process escapes only (no encoding)
+                let url = inner.as_str();
+                self.process_url_escapes(url)
             }
             _ => {
-                Err(AstError::InvalidStructure(format!(
+                return Err(AstError::InvalidStructure(format!(
                     "Unexpected link destination type: {:?}",
                     inner.as_rule()
-                )))
+                )));
+            }
+        };
+
+        Ok(url)
+    }
+    
+    /// Process backslash escapes in URLs
+    /// \( -> (, \) -> ), \\ -> \, etc.
+    fn process_url_escapes(&self, url: &str) -> String {
+        let mut result = String::with_capacity(url.len());
+        let mut chars = url.chars().peekable();
+        
+        while let Some(ch) = chars.next() {
+            if ch == '\\' {
+                // Check if next char is escapable
+                if let Some(&next_ch) = chars.peek() {
+                    // CommonMark: backslash escapes ASCII punctuation
+                    if next_ch.is_ascii_punctuation() {
+                        chars.next(); // consume the escaped char
+                        result.push(next_ch);
+                        continue;
+                    }
+                }
+            }
+            result.push(ch);
+        }
+        
+        result
+    }
+    
+    /// Process escapes and encode spaces for angle-bracket URLs
+    /// Spaces become %20, plus escape processing
+    fn process_url_escapes_and_encoding(&self, url: &str) -> String {
+        let mut result = String::with_capacity(url.len() * 2);
+        let mut chars = url.chars().peekable();
+        
+        while let Some(ch) = chars.next() {
+            if ch == '\\' {
+                // Check if next char is escapable
+                if let Some(&next_ch) = chars.peek() {
+                    if next_ch.is_ascii_punctuation() {
+                        chars.next();
+                        result.push(next_ch);
+                        continue;
+                    }
+                }
+                result.push(ch);
+            } else if ch == ' ' {
+                // Encode spaces as %20 in angle-bracket URLs
+                result.push_str("%20");
+            } else {
+                result.push(ch);
             }
         }
+        
+        result
     }
 
     /// Extract title from link_title (strips quotes/parens)
@@ -584,27 +759,36 @@ impl InlineBuilder {
 
     /// Extract URL from image_destination (strips <> if present)
     fn extract_image_destination(&self, pair: Pair<Rule>) -> Result<String, AstError> {
-        let inner = pair.into_inner().next().ok_or_else(|| {
-            AstError::MissingContent("Empty image destination".to_string())
-        })?;
+        let inner = pair.into_inner().next();
+        
+        // Handle empty destination: ![alt]() is valid
+        let inner = match inner {
+            Some(i) => i,
+            None => return Ok(String::new()),
+        };
 
-        match inner.as_rule() {
+        let url = match inner.as_rule() {
             Rule::image_angle_bracket_dest => {
                 // Strip compound-atomic delimiters: <url>
                 let content = inner.as_str();
-                Ok(content.trim_start_matches('<').trim_end_matches('>').to_string())
+                let url = content.trim_start_matches('<').trim_end_matches('>');
+                // Process escapes and encode spaces (reuse link processing)
+                self.process_url_escapes_and_encoding(url)
             }
             Rule::image_plain_dest => {
-                // Plain destination, no stripping needed
-                Ok(inner.as_str().to_string())
+                // Plain destination - process escapes only (no encoding)
+                let url = inner.as_str();
+                self.process_url_escapes(url)
             }
             _ => {
-                Err(AstError::InvalidStructure(format!(
+                return Err(AstError::InvalidStructure(format!(
                     "Unexpected image destination type: {:?}",
                     inner.as_rule()
-                )))
+                )));
             }
-        }
+        };
+
+        Ok(url)
     }
 
     /// Extract title from image_title (strips quotes/parens)

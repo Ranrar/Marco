@@ -45,19 +45,40 @@ inline_element = _{
 
   | line_break // Hard line breaks (2+ spaces or backslash)
 
-  | strong // ** or __ (before single emphasis)
+  | strong // ** or __ (before double emphasis)
 
   | emphasis // * or _ (after double emphasis)
 
   | entity_reference // Entity and numeric character references (Phase 4)
 
+  | loose_angle_bracket // Literal < that's not valid HTML
+
   | text // Lowest: plain text fallback
 }
 
-// Plain text - any characters that aren't special inline markers
+// Loose angle bracket - literal < that doesn't form valid HTML
+// Matches: <foo, <div id="bar, < followed by anything except valid HTML
+// This prevents parse errors when < appears in text
+loose_angle_bracket = @{
+    "<"
+}
+
+// Plain text - any characters that aren't special inline markers  
 // Stops at special characters that could start inline elements
+// Special handling for underscores: consumes intraword underscores as literal text
 text = ${
-    text_char+
+    (intraword_underscore | text_char)+
+}
+
+// Intraword underscore: word containing underscores (treated as literal)
+// Matches: foo_bar, foo_bar_, foo_bar_baz_, пристаням_стремятся_
+// Must contain at least one underscore mixed with alphanumeric chars (including Unicode)
+// Uses LETTER and NUMBER for Unicode support (includes Cyrillic, etc.)
+intraword_underscore = @{
+    // Match any contiguous sequence of letters/numbers and underscores
+    // that contains at least one of each
+    ((LETTER | NUMBER)+ ~ UNDERSCORE ~ (LETTER | NUMBER | UNDERSCORE)*)
+  | (UNDERSCORE ~ (LETTER | NUMBER) ~ (LETTER | NUMBER | UNDERSCORE)*)
 }
 
 text_char = {
@@ -70,7 +91,7 @@ text_char = {
   | "!" // Could start image (![)
   | "&" // Could start entity reference
   | " " ~ " " // Could start line break (2+ spaces)
-  | NEWLINE // End of inline content
+  // NEWLINE removed - now handled by soft_line_break in line_break rule
   ) ~ ANY
 }
 

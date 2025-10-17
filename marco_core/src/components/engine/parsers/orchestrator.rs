@@ -127,9 +127,19 @@ pub fn parse_inline_content(input: &str) -> Result<Node, String> {
     let mut children = Vec::new();
     
     for pair in inline_pairs {
-        match builder.build_inline_node(pair) {
-            Ok(node) => children.push(node),
-            Err(e) => return Err(format!("Inline AST build error: {}", e)),
+        // inline_content is a wrapper rule, we need to process its children
+        if pair.as_rule() == InlineRule::inline_content {
+            for inner_pair in pair.into_inner() {
+                match builder.build_inline_node(inner_pair) {
+                    Ok(node) => children.push(node),
+                    Err(e) => return Err(format!("Inline AST build error: {}", e)),
+                }
+            }
+        } else {
+            match builder.build_inline_node(pair) {
+                Ok(node) => children.push(node),
+                Err(e) => return Err(format!("Inline AST build error: {}", e)),
+            }
         }
     }
     
@@ -169,6 +179,9 @@ mod tests {
     fn smoke_test_inline_parsing() {
         let input = "This is **bold** and *italic* text.";
         let result = parse_inline_content(input);
+        if let Err(ref e) = result {
+            eprintln!("Parse error: {}", e);
+        }
         assert!(result.is_ok(), "Should parse inline content");
     }
 }

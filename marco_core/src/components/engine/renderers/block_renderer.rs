@@ -414,17 +414,20 @@ impl BlockRenderer {
                     )
                     .unwrap();
                 }
-                write!(self.output, ">").unwrap();
+                // Use self-closing tag for XHTML compliance
+                write!(self.output, " />").unwrap();
             }
 
             Node::LineBreak { break_type, .. } => {
-                // Hard breaks become <br>, soft breaks become space
+                // Hard breaks become <br>, soft breaks become newline
                 match break_type {
                     crate::components::engine::ast_node::LineBreakType::Hard => {
                         write!(self.output, "<br>").unwrap();
                     }
                     crate::components::engine::ast_node::LineBreakType::Soft => {
-                        write!(self.output, " ").unwrap();
+                        // Soft line breaks render as newline in HTML
+                        // (browsers will collapse to space, but structure preserved)
+                        write!(self.output, "\n").unwrap();
                     }
                 }
             }
@@ -504,10 +507,8 @@ impl BlockRenderer {
 
             Node::HtmlBlock { content, .. } => {
                 // Raw HTML block - output as-is without escaping
-                // Content is already HTML, so no need to escape
+                // Content already includes trailing newline from parser
                 write!(self.output, "{}", content).unwrap();
-                // Add newline for proper block separation
-                writeln!(self.output).unwrap();
             }
 
             // Marco extensions are NOT supported - ignore them

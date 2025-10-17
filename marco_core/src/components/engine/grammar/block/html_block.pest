@@ -33,7 +33,7 @@ html_block_type1 = {
 html_type1_script = {
     INDENT_0_3
     ~ ^"<script"
-    ~ (WHITESPACE | ">" | NEWLINE)  // Must be followed by whitespace, >, or newline
+    ~ html_type1_opening  // Handle attributes, possibly multi-line
     ~ html_type1_script_content
 }
 
@@ -41,15 +41,13 @@ html_type1_script_content = @{
     (
         !^"</script>" ~ ANY
     )*
-    ~ ^"</script>"
-    ~ line_content  // Rest of line after closing tag
-    ~ NEWLINE
+    ~ (^"</script>" ~ line_content ~ NEWLINE)?  // Optional closing tag
 }
 
 html_type1_pre = {
     INDENT_0_3
     ~ ^"<pre"
-    ~ (WHITESPACE | ">" | NEWLINE)
+    ~ html_type1_opening
     ~ html_type1_pre_content
 }
 
@@ -57,15 +55,13 @@ html_type1_pre_content = @{
     (
         !^"</pre>" ~ ANY
     )*
-    ~ ^"</pre>"
-    ~ line_content
-    ~ NEWLINE
+    ~ (^"</pre>" ~ line_content ~ NEWLINE)?
 }
 
 html_type1_style = {
     INDENT_0_3
     ~ ^"<style"
-    ~ (WHITESPACE | ">" | NEWLINE)
+    ~ html_type1_opening
     ~ html_type1_style_content
 }
 
@@ -73,15 +69,13 @@ html_type1_style_content = @{
     (
         !^"</style>" ~ ANY
     )*
-    ~ ^"</style>"
-    ~ line_content
-    ~ NEWLINE
+    ~ (^"</style>" ~ line_content ~ NEWLINE)?
 }
 
 html_type1_textarea = {
     INDENT_0_3
     ~ ^"<textarea"
-    ~ (WHITESPACE | ">" | NEWLINE)
+    ~ html_type1_opening
     ~ html_type1_textarea_content
 }
 
@@ -89,9 +83,18 @@ html_type1_textarea_content = @{
     (
         !^"</textarea>" ~ ANY
     )*
-    ~ ^"</textarea>"
-    ~ line_content
-    ~ NEWLINE
+    ~ (^"</textarea>" ~ line_content ~ NEWLINE)?
+}
+
+// Type 1 opening: whitespace/attributes until closing >
+// Supports multi-line attributes
+html_type1_opening = @{
+    (
+        WHITESPACE
+        | NEWLINE ~ (" " | "\t")*  // Allow newlines with continuation indent
+        | (!">" ~ ANY)              // Any character except ">"
+    )*
+    ~ ">"
 }
 
 // ============================================================================
@@ -202,15 +205,23 @@ html_type6_tag = {
 html_type6_open_tag = {
     "<"
     ~ html_block_tag_name
-    ~ (WHITESPACE+ ~ html_attributes)?
-    ~ WHITESPACE*
-    ~ ">"
+    ~ html_attributes_with_close  // Consume everything until ">"
 }
 
 html_type6_close_tag = {
     "</"
     ~ html_block_tag_name
     ~ WHITESPACE*
+    ~ ">"
+}
+
+// Attributes including the closing ">", allowing multi-line spans
+html_attributes_with_close = @{
+    (
+        WHITESPACE
+        | NEWLINE ~ (" " | "\t")*  // Allow newlines with continuation indent
+        | (!">" ~ ANY)              // Any character except ">"
+    )*
     ~ ">"
 }
 
@@ -230,6 +241,15 @@ html_block_tag_name = {
   | ^"th" | ^"thead" | ^"title" | ^"tr" | ^"track" | ^"ul"
 }
 
+// Helper rules for tag parsing
+// ============================================================================
+
+// HTML attributes: anything except ">" (very permissive - allows newlines, special chars, incomplete attrs)
+// Examples: 
+//   class="foo" id="bar"
+//   class\n (incomplete attribute)
+//   *???-&&&-<--- (special characters)
+//   id="foo"\n  class="bar" (multi-line)
 html_attributes = @{
     (!">" ~ ANY)+
 }
@@ -265,9 +285,7 @@ html_type7_tag = {
 html_type7_open_tag = {
     "<"
     ~ html_tag_name
-    ~ (WHITESPACE+ ~ html_attributes)?
-    ~ WHITESPACE*
-    ~ ">"
+    ~ html_attributes_with_close  // Consume everything until ">"
 }
 
 html_type7_close_tag = {
@@ -280,8 +298,16 @@ html_type7_close_tag = {
 html_type7_self_closing = {
     "<"
     ~ html_tag_name
-    ~ (WHITESPACE+ ~ html_attributes)?
-    ~ WHITESPACE*
+    ~ html_attributes_with_self_close  // Consume everything until "/>"
+}
+
+// Attributes including the self-closing "/>", allowing multi-line spans
+html_attributes_with_self_close = @{
+    (
+        WHITESPACE
+        | NEWLINE ~ (" " | "\t")*  // Allow newlines with continuation indent
+        | (!"/>" ~ ANY)             // Any character except "/>"
+    )*
     ~ "/>"
 }
 

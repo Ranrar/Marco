@@ -23,6 +23,8 @@ pub mod span;        // Span utilities
 pub mod ast_node;         // AST node definitions (CommonMark only)
 pub mod entity_table;     // HTML5 entity decoding (Phase 4)
 pub mod grammar;          // Pest grammar
+pub mod indent_aware;     // Indent-aware parsing for nested structures
+pub mod lookbehind;       // Lookbehind/lookahead for emphasis delimiters
 pub mod parser;           // Parser utilities
 pub mod parser_cache;     // Caching layer
 pub mod parsers;          // Two-stage parser orchestrator

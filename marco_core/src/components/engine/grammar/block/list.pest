@@ -41,57 +41,35 @@ list_marker = @{
 // List Item Components
 // ============================================================================
 
-/// Indentation before list marker (0-3 spaces allowed)
-/// Captured as atomic to preserve exact spacing for nesting calculations
-list_indent = @{ " "{0,3} }
-
-/// Optional indentation for top-level items (0-3 spaces)
-INDENT_OPT = _{ " "{0,3} }
-
-/// Required indentation for nested lists (2-4 spaces)
-NESTED_INDENT = _{ " "{2,4} }
-
-/// Spaces after list marker (1-4 spaces typically)
-/// Captured separately to calculate content column position
-marker_spacing = @{ (" " | "\t")+ }
-
 /// List item content - text until newline (atomic to preserve spacing)
-/// Phase 5.1: Atomic capture prevents WHITESPACE insertion in content
 list_item_content = @{ (!NEWLINE ~ ANY)* }
 
-/// Local definition for blank lines (since BLANK_LINE from _core may not be visible)
+/// Local definition for blank lines
 blank_line = { " "* ~ NEWLINE }
 
 // ============================================================================
-// List Item Structure
+// Hybrid Approach: Simple Grammar, Smart Postprocessor
 // ============================================================================
 
-/// Unordered item - just marker and content
-/// Phase 5.1: Non-atomic to allow recursion
-unordered_item = {
-    bullet_list_marker ~ list_item_content?
+/// Unordered list item - captures indentation, marker, and content as atomic unit
+/// The compound atomic ($) prevents WHITESPACE insertion
+unordered_list_item = ${
+    " "* ~ bullet_list_marker ~ list_item_content?
 }
 
-/// Ordered item - just marker and content
-/// Phase 5.1: Non-atomic to allow recursion
-ordered_item = {
-    ordered_list_marker ~ list_item_content?
+/// Ordered list item - captures indentation, marker, and content as atomic unit
+ordered_list_item = ${
+    " "* ~ ordered_list_marker ~ list_item_content?
 }
 
-/// Nested list - indented list recursively
-/// Phase 5.1: Requires 2-4 space indentation to be considered nested
-nested_list = {
-    NEWLINE ~ NESTED_INDENT ~ list
+/// List item - either unordered or ordered
+/// The outer compound atomic ensures indentation is captured before WHITESPACE consumes it
+list_item = @{
+    (unordered_list_item | ordered_list_item)
 }
 
-/// List item - unified structure supporting both types and nesting
-/// Phase 5.1: Compound atomic to prevent WHITESPACE insertion
-list_item = ${
-    INDENT_OPT? ~ (unordered_item | ordered_item) ~ nested_list?
-}
-
-/// List - sequence of list items
-/// Phase 5.1: Non-atomic to allow child rules to be parsed
+/// List - flat sequence of list items
+/// Nesting is handled in BlockBuilder based on indentation
 list = {
     list_item ~ (NEWLINE ~ list_item)* ~ NEWLINE?
 }

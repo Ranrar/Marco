@@ -66,17 +66,18 @@ cdata_content = @{
 }
 
 // Closing Tag: </div>
-closing_tag = ${
+closing_tag = {
     "</" ~ tag_name ~ optional_whitespace ~ ">"
 }
 
 // Self-Closing Tag: <br />, <img src="x" />
-self_closing_tag = ${
+self_closing_tag = {
     "<" ~ tag_name ~ attribute* ~ optional_whitespace ~ "/>"
 }
 
 // Opening Tag: <div>, <a href="url">
-opening_tag = ${
+// Not atomic - allows backtracking if incomplete
+opening_tag = {
     "<" ~ tag_name ~ attribute* ~ optional_whitespace ~ ">"
 }
 

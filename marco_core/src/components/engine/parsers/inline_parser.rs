@@ -771,8 +771,17 @@ mod tests {
         let input = "\n";
         let result = parse_inline_rule(Rule::line_break, input);
         
-        // Just newline should NOT match line_break (soft break, not hard)
-        assert!(result.is_err(), "Newline alone should NOT be a hard line break");
+        // Plain newline NOW matches as soft_line_break (part of line_break rule)
+        // This was changed in Phase 6 to support soft line breaks in paragraphs
+        assert!(result.is_ok(), "Newline should match as soft line break");
+        
+        // Verify it's specifically a soft break (not hard break)
+        if let Ok(pairs) = result {
+            for pair in pairs {
+                let inner = pair.into_inner().next().unwrap();
+                assert_eq!(inner.as_rule(), Rule::soft_line_break, "Should be soft_line_break");
+            }
+        }
     }
 
     // ===================================================================
