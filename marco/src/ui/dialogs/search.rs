@@ -30,7 +30,7 @@ use log::{debug, trace};
 use glib::{SourceId, timeout_add_local};
 
 
-use marco_core::logic::cache::SimpleFileCache;
+use core::logic::cache::SimpleFileCache;
 use crate::logic::signal_manager::safe_source_remove;
 // use crate::logic::buffer::DocumentBuffer; // Reserved for future use
 

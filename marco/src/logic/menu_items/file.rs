@@ -1,7 +1,7 @@
 //! File operations module for handling document lifecycle
 #![allow(clippy::await_holding_refcell_ref)]
 
-use marco_core::logic::{DocumentBuffer, RecentFiles};
+use core::logic::{DocumentBuffer, RecentFiles};
 use anyhow::Result;
 use gtk4::{gio, glib, prelude::*};
 use log::trace;
@@ -1265,7 +1265,7 @@ pub fn setup_recent_actions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use marco_core::logic::{DocumentBuffer, RecentFiles};
+    use core::logic::{DocumentBuffer, RecentFiles};
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
     
@@ -1276,7 +1276,7 @@ mod tests {
         
         // Create test objects
         let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
-        let settings_manager = marco_core::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
+        let settings_manager = core::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
         let recent_files = Rc::new(RefCell::new(RecentFiles::new(settings_manager)));
         let file_ops = FileOperations::new(buffer, recent_files);
         
@@ -1335,7 +1335,7 @@ mod tests {
         let settings_path = temp_dir.path().join("test_settings.ron");
         
         let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
-        let settings_manager = marco_core::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
+        let settings_manager = core::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
         let recent_files = Rc::new(RefCell::new(RecentFiles::new(settings_manager)));
         let file_ops = Rc::new(FileOperations::new(buffer, recent_files));
         

@@ -47,7 +47,7 @@ use gtk4::{
     prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction,
     FileChooserDialog, FileFilter, Label, Orientation, ResponseType, Window,
 };
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
@@ -143,7 +143,7 @@ pub fn show_open_file_dialog(
                     // Save to settings
                     let _ = settings_manager.update_settings(|s| {
                         if s.polo.is_none() {
-                            s.polo = Some(marco_core::logic::swanson::PoloSettings::default());
+                            s.polo = Some(core::logic::swanson::PoloSettings::default());
                         }
                         if let Some(ref mut polo) = s.polo {
                             polo.last_opened_file = Some(PathBuf::from(path_str.clone()));

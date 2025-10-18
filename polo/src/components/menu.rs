@@ -47,7 +47,7 @@ use gtk4::{
     prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar,
     Image, Label, PropertyExpression, StringList, StringObject, WindowHandle,
 };
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
 
@@ -237,7 +237,7 @@ pub fn create_custom_titlebar(
         let new_mode_clone = new_mode.clone();
         let _ = settings_manager_for_mode.update_settings(move |s| {
             if s.appearance.is_none() {
-                s.appearance = Some(marco_core::logic::swanson::AppearanceSettings::default());
+                s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
             }
             if let Some(ref mut appearance) = s.appearance {
                 appearance.editor_mode = Some(new_mode_clone);
@@ -341,7 +341,7 @@ fn create_window_controls(
     
     // IcoMoon Unicode glyphs for window controls
     // These unicode characters reference glyphs in the IcoMoon icon font (ui_menu.ttf)
-    // loaded from assets/fonts/. The font must be loaded via marco_core::logic::loaders::icon_loader
+    // loaded from assets/fonts/. The font must be loaded via core::logic::loaders::icon_loader
     // before GTK initialization for these characters to display correctly.
     //
     // | Unicode | Icon Name             | Description   |
@@ -484,7 +484,7 @@ fn create_theme_dropdown(
             let _ = settings_manager.update_settings(|s| {
                 if s.appearance.is_none() {
                     s.appearance =
-                        Some(marco_core::logic::swanson::AppearanceSettings::default());
+                        Some(core::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut appearance) = s.appearance {
                     appearance.preview_theme = Some(theme_name_with_ext.clone());

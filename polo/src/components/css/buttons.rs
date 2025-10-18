@@ -22,6 +22,9 @@ use super::constants::*;
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(4096);
     
+    // Window control buttons (theme-specific icon colors)
+    css.push_str(&generate_window_control_css());
+    
     // Open File button
     css.push_str(&generate_open_file_button_css());
     
@@ -30,6 +33,52 @@ pub fn generate_css() -> String {
     
     // Mode Toggle button (with emoji filters)
     css.push_str(&generate_mode_toggle_button_css());
+    
+    css
+}
+
+/// Generate window control button CSS for both themes
+/// Controls the icon colors for minimize, maximize, and close buttons
+pub fn generate_window_control_css() -> String {
+    let mut css = String::with_capacity(1024);
+    
+    // Base CSS (theme-independent)
+    css.push_str(
+        r#"
+/* Window control button base */
+.window-control-btn { background: transparent; border: none; padding: 2px 6px; border-radius: 6px; }
+.window-control-btn .icon-font,
+.topright-btn .icon-font {
+    transition: color 0.15s ease;
+}
+"#
+    );
+    
+    // Light theme (use foreground for normal, hover_accent for hover, active_text for active)
+    css.push_str(&format!(
+        r#"
+/* Window controls - Light Mode */
+.marco-theme-light .window-control-btn .icon-font {{ color: {color}; }}
+.marco-theme-light .window-control-btn:hover .icon-font {{ color: {color_hover}; }}
+.marco-theme-light .window-control-btn:active .icon-font {{ color: {color_active}; }}
+"#,
+        color = LIGHT_PALETTE.foreground,
+        color_hover = LIGHT_PALETTE.hover_accent,
+        color_active = LIGHT_PALETTE.active_text,
+    ));
+    
+    // Dark theme (use foreground for normal, hover_accent for hover, active_text for active)
+    css.push_str(&format!(
+        r#"
+/* Window controls - Dark Mode */
+.marco-theme-dark .window-control-btn .icon-font {{ color: {color}; }}
+.marco-theme-dark .window-control-btn:hover .icon-font {{ color: {color_hover}; }}
+.marco-theme-dark .window-control-btn:active .icon-font {{ color: {color_active}; }}
+"#,
+        color = DARK_PALETTE.foreground,
+        color_hover = DARK_PALETTE.hover_accent,
+        color_active = DARK_PALETTE.active_text,
+    ));
     
     css
 }
@@ -279,6 +328,7 @@ mod tests {
         let css = generate_css();
         
         // Verify all button types present
+        assert!(css.contains(".window-control-btn"));
         assert!(css.contains(".polo-open-file-btn"));
         assert!(css.contains(".polo-open-editor-btn"));
         assert!(css.contains(".polo-mode-toggle-btn"));
@@ -295,6 +345,30 @@ mod tests {
         
         // Verify substantial output
         assert!(css.len() > 1000);
+    }
+    
+    #[test]
+    fn smoke_test_window_control_buttons_themed() {
+        let css = generate_window_control_css();
+        
+        // Verify base CSS
+        assert!(css.contains(".window-control-btn"));
+        assert!(css.contains("background: transparent"));
+        assert!(css.contains("border: none"));
+        
+        // Verify both themes have window control styles
+        assert!(css.contains(".marco-theme-light .window-control-btn"));
+        assert!(css.contains(".marco-theme-dark .window-control-btn"));
+        
+        // Verify icon font color styling for light mode
+        assert!(css.contains(".marco-theme-light .window-control-btn .icon-font { color: #2c3e50"));
+        
+        // Verify icon font color styling for dark mode
+        assert!(css.contains(".marco-theme-dark .window-control-btn .icon-font { color: #f0f5f1"));
+        
+        // Verify hover and active states
+        assert!(css.contains(":hover .icon-font"));
+        assert!(css.contains(":active .icon-font"));
     }
 
     #[test]

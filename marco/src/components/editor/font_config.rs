@@ -1,4 +1,4 @@
-use marco_core::logic::{
+use core::logic::{
     loaders::font_loader::{AvailableFonts, FontLoader},
     swanson::{EditorSettings, SettingsManager},
 };

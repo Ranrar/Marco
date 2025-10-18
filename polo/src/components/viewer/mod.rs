@@ -21,7 +21,7 @@
 //!    ↓
 //! Read file content
 //!    ↓
-//! Parse with marco_core (cached)
+//! Parse with core (cached)
 //!    ↓
 //! Generate HTML with theme CSS
 //!    ↓

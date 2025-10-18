@@ -17,7 +17,7 @@
 //! with markdown rendering.
 
 use crate::components::utils::get_theme_mode;
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use std::sync::Arc;
 use webkit6::prelude::WebViewExt;
 

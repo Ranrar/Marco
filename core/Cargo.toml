@@ -30,7 +30,7 @@ tempfile = { workspace = true }
 emojis = { workspace = true }
 fontconfig = { workspace = true }
 dirs = { workspace = true }
-lru = { workspace = true }
+moka = { workspace = true }
 
 # Syntax highlighting (needed for code blocks)
 syntect = { workspace = true }

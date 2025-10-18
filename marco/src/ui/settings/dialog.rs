@@ -256,7 +256,7 @@ fn create_dialog_impl(
     // the caller via the `callbacks` struct.
     let settings_path_clone = settings_path.clone();
     // Read saved view mode so the layout tab can initialize its dropdown.
-    use marco_core::logic::swanson::SettingsManager;
+    use core::logic::swanson::SettingsManager;
     let saved_view_mode: Option<String> = {
         if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
             settings_manager.get_settings()
@@ -269,7 +269,7 @@ fn create_dialog_impl(
     // Move the optional outer callback into the closure so we don't require Clone
     let outer_on_view = callbacks.on_view_mode_changed;
     let layout_cb = std::boxed::Box::new(move |selected: String| {
-        use marco_core::logic::swanson::{LayoutSettings, SettingsManager};
+        use core::logic::swanson::{LayoutSettings, SettingsManager};
         if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
             if let Err(e) = settings_manager.update_settings(|settings| {
                 if settings.layout.is_none() {
@@ -346,7 +346,7 @@ fn create_dialog_impl(
 
     // Optionally show Debug tab when `debug` is enabled in settings.ron
     {
-        use marco_core::logic::swanson::SettingsManager;
+        use core::logic::swanson::SettingsManager;
         if let Ok(settings_manager) = SettingsManager::initialize(settings_path.clone()) {
             let app_settings = settings_manager.get_settings();
             if app_settings.debug.unwrap_or(false) {

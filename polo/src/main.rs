@@ -12,7 +12,7 @@
 //! - **Pure Viewer**: No editing capabilities - focused on viewing only
 //! - **Marco Integration**: Opens files in Marco editor on demand
 //! - **Theme Support**: Light/dark modes with multiple CSS themes
-//! - **Fast Rendering**: Uses marco_core's cached parser for instant previews
+//! - **Fast Rendering**: Uses core's cached parser for instant previews
 //! - **Minimal Dependencies**: No SourceView5, just GTK4 + WebKit6
 //!
 //! ## Architecture
@@ -20,7 +20,7 @@
 //! Polo follows Marco's architectural patterns:
 //! - **main.rs**: Application gateway only - no business logic
 //! - **components/**: All UI components and logic organized by function
-//! - **marco_core**: Shared parsing, rendering, and settings management
+//! - **core**: Shared parsing, rendering, and settings management
 //!
 //! ## Settings Integration
 //!
@@ -42,7 +42,7 @@ use components::menu::create_custom_titlebar;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
-use marco_core::components::paths::PoloPaths;
+use core::paths::PoloPaths;
 use webkit6::prelude::WebViewExt;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -62,19 +62,19 @@ const APP_ID: &str = "com.example.Polo";
 fn fatal_error(message: &str) -> ! {
     log::error!("FATAL: {}", message);
     eprintln!("Fatal error: {}", message);
-    marco_core::logic::logger::shutdown_file_logger();
+    core::logic::logger::shutdown_file_logger();
     std::process::exit(1);
 }
 
 fn main() -> glib::ExitCode {   
     // Initialize logger early
-    if let Err(e) = marco_core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
+    if let Err(e) = core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
         // Logger not available yet, must use eprintln
         eprintln!("Failed to initialize logger: {}", e);
     }
 
     // Setup font directory for IcoMoon icon font (MUST be done before GTK init)
-    use marco_core::components::paths::{PoloPaths, PathProvider};
+    use core::paths::{PoloPaths, PathProvider};
     let polo_paths = match PoloPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -86,7 +86,7 @@ fn main() -> glib::ExitCode {
     // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
     // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
     let asset_root_for_fonts = polo_paths.asset_root();
-    marco_core::logic::loaders::icon_loader::set_local_font_dir(
+    core::logic::loaders::icon_loader::set_local_font_dir(
         asset_root_for_fonts.to_str().expect("Invalid asset root path")
     );
     
@@ -155,17 +155,17 @@ fn main() -> glib::ExitCode {
     let exit_code = app.run();
     
     // Cleanup
-    marco_core::logic::logger::shutdown_file_logger();
+    core::logic::logger::shutdown_file_logger();
     exit_code
 }
 
 fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::Rc<PoloPaths>) {
-    use marco_core::components::paths::PathProvider;
+    use core::paths::PathProvider;
     
     // Initialize settings manager early
     let settings_path = polo_paths.settings_file();
     
-    let settings_manager = match marco_core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+    let settings_manager = match core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
         Ok(manager) => {
             log::debug!("Settings loaded successfully");
             manager
@@ -173,7 +173,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         Err(e) => {
             log::warn!("Failed to load settings, using defaults: {}", e);
             // Create default settings and continue
-            match marco_core::logic::swanson::SettingsManager::initialize(settings_path) {
+            match core::logic::swanson::SettingsManager::initialize(settings_path) {
                 Ok(manager) => manager,
                 Err(e) => {
                     fatal_error(&format!("Cannot initialize settings: {}", e));
@@ -309,12 +309,12 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         let _ = settings_manager_width.update_settings(|s| {
             // Ensure polo section exists
             if s.polo.is_none() {
-                s.polo = Some(marco_core::logic::swanson::PoloSettings::default());
+                s.polo = Some(core::logic::swanson::PoloSettings::default());
             }
             // Ensure polo.window exists
             if let Some(ref mut polo) = s.polo {
                 if polo.window.is_none() {
-                    polo.window = Some(marco_core::logic::swanson::PoloWindowSettings::default());
+                    polo.window = Some(core::logic::swanson::PoloWindowSettings::default());
                 }
                 if let Some(ref mut win) = polo.window {
                     win.width = Some(width);
@@ -332,11 +332,11 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         
         let _ = settings_manager_height.update_settings(|s| {
             if s.polo.is_none() {
-                s.polo = Some(marco_core::logic::swanson::PoloSettings::default());
+                s.polo = Some(core::logic::swanson::PoloSettings::default());
             }
             if let Some(ref mut polo) = s.polo {
                 if polo.window.is_none() {
-                    polo.window = Some(marco_core::logic::swanson::PoloWindowSettings::default());
+                    polo.window = Some(core::logic::swanson::PoloWindowSettings::default());
                 }
                 if let Some(ref mut win) = polo.window {
                     win.width = Some(width);
@@ -354,11 +354,11 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         
         let _ = settings_manager_max.update_settings(|s| {
             if s.polo.is_none() {
-                s.polo = Some(marco_core::logic::swanson::PoloSettings::default());
+                s.polo = Some(core::logic::swanson::PoloSettings::default());
             }
             if let Some(ref mut polo) = s.polo {
                 if polo.window.is_none() {
-                    polo.window = Some(marco_core::logic::swanson::PoloWindowSettings::default());
+                    polo.window = Some(core::logic::swanson::PoloWindowSettings::default());
                 }
                 if let Some(ref mut win) = polo.window {
                     win.maximized = Some(is_maximized);

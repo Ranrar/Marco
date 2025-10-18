@@ -182,9 +182,10 @@ mod tests {
     fn smoke_test_theme_colors_differ() {
         let css = generate_css();
         
-        // Light should use #ffffff, dark should use #2d2d2d for popover
-        assert!(css.contains("#ffffff"));  // Light popover bg
-        assert!(css.contains("#2d2d2d"));  // Dark popover bg
+        // Light should use #f5f5f5 (Marco's toolbar_popover_bg)
+        // Dark should use #23272e (Marco's toolbar_popover_bg)
+        assert!(css.contains("#f5f5f5"));  // Light popover bg (updated from #ffffff)
+        assert!(css.contains("#23272e"));  // Dark popover bg (updated from #2d2d2d)
         
         // Different hover backgrounds
         assert!(css.contains("#e8e8e8"));  // Light item hover

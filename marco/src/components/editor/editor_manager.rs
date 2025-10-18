@@ -1,6 +1,6 @@
 use crate::components::editor::font_config::{EditorConfiguration, EditorDisplaySettings};
 use crate::components::editor::scroll_sync::ScrollSynchronizer;
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use log::debug;
 use std::collections::HashMap;
 use std::rc::Rc;

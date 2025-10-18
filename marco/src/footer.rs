@@ -17,7 +17,7 @@
 //! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
-use marco_core::components::marco_engine::global_parser_cache;
+use core::global_parser_cache;
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 use std::rc::Rc;
@@ -89,7 +89,7 @@ pub fn format_syntax_trace(line: &str) -> String {
     // Temporarily disabled due to AST structure changes
     // TODO: Update to work with new AST format
     /*
-    fn collect_desc(n: &marco_core::components::marco_engine::Node, parts: &mut Vec<String>) {
+    fn collect_desc(n: &core::components::marco_engine::Node, parts: &mut Vec<String>) {
         match n.node_type.as_str() {
             // structural containers - descend
             "root" | "content" => {
@@ -109,7 +109,7 @@ pub fn format_syntax_trace(line: &str) -> String {
                 // inspect paragraph children for inline features
                 let mut labels: Vec<String> = Vec::new();
                 fn collect_inline(
-                    m: &marco_core::components::marco_engine::Node,
+                    m: &core::components::marco_engine::Node,
                     out: &mut Vec<String>,
                 ) {
                     for c in &m.children {

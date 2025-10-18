@@ -6,14 +6,12 @@ pub mod logic;  // UI-specific logic (menu_items, signal_manager)
 pub mod theme;
 pub mod ui;
 
-// Re-export commonly used types from marco_core
-pub use marco_core::logic::buffer::{DocumentBuffer, RecentFiles};
+// Re-export commonly used types from core
+pub use core::logic::buffer::{DocumentBuffer, RecentFiles};
 
-// Re-export the Marco parser from core
-pub use marco_core::{parse_markdown, AstBuilder, MarcoParser, Rule};
+// Re-export the parser and renderer API
+pub use core::{parse, render, RenderOptions};
+pub use core::{Document, Node, NodeKind};
 
-// Re-export parser utilities for testing and convenience
-pub use marco_core::{parse_document, parse_with_rule, ParseResult};
-
-// Re-export HTML rendering
-pub use marco_core::components::marco_engine::render_html::{HtmlOptions, HtmlRenderer};
+// Re-export parser cache for convenience
+pub use core::{global_parser_cache, parse_to_html, parse_to_html_cached, ParserCache};

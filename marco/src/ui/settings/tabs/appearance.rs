@@ -7,7 +7,7 @@ use std::rc::Rc;
 use super::helpers::add_setting_row;
 
 // Import your theme manager
-use marco_core::logic::loaders::theme_loader::list_html_view_themes;
+use core::logic::loaders::theme_loader::list_html_view_themes;
 use crate::logic::signal_manager::SignalManager;
 
 pub fn build_appearance_tab(

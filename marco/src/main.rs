@@ -19,12 +19,12 @@ use crate::components::editor::footer_updates::wire_footer_updates;
 use crate::components::viewer::viewmode::ViewMode;
 use crate::theme::ThemeManager;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
-use marco_core::components::paths::MarcoPaths;
+use core::paths::MarcoPaths;
 use std::cell::RefCell;
 use std::rc::Rc;
 // MarkdownSyntaxMap compatibility removed; footer uses AST parser directly
 use crate::logic::menu_items::file::FileOperations;
-use marco_core::logic::{DocumentBuffer, RecentFiles};
+use core::logic::{DocumentBuffer, RecentFiles};
 use crate::ui::menu_items::files::FileDialogs;
 use log::trace;
 
@@ -52,13 +52,13 @@ fn main() -> glib::ExitCode {
         };
         log::error!("PANIC at {}: {}", location, panic_msg);
         // Try to flush and shutdown the file logger cleanly
-        marco_core::logic::logger::shutdown_file_logger();
+        core::logic::logger::shutdown_file_logger();
         // Call the default hook so we preserve existing behavior (printing to stderr)
         default_panic(info);
     }));
 
     // path detection and environment setup
-    use marco_core::components::paths::{MarcoPaths, PathProvider};
+    use core::paths::{MarcoPaths, PathProvider};
     let marco_paths = match MarcoPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -71,7 +71,7 @@ fn main() -> glib::ExitCode {
     // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
     // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
     let asset_root_for_fonts = marco_paths.asset_root();
-    marco_core::logic::loaders::icon_loader::set_local_font_dir(
+    core::logic::loaders::icon_loader::set_local_font_dir(
         asset_root_for_fonts.to_str().expect("Invalid asset root path")
     );
 
@@ -116,18 +116,18 @@ fn main() -> glib::ExitCode {
     
     // Clean up global resources before shutting down logger
     crate::components::editor::editor_manager::shutdown_editor_manager();
-    marco_core::components::marco_engine::parser_cache::shutdown_global_parser_cache();
-    marco_core::logic::cache::shutdown_global_cache();
+    core::shutdown_global_parser_cache();
+    core::logic::cache::shutdown_global_cache();
     
     // Ensure file logger is flushed and closed on normal exit
-    marco_core::logic::logger::shutdown_file_logger();
+    core::logic::logger::shutdown_file_logger();
     exit_code
 }
 
 fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<MarcoPaths>) {
     // Import path functions and settings manager
-    use marco_core::components::paths::PathProvider;
-    use marco_core::logic::swanson::SettingsManager;
+    use core::paths::PathProvider;
+    use core::logic::swanson::SettingsManager;
     
     // Load CSS using the new modular system
     crate::ui::css::load_css();
@@ -178,7 +178,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         // Use Trace level to capture ALL log messages in the codebase
         let level = log::LevelFilter::Trace;
 
-        if let Err(e) = marco_core::logic::logger::init_file_logger(enabled, level) {
+        if let Err(e) = core::logic::logger::init_file_logger(enabled, level) {
             eprintln!("Failed to initialize file logger: {}", e);
         } else if enabled {
             log::info!("Logger initialized with level: {:?}, RUST_LOG set: {}", level, rust_log_set);
@@ -192,7 +192,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     }
 
     // Initialize monospace font cache for fast settings loading
-    if let Err(e) = marco_core::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
+    if let Err(e) = core::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
         log::warn!("Failed to initialize monospace font cache: {}", e);
     }
 
@@ -236,7 +236,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     toolbar.add_css_class("toolbar");
     toolbar::set_toolbar_height(&toolbar, 0); // Minimum height, matches footer
                                               // --- Determine correct HTML preview theme based on settings and app theme ---
-    use marco_core::logic::loaders::theme_loader::list_html_view_themes;
+    use core::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
     let settings = theme_manager.borrow().get_settings();
@@ -555,7 +555,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             let settings_manager = settings_manager.clone();
             let mode_owned = mode.to_string();
             let task = Box::new(move || {
-                use marco_core::logic::swanson::LayoutSettings;
+                use core::logic::swanson::LayoutSettings;
                 if let Err(e) = settings_manager.update_settings(|s| {
                     if s.layout.is_none() {
                         s.layout = Some(LayoutSettings::default());
@@ -776,7 +776,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
-        let cache = Rc::new(RefCell::new(marco_core::logic::cache::SimpleFileCache::new()));
+        let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
             use crate::ui::dialogs::search::show_search_window;
             show_search_window(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), webview.clone());
@@ -964,8 +964,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
-            marco_core::components::marco_engine::parser_cache::shutdown_global_parser_cache();
-            marco_core::logic::cache::shutdown_global_cache();
+            core::shutdown_global_parser_cache();
+            core::logic::cache::shutdown_global_cache();
         }
     });
 

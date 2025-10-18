@@ -19,7 +19,7 @@
 //! ### `parse_markdown_to_html`
 //!
 //! Internal function that:
-//! 1. Uses marco_core's cached parser for performance
+//! 1. Uses core's cached parser for performance
 //! 2. Loads selected CSS theme
 //! 3. Generates syntax highlighting CSS based on light/dark mode
 //! 4. Wraps rendered HTML in complete document with theme class
@@ -47,8 +47,8 @@
 
 use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
-use marco_core::components::marco_engine::{global_parser_cache, HtmlOptions};
-use marco_core::logic::swanson::SettingsManager;
+use core::{parse_to_html_cached, RenderOptions};
+use core::logic::swanson::SettingsManager;
 use std::path::Path;
 use std::sync::Arc;
 use webkit6::prelude::WebViewExt;
@@ -102,7 +102,7 @@ pub fn load_and_render_markdown(
 ) {
     match std::fs::read_to_string(file_path) {
         Ok(content) => {
-            // Parse markdown to HTML using marco_core
+            // Parse markdown to HTML using core
             let html = parse_markdown_to_html(&content, theme, settings_manager, asset_root);
             
             // Generate base URI for relative resource resolution (images, links, etc.)
@@ -199,14 +199,15 @@ pub fn parse_markdown_to_html(
     
     log::debug!("Using theme_mode for syntax highlighting: {}", theme_mode);
     
-    // Configure HTML rendering options with theme_mode for syntax highlighting
-    let html_options = HtmlOptions {
-        theme_mode: theme_mode.clone(),
-        ..HtmlOptions::default()
+    // Configure HTML rendering options with syntax highlighting enabled
+    let render_options = RenderOptions {
+        syntax_highlighting: true,   // Enable syntax highlighting for code blocks
+        line_numbers: false,          // Polo viewer doesn't need line numbers
+        theme: theme_mode.clone(),    // Use theme_mode (light/dark) for highlighting
     };
     
-    // Parse markdown to HTML using global parser cache
-    match global_parser_cache().render_with_cache(content, html_options) {
+    // Parse markdown to HTML using global parser cache with convenience function
+    match parse_to_html_cached(content, render_options) {
         Ok(html) => {
             // Load theme CSS
             let theme_css = load_theme_css_from_path(theme, asset_root);
