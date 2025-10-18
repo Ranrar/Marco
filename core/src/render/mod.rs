@@ -6,7 +6,7 @@ pub mod options;
 pub use html::*;
 pub use options::*;
 
-use crate::ast::Document;
+use crate::parser::Document;
 use anyhow::Result;
 
 // Main render entry point

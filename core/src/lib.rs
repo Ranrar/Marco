@@ -3,7 +3,6 @@
 // Core modules: grammar → parser → AST → renderer → LSP
 pub mod grammar;
 pub mod parser;
-pub mod ast;
 pub mod render;
 pub mod lsp;
 pub mod logic;
@@ -11,7 +10,7 @@ pub mod logic;
 // Re-export main API
 pub use parser::parse;
 pub use render::{render, RenderOptions};
-pub use ast::Document;
+pub use parser::{Document, Node, NodeKind};
 pub use lsp::LspProvider;
 
 // Re-export commonly used types

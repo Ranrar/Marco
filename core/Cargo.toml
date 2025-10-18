@@ -6,6 +6,10 @@ authors = ["Kim Skov Rasmussen"]
 description = "Core"
 license = "MIT OR Apache-2.0"
 
+[[test]]
+name = "test_suite"
+path = "../tests/test_suite.rs"
+
 [dependencies]
 # Core parsing dependencies (nom-based)
 nom = { workspace = true }
@@ -37,3 +41,4 @@ serde_json = { workspace = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }
+clap = { workspace = true }

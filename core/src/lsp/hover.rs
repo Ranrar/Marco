@@ -9,7 +9,7 @@ pub struct HoverInfo {
 }
 
 // Provide hover information at position
-pub fn get_hover_info(position: Position, document: &crate::ast::Document) -> Option<HoverInfo> {
+pub fn get_hover_info(position: Position, document: &crate::parser::Document) -> Option<HoverInfo> {
     log::debug!("Computing hover info at {:?}", position);
     
     // TODO: Find node at position and extract hover information

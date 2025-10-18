@@ -15,19 +15,9 @@ integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty", "dep:
 name = "marco"
 path = "src/main.rs"
 
-[[bin]]
-name = "marco-test"
-path = "../tests/test_runner/main.rs"
-required-features = ["integration-tests"]
-
-[[bin]]
-name = "marco-parser-debug"
-path = "../tests/parser_debug/main.rs"
-required-features = ["integration-tests"]
-
 [[test]]
-name = "integration_test_suite"
-path = "../tests/integration_test_suite.rs"
+name = "test_suite"
+path = "..tests/test_suite.rs"
 
 [dependencies]
 # Core library

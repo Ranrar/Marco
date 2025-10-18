@@ -10,7 +10,7 @@ pub use diagnostics::*;
 pub use highlights::*;
 pub use hover::*;
 
-use crate::ast::Document;
+use crate::parser::Document;
 
 // LSP feature provider
 pub struct LspProvider {

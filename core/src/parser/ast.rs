@@ -1,11 +1,5 @@
 // AST node definitions: central representation consumed by renderer and LSP
 
-pub mod nodes;
-pub mod traversal;
-
-pub use nodes::*;
-pub use traversal::*;
-
 use crate::parser::Span;
 
 // Root document node
