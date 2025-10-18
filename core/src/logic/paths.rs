@@ -1,12 +1,12 @@
 //! Helper for detecting the asset directory ("marco/") at runtime.
 //!
-//! **DEPRECATED**: This module is deprecated in favor of `marco_core::components::paths`.
+//! **DEPRECATED**: This module is deprecated in favor of `core::components::paths`.
 //! 
 //! ## Migration Guide
 //! 
 //! **Old API** (deprecated):
 //! ```no_run
-//! use marco_core::logic::paths::{get_asset_dir_checked, get_font_path, get_settings_path};
+//! use core::logic::paths::{get_asset_dir_checked, get_font_path, get_settings_path};
 //!
 //! let asset_dir = get_asset_dir_checked()?;
 //! let font_path = get_font_path("ui_menu.ttf")?;
@@ -15,7 +15,7 @@
 //!
 //! **New API** (recommended):
 //! ```no_run
-//! use marco_core::components::paths::{MarcoPaths, PoloPaths, PathProvider};
+//! use core::components::paths::{MarcoPaths, PoloPaths, PathProvider};
 //!
 //! // For Marco binary:
 //! let marco_paths = MarcoPaths::new()?;
@@ -69,10 +69,10 @@ impl std::error::Error for AssetError {}
 /// 3. "/usr/local/share/marco" (system installation)
 /// 4. "/usr/share/marco" (package installation)
 ///
-/// **DEPRECATED**: Use `MarcoPaths::new()` or `PoloPaths::new()` from `marco_core::components::paths` instead.
+/// **DEPRECATED**: Use `MarcoPaths::new()` or `PoloPaths::new()` from `core::components::paths` instead.
 #[deprecated(
     since = "0.2.0",
-    note = "Use MarcoPaths::new() or PoloPaths::new() from marco_core::components::paths"
+    note = "Use MarcoPaths::new() or PoloPaths::new() from core::components::paths"
 )]
 pub fn get_asset_dir_checked() -> Result<PathBuf, AssetError> {
     let exe_path = env::current_exe().map_err(AssetError::ExePathError)?;

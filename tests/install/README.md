@@ -179,7 +179,7 @@ ls -d ~/.config/marco ~/.config/polo 2>/dev/null && echo "Config still present" 
 ## Architecture Notes
 
 ### New Paths System
-The project uses a modular path system (`marco_core/src/components/paths/`) that:
+The project uses a modular path system (`core/src/components/paths/`) that:
 - Automatically detects development vs installed mode
 - Provides separate config/data directories for Marco and Polo
 - Shares common assets (fonts, themes, language files) between applications
@@ -192,9 +192,9 @@ The project uses a modular path system (`marco_core/src/components/paths/`) that
 4. **System global**: `/usr/share/marco/`
 
 ### Build System
-- `marco_core/build.rs` copies assets from `assets/` to `target/*/marco_assets/` during development
+- `core/build.rs` copies assets from `assets/` to `target/*/marco_assets/` during development
 - The install script copies the same structure to `~/.local/share/marco/` for installed mode
-- Both binaries (Marco and Polo) share the same `marco_core` library and asset root
+- Both binaries (Marco and Polo) share the same `core` library and asset root
 
 ## Troubleshooting
 

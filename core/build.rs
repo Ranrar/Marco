@@ -5,11 +5,11 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
-    // In workspace: assets are at ../assets relative to marco_core/
+    // In workspace: assets are at ../assets relative to core/
     let asset_root = Path::new("../assets");
     // Detect build profile (debug/release)
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
-    // OUT_DIR is something like target/debug/build/marco_core-xxxx/out
+    // OUT_DIR is something like target/debug/build/core-xxxx/out
     // We want target/debug or target/release  
     let target_dir = Path::new(&out_dir)
         .ancestors()

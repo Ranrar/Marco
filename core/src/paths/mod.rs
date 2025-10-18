@@ -1,4 +1,4 @@
-//! Comprehensive path management system for Marco, Polo, and marco_core.
+//! Comprehensive path management system for Marco, Polo, and core.
 //!
 //! This module provides a structured approach to managing asset paths across:
 //! - Different binaries (marco vs polo)
@@ -17,7 +17,7 @@
 //! # Usage
 //!
 //! ```rust
-//! use marco_core::components::paths::{MarcoPaths, PoloPaths, SharedPaths};
+//! use core::components::paths::{MarcoPaths, PoloPaths, SharedPaths};
 //!
 //! // Get paths for the appropriate binary
 //! let marco_paths = MarcoPaths::new().expect("Failed to initialize paths");

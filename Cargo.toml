@@ -42,7 +42,6 @@ colored = "3.0"
 atty = "0.2"
 criterion = "0.7"
 rand = "0.9"
-pest_ascii_tree = "0.1.0"
 serial_test = "3.2"
 
 # Profile optimizations

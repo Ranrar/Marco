@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
-license = "MIT OR Apache-2.0"
+license = "MIT License"
 
 [dependencies]
 # Core library
