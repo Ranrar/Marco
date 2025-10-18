@@ -1,11 +1,18 @@
 // Test suite entry point - runs all test modules
 
-mod grammar_tests;
-mod parser_tests;
-mod ast_tests;
-mod render_tests;
-mod lsp_tests;
-mod commonmark_tests;
-mod integration_tests;
+pub mod utils;
+pub mod grammar_tests;
+pub mod parser_tests;
+pub mod ast_tests;
+pub mod render_tests;
+pub mod lsp_tests;
+pub mod commonmark_tests;
+pub mod integration_tests;
+
+// Re-export test runner functions for CLI
+pub use grammar_tests::{run_inline_tests, run_block_tests};
+pub use parser_tests::run_parser_tests;
+pub use render_tests::{run_render_tests, run_inline_pipeline_tests};
+pub use commonmark_tests::run_commonmark_tests;
 
 // Test suite runs automatically via cargo test
