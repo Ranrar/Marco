@@ -66,7 +66,7 @@ fn fatal_error(message: &str) -> ! {
     std::process::exit(1);
 }
 
-fn main() -> glib::ExitCode {
+fn main() -> glib::ExitCode {   
     // Initialize logger early
     if let Err(e) = marco_core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
         // Logger not available yet, must use eprintln
