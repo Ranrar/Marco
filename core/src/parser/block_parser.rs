@@ -194,13 +194,9 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
             // Remove indentation from the code
             let code = content.fragment().lines()
                 .map(|line| {
-                    if line.starts_with("    ") {
-                        &line[4..]
-                    } else if line.starts_with('\t') {
-                        &line[1..]
-                    } else {
-                        line
-                    }
+                    line.strip_prefix("    ")
+                        .or_else(|| line.strip_prefix('\t'))
+                        .unwrap_or(line)
                 })
                 .collect::<Vec<_>>()
                 .join("\n");
@@ -250,7 +246,7 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
             };
             
             // Parse each item's content recursively
-            for (marker, content, _has_blank_in, _has_blank_before) in items {
+            for (_marker, content, _has_blank_in, _has_blank_before) in items {
                 let item_span = to_parser_span(content);
                 
                 // Parse the item's content as block elements

@@ -15,8 +15,6 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 // Handles backslash followed by any ASCII punctuation character
 // Per CommonMark spec: !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
 pub fn backslash_escape(input: Span) -> IResult<Span, char> {
-    use nom::sequence::preceded;
-    
     // Must start with backslash
     let (input, _) = char('\\')(input)?;
     
@@ -480,7 +478,7 @@ pub fn inline_html(input: Span) -> IResult<Span, Span> {
 pub fn autolink(input: Span) -> IResult<Span, (Span, bool)> {
     use nom::character::complete::char as nom_char;
     
-    log::debug!("Parsing autolink at: {:?}", &input.fragment()[..input.fragment().len().min(30)]);
+    log::debug!("Parsing autolink at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 30));
     
     let start = input;
     

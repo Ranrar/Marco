@@ -114,8 +114,19 @@ impl SimpleFileCache {
 
     /// Load file from disk and add to cache with shared ownership - avoids unnecessary cloning
     fn load_and_cache_file_shared(&self, path: PathBuf) -> Result<Arc<String>> {
-        let content = fs::read_to_string(&path)
+        // Read raw bytes and sanitize UTF-8 (prevents crashes from invalid UTF-8)
+        let raw_bytes = fs::read(&path)
             .with_context(|| format!("Failed to read file: {}", path.display()))?;
+        
+        let (content, stats) = crate::logic::utf8::sanitize_input_with_stats(
+            &raw_bytes, 
+            crate::logic::utf8::InputSource::File
+        );
+        
+        // Log any UTF-8 issues
+        if stats.had_issues() {
+            log::warn!("File '{}' had UTF-8 issues: {}", path.display(), stats.summary());
+        }
 
         let metadata = fs::metadata(&path)
             .with_context(|| format!("Failed to get metadata for: {}", path.display()))?;
@@ -269,7 +280,7 @@ pub struct CacheStats {
 
 /// Get the global parser cache instance (creates on first access)
 pub fn global_parser_cache() -> &'static ParserCache {
-    GLOBAL_PARSER_CACHE.get_or_init(|| ParserCache::new())
+    GLOBAL_PARSER_CACHE.get_or_init(ParserCache::new)
 }
 
 /// Shutdown and clear the global parser cache

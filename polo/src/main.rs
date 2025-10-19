@@ -69,7 +69,7 @@ fn fatal_error(message: &str) -> ! {
 fn main() -> glib::ExitCode {   
     // Initialize logger early
     if let Err(e) = core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
-        // Logger not available yet, must use eprintln
+        // Fallback: print to stderr if logger fails
         eprintln!("Failed to initialize logger: {}", e);
     }
 

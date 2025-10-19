@@ -17,3 +17,5 @@ pub use lsp::LspProvider;
 // Re-export commonly used types
 pub use logic::buffer::{DocumentBuffer, RecentFiles};
 pub use logic::cache::{global_parser_cache, parse_to_html, parse_to_html_cached, ParserCache, shutdown_global_parser_cache};
+pub use logic::utf8::{sanitize_input, sanitize_input_with_stats, InputSource, SanitizeStats};
+pub use logic::logger::safe_preview;

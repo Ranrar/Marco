@@ -100,7 +100,8 @@ pub fn load_and_render_markdown(
     settings_manager: &Arc<SettingsManager>,
     asset_root: &Path,
 ) {
-    match std::fs::read_to_string(file_path) {
+    // Use the same cached file loader as Marco (includes UTF-8 sanitization)
+    match core::logic::cache::cached::read_to_string(file_path) {
         Ok(content) => {
             // Parse markdown to HTML using core
             let html = parse_markdown_to_html(&content, theme, settings_manager, asset_root);

@@ -148,7 +148,7 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
     
     // 1. Parse the content lines (heading text) - can be multiple lines
     // Each line cannot be indented more than 3 spaces
-    let mut content_end_offset = start_offset;
+    let mut content_end_offset;
     let mut current_input = input;
     let mut has_content = false;
     
@@ -242,7 +242,7 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
 pub fn paragraph(input: Span) -> IResult<Span, Span> {
     use nom::character::complete::not_line_ending;
     
-    log::debug!("Parsing paragraph from: {:?}", &input.fragment()[..input.fragment().len().min(40)]);
+    log::debug!("Parsing paragraph from: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
     
     let original_input = input;
     
@@ -345,7 +345,7 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
     let para_content = &original_input.fragment()[leading_ws_len..leading_ws_len + content_len];
     let para_span = Span::new(para_content);
     
-    log::debug!("Parsed paragraph: {:?}", &para_content[..para_content.len().min(40)]);
+    log::debug!("Parsed paragraph: {:?}", crate::logic::logger::safe_preview(para_content, 40));
     
     Ok((input, para_span))
 }
@@ -356,7 +356,7 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
 pub fn fenced_code_block(input: Span) -> IResult<Span, (Option<String>, Span)> {
     use nom::character::complete::{char as nom_char, not_line_ending};
     
-    log::debug!("Parsing fenced code block from: {:?}", &input.fragment()[..input.fragment().len().min(20)]);
+    log::debug!("Parsing fenced code block from: {:?}", crate::logic::logger::safe_preview(input.fragment(), 20));
     
     let original_input = input;
     
@@ -504,7 +504,7 @@ pub fn fenced_code_block(input: Span) -> IResult<Span, (Option<String>, Span)> {
 // Indented code block parser (4 spaces or 1 tab indentation)
 // CommonMark spec: Lines indented with 4 spaces or 1 tab
 pub fn indented_code_block(input: Span) -> IResult<Span, Span> {
-    log::debug!("Parsing indented code block: {:?}", &input.fragment()[..input.fragment().len().min(40)]);
+    log::debug!("Parsing indented code block: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
     
     let start = input;
     let mut remaining = input;
@@ -629,8 +629,7 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
         .chars()
         .take_while(|&c| c == ' ' || c == '\t')
         .take(3)
-        .map(|c| if c == ' ' { 1 } else { 1 })
-        .sum::<usize>();
+        .count();
     
     let (input, _) = if space_bytes > 0 {
         take(space_bytes)(input)?
@@ -773,19 +772,15 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
 pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResult<Span, (ListMarker, Span, bool)> {
     use nom::bytes::complete::take;
     
-    let start = input;
-    let start_offset = start.location_offset();
-    
     // 1. Parse the list marker
     let (after_marker, (marker, content_indent)) = detect_list_marker(input)?;
     
     // 2. Check if marker type matches expected (if specified)
     if let Some(expected) = expected_marker_type {
-        let matches = match (&marker, &expected) {
-            (ListMarker::Bullet(_), ListMarker::Bullet(_)) => true,
-            (ListMarker::Ordered { .. }, ListMarker::Ordered { .. }) => true,
-            _ => false,
-        };
+        let matches = matches!((&marker, &expected),
+            (ListMarker::Bullet(_), ListMarker::Bullet(_)) |
+            (ListMarker::Ordered { .. }, ListMarker::Ordered { .. })
+        );
         if !matches {
             return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
         }
@@ -851,7 +846,7 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                     if next_indent < 4 {
                         use nom_locate::LocatedSpan;
                         let next_span = LocatedSpan::new(*remaining.fragment());
-                        if let Ok(_) = detect_list_marker(next_span) {
+                        if detect_list_marker(next_span).is_ok() {
                             // Next line is a new marker, this is an empty item
                             break;
                         }
@@ -900,7 +895,7 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                 if next_line_indent < 4 {
                     use nom_locate::LocatedSpan;
                     let next_line_span = LocatedSpan::new(after_blank);
-                    if let Ok(_) = detect_list_marker(next_line_span) {
+                    if detect_list_marker(next_line_span).is_ok() {
                         // Next line is a new list marker, don't include this blank line
                         break;
                     }
@@ -928,7 +923,7 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
         
         // Check if this starts a new list item (not first line, we handled that above)
         if line_indent < 4 {  // Could be a new marker (markers need < 4 spaces)
-            if let Ok(_) = detect_list_marker(remaining) {
+            if detect_list_marker(remaining).is_ok() {
                 // This is a new list item, stop here
                 break;
             }
@@ -955,26 +950,24 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
         // Check for lazy continuation (only if not after blank line AND not a new list marker)
         if !last_was_blank {
             // Check if this could be a new list marker
-            if line_indent < 4 {
-                if let Ok(_) = detect_list_marker(remaining) {
-                    // This is a new list item, don't lazy continue
-                    break;
-                }
+            if line_indent < 4 && detect_list_marker(remaining).is_ok() {
+                // This is a new list item, don't lazy continue
+                break;
             }
             
             // Check if this line is a block structure that interrupts lazy continuation
             // Thematic breaks, ATX headings, and fenced code blocks cannot be lazy continuation
-            if let Ok(_) = thematic_break(remaining) {
+            if thematic_break(remaining).is_ok() {
                 // This is a thematic break, stop here
                 break;
             }
             
-            if let Ok(_) = heading(remaining) {
+            if heading(remaining).is_ok() {
                 // This is an ATX heading, stop here
                 break;
             }
             
-            if let Ok(_) = fenced_code_block(remaining) {
+            if fenced_code_block(remaining).is_ok() {
                 // This is a fenced code block, stop here
                 break;
             }
@@ -1012,8 +1005,6 @@ pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool)>> {
     use nom::bytes::complete::take;
     
     log::debug!("Parsing list");
-    
-    let start = input;
     
     // 1. Parse first item to determine list type
     let (mut remaining, (first_marker, first_content, first_has_blank)) = list_item(input, None)?;
@@ -1113,7 +1104,7 @@ pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool)>> {
 // CommonMark spec: Lines starting with `>` (with optional space after)
 // Supports lazy continuation and nesting
 pub fn block_quote(input: Span) -> IResult<Span, Span> {
-    log::debug!("Parsing block quote: {:?}", &input.fragment()[..input.fragment().len().min(40)]);
+    log::debug!("Parsing block quote: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
     
     let start = input;
     let start_offset = start.location_offset();
@@ -1278,7 +1269,7 @@ pub fn thematic_break(input: Span) -> IResult<Span, Span> {
 pub fn blockquote(input: Span) -> IResult<Span, Span> {
     use nom::bytes::complete::take;
     
-    log::debug!("Parsing blockquote from: {:?}", &input.fragment()[..input.fragment().len().min(40)]);
+    log::debug!("Parsing blockquote from: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
     
     let start = input;
     let start_offset = start.location_offset();
@@ -1345,7 +1336,7 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
                 
                 // Check for actual thematic break using parser (not just "---" prefix)
                 let line_span = LocatedSpan::new(line);
-                if let Ok(_) = thematic_break(line_span) {
+                if thematic_break(line_span).is_ok() {
                     // This is a thematic break, stop blockquote
                     break;
                 }
@@ -1375,11 +1366,7 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
         
         // Skip the '>' and optional space after it
         let after_marker = &after_spaces[1..];
-        let after_optional_space = if after_marker.starts_with(' ') {
-            &after_marker[1..]
-        } else {
-            after_marker
-        };
+        let after_optional_space = after_marker.strip_prefix(' ').unwrap_or(after_marker);
         
         // Get the rest of the line
         let line_end = after_optional_space.find('\n').unwrap_or(after_optional_space.len());
@@ -2364,7 +2351,7 @@ mod tests {
         let result = blockquote(input);
         
         assert!(result.is_ok(), "Should parse blockquote with lazy continuation");
-        let (remaining, content) = result.unwrap();
+        let (_remaining, content) = result.unwrap();
         assert!(content.fragment().contains("> line one"));
         assert!(content.fragment().contains("continuation"));
     }
@@ -2391,7 +2378,7 @@ mod tests {
         let result = blockquote(input);
         
         assert!(result.is_ok(), "Should parse blockquote with space after >");
-        let (remaining, content) = result.unwrap();
+        let (_remaining, content) = result.unwrap();
         assert!(content.fragment().contains(">"));
     }
     

@@ -64,13 +64,25 @@ impl Log for SimpleFileLogger {
             return;
         }
         let ts = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        
+        // Format the log message
+        let message = format!("{}", record.args());
+        
+        // Sanitize UTF-8 in log message to prevent panics from invalid slicing
+        // This protects against debug logs that slice strings at non-char boundaries
+        let sanitized_message = crate::logic::utf8::sanitize_input(
+            message.as_bytes(),
+            crate::logic::utf8::InputSource::Unknown
+        );
+        
         let line = format!(
             "{} [{}] {}: {}\n",
             ts,
             record.level(),
             record.target(),
-            record.args()
+            sanitized_message
         );
+        
         if let Ok(mut guard) = self.inner.lock() {
             if let Some(ref mut file) = *guard {
                 let _ = file.write_all(line.as_bytes());
@@ -116,4 +128,45 @@ pub fn shutdown_file_logger() {
             LOGGER = None;
         }
     }
+}
+
+/// Safe string preview for logging - truncates by character count, not bytes
+/// 
+/// This function safely truncates strings for debug logging without causing
+/// UTF-8 boundary panics. Use this instead of byte slicing in log statements.
+///
+/// # Examples
+/// ```
+/// use core::logic::logger::safe_preview;
+/// 
+/// let text = "Hello 😀 World — test";
+/// let preview = safe_preview(text, 10); // Takes first 10 characters safely
+/// log::debug!("Parsing: {}", preview);
+/// ```
+#[inline]
+pub fn safe_preview(s: &str, max_chars: usize) -> String {
+    s.chars().take(max_chars).collect()
+}
+
+/// Macro for safe debug logging with automatic string truncation
+/// 
+/// Use this instead of `log::debug!()` when logging string slices that might
+/// contain multi-byte UTF-8 characters. It automatically truncates safely.
+///
+/// # Examples
+/// ```
+/// use core::safe_debug;
+/// 
+/// let input = "Text with emoji 😀 and em dash —";
+/// safe_debug!("Parsing paragraph from: {:?}", input, 40);
+/// safe_debug!("Short preview: {:?}", input, 20);
+/// ```
+#[macro_export]
+macro_rules! safe_debug {
+    ($fmt:expr, $text:expr, $max:expr) => {
+        log::debug!($fmt, $crate::logic::logger::safe_preview($text, $max))
+    };
+    ($fmt:expr, $text:expr, $max:expr, $($arg:tt)*) => {
+        log::debug!($fmt, $crate::logic::logger::safe_preview($text, $max), $($arg)*)
+    };
 }

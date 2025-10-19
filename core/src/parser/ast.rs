@@ -3,7 +3,7 @@
 use crate::parser::Span;
 
 // Root document node
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Document {
     pub children: Vec<Node>,
 }
@@ -47,10 +47,14 @@ pub enum NodeKind {
 
 impl Document {
     pub fn new() -> Self {
-        Self { children: Vec::new() }
+        Self::default()
     }
     
     pub fn len(&self) -> usize {
         self.children.len()
+    }
+    
+    pub fn is_empty(&self) -> bool {
+        self.children.is_empty()
     }
 }

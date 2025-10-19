@@ -17,6 +17,12 @@ pub struct LspProvider {
     document: Option<Document>,
 }
 
+impl Default for LspProvider {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LspProvider {
     pub fn new() -> Self {
         log::info!("LSP provider initialized");
