@@ -287,7 +287,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     
     // Create custom titlebar (needs webview and file_path for theme switching)
     let asset_root = polo_paths.asset_root();
-    let (titlebar_handle, _open_editor_btn) = create_custom_titlebar(
+    let (titlebar_handle, _open_editor_btn, _title_label) = create_custom_titlebar(
         &window, 
         filename.as_deref().unwrap_or("Untitled"),
         &saved_theme, 

@@ -47,6 +47,16 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             output.push_str(&escape_html(code));
             output.push_str("</code></pre>\n");
         }
+        NodeKind::ThematicBreak => {
+            output.push_str("<hr />\n");
+        }
+        NodeKind::Blockquote => {
+            output.push_str("<blockquote>\n");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</blockquote>\n");
+        }
         NodeKind::Text(text) => {
             output.push_str(&escape_html(text));
         }
@@ -84,11 +94,96 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push_str("</a>");
         }
+        NodeKind::Image { url, alt } => {
+            output.push_str("<img src=\"");
+            output.push_str(&escape_html(url));
+            output.push_str("\" alt=\"");
+            output.push_str(&escape_html(alt));
+            output.push_str("\" />");
+        }
+        NodeKind::InlineHtml(html) => {
+            // Pass through inline HTML directly (no escaping)
+            output.push_str(html);
+        }
+        NodeKind::HardBreak => {
+            // Hard line break: <br />
+            output.push_str("<br />\n");
+        }
+        NodeKind::SoftBreak => {
+            // Soft line break: rendered as single space (or newline in some contexts)
+            output.push('\n');
+        }
+        NodeKind::List { ordered, start, tight } => {
+            // Render list opening tag
+            if *ordered {
+                output.push_str("<ol");
+                if let Some(num) = start {
+                    if *num != 1 {
+                        output.push_str(&format!(" start=\"{}\"", num));
+                    }
+                }
+                output.push_str(">\n");
+            } else {
+                output.push_str("<ul>\n");
+            }
+            
+            // Render list items
+            for child in &node.children {
+                render_list_item(child, output, *tight, options)?;
+            }
+            
+            // Render list closing tag
+            if *ordered {
+                output.push_str("</ol>\n");
+            } else {
+                output.push_str("</ul>\n");
+            }
+        }
+        NodeKind::ListItem => {
+            // This should only be called via render_list_item
+            log::warn!("ListItem rendered outside of List context");
+            output.push_str("<li>");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</li>\n");
+        }
         _ => {
             log::warn!("Unimplemented node type: {:?}", node.kind);
         }
     }
     
+    Ok(())
+}
+
+// Render a list item with proper tight/loose handling
+fn render_list_item(node: &Node, output: &mut String, tight: bool, options: &RenderOptions) -> Result<()> {
+    output.push_str("<li>");
+    
+    if tight {
+        // Tight list: don't wrap paragraphs in <p> tags
+        for child in &node.children {
+            match &child.kind {
+                NodeKind::Paragraph => {
+                    // Render paragraph children directly without <p> wrapper
+                    for grandchild in &child.children {
+                        render_node(grandchild, output, options)?;
+                    }
+                }
+                _ => {
+                    // Other block elements render normally
+                    render_node(child, output, options)?;
+                }
+            }
+        }
+    } else {
+        // Loose list: render everything normally (paragraphs get <p> tags)
+        for child in &node.children {
+            render_node(child, output, options)?;
+        }
+    }
+    
+    output.push_str("</li>\n");
     Ok(())
 }
 

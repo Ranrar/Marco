@@ -15,10 +15,6 @@ integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty", "dep:
 name = "marco"
 path = "src/main.rs"
 
-[[test]]
-name = "test_suite"
-path = "..tests/test_suite.rs"
-
 [dependencies]
 # Core library
 core = { path = "../core" }

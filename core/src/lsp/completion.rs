@@ -66,6 +66,16 @@ pub fn get_completions(position: Position, context: &str) -> Vec<CompletionItem>
         add_link_completions(&mut completions);
     }
     
+    // 3a. After '![': suggest image syntax
+    if before_cursor.ends_with("![") {
+        add_image_completions(&mut completions);
+    }
+    
+    // 3b. After '<': suggest autolink syntax
+    if before_cursor.ends_with('<') && !before_cursor.ends_with("\\<") {
+        add_autolink_completions(&mut completions);
+    }
+    
     // 4. After backtick: suggest code span
     if before_cursor.ends_with('`') && !before_cursor.ends_with("\\`") {
         let backtick_count = before_cursor.chars().rev().take_while(|&c| c == '`').count();
@@ -94,6 +104,13 @@ pub fn get_completions(position: Position, context: &str) -> Vec<CompletionItem>
         if !before_cursor[bracket_pos..].contains(']') {
             add_link_url_completions(&mut completions);
         }
+    }
+    
+    // 7. At end of line with text: suggest line break (but not if line ends with backslash)
+    if !before_cursor.trim().is_empty() 
+        && cursor_col == current_line.len() 
+        && !before_cursor.ends_with('\\') {
+        add_line_break_completions(&mut completions);
     }
     
     log::info!("Generated {} completion items", completions.len());
@@ -160,6 +177,34 @@ fn add_link_completions(completions: &mut Vec<CompletionItem>) {
     });
 }
 
+fn add_image_completions(completions: &mut Vec<CompletionItem>) {
+    completions.push(CompletionItem {
+        label: "Image".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "alt text](image.png)".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Image with title".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "alt text](image.png \"title\")".to_string(),
+    });
+}
+
+fn add_autolink_completions(completions: &mut Vec<CompletionItem>) {
+    completions.push(CompletionItem {
+        label: "Autolink (URL)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "https://example.com>".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Autolink (Email)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "user@example.com>".to_string(),
+    });
+}
+
 fn add_code_span_completions(completions: &mut Vec<CompletionItem>, backtick_count: usize) {
     let backticks = "`".repeat(backtick_count);
     completions.push(CompletionItem {
@@ -196,6 +241,20 @@ fn add_link_url_completions(completions: &mut Vec<CompletionItem>) {
         label: "Complete link with title".to_string(),
         kind: CompletionKind::Syntax,
         insert_text: "](url \"title\")".to_string(),
+    });
+}
+
+fn add_line_break_completions(completions: &mut Vec<CompletionItem>) {
+    completions.push(CompletionItem {
+        label: "Hard line break (two spaces)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "  \n".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Hard line break (backslash)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "\\\n".to_string(),
     });
 }
 
@@ -293,7 +352,49 @@ mod tests {
         
         let completions = get_completions(position, context);
         
-        // Should not suggest emphasis for escaped asterisk
-        assert_eq!(completions.len(), 0, "Should not suggest completions for escaped delimiters");
+        // Should not suggest emphasis for escaped asterisk (but may suggest other things like line breaks)
+        assert!(!completions.iter().any(|c| c.label.contains("italic")), 
+                "Should not suggest emphasis for escaped asterisk");
+        assert!(!completions.iter().any(|c| c.label.contains("bold")), 
+                "Should not suggest strong for escaped asterisk");
+    }
+    
+    #[test]
+    fn smoke_test_image_completions() {
+        let context = "Some text ![";
+        let position = Position::new(0, 12, 12); // After '!['
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest image syntax
+        assert!(completions.iter().any(|c| c.label.contains("Image")));
+        assert!(completions.iter().any(|c| c.insert_text.contains("](image")));
+    }
+    
+    #[test]
+    fn smoke_test_autolink_completions() {
+        let context = "Some text <";
+        let position = Position::new(0, 11, 11); // After '<'
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest autolink syntax
+        assert!(completions.iter().any(|c| c.label.contains("Autolink (URL)")));
+        assert!(completions.iter().any(|c| c.label.contains("Autolink (Email)")));
+        assert!(completions.iter().any(|c| c.insert_text.contains("https://")));
+        assert!(completions.iter().any(|c| c.insert_text.contains("@")));
+    }
+    
+    #[test]
+    fn smoke_test_line_break_completions() {
+        let context = "Some text at end of line";
+        let position = Position::new(0, 24, 24); // At end of line
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest line break options
+        assert!(completions.iter().any(|c| c.label.contains("Hard line break")));
+        assert!(completions.iter().any(|c| c.insert_text.contains("  \n")));
+        assert!(completions.iter().any(|c| c.insert_text.contains("\\\n")));
     }
 }

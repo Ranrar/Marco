@@ -60,7 +60,7 @@ pub fn run_inline_tests(filter: Option<String>) {
         total += 1;
         let input = Span::new("` b `");
         match inline::code_span(input) {
-            Ok((remaining, content)) => {
+            Ok((_remaining, content)) => {
                 if content.fragment() == &" b " {
                     println!("  ✓ Whitespace: ` b ` → content=' b '");
                     passed += 1;
@@ -82,7 +82,7 @@ pub fn run_inline_tests(filter: Option<String>) {
         total += 1;
         let input = Span::new("` `` `");
         match inline::code_span(input) {
-            Ok((remaining, content)) => {
+            Ok((_remaining, content)) => {
                 if content.fragment() == &" `` " {
                     println!("  ✓ Triple backticks: ` `` ` → content=' `` '");
                     passed += 1;

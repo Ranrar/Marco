@@ -9,6 +9,7 @@ license = "MIT License"
 [[test]]
 name = "test_suite"
 path = "../tests/test_suite.rs"
+harness = false  # Disable test harness to use custom main() with clap CLI
 
 [dependencies]
 # Core parsing dependencies (nom-based)

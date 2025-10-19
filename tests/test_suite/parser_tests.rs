@@ -1,6 +1,5 @@
 // Parser tests: validate block → inline parsing and AST building
 
-use core::parser;
 use super::utils::{print_header, print_section};
 
 pub fn run_parser_tests() {

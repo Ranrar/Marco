@@ -121,6 +121,80 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     });
                 }
             }
+            NodeKind::Image { url, alt } => {
+                // Check for empty URLs
+                if url.trim().is_empty() {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Error,
+                        message: "Empty image URL".to_string(),
+                    });
+                }
+                
+                // Warn about missing alt text
+                if alt.trim().is_empty() {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "Image missing alt text (important for accessibility)".to_string(),
+                    });
+                }
+                
+                // Check for potentially unsafe protocols
+                let lower_url = url.to_lowercase();
+                if lower_url.starts_with("javascript:") || lower_url.starts_with("data:") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: format!("Potentially unsafe image protocol: {}", url.split(':').next().unwrap_or("unknown")),
+                    });
+                }
+                
+                // Info: suggest using https over http
+                if lower_url.starts_with("http:") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Info,
+                        message: "Consider using HTTPS instead of HTTP for images".to_string(),
+                    });
+                }
+            }
+            NodeKind::InlineHtml(html) => {
+                // Warn about potentially unsafe HTML
+                let lower_html = html.to_lowercase();
+                if lower_html.contains("<script") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "Inline HTML contains <script> tag (potential security risk)".to_string(),
+                    });
+                }
+                
+                if lower_html.contains("javascript:") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "Inline HTML contains javascript: protocol (potential security risk)".to_string(),
+                    });
+                }
+                
+                // Info: unclosed tags
+                if html.contains('<') && !html.contains('>') {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Info,
+                        message: "Inline HTML may have unclosed tags".to_string(),
+                    });
+                }
+            }
+            NodeKind::HardBreak => {
+                // Hint: hard breaks can affect formatting
+                diagnostics.push(Diagnostic {
+                    span: *span,
+                    severity: DiagnosticSeverity::Hint,
+                    message: "Hard line break: Use sparingly for better text flow".to_string(),
+                });
+            }
             _ => {
                 // No specific diagnostics for other node types
             }
@@ -293,5 +367,168 @@ mod tests {
         
         // Should have no errors or warnings, only possibly hints
         assert!(diagnostics.iter().all(|d| matches!(d.severity, DiagnosticSeverity::Hint)));
+    }
+    
+    #[test]
+    fn smoke_test_image_diagnostics() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Image {
+                                url: "".to_string(),  // Empty URL
+                                alt: "Alt text".to_string(),
+                            },
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 20, offset: 19 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::Image {
+                                url: "image.png".to_string(),
+                                alt: "".to_string(),  // Missing alt text
+                            },
+                            span: Some(Span {
+                                start: Position { line: 2, column: 1, offset: 20 },
+                                end: Position { line: 2, column: 15, offset: 34 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::Image {
+                                url: "http://example.com/image.png".to_string(),
+                                alt: "Image".to_string(),
+                            },
+                            span: Some(Span {
+                                start: Position { line: 3, column: 1, offset: 35 },
+                                end: Position { line: 3, column: 40, offset: 74 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        assert_eq!(diagnostics.len(), 3);
+        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Error));
+        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Warning));
+        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Info));
+        assert!(diagnostics.iter().any(|d| d.message.contains("Empty image URL")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("alt text")));
+    }
+    
+    #[test]
+    fn smoke_test_inline_html_diagnostics() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::InlineHtml("<script>alert('xss')</script>".to_string()),
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 30, offset: 29 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::InlineHtml("<a href=\"javascript:void(0)\">".to_string()),
+                            span: Some(Span {
+                                start: Position { line: 2, column: 1, offset: 30 },
+                                end: Position { line: 2, column: 30, offset: 59 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        assert_eq!(diagnostics.len(), 2);
+        assert!(diagnostics.iter().all(|d| d.severity == DiagnosticSeverity::Warning));
+        assert!(diagnostics.iter().any(|d| d.message.contains("script")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("javascript:")));
+    }
+    
+    #[test]
+    fn smoke_test_hard_break_diagnostics() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Text("Line one".to_string()),
+                            span: None,
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::HardBreak,
+                            span: Some(Span {
+                                start: Position { line: 1, column: 9, offset: 8 },
+                                end: Position { line: 2, column: 1, offset: 11 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::Text("Line two".to_string()),
+                            span: None,
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Hint);
+        assert!(diagnostics[0].message.contains("Hard line break"));
+    }
+    
+    #[test]
+    fn smoke_test_autolink_diagnostics() {
+        // Autolinks are represented as Link nodes, so they use the same diagnostics
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Link {
+                                url: "http://example.com".to_string(),  // HTTP instead of HTTPS
+                                title: None,
+                            },
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 20, offset: 19 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Info);
+        assert!(diagnostics[0].message.contains("HTTPS"));
     }
 }

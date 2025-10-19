@@ -129,8 +129,6 @@ fn main() {
 // Rust test integration
 #[cfg(test)]
 mod tests {
-    use super::*;
-    
     #[test]
     fn test_inline_elements_pipeline() {
         run_inline_pipeline_tests();

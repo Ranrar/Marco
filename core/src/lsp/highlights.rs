@@ -19,8 +19,12 @@ pub enum HighlightTag {
     Emphasis,
     Strong,
     Link,
+    Image,
     CodeSpan,
     CodeBlock,
+    InlineHtml,
+    HardBreak,
+    SoftBreak,
 }
 
 // Generate highlights from AST by walking all nodes
@@ -76,6 +80,12 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     tag: HighlightTag::Link,
                 });
             }
+            NodeKind::Image { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Image,
+                });
+            }
             NodeKind::CodeSpan(_) => {
                 highlights.push(Highlight {
                     span: *span,
@@ -86,6 +96,24 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                 highlights.push(Highlight {
                     span: *span,
                     tag: HighlightTag::CodeBlock,
+                });
+            }
+            NodeKind::InlineHtml(_) => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::InlineHtml,
+                });
+            }
+            NodeKind::HardBreak => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::HardBreak,
+                });
+            }
+            NodeKind::SoftBreak => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::SoftBreak,
                 });
             }
             NodeKind::Text(_) | NodeKind::Paragraph => {
@@ -261,5 +289,136 @@ mod tests {
         
         assert_eq!(highlights.len(), 1);
         assert_eq!(highlights[0].tag, HighlightTag::Link);
+    }
+    
+    #[test]
+    fn smoke_test_image_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Image {
+                                url: "image.png".to_string(),
+                                alt: "Alt text".to_string(),
+                            },
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 25, offset: 24 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::Image);
+    }
+    
+    #[test]
+    fn smoke_test_inline_html_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::InlineHtml("<span>text</span>".to_string()),
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 18, offset: 17 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::InlineHtml);
+    }
+    
+    #[test]
+    fn smoke_test_hard_break_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Text("Line one".to_string()),
+                            span: None,
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::HardBreak,
+                            span: Some(Span {
+                                start: Position { line: 1, column: 9, offset: 8 },
+                                end: Position { line: 2, column: 1, offset: 11 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::Text("Line two".to_string()),
+                            span: None,
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::HardBreak);
+    }
+    
+    #[test]
+    fn smoke_test_soft_break_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Text("Line one".to_string()),
+                            span: None,
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::SoftBreak,
+                            span: Some(Span {
+                                start: Position { line: 1, column: 9, offset: 8 },
+                                end: Position { line: 2, column: 1, offset: 9 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::Text("Line two".to_string()),
+                            span: None,
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::SoftBreak);
     }
 }

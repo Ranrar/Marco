@@ -23,7 +23,12 @@ pub enum NodeKind {
     Heading { level: u8, text: String },
     Paragraph,
     CodeBlock { language: Option<String>, code: String },
-    List { ordered: bool },
+    ThematicBreak, // Horizontal rule (---, ***, ___)
+    List { 
+        ordered: bool,
+        start: Option<u32>,  // Starting number for ordered lists
+        tight: bool,         // No blank lines between items
+    },
     ListItem,
     Blockquote,
     Table,
@@ -36,6 +41,8 @@ pub enum NodeKind {
     Image { url: String, alt: String },
     CodeSpan(String),
     InlineHtml(String),
+    HardBreak,  // Two spaces + newline, or backslash + newline
+    SoftBreak,  // Regular newline (rendered as space in HTML)
 }
 
 impl Document {

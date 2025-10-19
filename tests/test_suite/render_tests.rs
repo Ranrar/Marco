@@ -1,6 +1,5 @@
 // Render tests: validate HTML output from AST
 
-use core::{parser, render};
 use super::utils::{print_header, print_section};
 
 pub fn run_render_tests() {
@@ -405,6 +404,151 @@ pub fn run_inline_pipeline_tests() {
         }
     }
     
+    // Test 10: URI Autolink
+    print_section("Render URI Autolink");
+    total += 1;
+    let input = "<https://example.com>";
+    match parser::parse(input) {
+        Ok(doc) => {
+            let options = RenderOptions::default();
+            match render_html(&doc, &options) {
+                Ok(html) => {
+                    if html == "<p><a href=\"https://example.com\">https://example.com</a></p>\n" {
+                        println!("  ✓ URI Autolink: '<https://example.com>' → '<a href=\"https://example.com\">https://example.com</a>'");
+                        passed += 1;
+                    } else {
+                        println!("  ✗ Expected '<p><a href=\"https://example.com\">https://example.com</a></p>\\n', got: {:?}", html);
+                        failed += 1;
+                    }
+                }
+                Err(e) => {
+                    println!("  ✗ Render error: {}", e);
+                    failed += 1;
+                }
+            }
+        }
+        Err(e) => {
+            println!("  ✗ Parse error: {}", e);
+            failed += 1;
+        }
+    }
+    
+    // Test 11: Email Autolink
+    print_section("Render Email Autolink");
+    total += 1;
+    let input = "<user@example.com>";
+    match parser::parse(input) {
+        Ok(doc) => {
+            let options = RenderOptions::default();
+            match render_html(&doc, &options) {
+                Ok(html) => {
+                    if html == "<p><a href=\"mailto:user@example.com\">user@example.com</a></p>\n" {
+                        println!("  ✓ Email Autolink: '<user@example.com>' → '<a href=\"mailto:user@example.com\">user@example.com</a>'");
+                        passed += 1;
+                    } else {
+                        println!("  ✗ Expected '<p><a href=\"mailto:user@example.com\">user@example.com</a></p>\\n', got: {:?}", html);
+                        failed += 1;
+                    }
+                }
+                Err(e) => {
+                    println!("  ✗ Render error: {}", e);
+                    failed += 1;
+                }
+            }
+        }
+        Err(e) => {
+            println!("  ✗ Parse error: {}", e);
+            failed += 1;
+        }
+    }
+    
+    // Test 12: Hard Line Break (spaces)
+    print_section("Render Hard Line Break (spaces)");
+    total += 1;
+    let input = "Line one  \nLine two";
+    match parser::parse(input) {
+        Ok(doc) => {
+            let options = RenderOptions::default();
+            match render_html(&doc, &options) {
+                Ok(html) => {
+                    if html == "<p>Line one<br />\nLine two</p>\n" {
+                        println!("  ✓ Hard Break (spaces): 'Line one  \\nLine two' → '<p>Line one<br />\\nLine two</p>'");
+                        passed += 1;
+                    } else {
+                        println!("  ✗ Expected '<p>Line one<br />\\nLine two</p>\\n', got: {:?}", html);
+                        failed += 1;
+                    }
+                }
+                Err(e) => {
+                    println!("  ✗ Render error: {}", e);
+                    failed += 1;
+                }
+            }
+        }
+        Err(e) => {
+            println!("  ✗ Parse error: {}", e);
+            failed += 1;
+        }
+    }
+    
+    // Test 13: Hard Line Break (backslash)
+    print_section("Render Hard Line Break (backslash)");
+    total += 1;
+    let input = "Line one\\\nLine two";
+    match parser::parse(input) {
+        Ok(doc) => {
+            let options = RenderOptions::default();
+            match render_html(&doc, &options) {
+                Ok(html) => {
+                    if html == "<p>Line one<br />\nLine two</p>\n" {
+                        println!("  ✓ Hard Break (backslash): 'Line one\\\\\\nLine two' → '<p>Line one<br />\\nLine two</p>'");
+                        passed += 1;
+                    } else {
+                        println!("  ✗ Expected '<p>Line one<br />\\nLine two</p>\\n', got: {:?}", html);
+                        failed += 1;
+                    }
+                }
+                Err(e) => {
+                    println!("  ✗ Render error: {}", e);
+                    failed += 1;
+                }
+            }
+        }
+        Err(e) => {
+            println!("  ✗ Parse error: {}", e);
+            failed += 1;
+        }
+    }
+    
+    // Test 14: Soft Line Break
+    print_section("Render Soft Line Break");
+    total += 1;
+    let input = "Line one\nLine two";
+    match parser::parse(input) {
+        Ok(doc) => {
+            let options = RenderOptions::default();
+            match render_html(&doc, &options) {
+                Ok(html) => {
+                    if html == "<p>Line one\nLine two</p>\n" {
+                        println!("  ✓ Soft Break: 'Line one\\nLine two' → '<p>Line one\\nLine two</p>'");
+                        passed += 1;
+                    } else {
+                        println!("  ✗ Expected '<p>Line one\\nLine two</p>\\n', got: {:?}", html);
+                        failed += 1;
+                    }
+                }
+                Err(e) => {
+                    println!("  ✗ Render error: {}", e);
+                    failed += 1;
+                }
+            }
+        }
+        Err(e) => {
+            println!("  ✗ Parse error: {}", e);
+            failed += 1;
+        }
+    }
+
     // Summary
     println!("\n{}", "─".repeat(60));
     println!("Inline Pipeline Tests Summary: {}/{} tests passed ({:.1}%)", 

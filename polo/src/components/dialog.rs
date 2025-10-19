@@ -59,6 +59,7 @@ pub fn show_open_file_dialog(
     settings_manager: Arc<SettingsManager>,
     current_file_path: Arc<RwLock<Option<String>>>,
     open_editor_btn: &Button,
+    title_label: &Label,
     asset_root: &std::path::Path,
 ) {
     use gtk4::gio;
@@ -100,6 +101,7 @@ pub fn show_open_file_dialog(
     // Handle response
     let window_weak = window.downgrade();
     let open_editor_btn = open_editor_btn.clone();
+    let title_label = title_label.clone();
     let asset_root_owned = asset_root.to_path_buf();
     dialog.connect_response(move |dialog, response| {
         if response == ResponseType::Accept {
@@ -130,13 +132,12 @@ pub fn show_open_file_dialog(
                     open_editor_btn.set_sensitive(true);
                     open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
                     
-                    // Update window title
+                    // Update window title and title label
                     if let Some(window) = window_weak.upgrade() {
                         if let Some(filename) = path.file_name() {
-                            window.set_title(Some(&format!(
-                                "Polo - {}",
-                                filename.to_string_lossy()
-                            )));
+                            let title_text = format!("Polo - {}", filename.to_string_lossy());
+                            window.set_title(Some(&title_text));
+                            title_label.set_text(&title_text);
                         }
                     }
                     
