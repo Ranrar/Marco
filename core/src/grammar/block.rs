@@ -958,6 +958,25 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
                 // This is a blockquote, stop paragraph here
                 break;
             }
+            
+            // Check if line starts with list marker
+            // Unordered lists can always interrupt paragraphs
+            // Ordered lists can only interrupt if they start with "1"
+            if let Ok(_) = detect_list_marker(after_spaces) {
+                // Check if it's unordered or ordered starting with 1
+                let marker_chars: Vec<char> = trimmed.chars().take(5).collect();
+                if marker_chars.first().map(|c| *c == '-' || *c == '*' || *c == '+').unwrap_or(false) {
+                    // Unordered list, can interrupt
+                    break;
+                } else if marker_chars.first().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                    // Ordered list - check if starts with "1"
+                    if trimmed.starts_with("1.") || trimmed.starts_with("1)") {
+                        // Can interrupt
+                        break;
+                    }
+                    // Other numbers can't interrupt paragraphs
+                }
+            }
         }
         
         // Note: We allow indented lines as lazy continuation per CommonMark spec
@@ -1423,6 +1442,9 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
     // 1. Parse the list marker
     let (after_marker, (marker, content_indent)) = detect_list_marker(input)?;
     
+    // Calculate the marker's indentation (distance from start of input to start of marker character)
+    let marker_indent = count_indentation(input.fragment());
+    
     // 2. Check if marker type matches expected (if specified)
     if let Some(expected) = expected_marker_type {
         let matches = matches!((&marker, &expected),
@@ -1442,6 +1464,11 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
     let mut has_blank_lines = false;
     let mut last_was_blank = false;
     let mut is_first_line = true;
+    
+    // Track fenced code blocks to avoid counting their blank lines
+    let mut in_fenced_code = false;
+    let mut fence_char: Option<char> = None;
+    let mut fence_indent: usize = 0;
     
     // Safety: prevent infinite loops
     const MAX_LINES: usize = 10000;
@@ -1508,6 +1535,20 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
             // Non-blank first line - include it
             last_was_blank = false;
             
+            // Check if first line starts a fenced code block
+            let line_indent = count_indentation(current_line);
+            let trimmed_line = current_line.trim_start();
+            if (trimmed_line.starts_with("```") || trimmed_line.starts_with("~~~")) && trimmed_line.len() >= 3 {
+                let ch = trimmed_line.chars().next().unwrap();
+                let fence_len = trimmed_line.chars().take_while(|&c| c == ch).count();
+                if fence_len >= 3 {
+                    log::debug!("list_item: first line starts fenced code block");
+                    in_fenced_code = true;
+                    fence_char = Some(ch);
+                    fence_indent = line_indent;
+                }
+            }
+            
             let skip_len = if current_line_end < remaining.fragment().len() {
                 current_line_end + 1  // Include newline
             } else {
@@ -1560,18 +1601,35 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
             // This prevents marking single-item lists as "loose" when they have a trailing blank line.
             // Per cmark reference implementation, continuation requires >= content_indent spaces.
             let should_include_blank = if skip_len < remaining.fragment().len() {
-                // Look at the next line after the blank
-                let after_blank = &remaining.fragment()[skip_len..];
-                let next_line_end = after_blank.find('\n').unwrap_or(after_blank.len());
-                let next_line = &after_blank[..next_line_end];
+                // Look ahead to find the next NON-BLANK line
+                let mut search_offset = skip_len;
+                let mut found_non_blank = false;
+                let mut next_non_blank_indent = 0;
                 
-                if next_line.trim().is_empty() {
-                    false  // Another blank line follows, don't include this one
+                while search_offset < remaining.fragment().len() {
+                    let search_text = &remaining.fragment()[search_offset..];
+                    let line_end = search_text.find('\n').unwrap_or(search_text.len());
+                    let line = &search_text[..line_end];
+                    
+                    if !line.trim().is_empty() {
+                        // Found a non-blank line
+                        found_non_blank = true;
+                        next_non_blank_indent = count_indentation(line);
+                        break;
+                    }
+                    
+                    // Move to next line
+                    search_offset += line_end + 1;
+                    if search_offset > remaining.fragment().len() {
+                        break;  // Reached end
+                    }
+                }
+                
+                if !found_non_blank {
+                    false  // No non-blank line found, don't include trailing blanks
                 } else {
-                    let next_line_indent = count_indentation(next_line);
-                    // Next line continues if it has at least content_indent spaces
-                    // This matches cmark's parse_node_item_prefix logic
-                    next_line_indent >= content_indent
+                    // Next non-blank line continues if it has at least content_indent spaces
+                    next_non_blank_indent >= content_indent
                 }
             } else {
                 false  // End of input, don't include trailing blank
@@ -1582,7 +1640,11 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                 break;
             }
             
-            has_blank_lines = true;
+            // Only count as "has blank lines" if NOT inside a fenced code block
+            // Blank lines inside code blocks don't affect tight/loose list detection
+            if !in_fenced_code {
+                has_blank_lines = true;
+            }
             last_was_blank = true;
             
             // Include the blank line and continue
@@ -1601,11 +1663,51 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
         // Non-blank line - check indentation
         let line_indent = count_indentation(current_line);
         
+        // Check for fenced code block markers (``` or ~~~)
+        // This helps us track whether blank lines are inside code blocks
+        let trimmed_line = current_line.trim_start();
+        if !in_fenced_code {
+            // Not in a code block, check if this line starts one
+            if (trimmed_line.starts_with("```") || trimmed_line.starts_with("~~~")) && trimmed_line.len() >= 3 {
+                let ch = trimmed_line.chars().next().unwrap();
+                let fence_len = trimmed_line.chars().take_while(|&c| c == ch).count();
+                if fence_len >= 3 {
+                    // Entering a fenced code block
+                    log::debug!("list_item: entering fenced code block at line: {:?}", current_line);
+                    in_fenced_code = true;
+                    fence_char = Some(ch);
+                    fence_indent = line_indent;
+                }
+            }
+        } else {
+            // Already in a code block, check if this closes it
+            if let Some(fc) = fence_char {
+                if trimmed_line.starts_with(fc) {
+                    let close_fence_len = trimmed_line.chars().take_while(|&c| c == fc).count();
+                    // Closing fence must be at least as long as opening fence and properly indented
+                    if close_fence_len >= 3 && line_indent <= fence_indent + content_indent {
+                        // Exiting the fenced code block
+                        log::debug!("list_item: exiting fenced code block at line: {:?}", current_line);
+                        in_fenced_code = false;
+                        fence_char = None;
+                    }
+                }
+            }
+        }
+        
         // Check if this starts a new list item (not first line, we handled that above)
+        // A line is a new SIBLING item if:
+        // 1. It has a list marker
+        // 2. The marker is at the same or lesser indentation as the current item's marker
         if line_indent < 4 {  // Could be a new marker (markers need < 4 spaces)
             if detect_list_marker(remaining).is_ok() {
-                // This is a new list item, stop here
-                break;
+                // Check if this marker is at greater indentation (nested) or same/lesser (sibling)
+                if line_indent <= marker_indent {
+                    // This is a sibling list item, stop here
+                    break;
+                }
+                // Otherwise, marker is indented more than current marker, so it's nested content
+                // Fall through to continue collecting
             }
         }
         

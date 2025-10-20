@@ -7,6 +7,174 @@ use nom_locate::LocatedSpan;
 
 type GrammarSpan<'a> = LocatedSpan<&'a str>;
 
+// ============================================================================
+// BlockContext: Track open blocks for continuation across blank lines
+// ============================================================================
+
+/// Type of block that's currently open
+#[derive(Debug, Clone, PartialEq)]
+enum BlockContextKind {
+    /// Ordered or unordered list container
+    List {
+        ordered: bool,
+    },
+    /// Individual list item within a list
+    /// content_indent: minimum spaces required for content continuation
+    ListItem {
+        content_indent: usize,
+    },
+    /// Block quote container
+    /// Each line needs '>' marker OR sufficient indent for lazy continuation
+    BlockQuote {
+        indent: usize,
+    },
+}
+
+/// Represents an open block that can accept continuation content
+#[derive(Debug, Clone)]
+struct BlockContext {
+    kind: BlockContextKind,
+    /// Whether this block is still accepting content
+    /// Set to false when the block is closed (e.g., insufficient indent)
+    is_open: bool,
+}
+
+impl BlockContext {
+    fn new_list(ordered: bool) -> Self {
+        Self {
+            kind: BlockContextKind::List { ordered },
+            is_open: true,
+        }
+    }
+    
+    fn new_list_item(content_indent: usize) -> Self {
+        Self {
+            kind: BlockContextKind::ListItem { content_indent },
+            is_open: true,
+        }
+    }
+    
+    fn new_blockquote(indent: usize) -> Self {
+        Self {
+            kind: BlockContextKind::BlockQuote { indent },
+            is_open: true,
+        }
+    }
+    
+    /// Returns the minimum indentation required for content to continue this block
+    fn required_indent(&self) -> usize {
+        match &self.kind {
+            BlockContextKind::List { .. } => 0,  // Lists continue at any indent (items handle it)
+            BlockContextKind::ListItem { content_indent } => *content_indent,
+            BlockContextKind::BlockQuote { indent } => *indent,
+        }
+    }
+}
+
+/// Parser state tracking open block contexts
+#[derive(Debug)]
+struct ParserState {
+    /// Stack of open blocks (outermost first, innermost last)
+    blocks: Vec<BlockContext>,
+}
+
+impl ParserState {
+    fn new() -> Self {
+        Self {
+            blocks: Vec::new(),
+        }
+    }
+    
+    /// Add a new block context to the stack
+    fn push_block(&mut self, context: BlockContext) {
+        log::debug!("ParserState: push {:?}", context.kind);
+        self.blocks.push(context);
+    }
+    
+    /// Remove the most recent block context
+    fn pop_block(&mut self) -> Option<BlockContext> {
+        let context = self.blocks.pop();
+        if let Some(ref ctx) = context {
+            log::debug!("ParserState: pop {:?}", ctx.kind);
+        }
+        context
+    }
+    
+    /// Get the current innermost block context
+    fn current_block(&self) -> Option<&BlockContext> {
+        self.blocks.last()
+    }
+    
+    /// Get the current innermost block context (mutable)
+    fn current_block_mut(&mut self) -> Option<&mut BlockContext> {
+        self.blocks.last_mut()
+    }
+    
+    /// Get the required indentation for the current context
+    fn current_required_indent(&self) -> usize {
+        self.current_block()
+            .map(|ctx| ctx.required_indent())
+            .unwrap_or(0)
+    }
+    
+    /// Check if content at given indent can continue the current block
+    /// This is the CORE logic for handling blank lines with continuation
+    fn can_continue_at(&self, indent: usize) -> bool {
+        if let Some(context) = self.current_block() {
+            if !context.is_open {
+                return false;
+            }
+            
+            match &context.kind {
+                BlockContextKind::ListItem { content_indent } => {
+                    // List item content must be indented at least content_indent spaces
+                    // This is per CommonMark spec: continuation requires >= content_indent
+                    indent >= *content_indent
+                }
+                BlockContextKind::List { .. } => {
+                    // Lists themselves don't have continuation requirements
+                    // List items handle their own continuation
+                    true
+                }
+                BlockContextKind::BlockQuote { indent: required } => {
+                    // Block quote content must maintain required indentation
+                    indent >= *required
+                }
+            }
+        } else {
+            // No open context, any content starts new block
+            false
+        }
+    }
+    
+    /// Close all blocks that cannot continue at the given indentation
+    /// Returns the number of blocks closed
+    fn close_blocks_until_indent(&mut self, indent: usize) -> usize {
+        let mut closed = 0;
+        
+        while let Some(context) = self.current_block() {
+            if context.is_open && !self.can_continue_at(indent) {
+                log::debug!("ParserState: closing block due to indent {} < required {}", 
+                    indent, context.required_indent());
+                self.pop_block();
+                closed += 1;
+            } else {
+                break;
+            }
+        }
+        
+        closed
+    }
+    
+    /// Mark the current block as closed (but keep on stack for context)
+    fn close_current(&mut self) {
+        if let Some(context) = self.current_block_mut() {
+            context.is_open = false;
+            log::debug!("ParserState: marked current block closed");
+        }
+    }
+}
+
 // Convert grammar LocatedSpan to parser Span
 fn to_parser_span(input: GrammarSpan) -> crate::parser::position::Span {
     let start = crate::parser::position::Position::new(
@@ -93,11 +261,12 @@ fn dedent_list_item_content(content: &str, content_indent: usize) -> String {
 
 // Parse document into block-level structure, returning a Document
 pub fn parse_blocks(input: &str) -> Result<Document> {
-    parse_blocks_internal(input, 0)
+    let mut state = ParserState::new();
+    parse_blocks_internal(input, 0, &mut state)
 }
 
-// Internal parser with recursion depth limit
-fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
+// Internal parser with recursion depth limit and state tracking
+fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> Result<Document> {
     // Prevent infinite recursion
     const MAX_DEPTH: usize = 100;
     if depth > MAX_DEPTH {
@@ -105,7 +274,8 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
         return Ok(Document::new());
     }
     
-    log::debug!("Block parser input: {} bytes at depth {}", input.len(), depth);
+    log::debug!("Block parser input: {} bytes at depth {}, state depth: {}", 
+        input.len(), depth, state.blocks.len());
     
     let mut nodes = Vec::new();
     let mut document = Document::new();  // Create document early to collect references
@@ -136,28 +306,97 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
         }
         last_offset = current_offset;
         
-        // Skip blank lines (lines containing only whitespace)
+        // ========================================================================
+        // BLANK LINE HANDLING WITH CONTEXT AWARENESS (Example 307 fix)
+        // ========================================================================
         // Extract the first line to check if it's blank
         let first_line_end = remaining.fragment().find('\n').unwrap_or(remaining.fragment().len());
         let first_line = &remaining.fragment()[..first_line_end];
         
         // A line is blank if it contains only whitespace (spaces, tabs)
         if first_line.trim().is_empty() {
-            // Skip the blank line including its newline
-            let skip_len = if first_line_end < remaining.fragment().len() {
-                first_line_end + 1  // Include the newline
+            // Peek at the next non-blank line to determine continuation
+            let peek_offset = if first_line_end < remaining.fragment().len() {
+                first_line_end + 1
             } else {
-                first_line_end  // End of input, no newline
+                first_line_end
             };
             
-            // Use nom's take to skip bytes while preserving location information
-            use nom::bytes::complete::take;
-            if let Ok((new_remaining, _)) = take::<_, _, nom::error::Error<GrammarSpan>>(skip_len as u32)(remaining) {
-                remaining = new_remaining;
-                continue;
+            // Find the next non-blank line
+            let mut next_nonblank_indent: Option<usize> = None;
+            let rest_of_input = &remaining.fragment()[peek_offset..];
+            
+            for peek_line in rest_of_input.lines() {
+                if !peek_line.trim().is_empty() {
+                    // Count leading spaces (expand tabs)
+                    let mut indent = 0;
+                    for ch in peek_line.chars() {
+                        if ch == ' ' {
+                            indent += 1;
+                        } else if ch == '\t' {
+                            indent += 4 - (indent % 4);  // Tab to next multiple of 4
+                        } else {
+                            break;
+                        }
+                    }
+                    next_nonblank_indent = Some(indent);
+                    break;
+                }
+            }
+            
+            // Determine if we should preserve context or close blocks
+            let should_continue = if let Some(next_indent) = next_nonblank_indent {
+                // Check if the next content can continue the current context
+                state.can_continue_at(next_indent)
             } else {
-                // Can't skip, break
-                break;
+                // No more content, close all contexts
+                false
+            };
+            
+            if should_continue {
+                // Blank line continues the current block
+                // Skip the blank but preserve block context
+                log::debug!("Blank line: continuing context at indent {:?}", next_nonblank_indent);
+                
+                use nom::bytes::complete::take;
+                let skip_len = if first_line_end < remaining.fragment().len() {
+                    first_line_end + 1  // Include newline
+                } else {
+                    first_line_end
+                };
+                
+                if let Ok((new_remaining, _)) = take::<_, _, nom::error::Error<GrammarSpan>>(skip_len as u32)(remaining) {
+                    remaining = new_remaining;
+                    continue;
+                } else {
+                    break;
+                }
+            } else {
+                // Blank line ends the current context(s)
+                // Close blocks that can't continue at the next indent
+                if let Some(next_indent) = next_nonblank_indent {
+                    let closed = state.close_blocks_until_indent(next_indent);
+                    log::debug!("Blank line: closed {} blocks due to indent {}", closed, next_indent);
+                } else {
+                    // No more content, close everything
+                    log::debug!("Blank line: end of input, closing all blocks");
+                    while state.pop_block().is_some() {}
+                }
+                
+                // Skip the blank line and continue parsing
+                use nom::bytes::complete::take;
+                let skip_len = if first_line_end < remaining.fragment().len() {
+                    first_line_end + 1
+                } else {
+                    first_line_end
+                };
+                
+                if let Ok((new_remaining, _)) = take::<_, _, nom::error::Error<GrammarSpan>>(skip_len as u32)(remaining) {
+                    remaining = new_remaining;
+                    continue;
+                } else {
+                    break;
+                }
             }
         }
         
@@ -376,7 +615,8 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
             }
             
             // Recursively parse the block quote content
-            let inner_doc = parse_blocks_internal(&cleaned_content, depth + 1)?;
+            // Note: We pass state through but blockquotes create their own sub-context
+            let inner_doc = parse_blocks_internal(&cleaned_content, depth + 1, state)?;
             
             let node = Node {
                 kind: NodeKind::Blockquote,
@@ -457,7 +697,11 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
                 let dedented_content = dedent_list_item_content(content.fragment(), content_indent);
                 
                 // Parse the item's content as block elements
-                let item_content = match parse_blocks_internal(&dedented_content, depth + 1) {
+                // Create a sub-state for list item content to track nested structures
+                let mut item_state = ParserState::new();
+                item_state.push_block(BlockContext::new_list_item(content_indent));
+                
+                let item_content = match parse_blocks_internal(&dedented_content, depth + 1, &mut item_state) {
                     Ok(doc) => doc.children,
                     Err(e) => {
                         log::warn!("Failed to parse list item content: {}", e);
