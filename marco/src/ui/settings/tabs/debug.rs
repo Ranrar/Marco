@@ -12,7 +12,7 @@ pub fn build_debug_tab(settings_path: &str) -> GtkBox {
     container.add_css_class("marco-settings-tab");
 
     // Use SettingsManager to load current setting (default to false)
-    let settings_manager = match marco_core::logic::swanson::SettingsManager::initialize(
+    let settings_manager = match core::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path)
     ) {
         Ok(sm) => sm,

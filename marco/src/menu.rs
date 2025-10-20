@@ -1,4 +1,4 @@
-use marco_core::logic::layoutstate::{layout_state_label, LayoutState};
+use core::logic::layoutstate::{layout_state_label, LayoutState};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 

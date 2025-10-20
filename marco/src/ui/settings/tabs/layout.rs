@@ -1,4 +1,4 @@
-use marco_core::logic::swanson::WindowSettings;
+use core::logic::swanson::WindowSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::debug;
@@ -31,7 +31,7 @@ pub fn build_layout_tab(
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(settings_path) = settings_path {
-        match marco_core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
+        match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
             Ok(sm) => Some(sm),
             Err(e) => {
                 debug!("Failed to initialize SettingsManager in layout tab: {}", e);
@@ -112,7 +112,7 @@ pub fn build_layout_tab(
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 // Ensure layout settings exist
                 if settings.layout.is_none() {
-                    use marco_core::logic::swanson::LayoutSettings;
+                    use core::logic::swanson::LayoutSettings;
                     settings.layout = Some(LayoutSettings::default());
                 }
 
@@ -235,7 +235,7 @@ pub fn build_layout_tab(
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 // Ensure layout settings exist
                 if settings.layout.is_none() {
-                    use marco_core::logic::swanson::LayoutSettings;
+                    use core::logic::swanson::LayoutSettings;
                     settings.layout = Some(LayoutSettings::default());
                 }
 

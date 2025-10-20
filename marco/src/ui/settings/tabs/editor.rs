@@ -1,4 +1,4 @@
-use marco_core::logic::swanson::EditorSettings;
+use core::logic::swanson::EditorSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::{debug, error};
@@ -13,7 +13,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     };
 
     // Initialize SettingsManager for this editor tab
-    let settings_manager_opt = match marco_core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
+    let settings_manager_opt = match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
         Ok(settings_manager) => Some(std::sync::Arc::new(settings_manager)),
         Err(e) => {
             debug!("Failed to initialize SettingsManager for editor settings: {}", e);
@@ -37,7 +37,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
 
     // Get monospace fonts (preferred for code editing) - using cached fonts
     let monospace_fonts =
-        marco_core::logic::loaders::font_loader::FontLoader::get_cached_monospace_fonts();
+        core::logic::loaders::font_loader::FontLoader::get_cached_monospace_fonts();
     let monospace_names: Vec<String> = monospace_fonts.into_iter().map(|f| f.name).collect();
 
     // Create searchable DropDown with font list
@@ -233,7 +233,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 // Ensure editor settings exist
                 if settings.editor.is_none() {
-                    settings.editor = Some(marco_core::logic::swanson::EditorSettings::default());
+                    settings.editor = Some(core::logic::swanson::EditorSettings::default());
                 }
 
                 // Update line height setting
@@ -556,7 +556,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 // Ensure editor settings exist
                 if settings.editor.is_none() {
-                    settings.editor = Some(marco_core::logic::swanson::EditorSettings::default());
+                    settings.editor = Some(core::logic::swanson::EditorSettings::default());
                 }
 
                 // Update syntax colors setting

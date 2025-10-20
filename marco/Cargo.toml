@@ -4,34 +4,20 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
-license = "MIT OR Apache-2.0"
+license = "MIT License"
 default-run = "marco"
 
 [features]
 default = []
-integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty", "dep:pest", "dep:serde_json"]
+integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty", "dep:serde_json"]
 
 [[bin]]
 name = "marco"
 path = "src/main.rs"
 
-[[bin]]
-name = "marco-test"
-path = "../tests/test_runner/main.rs"
-required-features = ["integration-tests"]
-
-[[bin]]
-name = "marco-parser-debug"
-path = "../tests/parser_debug/main.rs"
-required-features = ["integration-tests"]
-
-[[test]]
-name = "integration_test_suite"
-path = "../tests/integration_test_suite.rs"
-
 [dependencies]
 # Core library
-marco_core = { path = "../marco_core" }
+core = { path = "../core" }
 
 # UI dependencies
 gtk4 = { workspace = true }
@@ -41,7 +27,7 @@ sourceview5 = { workspace = true }
 webkit6 = { workspace = true }
 dark-light = { workspace = true }
 
-# Utilities (also in marco_core but needed here)
+# Utilities (also in core but needed here)
 anyhow = { workspace = true }
 serde = { workspace = true }
 ron = { workspace = true }
@@ -55,7 +41,6 @@ clap = { workspace = true, optional = true }
 similar = { workspace = true, optional = true }
 colored = { workspace = true, optional = true }
 atty = { workspace = true, optional = true }
-pest = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -63,4 +48,3 @@ criterion = { workspace = true }
 rand = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }
-pest = { workspace = true }

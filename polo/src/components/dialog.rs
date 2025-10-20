@@ -47,7 +47,7 @@ use gtk4::{
     prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction,
     FileChooserDialog, FileFilter, Label, Orientation, ResponseType, Window,
 };
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
@@ -59,6 +59,7 @@ pub fn show_open_file_dialog(
     settings_manager: Arc<SettingsManager>,
     current_file_path: Arc<RwLock<Option<String>>>,
     open_editor_btn: &Button,
+    title_label: &Label,
     asset_root: &std::path::Path,
 ) {
     use gtk4::gio;
@@ -100,6 +101,7 @@ pub fn show_open_file_dialog(
     // Handle response
     let window_weak = window.downgrade();
     let open_editor_btn = open_editor_btn.clone();
+    let title_label = title_label.clone();
     let asset_root_owned = asset_root.to_path_buf();
     dialog.connect_response(move |dialog, response| {
         if response == ResponseType::Accept {
@@ -130,20 +132,19 @@ pub fn show_open_file_dialog(
                     open_editor_btn.set_sensitive(true);
                     open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
                     
-                    // Update window title
+                    // Update window title and title label
                     if let Some(window) = window_weak.upgrade() {
                         if let Some(filename) = path.file_name() {
-                            window.set_title(Some(&format!(
-                                "Polo - {}",
-                                filename.to_string_lossy()
-                            )));
+                            let title_text = format!("Polo - {}", filename.to_string_lossy());
+                            window.set_title(Some(&title_text));
+                            title_label.set_text(&title_text);
                         }
                     }
                     
                     // Save to settings
                     let _ = settings_manager.update_settings(|s| {
                         if s.polo.is_none() {
-                            s.polo = Some(marco_core::logic::swanson::PoloSettings::default());
+                            s.polo = Some(core::logic::swanson::PoloSettings::default());
                         }
                         if let Some(ref mut polo) = s.polo {
                             polo.last_opened_file = Some(PathBuf::from(path_str.clone()));

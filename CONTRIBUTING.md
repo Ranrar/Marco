@@ -4,14 +4,14 @@ Thank you for your interest in contributing to Marco. This document explains how
 
 ## Intro & contributing
 
-We welcome contributions of all sizes. Typical contributions include bug fixes, new editor features, additional themes, documentation improvements, and marco_engine parser enhancements.
+We welcome contributions of all sizes. Typical contributions include bug fixes, new editor features, additional themes, documentation improvements, and core parser enhancements.
 
 ## Suggested workflow
 
 1. Open an issue describing the change or bug you want to address.
 2. Fork the repository and create a feature branch.
 3. Add tests where appropriate and keep changes small and focused.
-4. If modifying the marco_engine grammar, test with various markdown samples.
+4. If modifying the core grammar, test with various markdown samples.
 5. Run `cargo build` and `cargo test` locally.
 6. Open a pull request describing the change and link the related issue.
 
@@ -25,11 +25,21 @@ Code style and expectations
 
 Marco uses a Cargo workspace with three crates:
 
-- **marco_core** — Pure Rust library with the marco_engine parser, AST builder, HTML renderer, and core logic (buffer management, settings, paths). No GTK dependencies. Located in `marco_core/`.
-- **marco** — Full-featured GTK4 editor binary with SourceView5 text editing and WebKit6 preview. Depends on marco_core. Located in `marco/`.
-- **polo** — Lightweight viewer-only binary with WebKit6 preview but no text editing (no SourceView5). Depends on marco_core. Located in `polo/`.
+- **core** — Pure Rust library with nom-based parser, AST builder, HTML renderer, LSP features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies. Located in `core/`.
+- **marco** — Full-featured GTK4 editor binary with SourceView5 text editing and WebKit6 preview. Depends on core. Located in `marco/`.
+- **polo** — Lightweight viewer-only binary with WebKit6 preview but no text editing (no SourceView5). Depends on core. Located in `polo/`.
 
 Assets (themes, fonts, icons, settings) are centralized at the workspace root in `assets/`.
+
+### Core Library Structure
+
+The `core/` crate is organized into several key modules:
+
+- **`grammar/`** — nom-based grammar parsers for block and inline Markdown elements
+- **`parser/`** — AST building from grammar output (includes `ast.rs`, `block_parser.rs`, `inline_parser.rs`, `position.rs`)
+- **`render/`** — HTML renderer with entity escaping and syntax highlighting support
+- **`lsp/`** — LSP features: syntax highlighting, diagnostics, completion, hover
+- **`logic/`** — Pure Rust business logic: buffer management, settings, paths, cache, logging
 
 ## How it works (concise)
 
@@ -37,9 +47,9 @@ Marco uses a three-layer design:
 
 - **main** — application entry and glue (in `marco/src/main.rs`), responsible for initializing GTK, ThemeManager, and wiring UI to logic.
 - **components** — GTK widgets, layout, and event wiring (in `marco/src/components/`). The primary editor component is created via `create_editor_with_preview_and_buffer`.
-- **logic** — document buffer management, file operations, and settings. Core logic lives in `marco_core/src/logic/` (pure Rust, no GTK). UI-specific logic lives in `marco/src/logic/` (GTK-dependent signal management and menu handlers).
+- **logic** — document buffer management, file operations, and settings. Core logic lives in `core/src/logic/` (pure Rust, no GTK). UI-specific logic lives in `marco/src/logic/` (GTK-dependent signal management and menu handlers).
 
-The marco_engine component (in `marco_core/src/components/marco_engine/`) handles markdown parsing and HTML rendering using a pest-based parser. The editor is a split-pane composed of a SourceView-based text buffer and a WebKit6-based HTML preview. Changes in the buffer trigger live re-rendering using marco_core's parser for Markdown-to-HTML conversion with proper image path resolution.
+The core library handles markdown parsing and HTML rendering using a nom-based parser. The editor is a split-pane composed of a SourceView-based text buffer and a WebKit6-based HTML preview. Changes in the buffer trigger live re-rendering using core's parser for Markdown-to-HTML conversion with proper image path resolution. The parser uses nom combinators in `core/src/grammar/` to build an AST which is then rendered to HTML by `core/src/render/`.
 
 ## Embedding & API (main integration points)
 
@@ -54,7 +64,7 @@ These functions are useful when embedding the editor widget or integrating with 
   - Notes: Useful for embedding the editor view without the WebView preview.
 
 - `wire_footer_updates(buffer, labels, insert_mode_state)`
-  - Notes: Attaches debounced footer updates that compute cursor position, word/char counts, and syntax information using the marco_engine AST parser.
+  - Notes: Attaches debounced footer updates that compute cursor position, word/char counts, and syntax information using the core AST parser.
 
 If you add public utilities, document small examples for how to call them from `main.rs` or tests.
 
@@ -65,7 +75,7 @@ File locations used during development:
 - **Themes and assets**: `assets/themes/` at workspace root.
 - **Settings file**: `assets/settings.ron` (with defaults in `settings_default.ron`).
 - **Languages**: `assets/language/` for localization files.
-- **Marco Engine**: `marco_core/src/components/marco_engine/` contains the custom markdown parser and HTML renderer.
+- **Core library**: `core/src/` contains the nom-based markdown parser (`grammar/`, `parser/`), HTML renderer (`render/`), and LSP features (`lsp/`).
 
 ## Theme manager notes
 
@@ -89,7 +99,7 @@ cargo build --release --workspace
 Build specific crates:
 
 ```bash
-cargo build --release -p marco_core  # Core library only
+cargo build --release -p core  # Core library only
 cargo build --release -p marco       # Full editor
 cargo build --release -p polo        # Viewer only
 ```
@@ -115,17 +125,17 @@ cargo test --workspace --lib --tests -- --nocapture
 Run tests for specific crate:
 
 ```bash
-cargo test -p marco_core -- --nocapture
+cargo test -p core -- --nocapture
 ```
 
 ## Troubleshooting
 
 - **GTK CSS errors**: Ensure you run from the repository root so relative theme paths resolve. Check `assets/themes/*` exists.
 - **Missing fonts or icons**: Confirm `assets/fonts/` and `assets/icons/` are present and that `get_asset_dir_checked()` finds the repo asset path.
-- **Preview not updating**: Verify the buffer change signal is firing and that the marco_engine is parsing correctly. Check the WebKit6 console for base URI issues with local images.
-- **Marco engine parsing issues**: The app uses a custom pest-based parser in `marco_core/src/components/marco_engine/` — check the grammar file and AST builder if markdown isn't rendering correctly.
+- **Preview not updating**: Verify the buffer change signal is firing and that the core parser is working correctly. Check the WebKit6 console for base URI issues with local images.
+- **Core parsing issues**: The app uses a custom nom-based parser in `core/src/grammar/` and `core/src/parser/` — check the grammar modules and AST builder if markdown isn't rendering correctly. Run `cargo test -p core` to validate parser behavior.
 - **Local images not displaying**: Ensure WebKit6 security settings are enabled and DocumentBuffer is providing correct base URIs for file:// protocol access.
-- **Import errors**: Use `marco_core::` for core functionality (parser, buffer, logic), `crate::` for local modules within marco or polo binaries.
+- **Import errors**: Use `core::` for core functionality (parser, buffer, logic), `crate::` for local modules within marco or polo binaries.
 
 If you hit a problem you can't resolve, open an issue with a short description, steps to reproduce, and the output of running the app in a terminal.
 

@@ -1,12 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["marco_core", "marco", "polo"]
+members = ["core", "marco", "polo"]
 
 # Shared workspace dependencies
 [workspace.dependencies]
 # Core parsing and serialization (no UI)
-pest = "2.8.3"
-pest_derive = "2.8.3"
+nom = "7.1"                          # Parser combinator library
+nom-locate = "4.2"                   # Position tracking for nom parsers
+nom-recursive = "0.8"                # Recursive parsers for nom
 ron = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -18,7 +19,14 @@ tempfile = "3.23.0"
 emojis = "0.7.2"
 fontconfig = "0.10.0"
 dirs = "6.0"
-lru = "0.16.1"
+moka = { version = "0.12", features = ["sync"] }  # High-performance caching
+unicode-normalization = "0.1.24"                  # Unicode NFC normalization for consistent parsing
+
+# === LSP Server ===
+tower-lsp = "0.20"                   # Language Server Protocol framework
+lsp-types = "0.98"                   # LSP protocol type definitions
+syntect = "5.3"                      # Syntax highlighting
+syntect-assets = "0.23"              # Syntax highlighting
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.1"
@@ -28,10 +36,6 @@ sourceview5 = "0.10.0"
 webkit6 = "0.5.0"
 dark-light = "2.0.0"
 
-# Syntax highlighting
-syntect = "5.3"
-syntect-assets = "0.23"
-
 # Test dependencies
 clap = { version = "4.5", features = ["derive"] }
 similar = { version = "2.7", features = ["inline", "unicode"] }
@@ -39,7 +43,6 @@ colored = "3.0"
 atty = "0.2"
 criterion = "0.7"
 rand = "0.9"
-pest_ascii_tree = "0.1.0"
 serial_test = "3.2"
 
 # Profile optimizations

@@ -1,0 +1,46 @@
+[package]
+name = "core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Kim Skov Rasmussen"]
+description = "Core"
+license = "MIT License"
+
+[[test]]
+name = "test_suite"
+path = "../tests/test_suite.rs"
+harness = false  # Disable test harness to use custom main() with clap CLI
+
+[dependencies]
+# Core parsing dependencies (nom-based)
+nom = { workspace = true }
+nom_locate = "4.2"                   # Position tracking for nom parsers
+nom-recursive = "0.5"                # Recursive parsers for nom
+
+# Serialization
+ron = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+regex = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+chrono = { workspace = true }
+tempfile = { workspace = true }
+emojis = { workspace = true }
+fontconfig = { workspace = true }
+dirs = { workspace = true }
+moka = { workspace = true }
+unicode-normalization  = { workspace = true }
+
+# Syntax highlighting (needed for code blocks)
+syntect = { workspace = true }
+syntect-assets = { workspace = true }
+
+[build-dependencies]
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
+clap = { workspace = true }

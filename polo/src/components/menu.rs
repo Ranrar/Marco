@@ -47,14 +47,16 @@ use gtk4::{
     prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar,
     Image, Label, PropertyExpression, StringList, StringObject, WindowHandle,
 };
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
 
 /// Create custom titlebar with icon, filename, theme dropdown, and "Open in Editor" button
 /// 
-/// Returns a tuple of (WindowHandle, Button) where the Button is the "Open in Editor" button
-/// that should be enabled/disabled based on whether a file is open.
+/// Returns a tuple of (WindowHandle, Button, Label) where:
+/// - WindowHandle: The titlebar handle
+/// - Button: The "Open in Editor" button (enable/disable based on file open state)
+/// - Label: The title label (update when file changes)
 pub fn create_custom_titlebar(
     window: &ApplicationWindow,
     filename: &str,
@@ -63,7 +65,7 @@ pub fn create_custom_titlebar(
     webview: WebView,
     current_file_path: Arc<RwLock<Option<String>>>,
     asset_root: &std::path::Path,
-) -> (WindowHandle, Button) {
+) -> (WindowHandle, Button, Label) {
     // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
     
@@ -122,28 +124,6 @@ pub fn create_custom_titlebar(
     open_file_btn.set_margin_end(6);
     open_file_btn.set_tooltip_text(Some("Open a markdown file"));
     
-    // Wire up "Open" action - pass open_editor_btn reference
-    let window_weak = window.downgrade();
-    let webview_clone = webview.clone();
-    let settings_manager_clone = settings_manager.clone();
-    let current_file_path_clone = current_file_path.clone();
-    let open_editor_btn_clone = open_editor_btn.clone();
-    let asset_root_for_dialog = asset_root.to_path_buf();
-    open_file_btn.connect_clicked(move |_| {
-        if let Some(window) = window_weak.upgrade() {
-            show_open_file_dialog(
-                &window,
-                webview_clone.clone(),
-                settings_manager_clone.clone(),
-                current_file_path_clone.clone(),
-                &open_editor_btn_clone,
-                &asset_root_for_dialog,
-            );
-        }
-    });
-    headerbar.pack_start(&open_file_btn);
-    headerbar.pack_start(&open_editor_btn);
-    
     // Filename label (centered as title widget)
     // Show just "Polo" if no file is opened (filename is "Untitled")
     let title_text = if filename == "Untitled" {
@@ -156,6 +136,30 @@ pub fn create_custom_titlebar(
     title_label.add_css_class("title-label");      // Shared class for Marco's menu.css
     title_label.add_css_class("polo-title-label"); // Polo-specific class for overrides
     headerbar.set_title_widget(Some(&title_label));
+    
+    // Wire up "Open" action - pass open_editor_btn and title_label references
+    let window_weak = window.downgrade();
+    let webview_clone = webview.clone();
+    let settings_manager_clone = settings_manager.clone();
+    let current_file_path_clone = current_file_path.clone();
+    let open_editor_btn_clone = open_editor_btn.clone();
+    let title_label_clone = title_label.clone();
+    let asset_root_for_dialog = asset_root.to_path_buf();
+    open_file_btn.connect_clicked(move |_| {
+        if let Some(window) = window_weak.upgrade() {
+            show_open_file_dialog(
+                &window,
+                webview_clone.clone(),
+                settings_manager_clone.clone(),
+                current_file_path_clone.clone(),
+                &open_editor_btn_clone,
+                &title_label_clone,
+                &asset_root_for_dialog,
+            );
+        }
+    });
+    headerbar.pack_start(&open_file_btn);
+    headerbar.pack_start(&open_editor_btn);
     
     // RIGHT SIDE: Theme dropdown, window controls
     
@@ -237,7 +241,7 @@ pub fn create_custom_titlebar(
         let new_mode_clone = new_mode.clone();
         let _ = settings_manager_for_mode.update_settings(move |s| {
             if s.appearance.is_none() {
-                s.appearance = Some(marco_core::logic::swanson::AppearanceSettings::default());
+                s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
             }
             if let Some(ref mut appearance) = s.appearance {
                 appearance.editor_mode = Some(new_mode_clone);
@@ -310,7 +314,7 @@ pub fn create_custom_titlebar(
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));
     
-    (handle, open_editor_btn)
+    (handle, open_editor_btn, title_label)
 }
 
 /// Create window control buttons (minimize, maximize/restore, close)
@@ -341,7 +345,7 @@ fn create_window_controls(
     
     // IcoMoon Unicode glyphs for window controls
     // These unicode characters reference glyphs in the IcoMoon icon font (ui_menu.ttf)
-    // loaded from assets/fonts/. The font must be loaded via marco_core::logic::loaders::icon_loader
+    // loaded from assets/fonts/. The font must be loaded via core::logic::loaders::icon_loader
     // before GTK initialization for these characters to display correctly.
     //
     // | Unicode | Icon Name             | Description   |
@@ -484,7 +488,7 @@ fn create_theme_dropdown(
             let _ = settings_manager.update_settings(|s| {
                 if s.appearance.is_none() {
                     s.appearance =
-                        Some(marco_core::logic::swanson::AppearanceSettings::default());
+                        Some(core::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut appearance) = s.appearance {
                     appearance.preview_theme = Some(theme_name_with_ext.clone());

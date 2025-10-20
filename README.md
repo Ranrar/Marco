@@ -2,8 +2,14 @@
   <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/user%20guide/logo.png" />
 </p>
 
-**Marco** is a fast, native Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.  
+<p align="center">
+  <img src="https://img.shields.io/badge/CommonMark-100%25-brightgreen?style=for-the-badge&logo=markdown&logoColor=white" alt="100% CommonMark Compliant" />
+  <img src="https://img.shields.io/badge/International-Characters-blue?style=for-the-badge&logo=translate&logoColor=white" alt="International Characters Support" />
+
+**Marco** is a fast, native Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
+
 **Polo**, its companion viewer, lets you open and read Markdown documents with identical rendering and minimal resource use.  
+
 Both are built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
 
 <p align="center">
@@ -43,25 +49,34 @@ That idea became a personal challenge: to create a complete Markdown editor from
 Most Markdown editors focus on simplicity. Marco focuses on **precision**.
 
 It's built for developers, engineers, and writers who need:
-- **Native performance** — no Electron, no lag, built in Rust + GTK4  
+- **Native performance** — no login, no cloud, your documents stay on your machine
 - **Structured documents** — full control over headings, blocks, and formatting  
-- **Custom Markdown grammar** — powered by Pest for extensibility and AST-level parsing  
+- **Custom Markdown grammar** — hand-crafted parser for extensibility and AST-level control  
 - **Seamless preview** — rendered with WebKit and perfectly synced with the editor  
 
 Whether you're writing technical docs, tutorials, or long-form text, Marco turns Markdown into a professional writing tool — fast, clear, and extensible.
 
 ## Marco Markdown Flavor
 
-Marco extends **CommonMark** with features designed for technical and long-form writing:
-
+- **Full CommonMark support** — complete compatibility with the standard specification (652/652 tests passing)
+- **International characters** — Proper handling of international charters like Japanese (日本語), Arabic (العربية), and emoji (🎉)
 - **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
 - **Document navigation** — automatic TOC, bookmarks, and cross-file links  
 - **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons  
 - **Structured formatting** — semantic elements for headings, notes, and exports  
 
-Powered by a **Pest-based parser**, Marco turns Markdown into a full document model (AST) for advanced features like live TOC generation, PDF page layouts, and multi-document navigation.
+Marco's parser transforms Markdown into a full document model (AST) for advanced features like live TOC generation, PDF page layouts, and multi-document navigation.
 
 ## Architecture & internals
+
+Marco uses a **Cargo workspace** with three crates:
+
+- **`core/`** — Pure Rust library with hand-crafted parser, AST builder, HTML renderer, LSP features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies.
+- **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and WebKit6 preview. Depends on `core`.
+- **`polo/`** — Lightweight viewer binary with GTK4 UI and WebKit6 preview only (no SourceView5). Depends on `core`.
+- **`assets/`** — Centralized workspace assets: themes, fonts, icons, settings.
+
+**Key technologies:**
 
 - **GTK4-RS** (`gtk4`, `glib`, `gio`) - Cross-platform GUI framework providing the main application window, widgets, and event handling. Used for the editor interface, menus, toolbars, and all user interactions.
 
@@ -69,35 +84,52 @@ Powered by a **Pest-based parser**, Marco turns Markdown into a full document mo
 
 - **WebKit6** (`webkit6`) - Modern web engine for HTML rendering and preview. Displays the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
 
-- **Pest** (`pest`, `pest_derive`) - Parser generator for creating the custom markdown grammar. Used in the marco_engine component to parse markdown into an AST, enabling fine-grained control over rendering and future extensibility for custom markdown features.
+- **nom** (`nom`) - Parser combinator library for building the custom markdown grammar. nom uses **recursive descent parsing** where you write Rust functions that parse pieces of input and compose them together. This approach provides total control, incremental parsing capability, and native Rust performance. The parser lives in `core/src/grammar/` and generates an AST for fine-grained control over rendering and extensibility.
 
 - **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
 
 **Current development focus:**
-- Fine-tuning the **pest-based grammar** for comprehensive markdown support
+- Maintaining **100% CommonMark compliance** while adding extensions
+- Fine-tuning the **parser grammar** for comprehensive markdown support
 - Polishing the **AST builder** and **HTML renderer** components
+- Implementing **LSP features** (syntax highlighting, diagnostics, completion, hover)
 - Implementing robust **error handling** and **edge case coverage**
-- Optimizing **parser performance** and **memory usage**
+- Optimizing **parser performance** and **caching** with Moka
 
 ## Roadmap
 
-Planned and desired improvements
+### Core Parser & LSP (Current Focus)
+- [ ] Complete LSP integration with SourceView5 (syntax highlighting, diagnostics, completion, hover)
+- [ ] Enhanced AST validation and error reporting
+- [ ] Advanced syntax features with linting support
+- [ ] Optimize parser performance and caching
 
-- AI-assisted tools: assistant for writing and editing suggestions
-- Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence
-- Enhanced AST validation and UI for syntax hints
-- Packaging and distribution
-- Language plugin system (add new language support via plugins)
-- Advanced syntax features with linting support
-- Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
-- [x] Multiple layout modes: editor+preview (standard), editor only, preview only, detachable preview
-- Export / Save as HTML or PDF
-- Page size presets for export (A4, US Letter)
+### Editor Features
+- [x] Multiple layout modes: editor+preview, editor only, preview only, detachable preview
 - [x] Scroll sync between editor and preview
-- Context menus & toolbar: Quick access to formatting and actions
-- Smart code blocks: 100+ programming languages,
 - [x] Intelligent search
-- Syntax highlighting
+- [ ] Context menus & toolbar: Quick access to formatting and actions
+- [ ] Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
+- [ ] Multi-cursor editing support
+- [ ] Syntax highlighting in editor (via LSP)
+
+### Document Features
+- [ ] Export to HTML and PDF
+- [ ] Page size presets for export (A4, US Letter, etc.)
+- [ ] Document navigation: TOC sidebar, bookmarks, cross-file links
+- [ ] Smart code blocks with 100+ programming languages
+- [ ] Template system for common document types
+- [ ] Math rendering: KaTeX support for equations and formulas
+- [ ] Diagram support: Mermaid for flowcharts and visualizations
+
+### Advanced Features
+- [ ] AI-assisted tools: writing suggestions, grammar checking, content improvement
+- [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
+- [ ] Language plugin system (add support for new languages via plugins)
+
+### Distribution & Platform
+- [ ] Packaging: AppImage, Flatpak, Snap, .deb, .rpm
+- [ ] Cross-platform support: Linux and Windows builds
 
 
 ## Contributing
@@ -112,7 +144,7 @@ We welcome contributions of all sizes. Short workflow:
 
 Code style & expectations:
 
-- Keep UI code in `marco/src/ui/` and business logic in `marco_core/src/logic/`.
+- Keep UI code in `marco/src/ui/` and business logic in `core/src/logic/`.
 - Follow Rust idioms (use `Result<T, E>`, avoid panics in library code).
 - Add unit tests and integration tests in `tests/` when applicable.
 

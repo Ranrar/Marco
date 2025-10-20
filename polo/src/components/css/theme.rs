@@ -19,7 +19,7 @@
 //!
 //! ### `generate_syntax_highlighting_css`
 //!
-//! Generates CSS for syntax-highlighted code blocks using marco_core's
+//! Generates CSS for syntax-highlighted code blocks using core's
 //! global syntax highlighter:
 //!
 //! ```rust,ignore
@@ -91,26 +91,17 @@ pub fn load_theme_css_from_path(theme: &str, asset_root: &std::path::Path) -> St
 
 
 /// Generate CSS for syntax highlighting based on current theme mode
-pub fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
-    use marco_core::components::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
-    
-    // Initialize global highlighter if needed
-    if let Err(e) = global_syntax_highlighter() {
-        log::warn!("Failed to initialize syntax highlighter for CSS generation: {}", e);
-        return String::new();
-    }
-    
-    // Generate CSS for the current theme mode
-    match generate_css_with_global(theme_mode) {
-        Ok(css) => {
-            log::debug!("Generated syntax highlighting CSS for theme: {}", theme_mode);
-            css
-        }
-        Err(e) => {
-            log::warn!("Failed to generate syntax highlighting CSS: {}", e);
-            String::new()
-        }
-    }
+/// 
+/// Note: Polo uses a simplified approach - syntax highlighting is handled
+/// by the core renderer's HTML output (class="language-xxx" attributes).
+/// External CSS themes or browser extensions can provide the actual styling.
+/// This function returns an empty string to avoid duplicating marco's
+/// complex syntect integration.
+pub fn generate_syntax_highlighting_css(_theme_mode: &str) -> String {
+    // Return empty - let core's HTML class attributes and external CSS handle highlighting
+    // This keeps polo lightweight and avoids duplicating marco's syntect dependency
+    log::debug!("Polo uses simplified syntax highlighting via HTML class attributes");
+    String::new()
 }
 
 #[cfg(test)]
@@ -119,7 +110,7 @@ mod tests {
 
     #[test]
     fn smoke_test_load_theme_css_marco() {
-        use marco_core::components::paths::{PoloPaths, PathProvider, workspace_root};
+        use core::paths::{PoloPaths, PathProvider, workspace_root};
         use std::path::PathBuf;
         
         // Try to get PoloPaths, fall back to development workspace root for tests
@@ -142,7 +133,7 @@ mod tests {
 
     #[test]
     fn smoke_test_load_theme_css_fallback() {
-        use marco_core::components::paths::{PoloPaths, PathProvider, workspace_root};
+        use core::paths::{PoloPaths, PathProvider, workspace_root};
         use std::path::PathBuf;
         
         // Try to get PoloPaths, fall back to development workspace root for tests

@@ -1,7 +1,8 @@
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
 use crate::components::editor::processing_utilities::AsyncExtensionManager;
-use marco_core::components::marco_engine::render_html::HtmlOptions;
+use core::RenderOptions;  // New parser API
+use core::global_parser_cache;  // New cache API
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
@@ -15,6 +16,25 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
 
+// === LSP Infrastructure (for future implementation) ===
+// This structure will hold LSP-related state for the editor
+#[allow(dead_code)]
+struct LspState {
+    // Placeholder for future LSP client connection
+    // Will be used for:
+    // - Syntax highlighting updates
+    // - Diagnostics (errors/warnings)
+    // - Code completion
+    // - Hover information
+}
+
+impl LspState {
+    #[allow(dead_code)]
+    fn new() -> Self {
+        Self {}
+    }
+}
+
 
 pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
@@ -23,7 +43,7 @@ pub fn create_editor_with_preview_and_buffer(
     theme_mode: Rc<RefCell<String>>,
     labels: Rc<FooterLabels>,
     _settings_path: &str,
-    document_buffer: Option<Rc<RefCell<marco_core::logic::buffer::DocumentBuffer>>>,
+    document_buffer: Option<Rc<RefCell<core::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
@@ -417,9 +437,13 @@ paned > separator {{
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
-    // Create HtmlOptions with the current theme mode for syntax highlighting
+    // Create RenderOptions with the current theme mode for syntax highlighting
     let current_theme_mode = theme_mode_rc.borrow().clone();
-    let html_opts = HtmlOptions::with_theme_mode(&current_theme_mode);
+    let html_opts = RenderOptions {
+        syntax_highlighting: true,
+        line_numbers: false,
+        theme: current_theme_mode.clone(),
+    };
     let html_opts_rc = std::rc::Rc::new(html_opts);
 
     // Precreate code scrolled window
@@ -427,7 +451,7 @@ paned > separator {{
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
 
-    let initial_html_body = match marco_core::components::marco_engine::global_parser_cache().render_with_cache(&initial_text, html_opts_rc.as_ref().clone()) {
+    let initial_html_body = match global_parser_cache().render_with_cache(&initial_text, (*html_opts_rc).clone()) {
         Ok(html) => html,
         Err(e) => format!("Error rendering HTML: {}", e),
     };
@@ -630,8 +654,8 @@ paned > separator {{
 
             log::debug!("[editor_ui] Buffer text length: {} bytes", text.len());
 
-            // Generate raw HTML using Marco engine with full HTML caching
-            let html_body = match marco_core::components::marco_engine::global_parser_cache().render_with_cache(&text, html_opts_for_code.as_ref().clone()) {
+            // Generate raw HTML using new parser cache with full HTML caching
+            let html_body = match global_parser_cache().render_with_cache(&text, (*html_opts_for_code).clone()) {
                 Ok(html) => html,
                 Err(e) => format!("<!-- Error rendering HTML: {} -->", e),
             };

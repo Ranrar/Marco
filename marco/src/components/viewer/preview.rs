@@ -1,4 +1,5 @@
-use marco_core::components::marco_engine::render_html::HtmlOptions;
+use core::RenderOptions;
+use core::global_parser_cache;
 use gtk4::prelude::*;
 use std::cell::RefCell;
 use webkit6::prelude::*;
@@ -7,7 +8,7 @@ use webkit6::prelude::*;
 pub struct PreviewRefreshParams<'a> {
     pub webview: &'a webkit6::WebView,
     pub css: &'a RefCell<String>,
-    pub html_options: &'a HtmlOptions,
+    pub html_options: &'a RenderOptions,
     pub buffer: &'a sourceview5::Buffer,
     pub wheel_js: &'a str,
     pub theme_mode: &'a RefCell<String>,
@@ -17,7 +18,7 @@ pub struct PreviewRefreshParams<'a> {
 /// Simplified parameters for smooth content updates
 pub struct SmoothUpdateParams<'a> {
     pub webview: &'a webkit6::WebView,
-    pub html_options: &'a HtmlOptions,
+    pub html_options: &'a RenderOptions,
     pub buffer: &'a sourceview5::Buffer,
     pub wheel_js: &'a str,
 }
@@ -62,12 +63,10 @@ fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
 
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
 /// Uses the current theme mode from params for syntax highlighting
-fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &HtmlOptions, theme_mode: &str) -> String {
-    use marco_core::components::marco_engine::global_parser_cache;
-
-    // Create fresh HtmlOptions with the current theme mode for syntax highlighting
-    let html_options = HtmlOptions {
-        theme_mode: theme_mode.to_string(),
+fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &RenderOptions, theme_mode: &str) -> String {
+    // Create fresh RenderOptions with the current theme mode for syntax highlighting
+    let html_options = RenderOptions {
+        theme: theme_mode.to_string(),
         ..base_html_options.clone()
     };
 
@@ -89,7 +88,7 @@ fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &HtmlOptions
 }
 
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
-fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
+fn parse_markdown_to_html(text: &str, html_options: &RenderOptions) -> String {
     // Fallback for backwards compatibility - use light theme if no theme specified
     parse_markdown_to_html_with_theme(text, html_options, "light")
 }
@@ -99,7 +98,7 @@ fn parse_markdown_to_html(text: &str, html_options: &HtmlOptions) -> String {
 pub fn refresh_preview_into_webview(
     webview: &webkit6::WebView,
     css: &RefCell<String>,
-    html_options: &HtmlOptions,
+    html_options: &RenderOptions,
     buffer: &sourceview5::Buffer,
     wheel_js: &str,
     theme_mode: &RefCell<String>,
@@ -123,7 +122,7 @@ pub fn refresh_preview_into_webview(
 pub fn refresh_preview_into_webview_with_base_uri(
     webview: &webkit6::WebView,
     css: &RefCell<String>,
-    html_options: &HtmlOptions,
+    html_options: &RenderOptions,
     buffer: &sourceview5::Buffer,
     wheel_js: &str,
     theme_mode: &RefCell<String>,

@@ -3,14 +3,14 @@ name = "polo"
 version = "0.1.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
-description = "Polo - Markdown Viewer (Marco's ViewOnly mode)"
-license = "MIT OR Apache-2.0"
+description = "Polo - Markdown Viewer"
+license = "MIT License"
 
 [dependencies]
 # Core library
-marco_core = { path = "../marco_core" }
+core = { path = "../core" }
 
-# Minimal UI dependencies (no SourceView5)
+# UI dependencies
 gtk4 = { workspace = true }
 glib = { workspace = true }
 gio = { workspace = true }
@@ -18,7 +18,12 @@ webkit6 = { workspace = true }
 dark-light = { workspace = true }
 
 # Utilities
+anyhow = { workspace = true }
 serde = { workspace = true }
 ron = { workspace = true }
 log = { workspace = true }
 dirs = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
+tempfile = { workspace = true }

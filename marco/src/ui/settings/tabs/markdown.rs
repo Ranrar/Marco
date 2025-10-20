@@ -8,7 +8,7 @@ use super::helpers::{add_setting_row};
 /// Builds the Markdown tab UI for markdown-specific engine settings
 pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     // Initialize SettingsManager for this tab
-    let settings_manager = match marco_core::logic::swanson::SettingsManager::initialize(
+    let settings_manager = match core::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path)
     ) {
         Ok(sm) => sm,
@@ -45,15 +45,15 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         toc_switch.connect_state_set(move |_switch, state| {
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.engine.is_none() {
-                    settings.engine = Some(marco_core::logic::swanson::EngineSettings::default());
+                    settings.engine = Some(core::logic::swanson::EngineSettings::default());
                 }
                 if let Some(ref mut engine) = settings.engine {
                     if engine.render.is_none() {
-                        engine.render = Some(marco_core::logic::swanson::EngineRenderSettings::default());
+                        engine.render = Some(core::logic::swanson::EngineRenderSettings::default());
                     }
                     if let Some(ref mut render) = engine.render {
                         if render.html.is_none() {
-                            render.html = Some(marco_core::logic::swanson::EngineHtmlSettings::default());
+                            render.html = Some(core::logic::swanson::EngineHtmlSettings::default());
                         }
                         if let Some(ref mut html) = render.html {
                             html.generate_toc = Some(state);
@@ -91,15 +91,15 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         metadata_switch.connect_state_set(move |_switch, state| {
             if let Err(e) = settings_manager_clone2.update_settings(|settings| {
                 if settings.engine.is_none() {
-                    settings.engine = Some(marco_core::logic::swanson::EngineSettings::default());
+                    settings.engine = Some(core::logic::swanson::EngineSettings::default());
                 }
                 if let Some(ref mut engine) = settings.engine {
                     if engine.render.is_none() {
-                        engine.render = Some(marco_core::logic::swanson::EngineRenderSettings::default());
+                        engine.render = Some(core::logic::swanson::EngineRenderSettings::default());
                     }
                     if let Some(ref mut render) = engine.render {
                         if render.html.is_none() {
-                            render.html = Some(marco_core::logic::swanson::EngineHtmlSettings::default());
+                            render.html = Some(core::logic::swanson::EngineHtmlSettings::default());
                         }
                         if let Some(ref mut html) = render.html {
                             html.include_metadata = Some(state);

@@ -27,7 +27,7 @@
 //! ```
 
 use gtk4::gdk;
-use marco_core::logic::swanson::SettingsManager;
+use core::logic::swanson::SettingsManager;
 use std::sync::Arc;
 
 /// Parse hex color string to RGBA
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn smoke_test_list_available_themes() {
-        use marco_core::components::paths::{PoloPaths, PathProvider, workspace_root};
+        use core::paths::{PoloPaths, PathProvider, workspace_root};
         use std::path::PathBuf;
         
         // Try to get PoloPaths, fall back to development workspace root for tests
