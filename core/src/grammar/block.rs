@@ -645,6 +645,23 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
     let start = input;
     let start_offset = start.location_offset();
     
+    // CRITICAL: Setext headings cannot have link reference definitions as content
+    // Check if the first line matches the link reference pattern: ^\[.*\]:\s
+    // We do a quick check before full parsing
+    let first_line_end = input.fragment().find('\n').unwrap_or(input.fragment().len());
+    let first_line = &input.fragment()[..first_line_end];
+    let trimmed_first = first_line.trim_start_matches(' ');
+    
+    // If first line looks like a link reference definition, reject immediately
+    // Pattern: optional spaces (0-3) + '[' + text + ']:' 
+    if trimmed_first.starts_with('[') && trimmed_first.contains("]:") {
+        // Do a more precise check using the link_reference_definition parser
+        if link_reference_definition(input).is_ok() {
+            log::debug!("Setext heading rejected: content is a link reference definition");
+            return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+        }
+    }
+    
     // Helper: Check if a line starts with blockquote marker ('>') with 0-3 leading spaces
     fn has_blockquote_marker(line: &str) -> bool {
         let trimmed = line.trim_start_matches(' ');
@@ -771,6 +788,98 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
     
     // If we get here, we didn't find a valid underline
     Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)))
+}
+
+// Link reference definition parser
+// Parses [label]: destination "optional title"
+// Returns (label, url, optional_title)
+pub fn link_reference_definition(input: Span) -> IResult<Span, (String, String, Option<String>)> {
+    use nom::bytes::complete::{take_while1, take_till};
+    use nom::character::complete::{space0, space1, char};
+    
+    log::debug!("Trying link reference definition at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Parse [label]:
+    let (input, _) = char('[')(input)?;
+    let (input, label) = take_till(|c| c == ']' || c == '\n')(input)?;
+    
+    // Label must not be empty
+    if label.fragment().is_empty() {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    let (input, _) = char(']')(input)?;
+    let (input, _) = char(':')(input)?;
+    let (input, _) = space0(input)?;
+    
+    // Optional newline and indentation after colon
+    let (input, _) = opt(tuple((line_ending, take_while(|c| c == ' '))))(input)?;
+    
+    // Parse destination (URL) - can be <url> or bare url
+    let (input, url_str) = if input.fragment().starts_with('<') {
+        let (input, _) = char('<')(input)?;
+        let (input, url) = take_till(|c| c == '>' || c == '\n')(input)?;
+        let (input, _) = char('>')(input)?;
+        (input, url)
+    } else {
+        take_while1(|c: char| !c.is_whitespace())(input)?
+    };
+    
+    let url = url_str.fragment().to_string();
+    
+    // Optional title (must have whitespace before it)
+    let (input, title) = if let Ok((i, _)) = space1::<Span, nom::error::Error<Span>>(input) {
+        // Optional newline before title
+        let (i, _) = opt(tuple((line_ending, take_while(|c| c == ' '))))(i)?;
+        
+        // Title can be in "...", '...', or (...)
+        let (i, title_str) = if i.fragment().starts_with('"') {
+            let (i, _) = char('"')(i)?;
+            let (i, t) = take_till(|c| c == '"' || c == '\n')(i)?;
+            let (i, _) = char('"')(i)?;
+            (i, t)
+        } else if i.fragment().starts_with('\'') {
+            let (i, _) = char('\'')(i)?;
+            let (i, t) = take_till(|c| c == '\'' || c == '\n')(i)?;
+            let (i, _) = char('\'')(i)?;
+            (i, t)
+        } else if i.fragment().starts_with('(') {
+            let (i, _) = char('(')(i)?;
+            let (i, t) = take_till(|c| c == ')' || c == '\n')(i)?;
+            let (i, _) = char(')')(i)?;
+            (i, t)
+        } else {
+            return Err(nom::Err::Error(nom::error::Error::new(i, nom::error::ErrorKind::Char)));
+        };
+        
+        (i, Some(title_str.fragment().to_string()))
+    } else {
+        (input, None)
+    };
+    
+    // Consume optional trailing spaces
+    let (input, _) = space0(input)?;
+    
+    // Must end with newline or EOF
+    let (input, _) = if input.fragment().is_empty() {
+        (input, ())
+    } else {
+        line_ending(input).map(|(i, _)| (i, ()))?
+    };
+    
+    let label_str = label.fragment().to_string();
+    
+    log::debug!("Parsed link reference: [{}] -> {}", label_str, url);
+    
+    Ok((input, (label_str, url, title)))
 }
 
 // Paragraph parser
@@ -3036,6 +3145,67 @@ mod tests {
         assert!(items[0].1.fragment().contains("foo"));
         assert!(items[1].1.fragment().trim().is_empty(), "Second item should be empty");
         assert!(items[2].1.fragment().contains("bar"));
+    }
+    
+    // === Link Reference Definition Tests ===
+    
+    #[test]
+    fn smoke_test_link_ref_basic() {
+        let input = Span::new("[foo]: /url\n");
+        let result = link_reference_definition(input);
+        
+        assert!(result.is_ok(), "Should parse basic link reference");
+        let (remaining, (label, url, title)) = result.unwrap();
+        assert_eq!(label, "foo");
+        assert_eq!(url, "/url");
+        assert_eq!(title, None);
+        assert_eq!(remaining.fragment(), &"");
+    }
+    
+    #[test]
+    fn smoke_test_link_ref_with_title() {
+        let input = Span::new("[foo]: /url \"title\"\n");
+        let result = link_reference_definition(input);
+        
+        assert!(result.is_ok(), "Should parse link reference with title");
+        let (_remaining, (label, url, title)) = result.unwrap();
+        assert_eq!(label, "foo");
+        assert_eq!(url, "/url");
+        assert_eq!(title, Some("title".to_string()));
+    }
+    
+    #[test]
+    fn smoke_test_link_ref_angle_brackets() {
+        let input = Span::new("[foo]: <http://example.com>\n");
+        let result = link_reference_definition(input);
+        
+        assert!(result.is_ok(), "Should parse link reference with angle brackets");
+        let (_remaining, (label, url, _)) = result.unwrap();
+        assert_eq!(label, "foo");
+        assert_eq!(url, "http://example.com");
+    }
+    
+    #[test]
+    fn smoke_test_link_ref_multiline() {
+        let input = Span::new("[foo]:\n  /url\n");
+        let result = link_reference_definition(input);
+        
+        assert!(result.is_ok(), "Should parse link reference across lines");
+        let (_remaining, (label, url, _)) = result.unwrap();
+        assert_eq!(label, "foo");
+        assert_eq!(url, "/url");
+    }
+    
+    #[test]
+    fn smoke_test_link_ref_title_parens() {
+        let input = Span::new("[foo]: /url (title)\n");
+        let result = link_reference_definition(input);
+        
+        assert!(result.is_ok(), "Should parse link reference with parenthesized title");
+        let (_remaining, (label, url, title)) = result.unwrap();
+        assert_eq!(label, "foo");
+        assert_eq!(url, "/url");
+        assert_eq!(title, Some("title".to_string()));
     }
 }
 

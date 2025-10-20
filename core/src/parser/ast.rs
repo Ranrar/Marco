@@ -1,11 +1,56 @@
 // AST node definitions: central representation consumed by renderer and LSP
 
 use crate::parser::Span;
+use std::collections::HashMap;
+
+// Link reference map: stores [label]: url definitions for later resolution
+#[derive(Debug, Clone, Default)]
+pub struct ReferenceMap {
+    // Key: normalized label (lowercase, whitespace collapsed), Value: (url, optional title)
+    defs: HashMap<String, (String, Option<String>)>,
+}
+
+impl ReferenceMap {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    
+    /// Add a link reference definition
+    pub fn insert(&mut self, label: &str, url: String, title: Option<String>) {
+        let normalized = normalize_label(label);
+        self.defs.insert(normalized, (url, title));
+    }
+    
+    /// Lookup a link reference by label
+    pub fn get(&self, label: &str) -> Option<&(String, Option<String>)> {
+        let normalized = normalize_label(label);
+        self.defs.get(&normalized)
+    }
+    
+    /// Check if a label exists
+    pub fn contains(&self, label: &str) -> bool {
+        let normalized = normalize_label(label);
+        self.defs.contains_key(&normalized)
+    }
+}
+
+/// Normalize label according to CommonMark spec:
+/// - Convert to lowercase
+/// - Collapse consecutive whitespace to single space
+/// - Trim leading/trailing whitespace
+fn normalize_label(label: &str) -> String {
+    label
+        .to_lowercase()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 // Root document node
 #[derive(Debug, Clone, Default)]
 pub struct Document {
     pub children: Vec<Node>,
+    pub references: ReferenceMap,
 }
 
 // Generic AST node

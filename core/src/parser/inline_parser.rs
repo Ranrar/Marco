@@ -5,6 +5,7 @@ use crate::grammar::inline;
 use crate::parser::{Position, Span as ParserSpan};
 use nom_locate::LocatedSpan;
 use nom::bytes::complete::take;
+use nom::Slice;
 use anyhow::Result;
 
 type GrammarSpan<'a> = LocatedSpan<&'a str>;
@@ -259,6 +260,7 @@ pub fn parse_inlines(text: &str) -> Result<Vec<Node>> {
             .find(['*', '_', '`', '[', '<', '!', '\n', '\\'])
             .unwrap_or(text_fragment.len());
         
+        
         if next_special > 0 {
             // Check if the upcoming character is a newline and the text ends with spaces
             // If so, don't consume trailing spaces (they might be part of a hard line break)
@@ -282,22 +284,21 @@ pub fn parse_inlines(text: &str) -> Result<Vec<Node>> {
             }
             
             if text_len > 0 {
-                // Use nom's take to properly advance the span
-                if let Ok((rest, text_content)) = take::<_, _, nom::error::Error<_>>(text_len)(remaining) {
-                    let span = to_parser_span(text_content);
-                    
-                    let node = Node {
-                        kind: NodeKind::Text(text_content.fragment().to_string()),
-                        span: Some(span),
-                        children: Vec::new(),
-                    };
-                    
-                    nodes.push(node);
-                    remaining = rest;
-                } else {
-                    // Shouldn't happen, but break to avoid infinite loop
-                    break;
-                }
+                // Use slice() to properly advance by byte count (not character count!)
+                // take() has a bug with multi-byte UTF-8 characters
+                let text_content = remaining.slice(..text_len);
+                let rest = remaining.slice(text_len..);
+                
+                let span = to_parser_span(text_content);
+                
+                let node = Node {
+                    kind: NodeKind::Text(text_content.fragment().to_string()),
+                    span: Some(span),
+                    children: Vec::new(),
+                };
+                
+                nodes.push(node);
+                remaining = rest;
             }
             // If text_len == 0, skip to the next iteration to try parsing the line break
         } else {

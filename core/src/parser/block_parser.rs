@@ -108,6 +108,7 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
     log::debug!("Block parser input: {} bytes at depth {}", input.len(), depth);
     
     let mut nodes = Vec::new();
+    let mut document = Document::new();  // Create document early to collect references
     let mut remaining = GrammarSpan::new(input);
     
     // Safety: prevent infinite loops
@@ -495,6 +496,17 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
             continue;
         }
         
+        // Try parsing link reference definition
+        // Must come BEFORE paragraph to avoid treating definitions as paragraphs
+        if let Ok((rest, (label, url, title))) = grammar::link_reference_definition(remaining) {
+            // Store the reference in the document
+            document.references.insert(&label, url, title);
+            log::debug!("Stored link reference definition: [{}]", label);
+            
+            remaining = rest;
+            continue;
+        }
+        
         // Try parsing paragraph
         if let Ok((rest, content)) = grammar::paragraph(remaining) {
             let span = to_parser_span(content);
@@ -533,7 +545,7 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
     
     log::info!("Parsed {} blocks", nodes.len());
     
-    let mut document = Document::new();
+    // Add parsed nodes to document
     document.children = nodes;
     Ok(document)
 }

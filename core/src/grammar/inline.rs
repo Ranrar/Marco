@@ -6,6 +6,7 @@ use nom::{
     bytes::complete::{take, take_until, take_while},
     multi::many1_count,
     combinator::recognize,
+    Slice,
 };
 use nom_locate::LocatedSpan;
 
@@ -99,8 +100,8 @@ fn emphasis_with_delimiter(input: Span, delimiter: char) -> IResult<Span, Span> 
         return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
     }
     
-    // Skip the opening delimiter
-    let after_opening = LocatedSpan::new(&content_str[1..]);
+    // Skip the opening delimiter - use slice() to preserve position
+    let after_opening = input.slice(1..);
     
     // Find the closing delimiter
     let remaining_str = after_opening.fragment();
@@ -135,8 +136,9 @@ fn emphasis_with_delimiter(input: Span, delimiter: char) -> IResult<Span, Span> 
             
             // Found single delimiter - this is our closing
             if pos > 0 {  // Must have content
-                let content = LocatedSpan::new(&remaining_str[..pos]);
-                let remaining = LocatedSpan::new(&remaining_str[pos + 1..]);
+                // Use slice() to preserve absolute position information
+                let content = input.slice(1..1 + pos);
+                let remaining = input.slice(1 + pos + 1..);
                 log::debug!("Emphasis content: {:?}", content.fragment());
                 return Ok((remaining, content));
             }
@@ -163,6 +165,10 @@ pub fn strong(input: Span) -> IResult<Span, Span> {
 
 // Helper: Parse strong emphasis with a specific delimiter (** or __)
 fn strong_with_delimiter(input: Span, delimiter: char) -> IResult<Span, Span> {
+    
+    
+    
+    
     let content_str = input.fragment();
     
     // Must start with exactly two delimiters
@@ -174,9 +180,11 @@ fn strong_with_delimiter(input: Span, delimiter: char) -> IResult<Span, Span> {
         return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
     }
     
-    // Skip the opening delimiters
-    let after_opening = LocatedSpan::new(&content_str[2..]);
+    
+    // Skip the opening delimiters using take()
+    let (after_opening, _) = take(2usize)(input)?;
     let remaining_str = after_opening.fragment();
+    
     
     // Must have at least one character of content
     if remaining_str.is_empty() {
@@ -207,14 +215,18 @@ fn strong_with_delimiter(input: Span, delimiter: char) -> IResult<Span, Span> {
         {
             // Found closing delimiter pair
             if pos > 0 {  // Must have content
-                let content = LocatedSpan::new(&remaining_str[..pos]);
-                let remaining = LocatedSpan::new(&remaining_str[pos + 2..]);
-                log::debug!("Strong emphasis content: {:?}", content.fragment());
+                
+                // Use take() to extract content and remaining
+                let (after_content, content) = take(pos)(after_opening)?;
+                let (remaining, _closing) = take(2usize)(after_content)?;
+                
+                
                 return Ok((remaining, content));
             }
         }
         pos += 1;
     }
+    
     
     // No closing delimiter found
     Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))

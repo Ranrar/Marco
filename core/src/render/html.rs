@@ -239,6 +239,7 @@ mod tests {
                 span: None,
                 children: vec![],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -256,6 +257,7 @@ mod tests {
                 span: None,
                 children: vec![],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -274,6 +276,7 @@ mod tests {
                     children: vec![],
                 }],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -281,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_render_code_block_no_language() {
+    fn smoke_test_render_code_block_without_language() {
         let doc = Document {
             children: vec![Node {
                 kind: NodeKind::CodeBlock {
@@ -291,6 +294,7 @@ mod tests {
                 span: None,
                 children: vec![],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -311,6 +315,7 @@ mod tests {
                 span: None,
                 children: vec![],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -331,6 +336,7 @@ mod tests {
                 span: None,
                 children: vec![],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -364,6 +370,7 @@ mod tests {
                     },
                 ],
             }],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
@@ -371,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_render_mixed_content() {
+    fn smoke_test_render_mixed_inlines() {
         let doc = Document {
             children: vec![
                 Node {
@@ -400,6 +407,7 @@ mod tests {
                     children: vec![],
                 },
             ],
+            ..Default::default()
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();

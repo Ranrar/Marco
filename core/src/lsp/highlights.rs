@@ -164,6 +164,7 @@ mod tests {
                     children: vec![],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -213,6 +214,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -252,6 +254,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -283,6 +286,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -313,6 +317,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -340,6 +345,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -377,6 +383,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);
@@ -414,6 +421,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let highlights = compute_highlights(&doc);

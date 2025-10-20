@@ -181,6 +181,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let position = Position { line: 1, column: 5, offset: 4 };
@@ -215,6 +216,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let position = Position { line: 1, column: 5, offset: 4 };
@@ -243,6 +245,7 @@ mod tests {
                     children: vec![],
                 },
             ],
+        ..Default::default()
         };
         
         let position = Position { line: 1, column: 5, offset: 4 };
@@ -274,6 +277,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let position = Position { line: 1, column: 5, offset: 4 };
@@ -304,6 +308,7 @@ mod tests {
                     ],
                 },
             ],
+        ..Default::default()
         };
         
         let position = Position { line: 1, column: 10, offset: 9 };
@@ -331,6 +336,7 @@ mod tests {
                     children: vec![],
                 },
             ],
+        ..Default::default()
         };
         
         // Position outside any node
