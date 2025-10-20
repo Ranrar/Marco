@@ -32,6 +32,7 @@ pub enum NodeKind {
     ListItem,
     Blockquote,
     Table,
+    HtmlBlock { html: String }, // Block-level HTML (comments, tags, etc.)
     
     // Inline-level
     Text(String),

@@ -2,15 +2,514 @@
 
 use nom::{
     IResult,
-    bytes::complete::{tag, take_while},
+    bytes::complete::{tag, take_while, take_until},
     character::complete::line_ending,
     multi::many1_count,
     combinator::{opt, recognize},
     branch::alt,
+    sequence::tuple,
+    Slice,
 };
 use nom_locate::LocatedSpan;
 
 pub type Span<'a> = LocatedSpan<&'a str>;
+
+// HTML Comment parser
+// Parses <!-- ... --> on its own line(s)
+pub fn html_comment(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying HTML comment at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3 allowed, just like other block elements)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Parse <!-- ... -->
+    let (input, (_, _content, _)) = tuple((
+        tag("<!--"),
+        take_until("-->"),
+        tag("-->"),
+    ))(input)?;
+    
+    // Must be followed by newline or EOF
+    let (input, _) = opt(line_ending)(input)?;
+    
+    // Return the whole comment including markers
+    let consumed_len = input.location_offset() - start.location_offset();
+    let comment_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed HTML comment: {:?}", crate::logic::logger::safe_preview(comment_span.fragment(), 40));
+    Ok((input, comment_span))
+}
+
+// HTML Block Type 3: Processing Instructions
+// Parses <?...?>
+pub fn html_processing_instruction(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying processing instruction at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Must start with <?
+    let (input, _) = tag("<?")(input)?;
+    
+    // Consume until ?>
+    let (input, _content) = take_until("?>")(input)?;
+    let (input, _) = tag("?>")(input)?;
+    
+    // Must be followed by newline or EOF
+    let (input, _) = opt(line_ending)(input)?;
+    
+    let consumed_len = input.location_offset() - start.location_offset();
+    let pi_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed processing instruction: {:?}", crate::logic::logger::safe_preview(pi_span.fragment(), 40));
+    Ok((input, pi_span))
+}
+
+// HTML Block Type 4: Declarations
+// Parses <!X...> where X is ASCII letter
+pub fn html_declaration(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying HTML declaration at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Must start with <! followed by ASCII letter
+    let (input, _) = tag("<!")(input)?;
+    
+    // Next character must be ASCII letter
+    let bytes = input.fragment().as_bytes();
+    if bytes.is_empty() || !bytes[0].is_ascii_alphabetic() {
+        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Alpha)));
+    }
+    
+    // Consume until >
+    let (input, _content) = take_until(">")(input)?;
+    let (input, _) = tag(">")(input)?;
+    
+    // Must be followed by newline or EOF
+    let (input, _) = opt(line_ending)(input)?;
+    
+    let consumed_len = input.location_offset() - start.location_offset();
+    let decl_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed HTML declaration: {:?}", crate::logic::logger::safe_preview(decl_span.fragment(), 40));
+    Ok((input, decl_span))
+}
+
+// HTML Block Type 5: CDATA Sections
+// Parses <![CDATA[...]]>
+pub fn html_cdata(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying CDATA section at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Must start with <![CDATA[
+    let (input, _) = tag("<![CDATA[")(input)?;
+    
+    // Consume until ]]>
+    let (input, _content) = take_until("]]>")(input)?;
+    let (input, _) = tag("]]>")(input)?;
+    
+    // Must be followed by newline or EOF
+    let (input, _) = opt(line_ending)(input)?;
+    
+    let consumed_len = input.location_offset() - start.location_offset();
+    let cdata_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed CDATA section: {:?}", crate::logic::logger::safe_preview(cdata_span.fragment(), 40));
+    Ok((input, cdata_span))
+}
+
+// HTML Block Type 1: Special Raw Content Tags (script, pre, style, textarea)
+// These consume content until closing tag, can contain blank lines
+pub fn html_special_tag(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying special HTML tag at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Try to parse opening tag: <pre, <script, <style, <textarea (case-insensitive)
+    let lower_input = input.fragment().to_lowercase();
+    let tag_name = if lower_input.starts_with("<script") {
+        "script"
+    } else if lower_input.starts_with("<pre") {
+        "pre"
+    } else if lower_input.starts_with("<style") {
+        "style"
+    } else if lower_input.starts_with("<textarea") {
+        "textarea"
+    } else {
+        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+    };
+    
+    // Check that after tag name there's space, tab, >, or EOL
+    let tag_len = tag_name.len() + 1; // +1 for '<'
+    if input.fragment().len() > tag_len {
+        let next_char = input.fragment().chars().nth(tag_len);
+        match next_char {
+            Some(' ') | Some('\t') | Some('>') | Some('\n') | Some('\r') => {},
+            Some(_) => return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))),
+            None => {}, // EOF is OK
+        }
+    }
+    
+    // Build closing tag pattern (case-insensitive)
+    let closing_tag = format!("</{}>", tag_name);
+    
+    // Consume until we find the closing tag
+    let mut remaining = input;
+    
+    while !remaining.fragment().is_empty() {
+        // Check if current position contains closing tag (case-insensitive)
+        if remaining.fragment().to_lowercase().contains(&closing_tag) {
+            // Find exact position of closing tag
+            if let Some(pos) = remaining.fragment().to_lowercase().find(&closing_tag) {
+                // Advance to after the closing tag
+                let bytes_to_consume = pos + closing_tag.len();
+                remaining = remaining.slice(bytes_to_consume..);
+                break;
+            }
+        }
+        
+        // Advance to next line
+        if let Some(newline_pos) = remaining.fragment().find('\n') {
+            remaining = remaining.slice((newline_pos + 1)..);
+        } else {
+            // No more newlines, consume rest
+            remaining = remaining.slice(remaining.fragment().len()..);
+            break;
+        }
+    }
+    
+    // Return the entire block (from start to after closing tag or EOF)
+    let consumed_len = remaining.location_offset() - start.location_offset();
+    let block_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed special HTML tag ({}): {:?}", tag_name, crate::logic::logger::safe_preview(block_span.fragment(), 40));
+    Ok((remaining, block_span))
+}
+
+// HTML Block Type 6: Standard Block Tags
+// CommonMark spec lists these specific tags
+const BLOCK_TAGS: &[&str] = &[
+    "address", "article", "aside", "base", "basefont", "blockquote", "body",
+    "caption", "center", "col", "colgroup", "dd", "details", "dialog", "dir",
+    "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form",
+    "frame", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "head", "header",
+    "hr", "html", "iframe", "legend", "li", "link", "main", "menu", "menuitem",
+    "nav", "noframes", "ol", "optgroup", "option", "p", "param", "search",
+    "section", "summary", "table", "tbody", "td", "tfoot", "th", "thead",
+    "title", "tr", "track", "ul",
+];
+
+pub fn html_block_tag(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying block HTML tag at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Must start with < or </
+    let (input, _opening) = alt((tag("</"), tag("<")))(input)?;
+    
+    // Try to match one of the block tag names (case-insensitive)
+    let lower_input = input.fragment().to_lowercase();
+    let mut matched_tag: Option<&str> = None;
+    
+    for tag_name in BLOCK_TAGS {
+        if lower_input.starts_with(tag_name) {
+            // Check what follows the tag name
+            let tag_len = tag_name.len();
+            if lower_input.len() == tag_len {
+                // Tag name at EOF is valid
+                matched_tag = Some(tag_name);
+                break;
+            }
+            
+            let next_char = lower_input.chars().nth(tag_len);
+            match next_char {
+                // Valid: space, tab, >, newline, or / followed by >
+                Some(' ') | Some('\t') | Some('>') | Some('\n') | Some('\r') => {
+                    matched_tag = Some(tag_name);
+                    break;
+                },
+                Some('/') => {
+                    // Check if followed by >
+                    if lower_input.len() > tag_len + 1 {
+                        if lower_input.chars().nth(tag_len + 1) == Some('>') {
+                            matched_tag = Some(tag_name);
+                            break;
+                        }
+                    }
+                },
+                _ => continue, // Not a match, try next tag
+            }
+        }
+    }
+    
+    let tag_name = matched_tag.ok_or_else(|| {
+        nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
+    })?;
+    
+    // Consume rest of current line
+    let mut remaining = input;
+    if let Some(newline_pos) = remaining.fragment().find('\n') {
+        remaining = remaining.slice((newline_pos + 1)..);
+    } else {
+        // No newline, consume rest
+        remaining = remaining.slice(remaining.fragment().len()..);
+    }
+    
+    // Type 6 blocks end at next blank line
+    // Consume lines until blank line or EOF
+    while !remaining.fragment().is_empty() {
+        // Check if this line is blank
+        let line_content = if let Some(newline_pos) = remaining.fragment().find('\n') {
+            &remaining.fragment()[..newline_pos]
+        } else {
+            remaining.fragment()
+        };
+        
+        // If line is blank (only whitespace), end here
+        if line_content.trim().is_empty() {
+            break;
+        }
+        
+        // Not blank, consume this line
+        if let Some(newline_pos) = remaining.fragment().find('\n') {
+            remaining = remaining.slice((newline_pos + 1)..);
+        } else {
+            // No more newlines, consume rest
+            remaining = remaining.slice(remaining.fragment().len()..);
+            break;
+        }
+    }
+    
+    // Return block from start to current position (before blank line)
+    let consumed_len = remaining.location_offset() - start.location_offset();
+    let block_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed block HTML tag ({}): {:?}", tag_name, crate::logic::logger::safe_preview(block_span.fragment(), 40));
+    Ok((remaining, block_span))
+}
+
+// HTML Block Type 7: Complete Tags
+// Must be a complete open or closing tag on a line by itself (followed only by spaces/tabs)
+// Cannot interrupt paragraphs (must be handled specially by caller)
+// IMPORTANT: This must validate that the tag is well-formed per CommonMark spec
+pub fn html_complete_tag(input: Span) -> IResult<Span, Span> {
+    log::debug!("Trying complete HTML tag at: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
+    
+    let start = input;
+    
+    // Optional leading spaces (0-3)
+    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    if leading_spaces.fragment().len() > 3 {
+        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Try to parse complete tag (open or closing)
+    // For Type 7, tag must be complete on this line
+    
+    let line_content = if let Some(newline_pos) = input.fragment().find('\n') {
+        &input.fragment()[..newline_pos]
+    } else {
+        input.fragment()
+    };
+    
+    // Must start with < and contain >
+    if !line_content.starts_with('<') || !line_content.contains('>') {
+        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Find the > position
+    let gt_pos = line_content.find('>').unwrap();
+    
+    // After >, rest of line must be only spaces/tabs
+    let after_tag = &line_content[(gt_pos + 1)..];
+    if !after_tag.chars().all(|c| c == ' ' || c == '\t') {
+        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+    }
+    
+    // Check if it's a closing tag or opening tag
+    let tag_content = &line_content[..=gt_pos];
+    let is_closing = tag_content.starts_with("</");
+    
+    if is_closing {
+        // Closing tag: </tagname>
+        // Must have form </[a-zA-Z][a-zA-Z0-9-]*>
+        // No attributes allowed in closing tags
+        if !tag_content.starts_with("</") || tag_content.contains(' ') || tag_content.contains('\t') {
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        }
+        
+        // Extract tag name (between </ and >)
+        let tag_name = &tag_content[2..(tag_content.len()-1)];
+        
+        // Tag name must start with ASCII letter
+        if tag_name.is_empty() || !tag_name.chars().next().unwrap().is_ascii_alphabetic() {
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        }
+        
+        // Rest of tag name must be alphanumeric or hyphen
+        if !tag_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        }
+    } else {
+        // Opening tag: <tagname ...>
+        // Exclude special tags (pre, script, style, textarea) - those are Type 1
+        let lower_tag = tag_content.to_lowercase();
+        if lower_tag.starts_with("<pre") || lower_tag.starts_with("<script") 
+           || lower_tag.starts_with("<style") || lower_tag.starts_with("<textarea") {
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        }
+        
+        // Must be a valid opening tag per CommonMark spec
+        // Tag must start with <, then ASCII letter, then alphanumeric/hyphen for tag name
+        // Then optional attributes, then optional /, then >
+        
+        // Extract tag name (from < to first space, /, or >)
+        let after_lt = &tag_content[1..];
+        let tag_name_end = after_lt.find(|c| c == ' ' || c == '\t' || c == '/' || c == '>')
+            .unwrap_or(after_lt.len());
+        let tag_name = &after_lt[..tag_name_end];
+        
+        // Tag name must start with ASCII letter
+        if tag_name.is_empty() || !tag_name.chars().next().unwrap().is_ascii_alphabetic() {
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        }
+        
+        // Rest of tag name must be alphanumeric or hyphen
+        if !tag_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        }
+        
+        // If there are attributes, validate them strictly per CommonMark spec
+        let after_tag_name = &after_lt[tag_name_end..];
+        if !after_tag_name.is_empty() && !after_tag_name.starts_with('>') && !after_tag_name.starts_with("/>") {
+            // There are attributes - validate they're well-formed
+            // For Type 7, the tag must be "complete" - attributes must be well-formed
+            let trimmed = after_tag_name.trim_start();
+            if trimmed.starts_with('/') && trimmed.len() == 2 && trimmed == "/>" {
+                // Self-closing tag, OK
+            } else {
+                // Validate attribute format strictly
+                // CommonMark requires: whitespace before each attribute, proper quoting, no malformed values
+                
+                // Reject invalid characters in attributes
+                if after_tag_name.contains("*") || after_tag_name.contains("#") {
+                    return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+                }
+                
+                // Must start with whitespace (space or tab) before attribute name
+                if !after_tag_name.starts_with(' ') && !after_tag_name.starts_with('\t') {
+                    return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+                }
+                
+                // Check for common malformed patterns
+                // Pattern 1: Missing space between attributes (e.g., "href='x'title=y")
+                // Look for quote followed directly by letter (no space)
+                if after_tag_name.contains("'") {
+                    let parts: Vec<&str> = after_tag_name.split('\'').collect();
+                    // Check each transition between quoted sections
+                    for i in 1..parts.len() {
+                        if i % 2 == 0 && !parts[i].is_empty() {
+                            // After closing quote, must have space or > or /
+                            let first_char = parts[i].chars().next().unwrap();
+                            if first_char.is_alphabetic() {
+                                // Attribute name directly after quote - missing space!
+                                return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+                            }
+                        }
+                    }
+                }
+                
+                // Pattern 2: Malformed quotes (e.g., href=\"\\\"\")
+                // Check for escaped quotes or quote mismatches
+                if after_tag_name.contains("\\\"") {
+                    // Has escaped quotes - this is invalid in HTML attributes for Type 7
+                    return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+                }
+                
+                // Basic attribute name validation (must start with letter after whitespace)
+                if !trimmed.starts_with(char::is_alphabetic) && !trimmed.starts_with('/') && !trimmed.starts_with('>') {
+                    return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+                }
+            }
+        }
+    }
+    
+    // Consume current line
+    let mut remaining = input;
+    if let Some(newline_pos) = remaining.fragment().find('\n') {
+        remaining = remaining.slice((newline_pos + 1)..);
+    } else {
+        // No newline, consume rest
+        remaining = remaining.slice(remaining.fragment().len()..);
+    }
+    
+    // Type 7 blocks end at next blank line
+    // Consume lines until blank line or EOF
+    while !remaining.fragment().is_empty() {
+        // Check if this line is blank
+        let line_content = if let Some(newline_pos) = remaining.fragment().find('\n') {
+            &remaining.fragment()[..newline_pos]
+        } else {
+            remaining.fragment()
+        };
+        
+        // If line is blank (only whitespace), end here (don't include the blank line)
+        if line_content.trim().is_empty() {
+            break;
+        }
+        
+        // Not blank, consume this line
+        if let Some(newline_pos) = remaining.fragment().find('\n') {
+            remaining = remaining.slice((newline_pos + 1)..);
+        } else {
+            // No more newlines, consume rest
+            remaining = remaining.slice(remaining.fragment().len()..);
+            break;
+        }
+    }
+    
+    // Return block from start to current position (before blank line)
+    let consumed_len = remaining.location_offset() - start.location_offset();
+    let block_span = start.slice(..consumed_len);
+    
+    log::debug!("Parsed complete HTML tag: {:?}", crate::logic::logger::safe_preview(block_span.fragment(), 40));
+    Ok((remaining, block_span))
+}
 
 // Helper: Count spaces considering tab expansion (1 tab = 4 spaces)
 // Returns the number of space characters to skip for a given indentation level
@@ -146,11 +645,20 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
     let start = input;
     let start_offset = start.location_offset();
     
+    // Helper: Check if a line starts with blockquote marker ('>') with 0-3 leading spaces
+    fn has_blockquote_marker(line: &str) -> bool {
+        let trimmed = line.trim_start_matches(' ');
+        let leading_spaces = line.len() - trimmed.len();
+        leading_spaces <= 3 && trimmed.starts_with('>')
+    }
+    
     // 1. Parse the content lines (heading text) - can be multiple lines
     // Each line cannot be indented more than 3 spaces
+    // CRITICAL: All lines (content + underline) must be in the same block context
     let mut content_end_offset;
     let mut current_input = input;
     let mut has_content = false;
+    let mut first_line_in_blockquote: Option<bool> = None;
     
     // Parse at least one line of content
     loop {
@@ -168,6 +676,25 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
         // Text cannot be empty on first line
         if !has_content && text_line.fragment().trim().is_empty() {
             return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+        }
+        
+        // Check block context: is this line in a blockquote?
+        let line_start = current_input.location_offset();
+        let line_end = text_line.location_offset() + text_line.fragment().len();
+        let full_line_len = line_end - line_start;
+        let full_line = &current_input.fragment()[..full_line_len.min(current_input.fragment().len())];
+        let this_line_in_blockquote = has_blockquote_marker(full_line);
+        
+        // First content line sets the block context
+        if first_line_in_blockquote.is_none() {
+            first_line_in_blockquote = Some(this_line_in_blockquote);
+        } else {
+            // Subsequent lines must match first line's block context
+            if first_line_in_blockquote.unwrap() != this_line_in_blockquote {
+                // Block context boundary crossed - setext heading cannot span this
+                log::debug!("Setext heading rejected: content crosses blockquote boundary");
+                return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+            }
         }
         
         has_content = true;
@@ -189,6 +716,18 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
             // Too much indentation for underline, continue as content
             current_input = after_newline;
             continue;
+        }
+        
+        // Check block context for the potential underline line
+        let underline_line_start = after_newline.location_offset();
+        let underline_peek_len = after_newline.fragment().find('\n').unwrap_or(after_newline.fragment().len());
+        let underline_full_line = &after_newline.fragment()[..underline_peek_len.min(after_newline.fragment().len())];
+        let underline_in_blockquote = has_blockquote_marker(underline_full_line);
+        
+        // Underline MUST be in same block context as content
+        if first_line_in_blockquote.unwrap() != underline_in_blockquote {
+            log::debug!("Setext heading rejected: underline crosses blockquote boundary");
+            return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
         }
         
         // Check if we have an underline character
@@ -302,6 +841,13 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
                     // This is a fenced code block, stop paragraph here
                     break;
                 }
+            }
+            
+            // Check if line starts with blockquote (>)
+            // Block quotes can interrupt paragraphs
+            if trimmed.starts_with('>') {
+                // This is a blockquote, stop paragraph here
+                break;
             }
         }
         
@@ -669,7 +1215,6 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
                 // Skip spaces/tabs after delimiter (up to 4 effective spaces)
                 // Need to count with tab expansion: tab goes to next multiple of 4
                 let mut spaces_after = 0;
-                let mut char_count = 0_usize;
                 let current_column = marker_width; // Column position after delimiter
                 
                 for ch in after_delim_fragment.chars() {
@@ -691,18 +1236,15 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
                     }
                     
                     spaces_after += space_width;
-                    char_count += 1;
                 }
                 
                 let content_indent = marker_width + spaces_after;
                 
                 let marker = ListMarker::Ordered { number, delimiter };
                 
-                // Return remaining input after marker and spaces
-                // after_delim is already after the digits and delimiter, just skip the spaces
-                let (remaining, _) = take(char_count)(after_delim)?;
-                
-                return Ok((remaining, (marker, content_indent)));
+                // Return position immediately after marker (NOT after spaces)
+                // The spaces are part of the content and will be dedented later
+                return Ok((after_delim, (marker, content_indent)));
             }
         }
     }
@@ -724,7 +1266,6 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
             // Skip spaces/tabs after marker (up to 4 effective spaces)
             // Need to count with tab expansion: tab goes to next multiple of 4
             let mut spaces_after = 0;
-            let mut char_count = 0_usize;
             let current_column = marker_width; // Column position after marker
             
             for ch in after_marker_fragment.chars() {
@@ -746,17 +1287,15 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
                 }
                 
                 spaces_after += space_width;
-                char_count += 1;
             }
             
             let content_indent = marker_width + spaces_after;
             
             let marker = ListMarker::Bullet(bullet_char);
             
-            // Return remaining input after marker and spaces
-            let (remaining, _) = take(char_count)(after_marker)?;
-            
-            return Ok((remaining, (marker, content_indent)));
+            // Return position immediately after marker (NOT after spaces)
+            // The spaces are part of the content and will be dedented later
+            return Ok((after_marker, (marker, content_indent)));
         }
     }
     
@@ -769,7 +1308,7 @@ pub fn detect_list_marker(input: Span) -> IResult<Span, (ListMarker, usize)> {
 /// 
 /// The content_span includes all content belonging to this item (may span multiple lines).
 /// has_blank_lines indicates whether there are blank lines within the item (affects tight/loose).
-pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResult<Span, (ListMarker, Span, bool)> {
+pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResult<Span, (ListMarker, Span, bool, usize)> {
     use nom::bytes::complete::take;
     
     // 1. Parse the list marker
@@ -890,7 +1429,7 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                 let next_line_end = after_blank.find('\n').unwrap_or(after_blank.len());
                 let next_line = &after_blank[..next_line_end];
                 
-                // If next line is a list marker, stop before this blank line
+                // If next line is a list marker or HTML comment, stop before this blank line
                 let next_line_indent = count_indentation(next_line);
                 if next_line_indent < 4 {
                     use nom_locate::LocatedSpan;
@@ -899,7 +1438,39 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                         // Next line is a new list marker, don't include this blank line
                         break;
                     }
+                    // Also check for HTML comments which interrupt lists
+                    if html_comment(next_line_span).is_ok() {
+                        // Next line is an HTML comment, don't include this blank line
+                        break;
+                    }
                 }
+            }
+            
+            // CRITICAL: Determine if we should include this blank line.
+            // A blank line should only be included if the next non-blank line will continue the item.
+            // This prevents marking single-item lists as "loose" when they have a trailing blank line.
+            // Per cmark reference implementation, continuation requires >= content_indent spaces.
+            let should_include_blank = if skip_len < remaining.fragment().len() {
+                // Look at the next line after the blank
+                let after_blank = &remaining.fragment()[skip_len..];
+                let next_line_end = after_blank.find('\n').unwrap_or(after_blank.len());
+                let next_line = &after_blank[..next_line_end];
+                
+                if next_line.trim().is_empty() {
+                    false  // Another blank line follows, don't include this one
+                } else {
+                    let next_line_indent = count_indentation(next_line);
+                    // Next line continues if it has at least content_indent spaces
+                    // This matches cmark's parse_node_item_prefix logic
+                    next_line_indent >= content_indent
+                }
+            } else {
+                false  // End of input, don't include trailing blank
+            };
+            
+            if !should_include_blank {
+                // Don't include this blank line, stop here
+                break;
             }
             
             has_blank_lines = true;
@@ -930,7 +1501,12 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
         }
         
         // Check if line is indented enough to continue the item
-        if line_indent >= content_indent {
+        // CommonMark simply requires that continuation lines have at least content_indent spaces.
+        // This is true both for normal lines and lines after blank lines.
+        // The cmark reference implementation does NOT add extra requirements after blank lines.
+        let min_indent = content_indent;
+        
+        if line_indent >= min_indent {
             // Line is indented, it continues the item
             last_was_blank = false;
             
@@ -995,21 +1571,21 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
     let content_length = content_end_offset - content_start_offset;
     let (after_content, content) = take(content_length)(content_start)?;
     
-    Ok((after_content, (marker, content, has_blank_lines)))
+    Ok((after_content, (marker, content, has_blank_lines, content_indent)))
 }
 
 /// Parse a complete list (ordered or unordered)
-/// Returns: Vec of (marker, content_span, has_blank_lines_in_item, has_blank_before_next)
-/// The last boolean indicates if there's a blank line BETWEEN this item and the next
-pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool)>> {
+/// Returns: Vec of (marker, content_span, has_blank_lines_in_item, has_blank_before_next, content_indent)
+/// The 4th boolean indicates if there's a blank line BETWEEN this item and the next
+pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool, usize)>> {
     use nom::bytes::complete::take;
     
     log::debug!("Parsing list");
     
     // 1. Parse first item to determine list type
-    let (mut remaining, (first_marker, first_content, first_has_blank)) = list_item(input, None)?;
+    let (mut remaining, (first_marker, first_content, first_has_blank, first_indent)) = list_item(input, None)?;
     
-    let mut items = vec![(first_marker, first_content, first_has_blank, false)];
+    let mut items = vec![(first_marker, first_content, first_has_blank, false, first_indent)];
     
     // Safety: prevent infinite loops
     const MAX_ITEMS: usize = 1000;
@@ -1070,12 +1646,6 @@ pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool)>> {
         }
         last_offset = current_offset;
         
-        // Update previous item's blank-before-next flag
-        if has_blank_before_next {
-            let last_idx = items.len() - 1;
-            items[last_idx].3 = true;
-        }
-        
         // Check if we've reached end after skipping blanks
         if remaining.fragment().is_empty() {
             break;
@@ -1083,13 +1653,21 @@ pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool)>> {
         
         // Try to parse next item with expected marker type
         match list_item(remaining, Some(first_marker)) {
-            Ok((new_remaining, (marker, content, has_blank))) => {
+            Ok((new_remaining, (marker, content, has_blank, item_content_indent))) => {
                 log::debug!("Parsed list item: {:?}", content.fragment());
-                items.push((marker, content, has_blank, false));
+                
+                // Only set blank-before-next flag if we successfully parsed another item
+                // This prevents blank lines at the END of a list from making it loose
+                if has_blank_before_next {
+                    let last_idx = items.len() - 1;
+                    items[last_idx].3 = true;
+                }
+                
+                items.push((marker, content, has_blank, false, item_content_indent));
                 remaining = new_remaining;
             }
             Err(e) => {
-                // No more items of this type
+                // No more items of this type - blank lines after last item don't count
                 log::debug!("Failed to parse next list item: {:?}", e);
                 break;
             }
@@ -1280,6 +1858,7 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
     const MAX_LINES: usize = 10000;
     let mut line_count = 0;
     let mut has_parsed_line = false;
+    let mut last_line_opened_fence = false;  // Track if previous line opened fenced code block
     
     loop {
         line_count += 1;
@@ -1293,24 +1872,30 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
             break;
         }
         
-        // Check leading spaces (0-3 allowed before >)
+        // Check leading spaces
         let leading_spaces = remaining.fragment().chars()
             .take_while(|&c| c == ' ')
             .count();
         
-        if leading_spaces > 3 {
-            // Too much indentation, not a blockquote line
-            break;
-        }
-        
         // Try to match '>' marker
-        let after_spaces = if leading_spaces > 0 {
+        let after_spaces = if leading_spaces > 0 && leading_spaces < remaining.fragment().len() {
             &remaining.fragment()[leading_spaces..]
+        } else if leading_spaces > 0 {
+            ""
         } else {
             remaining.fragment()
         };
         
-        if !after_spaces.starts_with('>') {
+        // Check if this line has a > marker
+        let has_marker = after_spaces.starts_with('>');
+        
+        // If line has > marker, it can only have 0-3 leading spaces
+        if has_marker && leading_spaces > 3 {
+            // Too much indentation before >, not valid blockquote line
+            break;
+        }
+        
+        if !has_marker {
             // No '>' marker
             // Lazy continuation: if we already have content, non-blank lines can continue
             if has_parsed_line {
@@ -1325,12 +1910,15 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
                 
                 // Check if this could be another block element starting
                 // (ATX heading, fenced code, etc.)
-                // Note: Don't check for "---", "===", "***", "___" as these could be:
-                // - Setext underlines (which require preceding text, so not standalone blocks)
-                // - Thematic breaks (which we'll check properly below using the parser)
-                // We use the actual parsers to avoid false positives
-                if line.starts_with('#') || line.starts_with("```") || line.starts_with("~~~") {
-                    // ATX heading or fenced code block - stop blockquote
+                if line.starts_with('#') {
+                    // ATX heading - stop blockquote
+                    break;
+                }
+                
+                // CRITICAL FIX FOR EXAMPLE 237:
+                // If previous line opened a fenced code block, lazy continuation is NOT allowed
+                if last_line_opened_fence {
+                    log::debug!("Blockquote stopping: previous line opened fenced code, lazy continuation not allowed");
                     break;
                 }
                 
@@ -1351,6 +1939,7 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
                 if let Ok((new_remaining, _)) = take::<_, _, nom::error::Error<Span>>(skip_len)(remaining) {
                     last_content_offset = new_remaining.location_offset();
                     remaining = new_remaining;
+                    last_line_opened_fence = false;  // Reset flag after consuming lazy continuation
                     continue;
                 } else {
                     break;
@@ -1370,6 +1959,11 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
         
         // Get the rest of the line
         let line_end = after_optional_space.find('\n').unwrap_or(after_optional_space.len());
+        let line_content = &after_optional_space[..line_end];
+        
+        // Check if this line opens a fenced code block
+        let line_trimmed = line_content.trim_start();
+        last_line_opened_fence = line_trimmed.starts_with("```") || line_trimmed.starts_with("~~~");
         
         // Calculate how much to skip (leading spaces + '>' + optional space + line content + newline)
         let skip_len = if line_end < after_optional_space.len() {
@@ -2007,7 +2601,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         assert_eq!(content_indent, 2); // 1 for marker + 1 for space
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space
     }
     
     #[test]
@@ -2019,7 +2613,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('+'));
         assert_eq!(content_indent, 2);
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space
     }
     
     #[test]
@@ -2031,7 +2625,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('*'));
         assert_eq!(content_indent, 2);
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space
     }
     
     #[test]
@@ -2043,7 +2637,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Ordered { number: 1, delimiter: '.' });
         assert_eq!(content_indent, 3); // 1 digit + 1 period + 1 space
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space (will be dedented later)
     }
     
     #[test]
@@ -2055,7 +2649,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Ordered { number: 1, delimiter: ')' });
         assert_eq!(content_indent, 3);
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space
     }
     
     #[test]
@@ -2067,7 +2661,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Ordered { number: 123, delimiter: '.' });
         assert_eq!(content_indent, 5); // 3 digits + 1 period + 1 space
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space
     }
     
     #[test]
@@ -2079,7 +2673,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         assert_eq!(content_indent, 4); // 2 leading + 1 marker + 1 space
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &" item"); // Now includes the space
     }
     
     #[test]
@@ -2091,7 +2685,7 @@ mod tests {
         let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         assert_eq!(content_indent, 4); // 1 marker + 3 spaces (capped at 4 total)
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(remaining.fragment(), &"   item"); // Now includes all the spaces
     }
     
     #[test]
@@ -2124,10 +2718,10 @@ mod tests {
         let result = detect_list_marker(input);
         
         assert!(result.is_ok(), "Should detect marker with tab after");
-        let (remaining, (marker, _content_indent)) = result.unwrap();
+        let (remaining, (marker, content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
-        // Tab counts as space, so content_indent should be 2
-        assert_eq!(remaining.fragment(), &"item");
+        assert_eq!(content_indent, 4); // 1 marker + tab (column 1→4 = 3 spaces)
+        assert_eq!(remaining.fragment(), &"\titem"); // Now includes the tab
     }
     
     // === List Item Parser Tests ===
@@ -2138,7 +2732,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should parse simple single-line list item");
-        let (remaining, (marker, content, has_blank)) = result.unwrap();
+        let (remaining, (marker, content, has_blank, _content_indent)) = result.unwrap();
         eprintln!("Content: {:?}", content.fragment());
         eprintln!("Remaining: {:?}", remaining.fragment());
         assert_eq!(marker, ListMarker::Bullet('-'));
@@ -2153,7 +2747,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should parse first item and stop at second marker");
-        let (remaining, (marker, content, _)) = result.unwrap();
+        let (remaining, (marker, content, _, _)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         assert!(content.fragment().contains("item one"));
         assert!(!content.fragment().contains("item two"));
@@ -2166,7 +2760,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should parse multi-line item with indented continuation");
-        let (remaining, (marker, content, _)) = result.unwrap();
+        let (remaining, (marker, content, _, _)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         assert!(content.fragment().contains("item one"));
         assert!(content.fragment().contains("continuation"));
@@ -2179,7 +2773,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should parse item with blank line and continuation");
-        let (remaining, (marker, content, has_blank)) = result.unwrap();
+        let (remaining, (marker, content, has_blank, _content_indent)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         assert!(content.fragment().contains("item one"));
         assert!(content.fragment().contains("continuation"));
@@ -2193,7 +2787,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should parse ordered list item");
-        let (remaining, (marker, content, _)) = result.unwrap();
+        let (remaining, (marker, content, _, _)) = result.unwrap();
         assert_eq!(marker, ListMarker::Ordered { number: 1, delimiter: '.' });
         assert!(content.fragment().contains("first item"));
         assert_eq!(remaining.fragment(), &"");
@@ -2214,7 +2808,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should handle lazy continuation");
-        let (_remaining, (_, content, _)) = result.unwrap();
+        let (_remaining, (_, content, _, _)) = result.unwrap();
         eprintln!("Lazy content: {:?}", content.fragment());
         assert!(content.fragment().contains("item"));
         assert!(content.fragment().contains("continuation"), "Content was: {:?}", content.fragment());
@@ -2420,7 +3014,7 @@ mod tests {
         let result = list_item(input, None);
         
         assert!(result.is_ok(), "Should parse empty list item");
-        let (_remaining, (marker, content, _)) = result.unwrap();
+        let (_remaining, (marker, content, _, _)) = result.unwrap();
         assert_eq!(marker, ListMarker::Bullet('-'));
         eprintln!("Empty item content: {:?}", content.fragment());
         // Content should be empty or just whitespace

@@ -50,6 +50,14 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
         NodeKind::ThematicBreak => {
             output.push_str("<hr />\n");
         }
+        NodeKind::HtmlBlock { html } => {
+            // HTML blocks are rendered as-is without escaping
+            // They already contain the complete HTML including tags
+            output.push_str(html);
+            if !html.ends_with('\n') {
+                output.push('\n');
+            }
+        }
         NodeKind::Blockquote => {
             output.push_str("<blockquote>\n");
             for child in &node.children {

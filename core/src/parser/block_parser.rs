@@ -41,6 +41,56 @@ fn to_parser_span_range(start_span: GrammarSpan, end_span: GrammarSpan) -> crate
     crate::parser::position::Span::new(start, end)
 }
 
+// Strip list item indentation from content
+// List items can have content indented up to content_indent spaces after the marker
+fn dedent_list_item_content(content: &str, content_indent: usize) -> String {
+    let had_trailing_newline = content.ends_with('\n');
+    
+    let mut result = content.lines()
+        .map(|line| {
+            // First, expand tabs to spaces
+            // Tabs must be expanded based on their ACTUAL column position (content_indent + column in line)
+            let mut expanded = String::with_capacity(line.len() * 2);
+            let mut column = content_indent; // Start at the content_indent column
+            
+            for ch in line.chars() {
+                if ch == '\t' {
+                    // Tab advances to next multiple of 4
+                    let spaces_to_add = 4 - (column % 4);
+                    for _ in 0..spaces_to_add {
+                        expanded.push(' ');
+                        column += 1;
+                    }
+                } else {
+                    expanded.push(ch);
+                    column += 1;
+                }
+            }
+            
+            // Now count and strip leading spaces up to content_indent
+            let mut spaces_to_strip = 0;
+            let mut chars = expanded.chars();
+            while spaces_to_strip < content_indent {
+                match chars.next() {
+                    Some(' ') => spaces_to_strip += 1,
+                    _ => break,
+                }
+            }
+            
+            // Return the rest of the line after stripping (as owned String)
+            expanded[spaces_to_strip..].to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    // Preserve trailing newline if original had one
+    if had_trailing_newline {
+        result.push('\n');
+    }
+    
+    result
+}
+
 // Parse document into block-level structure, returning a Document
 pub fn parse_blocks(input: &str) -> Result<Document> {
     parse_blocks_internal(input, 0)
@@ -110,7 +160,128 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
             }
         }
         
-        // Try parsing heading first
+        // Try parsing HTML blocks (types 1-6, in order)
+        // Type 1: Special raw content tags (script, pre, style, textarea)
+        if let Ok((rest, content)) = grammar::html_special_tag(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Type 2: HTML comments
+        if let Ok((rest, content)) = grammar::html_comment(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Type 3: Processing instructions
+        if let Ok((rest, content)) = grammar::html_processing_instruction(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Type 4: Declarations
+        if let Ok((rest, content)) = grammar::html_declaration(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Type 5: CDATA sections
+        if let Ok((rest, content)) = grammar::html_cdata(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Type 6: Standard block tags (div, table, etc.)
+        if let Ok((rest, content)) = grammar::html_block_tag(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Type 7: Complete tags (CANNOT interrupt paragraphs)
+        // Try this but it will fail if we're in the middle of paragraph text
+        if let Ok((rest, content)) = grammar::html_complete_tag(remaining) {
+            let span = to_parser_span(content);
+            
+            let node = Node {
+                kind: NodeKind::HtmlBlock {
+                    html: content.fragment().to_string(),
+                },
+                span: Some(span),
+                children: Vec::new(),
+            };
+            
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+        
+        // Try parsing heading
         if let Ok((rest, (level, content))) = grammar::heading(remaining) {
             let span = to_parser_span(content);
             let text = content.fragment().to_string();
@@ -158,18 +329,49 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
         }
         
         // Try parsing block quote (lines starting with >)
-        if let Ok((rest, content)) = grammar::block_quote(remaining) {
+        if let Ok((rest, content)) = grammar::blockquote(remaining) {
             let span = to_parser_span(content);
             
             // Extract the block quote content (remove leading > markers)
+            // CRITICAL: Per CommonMark spec, "The setext heading underline cannot be a lazy continuation line"
+            // So we need to track which lines had > markers and prevent setext matching on lazy lines
             let content_str = content.fragment();
             let mut cleaned_content = String::with_capacity(content_str.len());
             
             for line in content_str.split_inclusive('\n') {
-                // Remove the leading > and optional space, preserving newlines
-                let cleaned = line.trim_start().strip_prefix('>').unwrap_or(line);
-                let cleaned = cleaned.strip_prefix(' ').unwrap_or(cleaned);
-                cleaned_content.push_str(cleaned);
+                let line_trimmed_start = line.trim_start();
+                let has_marker = line_trimmed_start.starts_with('>');
+                
+                if has_marker {
+                    // Line has > marker - remove it and optional space
+                    let after_marker = line_trimmed_start.strip_prefix('>').unwrap();
+                    let cleaned = after_marker.strip_prefix(' ').unwrap_or(after_marker);
+                    cleaned_content.push_str(cleaned);
+                } else {
+                    // Lazy continuation line - no > marker
+                    // Check if this looks like a setext underline (all === or all ---)
+                    let line_content = line_trimmed_start.trim_end();
+                    let line_sans_spaces = line_content.replace([' ', '\t'], "");
+                    
+                    let is_underline = !line_sans_spaces.is_empty() && 
+                        (line_sans_spaces.chars().all(|c| c == '=') ||
+                         line_sans_spaces.chars().all(|c| c == '-'));
+                    
+                    if is_underline {
+                        // This lazy continuation looks like setext underline
+                        // Per CommonMark: "underline cannot be lazy continuation"
+                        // Escape the first character to prevent setext parsing
+                        if let Some(first_char) = line_content.chars().next() {
+                            if first_char == '=' || first_char == '-' {
+                                // Add backslash escape before first underline character
+                                cleaned_content.push('\\');
+                            }
+                        }
+                    }
+                    
+                    // Add the line as-is (or with escape prepended)
+                    cleaned_content.push_str(line);
+                }
             }
             
             // Recursively parse the block quote content
@@ -246,11 +448,15 @@ fn parse_blocks_internal(input: &str, depth: usize) -> Result<Document> {
             };
             
             // Parse each item's content recursively
-            for (_marker, content, _has_blank_in, _has_blank_before) in items {
+            for (_marker, content, _has_blank_in, _has_blank_before, content_indent) in items {
                 let item_span = to_parser_span(content);
                 
+                // Dedent the list item content before parsing
+                // This allows block structures (blockquotes, code blocks, nested lists) to be recognized
+                let dedented_content = dedent_list_item_content(content.fragment(), content_indent);
+                
                 // Parse the item's content as block elements
-                let item_content = match parse_blocks_internal(content.fragment(), depth + 1) {
+                let item_content = match parse_blocks_internal(&dedented_content, depth + 1) {
                     Ok(doc) => doc.children,
                     Err(e) => {
                         log::warn!("Failed to parse list item content: {}", e);
