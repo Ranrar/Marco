@@ -2,6 +2,10 @@
   <img src="https://raw.githubusercontent.com/Ranrar/marco/refs/heads/main/documentation/user%20guide/logo.png" />
 </p>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/CommonMark-100%25-brightgreen?style=for-the-badge&logo=markdown&logoColor=white" alt="100% CommonMark Compliant" />
+  <img src="https://img.shields.io/badge/International-Characters-blue?style=for-the-badge&logo=translate&logoColor=white" alt="International Characters Support" />
+
 **Marco** is a fast, native Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
 
 **Polo**, its companion viewer, lets you open and read Markdown documents with identical rendering and minimal resource use.  
@@ -54,8 +58,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 
 ## Marco Markdown Flavor
 
-Marco extends **CommonMark** with features designed for technical and long-form writing:
-
+- **Full CommonMark support** — complete compatibility with the standard specification (652/652 tests passing)
+- **International characters** — Proper handling of international charters like Japanese (日本語), Arabic (العربية), and emoji (🎉)
 - **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
 - **Document navigation** — automatic TOC, bookmarks, and cross-file links  
 - **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons  
@@ -85,6 +89,7 @@ Marco uses a **Cargo workspace** with three crates:
 - **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
 
 **Current development focus:**
+- Maintaining **100% CommonMark compliance** while adding extensions
 - Fine-tuning the **parser grammar** for comprehensive markdown support
 - Polishing the **AST builder** and **HTML renderer** components
 - Implementing **LSP features** (syntax highlighting, diagnostics, completion, hover)

@@ -14,19 +14,10 @@ type GrammarSpan<'a> = LocatedSpan<&'a str>;
 /// Type of block that's currently open
 #[derive(Debug, Clone, PartialEq)]
 enum BlockContextKind {
-    /// Ordered or unordered list container
-    List {
-        ordered: bool,
-    },
     /// Individual list item within a list
     /// content_indent: minimum spaces required for content continuation
     ListItem {
         content_indent: usize,
-    },
-    /// Block quote container
-    /// Each line needs '>' marker OR sufficient indent for lazy continuation
-    BlockQuote {
-        indent: usize,
     },
 }
 
@@ -40,13 +31,6 @@ struct BlockContext {
 }
 
 impl BlockContext {
-    fn new_list(ordered: bool) -> Self {
-        Self {
-            kind: BlockContextKind::List { ordered },
-            is_open: true,
-        }
-    }
-    
     fn new_list_item(content_indent: usize) -> Self {
         Self {
             kind: BlockContextKind::ListItem { content_indent },
@@ -54,19 +38,10 @@ impl BlockContext {
         }
     }
     
-    fn new_blockquote(indent: usize) -> Self {
-        Self {
-            kind: BlockContextKind::BlockQuote { indent },
-            is_open: true,
-        }
-    }
-    
     /// Returns the minimum indentation required for content to continue this block
     fn required_indent(&self) -> usize {
         match &self.kind {
-            BlockContextKind::List { .. } => 0,  // Lists continue at any indent (items handle it)
             BlockContextKind::ListItem { content_indent } => *content_indent,
-            BlockContextKind::BlockQuote { indent } => *indent,
         }
     }
 }
@@ -105,18 +80,6 @@ impl ParserState {
         self.blocks.last()
     }
     
-    /// Get the current innermost block context (mutable)
-    fn current_block_mut(&mut self) -> Option<&mut BlockContext> {
-        self.blocks.last_mut()
-    }
-    
-    /// Get the required indentation for the current context
-    fn current_required_indent(&self) -> usize {
-        self.current_block()
-            .map(|ctx| ctx.required_indent())
-            .unwrap_or(0)
-    }
-    
     /// Check if content at given indent can continue the current block
     /// This is the CORE logic for handling blank lines with continuation
     fn can_continue_at(&self, indent: usize) -> bool {
@@ -130,15 +93,6 @@ impl ParserState {
                     // List item content must be indented at least content_indent spaces
                     // This is per CommonMark spec: continuation requires >= content_indent
                     indent >= *content_indent
-                }
-                BlockContextKind::List { .. } => {
-                    // Lists themselves don't have continuation requirements
-                    // List items handle their own continuation
-                    true
-                }
-                BlockContextKind::BlockQuote { indent: required } => {
-                    // Block quote content must maintain required indentation
-                    indent >= *required
                 }
             }
         } else {
@@ -164,14 +118,6 @@ impl ParserState {
         }
         
         closed
-    }
-    
-    /// Mark the current block as closed (but keep on stack for context)
-    fn close_current(&mut self) {
-        if let Some(context) = self.current_block_mut() {
-            context.is_open = false;
-            log::debug!("ParserState: marked current block closed");
-        }
     }
 }
 

@@ -265,11 +265,9 @@ pub fn html_block_tag(input: Span) -> IResult<Span, Span> {
                 },
                 Some('/') => {
                     // Check if followed by >
-                    if lower_input.len() > tag_len + 1 {
-                        if lower_input.chars().nth(tag_len + 1) == Some('>') {
-                            matched_tag = Some(tag_name);
-                            break;
-                        }
+                    if lower_input.len() > tag_len + 1 && lower_input.chars().nth(tag_len + 1) == Some('>') {
+                        matched_tag = Some(tag_name);
+                        break;
                     }
                 },
                 _ => continue, // Not a match, try next tag
@@ -400,7 +398,7 @@ pub fn html_complete_tag(input: Span) -> IResult<Span, Span> {
         
         // Extract tag name (from < to first space, /, or >)
         let after_lt = &tag_content[1..];
-        let tag_name_end = after_lt.find(|c| c == ' ' || c == '\t' || c == '/' || c == '>')
+        let tag_name_end = after_lt.find([' ', '\t', '/', '>'])
             .unwrap_or(after_lt.len());
         let tag_name = &after_lt[..tag_name_end];
         
@@ -442,10 +440,10 @@ pub fn html_complete_tag(input: Span) -> IResult<Span, Span> {
                 if after_tag_name.contains("'") {
                     let parts: Vec<&str> = after_tag_name.split('\'').collect();
                     // Check each transition between quoted sections
-                    for i in 1..parts.len() {
-                        if i % 2 == 0 && !parts[i].is_empty() {
+                    for (i, part) in parts.iter().enumerate().skip(1) {
+                        if i % 2 == 0 && !part.is_empty() {
                             // After closing quote, must have space or > or /
-                            let first_char = parts[i].chars().next().unwrap();
+                            let first_char = part.chars().next().unwrap();
                             if first_char.is_alphabetic() {
                                 // Attribute name directly after quote - missing space!
                                 return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
@@ -705,9 +703,9 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
         // First content line sets the block context
         if first_line_in_blockquote.is_none() {
             first_line_in_blockquote = Some(this_line_in_blockquote);
-        } else {
+        } else if let Some(first_context) = first_line_in_blockquote {
             // Subsequent lines must match first line's block context
-            if first_line_in_blockquote.unwrap() != this_line_in_blockquote {
+            if first_context != this_line_in_blockquote {
                 // Block context boundary crossed - setext heading cannot span this
                 log::debug!("Setext heading rejected: content crosses blockquote boundary");
                 return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
@@ -736,7 +734,7 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
         }
         
         // Check block context for the potential underline line
-        let underline_line_start = after_newline.location_offset();
+        let _underline_line_start = after_newline.location_offset();
         let underline_peek_len = after_newline.fragment().find('\n').unwrap_or(after_newline.fragment().len());
         let underline_full_line = &after_newline.fragment()[..underline_peek_len.min(after_newline.fragment().len())];
         let underline_in_blockquote = has_blockquote_marker(underline_full_line);
@@ -962,7 +960,7 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
             // Check if line starts with list marker
             // Unordered lists can always interrupt paragraphs
             // Ordered lists can only interrupt if they start with "1"
-            if let Ok(_) = detect_list_marker(after_spaces) {
+            if detect_list_marker(after_spaces).is_ok() {
                 // Check if it's unordered or ordered starting with 1
                 let marker_chars: Vec<char> = trimmed.chars().take(5).collect();
                 if marker_chars.first().map(|c| *c == '-' || *c == '*' || *c == '+').unwrap_or(false) {
@@ -1549,13 +1547,10 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                 }
             }
             
-            let skip_len = if current_line_end < remaining.fragment().len() {
-                current_line_end + 1  // Include newline
-            } else {
-                current_line_end
-            };
+            // Skip the first line using nom combinators (no manual byte counting)
+            let (new_remaining, _) = take_while(|c| c != '\n' && c != '\r')(remaining)?;
+            let (new_remaining, _) = opt(line_ending)(new_remaining)?;
             
-            let (new_remaining, _) = take(skip_len)(remaining)?;
             content_end_offset = new_remaining.location_offset();
             remaining = new_remaining;
             continue;
@@ -1779,23 +1774,27 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
     }
     
     // Extract the content span (from content_start to content_end)
+    // Use slice() instead of take() to avoid Eof issues with LocatedSpan boundaries
     let content_length = content_end_offset - content_start_offset;
-    let (after_content, content) = take(content_length)(content_start)?;
+    let content = content_start.slice(..content_length);
+    let after_content = content_start.slice(content_length..);
     
     Ok((after_content, (marker, content, has_blank_lines, content_indent)))
 }
 
+/// Type alias for list item data: (marker, content_span, has_blank_lines_in_item, has_blank_before_next, content_indent)
+type ListItemData<'a> = (ListMarker, Span<'a>, bool, bool, usize);
+
 /// Parse a complete list (ordered or unordered)
 /// Returns: Vec of (marker, content_span, has_blank_lines_in_item, has_blank_before_next, content_indent)
 /// The 4th boolean indicates if there's a blank line BETWEEN this item and the next
-pub fn list(input: Span) -> IResult<Span, Vec<(ListMarker, Span, bool, bool, usize)>> {
+pub fn list(input: Span) -> IResult<Span, Vec<ListItemData>> {
     use nom::bytes::complete::take;
-    
-    log::debug!("Parsing list");
     
     // 1. Parse first item to determine list type
     let (mut remaining, (first_marker, first_content, first_has_blank, first_indent)) = list_item(input, None)?;
-    
+
+            
     let mut items = vec![(first_marker, first_content, first_has_blank, false, first_indent)];
     
     // Safety: prevent infinite loops

@@ -32,6 +32,7 @@ emojis = { workspace = true }
 fontconfig = { workspace = true }
 dirs = { workspace = true }
 moka = { workspace = true }
+unicode-normalization  = { workspace = true }
 
 # Syntax highlighting (needed for code blocks)
 syntect = { workspace = true }

@@ -54,6 +54,29 @@ pub fn load_commonmark_tests() -> Vec<CommonMarkTest> {
         .collect()
 }
 
+pub fn load_extra_tests() -> Vec<CommonMarkTest> {
+    let json = include_str!("spec/extra.json");
+    let raw_entries: Vec<RawCommonMarkEntry> = serde_json::from_str(json)
+        .expect("Failed to parse extra.json");
+    
+    // Filter out comment/metadata entries and convert to CommonMarkTest
+    raw_entries.into_iter()
+        .filter_map(|entry| {
+            match (entry.example, entry.markdown, entry.html) {
+                (Some(example), Some(markdown), Some(html)) => Some(CommonMarkTest {
+                    example,
+                    section: entry.section,
+                    markdown,
+                    html,
+                    start_line: entry.start_line,
+                    end_line: entry.end_line,
+                }),
+                _ => None, // Skip entries without required fields
+            }
+        })
+        .collect()
+}
+
 pub fn run_commonmark_tests(section: Option<String>) {
     let tests = load_commonmark_tests();
     let total_tests = tests.len();
@@ -354,6 +377,89 @@ pub fn run_commonmark_tests(section: Option<String>) {
         println!("\nRun specific section with:");
         println!("  cargo test --package core --test test_suite -- commonmark --section \"ATX headings\"");
     }
+}
+
+pub fn run_extra_tests() {
+    let tests = load_extra_tests();
+    let total_tests = tests.len();
+    
+    print_header("Marco Extra Tests");
+    println!("Loaded {} extra test examples\n", total_tests);
+    
+    if total_tests == 0 {
+        println!("No extra tests found.");
+        return;
+    }
+    
+    println!("Running extra tests...\n");
+    
+    let mut passed = 0;
+    let mut failed = 0;
+    let mut failed_examples = Vec::new();
+    
+    for test in &tests {
+        let test_result = std::panic::catch_unwind(|| {
+            let result = core::parser::parse(&test.markdown);
+            match result {
+                Ok(document) => {
+                    let options = core::render::RenderOptions::default();
+                    match core::render::render(&document, &options) {
+                        Ok(rendered_html) => {
+                            // Normalize whitespace for comparison
+                            let expected_normalized = test.html.trim();
+                            let actual_normalized = rendered_html.trim();
+                            
+                            if expected_normalized == actual_normalized {
+                                true
+                            } else {
+                                println!("✗ Example {} FAILED", test.example);
+                                if let Some(ref section) = test.section {
+                                    println!("  Section: {}", section);
+                                }
+                                println!("  Markdown: {:?}", test.markdown);
+                                println!("  Expected: {:?}", expected_normalized);
+                                println!("  Got:      {:?}\n", actual_normalized);
+                                false
+                            }
+                        }
+                        Err(e) => {
+                            println!("✗ Example {} FAILED (render error)", test.example);
+                            println!("  Error: {}\n", e);
+                            false
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("✗ Example {} FAILED (parse error)", test.example);
+                    println!("  Error: {}\n", e);
+                    false
+                }
+            }
+        });
+        
+        match test_result {
+            Ok(true) => passed += 1,
+            _ => {
+                failed += 1;
+                failed_examples.push(test.example);
+            }
+        }
+    }
+    
+    println!("─────────────────────────────────────────────────────────");
+    let coverage_percentage = if total_tests > 0 {
+        passed as f64 / total_tests as f64 * 100.0
+    } else {
+        0.0
+    };
+    
+    if failed > 0 {
+        println!("Extra tests: {}/{} passed ({:.1}%)", passed, total_tests, coverage_percentage);
+        println!("Failed examples: {:?}", failed_examples);
+    } else {
+        println!("✓ All extra tests passed: {}/{} ({:.1}%)", passed, total_tests, coverage_percentage);
+    }
+    println!("─────────────────────────────────────────────────────────");
 }
 
 // ============================================================================

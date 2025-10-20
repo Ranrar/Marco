@@ -2,14 +2,14 @@
 //!
 //! This module provides defensive UTF-8 handling for all text input sources
 //! (keyboard, clipboard, files). It ensures that invalid UTF-8 sequences are
-//! safely handled before reaching the parser layer.
+//! safely handled and Unicode text is normalized before reaching the parser layer.
 //!
 //! # Architecture
 //! ```text
 //! Raw input (keyboard, clipboard, file)
 //!        │
 //!        ▼
-//! [UTF-8 Guard / Sanitize / Normalize]  ← This module
+//! [UTF-8 Validation → Unicode Normalization → Control Char Filter]  ← This module
 //!        │
 //!        ▼
 //! Parser (nom, Markdown)
@@ -21,7 +21,27 @@
 //! # Strategy
 //! 1. **Validate** - Check if input is valid UTF-8
 //! 2. **Sanitize** - Replace invalid sequences with � (U+FFFD)
-//! 3. **Normalize** - Ensure consistent line endings and no null bytes
+//! 3. **Normalize** - Apply Unicode NFC normalization (canonical composition)
+//! 4. **Filter** - Remove control characters (except \n, \r, \t)
+//! 5. **Standardize** - Normalize line endings to \n
+//!
+//! # Unicode Normalization
+//! 
+//! **Why NFC (Canonical Composition)?**
+//! 
+//! Unicode allows multiple representations of visually identical text:
+//! - Precomposed form: `é` (U+00E9, single character)
+//! - Decomposed form: `e` + `´` (U+0065 + U+0301, two characters)
+//!
+//! Without normalization:
+//! - Parser may treat `café` and `café` as different strings
+//! - Emphasis markers like `*café*` might fail if `é` is decomposed
+//! - Em dashes (—, U+2014) vs hyphens (-, U+002D) stay distinct
+//!
+//! NFC normalization ensures:
+//! - Canonically equivalent forms are unified
+//! - Multi-script text is stable for tokenization
+//! - Parser results are deterministic across platforms
 //!
 //! # Examples
 //! ```
@@ -38,6 +58,7 @@
 //! ```
 
 use std::borrow::Cow;
+use unicode_normalization::UnicodeNormalization;
 
 /// Source of the input text (for logging/diagnostics)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -77,8 +98,12 @@ pub struct SanitizeStats {
     pub invalid_sequences: usize,
     /// Number of null bytes removed
     pub null_bytes_removed: usize,
+    /// Number of control characters removed
+    pub control_chars_removed: usize,
     /// Number of line ending normalizations
     pub line_endings_normalized: usize,
+    /// Whether Unicode NFC normalization was applied
+    pub unicode_normalized: bool,
     /// Whether input was already valid UTF-8
     pub was_valid: bool,
 }
@@ -89,12 +114,13 @@ impl SanitizeStats {
         !self.was_valid
             || self.invalid_sequences > 0
             || self.null_bytes_removed > 0
+            || self.control_chars_removed > 0
             || self.line_endings_normalized > 0
     }
 
     /// Get a human-readable summary
     pub fn summary(&self) -> String {
-        if !self.had_issues() {
+        if !self.had_issues() && !self.unicode_normalized {
             return "Input was clean UTF-8".to_string();
         }
 
@@ -105,11 +131,21 @@ impl SanitizeStats {
         if self.null_bytes_removed > 0 {
             parts.push(format!("{} null bytes", self.null_bytes_removed));
         }
+        if self.control_chars_removed > 0 {
+            parts.push(format!("{} control chars", self.control_chars_removed));
+        }
         if self.line_endings_normalized > 0 {
             parts.push(format!("{} line endings", self.line_endings_normalized));
         }
+        if self.unicode_normalized {
+            parts.push("Unicode NFC normalized".to_string());
+        }
 
-        format!("Sanitized: {}", parts.join(", "))
+        if parts.is_empty() {
+            "Input was clean".to_string()
+        } else {
+            format!("Sanitized: {}", parts.join(", "))
+        }
     }
 }
 
@@ -147,7 +183,7 @@ pub fn sanitize_input(bytes: &[u8], source: InputSource) -> String {
 /// assert!(stats.had_issues());
 /// println!("{}", stats.summary());
 /// ```
-pub fn sanitize_input_with_stats(bytes: &[u8], source: InputSource) -> (String, SanitizeStats) {
+pub fn sanitize_input_with_stats(bytes: &[u8], _source: InputSource) -> (String, SanitizeStats) {
     let original_bytes = bytes.len();
 
     // Step 1: Convert to UTF-8, replacing invalid sequences
@@ -163,17 +199,35 @@ pub fn sanitize_input_with_stats(bytes: &[u8], source: InputSource) -> (String, 
 
     let was_valid = invalid_sequences == 0;
 
-    // Step 2: Remove null bytes (security risk)
-    let (no_nulls, null_bytes_removed) = if utf8_str.contains('\0') {
-        let filtered: String = utf8_str.chars().filter(|&c| c != '\0').collect();
-        let removed = utf8_str.len() - filtered.len();
-        (Cow::Owned(filtered), removed)
+    // Step 2: Apply Unicode NFC normalization (canonical composition)
+    // This ensures that canonically equivalent forms are unified:
+    // - Precomposed vs decomposed characters (é vs e + ´)
+    // - Multi-script text stability
+    // - Deterministic parser results
+    let normalized_unicode: String = utf8_str.nfc().collect();
+    let unicode_normalized = normalized_unicode.len() != utf8_str.len() || 
+                            normalized_unicode != utf8_str.as_ref();
+
+    // Step 3: Remove null bytes (security risk)
+    let (no_nulls, null_bytes_removed) = if normalized_unicode.contains('\0') {
+        let filtered: String = normalized_unicode.chars().filter(|&c| c != '\0').collect();
+        let removed = normalized_unicode.len() - filtered.len();
+        (filtered, removed)
     } else {
-        (utf8_str, 0)
+        (normalized_unicode, 0)
     };
 
-    // Step 3: Normalize line endings (\r\n → \n, \r → \n)
-    let (normalized, line_endings_normalized) = normalize_line_endings(&no_nulls);
+    // Step 4: Filter control characters (except \n, \r, \t)
+    // This prevents rendering anomalies and potential injection exploits
+    let original_len = no_nulls.len();
+    let filtered: String = no_nulls
+        .chars()
+        .filter(|&c| !c.is_control() || matches!(c, '\n' | '\r' | '\t'))
+        .collect();
+    let control_chars_removed = original_len - filtered.len();
+
+    // Step 5: Normalize line endings (\r\n → \n, \r → \n)
+    let (normalized, line_endings_normalized) = normalize_line_endings(&filtered);
 
     let sanitized_bytes = normalized.len();
 
@@ -182,14 +236,16 @@ pub fn sanitize_input_with_stats(bytes: &[u8], source: InputSource) -> (String, 
         sanitized_bytes,
         invalid_sequences,
         null_bytes_removed,
+        control_chars_removed,
         line_endings_normalized,
+        unicode_normalized,
         was_valid,
     };
 
     // Log if issues were found (in production, use proper logging)
     if stats.had_issues() {
         #[cfg(debug_assertions)]
-        eprintln!("[UTF-8 Sanitizer] Source: {}, {}", source, stats.summary());
+        log::debug!("[UTF-8 Sanitizer] {}", stats.summary());
     }
 
     (normalized.into_owned(), stats)
@@ -430,6 +486,82 @@ mod tests {
         let (result, stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
         assert_eq!(result, "こんにちは世界");
         assert!(!stats.had_issues());
+    }
+
+    #[test]
+    fn test_unicode_nfc_normalization_precomposed() {
+        // Test that decomposed form is normalized to precomposed form
+        // Decomposed: e (U+0065) + combining acute (U+0301) → Precomposed: é (U+00E9)
+        let decomposed = "cafe\u{0301}"; // café with decomposed é
+        let input = decomposed.as_bytes();
+        let (result, stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
+        
+        // Should be normalized to precomposed form
+        assert_eq!(result, "café"); // café with precomposed é (U+00E9)
+        assert!(stats.unicode_normalized);
+    }
+
+    #[test]
+    fn test_unicode_nfc_already_normalized() {
+        // Text already in NFC form should not be changed
+        let input = "café".as_bytes(); // Already precomposed
+        let (result, _stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
+        
+        assert_eq!(result, "café");
+        // Note: unicode_normalized may still be true if the check detects no difference
+    }
+
+    #[test]
+    fn test_em_dash_preserved() {
+        // Em dash (—, U+2014) should be preserved, not confused with hyphen (-, U+002D)
+        let input = "Native performance — no login".as_bytes();
+        let (result, _stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
+        
+        assert_eq!(result, "Native performance — no login");
+        assert!(result.contains('—')); // Em dash preserved
+        
+        // Check character codes - find the em dash
+        let em_dash_char = result.chars().find(|&c| c == '—').unwrap();
+        assert_eq!(em_dash_char as u32, 0x2014); // Verify it's the em dash
+    }
+
+    #[test]
+    fn test_hyphen_vs_em_dash() {
+        // Test that hyphens and em dashes are distinct after normalization
+        let input = "hyphen - and em dash —".as_bytes();
+        let (result, _stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
+        
+        assert_eq!(result, "hyphen - and em dash —");
+        
+        // Count each type
+        let hyphen_count = result.matches('-').count();
+        let em_dash_count = result.matches('—').count();
+        
+        assert_eq!(hyphen_count, 1);
+        assert_eq!(em_dash_count, 1);
+    }
+
+    #[test]
+    fn test_control_characters_filtered() {
+        // Control characters (except \n, \r, \t) should be removed
+        let input = "Hello\x01\x02World\nNew\tLine\r\n".as_bytes();
+        let (result, stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
+        
+        // \x01 and \x02 should be removed, but \n, \t, \r should be preserved (then normalized)
+        assert_eq!(result, "HelloWorld\nNew\tLine\n");
+        assert!(stats.control_chars_removed > 0);
+    }
+
+    #[test]
+    fn test_complex_markdown_with_em_dashes() {
+        // Real-world test with markdown containing em dashes
+        let input = "- **Bold** — description\n- *Italic* — another item".as_bytes();
+        let (result, _stats) = sanitize_input_with_stats(input, InputSource::File);
+        
+        // Should preserve markdown structure and em dashes
+        assert!(result.contains("**Bold** — description"));
+        assert!(result.contains("*Italic* — another item"));
+        assert_eq!(result.matches('—').count(), 2);
     }
 
     #[test]

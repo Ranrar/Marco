@@ -1,0 +1,40 @@
+[
+  {
+    "_comment": "Marco Parser Extra Test Cases",
+    "_description": "Additional test cases beyond CommonMark Spec 0.31.2",
+    "_usage": "Run with: cargo test --package core --test test_suite -- extra",
+    "_note": "Example numbers start at 653 (CommonMark spec ends at 652)"
+  },
+  {
+    "markdown": "- **strong**\n",
+    "html": "<ul>\n<li><strong>strong</strong></li>\n</ul>\n",
+    "example": 653,
+    "start_line": 8,
+    "end_line": 14,
+    "section": "List items (synthetic test for inline strong)"
+  },
+  {
+    "markdown": "- **Native performance** — no login\n",
+    "html": "<ul>\n<li><strong>Native performance</strong> — no login</li>\n</ul>\n",
+    "example": 654,
+    "start_line": 16,
+    "end_line": 22,
+    "section": "Em Dash Test"
+  },
+  {
+    "markdown": "- **strong** text\n",
+    "html": "<ul>\n<li><strong>strong</strong> text</li>\n</ul>\n",
+    "example": 655,
+    "start_line": 24,
+    "end_line": 29,
+    "section": "List with text after strong (simple test)"
+  },
+  {
+    "markdown": "- text — more text\n",
+    "html": "<ul>\n<li>text — more text</li>\n</ul>\n",
+    "example": 656,
+    "start_line": 31,
+    "end_line": 36,
+    "section": "List with em dash (no strong)"
+  }
+]

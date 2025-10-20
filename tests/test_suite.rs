@@ -1,5 +1,18 @@
 // Marco Test Suite - CLI entry point for all tests
-// Usage: cargo test --package core --test test_suite -- --help
+//
+// USAGE EXAMPLES:
+//   cargo test --package core --test test_suite -- --help       # Show all available commands
+//   cargo test --package core --test test_suite -- all          # Run all tests
+//   cargo test --package core --test test_suite -- summary      # Show test summary
+//   cargo test --package core --test test_suite -- inline       # Test inline grammar
+//   cargo test --package core --test test_suite -- block        # Test block grammar
+//   cargo test --package core --test test_suite -- parser       # Test parser
+//   cargo test --package core --test test_suite -- render       # Test HTML renderer
+//   cargo test --package core --test test_suite -- commonmark   # Test CommonMark spec
+//   cargo test --package core --test test_suite -- extra        # Test extra custom cases
+//   cargo test --package core --test test_suite -- inspect -e 307,318  # Inspect specific examples
+//
+// NOTE: Use subcommands (e.g., "extra") NOT flags (e.g., "--extra")
 
 use clap::{Parser, Subcommand};
 
@@ -14,11 +27,14 @@ mod parser_tests;
 mod render_tests;
 #[path = "test_suite/commonmark_tests.rs"]
 mod commonmark_tests;
+#[path = "test_suite/example_runner.rs"]
+mod example_runner;
 
 use grammar_tests::{run_inline_tests, run_block_tests};
 use parser_tests::run_parser_tests;
 use render_tests::{run_render_tests, run_inline_pipeline_tests};
-use commonmark_tests::run_commonmark_tests;
+use commonmark_tests::{run_commonmark_tests, run_extra_tests};
+use example_runner::run_example_inspection;
 
 /// Marco Test Suite - Comprehensive testing for the nom-based Markdown parser
 #[derive(Parser)]
@@ -57,6 +73,14 @@ enum Commands {
         #[arg(short, long)]
         section: Option<String>,
     },
+    /// Test extra custom test cases (beyond CommonMark spec)
+    Extra,
+    /// Deep inspection of specific examples (show grammar, AST, render pipeline)
+    Inspect {
+        /// Example numbers to inspect (comma-separated, e.g., "307,318,653")
+        #[arg(short, long)]
+        examples: String,
+    },
     /// Run all tests
     All,
     /// Show test suite summary
@@ -68,21 +92,42 @@ fn show_summary() {
     println!("║              Marco Test Suite Summary                      ║");
     println!("╚════════════════════════════════════════════════════════════╝\n");
     
-    println!("Available test commands:");
-    println!("  inline       - Test inline grammar (code spans, emphasis, strong, links)");
-    println!("  block        - Test block grammar (headings, paragraphs, code blocks)");
+    println!("BASIC COMMANDS (no arguments needed):");
+    println!("  all          - Run all tests");
+    println!("  extra        - Test extra custom cases (beyond CommonMark)");
+    println!("  inline       - Test inline grammar (emphasis, links, code spans)");
+    println!("  block        - Test block grammar (headings, lists, code blocks)");
     println!("  parser       - Test parser integration (blocks → inlines → AST)");
     println!("  ast          - Test AST node structures");
     println!("  render       - Test HTML renderer (AST → HTML)");
-    println!("  lsp          - Test LSP features (highlighting, completion, diagnostics)");
-    println!("  commonmark   - Test against CommonMark spec examples");
-    println!("  all          - Run all tests");
+    println!("  lsp          - Test LSP features (highlighting, completion)");
+    println!("  commonmark   - Test against CommonMark spec (652 examples)");
     println!("  summary      - Show this help\n");
     
-    println!("Examples:");
-    println!("  cargo test --package core --test test_suite -- inline");
-    println!("  cargo test --package core --test test_suite -- block --filter heading");
-    println!("  cargo test --package core --test test_suite -- commonmark --section \"Code spans\"");
+    println!("COMMANDS WITH OPTIONS:");
+    println!("  inline --filter <name>           - Filter inline tests by name");
+    println!("  block --filter <name>            - Filter block tests by name");
+    println!("  commonmark --section <name>      - Test specific CommonMark section");
+    println!("  inspect -e <nums>                - Inspect specific examples (comma-separated)\n");
+    
+    println!("USAGE EXAMPLES:");
+    println!("  # Run all tests");
+    println!("  cargo test -p core --test test_suite -- all\n");
+    
+    println!("  # Run extra custom tests");
+    println!("  cargo test -p core --test test_suite -- extra\n");
+    
+    println!("  # Filter tests by name");
+    println!("  cargo test -p core --test test_suite -- block --filter heading\n");
+    
+    println!("  # Test specific CommonMark section");
+    println!("  cargo test -p core --test test_suite -- commonmark --section \"Code spans\"\n");
+    
+    println!("  # Inspect specific examples (NOTE: use -e or --examples flag!)");
+    println!("  cargo test -p core --test test_suite -- inspect -e 307,318,654");
+    println!("  cargo test -p core --test test_suite -- inspect --examples 654\n");
+    
+    println!("TIP: For more details, run: cargo test -p core --test test_suite -- --help");
     println!();
 }
 
@@ -112,6 +157,18 @@ fn main() {
         Some(Commands::Commonmark { section }) => {
             run_commonmark_tests(section);
         }
+        Some(Commands::Extra) => {
+            run_extra_tests();
+        }
+        Some(Commands::Inspect { examples }) => {
+            // Parse comma-separated example numbers
+            let example_numbers: Vec<u32> = examples
+                .split(',')
+                .filter_map(|s| s.trim().parse::<u32>().ok())
+                .collect();
+            
+            run_example_inspection(example_numbers);
+        }
         Some(Commands::All) => {
             run_inline_tests(None);
             run_block_tests(None);
@@ -119,23 +176,10 @@ fn main() {
             run_render_tests();
             run_inline_pipeline_tests();
             run_commonmark_tests(None);
+            run_extra_tests();
         }
         Some(Commands::Summary) | None => {
             show_summary();
         }
-    }
-}
-
-// Rust test integration
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_inline_elements_pipeline() {
-        run_inline_pipeline_tests();
-    }
-    
-    #[test]
-    fn test_render_pipeline() {
-        run_render_tests();
     }
 }
