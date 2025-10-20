@@ -14,8 +14,8 @@
     "section": "List items (synthetic test for inline strong)"
   },
   {
-    "markdown": "- **Native performance** — no login\n",
-    "html": "<ul>\n<li><strong>Native performance</strong> — no login</li>\n</ul>\n",
+    "markdown": "- **Native performance** — more text\n",
+    "html": "<ul>\n<li><strong>Native performance</strong> — more text</li>\n</ul>\n",
     "example": 654,
     "start_line": 16,
     "end_line": 22,
