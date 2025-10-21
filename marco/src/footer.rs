@@ -17,7 +17,6 @@
 //! Footer updates can be triggered individually using specific update functions, or in
 //! batch using `apply_footer_update` with a `FooterUpdate::Snapshot`.
 
-use core::global_parser_cache;
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
 use std::rc::Rc;
@@ -44,7 +43,6 @@ pub enum FooterUpdate {
         // lines removed
         words: usize,
         chars: usize,
-        syntax_display: String,
         encoding: String,
         is_insert: bool,
     },
@@ -56,173 +54,8 @@ pub struct FooterLabels {
     pub cursor_col: Label,
     pub encoding: Label,
     pub insert_mode: Label,
-    pub formatting: Label,
     pub word_count: Label,
     pub char_count: Label,
-}
-
-/// Updates the formatting label with the Markdown syntax trace for the active line
-/// Pure helper: produce the display string for a line given a syntax map
-pub fn format_syntax_trace(line: &str) -> String {
-    // Parse the full AST for the line and derive friendly labels directly from nodes.
-    // Many block-level rules expect a trailing newline to match (ATX headings, lists,
-    // etc). Ensure we include a trailing newline when parsing single-line inputs so
-    // the parser treats '# heading' and '- item' as block elements rather than inline
-    // text.
-    let mut to_parse = line.to_string();
-    if !to_parse.ends_with('\n') {
-        to_parse.push('\n');
-    }
-
-    let _ast = match global_parser_cache().parse_with_cache(&to_parse) {
-        Ok(a) => a,
-        Err(_) => {
-            // If parsing fails, fall back to a minimal text label
-            return "Format: text".to_string();
-        }
-    };
-
-    // Walk AST and produce concise descriptors. Descend through structural nodes.
-    let mut parts: Vec<String> = Vec::new();
-    parts.push("text".to_string()); // Placeholder until AST is compatible
-
-    // Temporarily disabled due to AST structure changes
-    // TODO: Update to work with new AST format
-    /*
-    fn collect_desc(n: &core::components::marco_engine::Node, parts: &mut Vec<String>) {
-        match n.node_type.as_str() {
-            // structural containers - descend
-            "root" | "content" => {
-                for c in &n.children {
-                    collect_desc(c, parts);
-                }
-            }
-            "heading" => {
-                let depth = n
-                    .attributes
-                    .get("depth")
-                    .and_then(|d| d.parse::<usize>().ok())
-                    .unwrap_or(1);
-                parts.push(format!("heading({})", depth));
-            }
-            "paragraph" => {
-                // inspect paragraph children for inline features
-                let mut labels: Vec<String> = Vec::new();
-                fn collect_inline(
-                    m: &core::components::marco_engine::Node,
-                    out: &mut Vec<String>,
-                ) {
-                    for c in &m.children {
-                        match c.node_type.as_str() {
-                            "strong" => out.push("bold".to_string()),
-                            "emphasis" => out.push("italic".to_string()),
-                            "link" => out.push("link".to_string()),
-                            "image" => out.push("image".to_string()),
-                            "emoji" => out.push("emoji".to_string()),
-                            "mention" => out.push("mention".to_string()),
-                            "delete" => out.push("strikethrough".to_string()),
-                            "inlineCode" => out.push("code".to_string()),
-                            "autolink" => out.push("link".to_string()),
-                            _ => collect_inline(c, out),
-                        }
-                    }
-                }
-                collect_inline(n, &mut labels);
-                labels.sort();
-                labels.dedup();
-                if labels.is_empty() {
-                    parts.push("text".to_string());
-                } else {
-                    let mapped: Vec<String> = labels
-                        .into_iter()
-                        .map(|l| match l.as_str() {
-                            "bold" => "bold".to_string(),
-                            "italic" => "italic".to_string(),
-                            "link" => "link".to_string(),
-                            "image" => "image".to_string(),
-                            "emoji" => "emoji".to_string(),
-                            "mention" => "mention".to_string(),
-                            "strikethrough" => "strike".to_string(),
-                            "code" => "code".to_string(),
-                            other => other.to_string(),
-                        })
-                        .collect();
-                    parts.push(mapped.join(" → "));
-                }
-            }
-            "list" => {
-                let ordered = n
-                    .attributes
-                    .get("ordered")
-                    .map(|v| v == "true")
-                    .unwrap_or(false);
-                parts.push(format!(
-                    "list({})",
-                    if ordered { "ordered" } else { "unordered" }
-                ));
-                // Inspect list items to detect inline features (e.g., emphasis, links)
-                for c in &n.children {
-                    collect_desc(c, parts);
-                }
-            }
-            "listItem" => {
-                // Descend into list item children for inline markers
-                for c in &n.children {
-                    collect_desc(c, parts);
-                }
-            }
-
-            "codeBlock" | "code_block" => {
-                let lang = n.attributes.get("language").cloned();
-                if let Some(l) = lang {
-                    parts.push(format!("💻 {}", l));
-                } else {
-                    parts.push("💻 code".to_string());
-                }
-            }
-            "frontmatter" => {
-                if let Some(v) = n.attributes.get("value") {
-                    static KV_RE: std::sync::LazyLock<regex::Regex> =
-                        std::sync::LazyLock::new(|| {
-                            regex::Regex::new(
-                                r"(?m)^\s*(?P<key>[A-Za-z0-9_-]+)\s*:\s*(?P<val>.+)\s*$",
-                            )
-                            .unwrap()
-                        });
-                    let mut pairs: Vec<String> = Vec::new();
-                    for kc in KV_RE.captures_iter(v).take(3) {
-                        if let (Some(k), Some(val)) = (kc.name("key"), kc.name("val")) {
-                            let mut vs = val.as_str().trim().to_string();
-                            if vs.len() > 30 {
-                                vs.truncate(27);
-                                vs.push_str("...");
-                            }
-                            pairs.push(format!("{}: {}", k.as_str(), vs));
-                        }
-                    }
-                    if !pairs.is_empty() {
-                        parts.push(format!("📦 {}", pairs.join(", ")));
-                    } else {
-                        parts.push("📦 frontmatter".to_string());
-                    }
-                } else {
-                    parts.push("📦 frontmatter".to_string());
-                }
-            }
-            other => {
-                parts.push(other.to_string());
-            }
-        }
-    }
-    */
-
-    // collect_desc(&ast, &mut parts); // Temporarily disabled
-
-    if parts.is_empty() {
-        "Format: text".to_string()
-    } else {
-        format!("Format: {}", parts.join(" → "))
-    }
 }
 
 /// Update the row label independently
@@ -255,12 +88,6 @@ pub fn update_insert_mode(labels: &FooterLabels, is_insert: bool) {
     set_label_text(&labels.insert_mode, text.to_string());
 }
 
-/// Updates the formatting label with the Markdown syntax trace for the active line
-pub fn update_syntax_trace(labels: &FooterLabels, line: &str) {
-    let display = format_syntax_trace(line);
-    footer_dbg!("[footer] update_syntax_trace called: {}", display);
-    set_label_text(&labels.formatting, display);
-}
 /// Updates the word count label
 pub fn update_word_count(labels: &FooterLabels, words: usize) {
     let text = format!("Words: {}", words);
@@ -283,7 +110,6 @@ pub fn apply_footer_update(labels: &FooterLabels, update: FooterUpdate) {
             col,
             /*lines,*/ words,
             chars,
-            syntax_display,
             encoding,
             is_insert,
         } => {
@@ -291,12 +117,6 @@ pub fn apply_footer_update(labels: &FooterLabels, update: FooterUpdate) {
             update_cursor_col(labels, col);
             update_word_count(labels, words);
             update_char_count(labels, chars);
-            // Use consistent pattern: call the proper update function instead of set_label_text directly
-            footer_dbg!(
-                "[footer] apply_footer_update called for syntax_display: {}",
-                syntax_display
-            );
-            set_label_text(&labels.formatting, syntax_display);
             update_encoding(labels, &encoding);
             update_insert_mode(labels, is_insert);
         }
@@ -375,14 +195,7 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     // Add CSS class for potential styling
     footer_box.add_css_class("footer");
 
-    // Formatting label (left side)
-    let formatting_label = Label::new(Some("Format:"));
-    formatting_label.set_halign(gtk4::Align::Start);
-    formatting_label.set_xalign(0.0);
-    formatting_label.set_visible(true);
-    footer_box.append(&formatting_label);
-
-    // Spacer to push items to the sides
+    // Spacer to push items to the right
     let spacer = Label::new(None);
     spacer.set_hexpand(true);
     spacer.set_visible(true);
@@ -418,164 +231,9 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
         cursor_col: cursor_col_label,
         encoding: encoding_label,
         insert_mode: insert_mode_label,
-        formatting: formatting_label,
         word_count: word_count_label,
         char_count: char_count_label,
     };
 
     (footer_box, Rc::new(labels))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serial_test::serial;
-
-    #[test]
-    fn test_format_syntax_trace_plain() {
-        let out = format_syntax_trace("text");
-        assert_eq!(out, "Format: text");
-    }
-
-    #[test]
-    fn test_format_syntax_trace_complex() {
-        // NOTE: AST processing is currently disabled, so all inputs return "Format: text"
-        // TODO: Re-enable this test when AST processing is restored
-
-        // Test heading with bold
-        let out = format_syntax_trace("# **Bold heading**");
-        assert!(out.starts_with("Format: "));
-        // Temporarily disabled: assert!(out.contains("heading(1)") || out.contains("bold"));
-        assert_eq!(out, "Format: text");
-
-        // Test list with italic
-        let out2 = format_syntax_trace("- *italic item*");
-        assert!(out2.starts_with("Format: "));
-        // Temporarily disabled: assert!(out2.contains("list") || out2.contains("italic"));
-        assert_eq!(out2, "Format: text");
-
-        // Test heading depth
-        let out3 = format_syntax_trace("## Level 2 heading");
-        // Temporarily disabled: assert!(out3.contains("heading(2)"));
-        assert_eq!(out3, "Format: text");
-
-        // Test ordered list
-        let out4 = format_syntax_trace("1. ordered item");
-        // Temporarily disabled: assert!(out4.contains("list(ordered)"));
-        assert_eq!(out4, "Format: text");
-
-        // Test unordered list
-        let out5 = format_syntax_trace("- unordered item");
-        // Temporarily disabled: assert!(out5.contains("list(unordered)"));
-        assert_eq!(out5, "Format: text");
-    }
-
-    #[test]
-    fn test_format_syntax_trace_empty() {
-        let out = format_syntax_trace("");
-        assert_eq!(out, "Format: text");
-    }
-
-    #[test]
-    #[serial(gtk)]
-    fn test_footer_update_functions_update_labels() {
-        // Initialize GTK for tests that create widgets. If GTK is already initialized,
-        // this is a no-op. If GTK cannot be initialized (e.g., no display), skip the test
-        if !gtk4::is_initialized() && gtk4::init().is_err() {
-            footer_dbg!("Skipping GTK test - no display available");
-            return;
-        }
-
-        // Create Label widgets and a FooterLabels instance
-        let formatting_label = gtk4::Label::new(Some(""));
-        let word_count_label = gtk4::Label::new(Some(""));
-        let char_count_label = gtk4::Label::new(Some(""));
-        let cursor_row_label = gtk4::Label::new(Some(""));
-        let cursor_col_label = gtk4::Label::new(Some(""));
-        // line_count removed
-        let encoding_label = gtk4::Label::new(Some(""));
-        let insert_mode_label = gtk4::Label::new(Some(""));
-
-        let labels = FooterLabels {
-            cursor_row: cursor_row_label.clone(),
-            cursor_col: cursor_col_label.clone(),
-            encoding: encoding_label.clone(),
-            insert_mode: insert_mode_label.clone(),
-            formatting: formatting_label.clone(),
-            word_count: word_count_label.clone(),
-            char_count: char_count_label.clone(),
-        };
-
-        // Call update helpers
-        update_cursor_row(&labels, 3);
-        update_cursor_col(&labels, 7);
-        // update_line_count removed
-        update_encoding(&labels, "UTF-16");
-        update_insert_mode(&labels, false);
-        update_word_count(&labels, 123);
-        update_char_count(&labels, 456);
-
-        // Formatting update uses parse helper directly
-        update_syntax_trace(&labels, "text");
-
-        // Verify Label texts
-        assert!(cursor_row_label.text().contains("Row: 3"));
-        assert!(cursor_col_label.text().contains("Column: 7"));
-        // line count assertions removed
-        assert_eq!(encoding_label.text().as_str(), "UTF-16");
-        assert_eq!(insert_mode_label.text().as_str(), "OVR");
-        assert_eq!(word_count_label.text().as_str(), "Words: 123");
-        assert_eq!(char_count_label.text().as_str(), "Characters: 456");
-        assert!(formatting_label.text().starts_with("Format:"));
-    }
-
-    #[test]
-    #[serial(gtk)]
-    fn test_apply_footer_update_snapshot() {
-        if !gtk4::is_initialized() && gtk4::init().is_err() {
-            footer_dbg!("Skipping GTK test - no display available");
-            return;
-        }
-
-        let formatting_label = gtk4::Label::new(Some(""));
-        let word_count_label = gtk4::Label::new(Some(""));
-        let char_count_label = gtk4::Label::new(Some(""));
-        let cursor_row_label = gtk4::Label::new(Some(""));
-        let cursor_col_label = gtk4::Label::new(Some(""));
-        // line_count removed
-        let encoding_label = gtk4::Label::new(Some(""));
-        let insert_mode_label = gtk4::Label::new(Some(""));
-
-        let labels = FooterLabels {
-            cursor_row: cursor_row_label.clone(),
-            cursor_col: cursor_col_label.clone(),
-            encoding: encoding_label.clone(),
-            insert_mode: insert_mode_label.clone(),
-            formatting: formatting_label.clone(),
-            word_count: word_count_label.clone(),
-            char_count: char_count_label.clone(),
-        };
-
-        let update = FooterUpdate::Snapshot {
-            row: 5,
-            col: 10,
-            // lines removed
-            words: 200,
-            chars: 1000,
-            syntax_display: "Format: Test syntax".to_string(),
-            encoding: "UTF-8".to_string(),
-            is_insert: true,
-        };
-
-        apply_footer_update(&labels, update);
-
-        // Verify all labels were updated via the snapshot
-        assert!(cursor_row_label.text().contains("Row: 5"));
-        assert!(cursor_col_label.text().contains("Column: 10"));
-        assert!(word_count_label.text().contains("Words: 200"));
-        assert!(char_count_label.text().contains("Characters: 1000"));
-        assert!(formatting_label.text().contains("Format: Test syntax"));
-        assert_eq!(encoding_label.text().as_str(), "UTF-8");
-        assert_eq!(insert_mode_label.text().as_str(), "INS");
-    }
 }

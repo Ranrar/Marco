@@ -33,26 +33,12 @@ pub fn wire_footer_updates(
             let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
             let char_count = text.chars().count();
 
-            let current_line = iter.line();
-            let start_iter_opt = buffer.iter_at_line(current_line);
-            let end_iter_opt = buffer.iter_at_line(current_line + 1);
-            let line_text = match (start_iter_opt, end_iter_opt) {
-                (Some(ref start), Some(ref end)) => buffer.text(start, end, false).to_string(),
-                (Some(ref start), None) => {
-                    buffer.text(start, &buffer.end_iter(), false).to_string()
-                }
-                _ => String::new(),
-            };
-            // Footer now uses the AST parser directly; ignore the legacy syntax map.
-            let syntax_display = crate::footer::format_syntax_trace(&line_text);
-
             let is_insert = *insert_mode_state.borrow();
             let msg = FooterUpdate::Snapshot {
                 row,
                 col,
                 words: word_count,
                 chars: char_count,
-                syntax_display,
                 encoding: "UTF-8".to_string(),
                 is_insert,
             };

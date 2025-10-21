@@ -470,7 +470,7 @@ paned > separator {{
     let bg_init_preview = editor_bg_color.borrow().clone();
     let bg_init_preview_ref = bg_init_preview.as_deref();
     
-    // LAYERED DEFENSE - Phase 2: Inject inline background style in HTML
+    // LAYERED DEFENSE - Inject inline background style in HTML
     let initial_html = crate::components::viewer::webkit6::wrap_html_document(
         &initial_html_body_with_js,
         &css_clone,
@@ -478,7 +478,7 @@ paned > separator {{
         bg_init_preview_ref, // Pass editor background color for inline style
     );
     
-    // LAYERED DEFENSE - Phase 1 & 3: Set widget background + load HTML
+    // LAYERED DEFENSE - Set widget background + load HTML
     let webview = crate::components::viewer::webkit6::create_html_viewer_with_base(
         &initial_html,
         None,                // No base URI needed yet

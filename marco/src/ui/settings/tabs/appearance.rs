@@ -135,16 +135,15 @@ pub fn build_appearance_tab(
         
         let handler_id = color_mode_combo.connect_selected_notify(move |combo| {
             let idx = combo.selected();
-            let mode = if idx == 1 { "dark" } else { "light" };
-            log::info!("Switching color mode to: {}", mode);
+            let scheme_id = if idx == 1 { "marco-dark" } else { "marco-light" };
+            log::info!("Switching editor scheme to: {}", scheme_id);
             
             {
                 let mut theme_mgr = theme_manager_clone.borrow_mut();
-                theme_mgr.set_color_mode(mode, &settings_path_clone);
+                theme_mgr.set_editor_scheme(scheme_id, &settings_path_clone);
             }
             
             if let Some(ref callback) = on_editor_theme_changed_clone {
-                let scheme_id = if idx == 1 { "marco-dark" } else { "marco-light" };
                 callback(scheme_id.to_string());
             }
             

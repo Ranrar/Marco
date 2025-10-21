@@ -68,7 +68,6 @@ fn setup_user_content_manager(webview: &WebView) {
 pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>, background_color: Option<&str>) -> WebView {
     let webview = WebView::new();
 
-    // LAYERED DEFENSE - Phase 1: Set GTK widget-level background color immediately
     // This prevents white flash during WebKit initialization (0ms delay)
     if let Some(bg_hex) = background_color {
         if let Some(rgba) = parse_hex_to_rgba(bg_hex) {
@@ -157,9 +156,9 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
                     delete window._marcoTempUpdate;
                 }}
                 
-                // Check if our standard update function exists
-                if (typeof updateContent === 'function') {{
-                    updateContent('{}');
+                // Check if our MarcoPreview object exists with update function
+                if (window.MarcoPreview && typeof window.MarcoPreview.updateContent === 'function') {{
+                    window.MarcoPreview.updateContent('{}');
                     return;
                 }}
                 
@@ -309,12 +308,6 @@ pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str, background_co
                     cleanup: cleanup
                 }};
             }})();
-            
-            // Legacy function aliases for backwards compatibility
-            function setPreviewCSS(css) {{ MarcoPreview.setCSS(css); }}
-            function setPreviewTheme(mode) {{ MarcoPreview.setTheme(mode); }}
-            function updateContent(htmlContent) {{ MarcoPreview.updateContent(htmlContent); }}
-            function setContent(htmlContent) {{ MarcoPreview.setContent(htmlContent); }}
             
             // Cleanup on page unload
             window.addEventListener('beforeunload', function() {{

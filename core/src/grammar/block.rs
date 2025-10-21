@@ -1252,17 +1252,6 @@ pub fn indented_code_block(input: Span) -> IResult<Span, Span> {
     Ok((remaining, content_span))
 }
 
-// Legacy function name for compatibility
-pub fn code_block(input: Span) -> IResult<Span, Span> {
-    // Try fenced code block first
-    if let Ok((remaining, (_, content))) = fenced_code_block(input) {
-        Ok((remaining, content))
-    } else {
-        // TODO: Implement indented code blocks
-        Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)))
-    }
-}
-
 // List marker types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListMarker {
@@ -2208,13 +2197,6 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
     Ok((remaining, content_span))
 }
 
-// Table parser
-pub fn table(input: Span) -> IResult<Span, Span> {
-    log::debug!("Parsing table");
-    // TODO: Implement table parsing
-    Ok((input, input))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2751,29 +2733,6 @@ mod tests {
     }
     
     // Code block wrapper smoke test
-    
-    #[test]
-    fn smoke_test_code_block_wrapper_fenced() {
-        // code_block() should accept fenced code blocks
-        let input = Span::new("```\ntest\n```\n");
-        let result = code_block(input);
-        
-        // Just verify it parses successfully
-        assert!(result.is_ok(), "Should parse fenced code block");
-        let (_, content) = result.unwrap();
-        assert!(!content.fragment().is_empty(), "Content should not be empty");
-    }
-    
-    #[test]
-    fn smoke_test_code_block_wrapper_indented() {
-        // code_block() currently only tries fenced code blocks
-        // Indented code blocks are not yet integrated (TODO in code)
-        let input = Span::new("    test\n");
-        let result = code_block(input);
-        
-        // Currently returns error because indented code blocks not integrated
-        assert!(result.is_err(), "code_block() doesn't handle indented blocks yet");
-    }
     
     // Indented code block smoke tests
     

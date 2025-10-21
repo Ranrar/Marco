@@ -22,7 +22,6 @@ use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use core::paths::MarcoPaths;
 use std::cell::RefCell;
 use std::rc::Rc;
-// MarkdownSyntaxMap compatibility removed; footer uses AST parser directly
 use crate::logic::menu_items::file::FileOperations;
 use core::logic::{DocumentBuffer, RecentFiles};
 use crate::ui::menu_items::files::FileDialogs;
@@ -483,7 +482,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         
         std::rc::Rc::new(move || {
             // Check if components are still valid before using
-            if let (Some(buffer), Some(labels)) = (
+            if let (Some(_buffer), Some(labels)) = (
                 buffer_weak.upgrade(),
                 labels_weak.upgrade(),
             ) {
@@ -500,22 +499,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 crate::footer::update_char_count(&labels, count * 50);
                 crate::footer::update_encoding(&labels, &format!("TEST-{}", count));
                 crate::footer::update_insert_mode(&labels, count.is_multiple_of(2));
-
-                // Also do the original syntax trace logic
-                let offset = buffer.cursor_position();
-                let iter = buffer.iter_at_offset(offset);
-                let current_line = iter.line();
-                let start_iter_opt = buffer.iter_at_line(current_line);
-                let end_iter_opt = buffer.iter_at_line(current_line + 1);
-                let line_text = match (start_iter_opt, end_iter_opt) {
-                    (Some(ref start), Some(ref end)) => buffer.text(start, end, false).to_string(),
-                    (Some(ref start), None) => {
-                        buffer.text(start, &buffer.end_iter(), false).to_string()
-                    }
-                    _ => String::new(),
-                };
-                // Footer uses AST-based parsing internally; pass only labels and line text
-                crate::footer::update_syntax_trace(&labels, &line_text);
             } else {
                 log::debug!("Footer update callback called after editor components were dropped");
             }
