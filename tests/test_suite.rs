@@ -10,6 +10,7 @@
 //   cargo test --package core --test test_suite -- render       # Test HTML renderer
 //   cargo test --package core --test test_suite -- commonmark   # Test CommonMark spec
 //   cargo test --package core --test test_suite -- extra        # Test extra custom cases
+//   cargo test --package core --test test_suite -- benchmark    # Run performance benchmarks
 //   cargo test --package core --test test_suite -- inspect -e 307,318  # Inspect specific examples
 //
 // NOTE: Use subcommands (e.g., "extra") NOT flags (e.g., "--extra")
@@ -29,12 +30,15 @@ mod render_tests;
 mod commonmark_tests;
 #[path = "test_suite/example_runner.rs"]
 mod example_runner;
+#[path = "test_suite/benchmark_tests.rs"]
+mod benchmark_tests;
 
 use grammar_tests::{run_inline_tests, run_block_tests};
 use parser_tests::run_parser_tests;
 use render_tests::{run_render_tests, run_inline_pipeline_tests};
 use commonmark_tests::{run_commonmark_tests, run_extra_tests};
 use example_runner::run_example_inspection;
+use benchmark_tests::run_performance_benchmarks;
 
 /// Marco Test Suite - Comprehensive testing for the nom-based Markdown parser
 #[derive(Parser)]
@@ -81,6 +85,15 @@ enum Commands {
         #[arg(short, long)]
         examples: String,
     },
+    /// Run performance benchmarks (parse, render, full pipeline)
+    Benchmark {
+        /// Number of iterations per benchmark (default: 100)
+        #[arg(short, long, default_value_t = 100)]
+        iterations: usize,
+        /// Custom file to benchmark (optional, uses built-in test files if not provided)
+        #[arg(short, long)]
+        file: Option<String>,
+    },
     /// Run all tests
     All,
     /// Show test suite summary
@@ -102,12 +115,15 @@ fn show_summary() {
     println!("  render       - Test HTML renderer (AST → HTML)");
     println!("  lsp          - Test LSP features (highlighting, completion)");
     println!("  commonmark   - Test against CommonMark spec (652 examples)");
+    println!("  benchmark    - Run performance benchmarks (parse, render, pipeline)");
     println!("  summary      - Show this help\n");
     
     println!("COMMANDS WITH OPTIONS:");
     println!("  inline --filter <name>           - Filter inline tests by name");
     println!("  block --filter <name>            - Filter block tests by name");
     println!("  commonmark --section <name>      - Test specific CommonMark section");
+    println!("  benchmark --iterations <n>       - Run benchmarks with n iterations (default: 100)");
+    println!("  benchmark --file <path>          - Benchmark a custom markdown file");
     println!("  inspect -e <nums>                - Inspect specific examples (comma-separated)\n");
     
     println!("USAGE EXAMPLES:");
@@ -122,6 +138,11 @@ fn show_summary() {
     
     println!("  # Test specific CommonMark section");
     println!("  cargo test -p core --test test_suite -- commonmark --section \"Code spans\"\n");
+    
+    println!("  # Run performance benchmarks");
+    println!("  cargo test -p core --test test_suite -- benchmark");
+    println!("  cargo test -p core --test test_suite -- benchmark --iterations 500");
+    println!("  cargo test -p core --test test_suite -- benchmark --file ../README.md  # Use ../ for workspace root\n");
     
     println!("  # Inspect specific examples (NOTE: use -e or --examples flag!)");
     println!("  cargo test -p core --test test_suite -- inspect -e 307,318,654");
@@ -168,6 +189,9 @@ fn main() {
                 .collect();
             
             run_example_inspection(example_numbers);
+        }
+        Some(Commands::Benchmark { iterations, file }) => {
+            run_performance_benchmarks(iterations, file.as_deref());
         }
         Some(Commands::All) => {
             run_inline_tests(None);

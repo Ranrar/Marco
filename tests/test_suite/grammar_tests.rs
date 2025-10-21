@@ -1,6 +1,6 @@
 // Grammar tests: validate nom parsers for block and inline syntax
 
-use core::grammar::{inline, block};
+use core::grammar::{inlines, blocks};
 use super::utils::{Span, print_header, print_section};
 
 pub fn run_inline_tests(filter: Option<String>) {
@@ -15,7 +15,7 @@ pub fn run_inline_tests(filter: Option<String>) {
         print_section("Basic Code Span");
         total += 1;
         let input = Span::new("`foo`");
-        match inline::code_span(input) {
+        match inlines::code_span(input) {
             Ok((remaining, content)) => {
                 if content.fragment() == &"foo" && remaining.fragment() == &"" {
                     println!("  ✓ Basic code span: `foo` → content='foo'");
@@ -37,7 +37,7 @@ pub fn run_inline_tests(filter: Option<String>) {
         print_section("Double Backtick Code Span");
         total += 1;
         let input = Span::new("`` foo ` bar ``");
-        match inline::code_span(input) {
+        match inlines::code_span(input) {
             Ok((remaining, content)) => {
                 if content.fragment() == &" foo ` bar " && remaining.fragment() == &"" {
                     println!("  ✓ Double backticks: `` foo ` bar `` → content=' foo ` bar '");
@@ -59,7 +59,7 @@ pub fn run_inline_tests(filter: Option<String>) {
         print_section("Code Span with Whitespace");
         total += 1;
         let input = Span::new("` b `");
-        match inline::code_span(input) {
+        match inlines::code_span(input) {
             Ok((_remaining, content)) => {
                 if content.fragment() == &" b " {
                     println!("  ✓ Whitespace: ` b ` → content=' b '");
@@ -81,7 +81,7 @@ pub fn run_inline_tests(filter: Option<String>) {
         print_section("Code Span with Triple Backticks");
         total += 1;
         let input = Span::new("` `` `");
-        match inline::code_span(input) {
+        match inlines::code_span(input) {
             Ok((_remaining, content)) => {
                 if content.fragment() == &" `` " {
                     println!("  ✓ Triple backticks: ` `` ` → content=' `` '");
@@ -126,7 +126,7 @@ pub fn run_block_tests(filter: Option<String>) {
             let input_str = format!("{} Test heading", hashes);
             let input = Span::new(&input_str);
             
-            match block::heading(input) {
+            match blocks::heading(input) {
                 Ok((_, (parsed_level, content))) => {
                     if parsed_level == level as u8 && content.fragment().contains("Test heading") {
                         println!("  ✓ Level {}: {} Test heading", level, hashes);
@@ -149,7 +149,7 @@ pub fn run_block_tests(filter: Option<String>) {
         print_section("ATX Heading Trailing Hashes");
         total += 1;
         let input = Span::new("## foo ##");
-        match block::heading(input) {
+        match blocks::heading(input) {
             Ok((_, (level, content))) => {
                 if level == 2 && content.fragment() == &"foo" {
                     println!("  ✓ Trailing hashes removed: '## foo ##' → 'foo'");
@@ -171,7 +171,7 @@ pub fn run_block_tests(filter: Option<String>) {
         print_section("ATX Heading Leading Spaces");
         total += 1;
         let input = Span::new("   # foo");
-        match block::heading(input) {
+        match blocks::heading(input) {
             Ok((_, (level, content))) => {
                 if level == 1 && content.fragment() == &"foo" {
                     println!("  ✓ Leading spaces allowed: '   # foo' → 'foo'");
@@ -193,7 +193,7 @@ pub fn run_block_tests(filter: Option<String>) {
         print_section("ATX Heading Invalid Cases");
         total += 1;
         let input = Span::new("####### foo");
-        match block::heading(input) {
+        match blocks::heading(input) {
             Ok(_) => {
                 println!("  ✗ Seven hashes should fail but succeeded");
                 failed += 1;
@@ -207,7 +207,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Invalid - no space after #
         total += 1;
         let input = Span::new("#5 bolt");
-        match block::heading(input) {
+        match blocks::heading(input) {
             Ok(_) => {
                 println!("  ✗ No space after # should fail but succeeded");
                 failed += 1;
@@ -221,7 +221,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Invalid - 4 spaces (code block)
         total += 1;
         let input = Span::new("    # foo");
-        match block::heading(input) {
+        match blocks::heading(input) {
             Ok(_) => {
                 println!("  ✗ Four leading spaces should fail but succeeded");
                 failed += 1;
@@ -240,7 +240,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Simple paragraph
         total += 1;
         let input = Span::new("aaa");
-        match block::paragraph(input) {
+        match blocks::paragraph(input) {
             Ok((_, content)) => {
                 if content.fragment() == &"aaa" {
                     println!("  ✓ Simple paragraph: 'aaa'");
@@ -259,7 +259,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Multi-line paragraph
         total += 1;
         let input = Span::new("aaa\nbbb");
-        match block::paragraph(input) {
+        match blocks::paragraph(input) {
             Ok((_, content)) => {
                 if content.fragment() == &"aaa\nbbb" {
                     println!("  ✓ Multi-line paragraph: 'aaa\\nbbb'");
@@ -278,7 +278,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Paragraph with blank line terminator
         total += 1;
         let input = Span::new("aaa\n\nbbb");
-        match block::paragraph(input) {
+        match blocks::paragraph(input) {
             Ok((remaining, content)) => {
                 if content.fragment() == &"aaa" && remaining.fragment().starts_with("\n") {
                     println!("  ✓ Paragraph stops at blank line");
@@ -302,7 +302,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Basic backtick code block
         total += 1;
         let input = Span::new("```\ncode\n```\n");
-        match block::fenced_code_block(input) {
+        match blocks::fenced_code_block(input) {
             Ok((_, (language, content))) => {
                 if language.is_none() && content.fragment() == &"code" {
                     println!("  ✓ Basic backtick code block");
@@ -321,7 +321,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Code block with language
         total += 1;
         let input = Span::new("```rust\nfn main() {}\n```\n");
-        match block::fenced_code_block(input) {
+        match blocks::fenced_code_block(input) {
             Ok((_, (language, content))) => {
                 if language == Some("rust".to_string()) && content.fragment().contains("fn main") {
                     println!("  ✓ Code block with language: rust");
@@ -340,7 +340,7 @@ pub fn run_block_tests(filter: Option<String>) {
         // Tilde code block
         total += 1;
         let input = Span::new("~~~\ncode\n~~~\n");
-        match block::fenced_code_block(input) {
+        match blocks::fenced_code_block(input) {
             Ok((_, (_, content))) => {
                 if content.fragment() == &"code" {
                     println!("  ✓ Tilde code block");

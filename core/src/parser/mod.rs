@@ -2,18 +2,21 @@
 // nom-based parser with full UTF-8 support (em dashes, smart quotes, Japanese, Arabic, emoji)
 
 pub mod ast;
-pub mod block_parser;
-pub mod inline_parser;
 pub mod position;
 
+// Modular parser structure
+pub mod blocks;
+pub mod inlines;
+
+// Re-export public API
 pub use ast::*;
-pub use block_parser::*;
-pub use inline_parser::*;
 pub use position::*;
+pub use blocks::parse_blocks;
+pub use inlines::parse_inlines;
 
 use anyhow::Result;
 
-// Parse Markdown text into Document AST
+/// Parse Markdown text into Document AST
 pub fn parse(input: &str) -> Result<Document> {
     log::info!("Starting parse: {} bytes", input.len());
     
