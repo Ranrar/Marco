@@ -27,7 +27,7 @@ use core::logic::{DocumentBuffer, RecentFiles};
 use crate::ui::menu_items::files::FileDialogs;
 use log::trace;
 
-const APP_ID: &str = "com.example.Marco";
+const APP_ID: &str = "io.github.ranrar.Marco";
 
 fn main() -> glib::ExitCode {
     // Very early audit: record entering main (before initialization)
@@ -39,9 +39,9 @@ fn main() -> glib::ExitCode {
         // Attempt to log panic info (may be no logger yet)
         let panic_msg = match info.payload().downcast_ref::<&str>() {
             Some(s) => *s,
-            None => match info.payload().downcast_ref::<String>() {
+            _ => match info.payload().downcast_ref::<String>() {
                 Some(s) => s.as_str(),
-                None => "Unknown panic payload",
+                _ => "Unknown panic payload",
             },
         };
         let location = if let Some(location) = info.location() {
@@ -139,6 +139,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .default_height(800)
         .build();
     window.add_css_class("main-window");
+    
+    // Set window icon (GTK will look for icon named "marco" in the system icon theme)
+    window.set_icon_name(Some("marco"));
 
     // --- Create window first, but defer titlebar creation until after editor ---
     window.add_css_class("main-window");

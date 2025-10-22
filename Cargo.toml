@@ -50,7 +50,7 @@ serial_test = "3.2"
 opt-level = 0
 debug = true
 incremental = true
-overflow-checks = false
+overflow-checks = true
 split-debuginfo = 'unpacked'
 
 [profile.release]

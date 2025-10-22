@@ -8,6 +8,7 @@ Exec=polo %F
 Icon=polo
 Terminal=false
 StartupNotify=true
+StartupWMClass=io.github.ranrar.Polo
 Categories=Office;Viewer;GTK;
 Keywords=markdown;viewer;document;preview;
 MimeType=text/markdown;text/x-markdown;

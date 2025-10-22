@@ -8,6 +8,7 @@ Exec=marco %F
 Icon=marco
 Terminal=false
 StartupNotify=true
+StartupWMClass=io.github.ranrar.Marco
 Categories=Office;TextEditor;GTK;
 Keywords=markdown;editor;text;writing;
 MimeType=text/markdown;text/x-markdown;

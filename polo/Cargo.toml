@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
-license = "MIT License"
+license = "MIT"
+rust-version = "1.90.0"
 
 [dependencies]
 # Core library

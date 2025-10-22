@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
-license = "MIT License"
+license = "MIT"
 default-run = "marco"
+rust-version = "1.90.0"
 
 [features]
 default = []

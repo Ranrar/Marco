@@ -47,7 +47,7 @@ use webkit6::prelude::WebViewExt;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 
-const APP_ID: &str = "com.example.Polo";
+const APP_ID: &str = "io.github.ranrar.Polo";
 
 /// Centralized fatal error handler
 /// 
@@ -252,6 +252,9 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     };
     window.add_css_class(&format!("marco-theme-{}", current_theme_mode));
     log::debug!("Applied theme class: marco-theme-{}", current_theme_mode);
+    
+    // Set window icon (GTK will look for icon named "polo" in the system icon theme)
+    window.set_icon_name(Some("polo"));
     
     // Create WebView for markdown preview
     let webview = webkit6::WebView::new();

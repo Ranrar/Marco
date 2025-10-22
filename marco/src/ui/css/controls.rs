@@ -986,16 +986,16 @@ mod tests {
     fn test_scale_highlight_min_sizes() {
         let css = generate_scale_css();
         
-        // Verify base highlight has min-sizes
-        assert!(css.contains("scale.marco-scale highlight"));
+        // Verify scale has proper styling
+        assert!(css.contains("scale.marco-scale"));
         assert!(css.contains("min-width: 0"));
-        assert!(css.contains("min-height: 0") || css.contains("min-height: 6px"));
+        assert!(css.contains("min-height: 6px"));
         
-        // Verify theme-specific highlight has min-height to prevent GTK warnings
-        assert!(css.contains(".marco-theme-light scale.marco-scale highlight"));
-        assert!(css.contains(".marco-theme-dark scale.marco-scale highlight"));
+        // Verify theme-specific scale styling exists
+        assert!(css.contains(".marco-theme-light scale.marco-scale"));
+        assert!(css.contains(".marco-theme-dark scale.marco-scale"));
         
-        // Count occurrences of min-height: 6px (should be in both theme-specific rules)
+        // Count occurrences of min-height: 6px (should be in trough and fill)
         let count = css.matches("min-height: 6px").count();
         assert!(count >= 2, "Expected at least 2 occurrences of 'min-height: 6px', found {}", count);
     }

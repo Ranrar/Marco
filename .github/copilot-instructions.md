@@ -20,6 +20,28 @@ When facing an issue or problem:
 
 ## Development Workflow
 
+### Rust Toolchain
+Marco uses **Rust 1.90.0** (stable, released September 2025) with the following components:
+- **rustfmt** - Code formatting (`cargo fmt`)
+- **clippy** - Linting and code quality (`cargo clippy`)
+- **rust-src** - Source code for standard library (required for rust-analyzer)
+- **rust-docs** - Standard library documentation (`rustup doc --std`)
+- **llvm-tools** - LLVM utilities for profiling and code coverage
+
+**Toolchain file**: `rust-toolchain.toml` pins the version across all machines
+
+**Development commands**:
+```bash
+cargo fmt                    # Format code
+cargo clippy                 # Run linter
+cargo test --workspace       # Run all tests (546 total)
+cargo doc --workspace --open # Generate & view project docs
+cargo llvm-cov --html --open # Generate code coverage report
+rustup doc                   # View Rust standard library docs
+```
+
+**Code coverage**: Use `cargo llvm-cov` to analyze test coverage. Current coverage: **51.75% line coverage** (grammar/parser/LSP well-covered, UI code at 0% which is normal for GTK apps).
+
 ### Using Logs for Testing
 Marco uses file-based logging as part of the development workflow:
 - **Run the application**: `cargo run -p marco` or `cargo run -p polo`
