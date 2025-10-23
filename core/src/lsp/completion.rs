@@ -47,10 +47,25 @@ pub fn get_completions(position: Position, context: &str) -> Vec<CompletionItem>
     
     // Check context and provide appropriate completions
     
-    // 1. Line start: suggest headings and code blocks
+    // 1. Line start: suggest headings, code blocks, lists, blockquotes, and thematic breaks
     if before_cursor.trim().is_empty() {
         add_heading_completions(&mut completions);
         add_code_block_completions(&mut completions);
+        add_list_completions(&mut completions);
+        add_blockquote_completions(&mut completions);
+        add_thematic_break_completions(&mut completions);
+    }
+    
+    // 1a. After list marker indentation: suggest nested list items
+    let trimmed = before_cursor.trim_start();
+    if trimmed.is_empty() && !before_cursor.is_empty() {
+        // We're at indented position, suggest list items
+        add_list_completions(&mut completions);
+    }
+    
+    // 1b. After '>': suggest blockquote continuation
+    if before_cursor.trim_start().starts_with('>') && before_cursor.trim_end() == before_cursor.trim_start().trim_start_matches('>').trim_start() {
+        add_blockquote_continuation_completions(&mut completions);
     }
     
     // 2. After '#' at line start: suggest more heading levels
@@ -74,6 +89,11 @@ pub fn get_completions(position: Position, context: &str) -> Vec<CompletionItem>
     // 3b. After '<': suggest autolink syntax
     if before_cursor.ends_with('<') && !before_cursor.ends_with("\\<") {
         add_autolink_completions(&mut completions);
+    }
+    
+    // 3c. After '&': suggest entity references
+    if before_cursor.ends_with('&') && !before_cursor.ends_with("\\&") {
+        add_entity_reference_completions(&mut completions);
     }
     
     // 4. After backtick: suggest code span
@@ -258,6 +278,111 @@ fn add_line_break_completions(completions: &mut Vec<CompletionItem>) {
     });
 }
 
+fn add_list_completions(completions: &mut Vec<CompletionItem>) {
+    // Unordered list markers
+    completions.push(CompletionItem {
+        label: "Unordered list item (-)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "- ".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Unordered list item (*)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "* ".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Unordered list item (+)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "+ ".to_string(),
+    });
+    
+    // Ordered list
+    completions.push(CompletionItem {
+        label: "Ordered list item".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "1. ".to_string(),
+    });
+}
+
+fn add_blockquote_completions(completions: &mut Vec<CompletionItem>) {
+    completions.push(CompletionItem {
+        label: "Block quote".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "> ".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Nested block quote".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "> > ".to_string(),
+    });
+}
+
+fn add_blockquote_continuation_completions(completions: &mut Vec<CompletionItem>) {
+    completions.push(CompletionItem {
+        label: "Continue block quote".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "\n> ".to_string(),
+    });
+}
+
+fn add_thematic_break_completions(completions: &mut Vec<CompletionItem>) {
+    completions.push(CompletionItem {
+        label: "Thematic break (---)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "---".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Thematic break (***)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "***".to_string(),
+    });
+    
+    completions.push(CompletionItem {
+        label: "Thematic break (___)".to_string(),
+        kind: CompletionKind::Syntax,
+        insert_text: "___".to_string(),
+    });
+}
+
+fn add_entity_reference_completions(completions: &mut Vec<CompletionItem>) {
+    // Common HTML entities
+    let entities = vec![
+        ("&amp;", "Ampersand (&)"),
+        ("&lt;", "Less than (<)"),
+        ("&gt;", "Greater than (>)"),
+        ("&quot;", "Double quote (\")"),
+        ("&apos;", "Apostrophe (')"),
+        ("&nbsp;", "Non-breaking space"),
+        ("&copy;", "Copyright (©)"),
+        ("&reg;", "Registered (®)"),
+        ("&trade;", "Trademark (™)"),
+        ("&euro;", "Euro (€)"),
+        ("&pound;", "Pound (£)"),
+        ("&yen;", "Yen (¥)"),
+        ("&cent;", "Cent (¢)"),
+        ("&sect;", "Section (§)"),
+        ("&para;", "Paragraph (¶)"),
+        ("&dagger;", "Dagger (†)"),
+        ("&Dagger;", "Double dagger (‡)"),
+        ("&bull;", "Bullet (•)"),
+        ("&hellip;", "Ellipsis (…)"),
+        ("&mdash;", "Em dash (—)"),
+        ("&ndash;", "En dash (–)"),
+    ];
+    
+    for (entity, description) in entities {
+        completions.push(CompletionItem {
+            label: format!("{} - {}", entity, description),
+            kind: CompletionKind::Syntax,
+            insert_text: entity[1..].to_string(), // Remove leading '&' since it's already typed
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -396,5 +521,65 @@ mod tests {
         assert!(completions.iter().any(|c| c.label.contains("Hard line break")));
         assert!(completions.iter().any(|c| c.insert_text.contains("  \n")));
         assert!(completions.iter().any(|c| c.insert_text.contains("\\\n")));
+    }
+    
+    #[test]
+    fn smoke_test_list_completions() {
+        let context = "";
+        let position = Position::new(0, 0, 0); // At line start
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest list items at line start
+        assert!(completions.iter().any(|c| c.label.contains("Unordered list item (-)")));
+        assert!(completions.iter().any(|c| c.label.contains("Unordered list item (*)")));
+        assert!(completions.iter().any(|c| c.label.contains("Unordered list item (+)")));
+        assert!(completions.iter().any(|c| c.label.contains("Ordered list item")));
+        assert!(completions.iter().any(|c| c.insert_text == "- "));
+        assert!(completions.iter().any(|c| c.insert_text == "1. "));
+    }
+    
+    #[test]
+    fn smoke_test_blockquote_completions() {
+        let context = "";
+        let position = Position::new(0, 0, 0); // At line start
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest block quote at line start
+        assert!(completions.iter().any(|c| c.label.contains("Block quote")));
+        assert!(completions.iter().any(|c| c.insert_text == "> "));
+    }
+    
+    #[test]
+    fn smoke_test_thematic_break_completions() {
+        let context = "";
+        let position = Position::new(0, 0, 0); // At line start
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest thematic breaks at line start
+        assert!(completions.iter().any(|c| c.label.contains("Thematic break (---)")));
+        assert!(completions.iter().any(|c| c.label.contains("Thematic break (***)")));
+        assert!(completions.iter().any(|c| c.label.contains("Thematic break (___)")));
+        assert!(completions.iter().any(|c| c.insert_text == "---"));
+    }
+    
+    #[test]
+    fn smoke_test_entity_reference_completions() {
+        let context = "Some text &";
+        let position = Position::new(0, 11, 11); // After '&'
+        
+        let completions = get_completions(position, context);
+        
+        // Should suggest HTML entities
+        assert!(completions.iter().any(|c| c.label.contains("&amp;")));
+        assert!(completions.iter().any(|c| c.label.contains("&lt;")));
+        assert!(completions.iter().any(|c| c.label.contains("&gt;")));
+        assert!(completions.iter().any(|c| c.label.contains("&quot;")));
+        assert!(completions.iter().any(|c| c.label.contains("&copy;")));
+        // Insert text should not include the leading & (already typed)
+        assert!(completions.iter().any(|c| c.insert_text == "amp;"));
+        assert!(completions.iter().any(|c| c.insert_text == "lt;"));
     }
 }

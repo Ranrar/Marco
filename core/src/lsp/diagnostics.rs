@@ -195,6 +195,121 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     message: "Hard line break: Use sparingly for better text flow".to_string(),
                 });
             }
+            NodeKind::List { ordered, tight, .. } => {
+                // Check for list formatting issues
+                
+                // Warn about loose lists (can affect rendering)
+                if !tight {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Hint,
+                        message: "Loose list: Contains blank lines between items".to_string(),
+                    });
+                }
+                
+                // Check for inconsistent list markers in children
+                let list_items: Vec<&Node> = node.children.iter()
+                    .filter(|child| matches!(child.kind, NodeKind::ListItem))
+                    .collect();
+                
+                if list_items.len() > 1 {
+                    // For ordered lists, check if numbering is consistent
+                    if *ordered {
+                        // Hint: consider using sequential numbering
+                        diagnostics.push(Diagnostic {
+                            span: *span,
+                            severity: DiagnosticSeverity::Hint,
+                            message: "Ordered list: Ensure numbering is sequential for clarity".to_string(),
+                        });
+                    }
+                }
+                
+                // Warn about empty lists
+                if node.children.is_empty() {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "Empty list".to_string(),
+                    });
+                }
+            }
+            NodeKind::ListItem => {
+                // Check for empty list items
+                if node.children.is_empty() {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Info,
+                        message: "Empty list item".to_string(),
+                    });
+                }
+            }
+            NodeKind::HtmlBlock { html } => {
+                // Security and quality checks for HTML blocks
+                let lower_html = html.to_lowercase();
+                
+                // Warn about potentially unsafe HTML
+                if lower_html.contains("<script") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "HTML block contains <script> tag (potential security risk)".to_string(),
+                    });
+                }
+                
+                if lower_html.contains("javascript:") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "HTML block contains javascript: protocol (potential security risk)".to_string(),
+                    });
+                }
+                
+                if lower_html.contains("onclick") || lower_html.contains("onerror") || lower_html.contains("onload") {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "HTML block contains inline event handlers (potential security risk)".to_string(),
+                    });
+                }
+                
+                // Check for unclosed tags (basic check)
+                let open_tags = html.matches('<').count();
+                let close_tags = html.matches('>').count();
+                if open_tags != close_tags {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Info,
+                        message: "HTML block may have mismatched or unclosed tags".to_string(),
+                    });
+                }
+                
+                // Warn about empty HTML blocks
+                if html.trim().is_empty() {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Info,
+                        message: "Empty HTML block".to_string(),
+                    });
+                }
+            }
+            NodeKind::Blockquote => {
+                // Check for empty blockquotes
+                if node.children.is_empty() {
+                    diagnostics.push(Diagnostic {
+                        span: *span,
+                        severity: DiagnosticSeverity::Warning,
+                        message: "Empty block quote".to_string(),
+                    });
+                }
+            }
+            NodeKind::ThematicBreak => {
+                // Hint: thematic breaks create visual separation
+                diagnostics.push(Diagnostic {
+                    span: *span,
+                    severity: DiagnosticSeverity::Hint,
+                    message: "Thematic break: Creates a horizontal rule for section separation".to_string(),
+                });
+            }
             _ => {
                 // No specific diagnostics for other node types
             }
@@ -506,5 +621,136 @@ mod tests {
         assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Hint);
         assert!(diagnostics[0].message.contains("Hard line break"));
     }
+    
+    #[test]
+    fn smoke_test_list_item_diagnostics() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::List {
+                        ordered: false,
+                        start: None,
+                        tight: false,  // Loose list
+                    },
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 5, column: 10, offset: 30 },
+                    }),
+                    children: vec![
+                        Node {
+                            kind: NodeKind::ListItem,
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 10, offset: 9 },
+                            }),
+                            children: vec![],  // Empty list item
+                        },
+                        Node {
+                            kind: NodeKind::ListItem,
+                            span: Some(Span {
+                                start: Position { line: 3, column: 1, offset: 11 },
+                                end: Position { line: 3, column: 10, offset: 20 },
+                            }),
+                            children: vec![
+                                Node {
+                                    kind: NodeKind::Paragraph,
+                                    span: None,
+                                    children: vec![],
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+            ..Default::default()
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        // Should have hints about loose list and info about empty item
+        assert!(diagnostics.iter().any(|d| d.message.contains("Loose list")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("Empty list item")));
+    }
+    
+    #[test]
+    fn smoke_test_html_block_diagnostics() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::HtmlBlock {
+                        html: "<div onclick=\"alert('xss')\"><script>bad()</script></div>".to_string(),
+                    },
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 1, column: 57, offset: 56 },
+                    }),
+                    children: vec![],
+                },
+                Node {
+                    kind: NodeKind::HtmlBlock {
+                        html: "".to_string(),  // Empty HTML block
+                    },
+                    span: Some(Span {
+                        start: Position { line: 3, column: 1, offset: 58 },
+                        end: Position { line: 3, column: 1, offset: 58 },
+                    }),
+                    children: vec![],
+                },
+            ],
+            ..Default::default()
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        // Should warn about script tag and inline event handlers
+        assert!(diagnostics.iter().any(|d| d.message.contains("script")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("event handlers")));
+        assert!(diagnostics.iter().any(|d| d.message.contains("Empty HTML block")));
+    }
+    
+    #[test]
+    fn smoke_test_blockquote_empty_diagnostic() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Blockquote,
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 1, column: 2, offset: 1 },
+                    }),
+                    children: vec![],  // Empty blockquote
+                },
+            ],
+            ..Default::default()
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Warning);
+        assert!(diagnostics[0].message.contains("Empty block quote"));
+    }
+    
+    #[test]
+    fn smoke_test_thematic_break_diagnostic() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::ThematicBreak,
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 1, column: 4, offset: 3 },
+                    }),
+                    children: vec![],
+                },
+            ],
+            ..Default::default()
+        };
+        
+        let diagnostics = compute_diagnostics(&doc);
+        
+        assert_eq!(diagnostics.len(), 1);
+        assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Hint);
+        assert!(diagnostics[0].message.contains("Thematic break"));
+    }
 }
-

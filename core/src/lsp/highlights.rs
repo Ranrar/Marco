@@ -25,6 +25,11 @@ pub enum HighlightTag {
     InlineHtml,
     HardBreak,
     SoftBreak,
+    ThematicBreak,
+    Blockquote,
+    HtmlBlock,
+    List,
+    ListItem,
 }
 
 // Generate highlights from AST by walking all nodes
@@ -114,6 +119,36 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                 highlights.push(Highlight {
                     span: *span,
                     tag: HighlightTag::SoftBreak,
+                });
+            }
+            NodeKind::ThematicBreak => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::ThematicBreak,
+                });
+            }
+            NodeKind::Blockquote => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Blockquote,
+                });
+            }
+            NodeKind::HtmlBlock { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::HtmlBlock,
+                });
+            }
+            NodeKind::List { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::List,
+                });
+            }
+            NodeKind::ListItem => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::ListItem,
                 });
             }
             NodeKind::Text(_) | NodeKind::Paragraph => {
@@ -428,5 +463,125 @@ mod tests {
         
         assert_eq!(highlights.len(), 1);
         assert_eq!(highlights[0].tag, HighlightTag::SoftBreak);
+    }
+    
+    #[test]
+    fn smoke_test_thematic_break_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::ThematicBreak,
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 1, column: 4, offset: 3 },
+                    }),
+                    children: vec![],
+                },
+            ],
+        ..Default::default()
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::ThematicBreak);
+    }
+    
+    #[test]
+    fn smoke_test_blockquote_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Blockquote,
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 2, column: 15, offset: 30 },
+                    }),
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Paragraph,
+                            span: None,
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        ..Default::default()
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::Blockquote);
+    }
+    
+    #[test]
+    fn smoke_test_html_block_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::HtmlBlock {
+                        html: "<div>content</div>".to_string(),
+                    },
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 1, column: 19, offset: 18 },
+                    }),
+                    children: vec![],
+                },
+            ],
+        ..Default::default()
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        assert_eq!(highlights.len(), 1);
+        assert_eq!(highlights[0].tag, HighlightTag::HtmlBlock);
+    }
+    
+    #[test]
+    fn smoke_test_list_highlights() {
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::List {
+                        ordered: false,
+                        start: None,
+                        tight: true,
+                    },
+                    span: Some(Span {
+                        start: Position { line: 1, column: 1, offset: 0 },
+                        end: Position { line: 3, column: 10, offset: 25 },
+                    }),
+                    children: vec![
+                        Node {
+                            kind: NodeKind::ListItem,
+                            span: Some(Span {
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 8, offset: 7 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::ListItem,
+                            span: Some(Span {
+                                start: Position { line: 2, column: 1, offset: 8 },
+                                end: Position { line: 2, column: 8, offset: 15 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                },
+            ],
+        ..Default::default()
+        };
+        
+        let highlights = compute_highlights(&doc);
+        
+        // Should highlight 1 list + 2 list items
+        assert_eq!(highlights.len(), 3);
+        assert_eq!(highlights[0].tag, HighlightTag::List);
+        assert_eq!(highlights[1].tag, HighlightTag::ListItem);
+        assert_eq!(highlights[2].tag, HighlightTag::ListItem);
     }
 }
