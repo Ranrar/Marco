@@ -103,7 +103,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                         line_wrapping: editor.line_wrapping.unwrap_or(false),
                         show_invisibles: editor.show_invisibles.unwrap_or(false),
                         tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                        syntax_colors: editor.syntax_colors.unwrap_or(true),
                         show_line_numbers: settings
                             .layout
                             .as_ref()
@@ -179,7 +178,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 line_wrapping: editor.line_wrapping.unwrap_or(false),
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
                 show_line_numbers: settings
                     .layout
                     .as_ref()
@@ -255,7 +253,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 line_wrapping: editor.line_wrapping.unwrap_or(false),
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
                 show_line_numbers: settings
                     .layout
                     .as_ref()
@@ -331,7 +328,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 line_wrapping: enabled,
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
                 show_line_numbers: settings
                     .layout
                     .as_ref()
@@ -422,7 +418,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 line_wrapping: editor.line_wrapping.unwrap_or(false),
                 show_invisibles: enabled,
                 tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
                 show_line_numbers: settings
                     .layout
                     .as_ref()
@@ -500,7 +495,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 line_wrapping: editor.line_wrapping.unwrap_or(false),
                 show_invisibles: editor.show_invisibles.unwrap_or(false),
                 tabs_to_spaces: enabled,
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
                 show_line_numbers: settings
                     .layout
                     .as_ref()
@@ -530,84 +524,6 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         false  // Not first row
     );
     container.append(&tabs_to_spaces_row);
-
-    // Syntax Colors (Toggle)
-    let syntax_colors_switch = Switch::new();
-    syntax_colors_switch.add_css_class("marco-switch");
-
-    // Load current syntax colors setting from SettingsManager
-    let current_syntax_colors = if let Some(ref settings_manager) = settings_manager_opt {
-        let settings = settings_manager.get_settings();
-        settings.editor
-            .and_then(|e| e.syntax_colors)
-            .unwrap_or(true)
-    } else {
-        true
-    };
-    syntax_colors_switch.set_active(current_syntax_colors);
-
-    // Wire to save setting when toggled
-    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
-        syntax_colors_switch.connect_state_set(move |_switch, state| {
-            let enabled = state;
-            debug!("Syntax colors changed to: {}", enabled);
-
-            // Update syntax colors setting using SettingsManager
-            if let Err(e) = settings_manager_clone.update_settings(|settings| {
-                // Ensure editor settings exist
-                if settings.editor.is_none() {
-                    settings.editor = Some(core::logic::swanson::EditorSettings::default());
-                }
-
-                // Update syntax colors setting
-                if let Some(ref mut editor) = settings.editor {
-                    editor.syntax_colors = Some(enabled);
-                }
-            }) {
-                error!("Failed to save syntax colors setting: {}", e);
-                return glib::Propagation::Proceed;
-            }
-
-            // Get updated settings for runtime update
-            let settings = settings_manager_clone.get_settings();
-            let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: editor.font_size.unwrap_or(14),
-                line_height: editor.line_height.unwrap_or(1.4),
-                line_wrapping: editor.line_wrapping.unwrap_or(false),
-                show_invisibles: editor.show_invisibles.unwrap_or(false),
-                tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: enabled,
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
-
-            if let Err(e) =
-                crate::components::editor::editor_manager::update_editor_settings_globally(
-                    &editor_settings,
-                )
-            {
-                error!("Failed to update syntax colors settings globally: {}", e);
-            } else {
-                debug!("Successfully updated syntax colors settings globally");
-            }
-
-            glib::Propagation::Proceed
-        });
-    }
-
-    // Create syntax colors row using unified helper
-    let syntax_colors_row = add_setting_row(
-        "Syntax Colors",
-        "Enable or disable syntax-based color highlighting for Markdown.",
-        &syntax_colors_switch,
-        false  // Not first row
-    );
-    container.append(&syntax_colors_row);
 
     // Enable Markdown Linting (Toggle)
     let linting_switch = Switch::new();

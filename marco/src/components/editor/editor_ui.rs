@@ -16,26 +16,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
 
-// === LSP Infrastructure (for future implementation) ===
-// This structure will hold LSP-related state for the editor
-#[allow(dead_code)]
-struct LspState {
-    // Placeholder for future LSP client connection
-    // Will be used for:
-    // - Syntax highlighting updates
-    // - Diagnostics (errors/warnings)
-    // - Code completion
-    // - Hover information
-}
-
-impl LspState {
-    #[allow(dead_code)]
-    fn new() -> Self {
-        Self {}
-    }
-}
-
-
 pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
     preview_theme_dir: &str,
@@ -195,11 +175,6 @@ pub fn create_editor_with_preview_and_buffer(
                         sourceview5::SpaceTypeFlags::NONE,
                     );
                     space_drawer.set_enable_matrix(false);
-                }
-                
-                // Apply syntax highlighting setting
-                if let Ok(buffer) = source_view_for_callback.buffer().downcast::<sourceview5::Buffer>() {
-                    buffer.set_highlight_syntax(new_settings.syntax_colors);
                 }
                 
                 log::debug!("Successfully applied editor settings to SourceView: {} {}px", 

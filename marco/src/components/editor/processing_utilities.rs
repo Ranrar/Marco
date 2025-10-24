@@ -3,8 +3,7 @@
 //! Background processing for editor extensions as per optimization spec:
 //! - Line wrapping
 //! - Tab to spaces conversion
-//! - Syntax coloring (🔄 NOT DONE YET)
-//! - Marco-specific extensions (🔄 NOT DONE YET: @run, [toc], [Page])
+//! - Marco-specific extensions (@run, [toc], [Page])
 //! - Auto-pairing (📋 FUTURE)
 //! - Markdown linting (📋 FUTURE)
 //!
@@ -27,7 +26,7 @@ pub struct ExtensionResult {
 
 /// Simple extension manager with async processing
 pub struct AsyncExtensionManager {
-    /// Enabled extensions (line_wrapping, tab_to_spaces, syntax_coloring, marco_extensions)
+    /// Enabled extensions (line_wrapping, tab_to_spaces, marco_extensions)
     enabled_extensions: HashMap<String, bool>,
 }
 
@@ -38,8 +37,7 @@ impl AsyncExtensionManager {
         let mut enabled_extensions = HashMap::new();
         enabled_extensions.insert("line_wrapping".to_string(), true);
         enabled_extensions.insert("tab_to_spaces".to_string(), true);
-        enabled_extensions.insert("syntax_coloring".to_string(), false); // Not implemented yet
-        enabled_extensions.insert("marco_extensions".to_string(), true); // Now implemented!
+        enabled_extensions.insert("marco_extensions".to_string(), true);
 
         Ok(Self {
             enabled_extensions,
@@ -48,7 +46,7 @@ impl AsyncExtensionManager {
 
     /// Process extensions in parallel using lightweight vs heavyweight thread pools
     /// Lightweight: tab_to_spaces, line_wrapping (shared pool)
-    /// Heavyweight: marco_extensions, syntax_coloring (dedicated pool)
+    /// Heavyweight: marco_extensions (dedicated pool)
     pub fn process_extensions_parallel<F>(
         &self,
         content: String,
@@ -72,7 +70,7 @@ impl AsyncExtensionManager {
                     "line_wrapping" | "tab_to_spaces" | "auto_pairing" => {
                         lightweight_extensions.push(extension_name.clone());
                     }
-                    "marco_extensions" | "syntax_coloring" | "markdown_linting" => {
+                    "marco_extensions" | "markdown_linting" => {
                         heavyweight_extensions.push(extension_name.clone());
                     }
                     _ => {
@@ -170,7 +168,6 @@ impl AsyncExtensionManager {
                         let start_time = Instant::now();
                         let (processed_content, success, error_message) = match extension_name.as_str() {
                             "marco_extensions" => Self::process_marco_extensions(&content_for_heavyweight, cursor_position),
-                            "syntax_coloring" => Self::process_syntax_coloring(&content_for_heavyweight, cursor_position),
                             "markdown_linting" => Self::process_markdown_linting(&content_for_heavyweight, cursor_position),
                             _ => (content_for_heavyweight.clone(), false, Some("Unknown heavyweight extension".to_string())),
                         };
@@ -317,12 +314,6 @@ impl AsyncExtensionManager {
         (converted, true, None)
     }
 
-    /// Process syntax coloring (🔄 NOT DONE YET as per spec)
-    fn process_syntax_coloring(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
-        // Not implemented yet - return original content
-        (content.to_string(), false, Some("Not implemented yet".to_string()))
-    }
-
     /// Process Marco extensions (@run, [toc], [Page]) - Now implemented!
     fn process_marco_extensions(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
         // Use the cached parsing for better performance with new parser API
@@ -450,9 +441,6 @@ mod tests {
         assert!(manager.enabled_extensions.get("line_wrapping").copied().unwrap_or(false));
         assert!(manager.enabled_extensions.get("tab_to_spaces").copied().unwrap_or(false));
         assert!(manager.enabled_extensions.get("marco_extensions").copied().unwrap_or(false));
-        
-        // Syntax coloring should be disabled (not implemented yet)
-        assert!(!manager.enabled_extensions.get("syntax_coloring").copied().unwrap_or(true));
     }
 
     #[test]
