@@ -152,8 +152,8 @@ pub fn run_performance_benchmarks(iterations: usize, custom_file: Option<&str>) 
     
     // Test documents
     let small_doc = "# Hello World\n\nThis is a **simple** document with *emphasis* and a [link](url).";
-    let medium_doc = include_str!("markdown_showcase/benchmark/medium_document.md");
-    let large_doc = include_str!("markdown_showcase/benchmark/large_document.md");
+    let medium_doc = include_str!("benchmark/medium_document.md");
+    let large_doc = include_str!("benchmark/large_document.md");
     
     let (small_parse, small_render, small_full) = benchmark_document(small_doc, "Small Document", iterations);
     let (medium_parse, medium_render, medium_full) = benchmark_document(medium_doc, "Medium Document", iterations);

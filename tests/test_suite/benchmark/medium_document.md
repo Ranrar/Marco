@@ -1,4 +1,4 @@
-# Medium Document
+# Medium Document.
 
 This is a medium-sized markdown document for performance testing.
 
