@@ -15,8 +15,8 @@ use nom::{
     combinator::{opt, recognize},
     multi::many1_count,
     character::complete::line_ending,
+    Slice,
 };
-use nom_locate::LocatedSpan;
 
 /// Parse an ATX heading (1-6 # characters)
 /// 
@@ -67,7 +67,7 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
         return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
     }
     
-    // Consume whitespace (but not newlines)
+        // Consume whitespace (but not newlines)
     let (input, _) = take_while(|c| c == ' ' || c == '\t')(input)?;
     
     // 4. Parse content until end of line
@@ -78,7 +78,7 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
     let trimmed = content_str.trim_end();
     
     // Remove trailing hashes if they're preceded by a space
-    let final_content = if let Some(hash_pos) = trimmed.rfind(|c: char| c != '#' && c != ' ') {
+    let final_content_str = if let Some(hash_pos) = trimmed.rfind(|c: char| c != '#' && c != ' ') {
         let after_content = &trimmed[hash_pos + 1..];
         // If everything after is spaces and hashes, remove them
         if after_content.chars().all(|c| c == ' ' || c == '#') {
@@ -92,13 +92,16 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
         ""
     };
     
-    // Create a span for the final content
-    let content_span = LocatedSpan::new(final_content);
+    // Slice the original content span to maintain position information
+    // CRITICAL: Do NOT use LocatedSpan::new() as it resets position to 0:0
+    // Instead, slice the original span to preserve line/column/offset
+    let content_len = final_content_str.len();
+    let content_span = content.slice(..content_len);
     
     // Consume the newline if present
     let (remaining, _) = opt(line_ending)(input)?;
     
-    log::debug!("Parsed heading level {}: {:?}", level, final_content);
+    log::debug!("Parsed heading level {}: {:?}", level, final_content_str);
     Ok((remaining, (level as u8, content_span)))
 }
 

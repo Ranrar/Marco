@@ -108,7 +108,8 @@ mod tests {
         assert!(node.span.is_some(), "Code span should have position info");
         
         let span = node.span.unwrap();
-        assert_eq!(span.start.offset, 0);
+        // Code span content starts after opening backtick at position 1
+        assert_eq!(span.start.offset, 1);
         assert!(span.end.offset > span.start.offset);
     }
 }

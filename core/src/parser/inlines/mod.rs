@@ -38,12 +38,13 @@ use nom::bytes::complete::take;
 use anyhow::Result;
 
 /// Parse inline elements within text content
+/// Takes a GrammarSpan to preserve position information
 /// Returns a vector of inline nodes (Text, Emphasis, Strong, Link, CodeSpan)
-pub fn parse_inlines(text: &str) -> Result<Vec<Node>> {
-    log::debug!("Parsing inline elements in text: {:?}", text);
+pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
+    log::debug!("Parsing inline elements in span at line {}: {:?}", span.location_line(), span.fragment());
     
     let mut nodes = Vec::new();
-    let mut remaining = GrammarSpan::new(text);
+    let mut remaining = span;
     
     // Safety: prevent infinite loops
     const MAX_ITERATIONS: usize = 1000;
@@ -167,5 +168,12 @@ pub fn parse_inlines(text: &str) -> Result<Vec<Node>> {
     
     log::debug!("Parsed {} inline nodes", nodes.len());
     Ok(nodes)
+}
+
+/// Parse inline elements within text content (backward compatibility wrapper)
+/// Creates a new span at position 0:0 - USE parse_inlines_from_span() for position-aware parsing
+/// Returns a vector of inline nodes (Text, Emphasis, Strong, Link, CodeSpan)
+pub fn parse_inlines(text: &str) -> Result<Vec<Node>> {
+    parse_inlines_from_span(GrammarSpan::new(text))
 }
 

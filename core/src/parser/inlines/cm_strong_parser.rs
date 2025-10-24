@@ -30,8 +30,8 @@ pub fn parse_strong(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         Position::new(rest.location_line() as usize, rest.get_column(), rest.location_offset()),
     );
     
-    // Recursively parse inline elements within strong text
-    let children = match crate::parser::inlines::parse_inlines(content.fragment()) {
+    // Recursively parse inline elements within strong text preserving position
+    let children = match crate::parser::inlines::parse_inlines_from_span(content) {
         Ok(children) => children,
         Err(e) => {
             log::warn!("Failed to parse strong children: {}", e);

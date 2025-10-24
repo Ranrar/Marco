@@ -24,8 +24,9 @@ pub fn parse_link(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     
     let span = to_parser_span(link_text);
     
-    // Recursively parse inline elements within link text
-    let children = match crate::parser::inlines::parse_inlines(link_text.fragment()) {
+    // Parse inline content within link text preserving position
+    // Use the span directly instead of fragment() to maintain position context
+    let children = match crate::parser::inlines::parse_inlines_from_span(link_text) {
         Ok(children) => children,
         Err(e) => {
             log::warn!("Failed to parse link text children: {}", e);
@@ -125,7 +126,8 @@ mod tests {
         assert!(node.span.is_some(), "Link should have position info");
         
         let span = node.span.unwrap();
-        assert_eq!(span.start.offset, 0);
+        // Link text starts after '[' at position 1
+        assert_eq!(span.start.offset, 1);
         assert!(span.end.offset > span.start.offset);
     }
 }

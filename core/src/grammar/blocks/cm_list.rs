@@ -273,9 +273,8 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                     let next_indent = count_indentation(next_line);
                     
                     if next_indent < 4 {
-                        use nom_locate::LocatedSpan;
-                        let next_span = LocatedSpan::new(*remaining.fragment());
-                        if detect_list_marker(next_span).is_ok() {
+                        // CRITICAL: Use remaining directly to preserve position
+                        if detect_list_marker(remaining).is_ok() {
                             // Next line is a new marker, this is an empty item
                             break;
                         }
@@ -330,8 +329,8 @@ pub fn list_item(input: Span, expected_marker_type: Option<ListMarker>) -> IResu
                 // If next line is a list marker or HTML comment, stop before this blank line
                 let next_line_indent = count_indentation(next_line);
                 if next_line_indent < 4 {
-                    use nom_locate::LocatedSpan;
-                    let next_line_span = LocatedSpan::new(after_blank);
+                    // CRITICAL: Use slice to preserve position information
+                    let next_line_span = remaining.slice(skip_len..);
                     if detect_list_marker(next_line_span).is_ok() {
                         break;
                     }

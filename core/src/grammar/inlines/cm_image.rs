@@ -1,10 +1,10 @@
 //! Image grammar - ![alt](url "title")
-use nom::{IResult};
-use nom_locate::LocatedSpan;
+use nom::{IResult, Slice};
 use super::Span;
 
 pub fn image(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
     log::debug!("Parsing image at: {:?}", input.fragment());
+    let start_input = input;
     let content_str = input.fragment();
     if !content_str.starts_with("![") {
         return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
@@ -12,8 +12,8 @@ pub fn image(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
     let bracket_pos = content_str[2..].find(']')
         .ok_or_else(|| nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))?;
     let absolute_bracket_pos = 2 + bracket_pos;
-    let alt_text_str = &content_str[2..absolute_bracket_pos];
-    let alt_text = LocatedSpan::new(alt_text_str);
+    // Slice to preserve position
+    let alt_text = start_input.slice(2..absolute_bracket_pos);
     let after_bracket = absolute_bracket_pos + 1;
     if after_bracket >= content_str.len() || content_str.as_bytes()[after_bracket] != b'(' {
         return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
@@ -40,24 +40,29 @@ pub fn image(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
         nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
     })?;
     let url_and_title = &remaining_for_url[..paren_pos];
-    let (url_str, title_opt) = if let Some((title_start, title_end)) = title_range {
+    let (url_start_in_content, url_end_in_content, title_opt) = if let Some((title_start, title_end)) = title_range {
         if title_end > url_and_title.len() {
-            (url_and_title.trim(), None)
+            let url_trimmed = url_and_title.trim();
+            let url_offset = url_and_title.len() - url_and_title.trim_start().len();
+            (url_start + url_offset, url_start + url_offset + url_trimmed.len(), None)
         } else {
             let url_end = url_and_title.rfind(" \"").unwrap_or(url_and_title.len());
             let url_part = url_and_title.get(..url_end).map(|s| s.trim()).unwrap_or("");
-            let title_part = url_and_title.get(title_start..title_end).unwrap_or("");
-            (url_part, Some(LocatedSpan::new(title_part)))
+            let url_offset = url_and_title.len() - url_and_title.trim_start().len();
+            let title_span = start_input.slice((url_start + title_start)..(url_start + title_end));
+            (url_start + url_offset, url_start + url_offset + url_part.len(), Some(title_span))
         }
     } else {
-        (url_and_title.trim(), None)
+        let url_trimmed = url_and_title.trim();
+        let url_offset = url_and_title.len() - url_and_title.trim_start().len();
+        (url_start + url_offset, url_start + url_offset + url_trimmed.len(), None)
     };
-    let url = LocatedSpan::new(url_str);
+    let url = start_input.slice(url_start_in_content..url_end_in_content);
     let remaining_pos = url_start + paren_pos + 1;
     let remaining = if remaining_pos < content_str.len() {
-        LocatedSpan::new(&content_str[remaining_pos..])
+        start_input.slice(remaining_pos..)
     } else {
-        LocatedSpan::new("")
+        start_input.slice(content_str.len()..)
     };
     Ok((remaining, (alt_text, url, title_opt)))
 }

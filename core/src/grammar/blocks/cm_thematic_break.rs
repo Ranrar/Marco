@@ -9,7 +9,7 @@
 
 use crate::grammar::shared::Span;
 use nom::{
-    IResult,
+    IResult, Slice,
     bytes::complete::take_while,
     combinator::{recognize, eof},
     branch::alt,
@@ -80,7 +80,12 @@ pub fn thematic_break(input: Span) -> IResult<Span, Span> {
     
     log::debug!("Thematic break parsed: {} matching '{}' chars", char_count, first_char);
     
-    Ok((remaining, LocatedSpan::new("---")))
+    // Calculate the span of the thematic break (from start to before newline/EOF)
+    // Use slice to preserve position information
+    let break_len = start.location_offset() + start.fragment().len() - remaining.location_offset();
+    let break_span = start.slice(..break_len);
+    
+    Ok((remaining, break_span))
 }
 
 #[cfg(test)]

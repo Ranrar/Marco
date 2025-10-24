@@ -31,8 +31,8 @@ pub fn parse_emphasis(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     );
     
     // Recursively parse inline elements within emphasis text
-    // Note: We need to use the public parse_inlines function from inline_parser
-    let children = match crate::parser::inlines::parse_inlines(content.fragment()) {
+    // Parse inline content within emphasis preserving position
+    let children = match crate::parser::inlines::parse_inlines_from_span(content) {
         Ok(children) => children,
         Err(e) => {
             log::warn!("Failed to parse emphasis children: {}", e);

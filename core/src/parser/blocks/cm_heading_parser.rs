@@ -15,6 +15,11 @@ use super::shared::{to_parser_span, GrammarSpan};
 /// # Returns
 /// A Node with NodeKind::Heading
 ///
+/// # Note
+/// The span includes only the heading text content, not the # markers.
+/// For full-line highlighting including markers, the LSP layer should use
+/// the full line span.
+///
 /// # Example
 /// ```ignore
 /// let content = GrammarSpan::new("Hello World");

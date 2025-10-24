@@ -30,8 +30,8 @@ use super::shared::{to_parser_span, GrammarSpan};
 pub fn parse_paragraph(content: GrammarSpan) -> Node {
     let span = to_parser_span(content);
     
-    // Parse inline elements within paragraph text
-    let inline_children = match crate::parser::inlines::parse_inlines(content.fragment()) {
+    // Parse inline elements within paragraph text, preserving position
+    let inline_children = match crate::parser::inlines::parse_inlines_from_span(content) {
         Ok(children) => children,
         Err(e) => {
             log::warn!("Failed to parse inline elements: {}", e);

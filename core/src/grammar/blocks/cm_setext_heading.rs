@@ -17,8 +17,8 @@ use nom::{
     combinator::recognize,
     branch::alt,
     character::complete::line_ending,
+    Slice,
 };
-use nom_locate::LocatedSpan;
 
 // Forward declare link_reference_definition from parent module
 use crate::grammar::blocks::cm_link_reference::link_reference_definition;
@@ -166,12 +166,11 @@ pub fn setext_heading(input: Span) -> IResult<Span, (u8, Span)> {
                     // This is a valid setext heading!
                     let level = if first_char == '=' { 1 } else { 2 };
                     
-                    // Extract content from original input
+                    // Extract content from original input - use slice to preserve position
                     let content_len = content_end_offset - start_offset;
-                    let content_str = &start.fragment()[..content_len];
-                    let content_span = LocatedSpan::new(content_str);
+                    let content_span = start.slice(..content_len);
                     
-                    log::debug!("Setext heading parsed: level={}, text={:?}", level, content_str);
+                    log::debug!("Setext heading parsed: level={}, text={:?}", level, content_span.fragment());
                     
                     return Ok((remaining, (level, content_span)));
                 }

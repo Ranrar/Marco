@@ -9,8 +9,8 @@ use nom::{
     character::complete::char,
     multi::many1_count,
     combinator::recognize,
+    Slice,
 };
-use nom_locate::LocatedSpan;
 use super::Span;
 
 /// Parse a code span (inline code).
@@ -52,8 +52,9 @@ pub fn code_span(input: Span) -> IResult<Span, Span> {
             
             // If we found exactly the right number, this is our closing delimiter
             if tick_count == backtick_count {
-                let content = LocatedSpan::new(&content_str[..pos]);
-                let remaining = LocatedSpan::new(&content_str[check_pos..]);
+                // Slice to preserve position - content starts after opening backticks
+                let content = input.slice(..pos);
+                let remaining = input.slice(check_pos..);
                 log::debug!("Code span content: {:?}", content.fragment());
                 return Ok((remaining, content));
             }

@@ -9,6 +9,7 @@ pub mod lsp_tests;
 pub mod commonmark_tests;
 pub mod integration_tests;
 pub mod example_runner;
+pub mod debug_lsp;
 
 // Re-export test runner functions for CLI
 pub use grammar_tests::{run_inline_tests, run_block_tests};

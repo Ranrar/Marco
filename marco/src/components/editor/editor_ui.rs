@@ -728,6 +728,7 @@ paned > separator {{
     // Create debouncers for different types of processing
     let preview_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(300));
     let extension_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(250));
+    let lsp_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(150)); // Faster for syntax highlighting
     
     // Track last content for change delta detection
     let last_content = Rc::new(RefCell::new(String::new()));
@@ -740,6 +741,7 @@ paned > separator {{
     let buffer_rc_clone = Rc::clone(&buffer_rc);
     let preview_debouncer_for_signal = Rc::clone(&preview_debouncer);
     let extension_debouncer_for_signal = Rc::clone(&extension_debouncer);
+    let lsp_debouncer_for_signal = Rc::clone(&lsp_debouncer);
     let last_content_for_signal = Rc::clone(&last_content);
     
     buffer_rc_clone.connect_changed(move |buffer| {
@@ -777,6 +779,31 @@ paned > separator {{
             // Also update code view if we're currently in CodePreview mode
             if *view_mode_clone.borrow() == ViewMode::CodePreview {
                 update_code_clone();
+            }
+        });
+        
+        // Apply LSP syntax highlighting with debouncing
+        let buffer_for_lsp = buffer.clone();
+        let current_text_for_lsp = current_text.clone();
+        lsp_debouncer_for_signal.debounce(move || {
+            log::trace!("Buffer changed - applying LSP syntax highlighting");
+            
+            // Parse the markdown content
+            match core::parser::parse(&current_text_for_lsp) {
+                Ok(document) => {
+                    // Compute highlights from AST
+                    let highlights = core::lsp::compute_highlights(&document);
+                    log::debug!("Computed {} LSP highlights", highlights.len());
+                    
+                    // Apply highlights to buffer
+                    crate::components::editor::lsp_integration::apply_lsp_highlights(
+                        &buffer_for_lsp,
+                        &highlights,
+                    );
+                }
+                Err(e) => {
+                    log::warn!("Failed to parse markdown for LSP highlighting: {}", e);
+                }
             }
         });
         

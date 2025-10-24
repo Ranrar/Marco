@@ -13,6 +13,7 @@ use crate::grammar::shared::Span;
 use crate::grammar::blocks::cm_thematic_break::thematic_break;
 use nom::{
     IResult,
+    Slice,
     bytes::complete::take,
 };
 
@@ -105,7 +106,9 @@ pub fn blockquote(input: Span) -> IResult<Span, Span> {
                 }
                 
                 // Check for actual thematic break using parser (not just "---" prefix)
-                let line_span = nom_locate::LocatedSpan::new(line);
+                // CRITICAL: Use slice to preserve position information
+                let offset_in_remaining = leading_spaces;
+                let line_span = remaining.slice(offset_in_remaining..offset_in_remaining + line_end);
                 if thematic_break(line_span).is_ok() {
                     // This is a thematic break, stop blockquote
                     break;

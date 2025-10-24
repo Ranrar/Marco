@@ -12,6 +12,7 @@
 use crate::grammar::shared::Span;
 use nom::{
     IResult,
+    Slice,
     bytes::complete::take_while,
     character::complete::{char as nom_char, line_ending, not_line_ending},
     branch::alt,
@@ -161,17 +162,21 @@ pub fn fenced_code_block(input: Span) -> IResult<Span, (Option<String>, Span)> {
     // Find the content in the original input
     // We need to calculate offset from original_input start
     let offset_from_original = content_start - original_input.location_offset();
-    let content_fragment = if content_len > 0 && offset_from_original + content_len <= original_input.fragment().len() {
-        &original_input.fragment()[offset_from_original..offset_from_original + content_len]
+    
+    // CRITICAL: Use slice to preserve position information
+    let content_span = if content_len > 0 && offset_from_original + content_len <= original_input.fragment().len() {
+        let mut span = original_input.slice(offset_from_original..offset_from_original + content_len);
+        // Remove trailing newline if present (CommonMark doesn't include trailing newline in content)
+        if span.fragment().ends_with('\n') {
+            let len = span.fragment().len();
+            span = span.slice(..len - 1);
+        }
+        span
     } else {
-        ""
+        original_input.slice(offset_from_original..offset_from_original)
     };
     
-    // Remove trailing newline if present (CommonMark doesn't include trailing newline in content)
-    let content_fragment = content_fragment.strip_suffix('\n').unwrap_or(content_fragment);
-    let content_span = Span::new(content_fragment);
-    
-    log::debug!("Parsed fenced code block with language={:?}, content length={}", language, content_fragment.len());
+    log::debug!("Parsed fenced code block with language={:?}, content length={}", language, content_span.fragment().len());
     
     Ok((input, (language, content_span)))
 }

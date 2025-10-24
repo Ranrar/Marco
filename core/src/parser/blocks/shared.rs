@@ -9,21 +9,51 @@ pub type GrammarSpan<'a> = LocatedSpan<&'a str>;
 
 /// Convert grammar span (LocatedSpan) to parser span (line/column)
 /// 
+/// This function correctly handles multi-line spans by calculating the end line
+/// based on newline count, and the end column based on the last line's content.
+///
+/// # Coordinate System
+/// - Input: nom_locate span with 1-based line/column and byte offsets
+/// - Output: ParserSpan with 1-based line/column (byte offsets from line start)
+///
+/// # Multi-line Handling
+/// For spans containing newlines, the end position is calculated as:
+/// - `end_line = start_line + newline_count`
+/// - `end_column = byte_length_of_last_line + 1` (1-based)
+///
 /// # Arguments
 /// * `span` - The grammar span to convert
 /// 
 /// # Returns
-/// * `ParserSpan` with line and column information
+/// * `ParserSpan` with correct line and column information for both single and multi-line spans
 pub fn to_parser_span(span: GrammarSpan) -> ParserSpan {
+    let start_line = span.location_line() as usize;  // 1-based ✓
+    let newline_count = span.fragment().matches('\n').count();
+    let end_line = start_line + newline_count;
+    
+    let end_column = if span.fragment().ends_with('\n') {
+        // If the span ends with newline, end column is at column 1 of next line
+        1
+    } else {
+        // Calculate end column based on last line
+        if let Some(last_newline_pos) = span.fragment().rfind('\n') {
+            // Multi-line span: count bytes after last newline
+            span.fragment()[last_newline_pos + 1..].len() + 1  // +1 for 1-based
+        } else {
+            // Single-line span: start column + fragment length
+            span.get_column() + span.fragment().len()
+        }
+    };
+    
     let start = Position::new(
-        span.location_line() as usize,
-        span.get_column(),
-        span.location_offset(),
+        start_line,
+        span.get_column(),      // 1-based byte column ✓
+        span.location_offset(), // Absolute byte offset ✓
     );
     let end = Position::new(
-        span.location_line() as usize,
-        span.get_column() + span.fragment().len(),
-        span.location_offset() + span.fragment().len(),
+        end_line,
+        end_column,             // 1-based byte column ✓
+        span.location_offset() + span.fragment().len(), // Absolute byte offset ✓
     );
     ParserSpan::new(start, end)
 }
@@ -126,6 +156,112 @@ mod tests {
         let parser_span = to_parser_span(span);
         assert_eq!(parser_span.start.line, 1);
         assert_eq!(parser_span.start.column, 1);
+    }
+
+    #[test]
+    fn test_to_parser_span_single_line_ascii() {
+        // Test: "**bold**" at start of document
+        let input = LocatedSpan::new("**bold**");
+        let span = to_parser_span(input);
+        
+        // Start should be at line 1, column 1
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 1);
+        
+        // End should be at line 1, column 9 (8 chars + 1-based = 9)
+        assert_eq!(span.end.line, 1);
+        assert_eq!(span.end.column, 9);
+    }
+
+    #[test]
+    fn test_to_parser_span_single_line_utf8() {
+        // Test: "Tëst" where 'ë' is 2 bytes (0xC3 0xAB)
+        // Byte layout: T(1) ë(2+3) s(4) t(5) = 5 bytes total
+        let input = LocatedSpan::new("Tëst");
+        let span = to_parser_span(input);
+        
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 1);
+        
+        // End should be at byte position 6 (5 bytes + 1-based = 6)
+        assert_eq!(span.end.line, 1);
+        assert_eq!(span.end.column, 6);
+    }
+
+    #[test]
+    fn test_to_parser_span_single_line_emoji() {
+        // Test: "🎨" emoji is 4 bytes (0xF0 0x9F 0x8E 0xA8)
+        let input = LocatedSpan::new("🎨");
+        let span = to_parser_span(input);
+        
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 1);
+        
+        // End should be at byte position 5 (4 bytes + 1-based = 5)
+        assert_eq!(span.end.line, 1);
+        assert_eq!(span.end.column, 5);
+    }
+
+    #[test]
+    fn test_to_parser_span_multi_line_code_block() {
+        // Test: Code block spanning 3 lines
+        // "```rust\nfn main() {}\n```"
+        let input = LocatedSpan::new("```rust\nfn main() {}\n```");
+        let span = to_parser_span(input);
+        
+        // Start at line 1, column 1
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 1);
+        
+        // End at line 3 (1 + 2 newlines = 3)
+        assert_eq!(span.end.line, 3);
+        
+        // End column should be 4 (3 backticks + 1-based = 4)
+        assert_eq!(span.end.column, 4);
+    }
+
+    #[test]
+    fn test_to_parser_span_ends_with_newline() {
+        // Test: Span ending with newline should have end.column = 1
+        let input = LocatedSpan::new("line1\nline2\n");
+        let span = to_parser_span(input);
+        
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 1);
+        
+        // End at line 3 (1 + 2 newlines = 3), column 1
+        assert_eq!(span.end.line, 3);
+        assert_eq!(span.end.column, 1);
+    }
+
+    #[test]
+    fn test_to_parser_span_multi_line_utf8() {
+        // Test: Multi-line with UTF-8 on last line
+        // "Line1\nTëst" where 'ë' is 2 bytes
+        let input = LocatedSpan::new("Line1\nTëst");
+        let span = to_parser_span(input);
+        
+        assert_eq!(span.start.line, 1);
+        assert_eq!(span.start.column, 1);
+        
+        // End at line 2
+        assert_eq!(span.end.line, 2);
+        
+        // "Tëst" = 5 bytes, so end column = 6 (1-based)
+        assert_eq!(span.end.column, 6);
+    }
+
+    #[test]
+    fn test_to_parser_span_offset_correctness() {
+        // Verify that absolute offsets are calculated correctly
+        let input = LocatedSpan::new("abc\ndef");
+        let span = to_parser_span(input);
+        
+        // Start offset should be 0
+        assert_eq!(span.start.offset, 0);
+        
+        // End offset should be 7 (3 + 1 newline + 3)
+        assert_eq!(span.end.offset, 7);
     }
 
     #[test]

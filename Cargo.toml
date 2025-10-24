@@ -6,8 +6,7 @@ members = ["core", "marco", "polo"]
 [workspace.dependencies]
 # Core parsing and serialization (no UI)
 nom = "7.1"                          # Parser combinator library
-nom-locate = "4.2"                   # Position tracking for nom parsers
-nom-recursive = "0.8"                # Recursive parsers for nom
+nom_locate = "4.2"                   # Position tracking for nom parsers
 ron = "0.11"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -21,10 +20,6 @@ fontconfig = "0.10.0"
 dirs = "6.0"
 moka = { version = "0.12", features = ["sync"] }  # High-performance caching
 unicode-normalization = "0.1.24"                  # Unicode NFC normalization for consistent parsing
-
-# === LSP Server ===
-tower-lsp = "0.20"                   # Language Server Protocol framework
-lsp-types = "0.98"                   # LSP protocol type definitions
 syntect = "5.3"                      # Syntax highlighting
 syntect-assets = "0.23"              # Syntax highlighting
 

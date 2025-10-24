@@ -10,6 +10,7 @@
 use crate::grammar::shared::{Span, skip_indentation};
 use nom::{
     IResult,
+    Slice,
     bytes::complete::take_while,
     character::complete::line_ending,
 };
@@ -92,13 +93,10 @@ pub fn indented_code_block(input: Span) -> IResult<Span, Span> {
         return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
     }
     
-    // Extract content from input
-    let content_fragment = &start.fragment()[..content_len.min(start.fragment().len())];
+    // CRITICAL: Use slice to preserve position information
+    let content_span = start.slice(0..content_len.min(start.fragment().len()));
     
-    // Create span for the content (will be processed by parser to remove indentation)
-    let content_span = Span::new(content_fragment);
-    
-    log::debug!("Indented code block parsed: {} bytes", content_fragment.len());
+    log::debug!("Indented code block parsed: {} bytes", content_span.fragment().len());
     
     Ok((remaining, content_span))
 }

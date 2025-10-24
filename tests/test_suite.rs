@@ -32,6 +32,12 @@ mod commonmark_tests;
 mod example_runner;
 #[path = "test_suite/benchmark_tests.rs"]
 mod benchmark_tests;
+#[path = "test_suite/debug_lsp.rs"]
+mod debug_lsp;
+#[path = "test_suite/debug_lsp_full.rs"]
+mod debug_lsp_full;
+#[path = "test_suite/lsp_tests.rs"]
+mod lsp_tests;
 
 use grammar_tests::{run_inline_tests, run_block_tests};
 use parser_tests::run_parser_tests;
@@ -39,6 +45,7 @@ use render_tests::{run_render_tests, run_inline_pipeline_tests};
 use commonmark_tests::{run_commonmark_tests, run_extra_tests};
 use example_runner::run_example_inspection;
 use benchmark_tests::run_performance_benchmarks;
+use lsp_tests::run_lsp_tests;
 
 /// Marco Test Suite - Comprehensive testing for the nom-based Markdown parser
 #[derive(Parser)]
@@ -79,6 +86,8 @@ enum Commands {
     },
     /// Test extra custom test cases (beyond CommonMark spec)
     Extra,
+    /// Debug LSP highlighting positions and spans
+    Debug,
     /// Deep inspection of specific examples (show grammar, AST, render pipeline)
     Inspect {
         /// Example numbers to inspect (comma-separated, e.g., "307,318,653")
@@ -108,6 +117,7 @@ fn show_summary() {
     println!("BASIC COMMANDS (no arguments needed):");
     println!("  all          - Run all tests");
     println!("  extra        - Test extra custom cases (beyond CommonMark)");
+    println!("  debug        - Debug LSP highlighting positions and spans");
     println!("  inline       - Test inline grammar (emphasis, links, code spans)");
     println!("  block        - Test block grammar (headings, lists, code blocks)");
     println!("  parser       - Test parser integration (blocks → inlines → AST)");
@@ -173,13 +183,18 @@ fn main() {
             run_inline_pipeline_tests();
         }
         Some(Commands::Lsp) => {
-            println!("LSP tests not yet implemented");
+            run_lsp_tests();
         }
         Some(Commands::Commonmark { section }) => {
             run_commonmark_tests(section);
         }
         Some(Commands::Extra) => {
             run_extra_tests();
+        }
+        Some(Commands::Debug) => {
+            debug_lsp::debug_lsp_positions();
+            debug_lsp::debug_simple_heading();
+            debug_lsp_full::debug_full_test_file();
         }
         Some(Commands::Inspect { examples }) => {
             // Parse comma-separated example numbers
@@ -201,6 +216,7 @@ fn main() {
             run_inline_pipeline_tests();
             run_commonmark_tests(None);
             run_extra_tests();
+            run_lsp_tests();
         }
         Some(Commands::Summary) | None => {
             show_summary();

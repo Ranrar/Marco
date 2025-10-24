@@ -1,6 +1,6 @@
 // Syntax highlighting: map AST nodes to SourceView5 text tags
 
-use crate::parser::{Document, Node, NodeKind, Span};
+use crate::parser::{Document, Node, NodeKind, Position, Span};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Highlight {
@@ -62,8 +62,15 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     _ => HighlightTag::Heading1, // Fallback for invalid levels
                 };
                 
+                // For headings, highlight the entire line including the # markers
+                // Expand the span to start from column 1 (beginning of line)
+                let full_line_span = Span::new(
+                    Position::new(span.start.line, 1, span.start.offset - (span.start.column - 1)),
+                    span.end.clone(),
+                );
+                
                 highlights.push(Highlight {
-                    span: *span,
+                    span: full_line_span,
                     tag,
                 });
             }
@@ -109,34 +116,22 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     tag: HighlightTag::InlineHtml,
                 });
             }
-            NodeKind::HardBreak => {
-                highlights.push(Highlight {
-                    span: *span,
-                    tag: HighlightTag::HardBreak,
-                });
-            }
-            NodeKind::SoftBreak => {
-                highlights.push(Highlight {
-                    span: *span,
-                    tag: HighlightTag::SoftBreak,
-                });
-            }
             NodeKind::ThematicBreak => {
                 highlights.push(Highlight {
                     span: *span,
                     tag: HighlightTag::ThematicBreak,
                 });
             }
-            NodeKind::Blockquote => {
-                highlights.push(Highlight {
-                    span: *span,
-                    tag: HighlightTag::Blockquote,
-                });
-            }
             NodeKind::HtmlBlock { .. } => {
                 highlights.push(Highlight {
                     span: *span,
                     tag: HighlightTag::HtmlBlock,
+                });
+            }
+            NodeKind::Blockquote => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Blockquote,
                 });
             }
             NodeKind::List { .. } => {
@@ -151,9 +146,16 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     tag: HighlightTag::ListItem,
                 });
             }
-            NodeKind::Text(_) | NodeKind::Paragraph => {
-                // Text and Paragraph nodes don't get highlights themselves,
-                // but we process their children
+            // SKIP only structural nodes without visual representation
+            NodeKind::Paragraph |
+            NodeKind::Text(_) => {
+                // These are pure containers, no visual styling needed
+            }
+            // SKIP line breaks - they're invisible whitespace
+            NodeKind::HardBreak | 
+            NodeKind::SoftBreak => {
+                // Line breaks are formatting, not content
+                // Don't highlight them
             }
             _ => {
                 log::trace!("No highlight for node kind: {:?}", node.kind);
@@ -391,6 +393,7 @@ mod tests {
     
     #[test]
     fn smoke_test_hard_break_highlights() {
+        // Hard breaks are now skipped (they're invisible whitespace)
         let doc = Document {
             children: vec![
                 Node {
@@ -423,12 +426,13 @@ mod tests {
         
         let highlights = compute_highlights(&doc);
         
-        assert_eq!(highlights.len(), 1);
-        assert_eq!(highlights[0].tag, HighlightTag::HardBreak);
+        // Hard breaks are no longer highlighted (invisible whitespace)
+        assert_eq!(highlights.len(), 0);
     }
     
     #[test]
     fn smoke_test_soft_break_highlights() {
+        // Soft breaks are now skipped (they're invisible whitespace)
         let doc = Document {
             children: vec![
                 Node {
@@ -461,8 +465,8 @@ mod tests {
         
         let highlights = compute_highlights(&doc);
         
-        assert_eq!(highlights.len(), 1);
-        assert_eq!(highlights[0].tag, HighlightTag::SoftBreak);
+        // Soft breaks are no longer highlighted (invisible whitespace)
+        assert_eq!(highlights.len(), 0);
     }
     
     #[test]
@@ -511,6 +515,7 @@ mod tests {
         
         let highlights = compute_highlights(&doc);
         
+        // Blockquotes ARE highlighted so themes can style them
         assert_eq!(highlights.len(), 1);
         assert_eq!(highlights[0].tag, HighlightTag::Blockquote);
     }
@@ -578,7 +583,7 @@ mod tests {
         
         let highlights = compute_highlights(&doc);
         
-        // Should highlight 1 list + 2 list items
+        // Lists and list items ARE highlighted so themes can style them
         assert_eq!(highlights.len(), 3);
         assert_eq!(highlights[0].tag, HighlightTag::List);
         assert_eq!(highlights[1].tag, HighlightTag::ListItem);

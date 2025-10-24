@@ -119,7 +119,8 @@ mod tests {
         assert!(node.span.is_some(), "Image should have position info");
         
         let span = node.span.unwrap();
-        assert_eq!(span.start.offset, 0);
+        // Image alt text starts after '![' at position 2
+        assert_eq!(span.start.offset, 2);
         assert!(span.end.offset > span.start.offset);
     }
 }

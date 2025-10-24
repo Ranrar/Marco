@@ -11,7 +11,7 @@
 
 use crate::grammar::shared::{count_indentation, Span};
 use nom::{
-    IResult,
+    IResult, Slice,
     bytes::complete::take_while,
     character::complete::{line_ending, not_line_ending},
     combinator::opt,
@@ -156,14 +156,13 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
     }
     
     // Calculate paragraph content from original input
-    // Figure out how many bytes the leading whitespace was (from original_input to after_ws)
+    // Use slice to preserve position information
     let leading_ws_len = original_input.fragment().len() - after_ws.fragment().len();
     let start_offset = original_input.location_offset() + leading_ws_len;
     let content_len = last_line_end - start_offset;
-    let para_content = &original_input.fragment()[leading_ws_len..leading_ws_len + content_len];
-    let para_span = Span::new(para_content);
+    let para_span = original_input.slice(leading_ws_len..leading_ws_len + content_len);
     
-    log::debug!("Parsed paragraph: {:?}", crate::logic::logger::safe_preview(para_content, 40));
+    log::debug!("Parsed paragraph: {:?}", crate::logic::logger::safe_preview(para_span.fragment(), 40));
     
     Ok((input, para_span))
 }
