@@ -146,7 +146,8 @@ pub fn build_appearance_tab(
             if let Some(ref callback) = on_editor_theme_changed_clone {
                 callback(scheme_id.to_string());
             }
-            
+
+            // Notify editor/theme changes; preview refresh will handle visuals.
             (refresh_preview_clone.borrow())();
         });
         

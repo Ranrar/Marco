@@ -3,7 +3,7 @@
 //! Parses strong emphasis (**text** or __text__) and converts them to Strong nodes.
 //! Strong nodes contain children that are recursively parsed inline elements.
 
-use super::shared::GrammarSpan;
+use super::shared::{GrammarSpan, to_parser_span_range};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
@@ -24,11 +24,7 @@ pub fn parse_strong(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let (rest, content) = grammar::strong(input)?;
     
     // Create span for the full strong (including delimiters)
-    use crate::parser::{Position, Span as ParserSpan};
-    let span = ParserSpan::new(
-        Position::new(start.location_line() as usize, start.get_column(), start.location_offset()),
-        Position::new(rest.location_line() as usize, rest.get_column(), rest.location_offset()),
-    );
+    let span = to_parser_span_range(start, rest);
     
     // Recursively parse inline elements within strong text preserving position
     let children = match crate::parser::inlines::parse_inlines_from_span(content) {
@@ -114,6 +110,12 @@ mod tests {
         // Should parse as empty strong or fail - either acceptable
         let _ = result;
     }
+
+    // UTF-8 and emoji handling is covered by parser integration tests; keep
+    // strong parser smoke tests minimal here.
+
+    // UTF-8 and emoji handling is covered by parser integration tests; keep
+    // strong parser smoke tests minimal here.
 
     #[test]
     fn smoke_test_parse_strong_position() {

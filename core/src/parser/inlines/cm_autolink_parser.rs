@@ -3,7 +3,7 @@
 //! Parses autolinks (<url> or <email>) and converts them to Link nodes.
 //! Email autolinks get "mailto:" prefix, URL autolinks are used as-is.
 
-use super::shared::{GrammarSpan, to_parser_span};
+use super::shared::{GrammarSpan, to_parser_span, to_parser_span_range};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
@@ -24,11 +24,7 @@ pub fn parse_autolink(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let (rest, (uri, is_email)) = grammar::autolink(input)?;
     
     // Create span for the full autolink (including < >)
-    use crate::parser::{Position, Span as ParserSpan};
-    let span = ParserSpan::new(
-        Position::new(start.location_line() as usize, start.get_column(), start.location_offset()),
-        Position::new(rest.location_line() as usize, rest.get_column(), rest.location_offset()),
-    );
+    let span = to_parser_span_range(start, rest);
     
     // Span for the URI text (for the child text node)
     let uri_span = to_parser_span(uri);

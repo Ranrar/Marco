@@ -3,49 +3,11 @@
 //! This module provides helper functions used by all inline parser modules,
 //! primarily for converting between grammar spans and parser spans.
 
-use crate::parser::{Position, Span as ParserSpan};
-use nom_locate::LocatedSpan;
+pub use crate::parser::shared::{to_parser_span, to_parser_span_range, GrammarSpan};
 
-/// Type alias for grammar-level spans (nom LocatedSpan)
-pub type GrammarSpan<'a> = LocatedSpan<&'a str>;
+// Re-export the canonical helpers from `crate::parser::shared` so inline parsers
+// can call `super::shared::to_parser_span(...)` as before.
 
-/// Convert a grammar span to a parser span
-///
-/// Takes a LocatedSpan from the grammar layer and converts it to the parser's
-/// Span type with proper Position tracking (line, column, offset).
-pub fn to_parser_span(span: GrammarSpan) -> ParserSpan {
-    ParserSpan {
-        start: Position {
-            line: span.location_line() as usize,
-            column: span.get_utf8_column(),
-            offset: span.location_offset(),
-        },
-        end: Position {
-            line: span.location_line() as usize,
-            column: span.get_utf8_column() + span.fragment().len(),
-            offset: span.location_offset() + span.fragment().len(),
-        },
-    }
-}
-
-/// Convert a range of grammar spans (start, end) to a parser span
-///
-/// Used when you need to create a span from two different positions in the input.
-/// The start span provides the beginning position, the end span provides the end position.
-pub fn to_parser_span_range(start_span: GrammarSpan, end_span: GrammarSpan) -> ParserSpan {
-    ParserSpan {
-        start: Position {
-            line: start_span.location_line() as usize,
-            column: start_span.get_utf8_column(),
-            offset: start_span.location_offset(),
-        },
-        end: Position {
-            line: end_span.location_line() as usize,
-            column: end_span.get_utf8_column(),
-            offset: end_span.location_offset(),
-        },
-    }
-}
 
 #[cfg(test)]
 mod tests {

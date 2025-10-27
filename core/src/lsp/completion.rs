@@ -387,6 +387,18 @@ fn add_entity_reference_completions(completions: &mut Vec<CompletionItem>) {
 mod tests {
     use super::*;
 
+    // NOTE: Tests below construct `Position` values like `Position::new(0, 0, 0)`.
+    // These uses are test-only conveniences where the `Position` acts as a
+    // zero-based cursor index into an in-memory `Vec<&str>` (see `get_completions`).
+    //
+    // Important: elsewhere in the parser/LSP pipeline `Position` may follow a
+    // different convention (for example 1-based line/column semantics). These
+    // tests intentionally use 0-based positions to avoid needing to populate
+    // full parser-style `Document` structures. When wiring `get_completions`
+    // into real editor/LSP code, ensure you convert between the editor's
+    // cursor coordinates and the parser/LSP `Position` convention as needed.
+
+
     #[test]
     fn smoke_test_heading_completions() {
         let context = "";

@@ -60,6 +60,7 @@ impl EditorConfiguration {
             line_wrapping,
             show_invisibles,
             tabs_to_spaces,
+            syntax_colors: editor.syntax_colors.unwrap_or(true),
             show_line_numbers,
         }
     }
@@ -90,6 +91,7 @@ impl EditorConfiguration {
                 editor.line_wrapping = Some(editor_settings.line_wrapping);
                 editor.show_invisibles = Some(editor_settings.show_invisibles);
                 editor.tabs_to_spaces = Some(editor_settings.tabs_to_spaces);
+                    editor.syntax_colors = Some(editor_settings.syntax_colors);
             }
         }).map_err(|e| anyhow::anyhow!("Failed to save editor settings: {}", e))?;
         
@@ -143,6 +145,7 @@ pub struct EditorDisplaySettings {
     pub line_wrapping: bool,
     pub show_invisibles: bool,
     pub tabs_to_spaces: bool,
+    pub syntax_colors: bool,
     pub show_line_numbers: bool,
 }
 
@@ -155,6 +158,7 @@ impl Default for EditorDisplaySettings {
             line_wrapping: false,
             show_invisibles: false,
             tabs_to_spaces: false,
+            syntax_colors: true,
             show_line_numbers: true,
         }
     }

@@ -64,9 +64,11 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                 
                 // For headings, highlight the entire line including the # markers
                 // Expand the span to start from column 1 (beginning of line)
+                // Use the parser `Span` helper to compute the absolute line start
+                // offset instead of doing manual arithmetic which is fragile.
                 let full_line_span = Span::new(
-                    Position::new(span.start.line, 1, span.start.offset - (span.start.column - 1)),
-                    span.end.clone(),
+                    Position::new(span.start.line, 1, span.start_line_offset()),
+                    span.end,
                 );
                 
                 highlights.push(Highlight {
@@ -210,6 +212,36 @@ mod tests {
         assert_eq!(highlights[0].tag, HighlightTag::Heading1);
         assert_eq!(highlights[1].tag, HighlightTag::Heading2);
     }
+
+    #[test]
+    fn test_heading_full_line_offset_using_helper() {
+        // Simulate a heading whose span starts at column 5 on line 2 with
+        // an absolute offset of 10. The start_line_offset should compute
+        // the absolute offset of the beginning of line 2.
+        let start = Position { line: 2, column: 5, offset: 10 };
+        let end = Position { line: 2, column: 12, offset: 17 };
+        let node_span = Span { start, end };
+
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Heading { level: 1, text: "Title".to_string() },
+                    span: Some(node_span),
+                    children: vec![],
+                }
+            ],
+        ..Default::default()
+        };
+
+        let highlights = compute_highlights(&doc);
+        assert_eq!(highlights.len(), 1);
+        // The highlight span start offset should equal the span's computed
+        // line start offset (start.offset - (start.column - 1)).
+        let hl_span = &highlights[0].span;
+        assert_eq!(hl_span.start.offset, node_span.start_line_offset());
+        assert_eq!(hl_span.start.column, 1);
+        assert_eq!(hl_span.start.line, node_span.start.line);
+    }
     
     #[test]
     fn smoke_test_inline_highlights() {
@@ -259,6 +291,47 @@ mod tests {
         assert_eq!(highlights.len(), 2);
         assert_eq!(highlights[0].tag, HighlightTag::Emphasis);
         assert_eq!(highlights[1].tag, HighlightTag::Strong);
+    }
+
+    #[test]
+    fn test_inline_highlights_with_utf8_and_emoji() {
+        // Construct document manually with inline nodes that contain multi-byte
+        // UTF-8 characters and emoji in their spans. We don't rely on the
+        // parser here; this ensures highlight mapping treats those spans the same.
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::Paragraph,
+                    span: None,
+                    children: vec![
+                        Node {
+                            kind: NodeKind::Emphasis,
+                            span: Some(Span {
+                                // Simulate emphasis covering "Tëst" (multi-byte)
+                                start: Position { line: 1, column: 1, offset: 0 },
+                                end: Position { line: 1, column: 6, offset: 5 },
+                            }),
+                            children: vec![],
+                        },
+                        Node {
+                            kind: NodeKind::Strong,
+                            span: Some(Span {
+                                // Simulate strong covering an emoji "😊"
+                                start: Position { line: 2, column: 1, offset: 6 },
+                                end: Position { line: 2, column: 5, offset: 10 },
+                            }),
+                            children: vec![],
+                        },
+                    ],
+                }
+            ],
+        ..Default::default()
+        };
+
+        let highlights = compute_highlights(&doc);
+        // Should include both Emphasis and Strong tags
+        assert!(highlights.iter().any(|h| h.tag == HighlightTag::Emphasis));
+        assert!(highlights.iter().any(|h| h.tag == HighlightTag::Strong));
     }
     
     #[test]

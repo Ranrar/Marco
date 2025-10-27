@@ -64,12 +64,14 @@ fn remove_all_lsp_tags(buffer: &sourceview5::Buffer) {
     let tag_table = buffer.tag_table();
     
     // List of all LSP tag names (must match the theme style names)
+    // Note: tag names no longer contain the `lsp-` prefix — they are simple
+    // names like `heading1`, `emphasis`, `code-span` to match `ui::css::syntax`.
     let lsp_tags = [
-        "lsp-heading1", "lsp-heading2", "lsp-heading3", "lsp-heading4", "lsp-heading5", "lsp-heading6",
-        "lsp-emphasis", "lsp-strong", "lsp-link", "lsp-image",
-        "lsp-code-span", "lsp-code-block", "lsp-inline-html",
-        "lsp-hard-break", "lsp-soft-break", "lsp-thematic-break",
-        "lsp-blockquote", "lsp-html-block", "lsp-list", "lsp-list-item",
+        "heading1", "heading2", "heading3", "heading4", "heading5", "heading6",
+        "emphasis", "strong", "link", "image",
+        "code-span", "code-block", "inline-html",
+        "hard-break", "soft-break", "thematic-break",
+        "blockquote", "html-block", "list", "list-item",
     ];
     
     for tag_name in &lsp_tags {
@@ -224,28 +226,28 @@ fn get_or_create_tag(
 ) -> gtk4::TextTag {
     use core::lsp::HighlightTag;
     
-    // Map HighlightTag enum to theme style names
+    // Map HighlightTag enum to theme style names (no `lsp-` prefix)
     let style_name = match tag {
-        HighlightTag::Heading1 => "lsp-heading1",
-        HighlightTag::Heading2 => "lsp-heading2",
-        HighlightTag::Heading3 => "lsp-heading3",
-        HighlightTag::Heading4 => "lsp-heading4",
-        HighlightTag::Heading5 => "lsp-heading5",
-        HighlightTag::Heading6 => "lsp-heading6",
-        HighlightTag::Emphasis => "lsp-emphasis",
-        HighlightTag::Strong => "lsp-strong",
-        HighlightTag::Link => "lsp-link",
-        HighlightTag::Image => "lsp-image",
-        HighlightTag::CodeSpan => "lsp-code-span",
-        HighlightTag::CodeBlock => "lsp-code-block",
-        HighlightTag::InlineHtml => "lsp-inline-html",
-        HighlightTag::HardBreak => "lsp-hard-break",
-        HighlightTag::SoftBreak => "lsp-soft-break",
-        HighlightTag::ThematicBreak => "lsp-thematic-break",
-        HighlightTag::Blockquote => "lsp-blockquote",
-        HighlightTag::HtmlBlock => "lsp-html-block",
-        HighlightTag::List => "lsp-list",
-        HighlightTag::ListItem => "lsp-list-item",
+        HighlightTag::Heading1 => "heading1",
+        HighlightTag::Heading2 => "heading2",
+        HighlightTag::Heading3 => "heading3",
+        HighlightTag::Heading4 => "heading4",
+        HighlightTag::Heading5 => "heading5",
+        HighlightTag::Heading6 => "heading6",
+        HighlightTag::Emphasis => "emphasis",
+        HighlightTag::Strong => "strong",
+        HighlightTag::Link => "link",
+        HighlightTag::Image => "image",
+        HighlightTag::CodeSpan => "code-span",
+        HighlightTag::CodeBlock => "code-block",
+        HighlightTag::InlineHtml => "inline-html",
+        HighlightTag::HardBreak => "hard-break",
+        HighlightTag::SoftBreak => "soft-break",
+        HighlightTag::ThematicBreak => "thematic-break",
+        HighlightTag::Blockquote => "blockquote",
+        HighlightTag::HtmlBlock => "html-block",
+        HighlightTag::List => "list",
+        HighlightTag::ListItem => "list-item",
     };
     
     let tag_table = buffer.tag_table();

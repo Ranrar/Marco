@@ -110,82 +110,7 @@ pub fn create_editor_with_preview_and_buffer(
     event_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
-    // Register this editor with the global editor manager to receive settings updates
-    {
-        let source_view_for_callback = source_view.clone();
-        if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
-            move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
-                
-                log::debug!("Applying editor settings update to SourceView: {} {}px", 
-                    new_settings.font_family, new_settings.font_size);
-                
-                // Apply settings directly to avoid RefCell borrow conflicts
-                // This is the same logic as EditorConfiguration::apply_to_sourceview but without the manager
-                
-                // Apply font and line height using CSS
-                let css = format!(
-                    r#"
-                    textview {{
-                        font-family: "{}";
-                        font-size: {}px;
-                        line-height: {};
-                    }}
-                    textview text {{
-                        font-family: "{}";
-                        font-size: {}px;
-                        line-height: {};
-                    }}
-                    "#,
-                    new_settings.font_family, new_settings.font_size, new_settings.line_height,
-                    new_settings.font_family, new_settings.font_size, new_settings.line_height
-                );
-                
-                let css_provider = gtk4::CssProvider::new();
-                css_provider.load_from_data(&css);
-                source_view_for_callback.style_context().add_provider(
-                    &css_provider, 
-                    gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION
-                );
-                
-                // Apply line wrapping
-                let wrap_mode = if new_settings.line_wrapping {
-                    gtk4::WrapMode::Word
-                } else {
-                    gtk4::WrapMode::None
-                };
-                source_view_for_callback.set_wrap_mode(wrap_mode);
-                
-                // Apply tabs to spaces setting
-                source_view_for_callback.set_insert_spaces_instead_of_tabs(new_settings.tabs_to_spaces);
-                
-                // Apply line numbers setting
-                source_view_for_callback.set_show_line_numbers(new_settings.show_line_numbers);
-                
-                // Apply show invisibles setting (whitespace visibility)
-                let space_drawer = source_view_for_callback.space_drawer();
-                if new_settings.show_invisibles {
-                    space_drawer.set_types_for_locations(
-                        sourceview5::SpaceLocationFlags::ALL,
-                        sourceview5::SpaceTypeFlags::SPACE | sourceview5::SpaceTypeFlags::TAB | sourceview5::SpaceTypeFlags::NEWLINE,
-                    );
-                    space_drawer.set_enable_matrix(true);
-                } else {
-                    space_drawer.set_types_for_locations(
-                        sourceview5::SpaceLocationFlags::ALL,
-                        sourceview5::SpaceTypeFlags::NONE,
-                    );
-                    space_drawer.set_enable_matrix(false);
-                }
-                
-                log::debug!("Successfully applied editor settings to SourceView: {} {}px", 
-                    new_settings.font_family, new_settings.font_size);
-            }
-        ) {
-            log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
-        } else {
-            log::warn!("Failed to register editor with global editor manager - settings updates will not work");
-        }
-    }
+    // Editor callback registration moved later so buffer handle can be captured
 
     // Register this editor for line numbers updates
     {
@@ -409,6 +334,106 @@ paned > separator {{
     });
 
     let buffer_rc: Rc<sourceview5::Buffer> = Rc::new(buffer);
+    // Apply LSP syntax tag colors for the current theme so tags exist before
+    // any LSP or UI code attempts to lookup them by name. Only apply if the
+    // user settings enable syntax colors.
+    {
+        let tm = theme_manager.borrow();
+        let settings = tm.get_settings();
+        let enable_syntax = settings
+            .editor
+            .as_ref()
+            .and_then(|e| e.syntax_colors)
+            .unwrap_or(true);
+        if enable_syntax {
+            crate::ui::css::syntax::apply_to_buffer(&*buffer_rc, theme_mode.borrow().as_str());
+        } else {
+            crate::ui::css::syntax::remove_from_buffer(&*buffer_rc);
+        }
+    }
+        // Register this editor with the global editor manager to receive settings updates
+        {
+            let source_view_for_callback = source_view.clone();
+            let buffer_for_callback = Rc::clone(&buffer_rc);
+            let theme_manager_for_callback = Rc::clone(&theme_manager);
+            if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
+                move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
+                    log::debug!("Applying editor settings update to SourceView: {} {}px", 
+                        new_settings.font_family, new_settings.font_size);
+
+                    // Apply font and line height using CSS
+                    let css = format!(
+                        r#"
+                        textview {{
+                            font-family: "{}";
+                            font-size: {}px;
+                            line-height: {};
+                        }}
+                        textview text {{
+                            font-family: "{}";
+                            font-size: {}px;
+                            line-height: {};
+                        }}
+                        "#,
+                        new_settings.font_family, new_settings.font_size, new_settings.line_height,
+                        new_settings.font_family, new_settings.font_size, new_settings.line_height
+                    );
+
+                    let css_provider = gtk4::CssProvider::new();
+                    css_provider.load_from_data(&css);
+                    source_view_for_callback.style_context().add_provider(
+                        &css_provider, 
+                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION
+                    );
+
+                    // Apply line wrapping
+                    let wrap_mode = if new_settings.line_wrapping {
+                        gtk4::WrapMode::Word
+                    } else {
+                        gtk4::WrapMode::None
+                    };
+                    source_view_for_callback.set_wrap_mode(wrap_mode);
+
+                    // Apply tabs to spaces setting
+                    source_view_for_callback.set_insert_spaces_instead_of_tabs(new_settings.tabs_to_spaces);
+
+                    // Apply line numbers setting
+                    source_view_for_callback.set_show_line_numbers(new_settings.show_line_numbers);
+
+                    // Apply show invisibles setting (whitespace visibility)
+                    let space_drawer = source_view_for_callback.space_drawer();
+                    if new_settings.show_invisibles {
+                        space_drawer.set_types_for_locations(
+                            sourceview5::SpaceLocationFlags::ALL,
+                            sourceview5::SpaceTypeFlags::SPACE | sourceview5::SpaceTypeFlags::TAB | sourceview5::SpaceTypeFlags::NEWLINE,
+                        );
+                        space_drawer.set_enable_matrix(true);
+                    } else {
+                        space_drawer.set_types_for_locations(
+                            sourceview5::SpaceLocationFlags::ALL,
+                            sourceview5::SpaceTypeFlags::NONE,
+                        );
+                        space_drawer.set_enable_matrix(false);
+                    }
+
+                    // Apply or remove syntax colors depending on the new settings value
+                    if new_settings.syntax_colors {
+                        let scheme_id = theme_manager_for_callback.borrow().current_editor_scheme_id();
+                        let theme_mode = theme_manager_for_callback.borrow().preview_theme_mode_from_scheme(&scheme_id);
+                        crate::ui::css::syntax::apply_to_buffer(&*buffer_for_callback, theme_mode.as_str());
+                    } else {
+                        crate::ui::css::syntax::remove_from_buffer(&*buffer_for_callback);
+                    }
+
+                    log::debug!("Successfully applied editor settings to SourceView: {} {}px", 
+                        new_settings.font_family, new_settings.font_size);
+                }
+            ) {
+                log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
+            } else {
+                log::warn!("Failed to register editor with global editor manager - settings updates will not work");
+            }
+        }
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 

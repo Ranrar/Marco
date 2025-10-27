@@ -42,24 +42,5 @@
   <style name="search-match-selected" foreground="#FFFFFF" background="#FF6B35"/>
   
   <!-- LSP Syntax Highlighting (colors only, no font properties) -->
-  <style name="lsp-heading1"          foreground="#569CD6"/>
-  <style name="lsp-heading2"          foreground="#608CD6"/>
-  <style name="lsp-heading3"          foreground="#6A9CD6"/>
-  <style name="lsp-heading4"          foreground="#7AACD6"/>
-  <style name="lsp-heading5"          foreground="#8ABCD6"/>
-  <style name="lsp-heading6"          foreground="#9CDCFE"/>
-  <style name="lsp-emphasis"          foreground="#DCDCAA"/>
-  <style name="lsp-strong"            foreground="#CE9178"/>
-  <style name="lsp-link"              foreground="#4EC9B0"/>
-  <style name="lsp-image"             foreground="#4EC9B0"/>
-  <style name="lsp-code-span"         foreground="#B5CEA8"/>
-  <style name="lsp-code-block"        foreground="#CE9178"/>
-  <style name="lsp-inline-html"       foreground="#D16969"/>
-  <style name="lsp-hard-break"        foreground="#808080"/>
-  <style name="lsp-soft-break"        foreground="#D4D4D4"/>
-  <style name="lsp-thematic-break"    foreground="#C586C0"/>
-  <style name="lsp-blockquote"        foreground="#608B4E"/>
-  <style name="lsp-html-block"        foreground="#D16969"/>
-  <style name="lsp-list"              foreground="#D4D4D4"/>
-  <style name="lsp-list-item"         foreground="#D4D4D4"/>
+  <!-- LSP Syntax Highlighting moved to `syntaxdark.xml` and loaded only for syntax usage -->
 </style-scheme>

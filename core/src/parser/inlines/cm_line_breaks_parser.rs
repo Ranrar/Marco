@@ -3,10 +3,9 @@
 //! Parses hard line breaks (two spaces + newline or backslash + newline) and
 //! soft line breaks (regular newline) and converts them to Break nodes.
 
-use super::shared::GrammarSpan;
+use super::shared::{GrammarSpan, to_parser_span_range};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
-use crate::parser::{Position, Span as ParserSpan};
 use nom::IResult;
 
 /// Parse hard line break and convert to AST node
@@ -23,23 +22,9 @@ use nom::IResult;
 pub fn parse_hard_line_break(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let (rest, _) = grammar::hard_line_break(input)?;
     
-    let start_offset = input.location_offset();
-    let end_offset = rest.location_offset();
-    
     let node = Node {
         kind: NodeKind::HardBreak,
-        span: Some(ParserSpan {
-            start: Position {
-                line: input.location_line() as usize,
-                column: input.get_column(),
-                offset: start_offset,
-            },
-            end: Position {
-                line: rest.location_line() as usize,
-                column: rest.get_column(),
-                offset: end_offset,
-            },
-        }),
+        span: Some(to_parser_span_range(input, rest)),
         children: Vec::new(),
     };
     
@@ -60,23 +45,9 @@ pub fn parse_hard_line_break(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
 pub fn parse_soft_line_break(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let (rest, _) = grammar::soft_line_break(input)?;
     
-    let start_offset = input.location_offset();
-    let end_offset = rest.location_offset();
-    
     let node = Node {
         kind: NodeKind::SoftBreak,
-        span: Some(ParserSpan {
-            start: Position {
-                line: input.location_line() as usize,
-                column: input.get_column(),
-                offset: start_offset,
-            },
-            end: Position {
-                line: rest.location_line() as usize,
-                column: rest.get_column(),
-                offset: end_offset,
-            },
-        }),
+        span: Some(to_parser_span_range(input, rest)),
         children: Vec::new(),
     };
     

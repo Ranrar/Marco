@@ -15,7 +15,7 @@ use nom::{
     branch::alt,
     character::complete::line_ending,
 };
-use nom_locate::LocatedSpan;
+// Note: `LocatedSpan` not used in this file; it was previously imported for tests.
 
 /// Parse a thematic break (horizontal rule)
 /// 

@@ -3,10 +3,11 @@
 //! Parses inline HTML tags (<tag>, <tag/>, etc.) and converts them to InlineHtml nodes.
 //! Inline HTML is preserved as-is without further parsing.
 
-use super::shared::GrammarSpan;
+use super::shared::{GrammarSpan, to_parser_span_range};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
+use nom::Slice;
 
 /// Parse inline HTML and convert to AST node
 ///
@@ -27,16 +28,13 @@ pub fn parse_inline_html(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let start_offset = start.location_offset();
     let end_offset = rest.location_offset();
     let html_len = end_offset - start_offset;
-    
-    // Extract the full HTML including brackets
-    let html = start.fragment()[..html_len].to_string();
-    
+
+    // Extract the full HTML including brackets using LocatedSpan::slice to keep
+    // proper span semantics, then convert to string.
+    let html = start.slice(..html_len).fragment().to_string();
+
     // Create span for the full HTML tag
-    use crate::parser::{Position, Span as ParserSpan};
-    let span = ParserSpan::new(
-        Position::new(start.location_line() as usize, start.get_column(), start_offset),
-        Position::new(rest.location_line() as usize, rest.get_column(), end_offset),
-    );
+    let span = to_parser_span_range(start, rest);
     
     let node = Node {
         kind: NodeKind::InlineHtml(html),

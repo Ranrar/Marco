@@ -1,84 +1,11 @@
 // Shared utilities for block-level parsers
 // Contains span conversion helpers and common types
 
-use crate::parser::position::{Position, Span as ParserSpan};
+pub use crate::parser::shared::{to_parser_span, to_parser_span_range_inclusive as to_parser_span_range, GrammarSpan};
+// No local Position/Span imports required here; use canonical helpers from parser::shared
+
+#[cfg(test)]
 use nom_locate::LocatedSpan;
-
-/// Grammar span type (nom_locate::LocatedSpan)
-pub type GrammarSpan<'a> = LocatedSpan<&'a str>;
-
-/// Convert grammar span (LocatedSpan) to parser span (line/column)
-/// 
-/// This function correctly handles multi-line spans by calculating the end line
-/// based on newline count, and the end column based on the last line's content.
-///
-/// # Coordinate System
-/// - Input: nom_locate span with 1-based line/column and byte offsets
-/// - Output: ParserSpan with 1-based line/column (byte offsets from line start)
-///
-/// # Multi-line Handling
-/// For spans containing newlines, the end position is calculated as:
-/// - `end_line = start_line + newline_count`
-/// - `end_column = byte_length_of_last_line + 1` (1-based)
-///
-/// # Arguments
-/// * `span` - The grammar span to convert
-/// 
-/// # Returns
-/// * `ParserSpan` with correct line and column information for both single and multi-line spans
-pub fn to_parser_span(span: GrammarSpan) -> ParserSpan {
-    let start_line = span.location_line() as usize;  // 1-based ✓
-    let newline_count = span.fragment().matches('\n').count();
-    let end_line = start_line + newline_count;
-    
-    let end_column = if span.fragment().ends_with('\n') {
-        // If the span ends with newline, end column is at column 1 of next line
-        1
-    } else {
-        // Calculate end column based on last line
-        if let Some(last_newline_pos) = span.fragment().rfind('\n') {
-            // Multi-line span: count bytes after last newline
-            span.fragment()[last_newline_pos + 1..].len() + 1  // +1 for 1-based
-        } else {
-            // Single-line span: start column + fragment length
-            span.get_column() + span.fragment().len()
-        }
-    };
-    
-    let start = Position::new(
-        start_line,
-        span.get_column(),      // 1-based byte column ✓
-        span.location_offset(), // Absolute byte offset ✓
-    );
-    let end = Position::new(
-        end_line,
-        end_column,             // 1-based byte column ✓
-        span.location_offset() + span.fragment().len(), // Absolute byte offset ✓
-    );
-    ParserSpan::new(start, end)
-}
-
-/// Convert grammar span range to parser span (from start to end)
-/// 
-/// # Arguments
-/// * `start` - The starting grammar span
-/// * `end` - The ending grammar span
-/// 
-/// # Returns
-/// * `ParserSpan` with full range information
-pub fn to_parser_span_range(start: GrammarSpan, end: GrammarSpan) -> ParserSpan {
-    let start_pos = Position::new(
-        start.location_line() as usize,
-        start.get_column(),
-        start.location_offset(),
-    );
-    let end_pos = Position::new(
-        end.location_line() as usize,
-        end.get_column() + end.fragment().len(),
-        end.location_offset() + end.fragment().len(),
-    );
-    ParserSpan::new(start_pos, end_pos)
-}
 
 /// Dedent list item content by removing the specified indent width.
 /// This function is used to strip the list item indentation from nested content.

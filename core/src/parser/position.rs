@@ -65,12 +65,10 @@ pub struct Position {
 ///
 /// # Multi-line Spans
 ///
-/// For multi-line content like code blocks:
-/// ```markdown
-/// ```rust
-/// fn main() {}
-/// ```
-/// ```
+/// For multi-line content like code blocks, for example a fenced Rust code block,
+/// the inner code might look like:
+///
+///     fn main() {}
 ///
 /// - `start.line`: Line of opening backticks
 /// - `end.line`: Line after closing backticks
@@ -88,10 +86,76 @@ impl Position {
     pub fn new(line: usize, column: usize, offset: usize) -> Self {
         Self { line, column, offset }
     }
+
+    /// Compute the absolute byte offset of the start of this position's line.
+    ///
+    /// Uses the invariant that `column` is a 1-based byte offset from the
+    /// start of the line, and `offset` is the absolute byte offset from the
+    /// start of the document. The formula is:
+    ///
+    /// line_start_offset = offset - (column - 1)
+    ///
+    /// This function uses saturating math to avoid underflow in case of
+    /// malformed positions.
+    pub fn line_start_offset(&self) -> usize {
+        self.offset.saturating_sub(self.column.saturating_sub(1))
+    }
 }
 
 impl Span {
     pub fn new(start: Position, end: Position) -> Self {
         Self { start, end }
+    }
+
+    /// Return the absolute byte offset of the start of the span's first line.
+    ///
+    /// This is a convenience wrapper around `Position::line_start_offset` for
+    /// the span's `start` position.
+    pub fn start_line_offset(&self) -> usize {
+        self.start.line_start_offset()
+    }
+
+    /// Return the absolute byte offset of the start of the span's end line.
+    /// Useful when expanding a span to include the whole end line.
+    pub fn end_line_offset(&self) -> usize {
+        self.end.line_start_offset()
+    }
+}
+
+/// Convenience helper: compute the absolute byte offset of the start of the
+/// given span's starting line.
+///
+/// This is exposed as a free function to simplify callers that don't have a
+/// `Span` method in scope or prefer a function name matching the refactor plan.
+pub fn compute_line_start_offset(span: &Span) -> usize {
+    span.start_line_offset()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_line_start_offset_simple() {
+        let pos = Position::new(1, 1, 0);
+        assert_eq!(pos.line_start_offset(), 0);
+
+        let pos2 = Position::new(1, 5, 4);
+        // offset 4, column 5 -> line start = 4 - (5 - 1) = 0
+        assert_eq!(pos2.line_start_offset(), 0);
+
+        let pos3 = Position::new(3, 4, 25);
+        // offset 25, column 4 -> line start = 25 - (4 - 1) = 22
+        assert_eq!(pos3.line_start_offset(), 22);
+    }
+
+    #[test]
+    fn test_span_line_offsets() {
+        let start = Position::new(2, 3, 10);
+        let end = Position::new(4, 1, 40);
+        let span = Span::new(start, end);
+
+        assert_eq!(span.start_line_offset(), 10 - (3 - 1));
+        assert_eq!(span.end_line_offset(), 40 - (1 - 1));
     }
 }

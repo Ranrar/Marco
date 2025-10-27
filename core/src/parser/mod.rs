@@ -3,6 +3,7 @@
 
 pub mod ast;
 pub mod position;
+pub mod shared;
 
 // Modular parser structure
 pub mod blocks;

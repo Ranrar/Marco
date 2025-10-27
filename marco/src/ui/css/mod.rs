@@ -52,6 +52,7 @@ pub mod footer;
 pub mod menu;
 pub mod settings;
 pub mod toolbar;
+pub mod syntax;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 

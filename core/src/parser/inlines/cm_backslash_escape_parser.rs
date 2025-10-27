@@ -3,11 +3,9 @@
 //! Parses backslash escape sequences (\*, \\, etc.) and converts them to Text nodes
 //! containing just the escaped character (without the backslash).
 
-use super::shared::GrammarSpan;
+use super::shared::{GrammarSpan, to_parser_span_range};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
-use crate::parser::Position;
-use crate::parser::Span as ParserSpan;
 use nom::IResult;
 
 /// Parse a backslash escape and convert to AST node
@@ -24,13 +22,7 @@ use nom::IResult;
 pub fn parse_backslash_escape(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let (rest, escaped_char) = grammar::backslash_escape(input)?;
     
-    let start = input.location_offset();
-    let end = rest.location_offset();
-    
-    let span = ParserSpan::new(
-        Position::new(input.location_line() as usize, input.get_column(), start),
-        Position::new(rest.location_line() as usize, rest.get_column(), end),
-    );
+    let span = to_parser_span_range(input, rest);
     
     // Create a text node with just the escaped character (without the backslash)
     let node = Node {
