@@ -346,9 +346,9 @@ paned > separator {{
             .and_then(|e| e.syntax_colors)
             .unwrap_or(true);
         if enable_syntax {
-            crate::ui::css::syntax::apply_to_buffer(&*buffer_rc, theme_mode.borrow().as_str());
+            crate::ui::css::syntax::apply_to_buffer(&buffer_rc, theme_mode.borrow().as_str());
         } else {
-            crate::ui::css::syntax::remove_from_buffer(&*buffer_rc);
+            crate::ui::css::syntax::remove_from_buffer(&buffer_rc);
         }
     }
         // Register this editor with the global editor manager to receive settings updates
@@ -420,9 +420,9 @@ paned > separator {{
                     if new_settings.syntax_colors {
                         let scheme_id = theme_manager_for_callback.borrow().current_editor_scheme_id();
                         let theme_mode = theme_manager_for_callback.borrow().preview_theme_mode_from_scheme(&scheme_id);
-                        crate::ui::css::syntax::apply_to_buffer(&*buffer_for_callback, theme_mode.as_str());
+                        crate::ui::css::syntax::apply_to_buffer(&buffer_for_callback, theme_mode.as_str());
                     } else {
-                        crate::ui::css::syntax::remove_from_buffer(&*buffer_for_callback);
+                        crate::ui::css::syntax::remove_from_buffer(&buffer_for_callback);
                     }
 
                     log::debug!("Successfully applied editor settings to SourceView: {} {}px", 

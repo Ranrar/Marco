@@ -117,4 +117,30 @@ mod tests {
         assert_eq!(span.start.offset, 0);
         assert!(span.end.offset > span.start.offset);
     }
+    
+    #[test]
+    fn smoke_test_parse_inline_html_img_tag() {
+        // Test img tag with attributes
+        let input = GrammarSpan::new(r#"<img src="test.png" alt="test" />"#);
+        let result = parse_inline_html(input);
+        
+        assert!(result.is_ok(), "Failed to parse img tag");
+        let (rest, node) = result.unwrap();
+        
+        assert_eq!(rest.fragment(), &"");
+        
+        if let NodeKind::InlineHtml(html) = &node.kind {
+            assert_eq!(html, r#"<img src="test.png" alt="test" />"#);
+            println!("Parsed img HTML: {}", html);
+        } else {
+            panic!("Expected InlineHtml node, got {:?}", node.kind);
+        }
+        
+        assert!(node.span.is_some(), "Img tag should have position info");
+        let span = node.span.unwrap();
+        println!("Span: L{}:C{}-L{}:C{} (offset {}-{})", 
+            span.start.line, span.start.column,
+            span.end.line, span.end.column,
+            span.start.offset, span.end.offset);
+    }
 }

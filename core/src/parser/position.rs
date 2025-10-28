@@ -156,6 +156,6 @@ mod tests {
         let span = Span::new(start, end);
 
         assert_eq!(span.start_line_offset(), 10 - (3 - 1));
-        assert_eq!(span.end_line_offset(), 40 - (1 - 1));
+        assert_eq!(span.end_line_offset(), 40);
     }
 }

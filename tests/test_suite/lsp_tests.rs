@@ -2,7 +2,6 @@
 
 use super::commonmark_tests::{load_commonmark_tests, load_extra_tests};
 use super::utils::print_header;
-use core::lsp::HighlightTag;
 
 /// Check if two overlapping highlights represent valid nesting
 /// Returns true if one highlight fully contains the other (parent-child relationship)
@@ -202,7 +201,7 @@ fn test_lsp_highlights_extra_spec() {
                             
                             if !is_valid_nesting {
                                 failed += 1;
-                                failed_examples.push((test.example, format!("Invalid overlapping highlights")));
+                                failed_examples.push((test.example, "Invalid overlapping highlights".to_string()));
                                 has_error = true;
                                 break;
                             }
@@ -238,9 +237,7 @@ fn test_lsp_highlights_extra_spec() {
 
 #[cfg(test)]
 mod tests {
-    use core::parser::Document;
-    use core::lsp::*;
-    use core::parser::Position;
+    // ...existing code...
     
     #[test]
     fn test_lsp_provider_creation() {
@@ -279,5 +276,105 @@ mod tests {
         let diagnostics = compute_diagnostics(&doc);
         assert_eq!(diagnostics.len(), 0);
         log::info!("Compute diagnostics test passed");
+    }
+    
+    #[test]
+    fn test_html_img_highlighting() {
+        use core::parser::parse;
+        use core::lsp::compute_highlights;
+        
+        // Test simple img tag
+        let input1 = r#"<img src="test.png" alt="test" />"#;
+        match parse(input1) {
+            Ok(doc) => {
+                println!("Parsed doc for img tag:");
+                for node in &doc.children {
+                    println!("  Node: {:?}", node.kind);
+                    if let Some(span) = &node.span {
+                        println!("    Span: L{}:C{}-L{}:C{}", 
+                            span.start.line, span.start.column,
+                            span.end.line, span.end.column);
+                    }
+                }
+                let highlights = compute_highlights(&doc);
+                println!("  Highlights: {}", highlights.len());
+                for hl in &highlights {
+                    println!("    {:?} at L{}:C{}-L{}:C{}",
+                        hl.tag,
+                        hl.span.start.line, hl.span.start.column,
+                        hl.span.end.line, hl.span.end.column);
+                }
+            }
+            Err(e) => {
+                println!("Failed to parse img tag: {:?}", e);
+            }
+        }
+        
+        // Test paragraph with img tag
+        let input2 = r#"This is a paragraph with an image: <img src="test.png" alt="test" />"#;
+        match parse(input2) {
+            Ok(doc) => {
+                println!("\nParsed doc for paragraph with img:");
+                for node in &doc.children {
+                    println!("  Node: {:?}", node.kind);
+                    if let Some(span) = &node.span {
+                        println!("    Span: L{}:C{}-L{}:C{}", 
+                            span.start.line, span.start.column,
+                            span.end.line, span.end.column);
+                    }
+                    for child in &node.children {
+                        println!("    Child: {:?}", child.kind);
+                        if let Some(span) = &child.span {
+                            println!("      Span: L{}:C{}-L{}:C{}", 
+                                span.start.line, span.start.column,
+                                span.end.line, span.end.column);
+                        }
+                    }
+                }
+                let highlights = compute_highlights(&doc);
+                println!("  Highlights: {}", highlights.len());
+                for hl in &highlights {
+                    println!("    {:?} at L{}:C{}-L{}:C{}",
+                        hl.tag,
+                        hl.span.start.line, hl.span.start.column,
+                        hl.span.end.line, hl.span.end.column);
+                }
+            }
+            Err(e) => {
+                println!("Failed to parse paragraph with img: {:?}", e);
+            }
+        }
+        
+        // Test inline HTML
+        let input3 = r#"Text with <span>HTML</span> inline."#;
+        match parse(input3) {
+            Ok(doc) => {
+                println!("\nParsed doc for inline HTML:");
+                for node in &doc.children {
+                    println!("  Node: {:?}", node.kind);
+                    for child in &node.children {
+                        println!("    Child: {:?}", child.kind);
+                        if let Some(span) = &child.span {
+                            println!("      Span: L{}:C{}-L{}:C{}", 
+                                span.start.line, span.start.column,
+                                span.end.line, span.end.column);
+                        }
+                    }
+                }
+                let highlights = compute_highlights(&doc);
+                println!("  Highlights: {}", highlights.len());
+                for hl in &highlights {
+                    println!("    {:?} at L{}:C{}-L{}:C{}",
+                        hl.tag,
+                        hl.span.start.line, hl.span.start.column,
+                        hl.span.end.line, hl.span.end.column);
+                }
+            }
+            Err(e) => {
+                println!("Failed to parse inline HTML: {:?}", e);
+            }
+        }
+        
+        log::info!("HTML img highlighting test completed");
     }
 }
