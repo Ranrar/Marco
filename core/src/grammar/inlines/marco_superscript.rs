@@ -1,7 +1,7 @@
-//! Strikethrough grammar (extension)
+//! Superscript grammar (Marco extension)
 //!
 //! Parses:
-//! - `~~text~~`
+//! - `^text^`
 //!
 //! Returning the content span between the delimiters (without the delimiters).
 
@@ -9,29 +9,28 @@ use nom::{IResult, Input};
 
 use super::Span;
 
-/// Parse strikethrough using `~~` delimiters.
+/// Parse superscript using `^` delimiters.
 ///
 /// This is a conservative extension parser (not CommonMark).
-pub fn strikethrough(input: Span) -> IResult<Span, Span> {
+pub fn superscript(input: Span) -> IResult<Span, Span> {
     let s = input.fragment();
 
-    // Must start with exactly two tildes.
-    if !s.starts_with("~~") {
+    if !s.starts_with('^') {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Char,
+        )));
+    }
+
+    // Reject "^^" (reserve for potential future meaning).
+    if s.as_bytes().get(1) == Some(&b'^') {
         return Err(nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::Tag,
         )));
     }
 
-    // Avoid consuming 3+ tildes as "~~".
-    if s.as_bytes().get(2) == Some(&b'~') {
-        return Err(nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::Tag,
-        )));
-    }
-
-    let after_opening = input.take_from(2);
+    let after_opening = input.take_from(1);
     let remaining = after_opening.fragment();
     if remaining.is_empty() {
         return Err(nom::Err::Error(nom::error::Error::new(
@@ -40,10 +39,9 @@ pub fn strikethrough(input: Span) -> IResult<Span, Span> {
         )));
     }
 
-    // Find closing delimiter pair.
     let mut pos = 0;
-    while pos + 1 < remaining.len() {
-        // Skip over code spans (backtick regions) to give them precedence.
+    while pos < remaining.len() {
+        // Skip over code spans (backtick regions).
         if remaining.as_bytes()[pos] == b'`' {
             pos += 1;
             while pos < remaining.len() && remaining.as_bytes()[pos] != b'`' {
@@ -55,7 +53,7 @@ pub fn strikethrough(input: Span) -> IResult<Span, Span> {
             continue;
         }
 
-        if remaining.as_bytes()[pos] == b'~' && remaining.as_bytes()[pos + 1] == b'~' {
+        if remaining.as_bytes()[pos] == b'^' {
             if pos == 0 {
                 return Err(nom::Err::Error(nom::error::Error::new(
                     input,
@@ -64,7 +62,7 @@ pub fn strikethrough(input: Span) -> IResult<Span, Span> {
             }
 
             let content = after_opening.take(pos);
-            let rest = after_opening.take_from(pos + 2);
+            let rest = after_opening.take_from(pos + 1);
             return Ok((rest, content));
         }
 
@@ -82,25 +80,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn smoke_test_strikethrough_basic() {
-        let input = Span::new("~~strike~~ rest");
-        let (rest, content) = strikethrough(input).unwrap();
-        assert_eq!(*content.fragment(), "strike");
+    fn smoke_test_superscript_basic() {
+        let input = Span::new("^sup^ rest");
+        let (rest, content) = superscript(input).unwrap();
+        assert_eq!(*content.fragment(), "sup");
         assert_eq!(*rest.fragment(), " rest");
     }
 
     #[test]
-    fn smoke_test_strikethrough_reject_three() {
-        let input = Span::new("~~~nope~~~");
-        assert!(strikethrough(input).is_err());
-    }
-
-    #[test]
-    fn smoke_test_strikethrough_skips_code() {
-        let input = Span::new("~~a `~~` b~~");
-        let result = strikethrough(input);
-        assert!(result.is_ok());
-        let (_, content) = result.unwrap();
-        assert_eq!(*content.fragment(), "a `~~` b");
+    fn smoke_test_superscript_reject_double() {
+        let input = Span::new("^^nope^^");
+        assert!(superscript(input).is_err());
     }
 }

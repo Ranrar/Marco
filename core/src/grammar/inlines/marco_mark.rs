@@ -1,4 +1,4 @@
-//! Mark / highlight grammar (extension)
+//! Mark / highlight grammar (Marco extension)
 //!
 //! Parses:
 //! - `==text==`

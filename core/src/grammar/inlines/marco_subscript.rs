@@ -1,7 +1,7 @@
-//! Superscript grammar (extension)
+//! Subscript grammar (Marco extension)
 //!
 //! Parses:
-//! - `^text^`
+//! - `~text~`
 //!
 //! Returning the content span between the delimiters (without the delimiters).
 
@@ -9,21 +9,21 @@ use nom::{IResult, Input};
 
 use super::Span;
 
-/// Parse superscript using `^` delimiters.
+/// Parse subscript using `~` delimiters.
 ///
-/// This is a conservative extension parser (not CommonMark).
-pub fn superscript(input: Span) -> IResult<Span, Span> {
+/// Note: this intentionally does **not** match `~~text~~` (strikethrough).
+pub fn subscript(input: Span) -> IResult<Span, Span> {
     let s = input.fragment();
 
-    if !s.starts_with('^') {
+    if !s.starts_with('~') {
         return Err(nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::Char,
         )));
     }
 
-    // Reject "^^" (reserve for potential future meaning).
-    if s.as_bytes().get(1) == Some(&b'^') {
+    // Don't conflict with strikethrough.
+    if s.as_bytes().get(1) == Some(&b'~') {
         return Err(nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::Tag,
@@ -53,7 +53,7 @@ pub fn superscript(input: Span) -> IResult<Span, Span> {
             continue;
         }
 
-        if remaining.as_bytes()[pos] == b'^' {
+        if remaining.as_bytes()[pos] == b'~' {
             if pos == 0 {
                 return Err(nom::Err::Error(nom::error::Error::new(
                     input,
@@ -80,16 +80,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn smoke_test_superscript_basic() {
-        let input = Span::new("^sup^ rest");
-        let (rest, content) = superscript(input).unwrap();
-        assert_eq!(*content.fragment(), "sup");
+    fn smoke_test_subscript_basic() {
+        let input = Span::new("~sub~ rest");
+        let (rest, content) = subscript(input).unwrap();
+        assert_eq!(*content.fragment(), "sub");
         assert_eq!(*rest.fragment(), " rest");
     }
 
     #[test]
-    fn smoke_test_superscript_reject_double() {
-        let input = Span::new("^^nope^^");
-        assert!(superscript(input).is_err());
+    fn smoke_test_subscript_reject_strike_prefix() {
+        let input = Span::new("~~strike~~");
+        assert!(subscript(input).is_err());
     }
 }
