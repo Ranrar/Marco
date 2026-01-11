@@ -61,6 +61,16 @@ pub struct Node {
     pub children: Vec<Node>,
 }
 
+/// Table column alignment (GFM tables extension).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TableAlignment {
+    #[default]
+    None,
+    Left,
+    Center,
+    Right,
+}
+
 // All node types
 #[derive(Debug, Clone)]
 pub enum NodeKind {
@@ -82,7 +92,21 @@ pub enum NodeKind {
     },
     ListItem,
     Blockquote,
-    Table,
+    /// GFM table (pipe table extension).
+    ///
+    /// Children convention:
+    /// - Each child is a `TableRow`.
+    /// - Each `TableRow` contains `TableCell` children.
+    Table {
+        alignments: Vec<TableAlignment>,
+    },
+    TableRow {
+        header: bool,
+    },
+    TableCell {
+        header: bool,
+        alignment: TableAlignment,
+    },
     HtmlBlock {
         html: String,
     }, // Block-level HTML (comments, tags, etc.)

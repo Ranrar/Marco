@@ -18,6 +18,7 @@ pub mod cm_link_reference_parser;
 pub mod cm_list_parser;
 pub mod cm_paragraph_parser;
 pub mod cm_thematic_break_parser;
+pub mod gfm_table_parser;
 
 // Re-export shared utilities
 pub use shared::{dedent_list_item_content, to_parser_span, to_parser_span_range, GrammarSpan};
@@ -430,6 +431,15 @@ fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> 
         // Must come BEFORE paragraph to avoid treating definitions as paragraphs
         if let Ok((rest, (label, url, title))) = grammar::link_reference_definition(remaining) {
             cm_link_reference_parser::parse_link_reference(&mut document, &label, url, title);
+            remaining = rest;
+            continue;
+        }
+
+        // Try parsing GFM pipe table (extension)
+        // Must come BEFORE paragraph so tables aren't consumed as plain text.
+        let table_start = remaining;
+        if let Ok((rest, table)) = grammar::gfm_table(remaining) {
+            nodes.push(gfm_table_parser::parse_gfm_table(table, table_start, rest));
             remaining = rest;
             continue;
         }

@@ -2,9 +2,11 @@
 
 pub mod html;
 pub mod options;
+pub mod preview_document;
 
 pub use html::*;
 pub use options::*;
+pub use preview_document::*;
 
 use crate::parser::Document;
 use anyhow::Result;

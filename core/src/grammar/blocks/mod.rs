@@ -14,6 +14,7 @@ pub mod cm_list;
 pub mod cm_paragraph;
 pub mod cm_setext_heading;
 pub mod cm_thematic_break;
+pub mod gfm_table;
 
 // Re-export all block parsers
 pub use cm_blockquote::*;
@@ -26,3 +27,4 @@ pub use cm_list::*;
 pub use cm_paragraph::*;
 pub use cm_setext_heading::*;
 pub use cm_thematic_break::*;
+pub use gfm_table::*;

@@ -174,7 +174,7 @@ pub fn load_and_render_markdown(
 </head>
 <body>
     <div class="error">
-        <h2>⚠️ Error Loading File</h2>
+        <h2>Error Loading File</h2>
         <p>Could not read file: <code>{}</code></p>
         <p>Error: {}</p>
     </div>
@@ -239,24 +239,9 @@ pub fn parse_markdown_to_html(
             let theme_class = format!("theme-{}", theme_mode);
             log::debug!("Generated HTML with theme class: {}", theme_class);
 
-            // Wrap in complete HTML document with theme class on <html> element
-            // This allows CSS to target .theme-light or .theme-dark for proper theming
-            format!(
-                r#"<!DOCTYPE html>
-<html class="{}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        {}
-    </style>
-</head>
-<body>
-    {}
-</body>
-</html>"#,
-                theme_class, combined_css, html
-            )
+            // Wrap in the shared preview document so both Marco and Polo get
+            // identical in-page JS behavior (including table resizing).
+            core::render::wrap_preview_html_document(&html, &combined_css, &theme_class, None)
         }
         Err(e) => {
             // Show parse error with properly escaped content to prevent XSS
@@ -292,7 +277,7 @@ pub fn parse_markdown_to_html(
 </head>
 <body>
     <div class="error">
-        <h2>⚠️ Markdown Parse Error</h2>
+        <h2>Markdown Parse Error</h2>
         <pre>{}</pre>
     </div>
 </body>

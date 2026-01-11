@@ -167,7 +167,11 @@ fn format_node_tree(
         NodeKind::ListItem => "ListItem".to_string(),
         NodeKind::Blockquote => "Blockquote".to_string(),
         NodeKind::ThematicBreak => "ThematicBreak".to_string(),
-        NodeKind::Table => "Table".to_string(),
+        NodeKind::Table { alignments } => format!("Table(cols={})", alignments.len()),
+        NodeKind::TableRow { header } => format!("TableRow(header={})", header),
+        NodeKind::TableCell { header, alignment } => {
+            format!("TableCell(header={}, alignment={:?})", header, alignment)
+        }
         NodeKind::HtmlBlock { html } => format!("HtmlBlock {} bytes", html.len()),
         NodeKind::Emphasis => "Emphasis".to_string(),
         NodeKind::Strong => "Strong".to_string(),

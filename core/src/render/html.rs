@@ -65,6 +65,21 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push_str("</blockquote>\n");
         }
+        NodeKind::Table { .. } => {
+            render_table(node, output, options)?;
+        }
+        NodeKind::TableRow { .. } => {
+            // Tables should be rendered via `render_table` so we can decide
+            // whether a row belongs in <thead> or <tbody>.
+            log::warn!("TableRow rendered outside of Table context");
+            render_table_row(node, output, options)?;
+            output.push('\n');
+        }
+        NodeKind::TableCell { .. } => {
+            // Cells should be rendered via `render_table_row`.
+            log::warn!("TableCell rendered outside of TableRow context");
+            render_table_cell(node, output, options)?;
+        }
         NodeKind::Text(text) => {
             output.push_str(&escape_html(text));
         }
@@ -196,12 +211,94 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push_str("</li>\n");
         }
-        _ => {
-            log::warn!("Unimplemented node type: {:?}", node.kind);
-        }
     }
 
     Ok(())
+}
+
+fn render_table(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+    output.push_str("<table>\n");
+
+    let mut header_rows: Vec<&Node> = Vec::new();
+    let mut body_rows: Vec<&Node> = Vec::new();
+
+    for row in &node.children {
+        match row.kind {
+            NodeKind::TableRow { header: true } => header_rows.push(row),
+            NodeKind::TableRow { header: false } => body_rows.push(row),
+            _ => {
+                log::warn!("Unexpected child inside Table: {:?}", row.kind);
+            }
+        }
+    }
+
+    if !header_rows.is_empty() {
+        output.push_str("<thead>\n");
+        for row in header_rows {
+            render_table_row(row, output, options)?;
+            output.push('\n');
+        }
+        output.push_str("</thead>\n");
+    }
+
+    if !body_rows.is_empty() {
+        output.push_str("<tbody>\n");
+        for row in body_rows {
+            render_table_row(row, output, options)?;
+            output.push('\n');
+        }
+        output.push_str("</tbody>\n");
+    }
+
+    output.push_str("</table>\n");
+    Ok(())
+}
+
+fn render_table_row(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+    output.push_str("<tr>");
+    for cell in &node.children {
+        render_table_cell(cell, output, options)?;
+    }
+    output.push_str("</tr>");
+    Ok(())
+}
+
+fn render_table_cell(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+    let (is_header, alignment) = match &node.kind {
+        NodeKind::TableCell { header, alignment } => (*header, *alignment),
+        _ => {
+            log::warn!("Unexpected child inside TableRow: {:?}", node.kind);
+            (false, crate::parser::ast::TableAlignment::None)
+        }
+    };
+
+    let tag = if is_header { "th" } else { "td" };
+    output.push('<');
+    output.push_str(tag);
+
+    if let Some(style_value) = alignment_to_css(alignment) {
+        output.push_str(" style=\"");
+        output.push_str(style_value);
+        output.push('"');
+    }
+
+    output.push('>');
+    for child in &node.children {
+        render_node(child, output, options)?;
+    }
+    output.push_str("</");
+    output.push_str(tag);
+    output.push('>');
+    Ok(())
+}
+
+fn alignment_to_css(alignment: crate::parser::ast::TableAlignment) -> Option<&'static str> {
+    match alignment {
+        crate::parser::ast::TableAlignment::None => None,
+        crate::parser::ast::TableAlignment::Left => Some("text-align: left;"),
+        crate::parser::ast::TableAlignment::Center => Some("text-align: center;"),
+        crate::parser::ast::TableAlignment::Right => Some("text-align: right;"),
+    }
 }
 
 // Render a list item with proper tight/loose handling
@@ -257,6 +354,7 @@ fn escape_html(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::parser::ast::TableAlignment;
     use crate::parser::{Document, Node, NodeKind};
 
     #[test]
@@ -555,5 +653,91 @@ mod tests {
             result,
             "<p><del>del</del> <mark>mark</mark> <sup>sup</sup> <sub>sub</sub></p>\n"
         );
+    }
+
+    #[test]
+    fn smoke_test_render_table_with_alignment() {
+        let doc = Document {
+            children: vec![Node {
+                kind: NodeKind::Table {
+                    alignments: vec![TableAlignment::Left, TableAlignment::Center],
+                },
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::TableRow { header: true },
+                        span: None,
+                        children: vec![
+                            Node {
+                                kind: NodeKind::TableCell {
+                                    header: true,
+                                    alignment: TableAlignment::Left,
+                                },
+                                span: None,
+                                children: vec![Node {
+                                    kind: NodeKind::Text("h1".to_string()),
+                                    span: None,
+                                    children: vec![],
+                                }],
+                            },
+                            Node {
+                                kind: NodeKind::TableCell {
+                                    header: true,
+                                    alignment: TableAlignment::Center,
+                                },
+                                span: None,
+                                children: vec![Node {
+                                    kind: NodeKind::Text("h2".to_string()),
+                                    span: None,
+                                    children: vec![],
+                                }],
+                            },
+                        ],
+                    },
+                    Node {
+                        kind: NodeKind::TableRow { header: false },
+                        span: None,
+                        children: vec![
+                            Node {
+                                kind: NodeKind::TableCell {
+                                    header: false,
+                                    alignment: TableAlignment::Left,
+                                },
+                                span: None,
+                                children: vec![Node {
+                                    kind: NodeKind::Text("c1".to_string()),
+                                    span: None,
+                                    children: vec![],
+                                }],
+                            },
+                            Node {
+                                kind: NodeKind::TableCell {
+                                    header: false,
+                                    alignment: TableAlignment::Center,
+                                },
+                                span: None,
+                                children: vec![Node {
+                                    kind: NodeKind::Text("c2".to_string()),
+                                    span: None,
+                                    children: vec![],
+                                }],
+                            },
+                        ],
+                    },
+                ],
+            }],
+            ..Default::default()
+        };
+
+        let options = RenderOptions::default();
+        let result = render_html(&doc, &options).expect("render failed");
+
+        assert!(result.contains("<table>"));
+        assert!(result.contains("<thead>"));
+        assert!(result.contains("<tbody>"));
+        assert!(result.contains("<th style=\"text-align: left;\">h1</th>"));
+        assert!(result.contains("<th style=\"text-align: center;\">h2</th>"));
+        assert!(result.contains("<td style=\"text-align: left;\">c1</td>"));
+        assert!(result.contains("<td style=\"text-align: center;\">c2</td>"));
     }
 }
