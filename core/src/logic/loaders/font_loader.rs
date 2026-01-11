@@ -2,7 +2,7 @@ use anyhow::Result;
 use fontconfig::Fontconfig;
 use log::{debug, error, warn};
 use std::collections::HashMap;
-use std::sync::{RwLock, OnceLock};
+use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
 
 /// Font cache entry with timestamp for expiration
@@ -69,20 +69,26 @@ impl FontLoader {
     /// Get cached monospace fonts (very fast) with automatic refresh if expired
     pub fn get_cached_monospace_fonts() -> Vec<FontFamily> {
         let cache = MONOSPACE_FONT_CACHE.get_or_init(|| RwLock::new(None));
-        
+
         // Try to read from cache first
         if let Ok(cache_read) = cache.read() {
             if let Some(ref entry) = *cache_read {
                 // Check if cache is still valid
                 if entry.cached_at.elapsed() < CACHE_EXPIRATION {
-                    debug!("Using cached monospace fonts (age: {:?})", entry.cached_at.elapsed());
+                    debug!(
+                        "Using cached monospace fonts (age: {:?})",
+                        entry.cached_at.elapsed()
+                    );
                     return entry.fonts.clone();
                 } else {
-                    debug!("Font cache expired (age: {:?}), needs refresh", entry.cached_at.elapsed());
+                    debug!(
+                        "Font cache expired (age: {:?}), needs refresh",
+                        entry.cached_at.elapsed()
+                    );
                 }
             }
         }
-        
+
         // Cache is expired or not initialized, try to refresh
         match Self::refresh_monospace_cache() {
             Ok(fonts) => fonts,
@@ -92,7 +98,7 @@ impl FontLoader {
             }
         }
     }
-    
+
     /// Get fallback monospace fonts when cache fails
     fn fallback_monospace_fonts() -> Vec<FontFamily> {
         vec![
@@ -110,7 +116,7 @@ impl FontLoader {
             },
         ]
     }
-    
+
     /// Refresh the monospace font cache by reloading from system
     pub fn refresh_monospace_cache() -> Result<Vec<FontFamily>> {
         debug!("Refreshing monospace font cache");
@@ -128,7 +134,7 @@ impl FontLoader {
         debug!("Font cache refreshed with {} fonts", monospace_fonts.len());
         Ok(monospace_fonts)
     }
-    
+
     /// Clear the font cache (useful for testing or manual refresh)
     #[allow(dead_code)]
     pub fn clear_monospace_cache() {
@@ -137,7 +143,7 @@ impl FontLoader {
             *cache.write().unwrap() = None;
         }
     }
-    
+
     /// Get cache statistics for debugging
     #[allow(dead_code)]
     pub fn get_cache_stats() -> (bool, Option<Duration>) {
@@ -279,20 +285,20 @@ mod tests {
     fn smoke_test_font_cache_invalidation() {
         // Clear any existing cache
         FontLoader::clear_monospace_cache();
-        
+
         // Initialize cache
         let result = FontLoader::init_monospace_cache();
         assert!(result.is_ok(), "Cache initialization should succeed");
-        
+
         // Get cached fonts
         let fonts = FontLoader::get_cached_monospace_fonts();
         assert!(!fonts.is_empty(), "Should have cached fonts");
-        
+
         // Check cache stats
         let (is_valid, age) = FontLoader::get_cache_stats();
         assert!(is_valid, "Cache should be valid after initialization");
         assert!(age.is_some(), "Cache should have age information");
-        
+
         println!("Font cache invalidation smoke test passed");
     }
 
@@ -301,24 +307,24 @@ mod tests {
     fn test_cache_refresh() {
         // Clear cache first
         FontLoader::clear_monospace_cache();
-        
+
         // Check stats when not initialized
         let (is_valid, age) = FontLoader::get_cache_stats();
         assert!(!is_valid, "Cache should be invalid when not initialized");
         assert!(age.is_none(), "Age should be None when not initialized");
-        
+
         // Refresh cache
         let result = FontLoader::refresh_monospace_cache();
         assert!(result.is_ok(), "Cache refresh should succeed");
-        
+
         let fonts = result.unwrap();
         assert!(!fonts.is_empty(), "Refreshed cache should have fonts");
-        
+
         // Verify cache is now valid
         let (is_valid, age) = FontLoader::get_cache_stats();
         assert!(is_valid, "Cache should be valid after refresh");
         assert!(age.is_some(), "Cache should have age after refresh");
-        
+
         println!("Cache refresh test passed");
     }
 
@@ -327,19 +333,19 @@ mod tests {
     fn test_cache_clear() {
         // Initialize cache first
         let _ = FontLoader::init_monospace_cache();
-        
+
         // Verify cache is initialized
         let (is_valid, _) = FontLoader::get_cache_stats();
         assert!(is_valid, "Cache should be valid after initialization");
-        
+
         // Clear cache
         FontLoader::clear_monospace_cache();
-        
+
         // Verify cache is cleared
         let (is_valid, age) = FontLoader::get_cache_stats();
         assert!(!is_valid, "Cache should be invalid after clearing");
         assert!(age.is_none(), "Age should be None after clearing");
-        
+
         println!("Cache clear test passed");
     }
 
@@ -348,16 +354,25 @@ mod tests {
     fn test_fallback_fonts() {
         // Get fallback fonts
         let fallback_fonts = FontLoader::fallback_monospace_fonts();
-        
+
         assert!(!fallback_fonts.is_empty(), "Should have fallback fonts");
-        assert!(fallback_fonts.iter().all(|f| f.is_monospace), "All fallback fonts should be monospace");
-        
+        assert!(
+            fallback_fonts.iter().all(|f| f.is_monospace),
+            "All fallback fonts should be monospace"
+        );
+
         // Verify expected fallback fonts
         let font_names: Vec<&str> = fallback_fonts.iter().map(|f| f.name.as_str()).collect();
-        assert!(font_names.contains(&"Monospace"), "Should include Monospace");
-        assert!(font_names.contains(&"Courier New"), "Should include Courier New");
+        assert!(
+            font_names.contains(&"Monospace"),
+            "Should include Monospace"
+        );
+        assert!(
+            font_names.contains(&"Courier New"),
+            "Should include Courier New"
+        );
         assert!(font_names.contains(&"Fixed"), "Should include Fixed");
-        
+
         println!("Fallback fonts test passed");
     }
 
@@ -367,19 +382,22 @@ mod tests {
     fn test_cache_expiration_behavior() {
         // This is a conceptual test - in reality, the 30-minute timeout is too long for unit tests
         // But we can test the logic by manually checking cache age
-        
+
         FontLoader::clear_monospace_cache();
         let _ = FontLoader::init_monospace_cache();
-        
+
         // Get initial cache stats
         let (is_valid, age) = FontLoader::get_cache_stats();
         assert!(is_valid, "Newly initialized cache should be valid");
-        
+
         if let Some(cache_age) = age {
             // Cache should be very fresh (less than 1 second old)
-            assert!(cache_age < Duration::from_secs(1), "Fresh cache should be less than 1 second old");
+            assert!(
+                cache_age < Duration::from_secs(1),
+                "Fresh cache should be less than 1 second old"
+            );
         }
-        
+
         // In a real scenario with a 30-minute timeout, the cache would stay valid
         // For testing purposes, we verify that the logic works correctly
         println!("Cache expiration behavior test passed (age: {:?})", age);
@@ -390,24 +408,31 @@ mod tests {
     fn demonstrate_cache_performance_improvement() {
         // Clear cache to start fresh
         FontLoader::clear_monospace_cache();
-        
+
         // First access - should initialize cache
         let start = Instant::now();
         let fonts1 = FontLoader::get_cached_monospace_fonts();
         let first_access_time = start.elapsed();
-        
+
         // Second access - should use cache
         let start = Instant::now();
         let fonts2 = FontLoader::get_cached_monospace_fonts();
         let second_access_time = start.elapsed();
-        
+
         // Verify fonts are the same
-        assert_eq!(fonts1.len(), fonts2.len(), "Both calls should return same number of fonts");
-        
+        assert_eq!(
+            fonts1.len(),
+            fonts2.len(),
+            "Both calls should return same number of fonts"
+        );
+
         // Second access should be faster (though both might be very fast)
-        println!("First access (cache initialization): {:?}", first_access_time);
+        println!(
+            "First access (cache initialization): {:?}",
+            first_access_time
+        );
         println!("Second access (cached): {:?}", second_access_time);
-        
+
         // The second access is often much faster as it avoids fontconfig enumeration
         println!("Font cache performance improvement demonstrated");
     }

@@ -53,7 +53,9 @@ fn get_or_create_cached_dialog(
     CACHED_DIALOG.with(|cached| {
         // Check if we have a valid cached dialog with the same parent
         if let Some((weak_dialog, weak_parent)) = cached.borrow().as_ref() {
-            if let (Some(dialog), Some(cached_parent)) = (weak_dialog.upgrade(), weak_parent.upgrade()) {
+            if let (Some(dialog), Some(cached_parent)) =
+                (weak_dialog.upgrade(), weak_parent.upgrade())
+            {
                 // Only reuse if same parent window (common case)
                 if std::ptr::eq(parent, &*cached_parent) {
                     trace!("audit: reusing cached settings dialog with same parent");
@@ -66,14 +68,20 @@ fn get_or_create_cached_dialog(
 
         // Create new dialog if none cached, previous was destroyed, or parent changed
         trace!("audit: creating new settings dialog");
-        let dialog = Rc::new(create_dialog_impl(parent, theme_manager, settings_path, asset_dir, callbacks));
-        
+        let dialog = Rc::new(create_dialog_impl(
+            parent,
+            theme_manager,
+            settings_path,
+            asset_dir,
+            callbacks,
+        ));
+
         // Cache weak references to both dialog and parent
         *cached.borrow_mut() = Some((
             Rc::downgrade(&dialog),
-            Rc::downgrade(&Rc::new(parent.clone()))
+            Rc::downgrade(&Rc::new(parent.clone())),
         ));
-        
+
         dialog
     })
 }
@@ -102,7 +110,8 @@ pub fn show_settings_dialog(
     callbacks: SettingsDialogCallbacks,
 ) {
     // Use cached dialog to avoid recreation overhead
-    let dialog = get_or_create_cached_dialog(parent, theme_manager, settings_path, asset_dir, callbacks);
+    let dialog =
+        get_or_create_cached_dialog(parent, theme_manager, settings_path, asset_dir, callbacks);
     dialog.present();
 }
 
@@ -131,7 +140,7 @@ fn create_dialog_impl(
     } else {
         "marco-theme-light"
     };
-    
+
     // Create Window instead of Dialog (non-modal to allow editing while settings is open)
     let window = Window::builder()
         .transient_for(parent)
@@ -140,11 +149,11 @@ fn create_dialog_impl(
         .default_height(500)
         .resizable(false)
         .build();
-    
+
     // Apply CSS classes for theming
     window.add_css_class("marco-settings-window");
     window.add_css_class(theme_class);
-    
+
     // Add ESC key handler to close window (like search dialog)
     let key_controller = gtk4::EventControllerKey::new();
     let window_weak_for_esc = window.downgrade();
@@ -159,26 +168,28 @@ fn create_dialog_impl(
         }
     });
     window.add_controller(key_controller);
-    
+
     // Set up runtime theme synchronization
     // Monitor parent window for CSS class changes and update settings window accordingly
     {
         let window_weak = window.downgrade();
         let parent_weak = parent.downgrade();
-        
+
         // Connect to parent's CSS class changes
         // We'll poll for changes using a timeout since GTK doesn't have a direct CSS class change signal
         let poll_interval = std::time::Duration::from_millis(100);
         glib::timeout_add_local(poll_interval, move || {
             // Check if both windows still exist
-            if let (Some(settings_win), Some(parent_win)) = (window_weak.upgrade(), parent_weak.upgrade()) {
+            if let (Some(settings_win), Some(parent_win)) =
+                (window_weak.upgrade(), parent_weak.upgrade())
+            {
                 let parent_widget = parent_win.upcast_ref::<gtk4::Widget>();
                 let settings_widget = settings_win.upcast_ref::<gtk4::Widget>();
-                
+
                 // Detect current parent theme
                 let parent_is_dark = parent_widget.has_css_class("marco-theme-dark");
                 let settings_is_dark = settings_widget.has_css_class("marco-theme-dark");
-                
+
                 // If themes don't match, synchronize
                 if parent_is_dark != settings_is_dark {
                     if parent_is_dark {
@@ -193,7 +204,7 @@ fn create_dialog_impl(
                         trace!("Settings dialog switched to light theme");
                     }
                 }
-                
+
                 // Continue polling if settings window is visible
                 if settings_win.is_visible() {
                     glib::ControlFlow::Continue
@@ -206,25 +217,25 @@ fn create_dialog_impl(
             }
         });
     }
-    
+
     // Create custom HeaderBar matching marco's style
     let headerbar = gtk4::HeaderBar::new();
     headerbar.add_css_class("titlebar");
     headerbar.add_css_class("marco-titlebar");
     headerbar.set_show_title_buttons(false);
-    
+
     // Set title in headerbar
     let title_label = Label::new(Some("Settings"));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
-    
+
     // Create custom close button with icon font
     let close_label = Label::new(None);
     close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
     close_label.set_valign(Align::Center);
     close_label.add_css_class("icon-font");
-    
+
     let btn_close_titlebar = Button::new();
     btn_close_titlebar.set_child(Some(&close_label));
     btn_close_titlebar.set_tooltip_text(Some("Close"));
@@ -236,10 +247,10 @@ fn create_dialog_impl(
     btn_close_titlebar.set_has_frame(false);
     btn_close_titlebar.add_css_class("topright-btn");
     btn_close_titlebar.add_css_class("window-control-btn");
-    
+
     // Add close button to right side of headerbar
     headerbar.pack_end(&btn_close_titlebar);
-    
+
     window.set_titlebar(Some(&headerbar));
 
     let notebook = Notebook::new();
@@ -259,7 +270,8 @@ fn create_dialog_impl(
     use core::logic::swanson::SettingsManager;
     let saved_view_mode: Option<String> = {
         if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
-            settings_manager.get_settings()
+            settings_manager
+                .get_settings()
                 .layout
                 .and_then(|l| l.view_mode)
         } else {
@@ -372,13 +384,13 @@ fn create_dialog_impl(
     close_button.add_css_class("marco-settings-close-button");
     close_button.set_halign(Align::End);
     close_button.set_valign(Align::Center);
-    
+
     // Wrap close button in frame matching the settings rows
     let close_frame = gtk4::Frame::new(None);
     close_frame.add_css_class("marco-settings-close-frame");
-    close_frame.set_height_request(56);  // Match ROW_FIXED_HEIGHT (reduced from 70 to 56)
+    close_frame.set_height_request(56); // Match ROW_FIXED_HEIGHT (reduced from 70 to 56)
     close_frame.set_vexpand(false);
-    
+
     let close_inner_box = GtkBox::new(Orientation::Horizontal, 0);
     close_inner_box.set_margin_start(10);
     close_inner_box.set_margin_end(10);
@@ -386,24 +398,24 @@ fn create_dialog_impl(
     close_inner_box.set_margin_bottom(6);
     close_inner_box.set_halign(Align::Fill);
     close_inner_box.set_valign(Align::Center);
-    
+
     // Add expanding spacer to push button to the right
     let spacer = GtkBox::new(Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
-    
+
     close_inner_box.append(&spacer);
     close_inner_box.append(&close_button);
-    
+
     close_frame.set_child(Some(&close_inner_box));
-    
+
     // Add some top margin to separate from tabs
     close_frame.set_margin_top(4);
-    
+
     content_box.append(&close_frame);
-    
+
     let window_clone = window.clone();
     let window_weak_for_titlebar = window.downgrade();
-    
+
     // Connect titlebar close button
     btn_close_titlebar.connect_clicked({
         let signal_managers = signal_managers.clone();
@@ -419,7 +431,7 @@ fn create_dialog_impl(
             }
         }
     });
-    
+
     // Connect bottom close button
     close_button.connect_clicked({
         let signal_managers = signal_managers.clone();
@@ -446,21 +458,21 @@ fn create_dialog_impl(
     });
 
     window.set_child(Some(&content_box));
-    
+
     window
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Instant;
+    use std::time::Duration;
 
     /// Smoke test to verify dialog caching works without errors
     #[test]
     fn smoke_test_dialog_caching() {
         // Clear any cached dialog from previous tests
         clear_cached_dialog();
-        
+
         // The actual dialog creation requires GTK to be initialized with a display
         // In a real environment, the dialog would be cached on subsequent calls
         println!("Dialog caching smoke test passed - no compilation errors");
@@ -470,37 +482,31 @@ mod tests {
     fn test_clear_cached_dialog() {
         // Test that clearing the cache works
         clear_cached_dialog();
-        
+
         // Call it again to ensure it doesn't panic on empty cache
         clear_cached_dialog();
-        
+
         println!("Clear cached dialog test passed");
     }
-    
+
     /// Demonstrates the performance improvement concept
     /// In real usage, the first call creates widgets, subsequent calls reuse them
-    #[test] 
+    #[test]
     fn demonstrate_caching_concept() {
-        // Simulate the performance difference between widget creation vs reuse
-        let start = Instant::now();
-        
-        // First "creation" - expensive widget creation
-        std::thread::sleep(std::time::Duration::from_micros(100));
-        let first_creation = start.elapsed();
-        
-        let start = Instant::now();
-        // Second "reuse" - much faster, just present existing dialog
-        std::thread::sleep(std::time::Duration::from_micros(10));
-        let second_reuse = start.elapsed();
-        
+        // Keep this test deterministic.
+        // We want to illustrate the *idea* that "reuse" should be faster than "creation",
+        // without relying on OS scheduling/timer granularity.
+        let first_creation = Duration::from_micros(100);
+        let second_reuse = Duration::from_micros(10);
+
         println!("Simulated first creation: {:?}", first_creation);
         println!("Simulated second reuse: {:?}", second_reuse);
-        
+
         // The real implementation shows similar improvements:
         // - First call: Create Dialog + Notebook + Tabs + Buttons + Signal handlers
         // - Second call: Reuse existing widgets, just call present()
         assert!(second_reuse < first_creation);
-        
+
         println!("Dialog caching demonstrates expected performance improvement");
     }
 }

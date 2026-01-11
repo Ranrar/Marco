@@ -55,11 +55,13 @@ impl EditorManager {
         let mut callbacks = self.editor_callbacks.borrow_mut();
         callbacks.insert(id, Box::new(callback));
 
-        debug!("Registered editor callback {} for settings updates (total: {})", id, callbacks.len());
+        debug!(
+            "Registered editor callback {} for settings updates (total: {})",
+            id,
+            callbacks.len()
+        );
         id
     }
-
-
 
     /// Update editor settings and notify all registered callbacks
     pub fn update_editor_settings(
@@ -99,7 +101,10 @@ impl EditorManager {
 
         // Notify all editor callbacks
         let callbacks = self.editor_callbacks.borrow();
-        debug!("Notifying {} registered editors of settings update", callbacks.len());
+        debug!(
+            "Notifying {} registered editors of settings update",
+            callbacks.len()
+        );
         for (editor_id, callback) in callbacks.iter() {
             debug!("Notifying editor {} of settings update", editor_id);
             callback(editor_settings);
@@ -123,11 +128,13 @@ impl EditorManager {
         let mut callbacks = self.line_numbers_callbacks.borrow_mut();
         callbacks.insert(id, Box::new(callback));
 
-        debug!("Registered line numbers callback {} for updates (total: {})", id, callbacks.len());
+        debug!(
+            "Registered line numbers callback {} for updates (total: {})",
+            id,
+            callbacks.len()
+        );
         id
     }
-
-
 
     /// Update line numbers setting and notify all registered callbacks
     pub fn update_line_numbers(&self, show_line_numbers: bool) -> anyhow::Result<()> {
@@ -161,8 +168,6 @@ impl EditorManager {
             if enabled { "enabled" } else { "disabled" }
         );
     }
-
-
 }
 
 // Global editor manager instance using thread-local storage
@@ -185,14 +190,18 @@ pub fn init_editor_manager(settings_manager: Arc<SettingsManager>) -> anyhow::Re
     );
 
     // Apply initial sync_scrolling setting from settings file
-    let initial_sync_scrolling = settings_manager.get_settings()
+    let initial_sync_scrolling = settings_manager
+        .get_settings()
         .layout
         .as_ref()
         .and_then(|l| l.sync_scrolling)
         .unwrap_or(true); // Default to true if not set
-    
+
     manager.set_scroll_sync_enabled(initial_sync_scrolling);
-    debug!("Applied initial sync scrolling setting: {}", initial_sync_scrolling);
+    debug!(
+        "Applied initial sync scrolling setting: {}",
+        initial_sync_scrolling
+    );
 
     EDITOR_MANAGER.with(|em| {
         *em.borrow_mut() = Some(Rc::new(std::cell::RefCell::new(manager)));
@@ -313,8 +322,6 @@ pub fn update_line_numbers_globally(show_line_numbers: bool) -> anyhow::Result<(
     }
 }
 
-
-
 /// Set scroll synchronization enabled/disabled globally
 pub fn set_scroll_sync_enabled_globally(enabled: bool) -> anyhow::Result<()> {
     if let Some(manager) = get_editor_manager() {
@@ -326,98 +333,129 @@ pub fn set_scroll_sync_enabled_globally(enabled: bool) -> anyhow::Result<()> {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn smoke_test_editor_manager_lifecycle() {
         // Create a temporary settings file for testing
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let settings_path = temp_dir.path().join("test_settings.ron");
-        
+
         // Create a SettingsManager for testing
         let settings_manager = SettingsManager::initialize(settings_path)
             .expect("Failed to create test SettingsManager");
-        
+
         // Ensure manager is not initialized initially
-        assert!(get_editor_manager().is_none(), "Manager should not be initialized initially");
-        
+        assert!(
+            get_editor_manager().is_none(),
+            "Manager should not be initialized initially"
+        );
+
         // Initialize manager
-        init_editor_manager(settings_manager)
-            .expect("Failed to initialize editor manager");
-        
+        init_editor_manager(settings_manager).expect("Failed to initialize editor manager");
+
         // Verify manager is initialized and accessible
-        assert!(get_editor_manager().is_some(), "Manager should be initialized after init");
-        
+        assert!(
+            get_editor_manager().is_some(),
+            "Manager should be initialized after init"
+        );
+
         // Test that we can register a callback (simple test that doesn't require complex lifetime management)
         let _editor_id = register_editor_callback_globally(|_settings| {
             // Simple callback that doesn't capture any variables
         });
-        assert!(_editor_id.is_some(), "Should be able to register callback when manager is initialized");
-        
+        assert!(
+            _editor_id.is_some(),
+            "Should be able to register callback when manager is initialized"
+        );
+
         // Test cleanup - this is the main focus of issue #15
         shutdown_editor_manager();
-        
+
         // Verify manager is cleaned up
-        assert!(get_editor_manager().is_none(), "Manager should be None after shutdown");
-        
+        assert!(
+            get_editor_manager().is_none(),
+            "Manager should be None after shutdown"
+        );
+
         // Verify operations fail gracefully after shutdown
         let result = register_editor_callback_globally(|_settings| {});
-        assert!(result.is_none(), "Operations should fail gracefully after shutdown");
-        
+        assert!(
+            result.is_none(),
+            "Operations should fail gracefully after shutdown"
+        );
+
         let result = update_editor_settings_globally(&EditorDisplaySettings::default());
-        assert!(result.is_err(), "Update operations should fail after shutdown");
+        assert!(
+            result.is_err(),
+            "Update operations should fail after shutdown"
+        );
     }
 
     #[test]
     fn smoke_test_settings_deduplication() {
         use std::sync::{Arc, Mutex};
-        
+
         let temp_dir = tempdir().expect("Failed to create temp dir");
         let settings_path = temp_dir.path().join("test_settings.ron");
-        
+
         // Create a SettingsManager for testing
         let settings_manager = SettingsManager::initialize(settings_path)
             .expect("Failed to create test SettingsManager");
-        
+
         // Initialize manager
-        init_editor_manager(settings_manager)
-            .expect("Failed to initialize editor manager");
-        
+        init_editor_manager(settings_manager).expect("Failed to initialize editor manager");
+
         // Register callback to track how many times it's called
         let callback_count = Arc::new(Mutex::new(0));
         let callback_count_clone = Arc::clone(&callback_count);
-        
+
         let _editor_id = register_editor_callback_globally(move |_settings| {
             let mut count = callback_count_clone.lock().unwrap();
             *count += 1;
-        }).expect("Should register callback");
-        
+        })
+        .expect("Should register callback");
+
         // Test deduplication - same settings should not trigger callbacks
         let settings = EditorDisplaySettings::default();
-        
+
         // First update should trigger callback
         update_editor_settings_globally(&settings).expect("Should update settings");
-        assert_eq!(*callback_count.lock().unwrap(), 1, "First update should trigger callback");
-        
+        assert_eq!(
+            *callback_count.lock().unwrap(),
+            1,
+            "First update should trigger callback"
+        );
+
         // Identical update should be deduplicated
         update_editor_settings_globally(&settings).expect("Should update settings");
-        assert_eq!(*callback_count.lock().unwrap(), 1, "Identical update should be deduplicated");
-        
+        assert_eq!(
+            *callback_count.lock().unwrap(),
+            1,
+            "Identical update should be deduplicated"
+        );
+
         // Different settings should trigger callback
         let mut different_settings = settings.clone();
         different_settings.font_size = 18;
         update_editor_settings_globally(&different_settings).expect("Should update settings");
-        assert_eq!(*callback_count.lock().unwrap(), 2, "Different settings should trigger callback");
-        
+        assert_eq!(
+            *callback_count.lock().unwrap(),
+            2,
+            "Different settings should trigger callback"
+        );
+
         // Another identical update should be deduplicated
         update_editor_settings_globally(&different_settings).expect("Should update settings");
-        assert_eq!(*callback_count.lock().unwrap(), 2, "Second identical update should be deduplicated");
-        
+        assert_eq!(
+            *callback_count.lock().unwrap(),
+            2,
+            "Second identical update should be deduplicated"
+        );
+
         // Cleanup
         shutdown_editor_manager();
     }

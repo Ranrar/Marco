@@ -2,64 +2,64 @@
 
 This document tests all the standard CommonMark features supported by Marco.
 
-## Headers and Sections (ok)
+## Headers and Sections  
 
-# Heading Level 1 (ATX) (ok)
-## Heading Level 2 (ATX) (ok)
-### Heading Level 3 (ATX) (ok)
-#### Heading Level 4 (ATX) (ok)
-##### Heading Level 5 (ATX) (ok)
-###### Heading Level 6 (ATX) (ok)
+# Heading Level 1 (ATX)  
+## Heading Level 2 (ATX)  
+### Heading Level 3 (ATX)  
+#### Heading Level 4 (ATX)  
+##### Heading Level 5 (ATX)  
+###### Heading Level 6 (ATX)  
 
-Alternative Setext H1 (ok)
+Alternative Setext H1  
 =====================
 
-Alternative Setext H2 (ok)
+Alternative Setext H2  
 ---------------------
 
-### Headers with `code` (ok)
-## Header with **bold text** (ok)
-## Header with *italic text* (ok)
-## Header with ***bold italic***  (ok) 
-## Header with ==highlight== (ok)
-## Header with :smile: (ok)
-## Header with ~~deleted~~ (ok)
+### Headers with `code`  
+## Header with **bold text**  
+## Header with *italic text*  
+## Header with ***bold italic***    
+## Header with ==highlight==  
+## Header with :smile:  
+## Header with ~~deleted~~  
 
 ## Text Formatting
 
 ### Emphasis
 
-This is *italic text* with asterisks. (ok)
-This is _italic text_ with underscores. (ok)
+This is *italic text* with asterisks.  
+This is _italic text_ with underscores.  
 
-This is **bold text** with asterisks. (ok)
-This is __bold text__ with underscores. (ok)
+This is **bold text** with asterisks.  
+This is __bold text__ with underscores.  
 
-This is ***bold and italic*** with triple asterisks. (ok)
-This is ___bold and italic___ with triple underscores. (ok)
+This is ***bold and italic*** with triple asterisks.  
+This is ___bold and italic___ with triple underscores.  
 
-Mixed formatting: **_bold italic_** and __*italic bold*__.  (ok)
+Mixed formatting: **_bold italic_** and __*italic bold*__.   
 
 ### Strikethrough
 
-~~This text is deleted/strikethrough with tildes~~  (ok)
---This text is also deleted with dashes--  (ok)
+~~This text is deleted/strikethrough with tildes~~   
+--This text is also deleted with dashes--   
 
 ### Marco Extensions: Highlight, Superscript, Subscript
 
-==This text is highlighted== (ok)
+==This text is highlighted==  
 
-This is text with ^superscript^ formatting. (ok)
-This is text with ~subscript~ formatting. (ok)
-This is text with ˅subscript˅ formatting (alternative arrow style). (ok)
+This is text with ^superscript^ formatting.  
+This is text with ~subscript~ formatting.  
+This is text with ˅subscript˅ formatting (alternative arrow style).  
 
 ### Inline Code
 
-Here is `inline code` in backticks.  (ok)
-Here is `code with **formatting** inside` (formatting should be literal).
+Here is `inline code` in backticks.   
+Here is `code with **formatting** inside` (formatting should be literal).  
 Here is `code with symbols: *_~=^$`.
 
-## Line Breaks (ok)
+## Line Breaks  
 
 This line has two spaces at the end for hard break.  
 This should be on a new line.
@@ -70,35 +70,35 @@ This should also be on a new line.
 This line has a normal newline
 but should continue on the same paragraph (soft break).
 
-## Horizontal Rules (ok)
+## Horizontal Rules  
 
-Three dashes: (ok)
+Three dashes:  
 
 ---
 
-Three asterisks: (ok)
+Three asterisks:  
 
 ***
 
-Three underscores: (ok)
+Three underscores:  
 
 ___
 
-Spaced dashes: (ok)
+Spaced dashes:  
 
 - - -
 
-Spaced asterisks: (ok)
+Spaced asterisks:  
 
 * * *
 
-Spaced underscores: (ok)
+Spaced underscores:  
 
 _ _ _
 
 ## Lists
 
-### Unordered Lists  (ok)
+### Unordered Lists   
 
 - First item
 - Second item
@@ -107,19 +107,19 @@ _ _ _
     	- Deep nested item
 - Third item
 
-Alternative markers:  (ok)
+Alternative markers:   
 
 * Item with asterisk
 + Item with plus
 - Item with dash
 
-Mixed markers (should still work):  (ok)
+Mixed markers (should still work):   
 
 * First
 + Second  
 - Third
 
-### Ordered Lists  (ok)
+### Ordered Lists   
 
 1. First item
 2. Second item
@@ -128,17 +128,17 @@ Mixed markers (should still work):  (ok)
 		1. Deep nested item
 3. Third item
 
-Different numbering:  (ok)
+Different numbering:   
 1. First
 1. Second (same number)
 5. Fifth (skip numbers)
 2. Second again (wrong order)
 
-Negative numbers:  (ok)
+Negative numbers:   
 -1. Negative item
 0. Zero item
 
-### Lists with Formatting  (ok)
+### Lists with Formatting   
 
 - Item with **bold text**
 - Item with *italic text*
@@ -154,52 +154,52 @@ Negative numbers:  (ok)
 
 ### Inline Links
 
-[Basic link](https://example.com) (ok)
-[Link with title](https://example.com "Example Website") (ok)
-[Link to local file](./test.md)
-[Link to absolute path](/home/user/file.txt)
-[Windows path](C:\Windows\System32\file.txt)
-[Windows forward slash](C:/Windows/System32/file.txt)
-[Relative path with spaces](./My Documents/file with spaces.txt)
+[Basic link](https://example.com)  
+[Link with title](https://example.com "Example Website")  
+[Link to local file](./test.md)   
+[Link to absolute path](/home/user/file.txt)   
+[Windows path](C:\Windows\System32\file.txt)   
+[Windows forward slash](C:/Windows/System32/file.txt)   
+[Relative path with spaces](./My Documents/file with spaces.txt)   
 
 ### Autolinks
 
-<https://example.com> (ok)
-<http://example.com> (ok)
-<mailto:user@example.com> (ok)
-<user@domain.com> (ok)
+<https://example.com>  
+<http://example.com>  
+<mailto:user@example.com>  
+<user@domain.com>  
 
 ### Reference Links
 
-[Reference link][ref1] (ok)
-[Another reference][ref2] (ok)
-[Case insensitive][REF1] (ok)
+[Reference link][ref1]  
+[Another reference][ref2]  
+[Case insensitive][REF1]  
 
 [ref1]: https://example.com
 [ref2]: https://example.com "Reference with title"
 
 ## Images
 
-### Inline Images (ok)
+### Inline Images  
 
-![PNG Test Image](./files/img/test.png)
-![JPG Test Image](./files/img/test.jpg "JPG Image Title")
-![JPEG Test Image](./files/img/test.jpeg)
-![Animated GIF](./files/img/animated.gif)
-![WebP Test Image](./files/img/test.webp)
-![SVG Test Image](./files/img/test.svg)
+![PNG Test Image](./files/img/test.png)   
+![JPG Test Image](./files/img/test.jpg "JPG Image Title")   
+![JPEG Test Image](./files/img/test.jpeg)   
+![Animated GIF](./files/img/animated.gif)  
+![WebP Test Image](./files/img/test.webp)   
+![SVG Test Image](./files/img/test.svg)   
 
-### Reference Images  (ok)
+### Reference Images   
 
 ![Reference image][img1]
 ![Another reference image][img2]
 
-[img1]: ./files/img/test.png
+[img1]: ./files/img/test.png   
 [img2]: ./files/img/test.jpg "Local JPG image with title"
 
 ## Code Blocks
 
-### Fenced Code Blocks (ok)
+### Fenced Code Blocks  
 
 ```
 Plain code block without language
@@ -314,17 +314,17 @@ $$
 
 ## Special Characters and Escaping
 
-\*Not italic\* because of escapes (ok)
+\*Not italic\* because of escapes  
 \**Not bold\** because of escapes (error)
-\# Not a heading (ok)
-\- Not a list item (ok)
-\> Not a blockquote (ok)
+\# Not a heading  
+\- Not a list item  
+\> Not a blockquote  
 
 Regular symbols that don't need escaping: . , ; : ! ? (think this has to be in one line)
 
-Unicode characters: café, naïve, Москва, 北京, العربية (ok)
+Unicode characters: café, naïve, Москва, 北京, العربية  
 
-Emoji characters: 🌟 ⭐ 💫 ✨ (ok)
+Emoji characters: 🌟 ⭐ 💫 ✨  
 
 :emoji_style: :another: :custom_emoji:
 
@@ -336,13 +336,13 @@ Here's a paragraph with **bold**, *italic*, `code`, [links](https://example.com)
 > 
 > Multiple paragraphs in blockquote with math: $e = mc^2$
 
-- List item with **bold** and `code` (ok)
+- List item with **bold** and `code`  
 - List item with [link](https://example.com) and math $\pi \approx 3.14$
-- List item with ~~strikethrough~~ and ==highlight== (ok)
+- List item with ~~strikethrough~~ and ==highlight==  
 
 ## Edge Cases - Basic
 
-### Empty Elements (ok)
+### Empty Elements  
 
 **
 
@@ -354,7 +354,7 @@ Here's a paragraph with **bold**, *italic*, `code`, [links](https://example.com)
 
 [](https://example.com) (has to write excatly the line `[](https://example.com)`)
 
-### Unmatched Formatting (dont know if this is correct)
+### Unmatched Formatting
 
 *This italic is not closed
 
@@ -368,44 +368,44 @@ Here's a paragraph with **bold**, *italic*, `code`, [links](https://example.com)
 
 ### Adjacent Formatting
 
-**bold***italic*
-*italic***bold**
-`code`**bold**
+**bold***italic*   
+*italic***bold**   
+`code`**bold**   
 **bold**`code`
 
 ### Special Text
 
-Text with * asterisk but not formatting
-Text with _ underscore but not formatting
-Text with `backtick but not code
+Text with * asterisk but not formatting  
+Text with _ underscore but not formatting  
+Text with `backtick but not code  
 Text with ==equals but not highlight
 
 ## Whitespace Handling
 
 Text    with    multiple    spaces
 
-Text	with	tabs	between	words (ok)
+Text	with	tabs	between	words  
 
-Line with trailing spaces    (ok)
-Next line after hard break (ok)
+Line with trailing spaces     
+Next line after hard break  
 
-Line with trailing tabs		(ok)
-Next line after tab hard break (ok)
+Line with trailing tabs		 
+Next line after tab hard break  
 
-Text at start of line (ok)
+Text at start of line  
   Text with leading spaces
-    Text with more leading spaces (ok)
+    Text with more leading spaces  
 
 ## URLs and Email
 
 Automatic URL detection:
-https://example.com should be plain text (ok)
+https://example.com should be plain text  
 http://example.com/path?query=value&other=test
-www.example.com should be plain text (ok)
+www.example.com should be plain text  
 
 Email addresses:
-user@domain.com should be plain text (ok)
-test.email+tag@sub.example.org should be plain text (ok)
+user@domain.com should be plain text  
+test.email+tag@sub.example.org should be plain text  
 
 FTP and other protocols:
 ftp://files.example.com

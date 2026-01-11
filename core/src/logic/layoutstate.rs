@@ -20,8 +20,8 @@
 //!
 //! ## Example
 //! ```no_run
-//! use marco::logic::menu_items::layoutstate::{LayoutState, layout_state_label};
-//! let state = LayoutState::Split;
+//! use core::logic::layoutstate::{LayoutState, layout_state_label};
+//! let state = LayoutState::DualView;
 //! println!("Current layout: {}", layout_state_label(state));
 //! ```
 //!
@@ -32,10 +32,10 @@
 /// LayoutState represents the current layout mode of the application.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum LayoutState {
-    DualView,               // A: Editor + View (default)
-    EditorOnly,             // B: Editor only
-    ViewOnly,               // C: View only
-    EditorAndViewSeparate,  // D: Editor + view in separate window
+    DualView,              // A: Editor + View (default)
+    EditorOnly,            // B: Editor only
+    ViewOnly,              // C: View only
+    EditorAndViewSeparate, // D: Editor + view in separate window
 }
 
 /// Converts a LayoutState to a human-readable string label.

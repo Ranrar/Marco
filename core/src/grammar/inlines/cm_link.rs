@@ -1,30 +1,48 @@
 //! Link grammar - inline links [text](url "title")
-use nom::{IResult, Slice};
 use super::Span;
+use nom::{IResult, Input};
 
 pub fn link(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
     log::debug!("Parsing link at: {:?}", input.fragment());
     let start_input = input;
     let content_str = input.fragment();
     if !content_str.starts_with('[') {
-        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    let bracket_pos = content_str[1..].find(']')
-        .ok_or_else(|| nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))?;
+    let bracket_pos = content_str[1..].find(']').ok_or_else(|| {
+        nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::TakeUntil,
+        ))
+    })?;
     if bracket_pos == 0 {
-        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::TakeUntil,
+        )));
     }
     let absolute_bracket_pos = 1 + bracket_pos;
     let link_text_str = &content_str[1..absolute_bracket_pos];
     let backtick_count = link_text_str.chars().filter(|&c| c == '`').count();
     if backtick_count % 2 != 0 {
-        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    // Slice to preserve position
-    let link_text = start_input.slice(1..absolute_bracket_pos);
+    // Preserve position information.
+    let link_text = start_input
+        .take_from(1)
+        .take(absolute_bracket_pos.saturating_sub(1));
     let after_bracket = absolute_bracket_pos + 1;
     if after_bracket >= content_str.len() || content_str.as_bytes()[after_bracket] != b'(' {
-        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
     let url_start = after_bracket + 1;
     let remaining_for_url = &content_str[url_start..];
@@ -48,29 +66,46 @@ pub fn link(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
         nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
     })?;
     let url_and_title = &remaining_for_url[..paren_pos];
-    let (url_start_in_content, url_end_in_content, title_opt) = if let Some((title_start, title_end)) = title_range {
-        if title_end > url_and_title.len() {
+    let (url_start_in_content, url_end_in_content, title_opt) =
+        if let Some((title_start, title_end)) = title_range {
+            if title_end > url_and_title.len() {
+                let url_trimmed = url_and_title.trim();
+                let url_offset = url_and_title.len() - url_and_title.trim_start().len();
+                (
+                    url_start + url_offset,
+                    url_start + url_offset + url_trimmed.len(),
+                    None,
+                )
+            } else {
+                let url_end = url_and_title.rfind(" \"").unwrap_or(url_and_title.len());
+                let url_part = url_and_title.get(..url_end).map(|s| s.trim()).unwrap_or("");
+                let url_offset = url_and_title.len() - url_and_title.trim_start().len();
+                let title_abs_start = url_start + title_start;
+                let title_abs_len = title_end.saturating_sub(title_start);
+                let title_span = start_input.take_from(title_abs_start).take(title_abs_len);
+                (
+                    url_start + url_offset,
+                    url_start + url_offset + url_part.len(),
+                    Some(title_span),
+                )
+            }
+        } else {
             let url_trimmed = url_and_title.trim();
             let url_offset = url_and_title.len() - url_and_title.trim_start().len();
-            (url_start + url_offset, url_start + url_offset + url_trimmed.len(), None)
-        } else {
-            let url_end = url_and_title.rfind(" \"").unwrap_or(url_and_title.len());
-            let url_part = url_and_title.get(..url_end).map(|s| s.trim()).unwrap_or("");
-            let url_offset = url_and_title.len() - url_and_title.trim_start().len();
-            let title_span = start_input.slice((url_start + title_start)..(url_start + title_end));
-            (url_start + url_offset, url_start + url_offset + url_part.len(), Some(title_span))
-        }
-    } else {
-        let url_trimmed = url_and_title.trim();
-        let url_offset = url_and_title.len() - url_and_title.trim_start().len();
-        (url_start + url_offset, url_start + url_offset + url_trimmed.len(), None)
-    };
-    let url = start_input.slice(url_start_in_content..url_end_in_content);
+            (
+                url_start + url_offset,
+                url_start + url_offset + url_trimmed.len(),
+                None,
+            )
+        };
+    let url = start_input
+        .take_from(url_start_in_content)
+        .take(url_end_in_content.saturating_sub(url_start_in_content));
     let remaining_pos = url_start + paren_pos + 1;
     let remaining = if remaining_pos < content_str.len() {
-        start_input.slice(remaining_pos..)
+        start_input.take_from(remaining_pos)
     } else {
-        start_input.slice(content_str.len()..)
+        start_input.take_from(content_str.len())
     };
     Ok((remaining, (link_text, url, title_opt)))
 }

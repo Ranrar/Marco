@@ -1,7 +1,9 @@
 // Shared utilities for block-level parsers
 // Contains span conversion helpers and common types
 
-pub use crate::parser::shared::{to_parser_span, to_parser_span_range_inclusive as to_parser_span_range, GrammarSpan};
+pub use crate::parser::shared::{
+    to_parser_span, to_parser_span_range_inclusive as to_parser_span_range, GrammarSpan,
+};
 // No local Position/Span imports required here; use canonical helpers from parser::shared
 
 #[cfg(test)]
@@ -26,14 +28,15 @@ use nom_locate::LocatedSpan;
 /// This matches the CommonMark spec for list item indentation handling.
 pub fn dedent_list_item_content(content: &str, content_indent: usize) -> String {
     let had_trailing_newline = content.ends_with('\n');
-    
-    let mut result = content.lines()
+
+    let mut result = content
+        .lines()
         .map(|line| {
             // First, expand tabs to spaces based on ACTUAL column position
             // Tabs must be expanded based on their column position (content_indent + column in line)
             let mut expanded = String::with_capacity(line.len() * 2);
             let mut column = content_indent; // Start at the content_indent column
-            
+
             for ch in line.chars() {
                 if ch == '\t' {
                     // Tab advances to next multiple of 4
@@ -47,7 +50,7 @@ pub fn dedent_list_item_content(content: &str, content_indent: usize) -> String 
                     column += 1;
                 }
             }
-            
+
             // Now count and strip leading spaces up to content_indent
             let mut spaces_to_strip = 0;
             let mut chars = expanded.chars();
@@ -57,18 +60,18 @@ pub fn dedent_list_item_content(content: &str, content_indent: usize) -> String 
                     _ => break,
                 }
             }
-            
+
             // Return the rest of the line after stripping
             expanded[spaces_to_strip..].to_string()
         })
         .collect::<Vec<_>>()
         .join("\n");
-    
+
     // Preserve trailing newline if original had one
     if had_trailing_newline {
         result.push('\n');
     }
-    
+
     result
 }
 
@@ -90,11 +93,11 @@ mod tests {
         // Test: "**bold**" at start of document
         let input = LocatedSpan::new("**bold**");
         let span = to_parser_span(input);
-        
+
         // Start should be at line 1, column 1
         assert_eq!(span.start.line, 1);
         assert_eq!(span.start.column, 1);
-        
+
         // End should be at line 1, column 9 (8 chars + 1-based = 9)
         assert_eq!(span.end.line, 1);
         assert_eq!(span.end.column, 9);
@@ -106,10 +109,10 @@ mod tests {
         // Byte layout: T(1) ë(2+3) s(4) t(5) = 5 bytes total
         let input = LocatedSpan::new("Tëst");
         let span = to_parser_span(input);
-        
+
         assert_eq!(span.start.line, 1);
         assert_eq!(span.start.column, 1);
-        
+
         // End should be at byte position 6 (5 bytes + 1-based = 6)
         assert_eq!(span.end.line, 1);
         assert_eq!(span.end.column, 6);
@@ -120,10 +123,10 @@ mod tests {
         // Test: "🎨" emoji is 4 bytes (0xF0 0x9F 0x8E 0xA8)
         let input = LocatedSpan::new("🎨");
         let span = to_parser_span(input);
-        
+
         assert_eq!(span.start.line, 1);
         assert_eq!(span.start.column, 1);
-        
+
         // End should be at byte position 5 (4 bytes + 1-based = 5)
         assert_eq!(span.end.line, 1);
         assert_eq!(span.end.column, 5);
@@ -135,14 +138,14 @@ mod tests {
         // "```rust\nfn main() {}\n```"
         let input = LocatedSpan::new("```rust\nfn main() {}\n```");
         let span = to_parser_span(input);
-        
+
         // Start at line 1, column 1
         assert_eq!(span.start.line, 1);
         assert_eq!(span.start.column, 1);
-        
+
         // End at line 3 (1 + 2 newlines = 3)
         assert_eq!(span.end.line, 3);
-        
+
         // End column should be 4 (3 backticks + 1-based = 4)
         assert_eq!(span.end.column, 4);
     }
@@ -152,10 +155,10 @@ mod tests {
         // Test: Span ending with newline should have end.column = 1
         let input = LocatedSpan::new("line1\nline2\n");
         let span = to_parser_span(input);
-        
+
         assert_eq!(span.start.line, 1);
         assert_eq!(span.start.column, 1);
-        
+
         // End at line 3 (1 + 2 newlines = 3), column 1
         assert_eq!(span.end.line, 3);
         assert_eq!(span.end.column, 1);
@@ -167,13 +170,13 @@ mod tests {
         // "Line1\nTëst" where 'ë' is 2 bytes
         let input = LocatedSpan::new("Line1\nTëst");
         let span = to_parser_span(input);
-        
+
         assert_eq!(span.start.line, 1);
         assert_eq!(span.start.column, 1);
-        
+
         // End at line 2
         assert_eq!(span.end.line, 2);
-        
+
         // "Tëst" = 5 bytes, so end column = 6 (1-based)
         assert_eq!(span.end.column, 6);
     }
@@ -183,10 +186,10 @@ mod tests {
         // Verify that absolute offsets are calculated correctly
         let input = LocatedSpan::new("abc\ndef");
         let span = to_parser_span(input);
-        
+
         // Start offset should be 0
         assert_eq!(span.start.offset, 0);
-        
+
         // End offset should be 7 (3 + 1 newline + 3)
         assert_eq!(span.end.offset, 7);
     }

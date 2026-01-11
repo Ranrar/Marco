@@ -75,25 +75,25 @@ const FALLBACK_MENU_CSS: &str = r#"
 /// Generate all Polo-specific CSS from modular components
 pub fn generate_polo_css() -> String {
     let mut css = String::with_capacity(8192);
-    
+
     // Titlebar and window styling
     css.push_str(&titlebar::generate_css());
-    
+
     // All button types
     css.push_str(&buttons::generate_css());
-    
+
     // Theme dropdown
     css.push_str(&dropdown::generate_css());
-    
+
     // Dialog windows
     css.push_str(&dialog::generate_css());
-    
+
     // Scrollbar styling
     css.push_str(&scrollbar::generate_css());
-    
+
     // Tooltips
     css.push_str(&tooltips::generate_css());
-    
+
     css
 }
 
@@ -104,10 +104,10 @@ pub fn generate_polo_css() -> String {
 /// * `asset_root` - The asset root directory path
 pub fn load_css_from_path(asset_root: &std::path::Path) {
     let css_provider = CssProvider::new();
-    
+
     // Load Marco's menu.css for consistent UI styling
     let menu_css_path = asset_root.join("themes/ui_elements/menu.css");
-    
+
     let menu_css = if let Ok(css) = std::fs::read_to_string(&menu_css_path) {
         log::debug!("Loaded menu.css from: {}", menu_css_path.display());
         css
@@ -115,14 +115,14 @@ pub fn load_css_from_path(asset_root: &std::path::Path) {
         log::warn!("Could not load menu.css, using fallback");
         String::from(FALLBACK_MENU_CSS)
     };
-    
+
     // Generate Polo-specific styles from modular components
     let polo_css = generate_polo_css();
-    
+
     // Combine Marco's menu.css with Polo-specific styles
     let combined_css = format!("{}\n\n/* Polo-specific styles */\n{}", menu_css, polo_css);
     css_provider.load_from_data(&combined_css);
-    
+
     if let Some(display) = Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,
@@ -132,8 +132,6 @@ pub fn load_css_from_path(asset_root: &std::path::Path) {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,18 +139,18 @@ mod tests {
     #[test]
     fn smoke_test_generate_polo_css() {
         let css = generate_polo_css();
-        
+
         // Verify all components present
         assert!(css.contains(".polo-titlebar"));
         assert!(css.contains(".polo-open-file-btn"));
         assert!(css.contains(".polo-mode-toggle-btn"));
         assert!(css.contains(".polo-theme-dropdown"));
         assert!(css.contains("tooltip"));
-        
+
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify substantial output
         assert!(css.len() > 5000);
     }

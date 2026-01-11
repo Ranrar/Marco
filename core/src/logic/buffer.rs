@@ -33,7 +33,7 @@ impl DocumentBuffer {
     ///
     /// # Example
     /// ```
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// let buffer = DocumentBuffer::new_untitled();
     /// assert!(buffer.file_path.is_none());
@@ -61,7 +61,7 @@ impl DocumentBuffer {
     /// # Example
     /// ```no_run
     /// use std::path::Path;
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("document.md"))?;
@@ -88,8 +88,11 @@ impl DocumentBuffer {
             baseline_content: String::new(),
             display_name,
         };
-        
-        log::info!("Created document buffer for file: {} - ready to load content", path.display());
+
+        log::info!(
+            "Created document buffer for file: {} - ready to load content",
+            path.display()
+        );
         Ok(buffer)
     }
 
@@ -103,7 +106,7 @@ impl DocumentBuffer {
     ///
     /// # Example
     /// ```no_run
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let buffer = DocumentBuffer::new_untitled();
@@ -140,7 +143,7 @@ impl DocumentBuffer {
     ///
     /// # Example
     /// ```no_run
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let mut buffer = DocumentBuffer::new_untitled();
@@ -171,9 +174,12 @@ impl DocumentBuffer {
 
                 // Update baseline using optimized method (log first to avoid borrow issues)
                 let content_size = content.len();
-                log::info!("Saved file: {} ({} bytes) with cached operations", 
-                    path.display(), content_size);
-                
+                log::info!(
+                    "Saved file: {} ({} bytes) with cached operations",
+                    path.display(),
+                    content_size
+                );
+
                 self.update_baseline_and_state(content, false);
                 self.log_document_state("save_content");
                 Ok(())
@@ -206,7 +212,7 @@ impl DocumentBuffer {
     /// # Example
     /// ```no_run
     /// use std::path::Path;
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let mut buffer = DocumentBuffer::new_untitled();
@@ -250,10 +256,13 @@ impl DocumentBuffer {
         let content_size = content.len();
         self.file_path = Some(path.clone());
         self.display_name = display_name;
-        
-        log::info!("Saved file as: {} ({} bytes) with cached operations - now tracking as open document", 
-            path.display(), content_size);
-        
+
+        log::info!(
+            "Saved file as: {} ({} bytes) with cached operations - now tracking as open document",
+            path.display(),
+            content_size
+        );
+
         // After Save As, baseline matches the saved content - use optimized method
         self.update_baseline_and_state(content, false);
         self.log_document_state("save_as_content");
@@ -275,7 +284,7 @@ impl DocumentBuffer {
     ///
     /// # Example
     /// ```no_run
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     /// use std::path::Path;
     ///
     /// # fn main() -> anyhow::Result<()> {
@@ -288,47 +297,64 @@ impl DocumentBuffer {
     pub fn load_and_set_baseline(&mut self) -> Result<String> {
         let content = self.read_content()?;
         let content_size = content.len();
-        
+
         // Enhanced logging with file info
         match &self.file_path {
             Some(path) => {
-                log::info!("Loaded file: {} ({} bytes) - now tracking as open document", 
-                    path.display(), content_size);
+                log::info!(
+                    "Loaded file: {} ({} bytes) - now tracking as open document",
+                    path.display(),
+                    content_size
+                );
             }
             None => {
-                log::debug!("Loaded content and set baseline for untitled document ({} bytes)", content_size);
+                log::debug!(
+                    "Loaded content and set baseline for untitled document ({} bytes)",
+                    content_size
+                );
             }
         }
-        
+
         // Optimize: Set baseline and return content in one operation to avoid clone
         self.baseline_content = content.clone();
         self.is_modified = false;
         Ok(content)
     }
 
-    /// Marks the document as modified (has unsaved changes)
+    /// Update modification state by comparing the provided editor content with the baseline.
     ///
     /// This should be called whenever the editor content changes.
     ///
     /// # Example
     /// ```
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// let mut buffer = DocumentBuffer::new_untitled();
-    /// buffer.mark_modified();
+    /// buffer.update_modified_from_content("Hello");
     /// assert!(buffer.is_modified);
+    ///
+    /// // Mark the current content as the baseline (e.g. after save)
+    /// buffer.set_baseline("Hello");
+    /// buffer.update_modified_from_content("Hello");
+    /// assert!(!buffer.is_modified);
     /// ```
-    /// Update modification state by comparing the provided editor content with the baseline.
-    /// Enhanced with logging for debugging purposes
     pub fn update_modified_from_content(&mut self, current_content: &str) {
         let modified = self.baseline_content != current_content;
         let was_modified = self.is_modified;
         self.is_modified = modified;
-        
+
         // Log state changes for debugging
         if was_modified != modified {
-            let state_change = if modified { "clean → modified" } else { "modified → clean" };
-            log::debug!("Document state changed ({}): {:?}", state_change, self.file_path);
+            let state_change = if modified {
+                "clean → modified"
+            } else {
+                "modified → clean"
+            };
+            log::debug!(
+                "Document state changed ({}): {:?}",
+                state_change,
+                self.file_path
+            );
         }
     }
 
@@ -339,8 +365,11 @@ impl DocumentBuffer {
         if self.baseline_content != content {
             let content_size = content.len();
             self.baseline_content = content.to_string();
-            log::debug!("Updated baseline content ({} bytes) for: {:?}", 
-                content_size, self.file_path);
+            log::debug!(
+                "Updated baseline content ({} bytes) for: {:?}",
+                content_size,
+                self.file_path
+            );
         }
         self.is_modified = false;
     }
@@ -374,7 +403,7 @@ impl DocumentBuffer {
     /// # Example
     /// ```no_run
     /// use std::path::Path;
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("/home/user/docs/readme.md"))?;
@@ -400,7 +429,7 @@ impl DocumentBuffer {
     /// # Example
     /// ```no_run
     /// use std::path::Path;
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// # fn main() -> anyhow::Result<()> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("/home/user/docs/readme.md"))?;
@@ -422,11 +451,11 @@ impl DocumentBuffer {
     ///
     /// # Example
     /// ```
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// assert_eq!(buffer.get_full_title(), "Untitled.md");
-    /// buffer.mark_modified();
+    /// buffer.update_modified_from_content("Hello");
     /// assert_eq!(buffer.get_full_title(), "*Untitled.md");
     /// ```
     pub fn get_full_title(&self) -> String {
@@ -444,7 +473,7 @@ impl DocumentBuffer {
     ///
     /// # Example
     /// ```
-    /// use marco::logic::buffer::DocumentBuffer;
+    /// use core::logic::buffer::DocumentBuffer;
     ///
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.reset_to_untitled();
@@ -457,7 +486,7 @@ impl DocumentBuffer {
         self.file_path = None;
         self.is_modified = false;
         self.display_name = "Untitled.md".to_string();
-        
+
         if had_file {
             log::info!("Document reset to untitled state - closed file association");
         }
@@ -487,9 +516,13 @@ impl DocumentBuffer {
             let old_size = self.baseline_content.len();
             let new_size = new_content.len();
             self.baseline_content = new_content.to_string();
-            
-            log::debug!("Baseline content updated for: {:?} (size: {} → {} bytes)", 
-                self.file_path, old_size, new_size);
+
+            log::debug!(
+                "Baseline content updated for: {:?} (size: {} → {} bytes)",
+                self.file_path,
+                old_size,
+                new_size
+            );
         }
         self.is_modified = mark_modified;
     }
@@ -510,19 +543,23 @@ impl DocumentBuffer {
         let stats = self.get_document_stats();
         match &stats.file_path {
             Some(path) => {
-                log::info!("Document state after {}: {} ({} bytes, modified: {}) [{}]", 
-                    operation, 
-                    path.display(), 
-                    stats.baseline_size, 
+                log::info!(
+                    "Document state after {}: {} ({} bytes, modified: {}) [{}]",
+                    operation,
+                    path.display(),
+                    stats.baseline_size,
                     stats.is_modified,
-                    stats.display_name);
+                    stats.display_name
+                );
             }
             None => {
-                log::debug!("Document state after {}: {} ({} bytes, modified: {})", 
-                    operation, 
-                    stats.display_name, 
-                    stats.baseline_size, 
-                    stats.is_modified);
+                log::debug!(
+                    "Document state after {}: {} ({} bytes, modified: {})",
+                    operation,
+                    stats.display_name,
+                    stats.baseline_size,
+                    stats.is_modified
+                );
             }
         }
     }
@@ -542,9 +579,7 @@ impl RecentFiles {
     /// # Arguments
     /// * `settings_manager` - Shared settings manager
     pub fn new(settings_manager: Arc<SettingsManager>) -> Self {
-        Self {
-            settings_manager,
-        }
+        Self { settings_manager }
     }
 
     /// Adds a file to the recent files list
@@ -556,12 +591,18 @@ impl RecentFiles {
     /// * `path` - File path to add
     ///
     /// # Example
-    /// ```
-    /// use std::path::Path;
-    /// use marco::logic::buffer::RecentFiles;
+    /// ```no_run
+    /// use std::path::{Path, PathBuf};
     ///
-    /// let recent = RecentFiles::new("settings.ron");
+    /// use core::logic::buffer::RecentFiles;
+    /// use core::logic::swanson::SettingsManager;
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let settings_manager = SettingsManager::initialize(PathBuf::from("settings.ron"))?;
+    /// let recent = RecentFiles::new(settings_manager);
     /// recent.add_file(Path::new("doc1.md"));
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn add_file<P: AsRef<Path>>(&self, path: P) {
         if let Err(e) = self.settings_manager.update_settings(|settings| {
@@ -668,7 +709,7 @@ mod tests {
         assert!(stats.has_file_association);
         assert_eq!(stats.baseline_size, 14); // "# Test content".len()
         assert!(!stats.is_modified);
-        
+
         assert!(buffer.file_path.is_some());
         let saved_path = buffer.file_path.as_ref().unwrap();
         assert_eq!(saved_path.extension().unwrap(), "md");
@@ -682,22 +723,22 @@ mod tests {
     fn smoke_test_buffer_optimizations() {
         // Test the optimized baseline update method
         let mut buffer = DocumentBuffer::new_untitled();
-        
+
         // Initial state
         assert_eq!(buffer.baseline_content, "");
         assert!(!buffer.is_modified);
-        
+
         // First update should allocate new string
         buffer.update_baseline_and_state("# Hello World", false);
         assert_eq!(buffer.baseline_content, "# Hello World");
         assert!(!buffer.is_modified);
-        
+
         // Same content should not reallocate (optimization)
         let baseline_ptr = buffer.baseline_content.as_ptr();
         buffer.update_baseline_and_state("# Hello World", true);
         assert_eq!(buffer.baseline_content.as_ptr(), baseline_ptr); // Same pointer = no reallocation
         assert!(buffer.is_modified);
-        
+
         // Different content should allocate
         buffer.update_baseline_and_state("# Different Content", false);
         assert_ne!(buffer.baseline_content.as_ptr(), baseline_ptr); // Different pointer = new allocation
@@ -710,7 +751,7 @@ mod tests {
         let mut buffer = DocumentBuffer::new_untitled();
         buffer.baseline_content = "# Test Content".to_string();
         buffer.is_modified = true;
-        
+
         let stats = buffer.get_document_stats();
         assert_eq!(stats.display_name, "Untitled.md");
         assert!(stats.is_modified);
@@ -722,18 +763,18 @@ mod tests {
     #[test]
     fn smoke_test_optimized_set_baseline() {
         let mut buffer = DocumentBuffer::new_untitled();
-        
+
         // First set
         buffer.set_baseline("Initial content");
         assert_eq!(buffer.baseline_content, "Initial content");
         assert!(!buffer.is_modified);
-        
+
         // Same content should not reallocate
         let baseline_ptr = buffer.baseline_content.as_ptr();
         buffer.set_baseline("Initial content");
         assert_eq!(buffer.baseline_content.as_ptr(), baseline_ptr);
         assert!(!buffer.is_modified);
-        
+
         // Different content should allocate
         buffer.set_baseline("New content");
         assert_ne!(buffer.baseline_content.as_ptr(), baseline_ptr);

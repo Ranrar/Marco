@@ -25,94 +25,94 @@ use super::constants::*;
 /// Generate complete toolbar CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(8192);
-    
+
     // Toolbar container (light theme)
     css.push_str(&generate_toolbar_container_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Toolbar container (dark theme)
     css.push_str(&generate_toolbar_container_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Unified toolbar button base styles (light theme)
     css.push_str(&generate_toolbar_buttons_base_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Unified toolbar button base styles (dark theme)
     css.push_str(&generate_toolbar_buttons_base_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Unified hover state (light theme)
     css.push_str(&generate_toolbar_buttons_hover_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Unified hover state (dark theme)
     css.push_str(&generate_toolbar_buttons_hover_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Unified active state (light theme)
     css.push_str(&generate_toolbar_buttons_active_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Unified active state (dark theme)
     css.push_str(&generate_toolbar_buttons_active_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Unified disabled state (light theme)
     css.push_str(&generate_toolbar_buttons_disabled_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Unified disabled state (dark theme)
     css.push_str(&generate_toolbar_buttons_disabled_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Icon styling (theme-independent)
     css.push_str(&generate_toolbar_icon_css());
-    
+
     // Separator styling (light theme)
     css.push_str(&generate_toolbar_separator_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Separator styling (dark theme)
     css.push_str(&generate_toolbar_separator_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Popover styling (light theme)
     css.push_str(&generate_toolbar_popover_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Popover styling (dark theme)
     css.push_str(&generate_toolbar_popover_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     css
 }
 
@@ -155,7 +155,7 @@ fn generate_toolbar_buttons_base_css(theme_class: &str, palette: &ColorPalette) 
         .map(|class| format!(".{} .{}", theme_class, class))
         .collect::<Vec<_>>()
         .join(",\n");
-    
+
     format!(
         r#"
 /* Unified toolbar button styling - {theme} */
@@ -199,7 +199,7 @@ fn generate_toolbar_buttons_hover_css(theme_class: &str, palette: &ColorPalette)
         .map(|class| format!(".{} .{}:hover", theme_class, class))
         .collect::<Vec<_>>()
         .join(",\n");
-    
+
     format!(
         r#"
 /* Unified hover state for all toolbar buttons - {theme} */
@@ -225,7 +225,7 @@ fn generate_toolbar_buttons_active_css(theme_class: &str, palette: &ColorPalette
         .map(|class| format!(".{} .{}:active", theme_class, class))
         .collect::<Vec<_>>()
         .join(",\n");
-    
+
     format!(
         r#"
 /* Unified active state for all toolbar buttons - {theme} */
@@ -251,7 +251,7 @@ fn generate_toolbar_buttons_disabled_css(theme_class: &str, palette: &ColorPalet
         .map(|class| format!(".{} .{}:disabled", theme_class, class))
         .collect::<Vec<_>>()
         .join(",\n");
-    
+
     format!(
         r#"
 /* Unified disabled state for all toolbar buttons - {theme} */
@@ -336,10 +336,10 @@ mod tests {
     #[test]
     fn smoke_test_toolbar_css_generation() {
         let css = generate_css();
-        
+
         // Verify not empty
         assert!(!css.is_empty(), "Toolbar CSS should not be empty");
-        
+
         // Verify major components present
         assert!(css.contains(".toolbar"), "Should contain toolbar class");
         assert!(
@@ -354,24 +354,33 @@ mod tests {
             css.contains(".toolbar-popover"),
             "Should contain toolbar-popover class"
         );
-        
+
         // Verify both themes present
         assert!(
             css.contains(".marco-theme-light"),
             "Should contain light theme"
         );
-        assert!(css.contains(".marco-theme-dark"), "Should contain dark theme");
-        
+        assert!(
+            css.contains(".marco-theme-dark"),
+            "Should contain dark theme"
+        );
+
         // Verify specific button types
         assert!(css.contains(".toolbar-btn-bold"), "Should have bold button");
-        assert!(css.contains(".toolbar-btn-italic"), "Should have italic button");
-        assert!(css.contains(".toolbar-headings-btn"), "Should have headings button");
-        
+        assert!(
+            css.contains(".toolbar-btn-italic"),
+            "Should have italic button"
+        );
+        assert!(
+            css.contains(".toolbar-headings-btn"),
+            "Should have headings button"
+        );
+
         // Verify states
         assert!(css.contains(":hover"), "Should have hover states");
         assert!(css.contains(":active"), "Should have active states");
         assert!(css.contains(":disabled"), "Should have disabled states");
-        
+
         // Verify substantial output (at least 4KB)
         assert!(
             css.len() > 4000,

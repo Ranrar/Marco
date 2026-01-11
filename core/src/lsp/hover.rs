@@ -1,6 +1,6 @@
 // Hover information: show link URLs, image alt text, etc.
 
-use crate::parser::{Position, Document, Node, NodeKind, Span};
+use crate::parser::{Document, Node, NodeKind, Position, Span};
 
 #[derive(Debug, Clone)]
 pub struct HoverInfo {
@@ -11,14 +11,14 @@ pub struct HoverInfo {
 // Provide hover information at position
 pub fn get_hover_info(position: Position, document: &Document) -> Option<HoverInfo> {
     log::debug!("Computing hover info at {:?}", position);
-    
+
     // Find the node at the given position
     for node in &document.children {
         if let Some(hover) = find_hover_at_position(node, position) {
             return Some(hover);
         }
     }
-    
+
     None
 }
 
@@ -90,6 +90,36 @@ fn find_hover_at_position(node: &Node, position: Position) -> Option<HoverInfo> 
                         range: Some(*span),
                     })
                 }
+                NodeKind::StrongEmphasis => {
+                    Some(HoverInfo {
+                        contents: "**Strong + Emphasis** (bold + italic)".to_string(),
+                        range: Some(*span),
+                    })
+                }
+                NodeKind::Strikethrough => {
+                    Some(HoverInfo {
+                        contents: "**Strikethrough** (deleted text)".to_string(),
+                        range: Some(*span),
+                    })
+                }
+                NodeKind::Mark => {
+                    Some(HoverInfo {
+                        contents: "**Mark** (highlight)".to_string(),
+                        range: Some(*span),
+                    })
+                }
+                NodeKind::Superscript => {
+                    Some(HoverInfo {
+                        contents: "**Superscript**".to_string(),
+                        range: Some(*span),
+                    })
+                }
+                NodeKind::Subscript => {
+                    Some(HoverInfo {
+                        contents: "**Subscript**".to_string(),
+                        range: Some(*span),
+                    })
+                }
                 NodeKind::InlineHtml(html) => {
                     let preview = if html.len() > 50 {
                         format!("{}...", &html[..50])
@@ -132,20 +162,20 @@ fn find_hover_at_position(node: &Node, position: Position) -> Option<HoverInfo> 
                 }
                 _ => None,
             };
-            
+
             if hover.is_some() {
                 return hover;
             }
         }
     }
-    
+
     // Search children recursively
     for child in &node.children {
         if let Some(hover) = find_hover_at_position(child, position) {
             return Some(hover);
         }
     }
-    
+
     None
 }
 
@@ -158,191 +188,364 @@ fn position_in_span(position: Position, span: &Span) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn smoke_test_link_hover() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::Link {
-                                url: "https://example.com".to_string(),
-                                title: Some("Example Site".to_string()),
-                            },
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 30, offset: 29 },
-                            }),
-                            children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![Node {
+                    kind: NodeKind::Link {
+                        url: "https://example.com".to_string(),
+                        title: Some("Example Site".to_string()),
+                    },
+                    span: Some(Span {
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
                         },
-                    ],
-                },
-            ],
-        ..Default::default()
+                        end: Position {
+                            line: 1,
+                            column: 30,
+                            offset: 29,
+                        },
+                    }),
+                    children: vec![],
+                }],
+            }],
+            ..Default::default()
         };
-        
-        let position = Position { line: 1, column: 5, offset: 4 };
+
+        let position = Position {
+            line: 1,
+            column: 5,
+            offset: 4,
+        };
         let hover = get_hover_info(position, &doc);
-        
+
         assert!(hover.is_some());
         let hover = hover.unwrap();
         assert!(hover.contents.contains("Link"));
         assert!(hover.contents.contains("https://example.com"));
         assert!(hover.contents.contains("Example Site"));
     }
-    
+
     #[test]
     fn smoke_test_image_hover() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::Image {
-                                url: "image.png".to_string(),
-                                alt: "A beautiful image".to_string(),
-                            },
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 30, offset: 29 },
-                            }),
-                            children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![Node {
+                    kind: NodeKind::Image {
+                        url: "image.png".to_string(),
+                        alt: "A beautiful image".to_string(),
+                    },
+                    span: Some(Span {
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
                         },
-                    ],
-                },
-            ],
-        ..Default::default()
+                        end: Position {
+                            line: 1,
+                            column: 30,
+                            offset: 29,
+                        },
+                    }),
+                    children: vec![],
+                }],
+            }],
+            ..Default::default()
         };
-        
-        let position = Position { line: 1, column: 5, offset: 4 };
+
+        let position = Position {
+            line: 1,
+            column: 5,
+            offset: 4,
+        };
         let hover = get_hover_info(position, &doc);
-        
+
         assert!(hover.is_some());
         let hover = hover.unwrap();
         assert!(hover.contents.contains("Image"));
         assert!(hover.contents.contains("image.png"));
         assert!(hover.contents.contains("A beautiful image"));
     }
-    
+
     #[test]
     fn smoke_test_code_block_hover() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::CodeBlock {
-                        language: Some("rust".to_string()),
-                        code: "fn main() {\n    println!(\"Hello\");\n}".to_string(),
-                    },
-                    span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 4, column: 4, offset: 50 },
-                    }),
-                    children: vec![],
+            children: vec![Node {
+                kind: NodeKind::CodeBlock {
+                    language: Some("rust".to_string()),
+                    code: "fn main() {\n    println!(\"Hello\");\n}".to_string(),
                 },
-            ],
-        ..Default::default()
+                span: Some(Span {
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 4,
+                        column: 4,
+                        offset: 50,
+                    },
+                }),
+                children: vec![],
+            }],
+            ..Default::default()
         };
-        
-        let position = Position { line: 1, column: 5, offset: 4 };
+
+        let position = Position {
+            line: 1,
+            column: 5,
+            offset: 4,
+        };
         let hover = get_hover_info(position, &doc);
-        
+
         assert!(hover.is_some());
         let hover = hover.unwrap();
         assert!(hover.contents.contains("Code Block"));
         assert!(hover.contents.contains("rust"));
         assert!(hover.contents.contains("3 lines"));
     }
-    
+
     #[test]
     fn smoke_test_inline_html_hover() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::InlineHtml("<span class=\"highlight\">text</span>".to_string()),
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 37, offset: 36 },
-                            }),
-                            children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![Node {
+                    kind: NodeKind::InlineHtml("<span class=\"highlight\">text</span>".to_string()),
+                    span: Some(Span {
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
                         },
-                    ],
-                },
-            ],
-        ..Default::default()
+                        end: Position {
+                            line: 1,
+                            column: 37,
+                            offset: 36,
+                        },
+                    }),
+                    children: vec![],
+                }],
+            }],
+            ..Default::default()
         };
-        
-        let position = Position { line: 1, column: 5, offset: 4 };
+
+        let position = Position {
+            line: 1,
+            column: 5,
+            offset: 4,
+        };
         let hover = get_hover_info(position, &doc);
-        
+
         assert!(hover.is_some());
         let hover = hover.unwrap();
         assert!(hover.contents.contains("Inline HTML"));
         assert!(hover.contents.contains("span"));
     }
-    
+
     #[test]
     fn smoke_test_hard_break_hover() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::HardBreak,
-                            span: Some(Span {
-                                start: Position { line: 1, column: 9, offset: 8 },
-                                end: Position { line: 2, column: 1, offset: 11 },
-                            }),
-                            children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![Node {
+                    kind: NodeKind::HardBreak,
+                    span: Some(Span {
+                        start: Position {
+                            line: 1,
+                            column: 9,
+                            offset: 8,
                         },
-                    ],
-                },
-            ],
-        ..Default::default()
+                        end: Position {
+                            line: 2,
+                            column: 1,
+                            offset: 11,
+                        },
+                    }),
+                    children: vec![],
+                }],
+            }],
+            ..Default::default()
         };
-        
-        let position = Position { line: 1, column: 10, offset: 9 };
+
+        let position = Position {
+            line: 1,
+            column: 10,
+            offset: 9,
+        };
         let hover = get_hover_info(position, &doc);
-        
+
         assert!(hover.is_some());
         let hover = hover.unwrap();
         assert!(hover.contents.contains("Hard Line Break"));
         assert!(hover.contents.contains("<br />"));
     }
-    
+
     #[test]
     fn smoke_test_no_hover() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Heading {
-                        level: 1,
-                        text: "Title".to_string(),
-                    },
-                    span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 1, column: 8, offset: 7 },
-                    }),
-                    children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Heading {
+                    level: 1,
+                    text: "Title".to_string(),
                 },
-            ],
-        ..Default::default()
+                span: Some(Span {
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 1,
+                        column: 8,
+                        offset: 7,
+                    },
+                }),
+                children: vec![],
+            }],
+            ..Default::default()
         };
-        
+
         // Position outside any node
-        let position = Position { line: 10, column: 1, offset: 100 };
+        let position = Position {
+            line: 10,
+            column: 1,
+            offset: 100,
+        };
         let hover = get_hover_info(position, &doc);
-        
+
         assert!(hover.is_none());
+    }
+
+    #[test]
+    fn smoke_test_inline_style_hovers() {
+        let doc = Document {
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::Strikethrough,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 1,
+                                offset: 0,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 6,
+                                offset: 5,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Mark,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 7,
+                                offset: 6,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 11,
+                                offset: 10,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Superscript,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 12,
+                                offset: 11,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 16,
+                                offset: 15,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Subscript,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 17,
+                                offset: 16,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 21,
+                                offset: 20,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                ],
+            }],
+            ..Default::default()
+        };
+
+        let strike = get_hover_info(
+            Position {
+                line: 1,
+                column: 2,
+                offset: 1,
+            },
+            &doc,
+        )
+        .expect("expected strikethrough hover");
+        assert!(strike.contents.contains("Strikethrough"));
+
+        let mark = get_hover_info(
+            Position {
+                line: 1,
+                column: 8,
+                offset: 7,
+            },
+            &doc,
+        )
+        .expect("expected mark hover");
+        assert!(mark.contents.contains("Mark"));
+
+        let sup = get_hover_info(
+            Position {
+                line: 1,
+                column: 13,
+                offset: 12,
+            },
+            &doc,
+        )
+        .expect("expected superscript hover");
+        assert!(sup.contents.contains("Superscript"));
+
+        let sub = get_hover_info(
+            Position {
+                line: 1,
+                column: 18,
+                offset: 17,
+            },
+            &doc,
+        )
+        .expect("expected subscript hover");
+        assert!(sub.contents.contains("Subscript"));
     }
 }

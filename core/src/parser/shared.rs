@@ -28,11 +28,7 @@ pub fn to_parser_span(span: GrammarSpan) -> ParserSpan {
         span.get_column() + span.fragment().len()
     };
 
-    let start = Position::new(
-        start_line,
-        span.get_column(),
-        span.location_offset(),
-    );
+    let start = Position::new(start_line, span.get_column(), span.location_offset());
     let end = Position::new(
         end_line,
         end_column,

@@ -46,8 +46,8 @@ pub fn test_settings_file() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::core::is_dev_mode;
+    use super::*;
 
     #[test]
     fn test_workspace_root() {

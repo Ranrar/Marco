@@ -8,6 +8,7 @@ use log::trace;
 
 /// Toolbar button references for updating active states
 // TODO: This struct is not currently used, but may be useful for managing toolbar state (e.g., enabling/disabling buttons, updating active states, or connecting signals) in the future.
+#[allow(dead_code)]
 pub struct ToolbarButtons {
     pub headings_dropdown: DropDown,
     pub bold_button: Button,
@@ -18,7 +19,7 @@ pub struct ToolbarButtons {
 
 pub fn create_toolbar_structure() -> Box {
     // Create basic toolbar structure with spacing between buttons
-    let toolbar = Box::new(Orientation::Horizontal, 4);  // 4px spacing between children
+    let toolbar = Box::new(Orientation::Horizontal, 4); // 4px spacing between children
     toolbar.add_css_class("toolbar");
     toolbar.set_margin_top(0);
     toolbar.set_margin_bottom(0);

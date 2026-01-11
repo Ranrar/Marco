@@ -26,7 +26,7 @@ impl MarcoPaths {
         let asset_root = find_asset_root()?;
         let shared = SharedPaths::new()?;
         let dev_mode = is_dev_mode();
-        
+
         Ok(Self {
             asset_root,
             shared,
@@ -48,9 +48,14 @@ impl MarcoPaths {
     /// Get path to a specific editor theme
     ///
     /// # Examples
-    /// ```
+    /// ```no_run
+    /// use core::paths::MarcoPaths;
+    ///
+    /// # fn main() -> Result<(), core::paths::AssetError> {
     /// let marco = MarcoPaths::new()?;
     /// let dark_theme = marco.editor_theme("dark");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn editor_theme(&self, theme_name: &str) -> PathBuf {
         // Support both "dark.xml" and "dark" formats
@@ -172,10 +177,10 @@ mod tests {
         if let Ok(marco) = MarcoPaths::new() {
             let themes_dir = marco.editor_themes_dir();
             let dark_theme = marco.editor_theme("dark");
-            
+
             println!("Editor themes dir: {}", themes_dir.display());
             println!("Dark theme: {}", dark_theme.display());
-            
+
             let themes = marco.list_editor_themes();
             println!("Available editor themes: {:?}", themes);
         }

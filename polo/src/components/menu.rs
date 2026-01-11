@@ -43,16 +43,16 @@
 use crate::components::dialog::{show_open_file_dialog, show_open_in_editor_dialog};
 use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
-use gtk4::{
-    prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar,
-    Image, Label, PropertyExpression, StringList, StringObject, WindowHandle,
-};
 use core::logic::swanson::SettingsManager;
+use gtk4::{
+    prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar, Image, Label,
+    PropertyExpression, StringList, StringObject, WindowHandle,
+};
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
 
 /// Create custom titlebar with icon, filename, theme dropdown, and "Open in Editor" button
-/// 
+///
 /// Returns a tuple of (WindowHandle, Button, Label) where:
 /// - WindowHandle: The titlebar handle
 /// - Button: The "Open in Editor" button (enable/disable based on file open state)
@@ -68,13 +68,13 @@ pub fn create_custom_titlebar(
 ) -> (WindowHandle, Button, Label) {
     // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
-    
+
     // Use GTK4 HeaderBar for proper title centering
     let headerbar = HeaderBar::new();
-    headerbar.add_css_class("titlebar");      // Shared class for Marco's menu.css
+    headerbar.add_css_class("titlebar"); // Shared class for Marco's menu.css
     headerbar.add_css_class("polo-titlebar"); // Polo-specific class for overrides
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
-    
+
     // LEFT SIDE: App icon + filename
     let icon_path = asset_root.join("icons/favicon.png");
     let icon = Image::from_file(&icon_path);
@@ -85,23 +85,25 @@ pub fn create_custom_titlebar(
     icon.set_valign(Align::Center);
     icon.set_tooltip_text(Some("Polo - Markdown Viewer"));
     headerbar.pack_start(&icon);
-    
+
     // "Open in Editor" button (create first so we can reference it in "Open" callback)
     let open_editor_btn = Button::with_label("Open in Editor");
     open_editor_btn.add_css_class("polo-open-editor-btn");
     open_editor_btn.set_valign(Align::Center);
     open_editor_btn.set_margin_end(6);
     open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
-    
+
     // Check if a file is currently open and enable/disable button accordingly
-    let has_file = current_file_path.read().ok()
+    let has_file = current_file_path
+        .read()
+        .ok()
         .and_then(|guard| guard.as_ref().cloned())
         .is_some();
     open_editor_btn.set_sensitive(has_file);
     if !has_file {
         open_editor_btn.set_tooltip_text(Some("Open a file first to edit in Marco"));
     }
-    
+
     // Wire up "Open in Editor" action
     let window_weak_for_editor = window.downgrade();
     let current_file_path_for_editor = current_file_path.clone();
@@ -116,14 +118,14 @@ pub fn create_custom_titlebar(
             }
         }
     });
-    
+
     // "Open" button (left side)
     let open_file_btn = Button::with_label("Open");
     open_file_btn.add_css_class("polo-open-file-btn");
     open_file_btn.set_valign(Align::Center);
     open_file_btn.set_margin_end(6);
     open_file_btn.set_tooltip_text(Some("Open a markdown file"));
-    
+
     // Filename label (centered as title widget)
     // Show just "Polo" if no file is opened (filename is "Untitled")
     let title_text = if filename == "Untitled" {
@@ -133,10 +135,10 @@ pub fn create_custom_titlebar(
     };
     let title_label = Label::new(Some(&title_text));
     title_label.set_valign(Align::Center);
-    title_label.add_css_class("title-label");      // Shared class for Marco's menu.css
+    title_label.add_css_class("title-label"); // Shared class for Marco's menu.css
     title_label.add_css_class("polo-title-label"); // Polo-specific class for overrides
     headerbar.set_title_widget(Some(&title_label));
-    
+
     // Wire up "Open" action - pass open_editor_btn and title_label references
     let window_weak = window.downgrade();
     let webview_clone = webview.clone();
@@ -160,9 +162,9 @@ pub fn create_custom_titlebar(
     });
     headerbar.pack_start(&open_file_btn);
     headerbar.pack_start(&open_editor_btn);
-    
+
     // RIGHT SIDE: Theme dropdown, window controls
-    
+
     // Theme dropdown
     let theme_dropdown = create_theme_dropdown(
         initial_theme,
@@ -174,7 +176,7 @@ pub fn create_custom_titlebar(
     theme_dropdown.set_valign(Align::Center);
     theme_dropdown.set_margin_end(6);
     theme_dropdown.set_tooltip_text(Some("Select preview theme"));
-    
+
     // Light/Dark mode toggle button
     let dark_mode_btn = Button::new();
     dark_mode_btn.set_valign(Align::Center);
@@ -183,7 +185,7 @@ pub fn create_custom_titlebar(
     dark_mode_btn.set_can_focus(false);
     dark_mode_btn.set_has_frame(true);
     dark_mode_btn.add_css_class("polo-mode-toggle-btn");
-    
+
     // Determine current mode from settings
     let current_mode = {
         let settings = settings_manager.get_settings();
@@ -194,7 +196,7 @@ pub fn create_custom_titlebar(
             .map(|m| m.to_string())
             .unwrap_or_else(|| "light".to_string())
     };
-    
+
     // Set initial icon (☀️ for light mode, 🌙 for dark mode)
     let mode_label = Label::new(Some(if current_mode == "dark" {
         "☀️"
@@ -208,7 +210,7 @@ pub fn create_custom_titlebar(
     } else {
         "Switch to Dark Mode"
     }));
-    
+
     // Wire up dark mode toggle
     let settings_manager_for_mode = settings_manager.clone();
     let webview_for_mode = webview.clone();
@@ -233,9 +235,9 @@ pub fn create_custom_titlebar(
                 "dark".to_string()
             }
         };
-        
+
         log::info!("Toggling color mode to: {}", new_mode);
-        
+
         // Save to settings
         // Clone is necessary because the closure needs to own the value (move semantics)
         let new_mode_clone = new_mode.clone();
@@ -247,7 +249,7 @@ pub fn create_custom_titlebar(
                 appearance.editor_mode = Some(new_mode_clone);
             }
         });
-        
+
         // Update button icon and tooltip
         mode_label_clone.set_text(if new_mode == "dark" { "☀️" } else { "🌙" });
         dark_mode_btn_clone.set_tooltip_text(Some(if new_mode == "dark" {
@@ -255,10 +257,10 @@ pub fn create_custom_titlebar(
         } else {
             "Switch to Dark Mode"
         }));
-        
+
         // Apply GTK theme preference immediately
         apply_gtk_theme_preference(&settings_manager_for_mode);
-        
+
         // Toggle CSS class on window for theme-specific styling
         let old_class = if new_mode == "dark" {
             "marco-theme-light"
@@ -269,7 +271,7 @@ pub fn create_custom_titlebar(
         window_for_theme.remove_css_class(old_class);
         window_for_theme.add_css_class(&new_class);
         log::debug!("Switched CSS class from {} to {}", old_class, new_class);
-        
+
         // Reload current file with new mode, or reload empty state if no file
         if let Ok(path_guard) = current_file_path_for_mode.read() {
             if let Some(ref path) = *path_guard {
@@ -295,25 +297,24 @@ pub fn create_custom_titlebar(
             }
         }
     });
-    
+
     // Create window control buttons
-    let (btn_min, btn_max_toggle, btn_close) =
-        create_window_controls(window, &settings_manager);
-    
+    let (btn_min, btn_max_toggle, btn_close) = create_window_controls(window, &settings_manager);
+
     // Add controls to headerbar from right to left (pack_end order)
     // Since pack_end adds from right to left, we add in reverse visual order:
     // First add window controls (they'll be rightmost)
     headerbar.pack_end(&btn_close); // Rightmost
     headerbar.pack_end(&btn_max_toggle); // Middle
     headerbar.pack_end(&btn_min); // Left of window controls
-                                   // Then add dark mode toggle (left of window controls)
+                                  // Then add dark mode toggle (left of window controls)
     headerbar.pack_end(&dark_mode_btn); // Left of minimize button
-                                         // Then add theme dropdown (left of dark mode button)
+                                        // Then add theme dropdown (left of dark mode button)
     headerbar.pack_end(&theme_dropdown); // Left of dark mode button
-    
+
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));
-    
+
     (handle, open_editor_btn, title_label)
 }
 
@@ -342,7 +343,7 @@ fn create_window_controls(
         btn.add_css_class("window-control-btn");
         btn
     }
-    
+
     // IcoMoon Unicode glyphs for window controls
     // These unicode characters reference glyphs in the IcoMoon icon font (ui_menu.ttf)
     // loaded from assets/fonts/. The font must be loaded via core::logic::loaders::icon_loader
@@ -354,10 +355,10 @@ fn create_window_controls(
     // | \u{36}  | marco-fullscreen      | Maximize      |
     // | \u{35}  | marco-fullscreen_exit | Exit maximize |
     // | \u{39}  | marco-close           | Close         |
-    
+
     let btn_min = icon_button("\u{34}", "Minimize");
     let btn_close = icon_button("\u{39}", "Close");
-    
+
     // Create a single toggle button for maximize/restore and keep its label so we can update it
     let max_label = Label::new(None);
     let initial_glyph = if window.is_maximized() {
@@ -382,53 +383,45 @@ fn create_window_controls(
     btn_max_toggle.set_has_frame(false);
     btn_max_toggle.add_css_class("topright-btn");
     btn_max_toggle.add_css_class("window-control-btn");
-    
+
     // Wire up window controls
     let window_for_min = window.clone();
     btn_min.connect_clicked(move |_| {
         window_for_min.minimize();
     });
-    
+
     // Click toggles window state and updates glyph immediately
     let label_for_toggle = max_label.clone();
     let window_for_toggle = window.clone();
     btn_max_toggle.connect_clicked(move |_| {
         if window_for_toggle.is_maximized() {
             window_for_toggle.unmaximize();
-            label_for_toggle.set_markup(&format!(
-                "<span font_family='icomoon'>{}</span>",
-                "\u{36}"
-            ));
+            label_for_toggle
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
         } else {
             window_for_toggle.maximize();
-            label_for_toggle.set_markup(&format!(
-                "<span font_family='icomoon'>{}</span>",
-                "\u{35}"
-            ));
+            label_for_toggle
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
         }
     });
-    
+
     // Keep glyph in sync if window is maximized/unmaximized externally
     let label_for_notify = max_label.clone();
     window.connect_notify_local(Some("is-maximized"), move |w, _| {
         if w.is_maximized() {
-            label_for_notify.set_markup(&format!(
-                "<span font_family='icomoon'>{}</span>",
-                "\u{35}"
-            ));
+            label_for_notify
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
         } else {
-            label_for_notify.set_markup(&format!(
-                "<span font_family='icomoon'>{}</span>",
-                "\u{36}"
-            ));
+            label_for_notify
+                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
         }
     });
-    
+
     let window_for_close = window.clone();
     btn_close.connect_clicked(move |_| {
         window_for_close.close();
     });
-    
+
     (btn_min, btn_max_toggle, btn_close)
 }
 
@@ -442,28 +435,23 @@ fn create_theme_dropdown(
 ) -> DropDown {
     // List available themes from assets/themes/html_viever/ (without .css extension)
     let theme_list = list_available_themes_from_path(asset_root);
-    
+
     // Create StringList from theme names
-    let string_list = StringList::new(
-        &theme_list
-            .iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<_>>(),
-    );
-    
+    let string_list = StringList::new(&theme_list.iter().map(|s| s.as_str()).collect::<Vec<_>>());
+
     // Create dropdown with PropertyExpression
-    let expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<&Expression>,
-        "string",
-    );
-    
+    let expression =
+        PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
+
     let dropdown = DropDown::new(Some(string_list), Some(expression));
     dropdown.add_css_class("polo-theme-dropdown");
-    
+
     // Set initial selection based on settings (strip .css from saved theme for comparison)
     let initial_theme_without_ext = initial_theme.trim_end_matches(".css");
-    if let Some(index) = theme_list.iter().position(|t| t == initial_theme_without_ext) {
+    if let Some(index) = theme_list
+        .iter()
+        .position(|t| t == initial_theme_without_ext)
+    {
         dropdown.set_selected(index as u32);
         log::debug!(
             "Set initial theme to: {} (index {})",
@@ -471,7 +459,7 @@ fn create_theme_dropdown(
             index
         );
     }
-    
+
     // Save theme changes to COMMON appearance settings (shared with Marco)
     let theme_list_clone = theme_list.clone();
     let webview_clone = webview.clone();
@@ -480,22 +468,21 @@ fn create_theme_dropdown(
         let selected = dd.selected() as usize;
         if let Some(theme_name) = theme_list_clone.get(selected) {
             log::info!("Theme selected: {}", theme_name);
-            
+
             // Add .css extension back for saving and loading
             let theme_name_with_ext = format!("{}.css", theme_name);
-            
+
             // Update COMMON appearance.preview_theme (shared with Marco)
             let _ = settings_manager.update_settings(|s| {
                 if s.appearance.is_none() {
-                    s.appearance =
-                        Some(core::logic::swanson::AppearanceSettings::default());
+                    s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut appearance) = s.appearance {
                     appearance.preview_theme = Some(theme_name_with_ext.clone());
                     log::debug!("Saved theme preference: {}", theme_name_with_ext);
                 }
             });
-            
+
             // Apply theme to WebView by reloading content with current file
             // RwLock poisoning is not expected in single-threaded GTK event loop.
             // If it occurs (extremely unlikely), we simply skip the reload (safe fallback).
@@ -517,6 +504,6 @@ fn create_theme_dropdown(
             }
         }
     });
-    
+
     dropdown
 }

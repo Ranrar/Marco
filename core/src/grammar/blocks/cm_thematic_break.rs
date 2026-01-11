@@ -13,7 +13,7 @@ use nom::{
     bytes::complete::take_while,
     character::complete::line_ending,
     combinator::{eof, recognize},
-    IResult, Slice,
+    IResult, Input, Parser,
 };
 // Note: `LocatedSpan` not used in this file; it was previously imported for tests.
 
@@ -37,7 +37,7 @@ pub fn thematic_break(input: Span) -> IResult<Span, Span> {
     let start = input;
 
     // 1. Optional leading spaces (0-3 spaces allowed)
-    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    let (input, leading_spaces) = take_while(|c| c == ' ').parse(input)?;
     if leading_spaces.fragment().len() > 3 {
         return Err(nom::Err::Error(nom::error::Error::new(
             start,
@@ -54,7 +54,7 @@ pub fn thematic_break(input: Span) -> IResult<Span, Span> {
 
     loop {
         // Try to consume optional spaces and tabs
-        let (input_after_space, _) = take_while(|c| c == ' ' || c == '\t')(remaining)?;
+        let (input_after_space, _) = take_while(|c| c == ' ' || c == '\t').parse(remaining)?;
 
         // Try to match the same character
         if let Ok((input_after_char, _matched_char)) = nom::character::complete::char::<
@@ -80,10 +80,10 @@ pub fn thematic_break(input: Span) -> IResult<Span, Span> {
     }
 
     // 5. Must be followed by whitespace or end of input (nothing else on the line)
-    let (remaining, _) = take_while(|c| c == ' ' || c == '\t')(remaining)?;
+    let (remaining, _) = take_while(|c| c == ' ' || c == '\t').parse(remaining)?;
 
     // Check for end of line or end of input
-    let (remaining, _) = alt((recognize(line_ending), recognize(eof)))(remaining)?;
+    let (remaining, _) = alt((recognize(line_ending), recognize(eof))).parse(remaining)?;
 
     log::debug!(
         "Thematic break parsed: {} matching '{}' chars",
@@ -98,7 +98,7 @@ pub fn thematic_break(input: Span) -> IResult<Span, Span> {
     let break_len = remaining
         .location_offset()
         .saturating_sub(start.location_offset());
-    let break_span = start.slice(..break_len);
+    let break_span = start.take(break_len);
 
     Ok((remaining, break_span))
 }

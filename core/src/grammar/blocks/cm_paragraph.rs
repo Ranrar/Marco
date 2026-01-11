@@ -11,64 +11,74 @@
 
 use crate::grammar::shared::{count_indentation, Span};
 use nom::{
-    IResult, Slice,
     bytes::complete::take_while,
     character::complete::{line_ending, not_line_ending},
     combinator::opt,
+    IResult, Input, Parser,
 };
 
 // Import list marker detection (needed to check if list interrupts paragraph)
 use crate::grammar::blocks::cm_list::detect_list_marker;
 
 /// Parse a paragraph
-/// 
+///
 /// Examples:
 /// - `"Hello world\nSecond line"`
 /// - `"Text with  \n  lazy continuation"`
 /// - `"Para\n\nEnds at blank"`
-/// 
+///
 /// # Arguments
 /// * `input` - The input span to parse
-/// 
+///
 /// # Returns
 /// * `Ok((remaining, paragraph_span))` - Success with remaining input and paragraph content
 /// * `Err(_)` - Parse failure
 pub fn paragraph(input: Span) -> IResult<Span, Span> {
-    log::debug!("Parsing paragraph from: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
-    
+    log::debug!(
+        "Parsing paragraph from: {:?}",
+        crate::logic::logger::safe_preview(input.fragment(), 40)
+    );
+
     let original_input = input;
-    
+
     // Check for leading indentation (4+ effective spaces = code block)
     let indentation = count_indentation(input.fragment());
     if indentation >= 4 {
-        return Err(nom::Err::Error(nom::error::Error::new(original_input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            original_input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // Skip the actual leading whitespace
     let (after_ws, _) = take_while(|c| c == ' ' || c == '\t')(original_input)?;
-    
+
     // Parse at least one line of text
     let (after_first, first_line) = not_line_ending(after_ws)?;
-    
+
     // First line must not be empty (blank lines don't start paragraphs)
     if first_line.fragment().trim().is_empty() {
-        return Err(nom::Err::Error(nom::error::Error::new(original_input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            original_input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // Track the end of content (last non-blank line)
     let mut last_line_end = first_line.location_offset() + first_line.fragment().len();
-    
+
     // Consume the newline after first line if present
-    let (mut input, _) = opt(line_ending)(after_first)?;
-    
+    let (mut input, _) = opt(line_ending).parse(after_first)?;
+
     // Continue parsing lines until we hit a blank line or end of input
     loop {
         // Try to parse leading spaces
-        let (after_spaces, spaces) = match take_while::<_, _, nom::error::Error<Span>>(|c| c == ' ')(input) {
-            Ok(result) => result,
-            Err(_) => break,
-        };
-        
+        let (after_spaces, spaces) =
+            match take_while::<_, _, nom::error::Error<Span>>(|c| c == ' ')(input) {
+                Ok(result) => result,
+                Err(_) => break,
+            };
+
         // Check if line starts with ATX heading (# through ######)
         // ATX headings can interrupt paragraphs, but only with 0-3 leading spaces
         if spaces.fragment().len() <= 3 {
@@ -77,14 +87,19 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
                 let hash_count = trimmed.chars().take_while(|&c| c == '#').count();
                 if (1..=6).contains(&hash_count) {
                     // Check if followed by space or end of line (valid ATX heading)
-                    if hash_count == trimmed.len() || 
-                       trimmed.chars().nth(hash_count).map(|c| c.is_whitespace()).unwrap_or(false) {
+                    if hash_count == trimmed.len()
+                        || trimmed
+                            .chars()
+                            .nth(hash_count)
+                            .map(|c| c.is_whitespace())
+                            .unwrap_or(false)
+                    {
                         // This is an ATX heading, stop paragraph here
                         break;
                     }
                 }
             }
-            
+
             // Check if line starts with fenced code block (``` or ~~~)
             // Fenced code blocks can interrupt paragraphs with 0-3 leading spaces
             if trimmed.starts_with("```") || trimmed.starts_with("~~~") {
@@ -95,24 +110,32 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
                     break;
                 }
             }
-            
+
             // Check if line starts with blockquote (>)
             // Block quotes can interrupt paragraphs
             if trimmed.starts_with('>') {
                 // This is a blockquote, stop paragraph here
                 break;
             }
-            
+
             // Check if line starts with list marker
             // Unordered lists can always interrupt paragraphs
             // Ordered lists can only interrupt if they start with "1"
             if detect_list_marker(after_spaces).is_ok() {
                 // Check if it's unordered or ordered starting with 1
                 let marker_chars: Vec<char> = trimmed.chars().take(5).collect();
-                if marker_chars.first().map(|c| *c == '-' || *c == '*' || *c == '+').unwrap_or(false) {
+                if marker_chars
+                    .first()
+                    .map(|c| *c == '-' || *c == '*' || *c == '+')
+                    .unwrap_or(false)
+                {
                     // Unordered list, can interrupt
                     break;
-                } else if marker_chars.first().map(|c| c.is_ascii_digit()).unwrap_or(false) {
+                } else if marker_chars
+                    .first()
+                    .map(|c| c.is_ascii_digit())
+                    .unwrap_or(false)
+                {
                     // Ordered list - check if starts with "1"
                     if trimmed.starts_with("1.") || trimmed.starts_with("1)") {
                         // Can interrupt
@@ -122,26 +145,27 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
                 }
             }
         }
-        
+
         // Note: We allow indented lines as lazy continuation per CommonMark spec
         // Indented code blocks can only interrupt paragraphs if preceded by blank line
-        
+
         // Try to parse the line content
-        let (after_line, line) = match not_line_ending::<Span, nom::error::Error<Span>>(after_spaces) {
-            Ok(result) => result,
-            Err(_) => break,
-        };
-        
+        let (after_line, line) =
+            match not_line_ending::<Span, nom::error::Error<Span>>(after_spaces) {
+                Ok(result) => result,
+                Err(_) => break,
+            };
+
         // Check if line is blank (only whitespace or empty)
         if line.fragment().trim().is_empty() {
             // Blank line ends the paragraph
             break;
         }
-        
+
         // This is a valid continuation line
         // Update the end position to include this line
         last_line_end = line.location_offset() + line.fragment().len();
-        
+
         // Try to consume newline
         match line_ending::<Span, nom::error::Error<Span>>(after_line) {
             Ok((after_newline, _)) => {
@@ -154,16 +178,18 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
             }
         }
     }
-    
-    // Calculate paragraph content from original input
-    // Use slice to preserve position information
+
+    // Calculate paragraph content from original input.
     let leading_ws_len = original_input.fragment().len() - after_ws.fragment().len();
     let start_offset = original_input.location_offset() + leading_ws_len;
     let content_len = last_line_end - start_offset;
-    let para_span = original_input.slice(leading_ws_len..leading_ws_len + content_len);
-    
-    log::debug!("Parsed paragraph: {:?}", crate::logic::logger::safe_preview(para_span.fragment(), 40));
-    
+    let para_span = original_input.take_from(leading_ws_len).take(content_len);
+
+    log::debug!(
+        "Parsed paragraph: {:?}",
+        crate::logic::logger::safe_preview(para_span.fragment(), 40)
+    );
+
     Ok((input, para_span))
 }
 

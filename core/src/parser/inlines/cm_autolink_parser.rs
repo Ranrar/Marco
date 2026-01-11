@@ -3,7 +3,7 @@
 //! Parses autolinks (<url> or <email>) and converts them to Link nodes.
 //! Email autolinks get "mailto:" prefix, URL autolinks are used as-is.
 
-use super::shared::{GrammarSpan, to_parser_span, to_parser_span_range};
+use super::shared::{to_parser_span, to_parser_span_range, GrammarSpan};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
@@ -22,13 +22,13 @@ use nom::IResult;
 pub fn parse_autolink(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let start = input;
     let (rest, (uri, is_email)) = grammar::autolink(input)?;
-    
+
     // Create span for the full autolink (including < >)
     let span = to_parser_span_range(start, rest);
-    
+
     // Span for the URI text (for the child text node)
     let uri_span = to_parser_span(uri);
-    
+
     let node = if is_email {
         Node {
             kind: NodeKind::Link {
@@ -56,7 +56,7 @@ pub fn parse_autolink(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
             }],
         }
     };
-    
+
     Ok((rest, node))
 }
 
@@ -68,30 +68,34 @@ mod tests {
     fn smoke_test_parse_autolink_url() {
         let input = GrammarSpan::new("<http://example.com>");
         let result = parse_autolink(input);
-        
+
         assert!(result.is_ok(), "Failed to parse URL autolink");
         let (rest, node) = result.unwrap();
-        
+
         assert_eq!(rest.fragment(), &"");
-        
+
         if let NodeKind::Link { url, title } = &node.kind {
             assert_eq!(url, "http://example.com");
             assert!(title.is_none());
         } else {
             panic!("Expected Link node");
         }
-        
-        assert_eq!(node.children.len(), 1, "Autolink should have one text child");
+
+        assert_eq!(
+            node.children.len(),
+            1,
+            "Autolink should have one text child"
+        );
     }
 
     #[test]
     fn smoke_test_parse_autolink_email() {
         let input = GrammarSpan::new("<user@example.com>");
         let result = parse_autolink(input);
-        
+
         assert!(result.is_ok(), "Failed to parse email autolink");
         let (_, node) = result.unwrap();
-        
+
         if let NodeKind::Link { url, title } = &node.kind {
             assert_eq!(url, "mailto:user@example.com");
             assert!(title.is_none());
@@ -104,7 +108,7 @@ mod tests {
     fn smoke_test_parse_autolink_not_autolink() {
         let input = GrammarSpan::new("just text");
         let result = parse_autolink(input);
-        
+
         assert!(result.is_err(), "Should not parse non-autolink as autolink");
     }
 
@@ -112,7 +116,7 @@ mod tests {
     fn smoke_test_parse_autolink_unclosed() {
         let input = GrammarSpan::new("<http://example.com");
         let result = parse_autolink(input);
-        
+
         assert!(result.is_err(), "Should not parse unclosed autolink");
     }
 
@@ -120,13 +124,13 @@ mod tests {
     fn smoke_test_parse_autolink_position() {
         let input = GrammarSpan::new("<http://example.com> and text");
         let result = parse_autolink(input);
-        
+
         assert!(result.is_ok());
         let (rest, node) = result.unwrap();
-        
+
         assert_eq!(rest.fragment(), &" and text");
         assert!(node.span.is_some(), "Autolink should have position info");
-        
+
         let span = node.span.unwrap();
         assert_eq!(span.start.offset, 0);
         assert!(span.end.offset > span.start.offset);

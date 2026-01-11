@@ -4,14 +4,11 @@
 //! - Hard line break: two spaces + newline, or backslash + newline
 //! - Soft line break: regular newline (not in code span or HTML tag)
 
-use nom::{
-    IResult,
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::line_ending,
-    combinator::recognize,
-};
 use super::Span;
+use nom::{
+    branch::alt, bytes::complete::tag, character::complete::line_ending, combinator::recognize,
+    IResult, Parser,
+};
 
 /// Parse a soft line break.
 ///
@@ -29,10 +26,10 @@ use super::Span;
 /// ```
 pub fn soft_line_break(input: Span) -> IResult<Span, ()> {
     log::debug!("Parsing soft line break");
-    
+
     // Just a line ending (newline)
     let (input, _) = line_ending(input)?;
-    
+
     Ok((input, ()))
 }
 
@@ -51,20 +48,21 @@ pub fn soft_line_break(input: Span) -> IResult<Span, ()> {
 /// ```
 pub fn hard_line_break(input: Span) -> IResult<Span, ()> {
     log::debug!("Parsing hard line break");
-    
+
     // Two or more spaces followed by newline, OR backslash followed by newline
     let (input, _) = alt((
-        recognize(nom::sequence::tuple((tag("  "), line_ending))),  // 2+ spaces + newline
-        recognize(nom::sequence::tuple((tag("\\"), line_ending))),   // backslash + newline
-    ))(input)?;
-    
+        recognize((tag("  "), line_ending)), // 2+ spaces + newline
+        recognize((tag("\\"), line_ending)), // backslash + newline
+    ))
+    .parse(input)?;
+
     Ok((input, ()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn smoke_test_soft_line_break() {
         let input = Span::new("\nmore text");
@@ -73,7 +71,7 @@ mod tests {
         let (rest, _) = result.unwrap();
         assert_eq!(*rest.fragment(), "more text");
     }
-    
+
     #[test]
     fn smoke_test_hard_line_break_spaces() {
         let input = Span::new("  \nmore text");
@@ -82,7 +80,7 @@ mod tests {
         let (rest, _) = result.unwrap();
         assert_eq!(*rest.fragment(), "more text");
     }
-    
+
     #[test]
     fn smoke_test_hard_line_break_backslash() {
         let input = Span::new("\\\nmore text");
@@ -91,7 +89,7 @@ mod tests {
         let (rest, _) = result.unwrap();
         assert_eq!(*rest.fragment(), "more text");
     }
-    
+
     #[test]
     fn smoke_test_hard_line_break_exact_two_spaces() {
         let input = Span::new("  \nmore text");
@@ -99,21 +97,21 @@ mod tests {
         // Exactly 2 spaces followed by newline
         assert!(result.is_ok());
     }
-    
+
     #[test]
     fn smoke_test_hard_line_break_one_space_fails() {
         let input = Span::new(" \nmore text");
         let result = hard_line_break(input);
-        assert!(result.is_err());  // Only 1 space should fail
+        assert!(result.is_err()); // Only 1 space should fail
     }
-    
+
     #[test]
     fn smoke_test_soft_line_break_unix() {
         let input = Span::new("\ntext");
         let result = soft_line_break(input);
         assert!(result.is_ok());
     }
-    
+
     #[test]
     fn smoke_test_soft_line_break_windows() {
         let input = Span::new("\r\ntext");

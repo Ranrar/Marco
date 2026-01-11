@@ -7,10 +7,21 @@ fn integration_test_compute_highlights_multi_byte() {
     let doc = Document {
         children: vec![
             Node {
-                kind: NodeKind::Heading { level: 1, text: "Title 🎨".to_string() },
+                kind: NodeKind::Heading {
+                    level: 1,
+                    text: "Title 🎨".to_string(),
+                },
                 span: Some(Span {
-                    start: Position { line: 1, column: 1, offset: 0 },
-                    end: Position { line: 1, column: 12, offset: 11 },
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 1,
+                        column: 12,
+                        offset: 11,
+                    },
                 }),
                 children: vec![],
             },
@@ -21,23 +32,39 @@ fn integration_test_compute_highlights_multi_byte() {
                     Node {
                         kind: NodeKind::Emphasis,
                         span: Some(Span {
-                            start: Position { line: 2, column: 1, offset: 12 },
-                            end: Position { line: 2, column: 7, offset: 18 },
+                            start: Position {
+                                line: 2,
+                                column: 1,
+                                offset: 12,
+                            },
+                            end: Position {
+                                line: 2,
+                                column: 7,
+                                offset: 18,
+                            },
                         }),
                         children: vec![],
                     },
                     Node {
                         kind: NodeKind::Strong,
                         span: Some(Span {
-                            start: Position { line: 2, column: 9, offset: 20 },
-                            end: Position { line: 2, column: 15, offset: 26 },
+                            start: Position {
+                                line: 2,
+                                column: 9,
+                                offset: 20,
+                            },
+                            end: Position {
+                                line: 2,
+                                column: 15,
+                                offset: 26,
+                            },
                         }),
                         children: vec![],
                     },
                 ],
             },
         ],
-    ..Default::default()
+        ..Default::default()
     };
 
     let highlights = compute_highlights(&doc);

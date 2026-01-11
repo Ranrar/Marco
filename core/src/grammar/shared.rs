@@ -9,11 +9,11 @@ pub type Span<'a> = LocatedSpan<&'a str>;
 
 /// Count spaces considering tab expansion (1 tab = 4 spaces)
 /// Returns the number of effective space characters for indentation
-/// 
+///
 /// # Examples
 /// ```
 /// use core::grammar::shared::count_indentation;
-/// 
+///
 /// assert_eq!(count_indentation("    text"), 4);
 /// assert_eq!(count_indentation("\ttext"), 4);
 /// assert_eq!(count_indentation(" \ttext"), 4);
@@ -32,17 +32,17 @@ pub fn count_indentation(input: &str) -> usize {
 
 /// Skip indentation characters (spaces and tabs) up to a certain number of effective spaces
 /// Returns the remaining input and the number of spaces actually skipped
-/// 
+///
 /// # Arguments
 /// * `input` - The input span to process
 /// * `max_spaces` - Maximum number of effective spaces to skip
-/// 
+///
 /// # Returns
 /// `Ok((remaining, spaces_skipped))` if successful, error otherwise
 pub fn skip_indentation(input: Span, max_spaces: usize) -> IResult<Span, usize> {
-    let mut spaces = 0;
-    let mut bytes = 0;
-    
+    let mut spaces: usize = 0;
+    let mut bytes: usize = 0;
+
     for ch in input.fragment().chars() {
         if spaces >= max_spaces {
             break;
@@ -65,14 +65,19 @@ pub fn skip_indentation(input: Span, max_spaces: usize) -> IResult<Span, usize> 
             _ => break,
         }
     }
-    
+
     if bytes == 0 {
-        return Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Space)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Space,
+        )));
     }
-    
+
     // Use nom's `take` combinator to skip bytes while preserving location information
     use nom::bytes::complete::take;
-    let (remaining, _skipped) = take(bytes as u32)(input)?;
+    use nom::Parser;
+
+    let (remaining, _skipped) = take(bytes).parse(input)?;
     Ok((remaining, spaces))
 }
 

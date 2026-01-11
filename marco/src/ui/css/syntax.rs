@@ -1,19 +1,50 @@
-//! Centralized syntax helpers for Marco UI
+//! Centralized syntax helpers for Marco UI.
 //!
-//! This module centralizes syntax (LSP) text color handling for Marco's editor.
+//! This module is the **single source of truth** for editor Markdown highlight
+//! colors.
 //!
-//! Instead of relying on separate XML files at runtime, we expose helpers that
-//! can apply the colors directly to a `sourceview5::Buffer`'s tag table. This
-//! keeps LSP text coloring independent from CSS and allows the UI to control
-//! the exact colors used for syntax tags.
+//! The `core` crate produces highlight spans tagged with a small enum
+//! (`core::lsp::HighlightTag`). In the editor we apply those spans as GTK
+//! `TextTag`s on the SourceView buffer.
 //!
-//! The color maps were previously stored in
-//! `assets/themes/syntax/syntaxlight.xml` and `syntaxdark.xml` — we keep the
-//! same colors here to preserve behaviour while allowing programmatic control.
+//! The color palette for those `TextTag`s is defined here (light/dark maps).
+//! This intentionally keeps editor syntax coloring **independent** from
+//! SourceView style schemes and GTK CSS.
 
 use gtk4::prelude::*;
-use sourceview5::prelude::*; // bring BufferExt into scope for style_scheme()
 use std::collections::HashMap;
+
+/// All syntax tag names used by the editor highlight pipeline.
+///
+/// Keep this list in sync with:
+/// - `marco/src/components/editor/lsp_integration.rs` (tag naming)
+/// - `core::lsp::HighlightTag` (tag variants)
+pub const LSP_TAG_NAMES: &[&str] = &[
+    "heading1",
+    "heading2",
+    "heading3",
+    "heading4",
+    "heading5",
+    "heading6",
+    "emphasis",
+    "strong",
+    "strikethrough",
+    "mark",
+    "superscript",
+    "subscript",
+    "link",
+    "image",
+    "code-span",
+    "code-block",
+    "inline-html",
+    "hard-break",
+    "soft-break",
+    "thematic-break",
+    "blockquote",
+    "html-block",
+    "list",
+    "list-item",
+];
 
 /// Return a map of style name -> hex color string for the light theme.
 fn light_color_map() -> HashMap<&'static str, &'static str> {
@@ -26,6 +57,10 @@ fn light_color_map() -> HashMap<&'static str, &'static str> {
     m.insert("heading6", "#5EB176");
     m.insert("emphasis", "#A65E2B");
     m.insert("strong", "#CF222E");
+    m.insert("strikethrough", "#6E7781");
+    m.insert("mark", "#9A6700");
+    m.insert("superscript", "#8250DF");
+    m.insert("subscript", "#8250DF");
     m.insert("link", "#0969DA");
     m.insert("image", "#0969DA");
     m.insert("code-span", "#0A3069");
@@ -36,8 +71,9 @@ fn light_color_map() -> HashMap<&'static str, &'static str> {
     m.insert("thematic-break", "#8B7DAE");
     m.insert("blockquote", "#1A7F37");
     m.insert("html-block", "#CF222E");
-    m.insert("list", "#24292E");
-    m.insert("list-item", "#24292E");
+    // Lists can be visually subtle; give them a slight tint so they read as a structure.
+    m.insert("list", "#6E7781");
+    m.insert("list-item", "#6E7781");
     m
 }
 
@@ -52,6 +88,10 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
     m.insert("heading6", "#9CDCFE");
     m.insert("emphasis", "#DCDCAA");
     m.insert("strong", "#CE9178");
+    m.insert("strikethrough", "#808080");
+    m.insert("mark", "#D7BA7D");
+    m.insert("superscript", "#C586C0");
+    m.insert("subscript", "#C586C0");
     m.insert("link", "#4EC9B0");
     m.insert("image", "#4EC9B0");
     m.insert("code-span", "#B5CEA8");
@@ -62,8 +102,9 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
     m.insert("thematic-break", "#C586C0");
     m.insert("blockquote", "#608B4E");
     m.insert("html-block", "#D16969");
-    m.insert("list", "#D4D4D4");
-    m.insert("list-item", "#D4D4D4");
+    // Lists can be visually subtle; give them a slight tint so they read as a structure.
+    m.insert("list", "#9CDCFE");
+    m.insert("list-item", "#9CDCFE");
     m
 }
 
@@ -75,7 +116,7 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
 
 /// Apply LSP style tags (colors only) to the provided `sourceview5::Buffer`.
 ///
-/// This will create TextTags named like `lsp-heading1`, `lsp-emphasis`, etc.
+/// This will create `TextTag`s named like `heading1`, `emphasis`, `code-span`, etc.
 /// If tags already exist they will be updated with the new foreground color.
 pub fn apply_to_buffer(buffer: &sourceview5::Buffer, theme_mode: &str) {
     // Accept theme strings like "dark", "theme-dark", "theme-dark-foo".
@@ -89,26 +130,18 @@ pub fn apply_to_buffer(buffer: &sourceview5::Buffer, theme_mode: &str) {
 
     let tag_table = buffer.tag_table();
 
-    // Try to prefer colors from the buffer's StyleScheme if available. Many
-    // editor theme XMLs define styles named `lsp-{name}`; if a matching style
-    // exists and has a foreground color, use that. Otherwise fall back to our
-    // hardcoded hex map.
-    let scheme_opt = buffer.style_scheme();
-
-    for (name, hex) in map.iter() {
-        // Prefer scheme style `lsp-{name}`
-        let foreground_color = scheme_opt
-            .as_ref()
-            .and_then(|scheme| scheme.style(&format!("lsp-{}", name)))
-            .and_then(|style| style.foreground())
-            .map(|gstr| gstr.to_string())
-            .unwrap_or_else(|| hex.to_string());
+    // Apply our hardcoded palette. (No scheme lookup: code-driven colors only.)
+    for name in LSP_TAG_NAMES {
+        let Some(hex) = map.get(name) else {
+            log::warn!("Missing syntax color for tag '{name}' in theme_mode='{theme_mode}'");
+            continue;
+        };
 
         if let Some(existing) = tag_table.lookup(name) {
-            existing.set_foreground(Some(&foreground_color));
+            existing.set_foreground(Some(hex));
         } else {
             let tag = gtk4::TextTag::new(Some(name));
-            tag.set_foreground(Some(&foreground_color));
+            tag.set_foreground(Some(hex));
             tag_table.add(&tag);
         }
     }
@@ -120,12 +153,8 @@ pub fn apply_to_buffer(buffer: &sourceview5::Buffer, theme_mode: &str) {
 /// editor falls back to default text color. We iterate the union of known tag names
 /// to make sure both light and dark variants are covered.
 pub fn remove_from_buffer(buffer: &sourceview5::Buffer) {
-    let mut names = Vec::new();
-    names.extend(light_color_map().keys().cloned());
-    names.extend(dark_color_map().keys().cloned());
-
     let tag_table = buffer.tag_table();
-    for name in names {
+    for name in LSP_TAG_NAMES {
         if let Some(tag) = tag_table.lookup(name) {
             // Clearing the foreground will make the TextTag not override the default
             // text color used by the SourceView.
@@ -139,4 +168,25 @@ pub fn remove_from_buffer(buffer: &sourceview5::Buffer) {
 pub fn generate_css() -> String {
     // Syntax module doesn't contribute large GTK CSS; return a small marker
     String::from("/* syntax module: provides LSP tag colors for SourceView */\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_all_tag_names_have_light_colors() {
+        let map = light_color_map();
+        for name in LSP_TAG_NAMES {
+            assert!(map.contains_key(name), "missing light color for '{name}'");
+        }
+    }
+
+    #[test]
+    fn smoke_test_all_tag_names_have_dark_colors() {
+        let map = dark_color_map();
+        for name in LSP_TAG_NAMES {
+            assert!(map.contains_key(name), "missing dark color for '{name}'");
+        }
+    }
 }

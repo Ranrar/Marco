@@ -39,15 +39,15 @@ use serde::{Deserialize, Serialize};
 pub struct Position {
     /// Line number (1-based, CommonMark convention)
     pub line: usize,
-    
+
     /// Column as byte offset from line start (1-based, CommonMark convention)
-    /// 
-    /// **Note**: This is NOT a character offset! 
+    ///
+    /// **Note**: This is NOT a character offset!
     /// Multi-byte UTF-8 characters cause byte offsets to differ from character positions.
     pub column: usize,
-    
+
     /// Absolute byte offset from document start
-    /// 
+    ///
     /// **For debugging/logging only** - do not use for GTK positioning!
     pub offset: usize,
 }
@@ -77,14 +77,18 @@ pub struct Position {
 pub struct Span {
     /// Start position (inclusive)
     pub start: Position,
-    
+
     /// End position (exclusive)
     pub end: Position,
 }
 
 impl Position {
     pub fn new(line: usize, column: usize, offset: usize) -> Self {
-        Self { line, column, offset }
+        Self {
+            line,
+            column,
+            offset,
+        }
     }
 
     /// Compute the absolute byte offset of the start of this position's line.

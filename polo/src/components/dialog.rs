@@ -43,11 +43,11 @@
 //! - Invalid paths are validated before attempting operations
 
 use crate::components::viewer::load_and_render_markdown;
-use gtk4::{
-    prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction,
-    FileChooserDialog, FileFilter, Label, Orientation, ResponseType, Window,
-};
 use core::logic::swanson::SettingsManager;
+use gtk4::{
+    prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction, FileChooserDialog,
+    FileFilter, Label, Orientation, ResponseType, Window,
+};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 use webkit6::WebView;
@@ -63,7 +63,7 @@ pub fn show_open_file_dialog(
     asset_root: &std::path::Path,
 ) {
     use gtk4::gio;
-    
+
     // Create file chooser dialog
     let dialog = FileChooserDialog::new(
         Some("Open Markdown File"),
@@ -74,20 +74,20 @@ pub fn show_open_file_dialog(
             ("Open", ResponseType::Accept),
         ],
     );
-    
+
     // Add markdown file filter
     let filter = FileFilter::new();
     filter.set_name(Some("Markdown Files"));
     filter.add_pattern("*.md");
     filter.add_pattern("*.markdown");
     dialog.add_filter(&filter);
-    
+
     // Add all files filter
     let filter_all = FileFilter::new();
     filter_all.set_name(Some("All Files"));
     filter_all.add_pattern("*");
     dialog.add_filter(&filter_all);
-    
+
     // Set initial directory from settings
     let settings = settings_manager.get_settings();
     if let Some(polo) = &settings.polo {
@@ -97,7 +97,7 @@ pub fn show_open_file_dialog(
             }
         }
     }
-    
+
     // Handle response
     let window_weak = window.downgrade();
     let open_editor_btn = open_editor_btn.clone();
@@ -109,17 +109,23 @@ pub fn show_open_file_dialog(
                 if let Some(path) = file.path() {
                     let path_str = path.to_string_lossy().to_string();
                     log::info!("Opening file: {}", path_str);
-                    
+
                     // Get current theme from settings
                     let settings = settings_manager.get_settings();
                     let theme = settings
                         .appearance
                         .and_then(|a| a.preview_theme)
                         .unwrap_or_else(|| "github.css".to_string());
-                    
+
                     // Load and render the file
-                    load_and_render_markdown(&webview, &path_str, &theme, &settings_manager, &asset_root_owned);
-                    
+                    load_and_render_markdown(
+                        &webview,
+                        &path_str,
+                        &theme,
+                        &settings_manager,
+                        &asset_root_owned,
+                    );
+
                     // Update current file path
                     // RwLock poisoning is not expected in single-threaded GTK event loop.
                     // If it occurs (extremely unlikely), we simply retain the old path (safe fallback).
@@ -127,11 +133,11 @@ pub fn show_open_file_dialog(
                     if let Ok(mut path_guard) = current_file_path.write() {
                         *path_guard = Some(path_str.clone());
                     }
-                    
+
                     // Enable "Open in Editor" button now that we have a file
                     open_editor_btn.set_sensitive(true);
                     open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
-                    
+
                     // Update window title and title label
                     if let Some(window) = window_weak.upgrade() {
                         if let Some(filename) = path.file_name() {
@@ -140,7 +146,7 @@ pub fn show_open_file_dialog(
                             title_label.set_text(&title_text);
                         }
                     }
-                    
+
                     // Save to settings
                     let _ = settings_manager.update_settings(|s| {
                         if s.polo.is_none() {
@@ -155,7 +161,7 @@ pub fn show_open_file_dialog(
         }
         dialog.close();
     });
-    
+
     dialog.present();
 }
 
@@ -167,7 +173,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     } else {
         "marco-theme-light"
     };
-    
+
     // Create a Window instead of deprecated Dialog
     let dialog = Window::builder()
         .modal(true)
@@ -176,30 +182,30 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
         .default_height(200)
         .resizable(false)
         .build();
-    
+
     // Apply CSS classes for theming
     dialog.add_css_class("polo-dialog");
     dialog.add_css_class(theme_class);
-    
+
     // Create custom titlebar matching polo's style
     let headerbar = gtk4::HeaderBar::new();
-    headerbar.add_css_class("titlebar");      // Shared class for Marco's menu.css
+    headerbar.add_css_class("titlebar"); // Shared class for Marco's menu.css
     headerbar.add_css_class("polo-titlebar"); // Polo-specific class for overrides
-    headerbar.set_show_title_buttons(false);  // We'll add custom close button
-    
+    headerbar.set_show_title_buttons(false); // We'll add custom close button
+
     // Set title in headerbar
     let title_label = Label::new(Some("Open in Marco Editor"));
     title_label.set_valign(Align::Center);
-    title_label.add_css_class("title-label");      // Shared class for Marco's menu.css
+    title_label.add_css_class("title-label"); // Shared class for Marco's menu.css
     title_label.add_css_class("polo-title-label"); // Polo-specific class
     headerbar.set_title_widget(Some(&title_label));
-    
+
     // Create custom close button with icon font (matching menu.rs pattern)
     let close_label = Label::new(None);
     close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
     close_label.set_valign(Align::Center);
     close_label.add_css_class("icon-font");
-    
+
     let btn_close_titlebar = Button::new();
     btn_close_titlebar.set_child(Some(&close_label));
     btn_close_titlebar.set_tooltip_text(Some("Close"));
@@ -211,7 +217,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     btn_close_titlebar.set_has_frame(false);
     btn_close_titlebar.add_css_class("topright-btn");
     btn_close_titlebar.add_css_class("window-control-btn");
-    
+
     // Wire up close button
     let dialog_weak_for_close = dialog.downgrade();
     btn_close_titlebar.connect_clicked(move |_| {
@@ -219,16 +225,16 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
             dialog.close();
         }
     });
-    
+
     // Add close button to right side of headerbar
     headerbar.pack_end(&btn_close_titlebar);
-    
+
     dialog.set_titlebar(Some(&headerbar));
-    
+
     // Create main content container
     let vbox = Box::new(Orientation::Vertical, 0);
     vbox.add_css_class("polo-dialog-content");
-    
+
     // Message (removed duplicate title since it's now in titlebar)
     let message = Label::new(Some("Choose how to open this file in Marco:"));
     message.add_css_class("polo-dialog-message");
@@ -236,80 +242,80 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     message.set_wrap(true);
     message.set_max_width_chars(45); // Constrain text width to match Marco's compact sizing
     vbox.append(&message);
-    
+
     // Create button container
     let button_box = Box::new(Orientation::Vertical, 8);
     button_box.add_css_class("polo-dialog-button-box");
-    
+
     // DualView button (primary action)
     let btn_dualview = Button::with_label("DualView");
     btn_dualview.add_css_class("polo-dialog-button");
     btn_dualview.add_css_class("primary");
     btn_dualview.set_tooltip_text(Some("Close Polo and open Marco with editor + preview"));
     button_box.append(&btn_dualview);
-    
+
     // Editor and View Separate button
     let btn_separate = Button::with_label("Editor and View Separate");
     btn_separate.add_css_class("polo-dialog-button");
     btn_separate.set_tooltip_text(Some("Keep Polo open and also open Marco editor"));
     button_box.append(&btn_separate);
-    
+
     // Cancel button container (separate with spacing)
     let cancel_container = Box::new(Orientation::Horizontal, 0);
     cancel_container.set_halign(Align::End);
     cancel_container.set_margin_top(8);
-    
+
     let btn_cancel = Button::with_label("Cancel");
     btn_cancel.add_css_class("polo-dialog-button");
     cancel_container.append(&btn_cancel);
-    
+
     vbox.append(&button_box);
     vbox.append(&cancel_container);
-    
+
     dialog.set_child(Some(&vbox));
-    
+
     // Handle button clicks
     let file_path = file_path.to_string();
     let window_weak = window.downgrade();
     let dialog_weak = dialog.downgrade();
-    
+
     // DualView button - launch Marco and close Polo
     let file_path_clone = file_path.clone();
     let window_weak_clone = window_weak.clone();
     let dialog_weak_clone = dialog_weak.clone();
     btn_dualview.connect_clicked(move |_| {
         log::info!("DualView selected - launching Marco and closing Polo");
-        
+
         if let Err(e) = launch_marco(&file_path_clone) {
             log::error!("Failed to launch Marco: {}", e);
         }
-        
+
         // Close Polo
         if let Some(window) = window_weak_clone.upgrade() {
             window.close();
         }
-        
+
         if let Some(dialog) = dialog_weak_clone.upgrade() {
             dialog.close();
         }
     });
-    
+
     // Editor and View Separate button - launch Marco, keep Polo open
     let file_path_clone = file_path.clone();
     let dialog_weak_clone = dialog_weak.clone();
     btn_separate.connect_clicked(move |_| {
         log::info!("EditorAndViewSeparate selected - launching Marco, keeping Polo open");
-        
+
         if let Err(e) = launch_marco(&file_path_clone) {
             log::error!("Failed to launch Marco: {}", e);
         }
-        
+
         // Keep Polo open, just close dialog
         if let Some(dialog) = dialog_weak_clone.upgrade() {
             dialog.close();
         }
     });
-    
+
     // Cancel button
     let dialog_weak_clone = dialog_weak.clone();
     btn_cancel.connect_clicked(move |_| {
@@ -317,39 +323,39 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
             dialog.close();
         }
     });
-    
+
     dialog.present();
 }
 
 /// Launch Marco editor with the specified file
 pub fn launch_marco(file_path: &str) -> Result<(), String> {
     use std::process::Command;
-    
+
     // Try to find marco binary
     // 1. Check in same directory as polo
     // 2. Check in PATH
     // 3. Check common install locations
-    
-    let polo_exe = std::env::current_exe()
-        .map_err(|e| format!("Failed to get current exe path: {}", e))?;
-    
+
+    let polo_exe =
+        std::env::current_exe().map_err(|e| format!("Failed to get current exe path: {}", e))?;
+
     let polo_dir = polo_exe
         .parent()
         .ok_or_else(|| "Failed to get polo directory".to_string())?;
-    
+
     let marco_path = polo_dir.join("marco");
-    
+
     let command = if marco_path.exists() {
         marco_path.to_string_lossy().to_string()
     } else {
         "marco".to_string() // Try PATH
     };
-    
+
     Command::new(&command)
         .arg(file_path)
         .spawn()
         .map_err(|e| format!("Failed to spawn Marco process: {}", e))?;
-    
+
     log::info!("Launched Marco: {} {}", command, file_path);
     Ok(())
 }

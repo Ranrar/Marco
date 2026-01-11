@@ -22,16 +22,16 @@ use super::constants::*;
 /// Generate complete settings CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(4096);
-    
+
     // Base settings styling (theme-independent)
     css.push_str(&generate_base_settings_css());
-    
+
     // Light theme
     css.push_str(&generate_theme_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Dark theme
     css.push_str(&generate_theme_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     css
 }
 
@@ -311,12 +311,20 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
 "#,
         theme = theme_class,
-        window_bg = if theme_class.contains("light") { "#FAFAFA" } else { "#1E1E1E" },
+        window_bg = if theme_class.contains("light") {
+            "#FAFAFA"
+        } else {
+            "#1E1E1E"
+        },
         titlebar_bg = palette.titlebar_bg,
         footer_bg = palette.footer_bg,
         foreground = palette.titlebar_foreground,
         border = palette.titlebar_border,
-        tab_hover = if theme_class.contains("light") { "#f5f5f5" } else { "#2a2a2a" },
+        tab_hover = if theme_class.contains("light") {
+            "#f5f5f5"
+        } else {
+            "#2a2a2a"
+        },
         hover = palette.toolbar_button_hover,
         active = palette.toolbar_button_active,
         accent = palette.toolbar_button_hover_border,
@@ -330,7 +338,7 @@ mod tests {
     #[test]
     fn smoke_test_settings_css_generation() {
         let css = generate_css();
-        
+
         // Verify settings classes present
         assert!(css.contains(".marco-settings-window"));
         assert!(css.contains(".marco-settings-content"));
@@ -340,21 +348,24 @@ mod tests {
         assert!(css.contains(".marco-settings-row"));
         assert!(css.contains(".marco-settings-header"));
         assert!(css.contains(".marco-settings-description"));
-        
+
         // Verify theme variants
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify not empty
         assert!(!css.is_empty());
-        
-        println!("Settings CSS generation smoke test passed - {} bytes", css.len());
+
+        println!(
+            "Settings CSS generation smoke test passed - {} bytes",
+            css.len()
+        );
     }
-    
+
     #[test]
     fn test_notebook_tab_selectors() {
         let css = generate_base_settings_css();
-        
+
         // Verify GTK4 Notebook nested structure is handled
         assert!(css.contains(".marco-settings-notebook > header"));
         assert!(css.contains(".marco-settings-notebook > header > tabs"));

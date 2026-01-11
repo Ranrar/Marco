@@ -1,5 +1,5 @@
 // Block-level grammar modules
-// 
+//
 // This module contains individual CommonMark block element parsers.
 // Each parser extracts a specific block-level construct and returns nom IResult.
 

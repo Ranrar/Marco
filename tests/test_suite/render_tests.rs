@@ -5,13 +5,13 @@ use super::utils::{print_header, print_section};
 pub fn run_render_tests() {
     use core::parser;
     use core::render::{render_html, RenderOptions};
-    
+
     print_header("Full Pipeline Tests (Markdown → AST → HTML)");
-    
+
     let mut total = 0;
     let mut passed = 0;
     let mut failed = 0;
-    
+
     // Test 1: Heading to HTML
     print_section("Render Heading");
     total += 1;
@@ -40,7 +40,7 @@ pub fn run_render_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 2: Paragraph to HTML
     print_section("Render Paragraph");
     total += 1;
@@ -54,7 +54,10 @@ pub fn run_render_tests() {
                         println!("  ✓ Paragraph: 'This is a paragraph.' → '<p>...</p>'");
                         passed += 1;
                     } else {
-                        println!("  ✗ Expected '<p>This is a paragraph.</p>\\n', got: {:?}", html);
+                        println!(
+                            "  ✗ Expected '<p>This is a paragraph.</p>\\n', got: {:?}",
+                            html
+                        );
                         failed += 1;
                     }
                 }
@@ -69,7 +72,7 @@ pub fn run_render_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 3: Code block with language
     print_section("Render Code Block with Language");
     total += 1;
@@ -83,7 +86,10 @@ pub fn run_render_tests() {
                         println!("  ✓ Code block: ```rust ... ``` → '<pre><code class=\"language-rust\">...'");
                         passed += 1;
                     } else {
-                        println!("  ✗ HTML missing language class or code content: {:?}", html);
+                        println!(
+                            "  ✗ HTML missing language class or code content: {:?}",
+                            html
+                        );
                         failed += 1;
                     }
                 }
@@ -98,7 +104,7 @@ pub fn run_render_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 4: HTML escaping
     print_section("Render with HTML Escaping");
     total += 1;
@@ -127,7 +133,7 @@ pub fn run_render_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 5: Mixed content
     print_section("Render Mixed Content");
     total += 1;
@@ -140,7 +146,7 @@ pub fn run_render_tests() {
                     let has_h1 = html.contains("<h1>Title</h1>");
                     let has_p = html.contains("<p>A paragraph.</p>");
                     let has_code = html.contains("language-python") && html.contains("print");
-                    
+
                     if has_h1 && has_p && has_code {
                         println!("  ✓ Mixed content: heading + paragraph + code block");
                         println!("    - <h1>: present");
@@ -167,7 +173,7 @@ pub fn run_render_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 6: Multi-line paragraph
     print_section("Render Multi-line Paragraph");
     total += 1;
@@ -177,7 +183,10 @@ pub fn run_render_tests() {
             let options = RenderOptions::default();
             match render_html(&doc, &options) {
                 Ok(html) => {
-                    if html.contains("Line one") && html.contains("Line two") && html.contains("Line three") {
+                    if html.contains("Line one")
+                        && html.contains("Line two")
+                        && html.contains("Line three")
+                    {
                         println!("  ✓ Multi-line paragraph: all lines preserved");
                         passed += 1;
                     } else {
@@ -196,11 +205,15 @@ pub fn run_render_tests() {
             failed += 1;
         }
     }
-    
+
     // Summary
     println!("\n{}", "─".repeat(60));
-    println!("Render Tests Summary: {}/{} tests passed ({:.1}%)", 
-             passed, total, (passed as f64 / total as f64) * 100.0);
+    println!(
+        "Render Tests Summary: {}/{} tests passed ({:.1}%)",
+        passed,
+        total,
+        (passed as f64 / total as f64) * 100.0
+    );
     if failed > 0 {
         println!("  ⚠ {} test(s) failed", failed);
     }
@@ -210,17 +223,16 @@ pub fn run_render_tests() {
 // INLINE PARSING TESTS (Markdown with inline elements → AST → HTML)
 // ============================================================================
 
-
 pub fn run_inline_pipeline_tests() {
     use core::parser;
     use core::render::{render_html, RenderOptions};
-    
+
     print_header("Inline Elements Pipeline Tests");
-    
+
     let mut total = 0;
     let mut passed = 0;
     let mut failed = 0;
-    
+
     // Test 1: Emphasis in paragraph
     print_section("Parse and Render Emphasis");
     total += 1;
@@ -249,7 +261,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 2: Strong in paragraph
     print_section("Parse and Render Strong");
     total += 1;
@@ -278,7 +290,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 3: Code span in paragraph
     print_section("Parse and Render Code Span");
     total += 1;
@@ -307,7 +319,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 4: Link in paragraph
     print_section("Parse and Render Link");
     total += 1;
@@ -317,7 +329,10 @@ pub fn run_inline_pipeline_tests() {
             let options = RenderOptions::default();
             match render_html(&doc, &options) {
                 Ok(html) => {
-                    if html.contains("<a href=") && html.contains("example.com") && html.contains("example</a>") {
+                    if html.contains("<a href=")
+                        && html.contains("example.com")
+                        && html.contains("example</a>")
+                    {
                         println!("  ✓ Link: '[example](url)' → '<a href=\"url\">example</a>'");
                         passed += 1;
                     } else {
@@ -336,7 +351,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 5: Mixed inline elements
     print_section("Parse and Render Mixed Inline Elements");
     total += 1;
@@ -349,7 +364,7 @@ pub fn run_inline_pipeline_tests() {
                     let has_em = html.contains("<em>");
                     let has_strong = html.contains("<strong>");
                     let has_code = html.contains("<code>");
-                    
+
                     if has_em && has_strong && has_code {
                         println!("  ✓ Mixed inline: <em>, <strong>, <code> all present");
                         passed += 1;
@@ -373,7 +388,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 6: Nested emphasis in strong
     print_section("Parse and Render Nested Inline Elements");
     total += 1;
@@ -403,7 +418,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 10: URI Autolink
     print_section("Render URI Autolink");
     total += 1;
@@ -432,7 +447,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 11: Email Autolink
     print_section("Render Email Autolink");
     total += 1;
@@ -461,7 +476,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 12: Hard Line Break (spaces)
     print_section("Render Hard Line Break (spaces)");
     total += 1;
@@ -475,7 +490,10 @@ pub fn run_inline_pipeline_tests() {
                         println!("  ✓ Hard Break (spaces): 'Line one  \\nLine two' → '<p>Line one<br />\\nLine two</p>'");
                         passed += 1;
                     } else {
-                        println!("  ✗ Expected '<p>Line one<br />\\nLine two</p>\\n', got: {:?}", html);
+                        println!(
+                            "  ✗ Expected '<p>Line one<br />\\nLine two</p>\\n', got: {:?}",
+                            html
+                        );
                         failed += 1;
                     }
                 }
@@ -490,7 +508,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 13: Hard Line Break (backslash)
     print_section("Render Hard Line Break (backslash)");
     total += 1;
@@ -504,7 +522,10 @@ pub fn run_inline_pipeline_tests() {
                         println!("  ✓ Hard Break (backslash): 'Line one\\\\\\nLine two' → '<p>Line one<br />\\nLine two</p>'");
                         passed += 1;
                     } else {
-                        println!("  ✗ Expected '<p>Line one<br />\\nLine two</p>\\n', got: {:?}", html);
+                        println!(
+                            "  ✗ Expected '<p>Line one<br />\\nLine two</p>\\n', got: {:?}",
+                            html
+                        );
                         failed += 1;
                     }
                 }
@@ -519,7 +540,7 @@ pub fn run_inline_pipeline_tests() {
             failed += 1;
         }
     }
-    
+
     // Test 14: Soft Line Break
     print_section("Render Soft Line Break");
     total += 1;
@@ -530,10 +551,15 @@ pub fn run_inline_pipeline_tests() {
             match render_html(&doc, &options) {
                 Ok(html) => {
                     if html == "<p>Line one\nLine two</p>\n" {
-                        println!("  ✓ Soft Break: 'Line one\\nLine two' → '<p>Line one\\nLine two</p>'");
+                        println!(
+                            "  ✓ Soft Break: 'Line one\\nLine two' → '<p>Line one\\nLine two</p>'"
+                        );
                         passed += 1;
                     } else {
-                        println!("  ✗ Expected '<p>Line one\\nLine two</p>\\n', got: {:?}", html);
+                        println!(
+                            "  ✗ Expected '<p>Line one\\nLine two</p>\\n', got: {:?}",
+                            html
+                        );
                         failed += 1;
                     }
                 }
@@ -551,8 +577,12 @@ pub fn run_inline_pipeline_tests() {
 
     // Summary
     println!("\n{}", "─".repeat(60));
-    println!("Inline Pipeline Tests Summary: {}/{} tests passed ({:.1}%)", 
-             passed, total, (passed as f64 / total as f64) * 100.0);
+    println!(
+        "Inline Pipeline Tests Summary: {}/{} tests passed ({:.1}%)",
+        passed,
+        total,
+        (passed as f64 / total as f64) * 100.0
+    );
     if failed > 0 {
         println!("  ⚠ {} test(s) failed", failed);
     }
@@ -561,4 +591,3 @@ pub fn run_inline_pipeline_tests() {
 // ============================================================================
 // COMMONMARK SPEC TESTS
 // ============================================================================
-

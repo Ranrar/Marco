@@ -58,7 +58,7 @@ pub struct ColorPalette {
     pub layout_icon_hover: &'static str,
     /// Layout state icon color (active)
     pub layout_icon_active: &'static str,
-    
+
     // Toolbar colors
     /// Toolbar background color
     pub toolbar_bg: &'static str,
@@ -84,7 +84,7 @@ pub struct ColorPalette {
     pub toolbar_popover_bg: &'static str,
     /// Toolbar popover border
     pub toolbar_popover_border: &'static str,
-    
+
     // Footer colors
     /// Footer background color (matches toolbar)
     pub footer_bg: &'static str,
@@ -111,7 +111,7 @@ pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     layout_icon: "#2c3e50",
     layout_icon_hover: "#5a6c7d",
     layout_icon_active: "#000",
-    
+
     // Toolbar (from toolbar.css)
     toolbar_bg: "#f5f5f5",
     toolbar_border: "#ddd",
@@ -125,7 +125,7 @@ pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     toolbar_separator: "#ccc",
     toolbar_popover_bg: "#f5f5f5",
     toolbar_popover_border: "#ccc",
-    
+
     // Footer (from footer.css)
     footer_bg: "#f5f5f5",
     footer_border: "#ddd",
@@ -149,7 +149,7 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
     layout_icon: "#f0f5f1",
     layout_icon_hover: "#9198a1",
     layout_icon_active: "#fff",
-    
+
     // Toolbar (from toolbar.css)
     toolbar_bg: "#252526",
     toolbar_border: "#3c3c3c",
@@ -163,7 +163,7 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
     toolbar_separator: "#444",
     toolbar_popover_bg: "#23272e",
     toolbar_popover_border: "#444",
-    
+
     // Footer (from footer.css)
     footer_bg: "#252526",
     footer_border: "#3c3c3c",
@@ -398,12 +398,12 @@ mod tests {
         assert!(!LIGHT_PALETTE.titlebar_bg.is_empty());
         assert!(!LIGHT_PALETTE.toolbar_bg.is_empty());
         assert!(!LIGHT_PALETTE.footer_bg.is_empty());
-        
+
         // Verify dark palette has all colors defined
         assert!(!DARK_PALETTE.titlebar_bg.is_empty());
         assert!(!DARK_PALETTE.toolbar_bg.is_empty());
         assert!(!DARK_PALETTE.footer_bg.is_empty());
-        
+
         // Verify palettes are different
         assert_ne!(LIGHT_PALETTE.titlebar_bg, DARK_PALETTE.titlebar_bg);
         assert_ne!(LIGHT_PALETTE.toolbar_bg, DARK_PALETTE.toolbar_bg);
@@ -416,11 +416,11 @@ mod tests {
         assert_eq!(FOOTER_MIN_HEIGHT, "26px");
         assert_eq!(TOOLBAR_BORDER_RADIUS, "6px");
         assert_eq!(MENU_BORDER_RADIUS, "4px");
-        
+
         // Verify font constants
         assert_eq!(ICON_FONT_FAMILY, "icomoon");
         assert_eq!(ICON_FONT_SIZE, "16px");
-        
+
         // Verify transition constants
         assert!(STANDARD_TRANSITION.contains("0.15s"));
         assert!(ICON_TRANSITION.contains("0.12s"));

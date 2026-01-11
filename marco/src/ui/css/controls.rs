@@ -26,38 +26,37 @@ use super::constants::*;
 /// Generate complete controls CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(8192);
-    
+
     // DropDown styling (ported from Polo)
     css.push_str(&generate_dropdown_css());
-    
+
     // Switch styling
     css.push_str(&generate_switch_css());
-    
+
     // Scale (slider) styling
     css.push_str(&generate_scale_css());
-    
+
     // SpinButton styling
     css.push_str(&generate_spinbutton_css());
-    
+
     // Entry styling
     css.push_str(&generate_entry_css());
-    
+
     // Button styling
     css.push_str(&generate_button_css());
-    
+
     // CheckButton styling
     css.push_str(&generate_checkbutton_css());
-    
+
     css
 }
 
 /// Generate DropDown widget CSS (ported from Polo with Marco constants)
 fn generate_dropdown_css() -> String {
     let mut css = String::with_capacity(3072);
-    
+
     // Base dropdown sizing (theme-independent)
-    css.push_str(
-        &format!(
+    css.push_str(&format!(
         r#"
     /* DropDown base styles */
     dropdown.marco-dropdown {{
@@ -67,9 +66,8 @@ fn generate_dropdown_css() -> String {
     }}
 "#,
         control_height = CONTROL_MIN_HEIGHT,
-        )
-    );
-    
+    ));
+
     // Light theme dropdown
     css.push_str(&format!(
         r#"
@@ -200,7 +198,7 @@ fn generate_dropdown_css() -> String {
         popover_bg = LIGHT_PALETTE.toolbar_popover_bg,
         item_hover = "#e8e8e8",
     ));
-    
+
     // Dark theme dropdown
     css.push_str(&format!(
         r#"
@@ -331,7 +329,7 @@ fn generate_dropdown_css() -> String {
         popover_bg = DARK_PALETTE.toolbar_popover_bg,
         item_hover = "#3d3d3d",
     ));
-    
+
     css
 }
 
@@ -953,50 +951,57 @@ mod tests {
     #[test]
     fn smoke_test_controls_css_generation() {
         let css = generate_css();
-        
+
         // Verify all control types are present
         assert!(css.contains("dropdown.marco-dropdown"));
         assert!(css.contains("switch.marco-switch"));
         assert!(css.contains("scale.marco-scale"));
         assert!(css.contains("spinbutton.marco-spinbutton"));
         assert!(css.contains("entry.marco-entry"));
-        
+
         // Verify theme variants
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify not empty
         assert!(!css.is_empty());
-        
-        println!("Controls CSS generation smoke test passed - {} bytes", css.len());
+
+        println!(
+            "Controls CSS generation smoke test passed - {} bytes",
+            css.len()
+        );
     }
-    
+
     #[test]
     fn test_dropdown_nested_selectors() {
         let css = generate_dropdown_css();
-        
+
         // Verify GTK4 nested structure is handled
         assert!(css.contains("dropdown.marco-dropdown > button"));
         assert!(css.contains("dropdown.marco-dropdown > popover"));
         assert!(css.contains("dropdown.marco-dropdown > popover > contents"));
         assert!(css.contains("dropdown.marco-dropdown > popover listview > row"));
     }
-    
+
     #[test]
     fn test_scale_highlight_min_sizes() {
         let css = generate_scale_css();
-        
+
         // Verify scale has proper styling
         assert!(css.contains("scale.marco-scale"));
         assert!(css.contains("min-width: 0"));
         assert!(css.contains("min-height: 6px"));
-        
+
         // Verify theme-specific scale styling exists
         assert!(css.contains(".marco-theme-light scale.marco-scale"));
         assert!(css.contains(".marco-theme-dark scale.marco-scale"));
-        
+
         // Count occurrences of min-height: 6px (should be in trough and fill)
         let count = css.matches("min-height: 6px").count();
-        assert!(count >= 2, "Expected at least 2 occurrences of 'min-height: 6px', found {}", count);
+        assert!(
+            count >= 2,
+            "Expected at least 2 occurrences of 'min-height: 6px', found {}",
+            count
+        );
     }
 }

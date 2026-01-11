@@ -29,19 +29,19 @@ use super::constants::*;
 /// Generate complete dialog CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(4096); // Increased for search dialog styles
-    
+
     // Base dialog styling (theme-independent)
     css.push_str(&generate_base_dialog_css());
-    
+
     // Search window specific styles
     css.push_str(&generate_base_search_css());
-    
+
     // Light theme
     css.push_str(&generate_theme_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Dark theme
     css.push_str(&generate_theme_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     css
 }
 
@@ -407,7 +407,11 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
 "#,
         theme = theme_class,
-        dialog_bg = if theme_class.contains("light") { "#FAFAFA" } else { "#1E1E1E" },
+        dialog_bg = if theme_class.contains("light") {
+            "#FAFAFA"
+        } else {
+            "#1E1E1E"
+        },
         titlebar_foreground = palette.titlebar_foreground,
         border = palette.titlebar_border,
         toolbar_border = palette.toolbar_border,

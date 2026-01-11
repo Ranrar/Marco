@@ -1,19 +1,19 @@
 // HTML output generator with syntax highlighting for code blocks
 
-use crate::parser::{Document, Node, NodeKind};
 use super::RenderOptions;
+use crate::parser::{Document, Node, NodeKind};
 use anyhow::Result;
 
 // Render document to HTML
 pub fn render_html(document: &Document, options: &RenderOptions) -> Result<String> {
     log::debug!("Rendering {} nodes to HTML", document.len());
-    
+
     let mut html = String::new();
-    
+
     for node in &document.children {
         render_node(node, &mut html, options)?;
     }
-    
+
     Ok(html)
 }
 
@@ -35,14 +35,14 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
         NodeKind::CodeBlock { language, code } => {
             log::trace!("Rendering code block: {:?}", language);
             output.push_str("<pre><code");
-            
+
             // Add language class attribute if language specified
             if let Some(lang) = language {
                 if !lang.is_empty() {
                     output.push_str(&format!(" class=\"language-{}\"", escape_html(lang)));
                 }
             }
-            
+
             output.push('>');
             output.push_str(&escape_html(code));
             output.push_str("</code></pre>\n");
@@ -87,6 +87,42 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push_str("</strong>");
         }
+        NodeKind::StrongEmphasis => {
+            // Triple delimiter: bold + italic.
+            output.push_str("<strong><em>");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</em></strong>");
+        }
+        NodeKind::Strikethrough => {
+            output.push_str("<del>");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</del>");
+        }
+        NodeKind::Mark => {
+            output.push_str("<mark>");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</mark>");
+        }
+        NodeKind::Superscript => {
+            output.push_str("<sup>");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</sup>");
+        }
+        NodeKind::Subscript => {
+            output.push_str("<sub>");
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push_str("</sub>");
+        }
         NodeKind::Link { url, title } => {
             output.push_str("<a href=\"");
             output.push_str(&escape_html(url));
@@ -121,7 +157,11 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             // Soft line break: rendered as single space (or newline in some contexts)
             output.push('\n');
         }
-        NodeKind::List { ordered, start, tight } => {
+        NodeKind::List {
+            ordered,
+            start,
+            tight,
+        } => {
             // Render list opening tag
             if *ordered {
                 output.push_str("<ol");
@@ -134,12 +174,12 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             } else {
                 output.push_str("<ul>\n");
             }
-            
+
             // Render list items
             for child in &node.children {
                 render_list_item(child, output, *tight, options)?;
             }
-            
+
             // Render list closing tag
             if *ordered {
                 output.push_str("</ol>\n");
@@ -160,14 +200,19 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             log::warn!("Unimplemented node type: {:?}", node.kind);
         }
     }
-    
+
     Ok(())
 }
 
 // Render a list item with proper tight/loose handling
-fn render_list_item(node: &Node, output: &mut String, tight: bool, options: &RenderOptions) -> Result<()> {
+fn render_list_item(
+    node: &Node,
+    output: &mut String,
+    tight: bool,
+    options: &RenderOptions,
+) -> Result<()> {
     output.push_str("<li>");
-    
+
     if tight {
         // Tight list: don't wrap paragraphs in <p> tags
         for child in &node.children {
@@ -190,7 +235,7 @@ fn render_list_item(node: &Node, output: &mut String, tight: bool, options: &Ren
             render_node(child, output, options)?;
         }
     }
-    
+
     output.push_str("</li>\n");
     Ok(())
 }
@@ -414,6 +459,101 @@ mod tests {
         assert_eq!(
             result,
             "<h1>Title</h1>\n<p>Some text.</p>\n<pre><code class=\"language-python\">print(&#39;hello&#39;)</code></pre>\n"
+        );
+    }
+
+    #[test]
+    fn smoke_test_render_strong_emphasis() {
+        let doc = Document {
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![Node {
+                    kind: NodeKind::StrongEmphasis,
+                    span: None,
+                    children: vec![Node {
+                        kind: NodeKind::Text("bold+italic".to_string()),
+                        span: None,
+                        children: vec![],
+                    }],
+                }],
+            }],
+            ..Default::default()
+        };
+
+        let options = RenderOptions::default();
+        let result = render_html(&doc, &options).unwrap();
+        assert_eq!(result, "<p><strong><em>bold+italic</em></strong></p>\n");
+    }
+
+    #[test]
+    fn smoke_test_render_strike_mark_sup_sub() {
+        let doc = Document {
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::Strikethrough,
+                        span: None,
+                        children: vec![Node {
+                            kind: NodeKind::Text("del".to_string()),
+                            span: None,
+                            children: vec![],
+                        }],
+                    },
+                    Node {
+                        kind: NodeKind::Text(" ".to_string()),
+                        span: None,
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Mark,
+                        span: None,
+                        children: vec![Node {
+                            kind: NodeKind::Text("mark".to_string()),
+                            span: None,
+                            children: vec![],
+                        }],
+                    },
+                    Node {
+                        kind: NodeKind::Text(" ".to_string()),
+                        span: None,
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Superscript,
+                        span: None,
+                        children: vec![Node {
+                            kind: NodeKind::Text("sup".to_string()),
+                            span: None,
+                            children: vec![],
+                        }],
+                    },
+                    Node {
+                        kind: NodeKind::Text(" ".to_string()),
+                        span: None,
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Subscript,
+                        span: None,
+                        children: vec![Node {
+                            kind: NodeKind::Text("sub".to_string()),
+                            span: None,
+                            children: vec![],
+                        }],
+                    },
+                ],
+            }],
+            ..Default::default()
+        };
+
+        let options = RenderOptions::default();
+        let result = render_html(&doc, &options).unwrap();
+        assert_eq!(
+            result,
+            "<p><del>del</del> <mark>mark</mark> <sup>sup</sup> <sub>sub</sub></p>\n"
         );
     }
 }

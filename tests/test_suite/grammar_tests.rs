@@ -1,15 +1,15 @@
 // Grammar tests: validate nom parsers for block and inline syntax
 
-use core::grammar::{inlines, blocks};
-use super::utils::{Span, print_header, print_section};
+use super::utils::{print_header, print_section, Span};
+use core::grammar::{blocks, inlines};
 
 pub fn run_inline_tests(filter: Option<String>) {
     print_header("Inline Grammar Tests");
-    
+
     let mut total = 0;
     let mut passed = 0;
     let mut failed = 0;
-    
+
     // Test 1: Basic code span
     if filter.is_none() || filter.as_ref().unwrap().contains("basic") {
         print_section("Basic Code Span");
@@ -21,7 +21,10 @@ pub fn run_inline_tests(filter: Option<String>) {
                     println!("  ✓ Basic code span: `foo` → content='foo'");
                     passed += 1;
                 } else {
-                    println!("  ✗ Basic code span failed: expected 'foo', got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Basic code span failed: expected 'foo', got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -31,7 +34,7 @@ pub fn run_inline_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test 2: Double backticks
     if filter.is_none() || filter.as_ref().unwrap().contains("double") {
         print_section("Double Backtick Code Span");
@@ -43,7 +46,10 @@ pub fn run_inline_tests(filter: Option<String>) {
                     println!("  ✓ Double backticks: `` foo ` bar `` → content=' foo ` bar '");
                     passed += 1;
                 } else {
-                    println!("  ✗ Double backticks failed: expected ' foo ` bar ', got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Double backticks failed: expected ' foo ` bar ', got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -53,7 +59,7 @@ pub fn run_inline_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test 3: Whitespace handling
     if filter.is_none() || filter.as_ref().unwrap().contains("whitespace") {
         print_section("Code Span with Whitespace");
@@ -65,7 +71,10 @@ pub fn run_inline_tests(filter: Option<String>) {
                     println!("  ✓ Whitespace: ` b ` → content=' b '");
                     passed += 1;
                 } else {
-                    println!("  ✗ Whitespace failed: expected ' b ', got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Whitespace failed: expected ' b ', got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -75,7 +84,7 @@ pub fn run_inline_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test 4: Triple backticks
     if filter.is_none() || filter.as_ref().unwrap().contains("triple") {
         print_section("Code Span with Triple Backticks");
@@ -87,7 +96,10 @@ pub fn run_inline_tests(filter: Option<String>) {
                     println!("  ✓ Triple backticks: ` `` ` → content=' `` '");
                     passed += 1;
                 } else {
-                    println!("  ✗ Triple backticks failed: expected ' `` ', got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Triple backticks failed: expected ' `` ', got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -97,10 +109,13 @@ pub fn run_inline_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     println!("\n─────────────────────────────────────────────────────────");
-    println!("Results: {} passed, {} failed (out of {} tests)", passed, failed, total);
-    
+    println!(
+        "Results: {} passed, {} failed (out of {} tests)",
+        passed, failed, total
+    );
+
     if failed > 0 {
         std::process::exit(1);
     }
@@ -112,11 +127,11 @@ pub fn run_inline_tests(filter: Option<String>) {
 
 pub fn run_block_tests(filter: Option<String>) {
     print_header("Block Grammar Tests");
-    
+
     let mut total = 0;
     let mut passed = 0;
     let mut failed = 0;
-    
+
     // Test 1: Basic heading levels 1-6
     if filter.is_none() || filter.as_ref().unwrap().contains("levels") {
         print_section("ATX Heading Levels");
@@ -125,14 +140,17 @@ pub fn run_block_tests(filter: Option<String>) {
             let hashes = "#".repeat(level);
             let input_str = format!("{} Test heading", hashes);
             let input = Span::new(&input_str);
-            
+
             match blocks::heading(input) {
                 Ok((_, (parsed_level, content))) => {
                     if parsed_level == level as u8 && content.fragment().contains("Test heading") {
                         println!("  ✓ Level {}: {} Test heading", level, hashes);
                         passed += 1;
                     } else {
-                        println!("  ✗ Level {} failed: expected level {}, got {}", level, level, parsed_level);
+                        println!(
+                            "  ✗ Level {} failed: expected level {}, got {}",
+                            level, level, parsed_level
+                        );
                         failed += 1;
                     }
                 }
@@ -143,7 +161,7 @@ pub fn run_block_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test 2: Trailing hashes
     if filter.is_none() || filter.as_ref().unwrap().contains("trailing") {
         print_section("ATX Heading Trailing Hashes");
@@ -155,7 +173,10 @@ pub fn run_block_tests(filter: Option<String>) {
                     println!("  ✓ Trailing hashes removed: '## foo ##' → 'foo'");
                     passed += 1;
                 } else {
-                    println!("  ✗ Trailing hashes failed: expected 'foo', got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Trailing hashes failed: expected 'foo', got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -165,7 +186,7 @@ pub fn run_block_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test 3: Leading spaces (0-3 allowed)
     if filter.is_none() || filter.as_ref().unwrap().contains("spaces") {
         print_section("ATX Heading Leading Spaces");
@@ -177,7 +198,10 @@ pub fn run_block_tests(filter: Option<String>) {
                     println!("  ✓ Leading spaces allowed: '   # foo' → 'foo'");
                     passed += 1;
                 } else {
-                    println!("  ✗ Leading spaces failed: expected 'foo', got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Leading spaces failed: expected 'foo', got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -187,7 +211,7 @@ pub fn run_block_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test 4: Invalid - 7 hashes
     if filter.is_none() || filter.as_ref().unwrap().contains("invalid") {
         print_section("ATX Heading Invalid Cases");
@@ -203,7 +227,7 @@ pub fn run_block_tests(filter: Option<String>) {
                 passed += 1;
             }
         }
-        
+
         // Invalid - no space after #
         total += 1;
         let input = Span::new("#5 bolt");
@@ -217,7 +241,7 @@ pub fn run_block_tests(filter: Option<String>) {
                 passed += 1;
             }
         }
-        
+
         // Invalid - 4 spaces (code block)
         total += 1;
         let input = Span::new("    # foo");
@@ -232,11 +256,11 @@ pub fn run_block_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test paragraphs
     if filter.is_none() || filter.as_ref().unwrap().contains("paragraph") {
         print_section("Paragraph Parser");
-        
+
         // Simple paragraph
         total += 1;
         let input = Span::new("aaa");
@@ -255,7 +279,7 @@ pub fn run_block_tests(filter: Option<String>) {
                 failed += 1;
             }
         }
-        
+
         // Multi-line paragraph
         total += 1;
         let input = Span::new("aaa\nbbb");
@@ -265,7 +289,10 @@ pub fn run_block_tests(filter: Option<String>) {
                     println!("  ✓ Multi-line paragraph: 'aaa\\nbbb'");
                     passed += 1;
                 } else {
-                    println!("  ✗ Multi-line paragraph failed: got '{}'", content.fragment());
+                    println!(
+                        "  ✗ Multi-line paragraph failed: got '{}'",
+                        content.fragment()
+                    );
                     failed += 1;
                 }
             }
@@ -274,7 +301,7 @@ pub fn run_block_tests(filter: Option<String>) {
                 failed += 1;
             }
         }
-        
+
         // Paragraph with blank line terminator
         total += 1;
         let input = Span::new("aaa\n\nbbb");
@@ -294,11 +321,11 @@ pub fn run_block_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Test fenced code blocks
     if filter.is_none() || filter.as_ref().unwrap().contains("code") {
         print_section("Fenced Code Block Parser");
-        
+
         // Basic backtick code block
         total += 1;
         let input = Span::new("```\ncode\n```\n");
@@ -317,7 +344,7 @@ pub fn run_block_tests(filter: Option<String>) {
                 failed += 1;
             }
         }
-        
+
         // Code block with language
         total += 1;
         let input = Span::new("```rust\nfn main() {}\n```\n");
@@ -336,7 +363,7 @@ pub fn run_block_tests(filter: Option<String>) {
                 failed += 1;
             }
         }
-        
+
         // Tilde code block
         total += 1;
         let input = Span::new("~~~\ncode\n~~~\n");
@@ -356,11 +383,15 @@ pub fn run_block_tests(filter: Option<String>) {
             }
         }
     }
-    
+
     // Summary
     println!("\n{}", "─".repeat(60));
-    println!("Block Grammar Summary: {}/{} tests passed ({:.1}%)", 
-             passed, total, (passed as f64 / total as f64) * 100.0);
+    println!(
+        "Block Grammar Summary: {}/{} tests passed ({:.1}%)",
+        passed,
+        total,
+        (passed as f64 / total as f64) * 100.0
+    );
     if failed > 0 {
         println!("  ⚠ {} test(s) failed", failed);
     }

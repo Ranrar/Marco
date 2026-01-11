@@ -2,7 +2,8 @@
 // Applies syntax highlighting based on parser LSP features
 
 use gtk4::prelude::*;
-use sourceview5::prelude::*;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 /// Apply LSP highlights to the buffer using line/column positioning
 ///
@@ -20,38 +21,89 @@ use sourceview5::prelude::*;
 ///
 /// * `buffer` - The GTK SourceView buffer to apply highlights to
 /// * `highlights` - Vec of highlights from the parser's LSP module
-pub fn apply_lsp_highlights(
-    buffer: &sourceview5::Buffer,
-    highlights: &[core::lsp::Highlight],
-) {
+#[allow(dead_code)]
+pub fn apply_lsp_highlights(buffer: &sourceview5::Buffer, highlights: &[core::lsp::Highlight]) {
     log::debug!("Applying {} LSP highlights", highlights.len());
-    
+
     // Remove all existing LSP tags first
     remove_all_lsp_tags(buffer);
-    
+
     // Apply each highlight
     for highlight in highlights {
         if let Some((start_iter, end_iter)) = span_to_text_iter(buffer, &highlight.span) {
             let tag = get_or_create_tag(buffer, &highlight.tag);
             buffer.apply_tag(&tag, &start_iter, &end_iter);
-            
-            log::trace!(
-                "Applied {:?} tag from [{}:{} to {}:{}]",
-                highlight.tag,
-                highlight.span.start.line, highlight.span.start.column,
-                highlight.span.end.line, highlight.span.end.column
-            );
         } else {
             log::warn!(
                 "Failed to convert span for highlight {:?} at [{}:{} to {}:{}]",
                 highlight.tag,
-                highlight.span.start.line, highlight.span.start.column,
-                highlight.span.end.line, highlight.span.end.column
+                highlight.span.start.line,
+                highlight.span.start.column,
+                highlight.span.end.line,
+                highlight.span.end.column
             );
         }
     }
-    
+
     log::debug!("LSP highlights applied successfully");
+}
+
+/// Apply LSP highlights in small chunks scheduled on the main loop.
+///
+/// Why: For large documents, applying thousands of tags in one go can block the
+/// GTK main thread and cause visible stutter. Chunking yields back to the main
+/// loop between batches.
+///
+/// `on_done` is invoked on the main thread once all chunks are applied.
+pub fn apply_lsp_highlights_chunked<F>(
+    buffer: &sourceview5::Buffer,
+    highlights: Vec<core::lsp::Highlight>,
+    on_done: F,
+) where
+    F: FnOnce() + 'static,
+{
+    const CHUNK_SIZE: usize = 400;
+
+    log::debug!(
+        "Applying {} LSP highlights (chunked, chunk_size={})",
+        highlights.len(),
+        CHUNK_SIZE
+    );
+
+    remove_all_lsp_tags(buffer);
+
+    if highlights.is_empty() {
+        on_done();
+        return;
+    }
+
+    let buffer = buffer.clone();
+    let highlights = Rc::new(highlights);
+    let index = Rc::new(Cell::new(0usize));
+    let on_done = Rc::new(RefCell::new(Some(Box::new(on_done) as Box<dyn FnOnce()>)));
+
+    glib::idle_add_local(move || {
+        let start = index.get();
+        let end = (start + CHUNK_SIZE).min(highlights.len());
+
+        for highlight in &highlights[start..end] {
+            if let Some((start_iter, end_iter)) = span_to_text_iter(&buffer, &highlight.span) {
+                let tag = get_or_create_tag(&buffer, &highlight.tag);
+                buffer.apply_tag(&tag, &start_iter, &end_iter);
+            }
+        }
+
+        index.set(end);
+
+        if end >= highlights.len() {
+            if let Some(done) = on_done.borrow_mut().take() {
+                done();
+            }
+            glib::ControlFlow::Break
+        } else {
+            glib::ControlFlow::Continue
+        }
+    });
 }
 
 /// Remove all LSP tags from the buffer
@@ -62,19 +114,10 @@ fn remove_all_lsp_tags(buffer: &sourceview5::Buffer) {
     let start = buffer.start_iter();
     let end = buffer.end_iter();
     let tag_table = buffer.tag_table();
-    
-    // List of all LSP tag names (must match the theme style names)
-    // Note: tag names no longer contain the `lsp-` prefix — they are simple
-    // names like `heading1`, `emphasis`, `code-span` to match `ui::css::syntax`.
-    let lsp_tags = [
-        "heading1", "heading2", "heading3", "heading4", "heading5", "heading6",
-        "emphasis", "strong", "link", "image",
-        "code-span", "code-block", "inline-html",
-        "hard-break", "soft-break", "thematic-break",
-        "blockquote", "html-block", "list", "list-item",
-    ];
-    
-    for tag_name in &lsp_tags {
+
+    // Note: tag names are plain (no `lsp-` prefix). Use the authoritative list
+    // from `ui::css::syntax` to keep everything in sync.
+    for tag_name in crate::ui::css::syntax::LSP_TAG_NAMES {
         if let Some(tag) = tag_table.lookup(tag_name) {
             buffer.remove_tag(&tag, &start, &end);
         }
@@ -105,13 +148,7 @@ fn span_to_text_iter(
 ) -> Option<(gtk4::TextIter, gtk4::TextIter)> {
     let start = position_to_iter(buffer, &span.start)?;
     let end = position_to_iter(buffer, &span.end)?;
-    
-    log::trace!(
-        "span_to_text_iter: span [{}:{} to {}:{}]",
-        span.start.line, span.start.column,
-        span.end.line, span.end.column
-    );
-    
+
     Some((start, end))
 }
 
@@ -157,75 +194,64 @@ fn position_to_iter(
 ) -> Option<gtk4::TextIter> {
     // Convert parser line (1-based) to GTK line (0-based)
     let gtk_line = position.line.saturating_sub(1);
-    
+
     // Validate line number
     if gtk_line >= buffer.line_count() as usize {
         log::warn!(
             "Position line {} out of bounds (buffer has {} lines)",
-            position.line, buffer.line_count()
+            position.line,
+            buffer.line_count()
         );
         return None;
     }
-    
+
     // Get iterator at start of line
     let mut iter = buffer.iter_at_line(gtk_line as i32)?;
-    
-    // Get the text of this line for byte→char conversion
+
+    // Get the text of this line for byte→char conversion.
+    // IMPORTANT: Don't include the trailing '\n' in the extracted line text.
+    // GTK line offsets are within the line; including the newline can skew
+    // clamping and makes end-of-line positions harder to reason about.
     let line_start = buffer.iter_at_line(gtk_line as i32)?;
-    let line_end = if gtk_line + 1 < buffer.line_count() as usize {
-        buffer.iter_at_line((gtk_line + 1) as i32)?
-    } else {
-        buffer.end_iter()
-    };
+    let mut line_end = line_start;
+    line_end.forward_to_line_end();
     let line_text = buffer.text(&line_start, &line_end, false);
-    
+
     // Convert parser column (1-based byte offset) to GTK column (0-based char offset)
     let parser_byte_column = position.column.saturating_sub(1); // Convert to 0-based
-    
-    // Count characters from line start up to the byte offset
+
+    // Count characters from line start up to the byte offset.
+    // This yields a *character* offset (not byte offset).
     let gtk_char_column = line_text
         .char_indices()
         .take_while(|(byte_idx, _)| *byte_idx < parser_byte_column)
         .count();
-    
-    // Clamp to line length
-    let max_chars = line_text.chars().count();
-    let gtk_char_column = gtk_char_column.min(max_chars);
-    
-    // Set position within line using character offset
+
+    // Clamp to GTK's notion of the line length.
+    //
+    // IMPORTANT: We do NOT rely solely on `line_text.chars().count()`.
+    // In some edge cases (e.g. unusual line endings, buffer normalization,
+    // or internal GTK representation), GTK may report a different
+    // `chars_in_line` than our extracted string length.
+    let gtk_max_chars = iter.chars_in_line().max(0) as usize;
+    let gtk_char_column = gtk_char_column.min(gtk_max_chars);
+
+    // Set position within line using character offset.
+    // We still clamp, but GTK can be strict here; keep this as the only
+    // callsite so invariants are clear.
     iter.set_line_offset(gtk_char_column as i32);
-    
-    log::trace!(
-        "position_to_iter: parser (line={}, byte_col={}) → GTK (line={}, char_col={})",
-        position.line, position.column, gtk_line, gtk_char_column
-    );
-    
+
     Some(iter)
 }
 
-/// Get or create a TextTag for the given LSP highlight tag
+/// Get or create the `TextTag` for the given highlight kind.
 ///
-/// Tags are looked up from the SourceView style scheme using the naming convention:
-/// "lsp-{tag_name}" (e.g., "lsp-heading1", "lsp-emphasis", etc.)
-///
-/// The colors and styles are defined in the theme XML files:
-/// - `assets/themes/editor/dark.xml`
-/// - `assets/themes/editor/light.xml`
-///
-/// # Arguments
-///
-/// * `buffer` - The SourceView buffer (provides access to the style scheme)
-/// * `tag` - The LSP highlight tag type
-///
-/// # Returns
-///
-/// The GTK TextTag for this highlight type, with styling from the theme
-fn get_or_create_tag(
-    buffer: &sourceview5::Buffer,
-    tag: &core::lsp::HighlightTag,
-) -> gtk4::TextTag {
+/// **Important:** tag colors are applied elsewhere (see `crate::ui::css::syntax`).
+/// This function is responsible only for ensuring a tag with the correct name
+/// exists in the buffer's tag table.
+fn get_or_create_tag(buffer: &sourceview5::Buffer, tag: &core::lsp::HighlightTag) -> gtk4::TextTag {
     use core::lsp::HighlightTag;
-    
+
     // Map HighlightTag enum to theme style names (no `lsp-` prefix)
     let style_name = match tag {
         HighlightTag::Heading1 => "heading1",
@@ -236,6 +262,10 @@ fn get_or_create_tag(
         HighlightTag::Heading6 => "heading6",
         HighlightTag::Emphasis => "emphasis",
         HighlightTag::Strong => "strong",
+        HighlightTag::Strikethrough => "strikethrough",
+        HighlightTag::Mark => "mark",
+        HighlightTag::Superscript => "superscript",
+        HighlightTag::Subscript => "subscript",
         HighlightTag::Link => "link",
         HighlightTag::Image => "image",
         HighlightTag::CodeSpan => "code-span",
@@ -249,45 +279,22 @@ fn get_or_create_tag(
         HighlightTag::List => "list",
         HighlightTag::ListItem => "list-item",
     };
-    
+
     let tag_table = buffer.tag_table();
-    
+
     // Check if tag already exists
     if let Some(existing_tag) = tag_table.lookup(style_name) {
         return existing_tag;
     }
-    
-    // Create new tag
+
+    // Create new tag. Colors are assigned via `ui::css::syntax::apply_to_buffer()`.
     let new_tag = gtk4::TextTag::new(Some(style_name));
-    
-    // Get the style from the SourceView style scheme
-    if let Some(scheme) = buffer.style_scheme() {
-        if let Some(style) = scheme.style(style_name) {
-            // Apply foreground color from theme
-            if let Some(fg) = style.foreground() {
-                new_tag.set_foreground(Some(&fg));
-            }
-            
-            // Apply background color from theme (if defined)
-            if let Some(bg) = style.background() {
-                new_tag.set_background(Some(&bg));
-            }
-            
-            // Note: We intentionally do NOT apply bold, italic, underline, or other
-            // font properties here. Only colors are used from the theme, as per
-            // the theme XML restrictions.
-        } else {
-            log::warn!("Style '{}' not found in theme, using default", style_name);
-        }
-    } else {
-        log::warn!("No style scheme available, tag '{}' will use defaults", style_name);
-    }
-    
+
     // Add to tag table
     tag_table.add(&new_tag);
-    
+
     log::debug!("Created LSP tag: {}", style_name);
-    
+
     new_tag
 }
 
@@ -296,49 +303,49 @@ mod tests {
     // Note: GTK tests require GTK to be initialized, which is complex in unit tests.
     // These tests are placeholders for the integration test approach.
     // Real testing should be done via manual testing with the application.
-    
+
     #[test]
     fn test_position_conversion_logic() {
         // Test the byte→char conversion logic outside of GTK
         let text = "Tëst"; // 'ë' is 2 bytes at positions 1-2
-        
+
         // Byte positions: T=0, ë=1-2, s=3, t=4
         // Char positions: T=0, ë=1, s=2, t=3
-        
+
         // Count chars up to byte position 3 (before 's')
         let char_count = text
             .char_indices()
             .take_while(|(byte_idx, _)| *byte_idx < 3)
             .count();
-        
+
         assert_eq!(char_count, 2); // T and ë = 2 characters
     }
-    
+
     #[test]
     fn test_emoji_conversion_logic() {
         // Test: "🎨" emoji is 4 bytes but 1 character
-        let text = "🎨Test";
-        
+        let text = "\u{1F3A8}Test";
+
         // Count chars up to byte position 4 (before 'T')
         let char_count = text
             .char_indices()
             .take_while(|(byte_idx, _)| *byte_idx < 4)
             .count();
-        
+
         assert_eq!(char_count, 1); // Just the emoji
     }
-    
+
     #[test]
     fn test_ascii_conversion_logic() {
         // Test: ASCII where byte offset == char offset
         let text = "Hello World";
-        
+
         // Count chars up to byte position 5 (before ' ')
         let char_count = text
             .char_indices()
             .take_while(|(byte_idx, _)| *byte_idx < 5)
             .count();
-        
+
         assert_eq!(char_count, 5); // "Hello"
     }
 }

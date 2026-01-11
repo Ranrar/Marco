@@ -18,10 +18,10 @@ impl SignalManager {
 
     /// Register a signal handler for later disconnection
     pub fn register_handler(
-        &mut self, 
-        group: &str, 
-        object: &gtk4::glib::Object, 
-        handler_id: SignalHandlerId
+        &mut self,
+        group: &str,
+        object: &gtk4::glib::Object,
+        handler_id: SignalHandlerId,
     ) {
         let handlers = self.handlers.entry(group.to_string()).or_default();
         handlers.push((object.clone(), handler_id));
@@ -34,20 +34,24 @@ impl SignalManager {
             for (object, handler_id) in handlers {
                 object.disconnect(handler_id);
             }
-            log::debug!("Disconnected {} signal handlers from group '{}'", count, group);
+            log::debug!(
+                "Disconnected {} signal handlers from group '{}'",
+                count,
+                group
+            );
         }
     }
 
     /// Disconnect all registered handlers
     pub fn disconnect_all(&mut self) {
         let total_handlers: usize = self.handlers.values().map(|v| v.len()).sum();
-        
+
         for (_group, handlers) in self.handlers.drain() {
             for (object, handler_id) in handlers {
                 object.disconnect(handler_id);
             }
         }
-        
+
         log::info!("Disconnected {} total signal handlers", total_handlers);
     }
 
@@ -60,7 +64,10 @@ impl SignalManager {
 impl Drop for SignalManager {
     fn drop(&mut self) {
         if !self.handlers.is_empty() {
-            log::warn!("SignalManager dropped with {} undisconnected handlers", self.handler_count());
+            log::warn!(
+                "SignalManager dropped with {} undisconnected handlers",
+                self.handler_count()
+            );
             self.disconnect_all();
         }
     }
@@ -73,9 +80,12 @@ pub fn safe_source_remove(source_id: gtk4::glib::SourceId) {
     // The simplest approach: just don't call remove() at all on sources that
     // might have already been removed. In most cases, sources clean themselves up
     // when they complete, so manual removal is often unnecessary.
-    // 
+    //
     // For now, just log and skip removal to prevent crashes
-    log::trace!("Skipping source removal for ID {:?} to prevent potential panic", source_id);
+    log::trace!(
+        "Skipping source removal for ID {:?} to prevent potential panic",
+        source_id
+    );
 }
 
 /// Helper macro for connecting and registering signal handlers
@@ -91,12 +101,12 @@ macro_rules! connect_and_register {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_signal_manager_basic() {
         let manager = SignalManager::new();
         assert_eq!(manager.handler_count(), 0);
-        
+
         // Test would require GTK objects to be meaningful
         // This serves as a smoke test for the structure
     }

@@ -9,11 +9,12 @@
 //!
 //! SIMPLIFIED: No complex threading to avoid GTK main context issues.
 
+use anyhow::Result;
 use std::collections::HashMap;
 use std::time::Instant;
-use anyhow::Result;
 
 /// Result from processing a single extension (simplified)
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ExtensionResult {
     pub extension_name: String,
@@ -39,9 +40,7 @@ impl AsyncExtensionManager {
         enabled_extensions.insert("tab_to_spaces".to_string(), true);
         enabled_extensions.insert("marco_extensions".to_string(), true);
 
-        Ok(Self {
-            enabled_extensions,
-        })
+        Ok(Self { enabled_extensions })
     }
 
     /// Process extensions in parallel using lightweight vs heavyweight thread pools
@@ -59,11 +58,11 @@ impl AsyncExtensionManager {
         let enabled_extensions = self.enabled_extensions.clone();
         let content_for_lightweight = content.clone();
         let content_for_heavyweight = content.clone();
-        
+
         // Separate extensions by processing weight
         let mut lightweight_extensions = Vec::new();
         let mut heavyweight_extensions = Vec::new();
-        
+
         for (extension_name, &enabled) in &enabled_extensions {
             if enabled {
                 match extension_name.as_str() {
@@ -80,39 +79,53 @@ impl AsyncExtensionManager {
                 }
             }
         }
-        
+
         let has_lightweight = !lightweight_extensions.is_empty();
         let has_heavyweight = !heavyweight_extensions.is_empty();
-        
+
         if !has_lightweight && !has_heavyweight {
             callback(Vec::new());
             return Ok(());
         }
-        
+
         // Use shared state to collect results from both pools
         let results = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let completion_count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let total_pools = if has_lightweight { 1 } else { 0 } + if has_heavyweight { 1 } else { 0 };
         let shared_callback = std::sync::Arc::new(callback);
-        
+
         // Spawn lightweight extensions pool
         if has_lightweight {
             let lightweight_results = std::sync::Arc::clone(&results);
             let lightweight_completion = std::sync::Arc::clone(&completion_count);
             let lightweight_callback = std::sync::Arc::clone(&shared_callback);
-            
+
             glib::spawn_future_local(async move {
                 let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>> {
                     let mut pool_results = Vec::new();
-                    
+
                     for extension_name in &lightweight_extensions {
                         let start_time = Instant::now();
-                        let (processed_content, success, error_message) = match extension_name.as_str() {
-                            "line_wrapping" => Self::process_line_wrapping(&content_for_lightweight, cursor_position),
-                            "tab_to_spaces" => Self::process_tab_to_spaces(&content_for_lightweight, cursor_position),
-                            "auto_pairing" => Self::process_auto_pairing(&content_for_lightweight, cursor_position),
-                            _ => (content_for_lightweight.clone(), false, Some("Unknown lightweight extension".to_string())),
-                        };
+                        let (processed_content, success, error_message) =
+                            match extension_name.as_str() {
+                                "line_wrapping" => Self::process_line_wrapping(
+                                    &content_for_lightweight,
+                                    cursor_position,
+                                ),
+                                "tab_to_spaces" => Self::process_tab_to_spaces(
+                                    &content_for_lightweight,
+                                    cursor_position,
+                                ),
+                                "auto_pairing" => Self::process_auto_pairing(
+                                    &content_for_lightweight,
+                                    cursor_position,
+                                ),
+                                _ => (
+                                    content_for_lightweight.clone(),
+                                    false,
+                                    Some("Unknown lightweight extension".to_string()),
+                                ),
+                            };
 
                         pool_results.push(ExtensionResult {
                             extension_name: extension_name.clone(),
@@ -123,10 +136,11 @@ impl AsyncExtensionManager {
                             error_message,
                         });
                     }
-                    
+
                     Ok(pool_results)
-                }).await;
-                
+                })
+                .await;
+
                 glib::idle_add_local_once(move || {
                     match result {
                         Ok(Ok(pool_results)) => {
@@ -142,9 +156,11 @@ impl AsyncExtensionManager {
                             log::error!("Lightweight extensions task panicked: {:?}", e);
                         }
                     }
-                    
+
                     // Check if this was the last pool to complete
-                    let completed = lightweight_completion.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    let completed = lightweight_completion
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        + 1;
                     if completed >= total_pools {
                         if let Ok(final_results) = lightweight_results.lock() {
                             (*lightweight_callback)(final_results.clone());
@@ -153,24 +169,35 @@ impl AsyncExtensionManager {
                 });
             });
         }
-        
+
         // Spawn heavyweight extensions pool
         if has_heavyweight {
             let heavyweight_results = std::sync::Arc::clone(&results);
             let heavyweight_completion = std::sync::Arc::clone(&completion_count);
             let heavyweight_callback = std::sync::Arc::clone(&shared_callback);
-            
+
             glib::spawn_future_local(async move {
                 let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>> {
                     let mut pool_results = Vec::new();
-                    
+
                     for extension_name in &heavyweight_extensions {
                         let start_time = Instant::now();
-                        let (processed_content, success, error_message) = match extension_name.as_str() {
-                            "marco_extensions" => Self::process_marco_extensions(&content_for_heavyweight, cursor_position),
-                            "markdown_linting" => Self::process_markdown_linting(&content_for_heavyweight, cursor_position),
-                            _ => (content_for_heavyweight.clone(), false, Some("Unknown heavyweight extension".to_string())),
-                        };
+                        let (processed_content, success, error_message) =
+                            match extension_name.as_str() {
+                                "marco_extensions" => Self::process_marco_extensions(
+                                    &content_for_heavyweight,
+                                    cursor_position,
+                                ),
+                                "markdown_linting" => Self::process_markdown_linting(
+                                    &content_for_heavyweight,
+                                    cursor_position,
+                                ),
+                                _ => (
+                                    content_for_heavyweight.clone(),
+                                    false,
+                                    Some("Unknown heavyweight extension".to_string()),
+                                ),
+                            };
 
                         pool_results.push(ExtensionResult {
                             extension_name: extension_name.clone(),
@@ -181,10 +208,11 @@ impl AsyncExtensionManager {
                             error_message,
                         });
                     }
-                    
+
                     Ok(pool_results)
-                }).await;
-                
+                })
+                .await;
+
                 glib::idle_add_local_once(move || {
                     match result {
                         Ok(Ok(pool_results)) => {
@@ -200,9 +228,11 @@ impl AsyncExtensionManager {
                             log::error!("Heavyweight extensions task panicked: {:?}", e);
                         }
                     }
-                    
+
                     // Check if this was the last pool to complete
-                    let completed = heavyweight_completion.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1;
+                    let completed = heavyweight_completion
+                        .fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+                        + 1;
                     if completed >= total_pools {
                         if let Ok(final_results) = heavyweight_results.lock() {
                             (*heavyweight_callback)(final_results.clone());
@@ -211,12 +241,13 @@ impl AsyncExtensionManager {
                 });
             });
         }
-        
+
         Ok(())
     }
 
     /// Process extensions asynchronously using proper GTK threading patterns
     /// Uses glib::spawn_future_local + gio::spawn_blocking for GTK-safe background processing
+    #[allow(dead_code)]
     pub fn process_extensions_async<F>(
         &self,
         content: String,
@@ -230,12 +261,13 @@ impl AsyncExtensionManager {
         self.process_extensions_parallel(content, cursor_position, callback)
     }
 
-
-
     /// Process line wrapping (✅ DONE as per spec)
-    fn process_line_wrapping(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
+    fn process_line_wrapping(
+        content: &str,
+        _cursor_position: Option<u32>,
+    ) -> (String, bool, Option<String>) {
         const WRAP_WIDTH: usize = 80;
-        
+
         let wrapped = content
             .lines()
             .map(|line| {
@@ -244,12 +276,11 @@ impl AsyncExtensionManager {
                 }
 
                 // Preserve leading whitespace (indentation)
-                let leading_whitespace: String = line.chars()
-                    .take_while(|c| c.is_whitespace())
-                    .collect();
+                let leading_whitespace: String =
+                    line.chars().take_while(|c| c.is_whitespace()).collect();
 
                 let trimmed_line = line.trim_start();
-                
+
                 // Smart word wrapping
                 let mut result = String::new();
                 let mut current_line = leading_whitespace.clone();
@@ -257,8 +288,10 @@ impl AsyncExtensionManager {
 
                 for word in trimmed_line.split_whitespace() {
                     let word_len = word.len();
-                    
-                    if current_length + word_len + 1 > WRAP_WIDTH && current_length > leading_whitespace.len() {
+
+                    if current_length + word_len + 1 > WRAP_WIDTH
+                        && current_length > leading_whitespace.len()
+                    {
                         result.push_str(&current_line);
                         result.push('\n');
                         current_line = format!("{}{}", leading_whitespace, word);
@@ -272,26 +305,29 @@ impl AsyncExtensionManager {
                         current_length += word_len;
                     }
                 }
-                
+
                 result.push_str(&current_line);
                 result
             })
             .collect::<Vec<_>>()
             .join("\n");
-            
+
         (wrapped, true, None)
     }
 
     /// Process tab to spaces conversion (✅ DONE as per spec)
-    fn process_tab_to_spaces(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
+    fn process_tab_to_spaces(
+        content: &str,
+        _cursor_position: Option<u32>,
+    ) -> (String, bool, Option<String>) {
         const TAB_WIDTH: usize = 4;
-        
+
         let converted = content
             .lines()
             .map(|line| {
                 let mut result = String::new();
                 let mut column = 0;
-                
+
                 for ch in line.chars() {
                     match ch {
                         '\t' => {
@@ -310,15 +346,18 @@ impl AsyncExtensionManager {
             })
             .collect::<Vec<_>>()
             .join("\n");
-            
+
         (converted, true, None)
     }
 
     /// Process Marco extensions (@run, [toc], [Page]) - Now implemented!
-    fn process_marco_extensions(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
+    fn process_marco_extensions(
+        content: &str,
+        _cursor_position: Option<u32>,
+    ) -> (String, bool, Option<String>) {
         // Use the cached parsing for better performance with new parser API
         use core::{parse_to_html_cached, RenderOptions};
-        
+
         let options = RenderOptions::default();
         match parse_to_html_cached(content, options) {
             Ok(_html_output) => {
@@ -328,21 +367,39 @@ impl AsyncExtensionManager {
             }
             Err(e) => {
                 // Return original content on parsing error
-                (content.to_string(), false, Some(format!("Marco parsing error: {}", e)))
+                (
+                    content.to_string(),
+                    false,
+                    Some(format!("Marco parsing error: {}", e)),
+                )
             }
         }
     }
 
     /// Process auto-pairing (📋 FUTURE as per spec)
-    fn process_auto_pairing(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
+    fn process_auto_pairing(
+        content: &str,
+        _cursor_position: Option<u32>,
+    ) -> (String, bool, Option<String>) {
         // Future feature - return original content
-        (content.to_string(), false, Some("Future feature".to_string()))
+        (
+            content.to_string(),
+            false,
+            Some("Future feature".to_string()),
+        )
     }
 
     /// Process markdown linting (📋 FUTURE as per spec)
-    fn process_markdown_linting(content: &str, _cursor_position: Option<u32>) -> (String, bool, Option<String>) {
+    fn process_markdown_linting(
+        content: &str,
+        _cursor_position: Option<u32>,
+    ) -> (String, bool, Option<String>) {
         // Future feature - return original content
-        (content.to_string(), false, Some("Future feature".to_string()))
+        (
+            content.to_string(),
+            false,
+            Some("Future feature".to_string()),
+        )
     }
 }
 
@@ -353,33 +410,42 @@ mod tests {
     #[test]
     fn test_parallel_processing() {
         let manager = AsyncExtensionManager::new().expect("Failed to create manager");
-        
+
         // Use content that will definitely trigger processing
         let content_for_wrapping = "This is a very long line that should definitely be wrapped at 80 characters to ensure proper formatting and demonstrate the line wrapping functionality working correctly";
-        let content_with_tabs = "function test() {\n\treturn true;\n\tif (condition) {\n\t\treturn false;\n\t}\n}";
-        
+        let content_with_tabs =
+            "function test() {\n\treturn true;\n\tif (condition) {\n\t\treturn false;\n\t}\n}";
+
         // Test that lightweight and heavyweight extensions are categorized correctly
         let mut test_results = Vec::new();
-        
+
         for (extension_name, &enabled) in &manager.enabled_extensions {
             if enabled {
                 match extension_name.as_str() {
                     "line_wrapping" => {
-                        let (processed, success, _) = AsyncExtensionManager::process_line_wrapping(content_for_wrapping, None);
+                        let (processed, success, _) = AsyncExtensionManager::process_line_wrapping(
+                            content_for_wrapping,
+                            None,
+                        );
                         assert!(success);
                         assert_ne!(processed, content_for_wrapping); // Should be wrapped
                         assert!(processed.contains('\n')); // Should contain line breaks
                         test_results.push(("lightweight", extension_name.clone()));
                     }
                     "tab_to_spaces" => {
-                        let (processed, success, _) = AsyncExtensionManager::process_tab_to_spaces(content_with_tabs, None);
+                        let (processed, success, _) =
+                            AsyncExtensionManager::process_tab_to_spaces(content_with_tabs, None);
                         assert!(success);
                         assert!(!processed.contains('\t')); // Tabs should be converted
                         assert!(processed.contains("    ")); // Should contain spaces
                         test_results.push(("lightweight", extension_name.clone()));
                     }
                     "marco_extensions" => {
-                        let (processed, success, _) = AsyncExtensionManager::process_marco_extensions(content_for_wrapping, None);
+                        let (processed, success, _) =
+                            AsyncExtensionManager::process_marco_extensions(
+                                content_for_wrapping,
+                                None,
+                            );
                         assert!(success);
                         assert_eq!(processed, content_for_wrapping); // Should return original content for editor
                         test_results.push(("heavyweight", extension_name.clone()));
@@ -388,14 +454,20 @@ mod tests {
                 }
             }
         }
-        
+
         // Verify we have both lightweight and heavyweight extensions
-        let lightweight_count = test_results.iter().filter(|(category, _)| *category == "lightweight").count();
-        let heavyweight_count = test_results.iter().filter(|(category, _)| *category == "heavyweight").count();
-        
+        let lightweight_count = test_results
+            .iter()
+            .filter(|(category, _)| *category == "lightweight")
+            .count();
+        let heavyweight_count = test_results
+            .iter()
+            .filter(|(category, _)| *category == "heavyweight")
+            .count();
+
         assert!(lightweight_count > 0, "Should have lightweight extensions");
         assert!(heavyweight_count > 0, "Should have heavyweight extensions");
-        
+
         println!("Parallel processing categorization test passed:");
         println!("  Lightweight extensions: {}", lightweight_count);
         println!("  Heavyweight extensions: {}", heavyweight_count);
@@ -404,8 +476,9 @@ mod tests {
     #[test]
     fn test_line_wrapping() {
         let long_line = "This is a very long line that should be wrapped at 80 characters to ensure proper formatting";
-        let (wrapped, success, error) = AsyncExtensionManager::process_line_wrapping(long_line, None);
-        
+        let (wrapped, success, error) =
+            AsyncExtensionManager::process_line_wrapping(long_line, None);
+
         assert!(success);
         assert!(error.is_none());
         assert!(wrapped.contains('\n'));
@@ -414,8 +487,9 @@ mod tests {
     #[test]
     fn test_tab_to_spaces() {
         let content_with_tabs = "function test() {\n\treturn true;\n}";
-        let (converted, success, error) = AsyncExtensionManager::process_tab_to_spaces(content_with_tabs, None);
-        
+        let (converted, success, error) =
+            AsyncExtensionManager::process_tab_to_spaces(content_with_tabs, None);
+
         assert!(success);
         assert!(error.is_none());
         assert!(!converted.contains('\t'));
@@ -425,8 +499,9 @@ mod tests {
     #[test]
     fn test_marco_extensions_processing() {
         let content = "# Test Document\n\nThis is a test with **bold** text.";
-        let (processed, success, error) = AsyncExtensionManager::process_marco_extensions(content, None);
-        
+        let (processed, success, error) =
+            AsyncExtensionManager::process_marco_extensions(content, None);
+
         assert!(success);
         assert!(error.is_none());
         // For editor processing, we return the original content
@@ -436,11 +511,23 @@ mod tests {
     #[test]
     fn smoke_test_extension_manager_creation() {
         let manager = AsyncExtensionManager::new().expect("Failed to create AsyncExtensionManager");
-        
+
         // Verify enabled extensions
-        assert!(manager.enabled_extensions.get("line_wrapping").copied().unwrap_or(false));
-        assert!(manager.enabled_extensions.get("tab_to_spaces").copied().unwrap_or(false));
-        assert!(manager.enabled_extensions.get("marco_extensions").copied().unwrap_or(false));
+        assert!(manager
+            .enabled_extensions
+            .get("line_wrapping")
+            .copied()
+            .unwrap_or(false));
+        assert!(manager
+            .enabled_extensions
+            .get("tab_to_spaces")
+            .copied()
+            .unwrap_or(false));
+        assert!(manager
+            .enabled_extensions
+            .get("marco_extensions")
+            .copied()
+            .unwrap_or(false));
     }
 
     #[test]
@@ -448,15 +535,15 @@ mod tests {
         // Note: This test only verifies that the method exists and doesn't panic during setup
         // Actual async behavior requires a GTK main loop context which isn't available in unit tests
         let manager = AsyncExtensionManager::new().expect("Failed to create AsyncExtensionManager");
-        
+
         // We can test that the manager was created successfully
         assert!(manager.enabled_extensions.contains_key("line_wrapping"));
         assert!(manager.enabled_extensions.contains_key("tab_to_spaces"));
         assert!(manager.enabled_extensions.contains_key("marco_extensions"));
-        
+
         // Cannot test actual async behavior without GTK context, but we can verify the API
         let content = "# Test\n\nSimple content for testing.".to_string();
-        
+
         // In a real GTK application, this would work fine
         // For unit tests, we just verify the method signature is correct
         assert!(std::mem::size_of_val(&content) > 0);
@@ -466,10 +553,10 @@ mod tests {
     fn smoke_test_manager_creation() {
         // Verify that the manager can be created without issues
         let manager = AsyncExtensionManager::new().expect("Failed to create AsyncExtensionManager");
-        
+
         // Verify that extensions are enabled by default
         assert!(!manager.enabled_extensions.is_empty());
-        
+
         // Test basic functionality without GTK context
         let content = "# Test\n\nContent for testing.".to_string();
         assert!(std::mem::size_of_val(&content) > 0);

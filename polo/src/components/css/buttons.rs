@@ -21,19 +21,19 @@ use super::constants::*;
 /// Generate complete button CSS for all button types and both themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(4096);
-    
+
     // Window control buttons (theme-specific icon colors)
     css.push_str(&generate_window_control_css());
-    
+
     // Open File button
     css.push_str(&generate_open_file_button_css());
-    
+
     // Open Editor button
     css.push_str(&generate_open_editor_button_css());
-    
+
     // Mode Toggle button (with emoji filters)
     css.push_str(&generate_mode_toggle_button_css());
-    
+
     css
 }
 
@@ -41,7 +41,7 @@ pub fn generate_css() -> String {
 /// Controls the icon colors for minimize, maximize, and close buttons
 pub fn generate_window_control_css() -> String {
     let mut css = String::with_capacity(1024);
-    
+
     // Base CSS (theme-independent)
     css.push_str(
         r#"
@@ -51,9 +51,9 @@ pub fn generate_window_control_css() -> String {
 .topright-btn .icon-font {
     transition: color 0.15s ease;
 }
-"#
+"#,
     );
-    
+
     // Light theme (use foreground for normal, hover_accent for hover, active_text for active)
     css.push_str(&format!(
         r#"
@@ -66,7 +66,7 @@ pub fn generate_window_control_css() -> String {
         color_hover = LIGHT_PALETTE.hover_accent,
         color_active = LIGHT_PALETTE.active_text,
     ));
-    
+
     // Dark theme (use foreground for normal, hover_accent for hover, active_text for active)
     css.push_str(&format!(
         r#"
@@ -79,52 +79,52 @@ pub fn generate_window_control_css() -> String {
         color_hover = DARK_PALETTE.hover_accent,
         color_active = DARK_PALETTE.active_text,
     ));
-    
+
     css
 }
 
 /// Generate Open File button CSS for both themes
 pub fn generate_open_file_button_css() -> String {
     let mut css = String::with_capacity(1024);
-    
+
     css.push_str(&generate_standard_button_css(
         "marco-theme-light",
         "polo-open-file-btn",
         &LIGHT_PALETTE,
     ));
-    
+
     css.push_str(&generate_standard_button_css(
         "marco-theme-dark",
         "polo-open-file-btn",
         &DARK_PALETTE,
     ));
-    
+
     css
 }
 
 /// Generate Open Editor button CSS for both themes
 pub fn generate_open_editor_button_css() -> String {
     let mut css = String::with_capacity(1024);
-    
+
     css.push_str(&generate_standard_button_css(
         "marco-theme-light",
         "polo-open-editor-btn",
         &LIGHT_PALETTE,
     ));
-    
+
     css.push_str(&generate_standard_button_css(
         "marco-theme-dark",
         "polo-open-editor-btn",
         &DARK_PALETTE,
     ));
-    
+
     css
 }
 
 /// Generate Mode Toggle button CSS with emoji filters
 pub fn generate_mode_toggle_button_css() -> String {
     let mut css = String::with_capacity(2048);
-    
+
     // Light theme (darken emoji)
     css.push_str(&format!(
         r#"
@@ -179,7 +179,7 @@ pub fn generate_mode_toggle_button_css() -> String {
 "#,
         min_width = BUTTON_MIN_WIDTH,
         min_height = BUTTON_MIN_HEIGHT,
-        padding = BUTTON_PADDING,  // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
+        padding = BUTTON_PADDING, // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
         border = LIGHT_PALETTE.border,
         radius = BORDER_RADIUS,
         foreground = LIGHT_PALETTE.foreground,
@@ -192,7 +192,7 @@ pub fn generate_mode_toggle_button_css() -> String {
         disabled_fg = LIGHT_PALETTE.disabled_fg,
         disabled_border = LIGHT_PALETTE.disabled_border,
     ));
-    
+
     // Dark theme (brighten emoji)
     css.push_str(&format!(
         r#"
@@ -247,7 +247,7 @@ pub fn generate_mode_toggle_button_css() -> String {
 "#,
         min_width = BUTTON_MIN_WIDTH,
         min_height = BUTTON_MIN_HEIGHT,
-        padding = BUTTON_PADDING,  // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
+        padding = BUTTON_PADDING, // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
         border = DARK_PALETTE.border,
         radius = BORDER_RADIUS,
         foreground = DARK_PALETTE.foreground,
@@ -260,12 +260,16 @@ pub fn generate_mode_toggle_button_css() -> String {
         disabled_fg = DARK_PALETTE.disabled_fg,
         disabled_border = DARK_PALETTE.disabled_border,
     ));
-    
+
     css
 }
 
 /// Generate standard button CSS (used by open-file and open-editor buttons)
-fn generate_standard_button_css(theme_class: &str, button_class: &str, palette: &ColorPalette) -> String {
+fn generate_standard_button_css(
+    theme_class: &str,
+    button_class: &str,
+    palette: &ColorPalette,
+) -> String {
     format!(
         r#"
     /* {button} button - {theme} */
@@ -326,46 +330,46 @@ mod tests {
     #[test]
     fn smoke_test_all_buttons_css() {
         let css = generate_css();
-        
+
         // Verify all button types present
         assert!(css.contains(".window-control-btn"));
         assert!(css.contains(".polo-open-file-btn"));
         assert!(css.contains(".polo-open-editor-btn"));
         assert!(css.contains(".polo-mode-toggle-btn"));
-        
+
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify essential properties
         assert!(css.contains("border-radius: 6px"));
         assert!(css.contains("transition:"));
         assert!(css.contains(":hover"));
         assert!(css.contains(":active"));
-        
+
         // Verify substantial output
         assert!(css.len() > 1000);
     }
-    
+
     #[test]
     fn smoke_test_window_control_buttons_themed() {
         let css = generate_window_control_css();
-        
+
         // Verify base CSS
         assert!(css.contains(".window-control-btn"));
         assert!(css.contains("background: transparent"));
         assert!(css.contains("border: none"));
-        
+
         // Verify both themes have window control styles
         assert!(css.contains(".marco-theme-light .window-control-btn"));
         assert!(css.contains(".marco-theme-dark .window-control-btn"));
-        
+
         // Verify icon font color styling for light mode
         assert!(css.contains(".marco-theme-light .window-control-btn .icon-font { color: #2c3e50"));
-        
+
         // Verify icon font color styling for dark mode
         assert!(css.contains(".marco-theme-dark .window-control-btn .icon-font { color: #f0f5f1"));
-        
+
         // Verify hover and active states
         assert!(css.contains(":hover .icon-font"));
         assert!(css.contains(":active .icon-font"));
@@ -374,26 +378,26 @@ mod tests {
     #[test]
     fn smoke_test_open_file_button() {
         let css = generate_open_file_button_css();
-        
+
         // Verify structure
         assert!(css.contains(".polo-open-file-btn"));
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify colors differ between themes
-        assert!(css.contains("#2c3e50"));  // Light foreground
-        assert!(css.contains("#f0f5f1"));  // Dark foreground
+        assert!(css.contains("#2c3e50")); // Light foreground
+        assert!(css.contains("#f0f5f1")); // Dark foreground
     }
 
     #[test]
     fn smoke_test_mode_toggle_has_emoji_filters() {
         let css = generate_mode_toggle_button_css();
-        
+
         // Verify emoji filter rules present
         assert!(css.contains("filter: grayscale(100%)"));
-        assert!(css.contains("brightness(0.3)"));  // Light mode darken
-        assert!(css.contains("brightness(2)"));    // Dark mode brighten
-        
+        assert!(css.contains("brightness(0.3)")); // Light mode darken
+        assert!(css.contains("brightness(2)")); // Dark mode brighten
+
         // Verify hover and active filters
         assert!(css.contains(":hover label"));
         assert!(css.contains(":active label"));
@@ -402,12 +406,12 @@ mod tests {
     #[test]
     fn smoke_test_standard_button_structure() {
         let css = generate_standard_button_css("marco-theme-light", "test-btn", &LIGHT_PALETTE);
-        
+
         // Verify selector structure
         assert!(css.contains(".marco-theme-light .test-btn"));
         assert!(css.contains(".marco-theme-light .test-btn:hover"));
         assert!(css.contains(".marco-theme-light .test-btn:active"));
-        
+
         // Verify uses palette colors
         assert!(css.contains(LIGHT_PALETTE.foreground));
         assert!(css.contains(LIGHT_PALETTE.border));

@@ -4,16 +4,16 @@
 //! across all settings tabs with table-like structure.
 
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Label, Orientation, Frame};
+use gtk4::{Align, Box as GtkBox, Frame, Label, Orientation};
 
 // UI Constants for table-like structure
-const ROW_FIXED_HEIGHT: i32 = 56;        // More compact: 70 → 56
-const ROW_PADDING_HORIZONTAL: i32 = 10;  // More compact: 12 → 10
-const ROW_PADDING_VERTICAL: i32 = 6;     // More compact: 8 → 6
-const HEADER_LABEL_HEIGHT: i32 = 16;     // More compact: 18 → 16
-const CONTROL_WIDTH: i32 = 160;          // More compact: 180 → 160
-const DESC_MARGIN_TOP: i32 = 3;          // More compact: 4 → 3
-const LEFT_COLUMN_WIDTH: i32 = 360;      // More compact: 400 → 360
+const ROW_FIXED_HEIGHT: i32 = 56; // More compact: 70 → 56
+const ROW_PADDING_HORIZONTAL: i32 = 10; // More compact: 12 → 10
+const ROW_PADDING_VERTICAL: i32 = 6; // More compact: 8 → 6
+const HEADER_LABEL_HEIGHT: i32 = 16; // More compact: 18 → 16
+const CONTROL_WIDTH: i32 = 160; // More compact: 180 → 160
+const DESC_MARGIN_TOP: i32 = 3; // More compact: 4 → 3
+const LEFT_COLUMN_WIDTH: i32 = 360; // More compact: 400 → 360
 
 /// Create a standardized settings row with header, description, and right-aligned control
 ///
@@ -56,17 +56,17 @@ const LEFT_COLUMN_WIDTH: i32 = 360;      // More compact: 400 → 360
 /// ```rust,no_run
 /// use gtk4::prelude::*;
 /// use gtk4::{Box, Switch};
-/// 
+///
 /// let container = Box::new(gtk4::Orientation::Vertical, 0);
 /// let switch = Switch::new();
-/// 
+///
 /// let row = add_setting_row(
 ///     "Enable Feature",
 ///     "This feature does something useful.",
 ///     &switch,
 ///     true  // First row
 /// );
-/// 
+///
 /// container.append(&row);
 /// ```
 pub fn add_setting_row(
@@ -77,32 +77,32 @@ pub fn add_setting_row(
 ) -> GtkBox {
     // Create outer container for the entire row
     let outer_box = GtkBox::new(Orientation::Vertical, 0);
-    outer_box.set_vexpand(false);  // Don't expand vertically
-    
+    outer_box.set_vexpand(false); // Don't expand vertically
+
     // Create frame for table-like border
     let frame = Frame::new(None);
     frame.add_css_class("marco-settings-row-frame");
-    frame.set_height_request(ROW_FIXED_HEIGHT);  // FIXED height, not minimum!
-    frame.set_vexpand(false);  // Don't allow vertical expansion
-    frame.set_valign(Align::Fill);  // Fill the allocated space
-    
+    frame.set_height_request(ROW_FIXED_HEIGHT); // FIXED height, not minimum!
+    frame.set_vexpand(false); // Don't allow vertical expansion
+    frame.set_valign(Align::Fill); // Fill the allocated space
+
     // Create main horizontal container: LEFT column (header+desc) | RIGHT column (control)
     let main_hbox = GtkBox::new(Orientation::Horizontal, 16);
     main_hbox.set_margin_start(ROW_PADDING_HORIZONTAL);
     main_hbox.set_margin_end(ROW_PADDING_HORIZONTAL);
     main_hbox.set_margin_top(ROW_PADDING_VERTICAL);
     main_hbox.set_margin_bottom(ROW_PADDING_VERTICAL);
-    main_hbox.set_vexpand(false);  // Don't expand
-    main_hbox.set_valign(Align::Fill);  // Fill vertically within frame
-    
+    main_hbox.set_vexpand(false); // Don't expand
+    main_hbox.set_valign(Align::Fill); // Fill vertically within frame
+
     // === LEFT COLUMN: Header + Description (stacked vertically) ===
     let left_vbox = GtkBox::new(Orientation::Vertical, 0);
     left_vbox.set_width_request(LEFT_COLUMN_WIDTH);
-    left_vbox.set_hexpand(false);  // Fixed width, don't expand
-    left_vbox.set_vexpand(false);  // Don't expand vertically
+    left_vbox.set_hexpand(false); // Fixed width, don't expand
+    left_vbox.set_vexpand(false); // Don't expand vertically
     left_vbox.set_halign(Align::Start);
-    left_vbox.set_valign(Align::Start);  // Align to top
-    
+    left_vbox.set_valign(Align::Start); // Align to top
+
     // Create bold header label
     let header = Label::new(Some(title));
     header.set_markup(&format!("<b>{}</b>", glib::markup_escape_text(title)));
@@ -110,11 +110,11 @@ pub fn add_setting_row(
     header.set_xalign(0.0);
     header.set_valign(Align::Start);
     header.set_height_request(HEADER_LABEL_HEIGHT);
-    header.set_vexpand(false);  // Fixed height, don't expand
+    header.set_vexpand(false); // Fixed height, don't expand
     header.set_ellipsize(gtk4::pango::EllipsizeMode::End);
-    header.set_max_width_chars(50);  // Constrain width
-    header.add_css_class("marco-settings-header");  // Add CSS class for styling
-    
+    header.set_max_width_chars(50); // Constrain width
+    header.add_css_class("marco-settings-header"); // Add CSS class for styling
+
     // Create description label directly below header
     let desc = Label::new(Some(description));
     desc.set_halign(Align::Start);
@@ -122,46 +122,46 @@ pub fn add_setting_row(
     desc.set_valign(Align::Start);
     desc.set_wrap(true);
     desc.set_wrap_mode(gtk4::pango::WrapMode::Word);
-    desc.set_lines(2);  // Max 2 lines for consistent height
+    desc.set_lines(2); // Max 2 lines for consistent height
     desc.set_ellipsize(gtk4::pango::EllipsizeMode::End);
-    desc.set_vexpand(false);  // Don't expand
-    desc.add_css_class("dim-label");  // Keep existing class
-    desc.add_css_class("marco-settings-description");  // Add CSS class for styling
+    desc.set_vexpand(false); // Don't expand
+    desc.add_css_class("dim-label"); // Keep existing class
+    desc.add_css_class("marco-settings-description"); // Add CSS class for styling
     desc.set_margin_top(DESC_MARGIN_TOP);
-    desc.set_max_width_chars(60);  // Constrain width
-    
+    desc.set_max_width_chars(60); // Constrain width
+
     // Add header and description to left column
     left_vbox.append(&header);
     left_vbox.append(&desc);
-    
+
     // === RIGHT COLUMN: Control (top-right corner) ===
     let right_vbox = GtkBox::new(Orientation::Vertical, 0);
     right_vbox.set_width_request(CONTROL_WIDTH);
-    right_vbox.set_hexpand(false);  // Fixed width, don't expand
-    right_vbox.set_vexpand(false);  // Don't expand vertically
+    right_vbox.set_hexpand(false); // Fixed width, don't expand
+    right_vbox.set_vexpand(false); // Don't expand vertically
     right_vbox.set_halign(Align::End);
-    right_vbox.set_valign(Align::Start);  // Align to top
-    
+    right_vbox.set_valign(Align::Start); // Align to top
+
     // Control positioned at top-right
     control.set_halign(Align::End);
-    control.set_valign(Align::Start);  // Top of the row
-    control.set_vexpand(false);  // Don't expand
-    
+    control.set_valign(Align::Start); // Top of the row
+    control.set_vexpand(false); // Don't expand
+
     right_vbox.append(control);
-    
+
     // === Assemble main layout ===
     main_hbox.append(&left_vbox);
     main_hbox.append(&right_vbox);
-    
+
     // Assemble frame
     frame.set_child(Some(&main_hbox));
     outer_box.append(&frame);
-    
+
     // Apply consistent margins between rows
     if !is_first {
-        outer_box.set_margin_top(4);  // Small gap between rows
+        outer_box.set_margin_top(4); // Small gap between rows
     }
-    
+
     outer_box
 }
 
@@ -182,13 +182,16 @@ pub fn add_setting_row(
 /// ```
 pub fn create_section_header(text: &str) -> Label {
     let label = Label::new(Some(text));
-    label.set_markup(&format!("<span size='large'><b>{}</b></span>", glib::markup_escape_text(text)));
+    label.set_markup(&format!(
+        "<span size='large'><b>{}</b></span>",
+        glib::markup_escape_text(text)
+    ));
     label.set_halign(Align::Start);
     label.set_xalign(0.0);
-    
+
     // Add consistent spacing for section headers
-    label.set_margin_top(16);    // Separate from previous content
-    label.set_margin_bottom(8);  // Gap before first row
-    
+    label.set_margin_top(16); // Separate from previous content
+    label.set_margin_bottom(8); // Gap before first row
+
     label
 }

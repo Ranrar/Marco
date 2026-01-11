@@ -26,9 +26,9 @@
 //! 5. **Standardize** - Normalize line endings to \n
 //!
 //! # Unicode Normalization
-//! 
+//!
 //! **Why NFC (Canonical Composition)?**
-//! 
+//!
 //! Unicode allows multiple representations of visually identical text:
 //! - Precomposed form: `é` (U+00E9, single character)
 //! - Decomposed form: `e` + `´` (U+0065 + U+0301, two characters)
@@ -48,12 +48,15 @@
 //! use core::logic::utf8::{sanitize_input, InputSource};
 //!
 //! // From keyboard input
+//! let raw_bytes = b"Hello World";
 //! let safe_text = sanitize_input(raw_bytes, InputSource::Keyboard);
 //!
 //! // From clipboard
+//! let clipboard_bytes = b"Hello \xF0\x28\x8C\x28 World"; // invalid UTF-8
 //! let safe_text = sanitize_input(clipboard_bytes, InputSource::Clipboard);
 //!
 //! // From file
+//! let file_bytes = b"Line1\r\nLine2\r\n";
 //! let safe_text = sanitize_input(file_bytes, InputSource::File);
 //! ```
 
@@ -126,7 +129,10 @@ impl SanitizeStats {
 
         let mut parts = Vec::new();
         if self.invalid_sequences > 0 {
-            parts.push(format!("{} invalid UTF-8 sequences", self.invalid_sequences));
+            parts.push(format!(
+                "{} invalid UTF-8 sequences",
+                self.invalid_sequences
+            ));
         }
         if self.null_bytes_removed > 0 {
             parts.push(format!("{} null bytes", self.null_bytes_removed));
@@ -205,8 +211,8 @@ pub fn sanitize_input_with_stats(bytes: &[u8], _source: InputSource) -> (String,
     // - Multi-script text stability
     // - Deterministic parser results
     let normalized_unicode: String = utf8_str.nfc().collect();
-    let unicode_normalized = normalized_unicode.len() != utf8_str.len() || 
-                            normalized_unicode != utf8_str.as_ref();
+    let unicode_normalized =
+        normalized_unicode.len() != utf8_str.len() || normalized_unicode != utf8_str.as_ref();
 
     // Step 3: Remove null bytes (security risk)
     let (no_nulls, null_bytes_removed) = if normalized_unicode.contains('\0') {
@@ -263,7 +269,7 @@ fn normalize_line_endings(s: &str) -> (Cow<'_, str>, usize) {
 
     // Count \r occurrences before normalization
     let cr_count = s.matches('\r').count();
-    
+
     let normalized = s.replace("\r\n", "\n").replace('\r', "\n");
 
     (Cow::Owned(normalized), cr_count)
@@ -276,10 +282,12 @@ fn normalize_line_endings(s: &str) -> (Cow<'_, str>, usize) {
 ///
 /// # Examples
 /// ```
+/// use core::logic::utf8::is_char_boundary;
+///
 /// let text = "Hello — World"; // Em dash is 3 bytes
 /// assert!(is_char_boundary(text, 6)); // After "Hello "
-/// assert!(!is_char_boundary(text, 9)); // Inside em dash (bytes 8-10)
-/// assert!(is_char_boundary(text, 11)); // After em dash
+/// assert!(!is_char_boundary(text, 7)); // Inside em dash
+/// assert!(is_char_boundary(text, 9)); // After em dash
 /// ```
 pub fn is_char_boundary(s: &str, index: usize) -> bool {
     s.is_char_boundary(index)
@@ -292,9 +300,11 @@ pub fn is_char_boundary(s: &str, index: usize) -> bool {
 ///
 /// # Examples
 /// ```
+/// use core::logic::utf8::find_prev_boundary;
+///
 /// let text = "Hello — World"; // Em dash is 3 bytes
-/// assert_eq!(find_prev_boundary(text, 9), 8); // Inside dash → start of dash
-/// assert_eq!(find_prev_boundary(text, 8), 8); // Already on boundary
+/// assert_eq!(find_prev_boundary(text, 8), 6); // Inside dash → start of dash
+/// assert_eq!(find_prev_boundary(text, 9), 9); // Already on boundary
 /// ```
 pub fn find_prev_boundary(s: &str, index: usize) -> usize {
     if index >= s.len() {
@@ -315,9 +325,11 @@ pub fn find_prev_boundary(s: &str, index: usize) -> usize {
 ///
 /// # Examples
 /// ```
+/// use core::logic::utf8::find_next_boundary;
+///
 /// let text = "Hello — World"; // Em dash is 3 bytes
-/// assert_eq!(find_next_boundary(text, 9), 11); // Inside dash → end of dash
-/// assert_eq!(find_next_boundary(text, 8), 8); // Already on boundary
+/// assert_eq!(find_next_boundary(text, 7), 9); // Inside dash → end of dash
+/// assert_eq!(find_next_boundary(text, 6), 6); // Already on boundary
 /// ```
 pub fn find_next_boundary(s: &str, index: usize) -> usize {
     if index >= s.len() {
@@ -337,20 +349,18 @@ pub fn find_next_boundary(s: &str, index: usize) -> usize {
 ///
 /// # Examples
 /// ```
+/// use core::logic::utf8::char_byte_length;
+///
 /// let text = "Hello — World";
 /// assert_eq!(char_byte_length(text, 0), 1); // 'H' = 1 byte
-/// assert_eq!(char_byte_length(text, 8), 3); // '—' = 3 bytes
+/// assert_eq!(char_byte_length(text, 6), 3); // '—' = 3 bytes
 /// ```
 pub fn char_byte_length(s: &str, index: usize) -> usize {
     if !s.is_char_boundary(index) {
         return 0;
     }
 
-    s[index..]
-        .chars()
-        .next()
-        .map(|c| c.len_utf8())
-        .unwrap_or(0)
+    s[index..].chars().next().map(|c| c.len_utf8()).unwrap_or(0)
 }
 
 /// Safe substring extraction by character count (not bytes!)
@@ -360,6 +370,8 @@ pub fn char_byte_length(s: &str, index: usize) -> usize {
 ///
 /// # Examples
 /// ```
+/// use core::logic::utf8::substring_by_chars;
+///
 /// let text = "Hello — World"; // Em dash is 3 bytes
 /// assert_eq!(substring_by_chars(text, 0, 5), "Hello");
 /// assert_eq!(substring_by_chars(text, 6, 7), "—"); // Single character
@@ -433,7 +445,7 @@ mod tests {
     #[test]
     fn test_em_dash_char_boundary() {
         let text = "Hello — World"; // Em dash (U+2014) is 3 bytes in UTF-8
-        
+
         // Check boundaries around em dash
         assert!(is_char_boundary(text, 6)); // After "Hello "
         assert!(is_char_boundary(text, 9)); // After em dash (bytes 6-8)
@@ -444,11 +456,11 @@ mod tests {
     #[test]
     fn test_find_boundaries() {
         let text = "Hello — World";
-        
+
         // Find previous boundary from inside em dash
         assert_eq!(find_prev_boundary(text, 7), 6); // Inside → start
         assert_eq!(find_prev_boundary(text, 6), 6); // Already on boundary
-        
+
         // Find next boundary from inside em dash
         assert_eq!(find_next_boundary(text, 7), 9); // Inside → end
         assert_eq!(find_next_boundary(text, 9), 9); // Already on boundary
@@ -457,7 +469,7 @@ mod tests {
     #[test]
     fn test_char_byte_length() {
         let text = "Hello — World 😀"; // Em dash = 3 bytes, emoji = 4 bytes
-        
+
         assert_eq!(char_byte_length(text, 0), 1); // 'H' = 1 byte
         assert_eq!(char_byte_length(text, 6), 3); // '—' = 3 bytes
         assert_eq!(char_byte_length(text, 16), 4); // '😀' = 4 bytes
@@ -466,7 +478,7 @@ mod tests {
     #[test]
     fn test_substring_by_chars() {
         let text = "Hello — World"; // 13 characters, but more bytes
-        
+
         assert_eq!(substring_by_chars(text, 0, 5), "Hello");
         assert_eq!(substring_by_chars(text, 6, 7), "—");
         assert_eq!(substring_by_chars(text, 8, 13), "World");
@@ -495,7 +507,7 @@ mod tests {
         let decomposed = "cafe\u{0301}"; // café with decomposed é
         let input = decomposed.as_bytes();
         let (result, stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
-        
+
         // Should be normalized to precomposed form
         assert_eq!(result, "café"); // café with precomposed é (U+00E9)
         assert!(stats.unicode_normalized);
@@ -506,7 +518,7 @@ mod tests {
         // Text already in NFC form should not be changed
         let input = "café".as_bytes(); // Already precomposed
         let (result, _stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
-        
+
         assert_eq!(result, "café");
         // Note: unicode_normalized may still be true if the check detects no difference
     }
@@ -516,10 +528,10 @@ mod tests {
         // Em dash (—, U+2014) should be preserved, not confused with hyphen (-, U+002D)
         let input = "Native performance — no login".as_bytes();
         let (result, _stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
-        
+
         assert_eq!(result, "Native performance — no login");
         assert!(result.contains('—')); // Em dash preserved
-        
+
         // Check character codes - find the em dash
         let em_dash_char = result.chars().find(|&c| c == '—').unwrap();
         assert_eq!(em_dash_char as u32, 0x2014); // Verify it's the em dash
@@ -530,13 +542,13 @@ mod tests {
         // Test that hyphens and em dashes are distinct after normalization
         let input = "hyphen - and em dash —".as_bytes();
         let (result, _stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
-        
+
         assert_eq!(result, "hyphen - and em dash —");
-        
+
         // Count each type
         let hyphen_count = result.matches('-').count();
         let em_dash_count = result.matches('—').count();
-        
+
         assert_eq!(hyphen_count, 1);
         assert_eq!(em_dash_count, 1);
     }
@@ -546,7 +558,7 @@ mod tests {
         // Control characters (except \n, \r, \t) should be removed
         let input = "Hello\x01\x02World\nNew\tLine\r\n".as_bytes();
         let (result, stats) = sanitize_input_with_stats(input, InputSource::Keyboard);
-        
+
         // \x01 and \x02 should be removed, but \n, \t, \r should be preserved (then normalized)
         assert_eq!(result, "HelloWorld\nNew\tLine\n");
         assert!(stats.control_chars_removed > 0);
@@ -557,7 +569,7 @@ mod tests {
         // Real-world test with markdown containing em dashes
         let input = "- **Bold** — description\n- *Italic* — another item".as_bytes();
         let (result, _stats) = sanitize_input_with_stats(input, InputSource::File);
-        
+
         // Should preserve markdown structure and em dashes
         assert!(result.contains("**Bold** — description"));
         assert!(result.contains("*Italic* — another item"));
@@ -577,7 +589,7 @@ mod tests {
     fn test_stats_summary() {
         let input = b"Hello\x00\xF0\x28World\r\n";
         let (_result, stats) = sanitize_input_with_stats(input, InputSource::Clipboard);
-        
+
         assert!(stats.had_issues());
         let summary = stats.summary();
         assert!(summary.contains("Sanitized"));

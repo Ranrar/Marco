@@ -3,13 +3,13 @@ use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, Orientation, Switch};
 
 // Import unified helper and section header helper
-use super::helpers::{add_setting_row};
+use super::helpers::add_setting_row;
 
 /// Builds the Markdown tab UI for markdown-specific engine settings
 pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     // Initialize SettingsManager for this tab
     let settings_manager = match core::logic::swanson::SettingsManager::initialize(
-        std::path::PathBuf::from(settings_path)
+        std::path::PathBuf::from(settings_path),
     ) {
         Ok(sm) => sm,
         Err(_) => {
@@ -22,13 +22,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     container.add_css_class("marco-settings-tab");
 
     // Load current engine settings using SettingsManager
-    let load_settings = || {
-        settings_manager.get_settings()
-            .engine
-            .unwrap_or_default()
-    };
-
-
+    let load_settings = || settings_manager.get_settings().engine.unwrap_or_default();
 
     // Table of Contents Generation
     let toc_enabled = load_settings()
@@ -72,7 +66,7 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
         "Generate Table of Contents",
         "Automatically create a navigation table of contents from document headings.",
         &toc_switch,
-        true  // First row after section header - no additional top margin
+        true, // First row after section header - no additional top margin
     );
     container.append(&toc_row);
 

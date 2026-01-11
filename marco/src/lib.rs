@@ -2,7 +2,7 @@
 // Re-export the internal modules needed by tests.
 pub mod components;
 pub mod footer;
-pub mod logic;  // UI-specific logic (menu_items, signal_manager)
+pub mod logic; // UI-specific logic (menu_items, signal_manager)
 pub mod theme;
 pub mod ui;
 

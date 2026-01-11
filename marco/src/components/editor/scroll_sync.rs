@@ -4,10 +4,10 @@
 //! ScrolledWindow widgets, particularly the editor and preview panes.
 
 use gtk4::prelude::*;
-use webkit6::prelude::*;
+use log::debug;
 use std::cell::Cell;
 use std::rc::Rc;
-use log::debug;
+use webkit6::prelude::*;
 
 /// Core scroll synchronization system with loop prevention and runtime control
 pub struct ScrollSynchronizer {
@@ -50,12 +50,12 @@ impl ScrollSynchronizer {
             debug!("Skipping scroll operation - ScrolledWindow has no allocation");
             return;
         }
-        
+
         let adj = sw.vadjustment();
         let upper = adj.upper();
         let page_size = adj.page_size();
         let range = upper - page_size;
-        
+
         if range > 0.0 {
             let target_value = percentage.clamp(0.0, 1.0) * range;
             adj.set_value(target_value);
@@ -71,26 +71,26 @@ impl ScrollSynchronizer {
     ) {
         // Get vertical adjustment from scrolled window
         let source_adj = source_sw.vadjustment();
-        
+
         // Clone references for closure
         let is_syncing_clone = Rc::clone(&self.is_syncing);
         let enabled_clone = Rc::clone(&self.enabled);
         let target_webview_clone = target_webview.clone();
         let label_owned = label.to_string();
-        
+
         // Connect source -> webview synchronization
         source_adj.connect_value_changed(move |source_adj| {
             // Skip if we're already syncing, if sync is disabled, or if debouncing
             if is_syncing_clone.get() || !enabled_clone.get() {
                 return;
             }
-            
+
             // Check debouncing - create a minimal sync checker
             const DEBOUNCE_MS: u64 = 16; // ~60fps
             thread_local! {
                 static LAST_SYNC: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
             }
-            
+
             let should_sync = LAST_SYNC.with(|last| {
                 let now = std::time::Instant::now();
                 if let Some(last_sync) = last.get() {
@@ -101,28 +101,28 @@ impl ScrollSynchronizer {
                 last.set(Some(now));
                 true
             });
-            
+
             if !should_sync {
                 return;
             }
-            
+
             // Set sync guard to prevent feedback loops
             is_syncing_clone.set(true);
-            
+
             // Calculate scroll percentage in source
             let source_value = source_adj.value();
             let source_upper = source_adj.upper();
             let source_page_size = source_adj.page_size();
-            
+
             // Avoid division by zero
             let source_range = source_upper - source_page_size;
             if source_range <= 0.0 {
                 is_syncing_clone.set(false);
                 return;
             }
-            
+
             let scroll_percentage = (source_value / source_range).clamp(0.0, 1.0);
-            
+
             // Apply percentage to webview using JavaScript
             let js_code = format!(
                 r#"
@@ -145,18 +145,18 @@ impl ScrollSynchronizer {
                 "#,
                 scroll_percentage
             );
-            
+
             target_webview_clone.evaluate_javascript(&js_code, None, None, None::<&gio::Cancellable>, |result| {
                 if let Err(e) = result {
                     debug!("JavaScript scroll sync error: {:?}", e);
                 }
             });
-            
+
             debug!(
                 "[scroll_sync] {} sync: {:.2}% (SW {:.1})",
                 label_owned, scroll_percentage * 100.0, source_value
             );
-            
+
             // Clear sync guard
             is_syncing_clone.set(false);
         });
@@ -170,11 +170,13 @@ impl ScrollSynchronizer {
     ) {
         // Connect editor ScrolledWindow -> WebView
         self.connect_scrolled_window_to_webview(editor_sw, preview_webview, "editor->webview");
-        
+
         // Setup WebView -> editor ScrolledWindow using title change detection
         self.setup_webview_title_listener(preview_webview, editor_sw, "webview->editor");
-        
-        debug!("Bidirectional scroll synchronization established between ScrolledWindow and WebView");
+
+        debug!(
+            "Bidirectional scroll synchronization established between ScrolledWindow and WebView"
+        );
     }
 
     /// Setup title change listener in WebView to sync back to ScrolledWindow
@@ -189,19 +191,19 @@ impl ScrollSynchronizer {
         let enabled_clone = Rc::clone(&self.enabled);
         let target_sw_clone = target_sw.clone();
         let label_owned = label.to_string();
-        
+
         // Connect to notify::title signal to handle scroll position reports
         source_webview.connect_notify_local(Some("title"), move |webview, _| {
             if !enabled_clone.get() || is_syncing_clone.get() {
                 return;
             }
-            
+
             // Debouncing for webview->editor sync
             const DEBOUNCE_MS: u64 = 16; // ~60fps
             thread_local! {
                 static LAST_WEBVIEW_SYNC: Cell<Option<std::time::Instant>> = const { Cell::new(None) };
             }
-            
+
             let should_sync = LAST_WEBVIEW_SYNC.with(|last| {
                 let now = std::time::Instant::now();
                 if let Some(last_sync) = last.get() {
@@ -212,11 +214,11 @@ impl ScrollSynchronizer {
                 last.set(Some(now));
                 true
             });
-            
+
             if !should_sync {
                 return;
             }
-            
+
             if let Some(title) = webview.title() {
                 let title_str = title.as_str();
                 if let Some(scroll_data) = title_str.strip_prefix("marco_scroll:") {
@@ -224,18 +226,18 @@ impl ScrollSynchronizer {
                         // Set sync guard and update ScrolledWindow
                         is_syncing_clone.set(true);
                         Self::set_scroll_percentage(&target_sw_clone, percentage);
-                        
+
                         debug!(
                             "[scroll_sync] {} sync: {:.2}%",
                             label_owned, percentage * 100.0
                         );
-                        
+
                         is_syncing_clone.set(false);
                     }
                 }
             }
         });
-        
+
         debug!("WebView title-based scroll listener setup complete");
     }
 }

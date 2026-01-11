@@ -10,7 +10,7 @@ fn main() {
     // Detect build profile (debug/release)
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
     // OUT_DIR is something like target/debug/build/core-xxxx/out
-    // We want target/debug or target/release  
+    // We want target/debug or target/release
     let target_dir = Path::new(&out_dir)
         .ancestors()
         .nth(3)

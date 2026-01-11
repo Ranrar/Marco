@@ -7,62 +7,68 @@
 // - Ends when line is not indented or end of input
 // - Leading indentation is removed during parsing
 
-use crate::grammar::shared::{Span, skip_indentation};
-use nom::{
-    IResult,
-    Slice,
-    bytes::complete::take_while,
-    character::complete::line_ending,
-};
+use crate::grammar::shared::{skip_indentation, Span};
+use nom::{bytes::complete::take_while, character::complete::line_ending, IResult, Input};
 
 /// Parse an indented code block (4 spaces or 1 tab)
-/// 
+///
 /// Examples:
 /// - `    code line 1\n    code line 2`
 /// - `\tcode with tab`
 /// - `    code\n\n    more code` (with blank line)
-/// 
+///
 /// # Arguments
 /// * `input` - The input span to parse
-/// 
+///
 /// # Returns
 /// `Ok((remaining, content_span))` where content_span includes indentation (removed by parser)
 pub fn indented_code_block(input: Span) -> IResult<Span, Span> {
-    log::debug!("Parsing indented code block: {:?}", crate::logic::logger::safe_preview(input.fragment(), 40));
-    
+    log::debug!(
+        "Parsing indented code block: {:?}",
+        crate::logic::logger::safe_preview(input.fragment(), 40)
+    );
+
     let start = input;
     let mut remaining = input;
     let start_offset = start.location_offset();
     let mut last_content_offset = start_offset;
-    
+
     // Parse consecutive indented lines (need at least 4 effective spaces)
     loop {
         // Try to skip at least 4 spaces of indentation (counting tab expansion)
         let indent_result = skip_indentation(remaining, 4);
-        
+
         match indent_result {
             Ok((after_indent, effective_spaces)) if effective_spaces >= 4 => {
                 // Get the rest of the line
                 let (after_line, _line) = take_while(|c| c != '\n' && c != '\r')(after_indent)?;
-                
+
                 // Update last_content_offset to include this line
                 // Important: we want the offset of the END of the line content
                 let line_end_offset = after_line.location_offset();
                 last_content_offset = line_end_offset;
-                
-                log::debug!("Indented code line parsed, line_end_offset={}", line_end_offset);
-                
+
+                log::debug!(
+                    "Indented code line parsed, line_end_offset={}",
+                    line_end_offset
+                );
+
                 // Try to consume line ending
                 match line_ending::<Span, nom::error::Error<Span>>(after_line) {
                     Ok((after_newline, newline)) => {
                         last_content_offset += newline.fragment().len();
                         remaining = after_newline;
-                        
+
                         // Peek ahead: is next line blank or indented?
-                        if remaining.fragment().starts_with('\n') || remaining.fragment().starts_with('\r') {
+                        if remaining.fragment().starts_with('\n')
+                            || remaining.fragment().starts_with('\r')
+                        {
                             // Blank line - consume it and continue
-                            if let Ok((after_blank, blank)) = line_ending::<Span, nom::error::Error<Span>>(remaining) {
-                                last_content_offset = blank.location_offset() + blank.fragment().len();
+                            if let Ok((after_blank, blank)) =
+                                line_ending::<Span, nom::error::Error<Span>>(remaining)
+                            {
+                                last_content_offset =
+                                    blank.location_offset() + blank.fragment().len();
                                 remaining = after_blank;
                                 continue;
                             }
@@ -83,21 +89,32 @@ pub fn indented_code_block(input: Span) -> IResult<Span, Span> {
             }
         }
     }
-    
+
     // Calculate content length
     let content_len = last_content_offset.saturating_sub(start_offset);
-    
-    log::debug!("Indented code block: start_offset={}, last_content_offset={}, content_len={}", start_offset, last_content_offset, content_len);
-    
+
+    log::debug!(
+        "Indented code block: start_offset={}, last_content_offset={}, content_len={}",
+        start_offset,
+        last_content_offset,
+        content_len
+    );
+
     if content_len == 0 {
-        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            start,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
-    // CRITICAL: Use slice to preserve position information
-    let content_span = start.slice(0..content_len.min(start.fragment().len()));
-    
-    log::debug!("Indented code block parsed: {} bytes", content_span.fragment().len());
-    
+
+    // Preserve position information.
+    let content_span = start.take(content_len.min(start.fragment().len()));
+
+    log::debug!(
+        "Indented code block parsed: {} bytes",
+        content_span.fragment().len()
+    );
+
     Ok((remaining, content_span))
 }
 
