@@ -191,7 +191,7 @@ impl SharedPaths {
     /// Get path to settings file
     ///
     /// In dev mode: workspace_root/tests/settings/settings.ron
-    /// In install mode: asset_root/settings.ron
+    /// In install mode: $XDG_CONFIG_HOME/marco/settings.ron
     pub fn settings_file(&self) -> PathBuf {
         use super::core::is_dev_mode;
         use super::dev::workspace_root;
@@ -207,7 +207,7 @@ impl SharedPaths {
                 self.asset_root.join("settings.ron")
             }
         } else {
-            self.asset_root.join("settings.ron")
+            super::install::config_dir().join("settings.ron")
         }
     }
 }
