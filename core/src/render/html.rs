@@ -153,6 +153,17 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push_str("</a>");
         }
+        NodeKind::LinkReference { suffix, .. } => {
+            // Reference links should normally be resolved during parsing.
+            // If a reference is missing, or a caller bypasses the resolver,
+            // render the original source-ish form as literal text.
+            output.push('[');
+            for child in &node.children {
+                render_node(child, output, options)?;
+            }
+            output.push(']');
+            output.push_str(&escape_html(suffix));
+        }
         NodeKind::Image { url, alt } => {
             output.push_str("<img src=\"");
             output.push_str(&escape_html(url));
@@ -211,9 +222,41 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push_str("</li>\n");
         }
+        NodeKind::TaskCheckbox { .. } => {
+            // This should only be called via render_list_item (as a ListItem child).
+            log::warn!("TaskCheckbox rendered outside of ListItem context");
+        }
+        NodeKind::TaskCheckboxInline { checked } => {
+            // Inline checkbox marker (e.g. paragraph starting with `[ ]` / `[x]`).
+            render_task_checkbox_icon(output, *checked);
+        }
     }
 
     Ok(())
+}
+
+fn render_task_checkbox_icon(output: &mut String, checked: bool) {
+    // We keep the SVG strokes as `currentColor` and let CSS decide:
+    // - unchecked box: inherited text color
+    // - checked box: theme primary
+    // - checkmark: theme accent
+    if checked {
+        output.push_str(
+            r#"<span class="task-list-item-checkbox marco-task-checkbox checked" aria-hidden="true">"#,
+        );
+        output.push_str(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="marco-task-icon"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path class="marco-task-check" style="stroke: var(--marco-task-accent); stroke-width: 2.0;" d="M9 11l3 3l8 -8" /><path class="marco-task-box" style="stroke: var(--marco-task-primary);" d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /></svg>"#,
+        );
+        output.push_str("</span>");
+    } else {
+        output.push_str(
+            r#"<span class="task-list-item-checkbox marco-task-checkbox unchecked" aria-hidden="true">"#,
+        );
+        output.push_str(
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="marco-task-icon"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path class="marco-task-box" d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /></svg>"#,
+        );
+        output.push_str("</span>");
+    }
 }
 
 fn render_table(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
@@ -308,11 +351,33 @@ fn render_list_item(
     tight: bool,
     options: &RenderOptions,
 ) -> Result<()> {
-    output.push_str("<li>");
+    let task_checked = match node.children.first().map(|n| &n.kind) {
+        Some(NodeKind::TaskCheckbox { checked }) => Some(*checked),
+        _ => None,
+    };
+
+    if let Some(checked) = task_checked {
+        if checked {
+            output.push_str("<li class=\"task-list-item task-list-item-checked\">");
+        } else {
+            output.push_str("<li class=\"task-list-item\">");
+        }
+    } else {
+        output.push_str("<li>");
+    }
 
     if tight {
+        // Tight list: paragraph content is inlined (no <p> wrapper), so we can
+        // safely emit the checkbox icon at the start of the list item.
+        if let Some(checked) = task_checked {
+            render_task_checkbox_icon(output, checked);
+        }
+
         // Tight list: don't wrap paragraphs in <p> tags
         for child in &node.children {
+            if matches!(child.kind, NodeKind::TaskCheckbox { .. }) {
+                continue;
+            }
             match &child.kind {
                 NodeKind::Paragraph => {
                     // Render paragraph children directly without <p> wrapper
@@ -327,8 +392,39 @@ fn render_list_item(
             }
         }
     } else {
-        // Loose list: render everything normally (paragraphs get <p> tags)
+        // Loose list: keep paragraphs wrapped in <p>, but for task list items we
+        // want the checkbox icon to sit inline with the first paragraph's text.
+        let mut checkbox_emitted = false;
+
         for child in &node.children {
+            if matches!(child.kind, NodeKind::TaskCheckbox { .. }) {
+                continue;
+            }
+
+            // Emit the checkbox exactly once, either inside the first paragraph
+            // or as a standalone prefix if the first block isn't a paragraph.
+            if let Some(checked) = task_checked {
+                if !checkbox_emitted {
+                    match &child.kind {
+                        NodeKind::Paragraph => {
+                            output.push_str("<p>");
+                            render_task_checkbox_icon(output, checked);
+                            for grandchild in &child.children {
+                                render_node(grandchild, output, options)?;
+                            }
+                            output.push_str("</p>");
+                            checkbox_emitted = true;
+                            continue;
+                        }
+                        _ => {
+                            render_task_checkbox_icon(output, checked);
+                            checkbox_emitted = true;
+                            // fall through and render this child normally
+                        }
+                    }
+                }
+            }
+
             render_node(child, output, options)?;
         }
     }

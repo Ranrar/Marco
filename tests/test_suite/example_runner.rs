@@ -165,6 +165,10 @@ fn format_node_tree(
             )
         }
         NodeKind::ListItem => "ListItem".to_string(),
+        NodeKind::TaskCheckbox { checked } => format!("TaskCheckbox(checked={})", checked),
+        NodeKind::TaskCheckboxInline { checked } => {
+            format!("TaskCheckboxInline(checked={})", checked)
+        }
         NodeKind::Blockquote => "Blockquote".to_string(),
         NodeKind::ThematicBreak => "ThematicBreak".to_string(),
         NodeKind::Table { alignments } => format!("Table(cols={})", alignments.len()),
@@ -183,6 +187,13 @@ fn format_node_tree(
         NodeKind::CodeSpan(code) => format!("CodeSpan \"{}\"", truncate(code, 40)),
         NodeKind::Link { url, title } => {
             format!("Link(url=\"{}\", title={:?})", truncate(url, 30), title)
+        }
+        NodeKind::LinkReference { label, suffix } => {
+            format!(
+                "LinkReference(label=\"{}\", suffix=\"{}\")",
+                truncate(label, 30),
+                truncate(suffix, 30)
+            )
         }
         NodeKind::Image { url, alt } => {
             format!(

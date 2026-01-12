@@ -32,6 +32,7 @@ fontconfig = { workspace = true }
 dirs = { workspace = true }
 moka = { workspace = true }
 unicode-normalization  = { workspace = true }
+htmlescape = { workspace = true }
 
 [build-dependencies]
 serde_json = { workspace = true }

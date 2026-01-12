@@ -96,11 +96,18 @@ where
         // This allows block structures (blockquotes, code blocks, nested lists) to be recognized
         let dedented_content = dedent_list_item_content(content.fragment(), content_indent);
 
+        // GFM task list item marker detection.
+        // If present, strip it from the content before parsing blocks.
+        let (task_checked, content_to_parse) = match parse_task_checkbox_prefix(&dedented_content) {
+            Some((checked, rest)) => (Some(checked), rest.to_string()),
+            None => (None, dedented_content),
+        };
+
         // Parse the item's content as block elements
         // Create a sub-state for list item content to track nested structures
         let mut item_state = create_state_fn(content_indent);
 
-        let item_content = match parse_blocks_fn(&dedented_content, depth + 1, &mut item_state) {
+        let item_content = match parse_blocks_fn(&content_to_parse, depth + 1, &mut item_state) {
             Ok(doc) => doc.children,
             Err(e) => {
                 log::warn!("Failed to parse list item content: {}", e);
@@ -108,16 +115,67 @@ where
             }
         };
 
+        let mut item_children = Vec::new();
+
+        if let Some(checked) = task_checked {
+            item_children.push(Node {
+                kind: NodeKind::TaskCheckbox { checked },
+                span: None,
+                children: Vec::new(),
+            });
+        }
+
+        item_children.extend(item_content);
+
         let item_node = Node {
             kind: NodeKind::ListItem,
             span: Some(item_span),
-            children: item_content,
+            children: item_children,
         };
 
         list_node.children.push(item_node);
     }
 
     Ok(list_node)
+}
+
+/// Detect and strip a GFM task list marker from the start of a list item's content.
+///
+/// Recognizes:
+/// - `[ ] ` (unchecked)
+/// - `[x] ` / `[X] ` (checked)
+///
+/// The marker may be preceded by up to 3 spaces (CommonMark/GFM indentation).
+fn parse_task_checkbox_prefix(input: &str) -> Option<(bool, &str)> {
+    let mut i = 0usize;
+    for _ in 0..3 {
+        if input.as_bytes().get(i) == Some(&b' ') {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+
+    let rest = &input[i..];
+
+    let (checked, after_marker) = if let Some(after) = rest.strip_prefix("[ ]") {
+        (false, after)
+    } else if let Some(after) = rest.strip_prefix("[x]").or_else(|| rest.strip_prefix("[X]")) {
+        (true, after)
+    } else {
+        return None;
+    };
+
+    // Must be followed by at least one whitespace character.
+    let mut chars = after_marker.chars();
+    match chars.next() {
+        Some(' ') | Some('\t') => {
+            // Skip exactly one whitespace. Leave additional whitespace intact.
+            let remaining = chars.as_str();
+            Some((checked, remaining))
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -143,6 +201,34 @@ mod tests {
 
     fn mock_create_state(_indent: usize) -> MockState {
         MockState
+    }
+
+    #[test]
+    fn smoke_test_parse_list_task_item_checked_strips_marker() {
+        let content = GrammarSpan::new("[x] item");
+        let items = vec![(ListMarker::Bullet('-'), content, false, false, 2)];
+
+        let node = parse_list(items, 0, mock_parse_blocks, mock_create_state).unwrap();
+        assert_eq!(node.children.len(), 1);
+
+        let item = &node.children[0];
+        assert!(matches!(item.kind, NodeKind::ListItem));
+        assert!(matches!(item.children.first().map(|n| &n.kind), Some(NodeKind::TaskCheckbox { checked: true })));
+        assert!(matches!(item.children.get(1).map(|n| &n.kind), Some(NodeKind::Text(t)) if t == "item"));
+    }
+
+    #[test]
+    fn smoke_test_parse_list_task_item_unchecked_strips_marker() {
+        let content = GrammarSpan::new("[ ] item");
+        let items = vec![(ListMarker::Bullet('-'), content, false, false, 2)];
+
+        let node = parse_list(items, 0, mock_parse_blocks, mock_create_state).unwrap();
+        assert_eq!(node.children.len(), 1);
+
+        let item = &node.children[0];
+        assert!(matches!(item.kind, NodeKind::ListItem));
+        assert!(matches!(item.children.first().map(|n| &n.kind), Some(NodeKind::TaskCheckbox { checked: false })));
+        assert!(matches!(item.children.get(1).map(|n| &n.kind), Some(NodeKind::Text(t)) if t == "item"));
     }
 
     #[test]

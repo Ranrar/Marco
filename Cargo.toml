@@ -20,6 +20,7 @@ fontconfig = "0.10.0"
 dirs = "6.0.0"
 moka = { version = "0.12.12", features = ["sync"] }  # High-performance caching
 unicode-normalization = "0.1.25"                  # Unicode NFC normalization for consistent parsing
+htmlescape = "0.3.1"                              # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting
 syntect-assets = "0.23.6"            # Syntax highlighting
 

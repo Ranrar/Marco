@@ -12,7 +12,7 @@ use nom::Parser;
 
 /// Parse plain text up to the next special character
 ///
-/// Consumes text until a special inline character is found (*_`[<!\\n).
+/// Consumes text until a special inline character is found (*_`[<!&\\n).
 ///
 /// Note: This also stops at several extension delimiters so they can be parsed
 /// in the middle of a line:
@@ -42,7 +42,7 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let next_special = text_fragment
         .char_indices()
         .find_map(|(idx, ch)| match ch {
-            '*' | '_' | '`' | '[' | '<' | '!' | '\n' | '\\' => Some(idx),
+            '*' | '_' | '`' | '[' | '<' | '!' | '&' | '\n' | '\\' => Some(idx),
             '^' | '~' | '˅' => Some(idx),
             '=' => {
                 if text_fragment[idx..].starts_with("==") {

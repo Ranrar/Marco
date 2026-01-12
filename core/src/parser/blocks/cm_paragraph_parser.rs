@@ -3,8 +3,10 @@
 //! Handles conversion of paragraphs from grammar layer to parser AST,
 //! including recursive inline element parsing for emphasis, links, etc.
 
-use super::shared::{to_parser_span, GrammarSpan};
+use super::shared::{to_parser_span, to_parser_span_range, GrammarSpan};
 use crate::parser::ast::{Node, NodeKind};
+
+use nom::Input;
 
 /// Parse a paragraph into an AST node with inline elements.
 ///
@@ -30,24 +32,119 @@ use crate::parser::ast::{Node, NodeKind};
 pub fn parse_paragraph(content: GrammarSpan) -> Node {
     let span = to_parser_span(content);
 
-    // Parse inline elements within paragraph text, preserving position
-    let inline_children = match crate::parser::inlines::parse_inlines_from_span(content) {
-        Ok(children) => children,
-        Err(e) => {
-            log::warn!("Failed to parse inline elements: {}", e);
-            // Fallback to plain text
-            vec![Node {
-                kind: NodeKind::Text(content.fragment().to_string()),
-                span: Some(span),
-                children: Vec::new(),
-            }]
+    // Support task checkbox markers at the start of a paragraph *and* at the
+    // start of any subsequent line inside the same paragraph.
+    //
+    // This matters when the author uses hard breaks (two spaces + newline) to
+    // create a checklist-like block without list markers:
+    //   [ ] first  
+    //   [ ] second  
+    //
+    // Those lines are still a single paragraph in CommonMark; we still want to
+    // render the checkbox SVG on each line.
+    let mut inline_children: Vec<Node> = Vec::new();
+    let mut remaining = content;
+
+    while let Some((start, checked, consumed)) = find_next_task_checkbox_marker(remaining.fragment()) {
+        // Emit any content before the marker using the inline parser.
+        if start > 0 {
+            let (rest, prefix) = remaining.take_split(start);
+            inline_children.extend(parse_inlines_or_fallback_text(prefix));
+            remaining = rest;
         }
-    };
+
+        // `remaining` now begins at the marker.
+        let (after_marker, _marker_taken) = remaining.take_split(consumed);
+        inline_children.push(Node {
+            kind: NodeKind::TaskCheckboxInline { checked },
+            span: Some(to_parser_span_range(remaining, after_marker)),
+            children: Vec::new(),
+        });
+        remaining = after_marker;
+    }
+
+    // Emit any trailing content after the last marker.
+    inline_children.extend(parse_inlines_or_fallback_text(remaining));
 
     Node {
         kind: NodeKind::Paragraph,
         span: Some(span),
         children: inline_children,
+    }
+}
+
+fn parse_inlines_or_fallback_text(input: GrammarSpan) -> Vec<Node> {
+    if input.fragment().is_empty() {
+        return Vec::new();
+    }
+
+    match crate::parser::inlines::parse_inlines_from_span(input) {
+        Ok(children) => children,
+        Err(e) => {
+            log::warn!("Failed to parse inline elements: {}", e);
+            vec![Node {
+                kind: NodeKind::Text(input.fragment().to_string()),
+                span: Some(to_parser_span(input)),
+                children: Vec::new(),
+            }]
+        }
+    }
+}
+
+/// Find the next task checkbox marker that appears at a line start.
+///
+/// Returns (byte_offset_from_start, checked, consumed_bytes).
+fn find_next_task_checkbox_marker(input: &str) -> Option<(usize, bool, usize)> {
+    let mut line_start = 0usize;
+    loop {
+        if let Some((checked, consumed)) = parse_task_checkbox_prefix_len(&input[line_start..]) {
+            return Some((line_start, checked, consumed));
+        }
+
+        let rel = input[line_start..].find('\n')?;
+        line_start += rel + 1;
+        if line_start >= input.len() {
+            return None;
+        }
+    }
+}
+
+/// Detect a task checkbox marker at the start of a paragraph.
+///
+/// Recognizes:
+/// - `[ ] ` (unchecked)
+/// - `[x] ` / `[X] ` (checked)
+///
+/// Returns (checked, consumed_bytes).
+fn parse_task_checkbox_prefix_len(input: &str) -> Option<(bool, usize)> {
+    let mut i = 0usize;
+    for _ in 0..3 {
+        if input.as_bytes().get(i) == Some(&b' ') {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+
+    let rest = &input[i..];
+
+    let (checked, after_marker) = if let Some(after) = rest.strip_prefix("[ ]") {
+        (false, after)
+    } else if let Some(after) = rest.strip_prefix("[x]").or_else(|| rest.strip_prefix("[X]")) {
+        (true, after)
+    } else {
+        return None;
+    };
+
+    // Must be followed by at least one whitespace character.
+    let mut chars = after_marker.chars();
+    match chars.next() {
+        Some(' ') | Some('\t') => {
+            // Consumed: leading spaces + marker + exactly one whitespace.
+            // Marker is 3 bytes: "[ ]" / "[x]" / "[X]".
+            Some((checked, i + 3 + 1))
+        }
+        _ => None,
     }
 }
 

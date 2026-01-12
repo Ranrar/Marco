@@ -12,11 +12,13 @@ pub mod shared;
 pub mod cm_autolink_parser;
 pub mod cm_backslash_escape_parser;
 pub mod cm_code_span_parser;
+pub mod cm_entity_reference_parser;
 pub mod cm_emphasis_parser;
 pub mod cm_image_parser;
 pub mod cm_inline_html_parser;
 pub mod cm_line_breaks_parser;
 pub mod cm_link_parser;
+pub mod cm_reference_link_parser;
 pub mod cm_strong_emphasis_parser;
 pub mod cm_strong_parser;
 pub mod gfm_strikethrough_parser;
@@ -31,11 +33,13 @@ pub mod text_parser;
 pub use cm_autolink_parser::parse_autolink;
 pub use cm_backslash_escape_parser::parse_backslash_escape;
 pub use cm_code_span_parser::parse_code_span;
+pub use cm_entity_reference_parser::parse_entity_reference;
 pub use cm_emphasis_parser::parse_emphasis;
 pub use cm_image_parser::parse_image;
 pub use cm_inline_html_parser::parse_inline_html;
 pub use cm_line_breaks_parser::{parse_hard_line_break, parse_soft_line_break};
 pub use cm_link_parser::parse_link;
+pub use cm_reference_link_parser::parse_reference_link;
 pub use cm_strong_emphasis_parser::parse_strong_emphasis;
 pub use cm_strong_parser::parse_strong;
 pub use gfm_strikethrough_parser::parse_strikethrough;
@@ -197,6 +201,13 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
             continue;
         }
 
+        // Try parsing reference-style links (CommonMark)
+        if let Ok((rest, node)) = parse_reference_link(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
         // Try parsing inline HTML
         if let Ok((rest, node)) = parse_inline_html(remaining) {
             nodes.push(node);
@@ -217,6 +228,13 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
 
         // Try parsing soft line break (regular newline)
         if let Ok((rest, node)) = parse_soft_line_break(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
+        // Try parsing entity references (e.g. &copy;, &#169;)
+        if let Ok((rest, node)) = parse_entity_reference(remaining) {
             nodes.push(node);
             remaining = rest;
             continue;

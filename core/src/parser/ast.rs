@@ -91,6 +91,17 @@ pub enum NodeKind {
         tight: bool,        // No blank lines between items
     },
     ListItem,
+    /// GFM task list checkbox marker for a list item.
+    ///
+    /// This is emitted by the list parser when a list item begins with
+    /// `[ ]` or `[x]` / `[X]`.
+    ///
+    /// Rendering convention:
+    /// - This node is expected to appear as the first child inside a `ListItem`.
+    /// - The HTML renderer will convert it into a themed checkbox icon.
+    TaskCheckbox {
+        checked: bool,
+    },
     Blockquote,
     /// GFM table (pipe table extension).
     ///
@@ -113,6 +124,17 @@ pub enum NodeKind {
 
     // Inline-level
     Text(String),
+    /// Inline task checkbox marker (extension).
+    ///
+    /// This is emitted when a paragraph begins with a task marker like
+    /// `[ ] ` / `[x] ` / `[X] `.
+    ///
+    /// Rendering convention:
+    /// - The HTML renderer converts it into the same themed SVG checkbox icon
+    ///   used for task list items.
+    TaskCheckboxInline {
+        checked: bool,
+    },
     Emphasis,
     Strong,
     /// Combined strong+emphasis, e.g. `***text***` or `___text___`.
@@ -131,6 +153,23 @@ pub enum NodeKind {
     Link {
         url: String,
         title: Option<String>,
+    },
+    /// Reference-style link placeholder (CommonMark): `[text][label]`, `[label][]`, `[label]`.
+    ///
+    /// These cannot be fully resolved during inline parsing because reference
+    /// definitions may appear later in the document. The top-level `parse()`
+    /// performs a post-processing pass that converts this into a `Link` when a
+    /// matching definition exists in `Document.references`.
+    ///
+    /// If no matching definition is found, this should be rendered as literal
+    /// bracketed text (preserving the already-parsed `children` for the first
+    /// bracketed segment).
+    LinkReference {
+        /// Label used for reference resolution (will be normalized when looked up).
+        label: String,
+        /// Extra literal suffix after the first `]` (e.g. "[]" or "[label]").
+        /// Empty for shortcut reference links.
+        suffix: String,
     },
     Image {
         url: String,
