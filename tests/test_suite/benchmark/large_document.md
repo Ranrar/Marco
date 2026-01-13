@@ -1,4 +1,4 @@
-# Large Document - Performance Testing
+# Large Document - Performance Testing.
 
 This is a large markdown document designed for comprehensive performance testing
 of the Marco parser. It contains multiple sections with various Markdown elements.

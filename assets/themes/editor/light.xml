@@ -2,54 +2,45 @@
 <!--
   Light theme for Marco Editor
   Based on LIGHT_PALETTE: background: "#FAFAFA", text: "#24292E"
+  
+  IMPORTANT RESTRICTIONS:
+  - Only use HEX colors (e.g., #RRGGBB) - no color names, no rgb()
+  - Do NOT use: bold, italic, underline, strikethrough, or any font properties
+  - Background colors are ONLY for search highlighting - not for syntax highlighting
+  - LSP syntax highlighting will be implemented separately using GTK TextTags
 -->
 <style-scheme id="marco-light" name="Marco Light" version="1.0" kind="light">
   <author>Kim Skov Rasmussen</author>
   <description>Light theme with clean appearance</description>
 
-  <!-- Color definitions -->
-  <color name="white"              value="#FFFFFF"/>
-  <color name="light-bg"           value="#FAFAFA"/>
-  <color name="light-text"         value="#24292E"/>
-  <color name="light-selection"    value="#0366D6"/>
-  <color name="light-selection-bg" value="#C8E1FF"/>
-  <color name="light-cursor"       value="#0969DA"/>
-  <color name="light-line-num"     value="#6E7781"/>
-  <color name="light-line-num-bg"  value="#F6F8FA"/>
-  <color name="light-current-line" value="#F6F8FA"/>
-  <color name="light-bracket"      value="#0969DA"/>
-  <color name="light-comment"      value="#6E7781"/>
-  <color name="light-keyword"      value="#CF222E"/>
-  <color name="light-string"       value="#0A3069"/>
-  <color name="light-number"       value="#0550AE"/>
   <!-- Scrollbar styling for GTK editor matching webview preview -->
   <color name="scrollbar-thumb"   value="#D0D4D8"/>
   <color name="scrollbar-track"   value="#F0F0F0"/>
 
   <!-- Base text appearance -->
-  <style name="text"                  foreground="light-text" background="light-bg"/>
-  <style name="selection"             foreground="white" background="light-selection"/>
-  <style name="selection-unfocused"   background="light-selection-bg"/>
-  <style name="cursor"                foreground="light-cursor"/>
-  <style name="secondary-cursor"      foreground="light-cursor"/>
-  <style name="current-line"          background="light-current-line"/>
+  <style name="text"                  foreground="#24292E" background="#FAFAFA"/>
+  <style name="selection"             foreground="#FFFFFF" background="#0366D6"/>
+  <style name="selection-unfocused"   background="#C8E1FF"/>
+  <style name="cursor"                foreground="#0969DA"/>
+  <style name="secondary-cursor"      foreground="#0969DA"/>
+  <style name="current-line"          background="#F6F8FA"/>
   
   <!-- Line numbers and margin -->
-  <style name="line-numbers"          foreground="light-line-num" background="light-line-num-bg"/>
-  <style name="current-line-number"   foreground="light-text" background="light-current-line" bold="true"/>
-  <style name="line-numbers-border"   background="light-line-num-bg"/>
+  <style name="line-numbers"          foreground="#6E7781" background="#E8EAED"/>
+  <style name="current-line-number"   foreground="#24292E" background="#E8EAED"/>
+  <style name="line-numbers-border"   background="#E8EAED"/>
   
   <!-- Brackets -->
-  <style name="bracket-match"         foreground="light-bracket" bold="true"/>
+  <style name="bracket-match"         foreground="#0969DA"/>
   <style name="bracket-mismatch"      foreground="#CF222E" background="#FFEBE9"/>
   
-  <!-- Right margin -->
-  <style name="right-margin"          foreground="light-line-num" background="light-bg"/>
-  
   <!-- Spaces and whitespace -->
-  <style name="draw-spaces"           foreground="light-line-num"/>
+  <style name="draw-spaces"           foreground="#6E7781"/>
   
-  <!-- Search highlighting -->
-  <style name="search-match"          foreground="light-text" background="#FFD700" bold="true"/>
-  <style name="search-match-selected" foreground="white" background="#FF6B35" bold="true"/>
+  <!-- Search highlighting (background colors allowed ONLY for search) -->
+  <style name="search-match"          foreground="#24292E" background="#FFD700"/>
+  <style name="search-match-selected" foreground="#FFFFFF" background="#FF6B35"/>
+  
+  <!-- LSP Syntax Highlighting (colors only, no font properties) -->
+  <!-- LSP Syntax Highlighting moved to `syntaxlight.xml` and loaded only for syntax usage -->
 </style-scheme>

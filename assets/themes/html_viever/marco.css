@@ -365,14 +365,51 @@ li {
 }
 
 /* Task lists */
-ul li.task-list-item {
-    list-style: none;
-    margin-left: -1.5rem;
+body {
+    --marco-task-primary: var(--primary-accent);
+    --marco-task-accent: var(--secondary-accent);
 }
 
-input[type="checkbox"] {
+.task-list-item {
+    /* no extra variables needed; values are defined on body */
+}
+
+.marco-task-checkbox,
+.task-list-item .task-list-item-checkbox {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15em;
+    height: 1.15em;
+    margin: 0 0.5rem 0 0;
+    vertical-align: -0.125em;
+    /* Unchecked: inherit text color */
+    color: currentColor;
+}
+
+.marco-task-checkbox .marco-task-icon,
+.task-list-item .task-list-item-checkbox .marco-task-icon {
+    width: 1.15em;
+    height: 1.15em;
+    flex: 0 0 auto;
+}
+
+.marco-task-checkbox.checked,
+.task-list-item .task-list-item-checkbox.checked {
+    /* Checked box uses theme primary */
+    color: var(--marco-task-primary);
+}
+
+.marco-task-checkbox.checked .marco-task-check,
+.task-list-item .task-list-item-checkbox.checked .marco-task-check {
+    /* Only the checkmark gets the accent */
+    stroke: var(--marco-task-accent);
+}
+
+.task-list-item input[type="checkbox"] {
+    /* Fallback if a theme or renderer ever uses native checkboxes */
     margin-right: 0.5rem;
-    accent-color: var(--primary-accent);
+    accent-color: var(--marco-task-primary);
 }
 
 /* Blockquote with astro styling */

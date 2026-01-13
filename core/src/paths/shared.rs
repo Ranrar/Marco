@@ -42,9 +42,14 @@ impl SharedPaths {
     /// Get path to a specific font file
     ///
     /// # Examples
-    /// ```
+    /// ```no_run
+    /// use core::paths::SharedPaths;
+    ///
+    /// # fn main() -> Result<(), core::paths::AssetError> {
     /// let shared = SharedPaths::new()?;
     /// let icon_font = shared.font("ui_menu.ttf");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn font(&self, font_name: &str) -> PathBuf {
         self.fonts_dir().join(font_name)
@@ -91,9 +96,14 @@ impl SharedPaths {
     /// Get path to a specific language file
     ///
     /// # Examples
-    /// ```
+    /// ```no_run
+    /// use core::paths::SharedPaths;
+    ///
+    /// # fn main() -> Result<(), core::paths::AssetError> {
     /// let shared = SharedPaths::new()?;
     /// let danish = shared.language_file("da.json");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn language_file(&self, lang_code: &str) -> PathBuf {
         // Support both "da.json" and "da" formats
@@ -119,9 +129,14 @@ impl SharedPaths {
     /// Get path to a specific preview theme CSS file
     ///
     /// # Examples
-    /// ```
+    /// ```no_run
+    /// use core::paths::SharedPaths;
+    ///
+    /// # fn main() -> Result<(), core::paths::AssetError> {
     /// let shared = SharedPaths::new()?;
     /// let github_theme = shared.preview_theme("github");
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn preview_theme(&self, theme_name: &str) -> PathBuf {
         // Support both "github.css" and "github" formats
@@ -176,20 +191,23 @@ impl SharedPaths {
     /// Get path to settings file
     ///
     /// In dev mode: workspace_root/tests/settings/settings.ron
-    /// In install mode: asset_root/settings.ron
+    /// In install mode: $XDG_CONFIG_HOME/marco/settings.ron
     pub fn settings_file(&self) -> PathBuf {
         use super::core::is_dev_mode;
         use super::dev::workspace_root;
 
         if is_dev_mode() {
             if let Some(workspace) = workspace_root() {
-                workspace.join("tests").join("settings").join("settings.ron")
+                workspace
+                    .join("tests")
+                    .join("settings")
+                    .join("settings.ron")
             } else {
                 // Fallback to asset root
                 self.asset_root.join("settings.ron")
             }
         } else {
-            self.asset_root.join("settings.ron")
+            super::install::config_dir().join("settings.ron")
         }
     }
 }
@@ -215,10 +233,10 @@ mod tests {
         if let Ok(shared) = SharedPaths::new() {
             let fonts_dir = shared.fonts_dir();
             let icon_font = shared.icon_font();
-            
+
             println!("Fonts dir: {}", fonts_dir.display());
             println!("Icon font: {}", icon_font.display());
-            
+
             assert!(icon_font.to_string_lossy().contains("ui_menu.ttf"));
         }
     }
@@ -228,10 +246,10 @@ mod tests {
         if let Ok(shared) = SharedPaths::new() {
             let themes_dir = shared.preview_themes_dir();
             let github_theme = shared.preview_theme("github");
-            
+
             println!("Preview themes dir: {}", themes_dir.display());
             println!("GitHub theme: {}", github_theme.display());
-            
+
             let themes = shared.list_preview_themes();
             println!("Available themes: {:?}", themes);
         }

@@ -96,7 +96,7 @@ impl PreviewWindow {
         // NOTE: Do NOT set transient-for - this prevents minimize/maximize from working
         // Transient windows are treated as dialogs by window managers and typically can't be minimized
         // window.set_transient_for(Some(parent_window));  // REMOVED
-        
+
         // Still destroy with parent to ensure cleanup
         window.set_destroy_with_parent(true);
         window.set_hide_on_close(true); // Hide instead of destroy
@@ -137,7 +137,7 @@ impl PreviewWindow {
         window.connect_close_request(move |_| {
             *is_visible_clone.borrow_mut() = false;
             log::info!("Preview window closed by user");
-            
+
             // Call the on_close callback if it exists and hasn't been called yet
             if !callback_invoked_clone.get() {
                 callback_invoked_clone.set(true);
@@ -148,7 +148,7 @@ impl PreviewWindow {
             } else {
                 log::debug!("Callback already invoked, skipping");
             }
-            
+
             gtk4::glib::Propagation::Proceed
         });
 
@@ -171,7 +171,7 @@ impl PreviewWindow {
 
         // Create WindowHandle wrapper for proper window dragging
         let handle = WindowHandle::new();
-        
+
         // Use GTK4 HeaderBar for proper title centering
         let headerbar = gtk4::HeaderBar::new();
         headerbar.add_css_class("titlebar");
@@ -195,8 +195,8 @@ impl PreviewWindow {
             btn.set_valign(Align::Center);
             btn.set_margin_start(1);
             btn.set_margin_end(1);
-            btn.set_focusable(true);  // Changed from false to true
-            btn.set_can_focus(true);  // Changed from false to true
+            btn.set_focusable(true); // Changed from false to true
+            btn.set_can_focus(true); // Changed from false to true
             btn.set_has_frame(false);
             btn.add_css_class("topright-btn");
             btn.add_css_class("window-control-btn");
@@ -215,10 +215,16 @@ impl PreviewWindow {
         let btn_min = icon_button("\u{34}", "Minimize");
         let btn_close = icon_button("\u{39}", "Close");
 
-        log::debug!("Created minimize button, visible: {}, sensitive: {}", 
-            btn_min.is_visible(), btn_min.is_sensitive());
-        log::debug!("Created close button, visible: {}, sensitive: {}", 
-            btn_close.is_visible(), btn_close.is_sensitive());
+        log::debug!(
+            "Created minimize button, visible: {}, sensitive: {}",
+            btn_min.is_visible(),
+            btn_min.is_sensitive()
+        );
+        log::debug!(
+            "Created close button, visible: {}, sensitive: {}",
+            btn_close.is_visible(),
+            btn_close.is_sensitive()
+        );
 
         // Create a single toggle button for maximize/restore
         let max_label = Label::new(None);
@@ -245,13 +251,16 @@ impl PreviewWindow {
         btn_max_toggle.add_css_class("topright-btn");
         btn_max_toggle.add_css_class("window-control-btn");
 
-        log::debug!("Created maximize toggle button, visible: {}, sensitive: {}", 
-            btn_max_toggle.is_visible(), btn_max_toggle.is_sensitive());
+        log::debug!(
+            "Created maximize toggle button, visible: {}, sensitive: {}",
+            btn_max_toggle.is_visible(),
+            btn_max_toggle.is_sensitive()
+        );
 
         // Add controls to headerbar from right to left (pack_end order)
-        headerbar.pack_end(&btn_close);        // Rightmost
-        headerbar.pack_end(&btn_max_toggle);   // Middle
-        headerbar.pack_end(&btn_min);          // Left of window controls
+        headerbar.pack_end(&btn_close); // Rightmost
+        headerbar.pack_end(&btn_max_toggle); // Middle
+        headerbar.pack_end(&btn_min); // Left of window controls
 
         // Minimize action
         let win_clone = window.clone();
@@ -300,7 +309,7 @@ impl PreviewWindow {
 
         // Set the headerbar in the WindowHandle for dragging
         handle.set_child(Some(&headerbar));
-        
+
         // Set the WindowHandle as the titlebar
         window.set_titlebar(Some(&handle));
     }
@@ -380,14 +389,14 @@ impl PreviewWindow {
         // ScrolledWindow wraps children in a Viewport, so we need to check for that
         if let Some(child) = self.container.child() {
             log::debug!("Container child type: {:?}", child.type_());
-            
+
             // Try direct WebView (unlikely with ScrolledWindow)
             if let Ok(webview) = child.clone().downcast::<WebView>() {
                 self.container.set_child(gtk4::Widget::NONE);
                 log::info!("WebView detached directly from preview window");
                 return Some(webview);
             }
-            
+
             // Check if child is a Viewport containing the WebView
             if let Ok(viewport) = child.downcast::<gtk4::Viewport>() {
                 if let Some(viewport_child) = viewport.child() {
@@ -401,7 +410,7 @@ impl PreviewWindow {
                 }
             }
         }
-        
+
         log::warn!("No WebView found to detach from preview window");
         None
     }
@@ -422,14 +431,14 @@ impl PreviewWindow {
     ///
     /// Hides the window (does not destroy it due to hide_on_close property).
     /// The window can be shown again later without recreating it.
-    /// 
+    ///
     /// **Important**: This method also triggers the on_close_callback if set,
     /// to ensure proper cleanup and reparenting happens.
     pub fn hide(&self) {
         self.window.set_visible(false);
         *self.is_visible.borrow_mut() = false;
         log::info!("Preview window hidden via hide() method");
-        
+
         // Manually trigger the on_close callback (since set_visible doesn't fire close_request)
         // But only if it hasn't been called yet (prevents double-call)
         if !self.callback_invoked.get() {
@@ -480,10 +489,10 @@ mod tests {
     fn smoke_test_preview_window_struct() {
         // Test that the struct can be created (without GTK initialization)
         // This verifies the struct layout and field types
-        
+
         // Note: We can't actually create a PreviewWindow without GTK event loop,
         // but we can verify the type definitions compile correctly
-        
+
         // Verify the struct has the expected public API
         fn _assert_has_methods(_: &PreviewWindow) {
             // These calls won't execute, but they verify the methods exist
@@ -495,12 +504,12 @@ mod tests {
     fn smoke_test_visibility_tracking() {
         // Test visibility flag behavior without GTK
         let is_visible = Rc::new(RefCell::new(false));
-        
+
         assert!(!*is_visible.borrow());
-        
+
         *is_visible.borrow_mut() = true;
         assert!(*is_visible.borrow());
-        
+
         *is_visible.borrow_mut() = false;
         assert!(!*is_visible.borrow());
     }

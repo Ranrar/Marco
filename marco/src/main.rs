@@ -14,18 +14,18 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::editor_ui::{create_editor_with_preview_and_buffer};
+use crate::components::editor::editor_ui::create_editor_with_preview_and_buffer;
 use crate::components::editor::footer_updates::wire_footer_updates;
 use crate::components::viewer::viewmode::ViewMode;
+use crate::logic::menu_items::file::FileOperations;
 use crate::theme::ThemeManager;
-use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
+use crate::ui::menu_items::files::FileDialogs;
+use core::logic::{DocumentBuffer, RecentFiles};
 use core::paths::MarcoPaths;
+use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
+use log::trace;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::logic::menu_items::file::FileOperations;
-use core::logic::{DocumentBuffer, RecentFiles};
-use crate::ui::menu_items::files::FileDialogs;
-use log::trace;
 
 const APP_ID: &str = "io.github.ranrar.Marco";
 
@@ -65,13 +65,15 @@ fn main() -> glib::ExitCode {
             std::process::exit(1);
         }
     };
-    
+
     // Set local font dir for Fontconfig/Pango
     // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
     // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
     let asset_root_for_fonts = marco_paths.asset_root();
     core::logic::loaders::icon_loader::set_local_font_dir(
-        asset_root_for_fonts.to_str().expect("Invalid asset root path")
+        asset_root_for_fonts
+            .to_str()
+            .expect("Invalid asset root path"),
     );
 
     // Verify critical paths exist (optional, for debugging)
@@ -79,7 +81,7 @@ fn main() -> glib::ExitCode {
     if !ui_menu_font.exists() {
         eprintln!("Warning: UI menu font not found at {:?}", ui_menu_font);
     }
-    
+
     let settings_path = marco_paths.settings_file();
     if !settings_path.exists() {
         eprintln!("Warning: Settings file not found at {:?}", settings_path);
@@ -89,6 +91,35 @@ fn main() -> glib::ExitCode {
         .application_id(APP_ID)
         .flags(gtk4::gio::ApplicationFlags::HANDLES_OPEN)
         .build();
+
+    // Ensure we shut down cleanly on SIGINT/SIGTERM so buffered log writes are flushed.
+    // This is especially important now that the file logger uses a `BufWriter`.
+    #[cfg(unix)]
+    {
+        use glib::source::unix_signal_add_local;
+        use glib::ControlFlow;
+        use gtk4::gio::prelude::ApplicationExt;
+
+        // POSIX signal numbers (stable across Unix platforms).
+        const SIGINT: i32 = 2;
+        const SIGTERM: i32 = 15;
+
+        let app_for_sigint = app.clone();
+        unix_signal_add_local(SIGINT, move || {
+            log::warn!("Received SIGINT, requesting graceful shutdown...");
+            core::logic::logger::shutdown_file_logger();
+            app_for_sigint.quit();
+            ControlFlow::Break
+        });
+
+        let app_for_sigterm = app.clone();
+        unix_signal_add_local(SIGTERM, move || {
+            log::warn!("Received SIGTERM, requesting graceful shutdown...");
+            core::logic::logger::shutdown_file_logger();
+            app_for_sigterm.quit();
+            ControlFlow::Break
+        });
+    }
 
     // Clone marco_paths for closures
     let marco_paths_for_open = std::rc::Rc::new(marco_paths);
@@ -112,12 +143,12 @@ fn main() -> glib::ExitCode {
     trace!("audit: app starting");
     let exit_code = app.run();
     trace!("audit: app exiting with code {:?}", exit_code);
-    
+
     // Clean up global resources before shutting down logger
     crate::components::editor::editor_manager::shutdown_editor_manager();
     core::shutdown_global_parser_cache();
     core::logic::cache::shutdown_global_cache();
-    
+
     // Ensure file logger is flushed and closed on normal exit
     core::logic::logger::shutdown_file_logger();
     exit_code
@@ -125,12 +156,12 @@ fn main() -> glib::ExitCode {
 
 fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<MarcoPaths>) {
     // Import path functions and settings manager
-    use core::paths::PathProvider;
     use core::logic::swanson::SettingsManager;
-    
+    use core::paths::PathProvider;
+
     // Load CSS using the new modular system
     crate::ui::css::load_css();
-    
+
     // Create the main window
     let window = ApplicationWindow::builder()
         .application(app)
@@ -139,7 +170,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .default_height(800)
         .build();
     window.add_css_class("main-window");
-    
+
     // Set window icon (GTK will look for icon named "marco" in the system icon theme)
     window.set_icon_name(Some("marco"));
 
@@ -158,7 +189,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         Err(e) => {
             eprintln!("Failed to initialize settings manager: {}", e);
             eprintln!("Using default settings and continuing...");
-            // Create a fallback settings manager with default settings  
+            // Create a fallback settings manager with default settings
             match SettingsManager::initialize(settings_path.clone()) {
                 Ok(manager) => manager,
                 Err(_) => {
@@ -177,19 +208,45 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let rust_log_set = std::env::var("RUST_LOG").is_ok();
         let enabled = app_settings.log_to_file.unwrap_or(false) || rust_log_set;
 
-        // Use Trace level to capture ALL log messages in the codebase
-        let level = log::LevelFilter::Trace;
+        // Choose a sane default to avoid huge log files and UI stalls.
+        // Trace should be opt-in.
+        let level = match std::env::var("RUST_LOG") {
+            Ok(v) => {
+                let v = v.to_ascii_lowercase();
+                if v.contains("trace") {
+                    log::LevelFilter::Trace
+                } else if v.contains("debug") {
+                    log::LevelFilter::Debug
+                } else if v.contains("info") {
+                    log::LevelFilter::Info
+                } else if v.contains("warn") {
+                    log::LevelFilter::Warn
+                } else if v.contains("error") {
+                    log::LevelFilter::Error
+                } else {
+                    log::LevelFilter::Info
+                }
+            }
+            Err(_) => log::LevelFilter::Info,
+        };
 
         if let Err(e) = core::logic::logger::init_file_logger(enabled, level) {
             eprintln!("Failed to initialize file logger: {}", e);
         } else if enabled {
-            log::info!("Logger initialized with level: {:?}, RUST_LOG set: {}", level, rust_log_set);
+            log::info!(
+                "Logger initialized with level: {:?}, RUST_LOG set: {}",
+                level,
+                rust_log_set
+            );
             log::debug!("Debug logging is working");
             log::trace!("Trace logging is working");
         }
 
         if rust_log_set || enabled {
-            println!("Logging enabled (level: {:?}), check log files in ./log/ directory", level);
+            println!(
+                "Logging enabled (level: {:?}), check log files in ./log/ directory",
+                level
+            );
         }
     }
 
@@ -199,9 +256,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     }
 
     // Initialize the global editor manager with settings manager
-    if let Err(e) = crate::components::editor::editor_manager::init_editor_manager(
-        settings_manager.clone(),
-    ) {
+    if let Err(e) =
+        crate::components::editor::editor_manager::init_editor_manager(settings_manager.clone())
+    {
         log::warn!("Failed to initialize editor manager: {}", e);
     }
 
@@ -214,7 +271,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         editor_theme_dir,
     )));
     // Pass settings struct to modules as needed
-    
+
     // Add theme-specific CSS class based on current mode (for runtime GTK UI switching)
     let current_theme_mode = {
         let settings = settings_manager.get_settings();
@@ -224,7 +281,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             .and_then(|a| a.editor_mode.as_ref())
             .map(|m| m.as_str())
             .unwrap_or("light");
-        if editor_mode.contains("dark") { "dark" } else { "light" }
+        if editor_mode.contains("dark") {
+            "dark"
+        } else {
+            "light"
+        }
     };
     window.add_css_class(&format!("marco-theme-{}", current_theme_mode));
     log::debug!("Applied theme class: marco-theme-{}", current_theme_mode);
@@ -306,12 +367,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         footer_labels_rc.clone(),
         insert_mode_state.clone(),
     );
-    split_overlay.add_css_class("split-view");  // Apply CSS to overlay
+    split_overlay.add_css_class("split-view"); // Apply CSS to overlay
 
     // --- WebView Reparenting State for EditorAndViewSeparate Mode ---
     use crate::components::viewer::controller::WebViewLocationTracker;
     use crate::components::viewer::previewwindow::PreviewWindow;
-    
+
     let webview_location_tracker = WebViewLocationTracker::new();
     let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
     let reparent_guard = crate::components::viewer::switcher::ReparentGuard::new();
@@ -319,16 +380,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode");
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
-    let (titlebar_handle, title_label, recent_menu) = menu::create_custom_titlebar(menu::TitlebarConfig {
-        window: &window,
-        webview_rc: Some(editor_webview.clone()),
-        split: Some(split.clone()),
-        preview_window_opt: Some(preview_window_opt.clone()),
-        webview_location_tracker: Some(webview_location_tracker.clone()),
-        reparent_guard: Some(reparent_guard.clone()),
-        split_controller: Some(split_controller.clone()),
-        asset_root: &asset_root,
-    });
+    let (titlebar_handle, title_label, recent_menu) =
+        menu::create_custom_titlebar(menu::TitlebarConfig {
+            window: &window,
+            webview_rc: Some(editor_webview.clone()),
+            split: Some(split.clone()),
+            preview_window_opt: Some(preview_window_opt.clone()),
+            webview_location_tracker: Some(webview_location_tracker.clone()),
+            reparent_guard: Some(reparent_guard.clone()),
+            split_controller: Some(split_controller.clone()),
+            asset_root: &asset_root,
+        });
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- Settings Thread Pool for Proper Resource Management ---
@@ -355,45 +417,53 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let settings_manager_clone = settings_manager.clone();
         let split_for_init = split.clone();
         let applied = Rc::new(RefCell::new(false));
-        
+
         split_for_init.connect_map(move |paned| {
             let paned_clone = paned.clone();
             let settings_manager = settings_manager_clone.clone();
             let applied_clone = applied.clone();
             let attempt_counter = Rc::new(RefCell::new(0));
-            
+
             // Retry with timeout until widget has allocated width
             glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
                 if *applied_clone.borrow() {
                     return glib::ControlFlow::Break;
                 }
-                
+
                 let paned_width = paned_clone.allocated_width();
-                
+
                 if paned_width > 0 {
                     // Successfully got width, apply saved ratio
                     *applied_clone.borrow_mut() = true;
-                    
+
                     let settings = settings_manager.get_settings();
                     if let Some(window_settings) = settings.window {
                         let split_ratio = window_settings.get_split_ratio();
                         let position = (paned_width as f64 * split_ratio as f64 / 100.0) as i32;
-                        
-                        log::info!("[SPLIT INIT] Applying saved ratio: {}% -> {}px (width: {}px)", split_ratio, position, paned_width);
+
+                        log::info!(
+                            "[SPLIT INIT] Applying saved ratio: {}% -> {}px (width: {}px)",
+                            split_ratio,
+                            position,
+                            paned_width
+                        );
                         paned_clone.set_position(position);
                     }
                     return glib::ControlFlow::Break;
                 }
-                
+
                 let mut attempt = attempt_counter.borrow_mut();
                 *attempt += 1;
                 if *attempt >= 20 {
                     // Give up after 1 second (20 * 50ms)
-                    log::warn!("[SPLIT INIT] Failed to get paned width after {} attempts, giving up", *attempt);
+                    log::warn!(
+                        "[SPLIT INIT] Failed to get paned width after {} attempts, giving up",
+                        *attempt
+                    );
                     *applied_clone.borrow_mut() = true;
                     return glib::ControlFlow::Break;
                 }
-                
+
                 glib::ControlFlow::Continue
             });
         });
@@ -407,39 +477,38 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let settings_tx_clone = settings_tx.clone();
         let last_position = Rc::new(RefCell::new(-1i32));
         let save_timeout: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
-        
+
         split_for_save.connect_notify_local(Some("position"), move |paned, _| {
             let paned_width = paned.allocated_width();
             if paned_width <= 0 {
                 return;
             }
-            
+
             let position = paned.position();
-            
+
             // Check if position actually changed
             if *last_position.borrow() == position {
                 return;
             }
             *last_position.borrow_mut() = position;
-            
+
             // Cancel any pending save
             if let Some(id) = save_timeout.borrow_mut().take() {
                 id.remove();
             }
-            
+
             // Schedule save after 200ms of no changes (drag completed)
             let settings_manager = settings_manager_clone.clone();
             let settings_tx = settings_tx_clone.clone();
             let save_timeout_clone = save_timeout.clone();
-            
-            let timeout_id = glib::timeout_add_local_once(
-                std::time::Duration::from_millis(200),
-                move || {
+
+            let timeout_id =
+                glib::timeout_add_local_once(std::time::Duration::from_millis(200), move || {
                     *save_timeout_clone.borrow_mut() = None;
-                    
+
                     let ratio = ((position as f64 / paned_width as f64) * 100.0).round() as i32;
                     let ratio = ratio.clamp(10, 90);
-                    
+
                     let task = Box::new(move || {
                         if let Err(e) = settings_manager.update_settings(|s| {
                             let _ = s.update_window_settings(|ws| {
@@ -448,16 +517,20 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         }) {
                             log::error!("Failed to save split ratio: {}", e);
                         } else {
-                            log::info!("[SPLIT SAVE] Drag complete: {}% ({}px / {}px)", ratio, position, paned_width);
+                            log::info!(
+                                "[SPLIT SAVE] Drag complete: {}% ({}px / {}px)",
+                                ratio,
+                                position,
+                                paned_width
+                            );
                         }
                     });
-                    
+
                     if let Err(e) = settings_tx.send(task) {
                         log::error!("Failed to queue split ratio save task: {}", e);
                     }
-                }
-            );
-            
+                });
+
             *save_timeout.borrow_mut() = Some(timeout_id);
         });
     }
@@ -482,13 +555,10 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let buffer_weak = editor_buffer.downgrade();
         let labels_weak = Rc::downgrade(&footer_labels_rc);
         let test_counter = std::rc::Rc::new(std::cell::Cell::new(0));
-        
+
         std::rc::Rc::new(move || {
             // Check if components are still valid before using
-            if let (Some(_buffer), Some(labels)) = (
-                buffer_weak.upgrade(),
-                labels_weak.upgrade(),
-            ) {
+            if let (Some(_buffer), Some(labels)) = (buffer_weak.upgrade(), labels_weak.upgrade()) {
                 // Manual footer trigger invoked; terminal output suppressed.
 
                 // Increment test counter for obvious visual changes
@@ -510,11 +580,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     // Add components to main layout (menu bar is now in titlebar)
     main_box.append(&toolbar);
-    main_box.append(&split_overlay);  // Use overlay instead of split
+    main_box.append(&split_overlay); // Use overlay instead of split
     main_box.append(&footer);
 
     // Set editor area to expand
-    split_overlay.set_vexpand(true);  // Use overlay instead of split
+    split_overlay.set_vexpand(true); // Use overlay instead of split
 
     // Ensure footer is visible and properly positioned
     footer.set_vexpand(false); // Footer should not expand vertically
@@ -583,17 +653,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 Box::new(move |scheme_id: String| {
                     update_editor(&scheme_id);
                     update_preview(&scheme_id);
-                    
+
                     // Toggle window CSS class for runtime GTK UI theme switching
                     // This cascades to all descendants (toolbar, footer, menu, etc.)
                     let new_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
                     let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
                     let new_class = format!("marco-theme-{}", new_mode);
-                    
+
                     // Update window - this automatically affects all child widgets via CSS cascade
                     window_for_theme.remove_css_class(old_class);
                     window_for_theme.add_css_class(&new_class);
-                    
+
                     log::debug!("Switched CSS class from {} to {} (window and all descendants)", old_class, new_class);
                 }) as Box<dyn Fn(String) + 'static>
             };
@@ -657,7 +727,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     move |selected: String| {
                         // Persist the selection asynchronously (always works)
                         save(&selected);
-                        
+
                         // Check if view mode setter is still valid before using
                         if let Some(set_view_mode_rc) = set_view_mode_weak.upgrade() {
                             match selected.as_str() {
@@ -765,7 +835,13 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
             use crate::ui::dialogs::search::show_search_window;
-            show_search_window(window.upcast_ref(), cache.clone(), Rc::clone(&buffer), Rc::clone(&source_view), webview.clone());
+            show_search_window(
+                window.upcast_ref(),
+                cache.clone(),
+                Rc::clone(&buffer),
+                Rc::clone(&source_view),
+                webview.clone(),
+            );
         }
     });
     app.add_action(&search_action);
@@ -947,7 +1023,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     log::debug!("Settings thread cleaned up successfully");
                 }
             }
-            
+
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
             core::shutdown_global_parser_cache();

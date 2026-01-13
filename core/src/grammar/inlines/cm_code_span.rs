@@ -4,14 +4,10 @@
 //! The opening and closing delimiter must have the same number of backticks.
 //! Content between the delimiters is treated as literal text.
 
-use nom::{
-    IResult,
-    character::complete::char,
-    multi::many1_count,
-    combinator::recognize,
-};
-use nom_locate::LocatedSpan;
 use super::Span;
+use nom::{
+    character::complete::char, combinator::recognize, multi::many1_count, IResult, Input, Parser,
+};
 
 /// Parse a code span (inline code).
 ///
@@ -30,16 +26,16 @@ use super::Span;
 /// ```
 pub fn code_span(input: Span) -> IResult<Span, Span> {
     log::debug!("Parsing code span at: {:?}", input.fragment());
-    
+
     // Count opening backticks
-    let (input, opening) = recognize(many1_count(char('`')))(input)?;
+    let (input, opening) = recognize(many1_count(char('`'))).parse(input)?;
     let backtick_count = opening.fragment().len();
     log::debug!("Found {} opening backticks", backtick_count);
-    
+
     // Find the closing backticks by searching through the string
     let content_str = input.fragment();
     let mut pos = 0;
-    
+
     while pos < content_str.len() {
         if content_str.as_bytes()[pos] == b'`' {
             // Count consecutive backticks at this position
@@ -49,30 +45,34 @@ pub fn code_span(input: Span) -> IResult<Span, Span> {
                 tick_count += 1;
                 check_pos += 1;
             }
-            
+
             // If we found exactly the right number, this is our closing delimiter
             if tick_count == backtick_count {
-                let content = LocatedSpan::new(&content_str[..pos]);
-                let remaining = LocatedSpan::new(&content_str[check_pos..]);
+                // Preserve position - content starts after opening backticks.
+                let content = input.take(pos);
+                let remaining = input.take_from(check_pos);
                 log::debug!("Code span content: {:?}", content.fragment());
                 return Ok((remaining, content));
             }
-            
+
             // Skip past these backticks
             pos = check_pos;
         } else {
             pos += 1;
         }
     }
-    
+
     // Didn't find matching closing backticks
-    Err(nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil)))
+    Err(nom::Err::Error(nom::error::Error::new(
+        input,
+        nom::error::ErrorKind::TakeUntil,
+    )))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn smoke_test_code_span_basic() {
         let input = Span::new("`code` text");
@@ -82,7 +82,7 @@ mod tests {
         assert_eq!(*content.fragment(), "code");
         assert_eq!(*_rest.fragment(), " text");
     }
-    
+
     #[test]
     fn smoke_test_code_span_double_backticks() {
         let input = Span::new("``code with ` backtick`` text");
@@ -91,7 +91,7 @@ mod tests {
         let (_rest, content) = result.unwrap();
         assert_eq!(*content.fragment(), "code with ` backtick");
     }
-    
+
     #[test]
     fn smoke_test_code_span_triple_backticks() {
         let input = Span::new("```code```");
@@ -100,30 +100,30 @@ mod tests {
         let (_, content) = result.unwrap();
         assert_eq!(*content.fragment(), "code");
     }
-    
+
     #[test]
     fn smoke_test_code_span_no_closing() {
         let input = Span::new("`code without closing");
         let result = code_span(input);
         assert!(result.is_err());
     }
-    
+
     #[test]
     fn smoke_test_code_span_mismatched_backticks() {
         let input = Span::new("`code`` text");
         let result = code_span(input);
-        assert!(result.is_err());  // 1 opening, 2 closing
+        assert!(result.is_err()); // 1 opening, 2 closing
     }
-    
+
     #[test]
     fn smoke_test_code_span_empty() {
-        let input = Span::new("` ` text");  // Space between backticks
+        let input = Span::new("` ` text"); // Space between backticks
         let result = code_span(input);
         assert!(result.is_ok());
         let (_, content) = result.unwrap();
         assert_eq!(*content.fragment(), " ");
     }
-    
+
     #[test]
     fn smoke_test_code_span_with_spaces() {
         let input = Span::new("`  code  ` text");

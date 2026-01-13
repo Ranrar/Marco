@@ -31,12 +31,12 @@
 //! move_webview_to_main_window(&webview, &paned, &preview_window, true)?;
 //! ```
 
+use crate::components::viewer::previewwindow::PreviewWindow;
 use gtk4::prelude::*;
 use gtk4::{Paned, Stack};
-use crate::components::viewer::previewwindow::PreviewWindow;
-use webkit6::WebView;
 use std::cell::Cell;
 use std::rc::Rc;
+use webkit6::WebView;
 
 /// Guard to prevent concurrent reparenting operations
 ///
@@ -154,7 +154,10 @@ pub fn move_webview_to_preview_window(
 
     // Check WebView's current parent
     let webview_parent = webview.parent();
-    log::debug!("WebView current parent: {:?}", webview_parent.as_ref().map(|p| p.type_()));
+    log::debug!(
+        "WebView current parent: {:?}",
+        webview_parent.as_ref().map(|p| p.type_())
+    );
 
     // The WebView is in a Stack (html_preview/code_preview)
     // The Stack is the end child of the Paned
@@ -162,7 +165,9 @@ pub fn move_webview_to_preview_window(
         if let Some(stack) = stack_widget.downcast_ref::<Stack>() {
             // Verify WebView is actually a child of this Stack
             if webview.parent().as_ref() != Some(&stack_widget) {
-                log::warn!("WebView parent is not the Stack, checking if it's already in preview window");
+                log::warn!(
+                    "WebView parent is not the Stack, checking if it's already in preview window"
+                );
                 // It might already be in the preview window
                 if preview_window.container().child().is_some() {
                     log::info!("WebView is already in preview window");
@@ -170,14 +175,14 @@ pub fn move_webview_to_preview_window(
                 }
                 return Err("WebView is not in the expected Stack".to_string());
             }
-            
+
             // Save the original state in case we need to rollback
             let original_parent = stack.clone();
-            
+
             // Remove WebView from Stack
             stack.remove(webview);
             log::debug!("Removed WebView from Stack (preserving Stack in Paned)");
-            
+
             // Attach to PreviewWindow - if this fails, try to restore
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 preview_window.attach_webview(webview);
@@ -187,7 +192,10 @@ pub fn move_webview_to_preview_window(
                     Ok(())
                 }
                 Err(e) => {
-                    log::error!("Failed to attach WebView to preview window, attempting rollback: {:?}", e);
+                    log::error!(
+                        "Failed to attach WebView to preview window, attempting rollback: {:?}",
+                        e
+                    );
                     // Try to restore WebView back to Stack
                     original_parent.add_titled(webview, Some("html_preview"), "HTML");
                     Err("Failed to attach WebView to preview window (state restored)".to_string())
@@ -244,13 +252,18 @@ pub fn move_webview_to_main_window(
 
     // Check if WebView is actually in the preview window
     let webview_parent = webview.parent();
-    log::debug!("WebView current parent: {:?}", webview_parent.as_ref().map(|p| p.type_()));
+    log::debug!(
+        "WebView current parent: {:?}",
+        webview_parent.as_ref().map(|p| p.type_())
+    );
 
     // Detach from PreviewWindow (this removes it from the ScrolledWindow and returns ownership)
     let detached_webview = preview_window.detach_webview();
-    
+
     if detached_webview.is_none() {
-        log::warn!("No WebView was detached from preview window - it may already be in main window");
+        log::warn!(
+            "No WebView was detached from preview window - it may already be in main window"
+        );
         // Check if it's already in the Stack
         if let Some(stack_widget) = paned.end_child() {
             if let Some(stack) = stack_widget.downcast_ref::<Stack>() {
@@ -271,13 +284,13 @@ pub fn move_webview_to_main_window(
         if let Some(stack) = stack_widget.downcast_ref::<Stack>() {
             // Save state in case we need to rollback
             let existing_child = stack.child_by_name("html_preview");
-            
+
             // Remove existing child if present
             if let Some(ref child) = existing_child {
                 log::warn!("Stack already has child named 'html_preview', removing it first");
                 stack.remove(child);
             }
-            
+
             // Try to re-add WebView to Stack with error recovery
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 stack.add_named(webview, Some("html_preview"));
@@ -288,10 +301,16 @@ pub fn move_webview_to_main_window(
                     Ok(())
                 }
                 Err(e) => {
-                    log::error!("Failed to add WebView to Stack, attempting rollback: {:?}", e);
+                    log::error!(
+                        "Failed to add WebView to Stack, attempting rollback: {:?}",
+                        e
+                    );
                     // Try to restore the preview window state
                     preview_window.attach_webview(webview);
-                    Err("Failed to add WebView to main window Stack (restored to preview)".to_string())
+                    Err(
+                        "Failed to add WebView to main window Stack (restored to preview)"
+                            .to_string(),
+                    )
                 }
             }
         } else {
@@ -316,17 +335,17 @@ mod tests {
     #[test]
     fn smoke_test_reparent_guard_basic() {
         let guard = ReparentGuard::new();
-        
+
         assert!(!guard.is_in_progress());
         assert!(guard.try_begin());
         assert!(guard.is_in_progress());
-        
+
         // Second try should fail
         assert!(!guard.try_begin());
-        
+
         guard.end();
         assert!(!guard.is_in_progress());
-        
+
         // Should be able to begin again
         assert!(guard.try_begin());
     }
@@ -335,13 +354,13 @@ mod tests {
     fn smoke_test_reparent_guard_clone() {
         let guard1 = ReparentGuard::new();
         let guard2 = guard1.clone();
-        
+
         assert!(guard1.try_begin());
         assert!(!guard2.try_begin()); // Should share state
-        
+
         assert!(guard1.is_in_progress());
         assert!(guard2.is_in_progress());
-        
+
         guard1.end();
         assert!(!guard2.is_in_progress());
     }

@@ -13,7 +13,7 @@ pub fn build_debug_tab(settings_path: &str) -> GtkBox {
 
     // Use SettingsManager to load current setting (default to false)
     let settings_manager = match core::logic::swanson::SettingsManager::initialize(
-        std::path::PathBuf::from(settings_path)
+        std::path::PathBuf::from(settings_path),
     ) {
         Ok(sm) => sm,
         Err(_) => {

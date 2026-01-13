@@ -25,70 +25,100 @@ use super::constants::*;
 /// Generate complete menu/titlebar CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(8192);
-    
+
     // Base icon font styling (theme-independent)
     css.push_str(&generate_base_styles());
-    
+
     // Layout state icons (light theme)
-    css.push_str(&generate_layout_state_css("marco-theme-light", &LIGHT_PALETTE));
-    
+    css.push_str(&generate_layout_state_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
     // Layout state icons (dark theme)
-    css.push_str(&generate_layout_state_css("marco-theme-dark", &DARK_PALETTE));
-    
+    css.push_str(&generate_layout_state_css(
+        "marco-theme-dark",
+        &DARK_PALETTE,
+    ));
+
     // Layout buttons (theme-independent)
     css.push_str(&generate_layout_button_css());
-    
+
     // Menubar/Titlebar container (light theme)
     css.push_str(&generate_menubar_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Menubar/Titlebar container (dark theme)
     css.push_str(&generate_menubar_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     // PopoverMenuBar and popover styling (light theme)
-    css.push_str(&generate_popover_menu_css("marco-theme-light", &LIGHT_PALETTE));
-    
+    css.push_str(&generate_popover_menu_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
     // PopoverMenuBar and popover styling (dark theme)
-    css.push_str(&generate_popover_menu_css("marco-theme-dark", &DARK_PALETTE));
-    
+    css.push_str(&generate_popover_menu_css(
+        "marco-theme-dark",
+        &DARK_PALETTE,
+    ));
+
     // Universal popover styling for SourceView5/WebKit6 context menus (light theme)
-    css.push_str(&generate_universal_popover_css("marco-theme-light", &LIGHT_PALETTE));
-    
+    css.push_str(&generate_universal_popover_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
     // Universal popover styling for SourceView5/WebKit6 context menus (dark theme)
-    css.push_str(&generate_universal_popover_css("marco-theme-dark", &DARK_PALETTE));
-    
+    css.push_str(&generate_universal_popover_css(
+        "marco-theme-dark",
+        &DARK_PALETTE,
+    ));
+
     // Menu buttons (light theme)
-    css.push_str(&generate_menu_button_css("marco-theme-light", &LIGHT_PALETTE));
-    
+    css.push_str(&generate_menu_button_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
     // Menu buttons (dark theme)
     css.push_str(&generate_menu_button_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     // Menu items (light theme)
     css.push_str(&generate_menuitem_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Menu items (dark theme)
     css.push_str(&generate_menuitem_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     // Menu items disabled state (theme-independent base + theme-specific colors)
     css.push_str(&generate_menuitem_disabled_css());
-    
+
     // Window control buttons (light theme)
-    css.push_str(&generate_window_controls_css("marco-theme-light", &LIGHT_PALETTE));
-    
+    css.push_str(&generate_window_controls_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
     // Window control buttons (dark theme)
-    css.push_str(&generate_window_controls_css("marco-theme-dark", &DARK_PALETTE));
-    
+    css.push_str(&generate_window_controls_css(
+        "marco-theme-dark",
+        &DARK_PALETTE,
+    ));
+
     // Window control button base styles (theme-independent)
     css.push_str(&generate_window_control_base_css());
-    
+
     // Top right button spacing
     css.push_str(&generate_topright_btn_css());
-    
+
     // Title label (light theme)
-    css.push_str(&generate_title_label_css("marco-theme-light", &LIGHT_PALETTE));
-    
+    css.push_str(&generate_title_label_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
     // Title label (dark theme)
     css.push_str(&generate_title_label_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     css
 }
 
@@ -331,10 +361,18 @@ fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> Strin
         color = palette.titlebar_foreground,
         color_hover = palette.menu_hover,
         color_active = palette.menu_active,
-        popover_bg = if theme_class.contains("light") { "#ffffff" } else { "#2d2d2d" },
+        popover_bg = if theme_class.contains("light") {
+            "#ffffff"
+        } else {
+            "#2d2d2d"
+        },
         border = palette.titlebar_border,
         disabled = palette.menu_disabled,
-        item_hover_bg = if theme_class.contains("light") { "#e8e8e8" } else { "#3d3d3d" },
+        item_hover_bg = if theme_class.contains("light") {
+            "#e8e8e8"
+        } else {
+            "#3d3d3d"
+        },
         shadow = if theme_class.contains("light") {
             "0 2px 6px rgba(0, 0, 0, 0.15)"
         } else {
@@ -448,10 +486,18 @@ fn generate_universal_popover_css(theme_class: &str, palette: &ColorPalette) -> 
 "#,
         theme = theme_class,
         color = palette.titlebar_foreground,
-        popover_bg = if theme_class.contains("light") { "#ffffff" } else { "#2d2d2d" },
+        popover_bg = if theme_class.contains("light") {
+            "#ffffff"
+        } else {
+            "#2d2d2d"
+        },
         border = palette.titlebar_border,
         disabled = palette.menu_disabled,
-        item_hover_bg = if theme_class.contains("light") { "#e8e8e8" } else { "#3d3d3d" },
+        item_hover_bg = if theme_class.contains("light") {
+            "#e8e8e8"
+        } else {
+            "#3d3d3d"
+        },
         shadow = if theme_class.contains("light") {
             "0 2px 6px rgba(0, 0, 0, 0.15)"
         } else {
@@ -651,13 +697,16 @@ mod tests {
     #[test]
     fn smoke_test_menu_css_generation() {
         let css = generate_css();
-        
+
         // Verify not empty
         assert!(!css.is_empty(), "Menu CSS should not be empty");
-        
+
         // Verify major components present
         assert!(css.contains(".icon-font"), "Should contain icon-font class");
-        assert!(css.contains(".layout-state"), "Should contain layout-state class");
+        assert!(
+            css.contains(".layout-state"),
+            "Should contain layout-state class"
+        );
         assert!(css.contains(".menubar"), "Should contain menubar class");
         assert!(css.contains(".titlebar"), "Should contain titlebar class");
         assert!(css.contains(".menuitem"), "Should contain menuitem class");
@@ -665,19 +714,25 @@ mod tests {
             css.contains(".window-control-btn"),
             "Should contain window-control-btn class"
         );
-        assert!(css.contains(".title-label"), "Should contain title-label class");
-        
+        assert!(
+            css.contains(".title-label"),
+            "Should contain title-label class"
+        );
+
         // Verify both themes present
         assert!(
             css.contains(".marco-theme-light"),
             "Should contain light theme"
         );
-        assert!(css.contains(".marco-theme-dark"), "Should contain dark theme");
-        
+        assert!(
+            css.contains(".marco-theme-dark"),
+            "Should contain dark theme"
+        );
+
         // Verify specific properties
         assert!(css.contains("icomoon"), "Should use icomoon font");
         assert!(css.contains("32px"), "Should have 32px titlebar height");
-        
+
         // Verify substantial output (at least 3KB)
         assert!(
             css.len() > 3000,

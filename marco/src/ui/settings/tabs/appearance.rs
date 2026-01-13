@@ -7,8 +7,8 @@ use std::rc::Rc;
 use super::helpers::add_setting_row;
 
 // Import your theme manager
-use core::logic::loaders::theme_loader::list_html_view_themes;
 use crate::logic::signal_manager::SignalManager;
+use core::logic::loaders::theme_loader::list_html_view_themes;
 
 pub fn build_appearance_tab(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
@@ -19,13 +19,13 @@ pub fn build_appearance_tab(
     on_editor_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) -> (gtk4::Box, Rc<RefCell<SignalManager>>) {
     use gtk4::{
-        Adjustment, Box as GtkBox, Button, DropDown, Orientation,
-        SpinButton, StringList, PropertyExpression, StringObject, Expression,
+        Adjustment, Box as GtkBox, Button, DropDown, Expression, Orientation, PropertyExpression,
+        SpinButton, StringList, StringObject,
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("marco-settings-tab");
-    
+
     // Create signal manager to track all signal handlers for proper cleanup
     let signal_manager = Rc::new(RefCell::new(SignalManager::new()));
 
@@ -37,16 +37,16 @@ pub fn build_appearance_tab(
 
     // === ROW 1: HTML Preview Theme ===
     // Extract theme labels for the dropdown
-    let theme_labels: Vec<&str> = html_themes.iter().map(|entry| entry.label.as_str()).collect();
+    let theme_labels: Vec<&str> = html_themes
+        .iter()
+        .map(|entry| entry.label.as_str())
+        .collect();
     let theme_string_list = StringList::new(&theme_labels);
-    let theme_expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<Expression>,
-        "string",
-    );
+    let theme_expression =
+        PropertyExpression::new(StringObject::static_type(), None::<Expression>, "string");
     let preview_theme_combo = DropDown::new(Some(theme_string_list), Some(theme_expression));
     preview_theme_combo.add_css_class("marco-dropdown");
-    
+
     // Set current theme
     let current_preview = theme_manager
         .borrow()
@@ -60,7 +60,7 @@ pub fn build_appearance_tab(
         .position(|t| t.filename == current_preview_str)
         .unwrap_or(0);
     preview_theme_combo.set_selected(preview_active_idx as u32);
-    
+
     // Connect signal
     {
         let theme_manager_clone = Rc::clone(&theme_manager);
@@ -69,7 +69,7 @@ pub fn build_appearance_tab(
         let on_preview_theme_changed_clone = Rc::clone(&on_preview_theme_changed);
         let user_selected_preview_theme_clone = Rc::clone(&user_selected_preview_theme);
         let signal_manager_clone = signal_manager.clone();
-        
+
         let handler_id = preview_theme_combo.connect_selected_notify(move |combo| {
             let idx = combo.selected() as usize;
             if let Some(theme_entry) = html_themes_clone.get(idx) {
@@ -85,19 +85,19 @@ pub fn build_appearance_tab(
                 (on_preview_theme_changed_clone)(theme_entry.filename.clone());
             }
         });
-        
+
         signal_manager_clone.borrow_mut().register_handler(
-            "appearance_tab", 
-            &preview_theme_combo.clone().upcast(), 
-            handler_id
+            "appearance_tab",
+            &preview_theme_combo.clone().upcast(),
+            handler_id,
         );
     }
-    
+
     let preview_theme_row = add_setting_row(
         "HTML Preview Theme",
         "Select a CSS theme for rendered Markdown preview.",
         &preview_theme_combo,
-        true,  // FIRST row - no top margin
+        true, // FIRST row - no top margin
     );
     container.append(&preview_theme_row);
 
@@ -108,23 +108,20 @@ pub fn build_appearance_tab(
         .as_ref()
         .and_then(|a| a.editor_mode.clone())
         .unwrap_or("marco-light".to_string());
-    
+
     let color_mode_options = ["light", "dark"];
     let color_mode_string_list = StringList::new(&color_mode_options);
-    let color_mode_expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<Expression>,
-        "string",
-    );
+    let color_mode_expression =
+        PropertyExpression::new(StringObject::static_type(), None::<Expression>, "string");
     let color_mode_combo = DropDown::new(Some(color_mode_string_list), Some(color_mode_expression));
     color_mode_combo.add_css_class("marco-dropdown");
-    
+
     let active_idx = match current_mode.as_str() {
         "marco-dark" | "dark" => 1,
         _ => 0,
     };
     color_mode_combo.set_selected(active_idx);
-    
+
     // Connect signal
     {
         let theme_manager_clone = theme_manager.clone();
@@ -132,36 +129,41 @@ pub fn build_appearance_tab(
         let refresh_preview_clone = Rc::clone(&refresh_preview);
         let on_editor_theme_changed_clone = on_editor_theme_changed.map(Rc::new);
         let signal_manager_clone = signal_manager.clone();
-        
+
         let handler_id = color_mode_combo.connect_selected_notify(move |combo| {
             let idx = combo.selected();
-            let scheme_id = if idx == 1 { "marco-dark" } else { "marco-light" };
+            let scheme_id = if idx == 1 {
+                "marco-dark"
+            } else {
+                "marco-light"
+            };
             log::info!("Switching editor scheme to: {}", scheme_id);
-            
+
             {
                 let mut theme_mgr = theme_manager_clone.borrow_mut();
                 theme_mgr.set_editor_scheme(scheme_id, &settings_path_clone);
             }
-            
+
             if let Some(ref callback) = on_editor_theme_changed_clone {
                 callback(scheme_id.to_string());
             }
-            
+
+            // Notify editor/theme changes; preview refresh will handle visuals.
             (refresh_preview_clone.borrow())();
         });
-        
+
         signal_manager_clone.borrow_mut().register_handler(
-            "appearance_tab", 
-            &color_mode_combo.clone().upcast(), 
-            handler_id
+            "appearance_tab",
+            &color_mode_combo.clone().upcast(),
+            handler_id,
         );
     }
-    
+
     let color_mode_row = add_setting_row(
         "Light/Dark Mode",
         "Choose between light or dark user interface.",
         &color_mode_combo,
-        false,  // Not first row
+        false, // Not first row
     );
     container.append(&color_mode_row);
 
@@ -172,27 +174,24 @@ pub fn build_appearance_tab(
         "Custom CSS for Preview",
         "Add your own custom CSS to override the preview style.",
         &custom_css_button,
-        false,  // Not first row
+        false, // Not first row
     );
     container.append(&custom_css_row);
 
     // === ROW 4: UI Font ===
     let ui_font_options = ["System Default", "Sans", "Serif", "Monospace"];
     let ui_font_string_list = StringList::new(&ui_font_options);
-    let ui_font_expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<Expression>,
-        "string",
-    );
+    let ui_font_expression =
+        PropertyExpression::new(StringObject::static_type(), None::<Expression>, "string");
     let ui_font_combo = DropDown::new(Some(ui_font_string_list), Some(ui_font_expression));
     ui_font_combo.add_css_class("marco-dropdown");
     ui_font_combo.set_selected(0);
-    
+
     let ui_font_row = add_setting_row(
         "UI Font",
         "Customize the font used in the application's user interface (menus, sidebars).",
         &ui_font_combo,
-        false,  // Not first row
+        false, // Not first row
     );
     container.append(&ui_font_row);
 
@@ -205,7 +204,7 @@ pub fn build_appearance_tab(
         "UI Font Size",
         "Customize the font size used in the application's user interface (menus, sidebars).",
         &ui_font_size_spin,
-        false,  // Not first row
+        false, // Not first row
     );
     container.append(&ui_font_size_row);
 

@@ -18,27 +18,34 @@
 use clap::{Parser, Subcommand};
 
 // Include test modules
-#[path = "test_suite/utils.rs"]
-mod utils;
+#[path = "test_suite/benchmark_tests.rs"]
+mod benchmark_tests;
+#[path = "test_suite/commonmark_tests.rs"]
+mod commonmark_tests;
+#[path = "test_suite/debug_lsp.rs"]
+mod debug_lsp;
+#[path = "test_suite/debug_lsp_full.rs"]
+mod debug_lsp_full;
+#[path = "test_suite/example_runner.rs"]
+mod example_runner;
 #[path = "test_suite/grammar_tests.rs"]
 mod grammar_tests;
+#[path = "test_suite/lsp_tests.rs"]
+mod lsp_tests;
 #[path = "test_suite/parser_tests.rs"]
 mod parser_tests;
 #[path = "test_suite/render_tests.rs"]
 mod render_tests;
-#[path = "test_suite/commonmark_tests.rs"]
-mod commonmark_tests;
-#[path = "test_suite/example_runner.rs"]
-mod example_runner;
-#[path = "test_suite/benchmark_tests.rs"]
-mod benchmark_tests;
+#[path = "test_suite/utils.rs"]
+mod utils;
 
-use grammar_tests::{run_inline_tests, run_block_tests};
-use parser_tests::run_parser_tests;
-use render_tests::{run_render_tests, run_inline_pipeline_tests};
+use benchmark_tests::run_performance_benchmarks;
 use commonmark_tests::{run_commonmark_tests, run_extra_tests};
 use example_runner::run_example_inspection;
-use benchmark_tests::run_performance_benchmarks;
+use grammar_tests::{run_block_tests, run_inline_tests};
+use lsp_tests::run_lsp_tests;
+use parser_tests::run_parser_tests;
+use render_tests::{run_inline_pipeline_tests, run_render_tests};
 
 /// Marco Test Suite - Comprehensive testing for the nom-based Markdown parser
 #[derive(Parser)]
@@ -79,6 +86,8 @@ enum Commands {
     },
     /// Test extra custom test cases (beyond CommonMark spec)
     Extra,
+    /// Debug LSP highlighting positions and spans
+    Debug,
     /// Deep inspection of specific examples (show grammar, AST, render pipeline)
     Inspect {
         /// Example numbers to inspect (comma-separated, e.g., "307,318,653")
@@ -104,10 +113,11 @@ fn show_summary() {
     println!("\n╔════════════════════════════════════════════════════════════╗");
     println!("║              Marco Test Suite Summary                      ║");
     println!("╚════════════════════════════════════════════════════════════╝\n");
-    
+
     println!("BASIC COMMANDS (no arguments needed):");
     println!("  all          - Run all tests");
     println!("  extra        - Test extra custom cases (beyond CommonMark)");
+    println!("  debug        - Debug LSP highlighting positions and spans");
     println!("  inline       - Test inline grammar (emphasis, links, code spans)");
     println!("  block        - Test block grammar (headings, lists, code blocks)");
     println!("  parser       - Test parser integration (blocks → inlines → AST)");
@@ -117,44 +127,46 @@ fn show_summary() {
     println!("  commonmark   - Test against CommonMark spec (652 examples)");
     println!("  benchmark    - Run performance benchmarks (parse, render, pipeline)");
     println!("  summary      - Show this help\n");
-    
+
     println!("COMMANDS WITH OPTIONS:");
     println!("  inline --filter <name>           - Filter inline tests by name");
     println!("  block --filter <name>            - Filter block tests by name");
     println!("  commonmark --section <name>      - Test specific CommonMark section");
-    println!("  benchmark --iterations <n>       - Run benchmarks with n iterations (default: 100)");
+    println!(
+        "  benchmark --iterations <n>       - Run benchmarks with n iterations (default: 100)"
+    );
     println!("  benchmark --file <path>          - Benchmark a custom markdown file");
     println!("  inspect -e <nums>                - Inspect specific examples (comma-separated)\n");
-    
+
     println!("USAGE EXAMPLES:");
     println!("  # Run all tests");
     println!("  cargo test -p core --test test_suite -- all\n");
-    
+
     println!("  # Run extra custom tests");
     println!("  cargo test -p core --test test_suite -- extra\n");
-    
+
     println!("  # Filter tests by name");
     println!("  cargo test -p core --test test_suite -- block --filter heading\n");
-    
+
     println!("  # Test specific CommonMark section");
     println!("  cargo test -p core --test test_suite -- commonmark --section \"Code spans\"\n");
-    
+
     println!("  # Run performance benchmarks");
     println!("  cargo test -p core --test test_suite -- benchmark");
     println!("  cargo test -p core --test test_suite -- benchmark --iterations 500");
     println!("  cargo test -p core --test test_suite -- benchmark --file ../README.md  # Use ../ for workspace root\n");
-    
+
     println!("  # Inspect specific examples (NOTE: use -e or --examples flag!)");
     println!("  cargo test -p core --test test_suite -- inspect -e 307,318,654");
     println!("  cargo test -p core --test test_suite -- inspect --examples 654\n");
-    
+
     println!("TIP: For more details, run: cargo test -p core --test test_suite -- --help");
     println!();
 }
 
 fn main() {
     let cli = Cli::parse();
-    
+
     match cli.command {
         Some(Commands::Inline { filter }) => {
             run_inline_tests(filter);
@@ -173,7 +185,7 @@ fn main() {
             run_inline_pipeline_tests();
         }
         Some(Commands::Lsp) => {
-            println!("LSP tests not yet implemented");
+            run_lsp_tests();
         }
         Some(Commands::Commonmark { section }) => {
             run_commonmark_tests(section);
@@ -181,13 +193,18 @@ fn main() {
         Some(Commands::Extra) => {
             run_extra_tests();
         }
+        Some(Commands::Debug) => {
+            debug_lsp::debug_lsp_positions();
+            debug_lsp::debug_simple_heading();
+            debug_lsp_full::debug_full_test_file();
+        }
         Some(Commands::Inspect { examples }) => {
             // Parse comma-separated example numbers
             let example_numbers: Vec<u32> = examples
                 .split(',')
                 .filter_map(|s| s.trim().parse::<u32>().ok())
                 .collect();
-            
+
             run_example_inspection(example_numbers);
         }
         Some(Commands::Benchmark { iterations, file }) => {
@@ -201,6 +218,7 @@ fn main() {
             run_inline_pipeline_tests();
             run_commonmark_tests(None);
             run_extra_tests();
+            run_lsp_tests();
         }
         Some(Commands::Summary) | None => {
             show_summary();

@@ -18,13 +18,13 @@ use super::constants::*;
 /// Generate complete tooltip CSS for both themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(512);
-    
+
     // Light theme
     css.push_str(&generate_theme_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Dark theme
     css.push_str(&generate_theme_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     css
 }
 
@@ -58,20 +58,20 @@ mod tests {
     #[test]
     fn smoke_test_tooltip_css_generation() {
         let css = generate_css();
-        
+
         // Verify tooltip classes present
         assert!(css.contains("tooltip"));
         assert!(css.contains("tooltip > contents"));
-        
+
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify essential properties
         assert!(css.contains("background:"));
         assert!(css.contains("color:"));
         assert!(css.contains("border:"));
-        
+
         // Verify not empty
         assert!(css.len() > 100);
     }
@@ -79,24 +79,24 @@ mod tests {
     #[test]
     fn smoke_test_theme_colors_differ() {
         let css = generate_css();
-        
+
         // Light should use #2c3e50, dark should use #3d3d3d for tooltip bg
-        assert!(css.contains("#2c3e50"));  // Light tooltip bg
-        assert!(css.contains("#3d3d3d"));  // Dark tooltip bg
-        
+        assert!(css.contains("#2c3e50")); // Light tooltip bg
+        assert!(css.contains("#3d3d3d")); // Dark tooltip bg
+
         // Both use light text
-        assert!(css.contains("#ffffff"));  // Light tooltip text
-        assert!(css.contains("#e0e0e0"));  // Dark tooltip text
+        assert!(css.contains("#ffffff")); // Light tooltip text
+        assert!(css.contains("#e0e0e0")); // Dark tooltip text
     }
 
     #[test]
     fn smoke_test_theme_css_structure() {
         let light_css = generate_theme_css("marco-theme-light", &LIGHT_PALETTE);
-        
+
         // Verify selector structure
         assert!(light_css.contains(".marco-theme-light tooltip"));
         assert!(light_css.contains(".marco-theme-light tooltip > contents"));
-        
+
         // Verify uses palette colors
         assert!(light_css.contains(LIGHT_PALETTE.tooltip_bg));
         assert!(light_css.contains(LIGHT_PALETTE.tooltip_fg));

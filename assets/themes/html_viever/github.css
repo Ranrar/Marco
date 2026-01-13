@@ -391,13 +391,43 @@ hr {
 }
 
 /* Task lists */
+:root {
+    --marco-task-primary: #0969da;
+    --marco-task-accent: #8250df;
+}
+
 .task-list-item {
     list-style-type: none;
 }
 
+.marco-task-checkbox,
 .task-list-item .task-list-item-checkbox {
-    margin: 0 0.2em 0.25em -1.4em;
-    vertical-align: middle;
+    margin: 0 0.4em 0 0;
+    vertical-align: -0.125em;
+
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.15em;
+    height: 1.15em;
+    color: currentColor;
+}
+
+.marco-task-checkbox .marco-task-icon,
+.task-list-item .task-list-item-checkbox .marco-task-icon {
+    width: 1.15em;
+    height: 1.15em;
+    flex: 0 0 auto;
+}
+
+.marco-task-checkbox.checked,
+.task-list-item .task-list-item-checkbox.checked {
+    color: var(--marco-task-primary);
+}
+
+.marco-task-checkbox.checked .marco-task-check,
+.task-list-item .task-list-item-checkbox.checked .marco-task-check {
+    stroke: var(--marco-task-accent);
 }
 
 /* GitHub-style alerts/admonitions */

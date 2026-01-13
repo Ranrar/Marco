@@ -28,11 +28,11 @@ pub fn show_empty_state_with_theme(
 ) {
     // Determine theme_mode from settings (same logic as markdown rendering)
     let theme_mode = get_theme_mode(settings_manager);
-    
+
     // Create theme class for HTML element (theme-light or theme-dark)
     let theme_class = format!("theme-{}", theme_mode);
     log::debug!("Empty state using theme class: {}", theme_class);
-    
+
     let html = format!(
         r#"<!DOCTYPE html>
 <html class="{}">
@@ -102,7 +102,7 @@ pub fn show_empty_state_with_theme(
 </html>"#,
         theme_class
     );
-    
+
     let webview_clone = webview.clone();
     let html_string = html.to_string();
     gtk4::glib::idle_add_local_once(move || {

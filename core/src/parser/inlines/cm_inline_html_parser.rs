@@ -3,10 +3,11 @@
 //! Parses inline HTML tags (<tag>, <tag/>, etc.) and converts them to InlineHtml nodes.
 //! Inline HTML is preserved as-is without further parsing.
 
-use super::shared::GrammarSpan;
+use super::shared::{to_parser_span_range, GrammarSpan};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
+use nom::Input;
 
 /// Parse inline HTML and convert to AST node
 ///
@@ -22,28 +23,25 @@ use nom::IResult;
 pub fn parse_inline_html(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let start = input;
     let (rest, _content) = grammar::inline_html(input)?;
-    
+
     // Calculate the full HTML span (from start to rest)
     let start_offset = start.location_offset();
     let end_offset = rest.location_offset();
     let html_len = end_offset - start_offset;
-    
-    // Extract the full HTML including brackets
-    let html = start.fragment()[..html_len].to_string();
-    
+
+    // Extract the full HTML including brackets using LocatedSpan::slice to keep
+    // proper span semantics, then convert to string.
+    let html = start.take(html_len).fragment().to_string();
+
     // Create span for the full HTML tag
-    use crate::parser::{Position, Span as ParserSpan};
-    let span = ParserSpan::new(
-        Position::new(start.location_line() as usize, start.get_column(), start_offset),
-        Position::new(rest.location_line() as usize, rest.get_column(), end_offset),
-    );
-    
+    let span = to_parser_span_range(start, rest);
+
     let node = Node {
         kind: NodeKind::InlineHtml(html),
         span: Some(span),
         children: Vec::new(),
     };
-    
+
     Ok((rest, node))
 }
 
@@ -55,29 +53,32 @@ mod tests {
     fn smoke_test_parse_inline_html_tag() {
         let input = GrammarSpan::new("<span>");
         let result = parse_inline_html(input);
-        
+
         assert!(result.is_ok(), "Failed to parse inline HTML");
         let (rest, node) = result.unwrap();
-        
+
         assert_eq!(rest.fragment(), &"");
-        
+
         if let NodeKind::InlineHtml(html) = &node.kind {
             assert_eq!(html, "<span>");
         } else {
             panic!("Expected InlineHtml node");
         }
-        
-        assert!(node.children.is_empty(), "Inline HTML should not have children");
+
+        assert!(
+            node.children.is_empty(),
+            "Inline HTML should not have children"
+        );
     }
 
     #[test]
     fn smoke_test_parse_inline_html_self_closing() {
         let input = GrammarSpan::new("<br/>");
         let result = parse_inline_html(input);
-        
+
         assert!(result.is_ok());
         let (_, node) = result.unwrap();
-        
+
         if let NodeKind::InlineHtml(html) = &node.kind {
             assert_eq!(html, "<br/>");
         }
@@ -87,10 +88,10 @@ mod tests {
     fn smoke_test_parse_inline_html_with_attributes() {
         let input = GrammarSpan::new(r#"<a href="url">"#);
         let result = parse_inline_html(input);
-        
+
         assert!(result.is_ok());
         let (_, node) = result.unwrap();
-        
+
         if let NodeKind::InlineHtml(html) = &node.kind {
             assert!(html.contains("href"));
         }
@@ -100,7 +101,7 @@ mod tests {
     fn smoke_test_parse_inline_html_not_html() {
         let input = GrammarSpan::new("just text");
         let result = parse_inline_html(input);
-        
+
         assert!(result.is_err(), "Should not parse non-HTML as inline HTML");
     }
 
@@ -108,15 +109,46 @@ mod tests {
     fn smoke_test_parse_inline_html_position() {
         let input = GrammarSpan::new("<span> and text");
         let result = parse_inline_html(input);
-        
+
         assert!(result.is_ok());
         let (rest, node) = result.unwrap();
-        
+
         assert_eq!(rest.fragment(), &" and text");
         assert!(node.span.is_some(), "Inline HTML should have position info");
-        
+
         let span = node.span.unwrap();
         assert_eq!(span.start.offset, 0);
         assert!(span.end.offset > span.start.offset);
+    }
+
+    #[test]
+    fn smoke_test_parse_inline_html_img_tag() {
+        // Test img tag with attributes
+        let input = GrammarSpan::new(r#"<img src="test.png" alt="test" />"#);
+        let result = parse_inline_html(input);
+
+        assert!(result.is_ok(), "Failed to parse img tag");
+        let (rest, node) = result.unwrap();
+
+        assert_eq!(rest.fragment(), &"");
+
+        if let NodeKind::InlineHtml(html) = &node.kind {
+            assert_eq!(html, r#"<img src="test.png" alt="test" />"#);
+            println!("Parsed img HTML: {}", html);
+        } else {
+            panic!("Expected InlineHtml node, got {:?}", node.kind);
+        }
+
+        assert!(node.span.is_some(), "Img tag should have position info");
+        let span = node.span.unwrap();
+        println!(
+            "Span: L{}:C{}-L{}:C{} (offset {}-{})",
+            span.start.line,
+            span.start.column,
+            span.end.line,
+            span.end.column,
+            span.start.offset,
+            span.end.offset
+        );
     }
 }

@@ -47,8 +47,8 @@
 
 use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
-use core::{parse_to_html_cached, RenderOptions};
 use core::logic::swanson::SettingsManager;
+use core::{parse_to_html_cached, RenderOptions};
 use std::path::Path;
 use std::sync::Arc;
 use webkit6::prelude::WebViewExt;
@@ -69,7 +69,7 @@ fn generate_webkit_scrollbar_css(theme_mode: &str) -> String {
     } else {
         (LIGHT_SCROLLBAR_THUMB, LIGHT_SCROLLBAR_TRACK)
     };
-    
+
     format!(
         r#"
         /* Match editor scrollbar styling for WebView */
@@ -86,10 +86,10 @@ fn generate_webkit_scrollbar_css(theme_mode: &str) -> String {
 /// Converts &, <, >, ", and ' to their HTML entity equivalents
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
-     .replace('\'', "&#39;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 /// Load a markdown file and render it to HTML in the WebView
@@ -105,7 +105,7 @@ pub fn load_and_render_markdown(
         Ok(content) => {
             // Parse markdown to HTML using core
             let html = parse_markdown_to_html(&content, theme, settings_manager, asset_root);
-            
+
             // Generate base URI for relative resource resolution (images, links, etc.)
             // Format: file:///absolute/path/to/directory/ (with trailing slash)
             let base_uri = if let Ok(absolute_path) = std::path::Path::new(file_path).canonicalize()
@@ -121,13 +121,16 @@ pub fn load_and_render_markdown(
                     .ok()
                     .map(|d| format!("file://{}/", d.display()))
                     .unwrap_or_else(|| {
-                        log::warn!("Cannot determine base URI for file: {}, using file:/// root", file_path);
+                        log::warn!(
+                            "Cannot determine base URI for file: {}, using file:/// root",
+                            file_path
+                        );
                         "file:///".to_string()
                     })
             };
-            
+
             log::debug!("Loading HTML with base URI: {}", base_uri);
-            
+
             // Load HTML into WebView with base URI
             // Use idle_add_local to avoid GTK allocation warnings
             let webview_clone = webview.clone();
@@ -171,7 +174,7 @@ pub fn load_and_render_markdown(
 </head>
 <body>
     <div class="error">
-        <h2>⚠️ Error Loading File</h2>
+        <h2>Error Loading File</h2>
         <p>Could not read file: <code>{}</code></p>
         <p>Error: {}</p>
     </div>
@@ -197,28 +200,28 @@ pub fn parse_markdown_to_html(
 ) -> String {
     // Determine theme_mode (light/dark) from settings
     let theme_mode = get_theme_mode(settings_manager);
-    
+
     log::debug!("Using theme_mode for syntax highlighting: {}", theme_mode);
-    
+
     // Configure HTML rendering options with syntax highlighting enabled
     let render_options = RenderOptions {
-        syntax_highlighting: true,   // Enable syntax highlighting for code blocks
-        line_numbers: false,          // Polo viewer doesn't need line numbers
-        theme: theme_mode.clone(),    // Use theme_mode (light/dark) for highlighting
+        syntax_highlighting: true, // Enable syntax highlighting for code blocks
+        line_numbers: false,       // Polo viewer doesn't need line numbers
+        theme: theme_mode.clone(), // Use theme_mode (light/dark) for highlighting
     };
-    
+
     // Parse markdown to HTML using global parser cache with convenience function
     match parse_to_html_cached(content, render_options) {
         Ok(html) => {
             // Load theme CSS
             let theme_css = load_theme_css_from_path(theme, asset_root);
-            
+
             // Generate syntax highlighting CSS for code blocks
             let syntax_css = generate_syntax_highlighting_css(&theme_mode);
-            
+
             // Generate WebKit scrollbar CSS to match editor
             let scrollbar_css = generate_webkit_scrollbar_css(&theme_mode);
-            
+
             // Combine theme CSS with syntax highlighting CSS and scrollbar CSS
             let combined_css = if !syntax_css.is_empty() {
                 format!(
@@ -231,29 +234,14 @@ pub fn parse_markdown_to_html(
                     theme_css, scrollbar_css
                 )
             };
-            
+
             // Create theme class for HTML element (theme-light or theme-dark)
             let theme_class = format!("theme-{}", theme_mode);
             log::debug!("Generated HTML with theme class: {}", theme_class);
-            
-            // Wrap in complete HTML document with theme class on <html> element
-            // This allows CSS to target .theme-light or .theme-dark for proper theming
-            format!(
-                r#"<!DOCTYPE html>
-<html class="{}">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        {}
-    </style>
-</head>
-<body>
-    {}
-</body>
-</html>"#,
-                theme_class, combined_css, html
-            )
+
+            // Wrap in the shared preview document so both Marco and Polo get
+            // identical in-page JS behavior (including table resizing).
+            core::render::wrap_preview_html_document(&html, &combined_css, &theme_class, None)
         }
         Err(e) => {
             // Show parse error with properly escaped content to prevent XSS
@@ -289,7 +277,7 @@ pub fn parse_markdown_to_html(
 </head>
 <body>
     <div class="error">
-        <h2>⚠️ Markdown Parse Error</h2>
+        <h2>Markdown Parse Error</h2>
         <pre>{}</pre>
     </div>
 </body>

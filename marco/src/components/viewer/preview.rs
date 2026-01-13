@@ -1,8 +1,7 @@
-use core::RenderOptions;
 use core::global_parser_cache;
+use core::RenderOptions;
 use gtk4::prelude::*;
 use std::cell::RefCell;
-use webkit6::prelude::*;
 
 /// Parameters for preview refresh operations
 pub struct PreviewRefreshParams<'a> {
@@ -40,18 +39,26 @@ fn generate_test_html(wheel_js: &str) -> String {
 
 /// Generate CSS for syntax highlighting based on current theme mode
 fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
-    use crate::components::viewer::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
-    
+    use crate::components::viewer::syntax_highlighter::{
+        generate_css_with_global, global_syntax_highlighter,
+    };
+
     // Initialize global highlighter if needed
     if let Err(e) = global_syntax_highlighter() {
-        log::warn!("[viewer] Failed to initialize syntax highlighter for CSS generation: {}", e);
+        log::warn!(
+            "[viewer] Failed to initialize syntax highlighter for CSS generation: {}",
+            e
+        );
         return String::new();
     }
-    
+
     // Generate CSS for the current theme mode
     match generate_css_with_global(theme_mode) {
         Ok(css) => {
-            log::debug!("[viewer] Generated syntax highlighting CSS for theme: {}", theme_mode);
+            log::debug!(
+                "[viewer] Generated syntax highlighting CSS for theme: {}",
+                theme_mode
+            );
             css
         }
         Err(e) => {
@@ -63,7 +70,11 @@ fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
 
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
 /// Uses the current theme mode from params for syntax highlighting
-fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &RenderOptions, theme_mode: &str) -> String {
+fn parse_markdown_to_html_with_theme(
+    text: &str,
+    base_html_options: &RenderOptions,
+    theme_mode: &str,
+) -> String {
     // Create fresh RenderOptions with the current theme mode for syntax highlighting
     let html_options = RenderOptions {
         theme: theme_mode.to_string(),
@@ -72,14 +83,7 @@ fn parse_markdown_to_html_with_theme(text: &str, base_html_options: &RenderOptio
 
     // Use full HTML caching for optimal performance
     match global_parser_cache().render_with_cache(text, html_options) {
-        Ok(html) => {
-            log::debug!("[viewer] HTML rendered and cached successfully with theme '{}'", theme_mode);
-            log::debug!(
-                "[viewer] HTML rendered: '{}'",
-                html.chars().take(100).collect::<String>()
-            );
-            html
-        }
+        Ok(html) => html,
         Err(e) => {
             log::error!("[viewer] Error rendering HTML with cache: {}", e);
             format!("Error rendering HTML: {}", e)
@@ -104,8 +108,8 @@ pub fn refresh_preview_into_webview(
     theme_mode: &RefCell<String>,
     document_path: Option<&std::path::Path>,
 ) {
-    let base_uri = document_path
-        .and_then(crate::components::viewer::webkit6::generate_base_uri_from_path);
+    let base_uri =
+        document_path.and_then(crate::components::viewer::webkit6::generate_base_uri_from_path);
     refresh_preview_into_webview_with_base_uri(
         webview,
         css,
@@ -151,54 +155,75 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
         )
         .to_string();
 
-    // Debug: log the input text (first 100 chars only to avoid massive logs)
-    log::debug!(
-        "[viewer] Processing text ({} chars): '{}'",
-        text.len(),
-        text.chars().take(100).collect::<String>()
-    );
+    // Keep the main thread responsive: do not render Markdown to HTML synchronously here.
 
-    // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
-    let html_body_with_js = if text.trim().is_empty() {
-        // GTK buffer is empty -> always show welcome message
-        // (User has intentionally cleared the editor, even if there's a file loaded)
-        log::debug!("[viewer] Empty GTK buffer -> showing welcome message");
-        generate_test_html(params.wheel_js)
-    } else {
-        // GTK TextBuffer has content -> use it directly
-        log::debug!("[viewer] GTK buffer has content -> using GTK buffer content");
-        let html_body = parse_markdown_to_html_with_theme(&text, params.html_options, &params.theme_mode.borrow());
-        let mut html_with_js = html_body;
-        html_with_js.push_str(params.wheel_js);
-        html_with_js
-    };
+    // If empty, show the welcome message immediately.
+    if text.trim().is_empty() {
+        let html_body_with_js = generate_test_html(params.wheel_js);
 
-    let html = {
         // Generate syntax highlighting CSS and combine with theme CSS
-        let theme_css = params.css.borrow();
-        let syntax_css = generate_syntax_highlighting_css(&params.theme_mode.borrow());
-        let combined_css = format!("{}\n\n/* Syntax Highlighting CSS */\n{}", *theme_css, syntax_css);
-        
-        crate::components::viewer::webkit6::wrap_html_document(
+        let theme_css = params.css.borrow().clone();
+        let theme_mode = params.theme_mode.borrow().clone();
+        let syntax_css = generate_syntax_highlighting_css(&theme_mode);
+        let combined_css = format!(
+            "{}\n\n/* Syntax Highlighting CSS */\n{}",
+            theme_css, syntax_css
+        );
+
+        let html = crate::components::viewer::webkit6::wrap_html_document(
             &html_body_with_js,
             &combined_css,
-            &params.theme_mode.borrow(),
-            None, // No background color available in dynamic refresh context
-        )
-    };
-    let html_clone = html.clone();
-    // Use the provided base URI directly (already converted to string)
-    let base_uri_clone = params.base_uri.map(|s| s.to_string());
-    let webview_idle = params.webview.clone();
-    glib::idle_add_local(move || {
-        log::debug!("[viewer] loading html length={} ", html_clone.len());
-        if let Some(ref base_uri) = base_uri_clone {
-            log::debug!("[viewer] using base URI: {}", base_uri);
-            webview_idle.load_html(&html_clone, Some(base_uri));
-        } else {
-            webview_idle.load_html(&html_clone, None);
-        }
-        glib::ControlFlow::Break
+            &theme_mode,
+            None,
+        );
+
+        let base_uri = params.base_uri.map(|s| s.to_string());
+        let webview = params.webview.clone();
+
+        crate::components::viewer::webkit6::load_html_when_ready(&webview, html, base_uri);
+
+        return;
+    }
+
+    // Non-empty: render HTML in the background.
+    let html_options = params.html_options.clone();
+    let theme_mode = params.theme_mode.borrow().clone();
+    let theme_mode_for_render = theme_mode.clone();
+    let wheel_js = params.wheel_js.to_string();
+    let theme_css = params.css.borrow().clone();
+    let syntax_css = generate_syntax_highlighting_css(&theme_mode);
+    let base_uri = params.base_uri.map(|s| s.to_string());
+    let webview = params.webview.clone();
+
+    glib::spawn_future_local(async move {
+        let rendered = gio::spawn_blocking(move || {
+            parse_markdown_to_html_with_theme(&text, &html_options, &theme_mode_for_render)
+        })
+        .await;
+
+        glib::idle_add_local_once(move || match rendered {
+            Ok(html_body) => {
+                let mut html_body_with_js = html_body;
+                html_body_with_js.push_str(&wheel_js);
+
+                let combined_css = format!(
+                    "{}\n\n/* Syntax Highlighting CSS */\n{}",
+                    theme_css, syntax_css
+                );
+
+                let html = crate::components::viewer::webkit6::wrap_html_document(
+                    &html_body_with_js,
+                    &combined_css,
+                    &theme_mode,
+                    None,
+                );
+
+                crate::components::viewer::webkit6::load_html_when_ready(&webview, html, base_uri);
+            }
+            Err(e) => {
+                log::error!("[viewer] Background render task panicked: {:?}", e);
+            }
+        });
     });
 }
 
@@ -213,31 +238,38 @@ pub fn refresh_preview_content_smooth_with_doc_buffer(params: SmoothUpdateParams
         )
         .to_string();
 
-    // Debug: log the input text (first 100 chars only to avoid massive logs)
-    log::debug!(
-        "[viewer] Processing text for smooth update ({} chars): '{}'",
-        text.len(),
-        text.chars().take(100).collect::<String>()
-    );
+    // Keep the main thread responsive: do not render Markdown to HTML synchronously here.
 
-    // Determine what content to show based on GTK TextBuffer and DocumentBuffer state
-    let html_body_with_js = if text.trim().is_empty() {
-        // GTK buffer is empty -> always show welcome message
-        // (User has intentionally cleared the editor, even if there's a file loaded)
-        log::debug!("[viewer] Smooth update: Empty GTK buffer -> showing welcome message");
-        generate_test_html(params.wheel_js)
-    } else {
-        // GTK TextBuffer has content -> use it directly
-        log::debug!("[viewer] Smooth update: GTK buffer has content -> using GTK buffer content");
-        let html_body = parse_markdown_to_html(&text, params.html_options);
-        let mut html_with_js = html_body;
-        html_with_js.push_str(params.wheel_js);
-        html_with_js
-    };
+    if text.trim().is_empty() {
+        let html_body_with_js = generate_test_html(params.wheel_js);
+        crate::components::viewer::webkit6::update_html_content_smooth(
+            params.webview,
+            &html_body_with_js,
+        );
+        return;
+    }
 
-    // Use smooth update - just update the content, not the entire page
-    crate::components::viewer::webkit6::update_html_content_smooth(
-        params.webview,
-        &html_body_with_js,
-    );
+    let html_options = params.html_options.clone();
+    let wheel_js = params.wheel_js.to_string();
+    let webview = params.webview.clone();
+
+    glib::spawn_future_local(async move {
+        let rendered =
+            gio::spawn_blocking(move || parse_markdown_to_html(&text, &html_options)).await;
+
+        glib::idle_add_local_once(move || match rendered {
+            Ok(html_body) => {
+                let mut html_body_with_js = html_body;
+                html_body_with_js.push_str(&wheel_js);
+
+                crate::components::viewer::webkit6::update_html_content_smooth(
+                    &webview,
+                    &html_body_with_js,
+                );
+            }
+            Err(e) => {
+                log::error!("[viewer] Background smooth render task panicked: {:?}", e);
+            }
+        });
+    });
 }

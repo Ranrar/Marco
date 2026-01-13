@@ -2,15 +2,23 @@ use chrono::Local;
 use log::{Level, LevelFilter, Log, Metadata, Record};
 use std::boxed::Box;
 use std::fs::{self, File, OpenOptions};
-use std::io::Write;
+use std::io::{BufWriter, Write};
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 
 static mut LOGGER: Option<&'static SimpleFileLogger> = None;
 
 pub struct SimpleFileLogger {
-    inner: Mutex<Option<File>>,
+    inner: Mutex<Option<BufWriter<File>>>,
+    file_path: PathBuf,
     level: LevelFilter,
+    bytes_written: AtomicU64,
 }
+
+// Keep log files reasonably sized so editors (and VS Code) can open them
+// without trying to load hundreds of MB into memory.
+const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 
 impl SimpleFileLogger {
     pub fn init(enabled: bool, level: LevelFilter) -> Result<(), String> {
@@ -37,9 +45,15 @@ impl SimpleFileLogger {
             .open(&file_path)
             .map_err(|e| e.to_string())?;
 
+        let initial_size = file.metadata().map(|m| m.len()).unwrap_or(0);
+
+        let writer = BufWriter::new(file);
+
         let boxed = Box::new(SimpleFileLogger {
-            inner: Mutex::new(Some(file)),
+            inner: Mutex::new(Some(writer)),
+            file_path,
             level,
+            bytes_written: AtomicU64::new(initial_size),
         });
         let leaked: &'static SimpleFileLogger = Box::leak(boxed);
         unsafe {
@@ -50,6 +64,55 @@ impl SimpleFileLogger {
         // Safe to unwrap because we just set LOGGER
         log::set_logger(unsafe { LOGGER.unwrap() }).map_err(|e| e.to_string())?;
         Ok(())
+    }
+
+    fn rotate_if_needed_locked(&self, guard: &mut Option<BufWriter<File>>) {
+        let current = self.bytes_written.load(Ordering::Relaxed);
+        if current <= MAX_LOG_BYTES {
+            return;
+        }
+
+        // Best-effort rotation: flush current writer, rename the file, start a new one.
+        if let Some(writer) = guard.as_mut() {
+            let _ = writer.flush();
+        }
+
+        // Drop writer so the underlying file handle is released before rename on Windows.
+        *guard = None;
+
+        let ts = Local::now().format("%y%m%d-%H%M%S").to_string();
+        let rotated_path =
+            self.file_path
+                .with_file_name(format!("{}.rotated.{}.log", ts, std::process::id()));
+
+        if let Err(e) = fs::rename(&self.file_path, &rotated_path) {
+            // If rename fails (e.g. file missing), just continue with a new file.
+            eprintln!(
+                "[logger] rotation rename failed ({} -> {}): {}",
+                self.file_path.display(),
+                rotated_path.display(),
+                e
+            );
+        }
+
+        match OpenOptions::new()
+            .create(true)
+            .write(true)
+            .truncate(true)
+            .open(&self.file_path)
+        {
+            Ok(file) => {
+                *guard = Some(BufWriter::new(file));
+                self.bytes_written.store(0, Ordering::Relaxed);
+            }
+            Err(e) => {
+                eprintln!(
+                    "[logger] failed to open new log file {}: {}",
+                    self.file_path.display(),
+                    e
+                );
+            }
+        }
     }
 }
 
@@ -64,17 +127,17 @@ impl Log for SimpleFileLogger {
             return;
         }
         let ts = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        
+
         // Format the log message
         let message = format!("{}", record.args());
-        
+
         // Sanitize UTF-8 in log message to prevent panics from invalid slicing
         // This protects against debug logs that slice strings at non-char boundaries
         let sanitized_message = crate::logic::utf8::sanitize_input(
             message.as_bytes(),
-            crate::logic::utf8::InputSource::Unknown
+            crate::logic::utf8::InputSource::Unknown,
         );
-        
+
         let line = format!(
             "{} [{}] {}: {}\n",
             ts,
@@ -82,19 +145,30 @@ impl Log for SimpleFileLogger {
             record.target(),
             sanitized_message
         );
-        
+
+        // Track size and rotate early if needed.
+        // Note: this is approximate (UTF-8 bytes). Good enough for keeping files small.
+        let line_len = line.len() as u64;
+        self.bytes_written.fetch_add(line_len, Ordering::Relaxed);
+
         if let Ok(mut guard) = self.inner.lock() {
-            if let Some(ref mut file) = *guard {
-                let _ = file.write_all(line.as_bytes());
-                let _ = file.flush();
+            self.rotate_if_needed_locked(&mut guard);
+            if let Some(ref mut writer) = *guard {
+                let _ = writer.write_all(line.as_bytes());
+
+                // Avoid flushing on every line (can stall UI).
+                // Flush eagerly only for high-severity events.
+                if record.level() <= Level::Error {
+                    let _ = writer.flush();
+                }
             }
         }
     }
 
     fn flush(&self) {
         if let Ok(mut guard) = self.inner.lock() {
-            if let Some(ref mut file) = *guard {
-                let _ = file.flush();
+            if let Some(ref mut writer) = *guard {
+                let _ = writer.flush();
             }
         }
     }
@@ -108,8 +182,8 @@ impl SimpleFileLogger {
     /// Flush and close the inner file. After shutdown, the global LOGGER will be cleared.
     pub fn shutdown(&self) {
         if let Ok(mut guard) = self.inner.lock() {
-            if let Some(ref mut file) = *guard {
-                let _ = file.flush();
+            if let Some(ref mut writer) = *guard {
+                let _ = writer.flush();
             }
             // Drop the file by taking it out
             *guard = None;
@@ -131,14 +205,14 @@ pub fn shutdown_file_logger() {
 }
 
 /// Safe string preview for logging - truncates by character count, not bytes
-/// 
+///
 /// This function safely truncates strings for debug logging without causing
 /// UTF-8 boundary panics. Use this instead of byte slicing in log statements.
 ///
 /// # Examples
 /// ```
 /// use core::logic::logger::safe_preview;
-/// 
+///
 /// let text = "Hello 😀 World — test";
 /// let preview = safe_preview(text, 10); // Takes first 10 characters safely
 /// log::debug!("Parsing: {}", preview);
@@ -149,14 +223,14 @@ pub fn safe_preview(s: &str, max_chars: usize) -> String {
 }
 
 /// Macro for safe debug logging with automatic string truncation
-/// 
+///
 /// Use this instead of `log::debug!()` when logging string slices that might
 /// contain multi-byte UTF-8 characters. It automatically truncates safely.
 ///
 /// # Examples
 /// ```
 /// use core::safe_debug;
-/// 
+///
 /// let input = "Text with emoji 😀 and em dash —";
 /// safe_debug!("Parsing paragraph from: {:?}", input, 40);
 /// safe_debug!("Short preview: {:?}", input, 20);

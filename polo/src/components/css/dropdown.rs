@@ -21,7 +21,7 @@ use super::constants::*;
 /// Generate complete dropdown CSS for both themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(3072);
-    
+
     // Base dropdown sizing (theme-independent)
     css.push_str(&format!(
         r#"
@@ -36,13 +36,13 @@ pub fn generate_css() -> String {
         min_height = BUTTON_MIN_HEIGHT,
         font_size = BUTTON_FONT_SIZE,
     ));
-    
+
     // Light theme
     css.push_str(&generate_theme_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Dark theme
     css.push_str(&generate_theme_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     css
 }
 
@@ -122,7 +122,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         foreground = palette.foreground,
         border = palette.border,
         radius = BORDER_RADIUS,
-        padding = BUTTON_PADDING,  // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
+        padding = BUTTON_PADDING, // Changed from MODE_TOGGLE_PADDING to BUTTON_PADDING
         transition = STANDARD_TRANSITION,
         hover_accent = palette.hover_accent,
         border_hover = palette.border_hover,
@@ -145,23 +145,23 @@ mod tests {
     #[test]
     fn smoke_test_dropdown_css_generation() {
         let css = generate_css();
-        
+
         // Verify dropdown classes present
         assert!(css.contains("dropdown.polo-theme-dropdown"));
         assert!(css.contains("> button"));
         assert!(css.contains("> popover"));
         assert!(css.contains("> contents"));
         assert!(css.contains("listview"));
-        
+
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify essential properties
         assert!(css.contains("min-width: 150px"));
         assert!(css.contains("border-radius: 6px"));
         assert!(css.contains(":hover"));
-        
+
         // Verify substantial output
         assert!(css.len() > 1000);
     }
@@ -169,7 +169,7 @@ mod tests {
     #[test]
     fn smoke_test_popover_structure() {
         let css = generate_css();
-        
+
         // Verify complex popover targeting
         assert!(css.contains("popover.background"));
         assert!(css.contains("popover > contents"));
@@ -181,26 +181,26 @@ mod tests {
     #[test]
     fn smoke_test_theme_colors_differ() {
         let css = generate_css();
-        
+
         // Light should use #f5f5f5 (Marco's toolbar_popover_bg)
         // Dark should use #23272e (Marco's toolbar_popover_bg)
-        assert!(css.contains("#f5f5f5"));  // Light popover bg (updated from #ffffff)
-        assert!(css.contains("#23272e"));  // Dark popover bg (updated from #2d2d2d)
-        
+        assert!(css.contains("#f5f5f5")); // Light popover bg (updated from #ffffff)
+        assert!(css.contains("#23272e")); // Dark popover bg (updated from #2d2d2d)
+
         // Different hover backgrounds
-        assert!(css.contains("#e8e8e8"));  // Light item hover
-        assert!(css.contains("#3d3d3d"));  // Dark item hover
+        assert!(css.contains("#e8e8e8")); // Light item hover
+        assert!(css.contains("#3d3d3d")); // Dark item hover
     }
 
     #[test]
     fn smoke_test_theme_css_structure() {
         let light_css = generate_theme_css("marco-theme-light", &LIGHT_PALETTE);
-        
+
         // Verify selector structure
         assert!(light_css.contains(".marco-theme-light dropdown"));
         assert!(light_css.contains("> button"));
         assert!(light_css.contains("> popover"));
-        
+
         // Verify uses palette colors
         assert!(light_css.contains(LIGHT_PALETTE.foreground));
         assert!(light_css.contains(LIGHT_PALETTE.popover_bg));

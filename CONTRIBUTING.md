@@ -131,7 +131,7 @@ cargo test -p core -- --nocapture
 ## Troubleshooting
 
 - **GTK CSS errors**: Ensure you run from the repository root so relative theme paths resolve. Check `assets/themes/*` exists.
-- **Missing fonts or icons**: Confirm `assets/fonts/` and `assets/icons/` are present and that `get_asset_dir_checked()` finds the repo asset path.
+- **Missing fonts or icons**: Confirm `assets/fonts/` and `assets/icons/` are present and that `crate::paths::find_asset_root()` (or `MarcoPaths::new()`) finds the repo asset path.
 - **Preview not updating**: Verify the buffer change signal is firing and that the core parser is working correctly. Check the WebKit6 console for base URI issues with local images.
 - **Core parsing issues**: The app uses a custom nom-based parser in `core/src/grammar/` and `core/src/parser/` — check the grammar modules and AST builder if markdown isn't rendering correctly. Run `cargo test -p core` to validate parser behavior.
 - **Local images not displaying**: Ensure WebKit6 security settings are enabled and DocumentBuffer is providing correct base URIs for file:// protocol access.

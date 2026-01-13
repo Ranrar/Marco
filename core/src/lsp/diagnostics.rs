@@ -19,14 +19,17 @@ pub enum DiagnosticSeverity {
 
 // Compute diagnostics for document
 pub fn compute_diagnostics(document: &Document) -> Vec<Diagnostic> {
-    log::debug!("Computing diagnostics for {} nodes", document.children.len());
-    
+    log::debug!(
+        "Computing diagnostics for {} nodes",
+        document.children.len()
+    );
+
     let mut diagnostics = Vec::new();
-    
+
     for node in &document.children {
         collect_diagnostics(node, &mut diagnostics);
     }
-    
+
     log::info!("Found {} diagnostics", diagnostics.len());
     diagnostics
 }
@@ -41,10 +44,13 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Error,
-                        message: format!("Invalid heading level: {}. Must be between 1 and 6", level),
+                        message: format!(
+                            "Invalid heading level: {}. Must be between 1 and 6",
+                            level
+                        ),
                     });
                 }
-                
+
                 // Warn about empty headings
                 if text.trim().is_empty() {
                     diagnostics.push(Diagnostic {
@@ -53,7 +59,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "Empty heading text".to_string(),
                     });
                 }
-                
+
                 // Hint: headings should be capitalized
                 if !text.is_empty() && !text.chars().next().unwrap().is_uppercase() {
                     diagnostics.push(Diagnostic {
@@ -72,17 +78,20 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "Empty link URL".to_string(),
                     });
                 }
-                
+
                 // Check for potentially unsafe protocols
                 let lower_url = url.to_lowercase();
                 if lower_url.starts_with("javascript:") || lower_url.starts_with("data:") {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: format!("Potentially unsafe link protocol: {}", url.split(':').next().unwrap_or("unknown")),
+                        message: format!(
+                            "Potentially unsafe link protocol: {}",
+                            url.split(':').next().unwrap_or("unknown")
+                        ),
                     });
                 }
-                
+
                 // Info: suggest using https over http
                 if lower_url.starts_with("http:") {
                     diagnostics.push(Diagnostic {
@@ -101,13 +110,14 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "Empty code block".to_string(),
                     });
                 }
-                
+
                 // Info: suggest language tag for code blocks
                 if language.is_none() {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Hint,
-                        message: "Consider adding a language identifier for syntax highlighting".to_string(),
+                        message: "Consider adding a language identifier for syntax highlighting"
+                            .to_string(),
                     });
                 }
             }
@@ -130,7 +140,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "Empty image URL".to_string(),
                     });
                 }
-                
+
                 // Warn about missing alt text
                 if alt.trim().is_empty() {
                     diagnostics.push(Diagnostic {
@@ -139,17 +149,20 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "Image missing alt text (important for accessibility)".to_string(),
                     });
                 }
-                
+
                 // Check for potentially unsafe protocols
                 let lower_url = url.to_lowercase();
                 if lower_url.starts_with("javascript:") || lower_url.starts_with("data:") {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: format!("Potentially unsafe image protocol: {}", url.split(':').next().unwrap_or("unknown")),
+                        message: format!(
+                            "Potentially unsafe image protocol: {}",
+                            url.split(':').next().unwrap_or("unknown")
+                        ),
                     });
                 }
-                
+
                 // Info: suggest using https over http
                 if lower_url.starts_with("http:") {
                     diagnostics.push(Diagnostic {
@@ -166,18 +179,21 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: "Inline HTML contains <script> tag (potential security risk)".to_string(),
+                        message: "Inline HTML contains <script> tag (potential security risk)"
+                            .to_string(),
                     });
                 }
-                
+
                 if lower_html.contains("javascript:") {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: "Inline HTML contains javascript: protocol (potential security risk)".to_string(),
+                        message:
+                            "Inline HTML contains javascript: protocol (potential security risk)"
+                                .to_string(),
                     });
                 }
-                
+
                 // Info: unclosed tags
                 if html.contains('<') && !html.contains('>') {
                     diagnostics.push(Diagnostic {
@@ -197,7 +213,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             }
             NodeKind::List { ordered, tight, .. } => {
                 // Check for list formatting issues
-                
+
                 // Warn about loose lists (can affect rendering)
                 if !tight {
                     diagnostics.push(Diagnostic {
@@ -206,12 +222,14 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "Loose list: Contains blank lines between items".to_string(),
                     });
                 }
-                
+
                 // Check for inconsistent list markers in children
-                let list_items: Vec<&Node> = node.children.iter()
+                let list_items: Vec<&Node> = node
+                    .children
+                    .iter()
                     .filter(|child| matches!(child.kind, NodeKind::ListItem))
                     .collect();
-                
+
                 if list_items.len() > 1 {
                     // For ordered lists, check if numbering is consistent
                     if *ordered {
@@ -219,11 +237,12 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         diagnostics.push(Diagnostic {
                             span: *span,
                             severity: DiagnosticSeverity::Hint,
-                            message: "Ordered list: Ensure numbering is sequential for clarity".to_string(),
+                            message: "Ordered list: Ensure numbering is sequential for clarity"
+                                .to_string(),
                         });
                     }
                 }
-                
+
                 // Warn about empty lists
                 if node.children.is_empty() {
                     diagnostics.push(Diagnostic {
@@ -246,32 +265,40 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             NodeKind::HtmlBlock { html } => {
                 // Security and quality checks for HTML blocks
                 let lower_html = html.to_lowercase();
-                
+
                 // Warn about potentially unsafe HTML
                 if lower_html.contains("<script") {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: "HTML block contains <script> tag (potential security risk)".to_string(),
+                        message: "HTML block contains <script> tag (potential security risk)"
+                            .to_string(),
                     });
                 }
-                
+
                 if lower_html.contains("javascript:") {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: "HTML block contains javascript: protocol (potential security risk)".to_string(),
+                        message:
+                            "HTML block contains javascript: protocol (potential security risk)"
+                                .to_string(),
                     });
                 }
-                
-                if lower_html.contains("onclick") || lower_html.contains("onerror") || lower_html.contains("onload") {
+
+                if lower_html.contains("onclick")
+                    || lower_html.contains("onerror")
+                    || lower_html.contains("onload")
+                {
                     diagnostics.push(Diagnostic {
                         span: *span,
                         severity: DiagnosticSeverity::Warning,
-                        message: "HTML block contains inline event handlers (potential security risk)".to_string(),
+                        message:
+                            "HTML block contains inline event handlers (potential security risk)"
+                                .to_string(),
                     });
                 }
-                
+
                 // Check for unclosed tags (basic check)
                 let open_tags = html.matches('<').count();
                 let close_tags = html.matches('>').count();
@@ -282,7 +309,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         message: "HTML block may have mismatched or unclosed tags".to_string(),
                     });
                 }
-                
+
                 // Warn about empty HTML blocks
                 if html.trim().is_empty() {
                     diagnostics.push(Diagnostic {
@@ -307,7 +334,8 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                 diagnostics.push(Diagnostic {
                     span: *span,
                     severity: DiagnosticSeverity::Hint,
-                    message: "Thematic break: Creates a horizontal rule for section separation".to_string(),
+                    message: "Thematic break: Creates a horizontal rule for section separation"
+                        .to_string(),
                 });
             }
             _ => {
@@ -315,7 +343,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             }
         }
     }
-    
+
     // Recursively process children
     for child in &node.children {
         collect_diagnostics(child, diagnostics);
@@ -326,126 +354,180 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
 mod tests {
     use super::*;
     use crate::parser::Position;
-    
+
     #[test]
     fn smoke_test_heading_diagnostics() {
         let doc = Document {
             children: vec![
                 Node {
                     kind: NodeKind::Heading {
-                        level: 7,  // Invalid level
+                        level: 7, // Invalid level
                         text: "Too deep".to_string(),
                     },
                     span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 1, column: 15, offset: 14 },
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
+                        },
+                        end: Position {
+                            line: 1,
+                            column: 15,
+                            offset: 14,
+                        },
                     }),
                     children: vec![],
                 },
                 Node {
                     kind: NodeKind::Heading {
                         level: 1,
-                        text: "".to_string(),  // Empty heading
+                        text: "".to_string(), // Empty heading
                     },
                     span: Some(Span {
-                        start: Position { line: 2, column: 1, offset: 15 },
-                        end: Position { line: 2, column: 3, offset: 17 },
+                        start: Position {
+                            line: 2,
+                            column: 1,
+                            offset: 15,
+                        },
+                        end: Position {
+                            line: 2,
+                            column: 3,
+                            offset: 17,
+                        },
                     }),
                     children: vec![],
                 },
             ],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert!(diagnostics.len() >= 2);
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Error));
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Warning));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Error));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Warning));
     }
-    
+
     #[test]
     fn smoke_test_link_diagnostics() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::Link {
-                                url: "".to_string(),  // Empty URL
-                                title: None,
-                            },
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 10, offset: 9 },
-                            }),
-                            children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::Link {
+                            url: "".to_string(), // Empty URL
+                            title: None,
                         },
-                        Node {
-                            kind: NodeKind::Link {
-                                url: "javascript:alert('xss')".to_string(),  // Unsafe protocol
-                                title: None,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 1,
+                                offset: 0,
                             },
-                            span: Some(Span {
-                                start: Position { line: 1, column: 11, offset: 10 },
-                                end: Position { line: 1, column: 40, offset: 39 },
-                            }),
-                            children: vec![],
+                            end: Position {
+                                line: 1,
+                                column: 10,
+                                offset: 9,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Link {
+                            url: "javascript:alert('xss')".to_string(), // Unsafe protocol
+                            title: None,
                         },
-                    ],
-                },
-            ],
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 11,
+                                offset: 10,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 40,
+                                offset: 39,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                ],
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 2);
-        assert!(diagnostics.iter().all(|d| d.severity == DiagnosticSeverity::Warning));
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.severity == DiagnosticSeverity::Warning));
     }
-    
+
     #[test]
     fn smoke_test_image_diagnostics() {
         let doc = Document {
             children: vec![
                 Node {
                     kind: NodeKind::CodeBlock {
-                        language: None,  // No language tag
+                        language: None, // No language tag
                         code: "let x = 42;".to_string(),
                     },
                     span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 3, column: 4, offset: 20 },
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
+                        },
+                        end: Position {
+                            line: 3,
+                            column: 4,
+                            offset: 20,
+                        },
                     }),
                     children: vec![],
                 },
                 Node {
                     kind: NodeKind::Paragraph,
                     span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::CodeSpan("".to_string()),  // Empty code span
-                            span: Some(Span {
-                                start: Position { line: 5, column: 1, offset: 25 },
-                                end: Position { line: 5, column: 3, offset: 27 },
-                            }),
-                            children: vec![],
-                        },
-                    ],
+                    children: vec![Node {
+                        kind: NodeKind::CodeSpan("".to_string()), // Empty code span
+                        span: Some(Span {
+                            start: Position {
+                                line: 5,
+                                column: 1,
+                                offset: 25,
+                            },
+                            end: Position {
+                                line: 5,
+                                column: 3,
+                                offset: 27,
+                            },
+                        }),
+                        children: vec![],
+                    }],
                 },
             ],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 2);
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Hint));
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Info));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Hint));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Info));
     }
-    
+
     #[test]
     fn smoke_test_list_diagnostics() {
         let doc = Document {
@@ -456,299 +538,424 @@ mod tests {
                         text: "Good heading".to_string(),
                     },
                     span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 1, column: 15, offset: 14 },
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
+                        },
+                        end: Position {
+                            line: 1,
+                            column: 15,
+                            offset: 14,
+                        },
                     }),
                     children: vec![],
                 },
                 Node {
                     kind: NodeKind::Paragraph,
                     span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::Link {
-                                url: "https://example.com".to_string(),
-                                title: None,
-                            },
-                            span: Some(Span {
-                                start: Position { line: 3, column: 1, offset: 16 },
-                                end: Position { line: 3, column: 30, offset: 45 },
-                            }),
-                            children: vec![],
+                    children: vec![Node {
+                        kind: NodeKind::Link {
+                            url: "https://example.com".to_string(),
+                            title: None,
                         },
-                    ],
+                        span: Some(Span {
+                            start: Position {
+                                line: 3,
+                                column: 1,
+                                offset: 16,
+                            },
+                            end: Position {
+                                line: 3,
+                                column: 30,
+                                offset: 45,
+                            },
+                        }),
+                        children: vec![],
+                    }],
                 },
             ],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         // Should have no errors or warnings, only possibly hints
-        assert!(diagnostics.iter().all(|d| matches!(d.severity, DiagnosticSeverity::Hint)));
+        assert!(diagnostics
+            .iter()
+            .all(|d| matches!(d.severity, DiagnosticSeverity::Hint)));
     }
-    
+
     #[test]
     fn smoke_test_blockquote_diagnostics() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::Image {
-                                url: "".to_string(),  // Empty URL
-                                alt: "Alt text".to_string(),
-                            },
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 20, offset: 19 },
-                            }),
-                            children: vec![],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::Image {
+                            url: "".to_string(), // Empty URL
+                            alt: "Alt text".to_string(),
                         },
-                        Node {
-                            kind: NodeKind::Image {
-                                url: "image.png".to_string(),
-                                alt: "".to_string(),  // Missing alt text
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 1,
+                                offset: 0,
                             },
-                            span: Some(Span {
-                                start: Position { line: 2, column: 1, offset: 20 },
-                                end: Position { line: 2, column: 15, offset: 34 },
-                            }),
-                            children: vec![],
-                        },
-                        Node {
-                            kind: NodeKind::Image {
-                                url: "http://example.com/image.png".to_string(),
-                                alt: "Image".to_string(),
+                            end: Position {
+                                line: 1,
+                                column: 20,
+                                offset: 19,
                             },
-                            span: Some(Span {
-                                start: Position { line: 3, column: 1, offset: 35 },
-                                end: Position { line: 3, column: 40, offset: 74 },
-                            }),
-                            children: vec![],
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Image {
+                            url: "image.png".to_string(),
+                            alt: "".to_string(), // Missing alt text
                         },
-                    ],
-                },
-            ],
+                        span: Some(Span {
+                            start: Position {
+                                line: 2,
+                                column: 1,
+                                offset: 20,
+                            },
+                            end: Position {
+                                line: 2,
+                                column: 15,
+                                offset: 34,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Image {
+                            url: "http://example.com/image.png".to_string(),
+                            alt: "Image".to_string(),
+                        },
+                        span: Some(Span {
+                            start: Position {
+                                line: 3,
+                                column: 1,
+                                offset: 35,
+                            },
+                            end: Position {
+                                line: 3,
+                                column: 40,
+                                offset: 74,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                ],
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 3);
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Error));
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Warning));
-        assert!(diagnostics.iter().any(|d| d.severity == DiagnosticSeverity::Info));
-        assert!(diagnostics.iter().any(|d| d.message.contains("Empty image URL")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Error));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Warning));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.severity == DiagnosticSeverity::Info));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("Empty image URL")));
         assert!(diagnostics.iter().any(|d| d.message.contains("alt text")));
     }
-    
+
     #[test]
     fn smoke_test_span_diagnostics() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::InlineHtml("<script>alert('xss')</script>".to_string()),
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 30, offset: 29 },
-                            }),
-                            children: vec![],
-                        },
-                        Node {
-                            kind: NodeKind::InlineHtml("<a href=\"javascript:void(0)\">".to_string()),
-                            span: Some(Span {
-                                start: Position { line: 2, column: 1, offset: 30 },
-                                end: Position { line: 2, column: 30, offset: 59 },
-                            }),
-                            children: vec![],
-                        },
-                    ],
-                },
-            ],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::InlineHtml("<script>alert('xss')</script>".to_string()),
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 1,
+                                offset: 0,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 30,
+                                offset: 29,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::InlineHtml("<a href=\"javascript:void(0)\">".to_string()),
+                        span: Some(Span {
+                            start: Position {
+                                line: 2,
+                                column: 1,
+                                offset: 30,
+                            },
+                            end: Position {
+                                line: 2,
+                                column: 30,
+                                offset: 59,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                ],
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 2);
-        assert!(diagnostics.iter().all(|d| d.severity == DiagnosticSeverity::Warning));
+        assert!(diagnostics
+            .iter()
+            .all(|d| d.severity == DiagnosticSeverity::Warning));
         assert!(diagnostics.iter().any(|d| d.message.contains("script")));
-        assert!(diagnostics.iter().any(|d| d.message.contains("javascript:")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("javascript:")));
     }
-    
+
     #[test]
     fn smoke_test_autolink_diagnostics() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Paragraph,
-                    span: None,
-                    children: vec![
-                        Node {
-                            kind: NodeKind::Text("Line one".to_string()),
-                            span: None,
-                            children: vec![],
-                        },
-                        Node {
-                            kind: NodeKind::HardBreak,
-                            span: Some(Span {
-                                start: Position { line: 1, column: 9, offset: 8 },
-                                end: Position { line: 2, column: 1, offset: 11 },
-                            }),
-                            children: vec![],
-                        },
-                        Node {
-                            kind: NodeKind::Text("Line two".to_string()),
-                            span: None,
-                            children: vec![],
-                        },
-                    ],
-                },
-            ],
+            children: vec![Node {
+                kind: NodeKind::Paragraph,
+                span: None,
+                children: vec![
+                    Node {
+                        kind: NodeKind::Text("Line one".to_string()),
+                        span: None,
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::HardBreak,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 9,
+                                offset: 8,
+                            },
+                            end: Position {
+                                line: 2,
+                                column: 1,
+                                offset: 11,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::Text("Line two".to_string()),
+                        span: None,
+                        children: vec![],
+                    },
+                ],
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Hint);
         assert!(diagnostics[0].message.contains("Hard line break"));
     }
-    
+
     #[test]
     fn smoke_test_list_item_diagnostics() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::List {
-                        ordered: false,
-                        start: None,
-                        tight: false,  // Loose list
-                    },
-                    span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 5, column: 10, offset: 30 },
-                    }),
-                    children: vec![
-                        Node {
-                            kind: NodeKind::ListItem,
-                            span: Some(Span {
-                                start: Position { line: 1, column: 1, offset: 0 },
-                                end: Position { line: 1, column: 10, offset: 9 },
-                            }),
-                            children: vec![],  // Empty list item
-                        },
-                        Node {
-                            kind: NodeKind::ListItem,
-                            span: Some(Span {
-                                start: Position { line: 3, column: 1, offset: 11 },
-                                end: Position { line: 3, column: 10, offset: 20 },
-                            }),
-                            children: vec![
-                                Node {
-                                    kind: NodeKind::Paragraph,
-                                    span: None,
-                                    children: vec![],
-                                },
-                            ],
-                        },
-                    ],
+            children: vec![Node {
+                kind: NodeKind::List {
+                    ordered: false,
+                    start: None,
+                    tight: false, // Loose list
                 },
-            ],
+                span: Some(Span {
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 5,
+                        column: 10,
+                        offset: 30,
+                    },
+                }),
+                children: vec![
+                    Node {
+                        kind: NodeKind::ListItem,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 1,
+                                offset: 0,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 10,
+                                offset: 9,
+                            },
+                        }),
+                        children: vec![], // Empty list item
+                    },
+                    Node {
+                        kind: NodeKind::ListItem,
+                        span: Some(Span {
+                            start: Position {
+                                line: 3,
+                                column: 1,
+                                offset: 11,
+                            },
+                            end: Position {
+                                line: 3,
+                                column: 10,
+                                offset: 20,
+                            },
+                        }),
+                        children: vec![Node {
+                            kind: NodeKind::Paragraph,
+                            span: None,
+                            children: vec![],
+                        }],
+                    },
+                ],
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         // Should have hints about loose list and info about empty item
         assert!(diagnostics.iter().any(|d| d.message.contains("Loose list")));
-        assert!(diagnostics.iter().any(|d| d.message.contains("Empty list item")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("Empty list item")));
     }
-    
+
     #[test]
     fn smoke_test_html_block_diagnostics() {
         let doc = Document {
             children: vec![
                 Node {
                     kind: NodeKind::HtmlBlock {
-                        html: "<div onclick=\"alert('xss')\"><script>bad()</script></div>".to_string(),
+                        html: "<div onclick=\"alert('xss')\"><script>bad()</script></div>"
+                            .to_string(),
                     },
                     span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 1, column: 57, offset: 56 },
+                        start: Position {
+                            line: 1,
+                            column: 1,
+                            offset: 0,
+                        },
+                        end: Position {
+                            line: 1,
+                            column: 57,
+                            offset: 56,
+                        },
                     }),
                     children: vec![],
                 },
                 Node {
                     kind: NodeKind::HtmlBlock {
-                        html: "".to_string(),  // Empty HTML block
+                        html: "".to_string(), // Empty HTML block
                     },
                     span: Some(Span {
-                        start: Position { line: 3, column: 1, offset: 58 },
-                        end: Position { line: 3, column: 1, offset: 58 },
+                        start: Position {
+                            line: 3,
+                            column: 1,
+                            offset: 58,
+                        },
+                        end: Position {
+                            line: 3,
+                            column: 1,
+                            offset: 58,
+                        },
                     }),
                     children: vec![],
                 },
             ],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         // Should warn about script tag and inline event handlers
         assert!(diagnostics.iter().any(|d| d.message.contains("script")));
-        assert!(diagnostics.iter().any(|d| d.message.contains("event handlers")));
-        assert!(diagnostics.iter().any(|d| d.message.contains("Empty HTML block")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("event handlers")));
+        assert!(diagnostics
+            .iter()
+            .any(|d| d.message.contains("Empty HTML block")));
     }
-    
+
     #[test]
     fn smoke_test_blockquote_empty_diagnostic() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::Blockquote,
-                    span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 1, column: 2, offset: 1 },
-                    }),
-                    children: vec![],  // Empty blockquote
-                },
-            ],
+            children: vec![Node {
+                kind: NodeKind::Blockquote,
+                span: Some(Span {
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 1,
+                        column: 2,
+                        offset: 1,
+                    },
+                }),
+                children: vec![], // Empty blockquote
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Warning);
         assert!(diagnostics[0].message.contains("Empty block quote"));
     }
-    
+
     #[test]
     fn smoke_test_thematic_break_diagnostic() {
         let doc = Document {
-            children: vec![
-                Node {
-                    kind: NodeKind::ThematicBreak,
-                    span: Some(Span {
-                        start: Position { line: 1, column: 1, offset: 0 },
-                        end: Position { line: 1, column: 4, offset: 3 },
-                    }),
-                    children: vec![],
-                },
-            ],
+            children: vec![Node {
+                kind: NodeKind::ThematicBreak,
+                span: Some(Span {
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 1,
+                        column: 4,
+                        offset: 3,
+                    },
+                }),
+                children: vec![],
+            }],
             ..Default::default()
         };
-        
+
         let diagnostics = compute_diagnostics(&doc);
-        
+
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, DiagnosticSeverity::Hint);
         assert!(diagnostics[0].message.contains("Thematic break"));

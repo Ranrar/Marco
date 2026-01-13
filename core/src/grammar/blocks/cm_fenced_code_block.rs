@@ -11,110 +11,136 @@
 
 use crate::grammar::shared::Span;
 use nom::{
-    IResult,
+    branch::alt,
     bytes::complete::take_while,
     character::complete::{char as nom_char, line_ending, not_line_ending},
-    branch::alt,
     combinator::opt,
+    IResult, Input, Parser,
 };
 
 /// Parse a fenced code block (``` or ~~~)
-/// 
+///
 /// Examples:
 /// - ` ```\ncode\n``` `
 /// - ` ```rust\nfn main() {}\n``` `
 /// - ` ~~~python\nprint("hi")\n~~~ `
-/// 
+///
 /// # Arguments
 /// * `input` - The input span to parse
-/// 
+///
 /// # Returns
 /// `Ok((remaining, (language, content)))` where language is optional
 pub fn fenced_code_block(input: Span) -> IResult<Span, (Option<String>, Span)> {
-    log::debug!("Parsing fenced code block from: {:?}", crate::logic::logger::safe_preview(input.fragment(), 20));
-    
+    log::debug!(
+        "Parsing fenced code block from: {:?}",
+        crate::logic::logger::safe_preview(input.fragment(), 20)
+    );
+
     let original_input = input;
-    
+
     // Parse optional leading spaces (0-3 allowed)
-    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    let (input, leading_spaces) = take_while(|c| c == ' ').parse(input)?;
     if leading_spaces.fragment().len() > 3 {
-        return Err(nom::Err::Error(nom::error::Error::new(original_input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            original_input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // Parse the opening fence (``` or ~~~)
-    let (input, fence_char) = alt((nom_char('`'), nom_char('~')))(input)?;
-    
+    let (input, fence_char) = alt((nom_char('`'), nom_char('~'))).parse(input)?;
+
     // Count the fence delimiters (must be at least 3)
     let (input, fence_count) = {
         let mut count = 1; // We already parsed one
         let mut current = input;
-        
+
         while let Ok((remaining, _)) = nom_char::<_, nom::error::Error<Span>>(fence_char)(current) {
             count += 1;
             current = remaining;
         }
-        
+
         if count < 3 {
-            return Err(nom::Err::Error(nom::error::Error::new(original_input, nom::error::ErrorKind::Tag)));
+            return Err(nom::Err::Error(nom::error::Error::new(
+                original_input,
+                nom::error::ErrorKind::Tag,
+            )));
         }
-        
+
         (current, count)
     };
-    
+
     // Parse optional info string (rest of the line after fence)
     let (input, info_line) = not_line_ending(input)?;
     let info_string = info_line.fragment().trim();
-    
+
     // CommonMark spec: info string cannot contain backticks if fence uses backticks
     if fence_char == '`' && info_string.contains('`') {
-        return Err(nom::Err::Error(nom::error::Error::new(original_input, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            original_input,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // Extract language (first word of info string)
     let language = if !info_string.is_empty() {
-        Some(info_string.split_whitespace().next().unwrap_or("").to_string())
+        Some(
+            info_string
+                .split_whitespace()
+                .next()
+                .unwrap_or("")
+                .to_string(),
+        )
     } else {
         None
     };
-    
+
     // Consume newline after opening fence
     let (mut input, _) = line_ending(input)?;
-    
+
     // Track content start and end positions
     let content_start = input.location_offset();
     let mut content_end = content_start;
-    
+
     // Collect code block content lines until we find closing fence
     let mut found_closing = false;
-    
+
     loop {
         // Check for closing fence
         let check_input = input;
-        
+
         // Try to parse optional leading spaces (0-3)
-        if let Ok((after_spaces, spaces)) = take_while::<_, _, nom::error::Error<Span>>(|c| c == ' ')(check_input) {
+        if let Ok((after_spaces, spaces)) =
+            take_while::<_, _, nom::error::Error<Span>>(|c| c == ' ')(check_input)
+        {
             if spaces.fragment().len() <= 3 {
                 // Try to match the fence character
-                if let Ok((after_fence_start, _)) = nom_char::<_, nom::error::Error<Span>>(fence_char)(after_spaces) {
+                if let Ok((after_fence_start, _)) =
+                    nom_char::<_, nom::error::Error<Span>>(fence_char)(after_spaces)
+                {
                     // Count closing fence delimiters
                     let mut close_count = 1;
                     let mut current = after_fence_start;
-                    
-                    while let Ok((remaining, _)) = nom_char::<_, nom::error::Error<Span>>(fence_char)(current) {
+
+                    while let Ok((remaining, _)) =
+                        nom_char::<_, nom::error::Error<Span>>(fence_char)(current)
+                    {
                         close_count += 1;
                         current = remaining;
                     }
-                    
+
                     // Closing fence must have at least as many delimiters as opening
                     if close_count >= fence_count {
                         // Check that rest of line is whitespace only
-                        if let Ok((after_line, rest)) = not_line_ending::<_, nom::error::Error<Span>>(current) {
+                        if let Ok((after_line, rest)) =
+                            not_line_ending::<_, nom::error::Error<Span>>(current)
+                        {
                             if rest.fragment().trim().is_empty() {
                                 // Valid closing fence!
                                 found_closing = true;
                                 // Consume the closing fence line and optional newline
                                 input = after_line;
-                                let _ = opt::<_, _, nom::error::Error<Span>, _>(line_ending)(input)?;
+                                let _ = opt(line_ending).parse(input)?;
                                 break;
                             }
                         }
@@ -122,14 +148,14 @@ pub fn fenced_code_block(input: Span) -> IResult<Span, (Option<String>, Span)> {
                 }
             }
         }
-        
+
         // Not a closing fence, so this line is content
         // Parse the line
         match not_line_ending::<Span, nom::error::Error<Span>>(input) {
             Ok((after_line, line)) => {
                 // Update content end to include this line
                 content_end = line.location_offset() + line.fragment().len();
-                
+
                 // Try to consume newline
                 match line_ending::<Span, nom::error::Error<Span>>(after_line) {
                     Ok((after_newline, _)) => {
@@ -149,30 +175,42 @@ pub fn fenced_code_block(input: Span) -> IResult<Span, (Option<String>, Span)> {
             }
         }
     }
-    
+
     if !found_closing {
         // Unclosed code block is still valid in CommonMark (content goes to end of document)
         log::debug!("Unclosed fenced code block");
     }
-    
+
     // Calculate content length and create span from original input
     let content_len = content_end.saturating_sub(content_start);
-    
+
     // Find the content in the original input
     // We need to calculate offset from original_input start
     let offset_from_original = content_start - original_input.location_offset();
-    let content_fragment = if content_len > 0 && offset_from_original + content_len <= original_input.fragment().len() {
-        &original_input.fragment()[offset_from_original..offset_from_original + content_len]
+
+    // CRITICAL: Use slice to preserve position information
+    let content_span = if content_len > 0
+        && offset_from_original + content_len <= original_input.fragment().len()
+    {
+        let mut span = original_input
+            .take_from(offset_from_original)
+            .take(content_len);
+        // Remove trailing newline if present (CommonMark doesn't include trailing newline in content)
+        if span.fragment().ends_with('\n') {
+            let len = span.fragment().len();
+            span = span.take(len.saturating_sub(1));
+        }
+        span
     } else {
-        ""
+        original_input.take_from(offset_from_original).take(0usize)
     };
-    
-    // Remove trailing newline if present (CommonMark doesn't include trailing newline in content)
-    let content_fragment = content_fragment.strip_suffix('\n').unwrap_or(content_fragment);
-    let content_span = Span::new(content_fragment);
-    
-    log::debug!("Parsed fenced code block with language={:?}, content length={}", language, content_fragment.len());
-    
+
+    log::debug!(
+        "Parsed fenced code block with language={:?}, content length={}",
+        language,
+        content_span.fragment().len()
+    );
+
     Ok((input, (language, content_span)))
 }
 

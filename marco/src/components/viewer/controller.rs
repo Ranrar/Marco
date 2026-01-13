@@ -34,9 +34,9 @@
 //! assert!(tracker.is_in_preview_window());
 //! ```
 
+use core::logic::layoutstate::LayoutState;
 use gtk4::prelude::*;
 use gtk4::Paned;
-use core::logic::layoutstate::LayoutState;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -45,18 +45,13 @@ use std::rc::Rc;
 // ============================================================================
 
 /// Represents the current location of the WebView widget
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum WebViewLocation {
     /// WebView is in the main window (Paned end child)
+    #[default]
     MainWindow,
     /// WebView is in the separate preview window
     PreviewWindow,
-}
-
-impl Default for WebViewLocation {
-    fn default() -> Self {
-        Self::MainWindow
-    }
 }
 
 impl std::fmt::Display for WebViewLocation {
@@ -98,7 +93,11 @@ impl WebViewLocationTracker {
     /// This should be called immediately after reparenting the WebView
     /// to ensure the tracker stays synchronized with the actual widget state.
     pub fn set(&self, location: WebViewLocation) {
-        log::debug!("WebView location updated: {} -> {}", self.current(), location);
+        log::debug!(
+            "WebView location updated: {} -> {}",
+            self.current(),
+            location
+        );
         *self.location.borrow_mut() = location;
     }
 
@@ -353,12 +352,12 @@ mod tests {
     #[test]
     fn smoke_test_location_update() {
         let tracker = WebViewLocationTracker::new();
-        
+
         tracker.set(WebViewLocation::PreviewWindow);
         assert_eq!(tracker.current(), WebViewLocation::PreviewWindow);
         assert!(!tracker.is_in_main_window());
         assert!(tracker.is_in_preview_window());
-        
+
         tracker.set(WebViewLocation::MainWindow);
         assert_eq!(tracker.current(), WebViewLocation::MainWindow);
     }
@@ -367,20 +366,17 @@ mod tests {
     fn smoke_test_tracker_clone() {
         let tracker1 = WebViewLocationTracker::new();
         let tracker2 = tracker1.clone();
-        
+
         tracker1.set(WebViewLocation::PreviewWindow);
         assert_eq!(tracker2.current(), WebViewLocation::PreviewWindow);
-        
+
         tracker2.set(WebViewLocation::MainWindow);
         assert_eq!(tracker1.current(), WebViewLocation::MainWindow);
     }
 
     #[test]
     fn smoke_test_location_display() {
-        assert_eq!(
-            format!("{}", WebViewLocation::MainWindow),
-            "Main Window"
-        );
+        assert_eq!(format!("{}", WebViewLocation::MainWindow), "Main Window");
         assert_eq!(
             format!("{}", WebViewLocation::PreviewWindow),
             "Preview Window"
@@ -392,7 +388,7 @@ mod tests {
     fn smoke_test_split_controller_creation() {
         // Note: Can't fully test GTK widgets without a display
         // This smoke test just verifies the API compiles and basic logic works
-        
+
         // Verify layout states are correct
         assert_eq!(LayoutState::DualView, LayoutState::DualView);
         assert_ne!(LayoutState::DualView, LayoutState::EditorOnly);
@@ -416,7 +412,10 @@ mod tests {
                 }
                 LayoutState::EditorOnly | LayoutState::EditorAndViewSeparate => {
                     // Should lock at 100%
-                    assert!(state == LayoutState::EditorOnly || state == LayoutState::EditorAndViewSeparate);
+                    assert!(
+                        state == LayoutState::EditorOnly
+                            || state == LayoutState::EditorAndViewSeparate
+                    );
                 }
                 LayoutState::ViewOnly => {
                     // Should lock at 0%

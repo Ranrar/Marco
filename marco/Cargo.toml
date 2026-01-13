@@ -6,7 +6,12 @@ authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
 license = "MIT"
 default-run = "marco"
-rust-version = "1.90.0"
+rust-version = "1.92.0"
+
+[lib]
+# The `marco` crate is GTK/UI heavy; most docs contain illustrative snippets that
+# are not meant to compile or run as doctests.
+doctest = false
 
 [features]
 default = []

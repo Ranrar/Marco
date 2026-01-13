@@ -10,75 +10,83 @@
 
 use crate::grammar::shared::Span;
 use nom::{
-    IResult,
     bytes::complete::{tag, take_while},
+    character::complete::line_ending,
     combinator::{opt, recognize},
     multi::many1_count,
-    character::complete::line_ending,
+    IResult, Input, Parser,
 };
-use nom_locate::LocatedSpan;
 
 /// Parse an ATX heading (1-6 # characters)
-/// 
+///
 /// Examples:
 /// - `# Heading 1`
 /// - `## Heading 2`
 /// - `### Heading 3 ###` (with closing hashes)
 /// - `  # Heading` (with leading spaces)
-/// 
+///
 /// # Arguments
 /// * `input` - The input span to parse
-/// 
+///
 /// # Returns
 /// `Ok((remaining, (level, content)))` where level is 1-6 and content is the heading text
 pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
     log::debug!("Parsing ATX heading: {:?}", input.fragment());
-    
+
     let start = input;
-    
+
     // 1. Optional leading spaces (0-3 spaces allowed)
-    let (input, leading_spaces) = take_while(|c| c == ' ')(input)?;
+    let (input, leading_spaces) = take_while(|c| c == ' ').parse(input)?;
     if leading_spaces.fragment().len() > 3 {
         // 4+ spaces means indented code block, not heading
-        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            start,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // 2. Count opening # symbols (1-6)
-    let (input, hashes) = recognize(many1_count(tag("#")))(input)?;
+    let (input, hashes) = recognize(many1_count(tag("#"))).parse(input)?;
     let level = hashes.fragment().len();
-    
+
     if level > 6 {
         // 7+ hashes is not a valid heading
-        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            start,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // 3. Require at least one space/tab or end of line after hashes
     // Check what's next without consuming
     let next_char = input.fragment().chars().next();
     let is_valid_separator = match next_char {
-        None => true,  // EOF
-        Some('\n') | Some('\r') => true,  // Newline
+        None => true,                    // EOF
+        Some('\n') | Some('\r') => true, // Newline
         Some(' ') | Some('\t') => true,  // Whitespace
-        Some(_) => false,  // Other character - not valid
+        Some(_) => false,                // Other character - not valid
     };
-    
+
     if !is_valid_separator {
         // No valid separator - not a valid heading (e.g., "#hashtag")
-        return Err(nom::Err::Error(nom::error::Error::new(start, nom::error::ErrorKind::Tag)));
+        return Err(nom::Err::Error(nom::error::Error::new(
+            start,
+            nom::error::ErrorKind::Tag,
+        )));
     }
-    
+
     // Consume whitespace (but not newlines)
-    let (input, _) = take_while(|c| c == ' ' || c == '\t')(input)?;
-    
+    let (input, _) = take_while(|c| c == ' ' || c == '\t').parse(input)?;
+
     // 4. Parse content until end of line
-    let (input, content) = take_while(|c| c != '\n' && c != '\r')(input)?;
-    
+    let (input, content) = take_while(|c| c != '\n' && c != '\r').parse(input)?;
+
     // 5. Trim trailing spaces and optional closing hashes
     let content_str = content.fragment();
     let trimmed = content_str.trim_end();
-    
+
     // Remove trailing hashes if they're preceded by a space
-    let final_content = if let Some(hash_pos) = trimmed.rfind(|c: char| c != '#' && c != ' ') {
+    let final_content_str = if let Some(hash_pos) = trimmed.rfind(|c: char| c != '#' && c != ' ') {
         let after_content = &trimmed[hash_pos + 1..];
         // If everything after is spaces and hashes, remove them
         if after_content.chars().all(|c| c == ' ' || c == '#') {
@@ -91,14 +99,17 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
         // Content is all hashes/spaces or empty
         ""
     };
-    
-    // Create a span for the final content
-    let content_span = LocatedSpan::new(final_content);
-    
+
+    // Slice the original content span to maintain position information
+    // CRITICAL: Do NOT use LocatedSpan::new() as it resets position to 0:0
+    // Instead, slice the original span to preserve line/column/offset
+    let content_len = final_content_str.len();
+    let content_span = content.take(content_len);
+
     // Consume the newline if present
-    let (remaining, _) = opt(line_ending)(input)?;
-    
-    log::debug!("Parsed heading level {}: {:?}", level, final_content);
+    let (remaining, _) = opt(line_ending).parse(input)?;
+
+    log::debug!("Parsed heading level {}: {:?}", level, final_content_str);
     Ok((remaining, (level as u8, content_span)))
 }
 

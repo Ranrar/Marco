@@ -3,7 +3,9 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
 use gtk4::gio;
-use gtk4::{self, prelude::*, Align, Box as GtkBox, Button, Label, Paned, WindowHandle, Orientation};
+use gtk4::{
+    self, prelude::*, Align, Box as GtkBox, Button, Label, Orientation, Paned, WindowHandle,
+};
 use log::trace;
 
 // Type alias for the complex rebuild callback type
@@ -18,7 +20,9 @@ type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 fn reparent_webview_to_main_window(
     webview_rc_opt: &Option<Rc<RefCell<webkit6::WebView>>>,
     split_opt: &Option<Paned>,
-    preview_window_opt: &Option<Rc<RefCell<Option<crate::components::viewer::previewwindow::PreviewWindow>>>>,
+    preview_window_opt: &Option<
+        Rc<RefCell<Option<crate::components::viewer::previewwindow::PreviewWindow>>>,
+    >,
     tracker_opt: &Option<crate::components::viewer::controller::WebViewLocationTracker>,
     guard_opt: &Option<crate::components::viewer::switcher::ReparentGuard>,
     layout_mode: &str, // For logging purposes
@@ -26,10 +30,18 @@ fn reparent_webview_to_main_window(
     use crate::components::viewer::controller::WebViewLocation;
     use crate::components::viewer::switcher::move_webview_to_main_window;
 
-    if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) =
-        (webview_rc_opt, split_opt, preview_window_opt, tracker_opt, guard_opt)
-    {
-        log::debug!("{}: Current WebView location: {:?}", layout_mode, tracker.current());
+    if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) = (
+        webview_rc_opt,
+        split_opt,
+        preview_window_opt,
+        tracker_opt,
+        guard_opt,
+    ) {
+        log::debug!(
+            "{}: Current WebView location: {:?}",
+            layout_mode,
+            tracker.current()
+        );
 
         // If WebView is in preview window, move it back
         if tracker.current() == WebViewLocation::PreviewWindow {
@@ -39,7 +51,8 @@ fn reparent_webview_to_main_window(
                 let preview_window_borrow = preview_window_opt.borrow();
 
                 if let Some(ref preview_window) = *preview_window_borrow {
-                    match move_webview_to_main_window(&webview_borrow, split, preview_window, true) {
+                    match move_webview_to_main_window(&webview_borrow, split, preview_window, true)
+                    {
                         Ok(_) => {
                             tracker.set(WebViewLocation::MainWindow);
                             preview_window.hide();
@@ -73,13 +86,19 @@ fn reparent_webview_to_main_window(
                 return false;
             }
         } else {
-            log::info!("{}: WebView already in main window, no reparenting needed", layout_mode);
-            
+            log::info!(
+                "{}: WebView already in main window, no reparenting needed",
+                layout_mode
+            );
+
             // Even if already in main window, ensure Stack shows html_preview
             if let Some(stack_widget) = split.end_child() {
                 if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
                     stack.set_visible_child_name("html_preview");
-                    log::debug!("{}: Stack set to show html_preview (no reparenting)", layout_mode);
+                    log::debug!(
+                        "{}: Stack set to show html_preview (no reparenting)",
+                        layout_mode
+                    );
                 }
             }
             return true;
@@ -95,17 +114,17 @@ fn create_menu_button(label: &str, menu: &gio::Menu) -> Button {
     let button = Button::with_label(label);
     button.add_css_class("menu-button");
     button.set_has_frame(false);
-    
+
     // Create popover with the menu model
     let popover = gtk4::PopoverMenu::from_model(Some(menu));
     popover.set_parent(&button);
-    
+
     // Connect button click to show popover
     let popover_clone = popover.clone();
     button.connect_clicked(move |_| {
         popover_clone.popup();
     });
-    
+
     button
 }
 
@@ -114,7 +133,7 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     let file_menu = gio::Menu::new();
     file_menu.append(Some("New"), Some("app.new"));
     file_menu.append(Some("Open"), Some("app.open"));
-    
+
     // Recent Files submenu: the application can populate this at runtime.
     // Create the submenu model that will be mutated at runtime.
     let recent_menu = gio::Menu::new();
@@ -133,7 +152,7 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     file_menu.append(Some("Export"), Some("app.export"));
     file_menu.append(Some("Settings"), Some("app.settings"));
     file_menu.append(Some("Quit"), Some("app.quit"));
-    
+
     // Edit menu with text editing and search operations
     let edit_menu = gio::Menu::new();
     edit_menu.append(Some("Undo"), Some("app.undo"));
@@ -142,36 +161,36 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     edit_menu.append(Some("Copy"), Some("app.copy"));
     edit_menu.append(Some("Paste"), Some("app.paste"));
     edit_menu.append(Some("Search & Replace"), Some("app.search"));
-    
+
     // Document menu with builder and splitter tools
     let document_menu = gio::Menu::new();
     document_menu.append(Some("Document Builder"), Some("app.document_builder"));
     document_menu.append(Some("Document Splitter"), Some("app.document_splitter"));
-    
+
     // Bookmarks menu (empty for now)
     let bookmarks_menu = gio::Menu::new();
     let placeholder_bookmark = gio::MenuItem::new(Some("(No bookmarks)"), None::<&str>);
     bookmarks_menu.append_item(&placeholder_bookmark);
-    
+
     // Format menu with text styling options
     let format_menu = gio::Menu::new();
     format_menu.append(Some("Bold"), Some("app.bold"));
     format_menu.append(Some("Italic"), Some("app.italic"));
     format_menu.append(Some("Code"), Some("app.code"));
-    
+
     // View menu with display and layout options
     let view_menu = gio::Menu::new();
     view_menu.append(Some("HTML Preview"), Some("app.view_html"));
     view_menu.append(Some("Code View"), Some("app.view_code"));
-    
+
     // Help menu with application information
     let help_menu = gio::Menu::new();
     help_menu.append(Some("About"), Some("app.about"));
-    
+
     // Create horizontal box for menu buttons
     let menu_box = GtkBox::new(Orientation::Horizontal, 0);
     menu_box.add_css_class("menubar");
-    
+
     // Create menu buttons
     let file_btn = create_menu_button("File", &file_menu);
     let edit_btn = create_menu_button("Edit", &edit_menu);
@@ -180,7 +199,7 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     let format_btn = create_menu_button("Format", &format_menu);
     let view_btn = create_menu_button("View", &view_menu);
     let help_btn = create_menu_button("Help", &help_menu);
-    
+
     // Add buttons to the box
     menu_box.append(&file_btn);
     menu_box.append(&edit_btn);
@@ -189,7 +208,7 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     menu_box.append(&format_btn);
     menu_box.append(&view_btn);
     menu_box.append(&help_btn);
-    
+
     (menu_box, recent_menu)
 }
 
@@ -224,15 +243,15 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         split_controller,
         asset_root,
     } = config;
-    
+
     // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
-    
+
     // Use GTK4 HeaderBar for proper title centering
     let headerbar = gtk4::HeaderBar::new();
     headerbar.add_css_class("titlebar");
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
-    
+
     // App icon (left) - uses dynamic asset directory path
     let icon_path = asset_root.join("icons/favicon.png");
     let icon = Image::from_file(&icon_path);
@@ -345,7 +364,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             btn1.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
-            
+
             // Clone reparenting state for the handler
             let webview_rc_opt = webview_rc_for_rebuild.clone();
             let split_opt = split_for_rebuild.clone();
@@ -353,11 +372,11 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
             let reparent_guard_opt = reparent_guard_for_rebuild.clone();
             let split_controller_opt = split_controller_for_rebuild.clone();
-            
+
             btn1.connect_clicked(move |_| {
                 let next = LayoutState::EditorOnly;
                 *layout_state.borrow_mut() = next;
-                
+
                 // Handle reparenting if needed (from EditorAndViewSeparate back to EditorOnly)
                 reparent_webview_to_main_window(
                     &webview_rc_opt,
@@ -367,12 +386,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                     &reparent_guard_opt,
                     "EditorOnly",
                 );
-                
+
                 // Set split controller to EditorOnly mode (locks at 100%)
                 if let Some(controller) = &split_controller_opt {
                     controller.set_mode(next);
                 }
-                
+
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -399,7 +418,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             btn2.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
-            
+
             // Clone reparenting state for the handler
             let webview_rc_opt = webview_rc_for_rebuild.clone();
             let split_opt = split_for_rebuild.clone();
@@ -407,11 +426,11 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
             let reparent_guard_opt = reparent_guard_for_rebuild.clone();
             let split_controller_opt = split_controller_for_rebuild.clone();
-            
+
             btn2.connect_clicked(move |_| {
                 let next = LayoutState::ViewOnly;
                 *layout_state.borrow_mut() = next;
-                
+
                 // Handle reparenting if needed (from EditorAndViewSeparate back to ViewOnly)
                 reparent_webview_to_main_window(
                     &webview_rc_opt,
@@ -421,12 +440,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                     &reparent_guard_opt,
                     "ViewOnly",
                 );
-                
+
                 // Set split controller to ViewOnly mode (locks at 0%)
                 if let Some(controller) = &split_controller_opt {
                     controller.set_mode(next);
                 }
-                
+
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -450,7 +469,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             btn3.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
-            
+
             // Use the reparenting state clones from outer scope (before rebuild closure)
             let webview_rc_opt = webview_rc_for_rebuild.clone();
             let split_opt = split_for_rebuild.clone();
@@ -461,13 +480,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             let split_controller_opt = split_controller_for_rebuild.clone();
             let previous_layout_state_for_btn3 = previous_layout_state_clone.clone();
             let previous_split_position_for_btn3 = previous_split_position_clone.clone();
-            
+
             btn3.connect_clicked(move |_| {
                 // Store the current layout state before switching to EditorAndViewSeparate
                 // This allows us to return to the exact same state when closing the preview window
                 let current_state = *layout_state.borrow();
                 *previous_layout_state_for_btn3.borrow_mut() = current_state;
-                
+
                 // If currently in DualView, also store the split position
                 if current_state == LayoutState::DualView {
                     if let Some(ref split) = split_opt {
@@ -476,25 +495,25 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                         log::info!("Storing previous DualView split position: {}", current_position);
                     }
                 }
-                
+
                 log::info!("Storing previous layout state: {:?} before switching to EditorAndViewSeparate", current_state);
-                
+
                 let next = LayoutState::EditorAndViewSeparate;
                 *layout_state.borrow_mut() = next;
-                
+
                 // Set split controller to EditorAndViewSeparate mode first (locks at 100%)
                 if let Some(controller) = &split_controller_opt {
                     controller.set_mode(next);
                 }
-                
+
                 // Perform WebView reparenting if all required state is available
-                if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) = 
-                    (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt) 
+                if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) =
+                    (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt)
                 {
                     use crate::components::viewer::previewwindow::PreviewWindow;
                     use crate::components::viewer::switcher::move_webview_to_preview_window;
                     use crate::components::viewer::controller::WebViewLocation;
-                    
+
                     // Only reparent if WebView is currently in main window
                     if tracker.current() == WebViewLocation::MainWindow {
                         // Try to acquire reparent guard
@@ -506,7 +525,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                     if let Some(window) = window_weak.upgrade() {
                                         if let Some(app) = window.application() {
                                             let new_preview_window = PreviewWindow::new(&window, &app);
-                                            
+
                                             // Set up close callback to handle window closing
                                             // Use a weak reference for preview_window_opt to prevent circular reference
                                             // (PreviewWindow → callback → preview_window_opt creates a cycle)
@@ -521,13 +540,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                             let preview_window_opt_weak = Rc::downgrade(preview_window_opt);
                                             let weak_rebuild_for_callback = weak_rebuild.clone();
                                             let split_controller_for_callback = split_controller_opt.clone();
-                                            
+
                                             new_preview_window.set_on_close_callback(move || {
                                                 use crate::components::viewer::switcher::move_webview_to_main_window;
                                                 use crate::components::viewer::controller::WebViewLocation;
-                                                
+
                                                 log::info!("Preview window close callback triggered");
-                                                
+
                                                 // Upgrade the weak reference for preview_window_opt
                                                 let preview_window_opt = match preview_window_opt_weak.upgrade() {
                                                     Some(p) => p,
@@ -536,19 +555,19 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                                         return;
                                                     }
                                                 };
-                                                
+
                                                 // Restore to the previous layout state (the state before EditorAndViewSeparate)
                                                 let previous_state = *previous_layout_state_for_callback.borrow();
                                                 *layout_state_for_callback.borrow_mut() = previous_state;
                                                 log::info!("Restoring to previous layout state: {:?}", previous_state);
-                                                
+
                                                 // Update split controller to the previous mode
                                                 // For DualView, this will restore the split position via idle callback
                                                 if let Some(ref controller) = split_controller_for_callback {
                                                     controller.set_mode(previous_state);
                                                     log::info!("Split controller set to {:?} mode", previous_state);
                                                 }
-                                                
+
                                                 // If restoring to DualView, also restore the split position
                                                 if previous_state == LayoutState::DualView {
                                                     let saved_position = *previous_split_position_for_callback.borrow();
@@ -561,18 +580,18 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                                         });
                                                     }
                                                 }
-                                                
+
                                                 // Reparent WebView back if it's in the preview window
                                                 if tracker_for_callback.current() == WebViewLocation::PreviewWindow
                                                     && guard_for_callback.try_begin() {
                                                         let webview_borrow = webview_rc_for_callback.borrow();
                                                         let preview_window_borrow = preview_window_opt.borrow();
-                                                        
+
                                                         if let Some(ref preview_window) = *preview_window_borrow {
                                                             match move_webview_to_main_window(&webview_borrow, &split_for_callback, preview_window, true) {
                                                                 Ok(_) => {
                                                                     tracker_for_callback.set(WebViewLocation::MainWindow);
-                                                                    
+
                                                                     // Ensure Stack shows html_preview
                                                                     if let Some(stack_widget) = split_for_callback.end_child() {
                                                                         if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
@@ -580,7 +599,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                                                             log::info!("Stack set to show html_preview after window close");
                                                                         }
                                                                     }
-                                                                    
+
                                                                     log::info!("WebView reparented back to main window after preview window close");
                                                                 }
                                                                 Err(e) => {
@@ -590,7 +609,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                                         }
                                                         guard_for_callback.end();
                                                     }
-                                                
+
                                                 // Rebuild popover to show DualView as active
                                                 if let Some(rc) = weak_rebuild_for_callback.upgrade() {
                                                     if let Some(ref rebuild) = *rc.borrow() {
@@ -598,7 +617,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                                     }
                                                 }
                                             });
-                                            
+
                                             *opt_borrow = Some(new_preview_window);
                                             log::info!("Created new preview window for EditorAndViewSeparate mode with close callback");
                                         }
@@ -606,12 +625,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                 }
                                 opt_borrow.is_some()
                             };
-                            
+
                             if should_reparent {
                                 // Borrow webview and preview_window for reparenting
                                 let webview_borrow = webview_rc.borrow();
                                 let preview_window_borrow = preview_window_opt.borrow();
-                                
+
                                 if let Some(ref preview_window) = *preview_window_borrow {
                                     // Perform reparenting
                                     match move_webview_to_preview_window(&webview_borrow, split, preview_window) {
@@ -627,14 +646,14 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                     }
                                 }
                             }
-                            
+
                             guard.end();
                         } else {
                             log::warn!("Cannot reparent WebView: reparenting already in progress");
                         }
                     }
                 }
-                
+
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -658,7 +677,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             btn4.set_halign(Align::Start);
             let layout_state = layout_state_clone2.clone();
             let weak_rebuild = weak_rebuild_popover.clone();
-            
+
             // Clone reparenting state for the handler
             let webview_rc_opt = webview_rc_for_rebuild.clone();
             let split_opt = split_for_rebuild.clone();
@@ -666,11 +685,11 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
             let reparent_guard_opt = reparent_guard_for_rebuild.clone();
             let split_controller_opt = split_controller_for_rebuild.clone();
-            
+
             btn4.connect_clicked(move |_| {
                 let next = LayoutState::DualView;
                 *layout_state.borrow_mut() = next;
-                
+
                 // Handle reparenting if needed (from EditorAndViewSeparate back to DualView)
                 reparent_webview_to_main_window(
                     &webview_rc_opt,
@@ -680,12 +699,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                     &reparent_guard_opt,
                     "DualView",
                 );
-                
+
                 // Set split controller to DualView mode (unlocks split, 50% position)
                 if let Some(controller) = &split_controller_opt {
                     controller.set_mode(next);
                 }
-                
+
                 if let Some(rc) = weak_rebuild.upgrade() {
                     if let Some(ref rebuild) = *rc.borrow() {
                         rebuild();
@@ -781,11 +800,11 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     // Add controls to headerbar from right to left (pack_end order)
     // Since pack_end adds from right to left, we add in reverse visual order:
     // First add window controls (they'll be rightmost)
-    headerbar.pack_end(&btn_close);        // Rightmost
-    headerbar.pack_end(&btn_max_toggle);   // Middle
-    headerbar.pack_end(&btn_min);          // Left of window controls
-    // Then add layout button (it will be to the left of window controls)
-    headerbar.pack_end(&layout_menu_btn);  // Left of minimize button
+    headerbar.pack_end(&btn_close); // Rightmost
+    headerbar.pack_end(&btn_max_toggle); // Middle
+    headerbar.pack_end(&btn_min); // Left of window controls
+                                  // Then add layout button (it will be to the left of window controls)
+    headerbar.pack_end(&layout_menu_btn); // Left of minimize button
 
     // Minimize and close actions
     let win_clone = window.clone();

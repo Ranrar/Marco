@@ -1,8 +1,8 @@
+use anyhow::Result;
 use core::logic::{
     loaders::font_loader::{AvailableFonts, FontLoader},
     swanson::{EditorSettings, SettingsManager},
 };
-use anyhow::Result;
 use log::debug;
 use std::sync::Arc;
 
@@ -32,7 +32,7 @@ impl EditorConfiguration {
     pub fn get_current_editor_settings(&self) -> EditorDisplaySettings {
         let settings = self.settings_manager.get_settings();
         let editor = settings.editor.unwrap_or_default();
-        
+
         let font_family = editor
             .font
             .unwrap_or_else(|| self.get_default_editor_font());
@@ -41,11 +41,10 @@ impl EditorConfiguration {
         let line_wrapping = editor.line_wrapping.unwrap_or(false);
         let show_invisibles = editor.show_invisibles.unwrap_or(false);
         let tabs_to_spaces = editor.tabs_to_spaces.unwrap_or(false);
-        let syntax_colors = editor.syntax_colors.unwrap_or(true);
 
         debug!(
-            "Loaded editor settings from SettingsManager: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{} syntax_colors:{}",
-            font_family, font_size, line_height, line_wrapping, show_invisibles, tabs_to_spaces, syntax_colors
+            "Loaded editor settings from SettingsManager: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{}",
+            font_family, font_size, line_height, line_wrapping, show_invisibles, tabs_to_spaces
         );
 
         let show_line_numbers = settings
@@ -61,7 +60,7 @@ impl EditorConfiguration {
             line_wrapping,
             show_invisibles,
             tabs_to_spaces,
-            syntax_colors,
+            syntax_colors: editor.syntax_colors.unwrap_or(true),
             show_line_numbers,
         }
     }
@@ -69,34 +68,35 @@ impl EditorConfiguration {
     /// Save editor settings to storage
     pub fn save_editor_settings(&self, editor_settings: &EditorDisplaySettings) -> Result<()> {
         debug!(
-            "Saving editor settings: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{} syntax_colors:{}",
+            "Saving editor settings: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{}",
             editor_settings.font_family,
             editor_settings.font_size,
             editor_settings.line_height,
             editor_settings.line_wrapping,
             editor_settings.show_invisibles,
-            editor_settings.tabs_to_spaces,
-            editor_settings.syntax_colors
+            editor_settings.tabs_to_spaces
         );
 
-        self.settings_manager.update_settings(|settings| {
-            // Ensure editor settings exist
-            if settings.editor.is_none() {
-                settings.editor = Some(EditorSettings::default());
-            }
+        self.settings_manager
+            .update_settings(|settings| {
+                // Ensure editor settings exist
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
 
-            // Update editor settings
-            if let Some(ref mut editor) = settings.editor {
-                editor.font = Some(editor_settings.font_family.clone());
-                editor.font_size = Some(editor_settings.font_size);
-                editor.line_height = Some(editor_settings.line_height);
-                editor.line_wrapping = Some(editor_settings.line_wrapping);
-                editor.show_invisibles = Some(editor_settings.show_invisibles);
-                editor.tabs_to_spaces = Some(editor_settings.tabs_to_spaces);
-                editor.syntax_colors = Some(editor_settings.syntax_colors);
-            }
-        }).map_err(|e| anyhow::anyhow!("Failed to save editor settings: {}", e))?;
-        
+                // Update editor settings
+                if let Some(ref mut editor) = settings.editor {
+                    editor.font = Some(editor_settings.font_family.clone());
+                    editor.font_size = Some(editor_settings.font_size);
+                    editor.line_height = Some(editor_settings.line_height);
+                    editor.line_wrapping = Some(editor_settings.line_wrapping);
+                    editor.show_invisibles = Some(editor_settings.show_invisibles);
+                    editor.tabs_to_spaces = Some(editor_settings.tabs_to_spaces);
+                    editor.syntax_colors = Some(editor_settings.syntax_colors);
+                }
+            })
+            .map_err(|e| anyhow::anyhow!("Failed to save editor settings: {}", e))?;
+
         debug!("Editor settings saved successfully");
         Ok(())
     }

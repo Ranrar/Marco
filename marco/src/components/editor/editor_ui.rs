@@ -1,40 +1,21 @@
+use crate::components::editor::processing_utilities::AsyncExtensionManager;
 use crate::components::editor::render::render_editor_with_view;
 use crate::components::editor::theme_utils::extract_xml_color_value;
-use crate::components::editor::processing_utilities::AsyncExtensionManager;
-use core::RenderOptions;  // New parser API
-use core::global_parser_cache;  // New cache API
 use crate::components::viewer::preview::refresh_preview_into_webview;
 use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
 use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
 use crate::components::viewer::webview_utils::webkit_scrollbar_css;
 use crate::footer::FooterLabels;
 use crate::logic::signal_manager::safe_source_remove;
+use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
+use core::global_parser_cache; // New cache API
+use core::RenderOptions; // New parser API
 use gtk4::prelude::*;
 use gtk4::Paned;
 use sourceview5::prelude::*;
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
-use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
-
-// === LSP Infrastructure (for future implementation) ===
-// This structure will hold LSP-related state for the editor
-#[allow(dead_code)]
-struct LspState {
-    // Placeholder for future LSP client connection
-    // Will be used for:
-    // - Syntax highlighting updates
-    // - Diagnostics (errors/warnings)
-    // - Code completion
-    // - Hover information
-}
-
-impl LspState {
-    #[allow(dead_code)]
-    fn new() -> Self {
-        Self {}
-    }
-}
-
 
 pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
@@ -48,7 +29,7 @@ pub fn create_editor_with_preview_and_buffer(
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
-    
+
     // Create split controller to manage position constraints and locking
     use crate::components::viewer::controller::SplitController;
     let split_controller = SplitController::new(paned.clone());
@@ -108,7 +89,7 @@ pub fn create_editor_with_preview_and_buffer(
             crate::footer::update_insert_mode(&labels_clone, *mode);
             return Propagation::Stop;
         }
-        
+
         // Handle Enter vs Shift+Enter for different line break types
         if keyval == Key::Return {
             let buffer = source_view_clone.buffer();
@@ -122,106 +103,34 @@ pub fn create_editor_with_preview_and_buffer(
             }
             return Propagation::Stop;
         }
-        
+
         Propagation::Proceed
     });
-    
+
     // Set event controller to capture phase to ensure it receives events before SourceView
     event_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
-    // Register this editor with the global editor manager to receive settings updates
-    {
-        let source_view_for_callback = source_view.clone();
-        if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
-            move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
-                
-                log::debug!("Applying editor settings update to SourceView: {} {}px", 
-                    new_settings.font_family, new_settings.font_size);
-                
-                // Apply settings directly to avoid RefCell borrow conflicts
-                // This is the same logic as EditorConfiguration::apply_to_sourceview but without the manager
-                
-                // Apply font and line height using CSS
-                let css = format!(
-                    r#"
-                    textview {{
-                        font-family: "{}";
-                        font-size: {}px;
-                        line-height: {};
-                    }}
-                    textview text {{
-                        font-family: "{}";
-                        font-size: {}px;
-                        line-height: {};
-                    }}
-                    "#,
-                    new_settings.font_family, new_settings.font_size, new_settings.line_height,
-                    new_settings.font_family, new_settings.font_size, new_settings.line_height
-                );
-                
-                let css_provider = gtk4::CssProvider::new();
-                css_provider.load_from_data(&css);
-                source_view_for_callback.style_context().add_provider(
-                    &css_provider, 
-                    gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION
-                );
-                
-                // Apply line wrapping
-                let wrap_mode = if new_settings.line_wrapping {
-                    gtk4::WrapMode::Word
-                } else {
-                    gtk4::WrapMode::None
-                };
-                source_view_for_callback.set_wrap_mode(wrap_mode);
-                
-                // Apply tabs to spaces setting
-                source_view_for_callback.set_insert_spaces_instead_of_tabs(new_settings.tabs_to_spaces);
-                
-                // Apply line numbers setting
-                source_view_for_callback.set_show_line_numbers(new_settings.show_line_numbers);
-                
-                // Apply show invisibles setting (whitespace visibility)
-                let space_drawer = source_view_for_callback.space_drawer();
-                if new_settings.show_invisibles {
-                    space_drawer.set_types_for_locations(
-                        sourceview5::SpaceLocationFlags::ALL,
-                        sourceview5::SpaceTypeFlags::SPACE | sourceview5::SpaceTypeFlags::TAB | sourceview5::SpaceTypeFlags::NEWLINE,
-                    );
-                    space_drawer.set_enable_matrix(true);
-                } else {
-                    space_drawer.set_types_for_locations(
-                        sourceview5::SpaceLocationFlags::ALL,
-                        sourceview5::SpaceTypeFlags::NONE,
-                    );
-                    space_drawer.set_enable_matrix(false);
-                }
-                
-                // Apply syntax highlighting setting
-                if let Ok(buffer) = source_view_for_callback.buffer().downcast::<sourceview5::Buffer>() {
-                    buffer.set_highlight_syntax(new_settings.syntax_colors);
-                }
-                
-                log::debug!("Successfully applied editor settings to SourceView: {} {}px", 
-                    new_settings.font_family, new_settings.font_size);
-            }
-        ) {
-            log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
-        } else {
-            log::warn!("Failed to register editor with global editor manager - settings updates will not work");
-        }
-    }
+    // Editor callback registration moved later so buffer handle can be captured
 
     // Register this editor for line numbers updates
     {
         let source_view_for_line_numbers = source_view.clone();
-        if let Some(_line_numbers_id) = crate::components::editor::editor_manager::register_line_numbers_callback_globally(
-            move |show_line_numbers: bool| {
-                log::debug!("Applying line numbers setting to SourceView: {}", show_line_numbers);
-                source_view_for_line_numbers.set_show_line_numbers(show_line_numbers);
-            }
-        ) {
-            log::debug!("Registered line numbers callback with editor manager: ID {:?}", _line_numbers_id);
+        if let Some(_line_numbers_id) =
+            crate::components::editor::editor_manager::register_line_numbers_callback_globally(
+                move |show_line_numbers: bool| {
+                    log::debug!(
+                        "Applying line numbers setting to SourceView: {}",
+                        show_line_numbers
+                    );
+                    source_view_for_line_numbers.set_show_line_numbers(show_line_numbers);
+                },
+            )
+        {
+            log::debug!(
+                "Registered line numbers callback with editor manager: ID {:?}",
+                _line_numbers_id
+            );
         } else {
             log::warn!("Failed to register line numbers callback with global editor manager");
         }
@@ -330,16 +239,16 @@ pub fn create_editor_with_preview_and_buffer(
     // When scrollbar visible: 1px minimal separator (scrollbar acts as divider)
     let paned_css_provider_holder: Rc<RefCell<Option<gtk4::CssProvider>>> =
         Rc::new(RefCell::new(None));
-    
+
     // Function to generate CSS based on scrollbar visibility
     let generate_dynamic_paned_css = {
         let scrollbar_thumb = Rc::clone(&scrollbar_thumb_color);
         let scrollbar_track = Rc::clone(&scrollbar_track_color);
-        
+
         move |scrollbar_visible: bool| -> String {
             let thumb = scrollbar_thumb.borrow().clone();
             let track = scrollbar_track.borrow().clone();
-            
+
             if scrollbar_visible {
                 // Minimal 1px separator when scrollbar is visible
                 format!(
@@ -376,7 +285,7 @@ paned > separator {{
             }
         }
     };
-    
+
     // Apply initial CSS (assume no scrollbar initially)
     if let Some(display) = gtk4::gdk::Display::default() {
         let initial_css = generate_dynamic_paned_css(false);
@@ -390,15 +299,15 @@ paned > separator {{
         *paned_css_provider_holder.borrow_mut() = Some(provider);
         log::debug!("Applied initial paned separator CSS (12px, no scrollbar)");
     }
-    
+
     // Monitor scrollbar visibility and update separator CSS dynamically
     let paned_css_holder_for_monitor = Rc::clone(&paned_css_provider_holder);
     let editor_sw_for_monitor = editor_scrolled_window.clone();
     let generate_css_for_monitor = generate_dynamic_paned_css.clone();
-    
+
     // Track last scrollbar state to avoid redundant CSS updates
     let last_scrollbar_state = Rc::new(RefCell::new(false));
-    
+
     // Check scrollbar visibility periodically with fast polling (100ms)
     glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
         // Get vertical adjustment to check if scrollbar is needed
@@ -406,17 +315,17 @@ paned > separator {{
         let upper = vadj.upper();
         let page_size = vadj.page_size();
         let scrollbar_visible = upper > page_size;
-        
+
         // Only update CSS if scrollbar visibility state changed
         let mut last_state = last_scrollbar_state.borrow_mut();
         if *last_state != scrollbar_visible {
             *last_state = scrollbar_visible;
             drop(last_state); // Release borrow before calling closure
-            
+
             // Update CSS based on scrollbar visibility using the closure
             if let Some(display) = gtk4::gdk::Display::default() {
                 let css = generate_css_for_monitor(scrollbar_visible);
-                
+
                 let provider = gtk4::CssProvider::new();
                 provider.load_from_data(&css);
                 gtk4::style_context_add_provider_for_display(
@@ -425,15 +334,118 @@ paned > separator {{
                     gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
                 );
                 *paned_css_holder_for_monitor.borrow_mut() = Some(provider);
-                
-                log::debug!("Paned separator CSS updated: scrollbar_visible={}", scrollbar_visible);
+
+                log::debug!(
+                    "Paned separator CSS updated: scrollbar_visible={}",
+                    scrollbar_visible
+                );
             }
         }
-        
+
         glib::ControlFlow::Continue
     });
 
     let buffer_rc: Rc<sourceview5::Buffer> = Rc::new(buffer);
+    // Apply LSP syntax tag colors for the current theme so tags exist before
+    // any LSP or UI code attempts to lookup them by name. Only apply if the
+    // user settings enable syntax colors.
+    {
+        let tm = theme_manager.borrow();
+        let settings = tm.get_settings();
+        let enable_syntax = settings
+            .editor
+            .as_ref()
+            .and_then(|e| e.syntax_colors)
+            .unwrap_or(true);
+        if enable_syntax {
+            crate::ui::css::syntax::apply_to_buffer(&buffer_rc, theme_mode.borrow().as_str());
+        } else {
+            crate::ui::css::syntax::remove_from_buffer(&buffer_rc);
+        }
+    }
+    // Register this editor with the global editor manager to receive settings updates
+    {
+        let source_view_for_callback = source_view.clone();
+        let buffer_for_callback = Rc::clone(&buffer_rc);
+        let theme_manager_for_callback = Rc::clone(&theme_manager);
+        if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
+                move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
+                    log::debug!("Applying editor settings update to SourceView: {} {}px", 
+                        new_settings.font_family, new_settings.font_size);
+
+                    // Apply font and line height using CSS
+                    let css = format!(
+                        r#"
+                        textview {{
+                            font-family: "{}";
+                            font-size: {}px;
+                            line-height: {};
+                        }}
+                        textview text {{
+                            font-family: "{}";
+                            font-size: {}px;
+                            line-height: {};
+                        }}
+                        "#,
+                        new_settings.font_family, new_settings.font_size, new_settings.line_height,
+                        new_settings.font_family, new_settings.font_size, new_settings.line_height
+                    );
+
+                    let css_provider = gtk4::CssProvider::new();
+                    css_provider.load_from_data(&css);
+                    source_view_for_callback.style_context().add_provider(
+                        &css_provider,
+                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION
+                    );
+
+                    // Apply line wrapping
+                    let wrap_mode = if new_settings.line_wrapping {
+                        gtk4::WrapMode::Word
+                    } else {
+                        gtk4::WrapMode::None
+                    };
+                    source_view_for_callback.set_wrap_mode(wrap_mode);
+
+                    // Apply tabs to spaces setting
+                    source_view_for_callback.set_insert_spaces_instead_of_tabs(new_settings.tabs_to_spaces);
+
+                    // Apply line numbers setting
+                    source_view_for_callback.set_show_line_numbers(new_settings.show_line_numbers);
+
+                    // Apply show invisibles setting (whitespace visibility)
+                    let space_drawer = source_view_for_callback.space_drawer();
+                    if new_settings.show_invisibles {
+                        space_drawer.set_types_for_locations(
+                            sourceview5::SpaceLocationFlags::ALL,
+                            sourceview5::SpaceTypeFlags::SPACE | sourceview5::SpaceTypeFlags::TAB | sourceview5::SpaceTypeFlags::NEWLINE,
+                        );
+                        space_drawer.set_enable_matrix(true);
+                    } else {
+                        space_drawer.set_types_for_locations(
+                            sourceview5::SpaceLocationFlags::ALL,
+                            sourceview5::SpaceTypeFlags::NONE,
+                        );
+                        space_drawer.set_enable_matrix(false);
+                    }
+
+                    // Apply or remove syntax colors depending on the new settings value
+                    if new_settings.syntax_colors {
+                        let scheme_id = theme_manager_for_callback.borrow().current_editor_scheme_id();
+                        let theme_mode = theme_manager_for_callback.borrow().preview_theme_mode_from_scheme(&scheme_id);
+                        crate::ui::css::syntax::apply_to_buffer(&buffer_for_callback, theme_mode.as_str());
+                    } else {
+                        crate::ui::css::syntax::remove_from_buffer(&buffer_for_callback);
+                    }
+
+                    log::debug!("Successfully applied editor settings to SourceView: {} {}px", 
+                        new_settings.font_family, new_settings.font_size);
+                }
+            ) {
+                log::debug!("Registered editor callback with editor manager: ID {:?}", _editor_id);
+            } else {
+                log::warn!("Failed to register editor with global editor manager - settings updates will not work");
+            }
+    }
     let css_rc = Rc::new(RefCell::new(css));
     let theme_mode_rc = Rc::clone(&theme_mode);
 
@@ -451,10 +463,11 @@ paned > separator {{
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
 
-    let initial_html_body = match global_parser_cache().render_with_cache(&initial_text, (*html_opts_rc).clone()) {
-        Ok(html) => html,
-        Err(e) => format!("Error rendering HTML: {}", e),
-    };
+    let initial_html_body =
+        match global_parser_cache().render_with_cache(&initial_text, (*html_opts_rc).clone()) {
+            Ok(html) => html,
+            Err(e) => format!("Error rendering HTML: {}", e),
+        };
 
     let pretty_initial =
         crate::components::viewer::html_format::pretty_print_html(&initial_html_body);
@@ -465,11 +478,11 @@ paned > separator {{
     initial_html_body_with_js.push_str(&wheel_js_rc);
     // Use the CSS stored in css_rc (clone it) to avoid using the moved `css` value.
     let css_clone = css_rc.borrow().clone();
-    
+
     // Get editor background color early for instant dark mode support (eliminates white flash)
     let bg_init_preview = editor_bg_color.borrow().clone();
     let bg_init_preview_ref = bg_init_preview.as_deref();
-    
+
     // LAYERED DEFENSE - Inject inline background style in HTML
     let initial_html = crate::components::viewer::webkit6::wrap_html_document(
         &initial_html_body_with_js,
@@ -477,7 +490,7 @@ paned > separator {{
         &theme_mode.borrow(),
         bg_init_preview_ref, // Pass editor background color for inline style
     );
-    
+
     // LAYERED DEFENSE - Set widget background + load HTML
     let webview = crate::components::viewer::webkit6::create_html_viewer_with_base(
         &initial_html,
@@ -511,26 +524,27 @@ paned > separator {{
     let fg_init = fg_init_owned.as_deref();
     let thumb_init = scrollbar_thumb_color.borrow().clone();
     let track_init = scrollbar_track_color.borrow().clone();
-    
+
     // Create WebView-based code viewer with syntax highlighting
     let current_theme_for_code = theme_mode_rc.borrow().clone();
     let webview_code = crate::components::viewer::webkit6::create_html_source_viewer_webview(
         &pretty_initial,
         &current_theme_for_code,
-        None, // No base URI needed for code view
-        bg_init, // Pass editor background color
-        fg_init, // Pass editor foreground color
+        None,              // No base URI needed for code view
+        bg_init,           // Pass editor background color
+        fg_init,           // Pass editor foreground color
         Some(&thumb_init), // Pass scrollbar thumb color
         Some(&track_init), // Pass scrollbar track color
-    ).expect("Failed to create code viewer WebView");
-    
+    )
+    .expect("Failed to create code viewer WebView");
+
     // Wrap WebView in ScrolledWindow for consistency
     let sw = gtk4::ScrolledWindow::new();
     sw.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
     sw.set_child(Some(&webview_code));
     sw.add_css_class("editor-scrolled"); // Match editor scrollbar style
     let precreated_code_sw = Rc::new(sw);
-    
+
     let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
         Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
 
@@ -545,7 +559,7 @@ paned > separator {{
     let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
     let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
     let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
-    // Clone document_buffer for use in refresh closure
+                                                                                // Clone document_buffer for use in refresh closure
     let document_buffer_for_refresh = document_buffer.as_ref().map(Rc::clone);
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
@@ -560,12 +574,12 @@ paned > separator {{
         let document_buffer_capture = document_buffer_for_refresh.clone();
         std::rc::Rc::new(move || {
             let is_first_load = *is_initial_load_clone.borrow();
-            
+
             // Check if the document path has changed (indicating a new file was loaded)
             let current_doc_path = document_buffer_capture
                 .as_ref()
                 .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
-            
+
             let doc_path_changed = {
                 let last_path = last_document_path_clone.borrow();
                 match (&*last_path, &current_doc_path) {
@@ -575,10 +589,10 @@ paned > separator {{
                     (Some(last), Some(current)) => last != current,
                 }
             };
-            
+
             // Update the last document path
             *last_document_path_clone.borrow_mut() = current_doc_path.clone();
-            
+
             // Check if CSS has changed (theme update)
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
@@ -588,14 +602,14 @@ paned > separator {{
             let current_css_hash = hasher.finish();
             let css_changed = *last_css_hash_clone.borrow() != current_css_hash;
             *last_css_hash_clone.borrow_mut() = current_css_hash;
-            
+
             if is_first_load || css_changed || doc_path_changed {
                 // Use traditional load_html for initial load, when CSS/theme changes, or when document changes
                 // Generate base URI directly from DocumentBuffer for WebKit6
                 let base_uri = document_buffer_capture
                     .as_ref()
                     .and_then(|buf| buf.borrow().get_base_uri_for_webview());
-                
+
                 let params = crate::components::viewer::preview::PreviewRefreshParams {
                     webview: &webview.borrow(),
                     css: &css,
@@ -606,7 +620,7 @@ paned > separator {{
                     base_uri: base_uri.as_deref(),
                 };
                 crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
-                
+
                 // Mark as no longer initial load
                 *is_initial_load_clone.borrow_mut() = false;
             } else {
@@ -617,7 +631,9 @@ paned > separator {{
                     buffer: buffer.as_ref(),
                     wheel_js: &wheel_js_local,
                 };
-                crate::components::viewer::preview::refresh_preview_content_smooth_with_doc_buffer(params);
+                crate::components::viewer::preview::refresh_preview_content_smooth_with_doc_buffer(
+                    params,
+                );
             }
         })
     };
@@ -640,10 +656,10 @@ paned > separator {{
         let scrollbar_thumb_for_code = Rc::clone(&scrollbar_thumb_color);
         let scrollbar_track_for_code = Rc::clone(&scrollbar_track_color);
         let last_code_view_theme = Rc::new(RefCell::new(String::new()));
-        
+
         Box::new(move || {
             log::debug!("[editor_ui] update_html_code_view called");
-            
+
             let text = buffer_for_code
                 .text(
                     &buffer_for_code.start_iter(),
@@ -655,27 +671,39 @@ paned > separator {{
             log::debug!("[editor_ui] Buffer text length: {} bytes", text.len());
 
             // Generate raw HTML using new parser cache with full HTML caching
-            let html_body = match global_parser_cache().render_with_cache(&text, (*html_opts_for_code).clone()) {
+            let html_body = match global_parser_cache()
+                .render_with_cache(&text, (*html_opts_for_code).clone())
+            {
                 Ok(html) => html,
                 Err(e) => format!("<!-- Error rendering HTML: {} -->", e),
             };
 
-            log::debug!("[editor_ui] Generated HTML length: {} bytes", html_body.len());
+            log::debug!(
+                "[editor_ui] Generated HTML length: {} bytes",
+                html_body.len()
+            );
 
             // Format the HTML for better readability in code view
-            let formatted_html = crate::components::viewer::html_format::pretty_print_html(&html_body);
-            
-            log::debug!("[editor_ui] Formatted HTML length: {} bytes", formatted_html.len());
-            
+            let formatted_html =
+                crate::components::viewer::html_format::pretty_print_html(&html_body);
+
+            log::debug!(
+                "[editor_ui] Formatted HTML length: {} bytes",
+                formatted_html.len()
+            );
+
             // Get current theme mode
             let current_theme = theme_mode_for_code.borrow().clone();
-            
+
             log::debug!("[editor_ui] Current theme: {}", current_theme);
-            
+
             // Update the code view
             if let Some(sw_child) = precreated_code_sw_for_code.child() {
-                log::debug!("[editor_ui] Code view has child widget: {:?}", sw_child.type_());
-                
+                log::debug!(
+                    "[editor_ui] Code view has child widget: {:?}",
+                    sw_child.type_()
+                );
+
                 // GTK ScrolledWindow may wrap widgets in a Viewport
                 // Try to get the actual widget (WebView or TextView)
                 let actual_widget = if sw_child.is::<gtk4::Viewport>() {
@@ -688,48 +716,58 @@ paned > separator {{
                 } else {
                     Some(sw_child)
                 };
-                
+
                 if let Some(widget) = actual_widget {
                     log::debug!("[editor_ui] Actual widget type: {:?}", widget.type_());
-                    
+
                     // Get current theme and check if it changed
                     let theme_changed = *last_code_view_theme.borrow() != current_theme;
                     if theme_changed {
-                        log::debug!("[editor_ui] Theme changed: {} -> {}", 
-                            last_code_view_theme.borrow(), current_theme);
+                        log::debug!(
+                            "[editor_ui] Theme changed: {} -> {}",
+                            last_code_view_theme.borrow(),
+                            current_theme
+                        );
                         *last_code_view_theme.borrow_mut() = current_theme.clone();
                     }
-                    
+
                     // Update WebView with smooth transition
                     if widget.is::<webkit6::WebView>() {
-                        log::debug!("[editor_ui] Widget is WebView, updating with smooth transition");
-                        
+                        log::debug!(
+                            "[editor_ui] Widget is WebView, updating with smooth transition"
+                        );
+
                         if let Ok(webview) = widget.downcast::<webkit6::WebView>() {
                             // Get editor colors
                             let bg_owned = editor_bg_for_code.borrow().clone();
                             let fg_owned = editor_fg_for_code.borrow().clone();
                             let bg = bg_owned.as_deref();
                             let fg = fg_owned.as_deref();
-                            
+
                             // Get scrollbar colors
                             let thumb = scrollbar_thumb_for_code.borrow().clone();
                             let track = scrollbar_track_for_code.borrow().clone();
-                            
+
                             // Use smooth update to avoid flickering
-                            if let Err(e) = crate::components::viewer::webkit6::update_code_view_smooth(
-                                &webview,
-                                &formatted_html,
-                                &current_theme,
-                                bg,
-                                fg,
-                                Some(&thumb),
-                                Some(&track),
-                            ) {
+                            if let Err(e) =
+                                crate::components::viewer::webkit6::update_code_view_smooth(
+                                    &webview,
+                                    &formatted_html,
+                                    &current_theme,
+                                    bg,
+                                    fg,
+                                    Some(&thumb),
+                                    Some(&track),
+                                )
+                            {
                                 log::error!("Failed to smooth update code view: {}", e);
                             }
                         }
                     } else {
-                        log::warn!("[editor_ui] Code view widget is not a WebView: {:?}", widget.type_());
+                        log::warn!(
+                            "[editor_ui] Code view widget is not a WebView: {:?}",
+                            widget.type_()
+                        );
                     }
                 } else {
                     log::warn!("[editor_ui] No actual widget found in code view");
@@ -750,13 +788,23 @@ paned > separator {{
         }
     };
 
-    // Create debouncers for different types of processing
-    let preview_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(300));
-    let extension_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(250));
-    
-    // Track last content for change delta detection
-    let last_content = Rc::new(RefCell::new(String::new()));
-    
+    // Create debouncers for different types of processing.
+    //
+    // Important: preview + LSP highlighting can be expensive on large documents.
+    // Use trailing-edge debouncing so we update only after the user pauses typing.
+    let preview_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(400));
+    let extension_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(400));
+    let lsp_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(250));
+
+    // Guard against re-entrant buffer "changed" notifications caused by applying
+    // syntax highlight tags. Applying/removing tags can emit `changed`, which would
+    // otherwise schedule more parsing/highlighting and cause flicker.
+    let applying_lsp_tags = Rc::new(Cell::new(false));
+
+    // Track in-flight LSP computations so we can drop stale results.
+    // (A slow parse should not overwrite newer highlights.)
+    let lsp_request_id = Rc::new(Cell::new(0u64));
+
     // Also update preview whenever buffer content changes (e.g. when opening a file).
     let refresh_for_signal = std::rc::Rc::clone(&refresh_preview_impl);
     let update_code_for_signal = Rc::clone(&update_html_code_view_rc);
@@ -765,78 +813,120 @@ paned > separator {{
     let buffer_rc_clone = Rc::clone(&buffer_rc);
     let preview_debouncer_for_signal = Rc::clone(&preview_debouncer);
     let extension_debouncer_for_signal = Rc::clone(&extension_debouncer);
-    let last_content_for_signal = Rc::clone(&last_content);
-    
+    let lsp_debouncer_for_signal = Rc::clone(&lsp_debouncer);
+    let applying_lsp_tags_for_signal = Rc::clone(&applying_lsp_tags);
+    let lsp_request_id_for_signal = Rc::clone(&lsp_request_id);
+
     buffer_rc_clone.connect_changed(move |buffer| {
-        let current_text = buffer.text(&buffer.start_iter(), &buffer.end_iter(), false).to_string();
-        let cursor_position = {
-            let cursor_iter = buffer.cursor_position();
-            if cursor_iter >= 0 { Some(cursor_iter as u32) } else { None }
-        };
-        
-        // Change delta detection
-        let mut last_content_borrow = last_content_for_signal.borrow_mut();
-        let content_changed = *last_content_borrow != current_text;
-        let change_delta = if content_changed {
-            let old_len = last_content_borrow.len();
-            let new_len = current_text.len();
-            let size_change = (new_len as i32 - old_len as i32).abs();
-            *last_content_borrow = current_text.clone();
-            Some((old_len, new_len, size_change as usize))
-        } else {
-            None
-        };
-        drop(last_content_borrow);
-        
+        // Ignore change events caused by applying/removing highlight tags.
+        if applying_lsp_tags_for_signal.get() {
+            return;
+        }
+
         // Use debounced HTML preview updates to batch rapid typing
         let refresh_clone = Rc::clone(&refresh_for_signal);
         let update_code_clone = Rc::clone(&update_code_for_signal);
         let view_mode_clone = Rc::clone(&view_mode_for_signal);
-        
-        preview_debouncer_for_signal.debounce(move || {
-            log::debug!("Buffer changed - debounced preview update triggered");
-            
-            // Update HTML preview (leading edge + trailing edge)
+
+        preview_debouncer_for_signal.debounce_trailing(move || {
+            // Update HTML preview (trailing edge only)
             refresh_clone();
-            
+
             // Also update code view if we're currently in CodePreview mode
             if *view_mode_clone.borrow() == ViewMode::CodePreview {
                 update_code_clone();
             }
         });
-        
+
+        // Apply LSP syntax highlighting with debouncing
+        let buffer_for_lsp = buffer.clone();
+        let applying_lsp_tags_for_lsp = Rc::clone(&applying_lsp_tags_for_signal);
+        let request_id_cell = Rc::clone(&lsp_request_id_for_signal);
+        lsp_debouncer_for_signal.debounce_trailing(move || {
+            // Runs on GTK main thread (timeout callback). Keep it small.
+            // We intentionally do parsing/highlight computation off-thread.
+
+            let request_id = request_id_cell.get().wrapping_add(1);
+            request_id_cell.set(request_id);
+
+            let current_text_for_lsp = buffer_for_lsp
+                .text(&buffer_for_lsp.start_iter(), &buffer_for_lsp.end_iter(), false)
+                .to_string();
+
+            let buffer_for_apply = buffer_for_lsp.clone();
+            let request_id_cell_for_apply = Rc::clone(&request_id_cell);
+            let applying_flag_for_apply = Rc::clone(&applying_lsp_tags_for_lsp);
+
+            glib::spawn_future_local(async move {
+                let result = gio::spawn_blocking(move || {
+                    core::parser::parse(&current_text_for_lsp)
+                        .map(|doc| core::lsp::compute_highlights(&doc))
+                })
+                .await;
+
+                glib::idle_add_local_once(move || {
+                    // Drop stale results.
+                    if request_id_cell_for_apply.get() != request_id {
+                        return;
+                    }
+
+                    match result {
+                        Ok(Ok(highlights)) => {
+                            log::debug!("Computed {} LSP highlights", highlights.len());
+
+                            // Apply highlights to buffer in small chunks.
+                            applying_flag_for_apply.set(true);
+                            crate::components::editor::lsp_integration::apply_lsp_highlights_chunked(
+                                &buffer_for_apply,
+                                highlights,
+                                move || {
+                                    applying_flag_for_apply.set(false);
+                                },
+                            );
+                        }
+                        Ok(Err(e)) => {
+                            log::warn!("Failed to parse markdown for LSP highlighting: {}", e);
+                        }
+                        Err(e) => {
+                            log::error!("LSP highlight task panicked: {:?}", e);
+                        }
+                    }
+                });
+            });
+        });
+
         // Use new debounced extension processing with change delta detection
         if let Some(ref manager) = extension_manager_for_signal {
             let extension_manager_clone = manager.clone();
-            let current_text_clone = current_text.clone();
-            
-            extension_debouncer_for_signal.debounce(move || {
-                log::debug!("Buffer changed - debounced extension processing triggered");
-                
-                // Apply change delta optimization
-                if let Some((old_len, _new_len, size_change)) = change_delta {
-                    // For small changes, we can potentially optimize
-                    if size_change < 10 && old_len > 1000 {
-                        log::debug!("Change delta detected: {} chars changed in {} char document - optimizing", size_change, old_len);
+
+            let buffer_for_extensions = buffer.clone();
+
+            extension_debouncer_for_signal.debounce_trailing(move || {
+                let current_text_for_extensions = buffer_for_extensions
+                    .text(
+                        &buffer_for_extensions.start_iter(),
+                        &buffer_for_extensions.end_iter(),
+                        false,
+                    )
+                    .to_string();
+
+                let cursor_position = {
+                    let cursor_iter = buffer_for_extensions.cursor_position();
+                    if cursor_iter >= 0 {
+                        Some(cursor_iter as u32)
                     } else {
-                        log::debug!("Large change or small document: processing all extensions");
+                        None
                     }
-                }
-                
-                // Process extensions using the simpler parallel method instead of old debouncing
+                };
+
+                // Process extensions using the simplified parallel method.
                 if let Ok(manager_ref) = extension_manager_clone.try_borrow() {
                     if let Err(e) = manager_ref.process_extensions_parallel(
-                        current_text_clone.clone(),
+                        current_text_for_extensions,
                         cursor_position,
                         |results| {
                             log::debug!("Extension processing completed: {} results", results.len());
-                            for result in results {
-                                if result.success {
-                                    log::debug!("Extension '{}' processed in {}ms", 
-                                        result.extension_name, result.processing_time_ms);
-                                }
-                            }
-                        }
+                        },
                     ) {
                         log::error!("Failed to trigger extension processing: {}", e);
                     }
@@ -874,7 +964,6 @@ paned > separator {{
     let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
     let editor_sw_for_preview = editor_scrolled_window.clone(); // For checking scrollbar state
     let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
-    use std::cell::Cell;
     let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
     let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
     let update_html_code_view_for_preview = Rc::clone(&update_html_code_view_rc);
@@ -909,21 +998,25 @@ paned > separator {{
                                 {
                                     *editor_fg_color_for_preview.borrow_mut() = Some(v);
                                 }
-                                
+
                                 // Extract scrollbar colors for code view
-                                if let Some(v) = extract_xml_color_value(&contents, "scrollbar-thumb") {
+                                if let Some(v) =
+                                    extract_xml_color_value(&contents, "scrollbar-thumb")
+                                {
                                     *scrollbar_thumb_for_preview.borrow_mut() = v;
                                 }
-                                if let Some(v) = extract_xml_color_value(&contents, "scrollbar-track") {
+                                if let Some(v) =
+                                    extract_xml_color_value(&contents, "scrollbar-track")
+                                {
                                     *scrollbar_track_for_preview.borrow_mut() = v;
                                 }
-                                
+
                                 // Update webkit scrollbar CSS in the preview CSS string
                                 // This ensures the HTML preview scrollbar matches the theme
                                 let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
                                 let new_track = scrollbar_track_for_preview.borrow().clone();
                                 let new_webkit_css = webkit_scrollbar_css(&new_thumb, &new_track);
-                                
+
                                 // Regenerate the CSS with new webkit scrollbar styling
                                 let mut updated_css = css_rc_for_preview.borrow().clone();
                                 // Remove old webkit scrollbar CSS (everything after the last occurrence of ::-webkit-scrollbar)
@@ -986,16 +1079,16 @@ paned > separator {{
                                         &provider,
                                         gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
                                     );
-                                    
+
                                     log::debug!("Updated GTK scrollbar CSS for new theme: thumb={}, track={}", thumb, track);
-                                    
+
                                     // Force immediate paned separator CSS update for theme change
                                     // Check current scrollbar visibility state
                                     let vadj = editor_sw_for_preview.vadjustment();
                                     let upper = vadj.upper();
                                     let page_size = vadj.page_size();
                                     let scrollbar_visible = upper > page_size;
-                                    
+
                                     let paned_css = if scrollbar_visible {
                                         // Scrollbar visible - use 1px separator
                                         format!(
@@ -1029,7 +1122,7 @@ paned > separator {{
                                             track
                                         )
                                     };
-                                    
+
                                     let paned_provider = gtk4::CssProvider::new();
                                     paned_provider.load_from_data(&paned_css);
                                     gtk4::style_context_add_provider_for_display(
@@ -1070,14 +1163,17 @@ paned > separator {{
             let doc_path = document_buffer_clone
                 .as_ref()
                 .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
-            
+
             // Debug: log the document path being passed
             if let Some(ref path) = doc_path {
-                eprintln!("[DEBUG] Theme refresh: Passing document path to preview: {}", path.display());
+                eprintln!(
+                    "[DEBUG] Theme refresh: Passing document path to preview: {}",
+                    path.display()
+                );
             } else {
                 eprintln!("[DEBUG] Theme refresh: No document path available (untitled document)");
             }
-            
+
             refresh_preview_into_webview(
                 &webview_clone.borrow(),
                 &css_clone,
@@ -1087,10 +1183,10 @@ paned > separator {{
                 &theme_mode_clone,
                 doc_path.as_deref(),
             );
-            
+
             // Also update code view if it exists (for theme changes)
             (update_code_clone)();
-            
+
             preview_theme_timeout_clone2.set(None);
             glib::ControlFlow::Break
         });
@@ -1098,12 +1194,15 @@ paned > separator {{
     }) as Box<dyn Fn(&str)>;
 
     // Set up split percentage indicator with cascade prevention from split controller
-    let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(&paned, Some(split_controller.position_being_set()));
+    let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(
+        &paned,
+        Some(split_controller.position_being_set()),
+    );
     let overlay = split_indicator.widget().clone();
 
     (
-        paned,  // Return original paned for compatibility
-        webview_rc,  // Return wrapped WebView for reparenting support
+        paned,      // Return original paned for compatibility
+        webview_rc, // Return wrapped WebView for reparenting support
         css_rc,
         Box::new({
             let r = std::rc::Rc::clone(&refresh_preview_impl);
@@ -1122,11 +1221,11 @@ paned > separator {{
             let refresh_for_mode = std::rc::Rc::clone(&refresh_preview_impl);
             let update_code_for_mode = Rc::clone(&update_html_code_view_rc);
             let current_view_mode_for_mode = Rc::clone(&current_view_mode);
-            
+
             Box::new(move |mode: ViewMode| {
                 // Update the tracked view mode
                 *current_view_mode_for_mode.borrow_mut() = mode;
-                
+
                 match mode {
                     ViewMode::HtmlPreview => {
                         // Ensure preview is up-to-date, then show HTML preview.
@@ -1141,7 +1240,7 @@ paned > separator {{
                 }
             }) as Box<dyn Fn(ViewMode)>
         },
-        overlay,           // 10: Overlay widget
-        split_controller,  // 11: Split position controller
+        overlay,          // 10: Overlay widget
+        split_controller, // 11: Split position controller
     )
 }

@@ -88,40 +88,42 @@ pub fn is_dev_mode() -> bool {
 /// Returns the first existing directory found.
 pub fn find_asset_root() -> Result<PathBuf, AssetError> {
     static ASSET_ROOT: OnceLock<Result<PathBuf, AssetError>> = OnceLock::new();
-    
-    ASSET_ROOT.get_or_init(|| {
-        let exe_path = env::current_exe()
-            .map_err(|e| AssetError::ExePathError(e.to_string()))?;
-        let parent = exe_path.parent().ok_or(AssetError::ParentMissing)?;
 
-        let mut candidate_paths = Vec::new();
+    ASSET_ROOT
+        .get_or_init(|| {
+            let exe_path =
+                env::current_exe().map_err(|e| AssetError::ExePathError(e.to_string()))?;
+            let parent = exe_path.parent().ok_or(AssetError::ParentMissing)?;
 
-        // 1. Development mode: next to binary (target/{debug|release}/marco_assets)
-        let dev_path = parent.join("marco_assets");
-        candidate_paths.push(dev_path.clone());
+            let mut candidate_paths = Vec::new();
 
-        // 2. User local install
-        if let Some(home) = dirs::home_dir() {
-            candidate_paths.push(home.join(".local/share/marco"));
-        }
+            // 1. Development mode: next to binary (target/{debug|release}/marco_assets)
+            let dev_path = parent.join("marco_assets");
+            candidate_paths.push(dev_path.clone());
 
-        // 3. System local install
-        candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
-
-        // 4. System global install
-        candidate_paths.push(PathBuf::from("/usr/share/marco"));
-
-        // Find first existing directory
-        for path in &candidate_paths {
-            if path.exists() && path.is_dir() {
-                log::debug!("Found asset root: {}", path.display());
-                return Ok(path.clone());
+            // 2. User local install
+            if let Some(home) = dirs::home_dir() {
+                candidate_paths.push(home.join(".local/share/marco"));
             }
-        }
 
-        // None found
-        Err(AssetError::AssetDirMissing(candidate_paths))
-    }).clone()
+            // 3. System local install
+            candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
+
+            // 4. System global install
+            candidate_paths.push(PathBuf::from("/usr/share/marco"));
+
+            // Find first existing directory
+            for path in &candidate_paths {
+                if path.exists() && path.is_dir() {
+                    log::debug!("Found asset root: {}", path.display());
+                    return Ok(path.clone());
+                }
+            }
+
+            // None found
+            Err(AssetError::AssetDirMissing(candidate_paths))
+        })
+        .clone()
 }
 
 /// Find the project workspace root by searching for workspace Cargo.toml

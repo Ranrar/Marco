@@ -2,54 +2,45 @@
 <!--
   Dark theme for Marco Editor
   Based on DARK_PALETTE: background: "#1E1E1E", text: "#D4D4D4"
+  
+  IMPORTANT RESTRICTIONS:
+  - Only use HEX colors (e.g., #RRGGBB) - no color names, no rgb()
+  - Do NOT use: bold, italic, underline, strikethrough, or any font properties
+  - Background colors are ONLY for search highlighting - not for syntax highlighting
+  - LSP syntax highlighting will be implemented separately using GTK TextTags
 -->
 <style-scheme id="marco-dark" name="Marco Dark" version="1.0" kind="dark">
   <author>Kim Skov Rasmussen</author>
   <description>Dark theme with clean appearance</description>
 
-  <!-- Color definitions -->
-  <color name="white"             value="#FFFFFF"/>
-  <color name="dark-bg"           value="#1E1E1E"/>
-  <color name="dark-text"         value="#D4D4D4"/>
-  <color name="dark-selection"    value="#0078D4"/>
-  <color name="dark-selection-bg" value="#264F78"/>
-  <color name="dark-cursor"       value="#79B8FF"/>
-  <color name="dark-line-num"     value="#858585"/>
-  <color name="dark-line-num-bg"  value="#2D2D30"/>
-  <color name="dark-current-line" value="#2A2D2E"/>
-  <color name="dark-bracket"      value="#79B8FF"/>
-  <color name="dark-comment"      value="#6A9955"/>
-  <color name="dark-keyword"      value="#569CD6"/>
-  <color name="dark-string"       value="#CE9178"/>
-  <color name="dark-number"       value="#B5CEA8"/>
   <!-- Scrollbar styling for GTK editor matching webview preview -->
   <color name="scrollbar-thumb"   value="#3A3F44"/>
   <color name="scrollbar-track"   value="#252526"/>
 
   <!-- Base text appearance -->
-  <style name="text"                  foreground="dark-text" background="dark-bg"/>
-  <style name="selection"             foreground="white" background="dark-selection"/>
-  <style name="selection-unfocused"   background="dark-selection-bg"/>
-  <style name="cursor"                foreground="dark-cursor"/>
-  <style name="secondary-cursor"      foreground="dark-cursor"/>
-  <style name="current-line"          background="dark-current-line"/>
+  <style name="text"                  foreground="#D4D4D4" background="#1E1E1E"/>
+  <style name="selection"             foreground="#FFFFFF" background="#0078D4"/>
+  <style name="selection-unfocused"   background="#264F78"/>
+  <style name="cursor"                foreground="#79B8FF"/>
+  <style name="secondary-cursor"      foreground="#79B8FF"/>
+  <style name="current-line"          background="#2A2D2E"/>
   
   <!-- Line numbers and margin -->
-  <style name="line-numbers"          foreground="dark-line-num" background="dark-line-num-bg"/>
-  <style name="current-line-number"   foreground="dark-text" background="dark-current-line" bold="true"/>
-  <style name="line-numbers-border"   background="dark-line-num-bg"/>
+  <style name="line-numbers"          foreground="#858585" background="#2D2D30"/>
+  <style name="current-line-number"   foreground="#D4D4D4" background="#2A2D2E"/>
+  <style name="line-numbers-border"   background="#2D2D30"/>
   
   <!-- Brackets -->
-  <style name="bracket-match"         foreground="dark-bracket" bold="true"/>
+  <style name="bracket-match"         foreground="#79B8FF"/>
   <style name="bracket-mismatch"      foreground="#F44747" background="#5A1D1D"/>
   
-  <!-- Right margin -->
-  <style name="right-margin"          foreground="dark-line-num" background="dark-bg"/>
-  
   <!-- Spaces and whitespace -->
-  <style name="draw-spaces"           foreground="dark-line-num"/>
+  <style name="draw-spaces"           foreground="#858585"/>
   
-  <!-- Search highlighting -->
-  <style name="search-match"          foreground="dark-bg" background="#FFD700" bold="true"/>
-  <style name="search-match-selected" foreground="white" background="#FF6B35" bold="true"/>
+  <!-- Search highlighting (background colors allowed ONLY for search) -->
+  <style name="search-match"          foreground="#1E1E1E" background="#FFD700"/>
+  <style name="search-match-selected" foreground="#FFFFFF" background="#FF6B35"/>
+  
+  <!-- LSP Syntax Highlighting (colors only, no font properties) -->
+  <!-- LSP Syntax Highlighting moved to `syntaxdark.xml` and loaded only for syntax usage -->
 </style-scheme>

@@ -51,6 +51,7 @@ pub mod dialog;
 pub mod footer;
 pub mod menu;
 pub mod settings;
+pub mod syntax;
 pub mod toolbar;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
@@ -75,25 +76,25 @@ const FALLBACK_CSS: &str = r#"
 /// Generate all Marco-specific CSS from modular components
 pub fn generate_marco_css() -> String {
     let mut css = String::with_capacity(24576); // Increased capacity for controls + settings
-    
+
     // Menu/titlebar styling
     css.push_str(&menu::generate_css());
-    
+
     // Toolbar styling
     css.push_str(&toolbar::generate_css());
-    
+
     // Footer styling
     css.push_str(&footer::generate_css());
-    
+
     // Dialog styling
     css.push_str(&dialog::generate_css());
-    
+
     // Control widgets styling
     css.push_str(&controls::generate_css());
-    
+
     // Settings dialog styling
     css.push_str(&settings::generate_css());
-    
+
     css
 }
 
@@ -101,10 +102,10 @@ pub fn generate_marco_css() -> String {
 /// This generates all CSS dynamically and applies it to the GTK display
 pub fn load_css() {
     let css_provider = CssProvider::new();
-    
+
     // Generate Marco's CSS from modular components
     let marco_css = generate_marco_css();
-    
+
     // Use generated CSS (with fallback if generation fails)
     let css_to_load = if marco_css.is_empty() {
         log::warn!("CSS generation returned empty, using fallback");
@@ -113,9 +114,9 @@ pub fn load_css() {
         log::debug!("Generated {} bytes of CSS", marco_css.len());
         marco_css
     };
-    
+
     css_provider.load_from_data(&css_to_load);
-    
+
     if let Some(display) = Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,
@@ -135,30 +136,40 @@ mod tests {
     #[test]
     fn smoke_test_generate_marco_css() {
         let css = generate_marco_css();
-        
+
         // Verify not empty
         assert!(!css.is_empty(), "Generated CSS should not be empty");
-        
+
         // Verify all major components present
         assert!(css.contains(".icon-font"), "Should contain icon-font class");
         assert!(css.contains(".titlebar"), "Should contain titlebar class");
-        
+
         // Verify both themes present
-        assert!(css.contains(".marco-theme-light"), "Should contain light theme");
-        assert!(css.contains(".marco-theme-dark"), "Should contain dark theme");
-        
+        assert!(
+            css.contains(".marco-theme-light"),
+            "Should contain light theme"
+        );
+        assert!(
+            css.contains(".marco-theme-dark"),
+            "Should contain dark theme"
+        );
+
         // Verify substantial output (at least 5KB)
-        assert!(css.len() > 5000, "CSS should be substantial (got {} bytes)", css.len());
+        assert!(
+            css.len() > 5000,
+            "CSS should be substantial (got {} bytes)",
+            css.len()
+        );
     }
-    
+
     #[test]
     fn debug_dump_css_line_429() {
         let css = generate_marco_css();
         let lines: Vec<&str> = css.lines().collect();
-        
+
         println!("\n=== CSS Generation Report ===");
         println!("Total lines: {}", lines.len());
-        
+
         if lines.len() >= 429 {
             println!("\n=== Around Line 429 (GTK Error Location) ===");
             for i in 425..=432 {
@@ -166,7 +177,7 @@ mod tests {
                     println!("Line {}: {}", i + 1, lines[i]);
                 }
             }
-            
+
             if lines.len() > 428 {
                 let line_429 = lines[428];
                 println!("\n=== Line 429 Details ===");
@@ -176,7 +187,7 @@ mod tests {
                 }
             }
         }
-        
+
         // Find all lines with :empty
         println!("\n=== Lines with :empty ===");
         for (i, line) in lines.iter().enumerate() {
@@ -194,7 +205,7 @@ mod tests {
         let css = generate_marco_css();
         assert!(!css.is_empty());
     }
-    
+
     #[test]
     fn smoke_test_fallback_css() {
         // Verify fallback CSS has critical styles

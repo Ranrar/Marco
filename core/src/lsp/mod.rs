@@ -28,7 +28,7 @@ impl LspProvider {
         log::info!("LSP provider initialized");
         Self { document: None }
     }
-    
+
     pub fn update_document(&mut self, document: Document) {
         log::debug!("LSP document updated");
         self.document = Some(document);

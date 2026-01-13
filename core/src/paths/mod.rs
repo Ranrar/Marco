@@ -17,7 +17,7 @@
 //! # Usage
 //!
 //! ```rust
-//! use core::components::paths::{MarcoPaths, PoloPaths, SharedPaths};
+//! use core::paths::{MarcoPaths, PathProvider};
 //!
 //! // Get paths for the appropriate binary
 //! let marco_paths = MarcoPaths::new().expect("Failed to initialize paths");
@@ -26,28 +26,28 @@
 //! ```
 
 pub mod core;
-pub mod shared;
-pub mod marco;
-pub mod polo;
 pub mod dev;
 pub mod install;
+pub mod marco;
+pub mod polo;
+pub mod shared;
 
 // Re-export main types and functions
-pub use core::{AssetError, get_binary_name, is_dev_mode, find_asset_root};
-pub use shared::SharedPaths;
+pub use core::{find_asset_root, get_binary_name, is_dev_mode, AssetError};
+pub use dev::{source_assets_dir, test_assets_dir, workspace_root};
+pub use install::{detect_install_location, InstallLocation};
 pub use marco::MarcoPaths;
 pub use polo::PoloPaths;
-pub use dev::{workspace_root, test_assets_dir, source_assets_dir};
-pub use install::{InstallLocation, detect_install_location};
+pub use shared::SharedPaths;
 
 /// Trait for path providers - allows polymorphic path access
 pub trait PathProvider {
     /// Get the shared paths accessor
     fn shared(&self) -> &SharedPaths;
-    
+
     /// Get the asset root directory
     fn asset_root(&self) -> &std::path::PathBuf;
-    
+
     /// Check if running in development mode
     fn is_dev_mode(&self) -> bool;
 }

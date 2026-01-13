@@ -8,15 +8,20 @@ use super::helpers::add_setting_row;
 
 pub fn build_editor_tab(settings_path: &str) -> Box {
     use gtk4::{
-        Adjustment, Align, Box as GtkBox, DropDown, Orientation, SpinButton,
-        Switch, StringList, PropertyExpression, StringObject, Expression,
+        Adjustment, Align, Box as GtkBox, DropDown, Expression, Orientation, PropertyExpression,
+        SpinButton, StringList, StringObject, Switch,
     };
 
     // Initialize SettingsManager for this editor tab
-    let settings_manager_opt = match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
+    let settings_manager_opt = match core::logic::swanson::SettingsManager::initialize(
+        std::path::PathBuf::from(settings_path),
+    ) {
         Ok(settings_manager) => Some(std::sync::Arc::new(settings_manager)),
         Err(e) => {
-            debug!("Failed to initialize SettingsManager for editor settings: {}", e);
+            debug!(
+                "Failed to initialize SettingsManager for editor settings: {}",
+                e
+            );
             None
         }
     };
@@ -46,11 +51,8 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let font_string_list = StringList::new(&font_string_refs);
 
     // Step 2: Create PropertyExpression for search functionality
-    let font_expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<Expression>,
-        "string",
-    );
+    let font_expression =
+        PropertyExpression::new(StringObject::static_type(), None::<Expression>, "string");
 
     // Step 3: Create DropDown with search enabled
     let font_combo = DropDown::new(Some(font_string_list), Some(font_expression));
@@ -69,7 +71,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Connect font selection change to save settings and trigger runtime updates
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         let monospace_names_clone = monospace_names.clone();
-        
+
         font_combo.connect_selected_notify(move |combo| {
             let selected_index = combo.selected() as usize;
             if let Some(selected_font) = monospace_names_clone.get(selected_index) {
@@ -129,7 +131,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Font",
         "Select the font used in the editor.",
         &font_combo,
-        true  // First row - no top margin
+        true, // First row - no top margin
     );
     container.append(&font_row);
 
@@ -204,7 +206,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Font Size",
         "Set the font size for the editor text (10-24 px).",
         &font_size_spin,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&font_size_row);
 
@@ -212,9 +214,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Load current line height from SettingsManager
     let current_line_height = if let Some(ref settings_manager) = settings_manager_opt {
         let settings = settings_manager.get_settings();
-        settings.editor
-            .and_then(|e| e.line_height)
-            .unwrap_or(1.4) as f64
+        settings.editor.and_then(|e| e.line_height).unwrap_or(1.4) as f64
     } else {
         1.4
     };
@@ -280,7 +280,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Line Height",
         "Adjust the vertical spacing between lines.",
         &line_height_spin,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&line_height_row);
 
@@ -291,7 +291,8 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Load current line wrapping setting from SettingsManager
     let current_line_wrapping = if let Some(ref settings_manager) = settings_manager_opt {
         let settings = settings_manager.get_settings();
-        settings.editor
+        settings
+            .editor
             .and_then(|e| e.line_wrapping)
             .unwrap_or(true) // Default to true for better UX
     } else {
@@ -358,7 +359,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Line Wrapping",
         "Wrap long lines to fit within the editor window.",
         &line_wrap_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&line_wrap_row);
 
@@ -371,7 +372,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Auto Pairing",
         "Automatically insert closing characters for **, [], (), and backticks.",
         &auto_pair_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&auto_pair_row);
 
@@ -382,7 +383,8 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Load current show invisible characters setting from SettingsManager
     let current_show_invisibles = if let Some(ref settings_manager) = settings_manager_opt {
         let settings = settings_manager.get_settings();
-        settings.editor
+        settings
+            .editor
             .and_then(|e| e.show_invisibles)
             .unwrap_or(false)
     } else {
@@ -449,7 +451,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Show Invisible Characters",
         "Display tabs, spaces, and newlines visually in the editor.",
         &show_invis_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&show_invis_row);
 
@@ -460,7 +462,8 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Load current tabs to spaces setting from SettingsManager
     let current_tabs_to_spaces = if let Some(ref settings_manager) = settings_manager_opt {
         let settings = settings_manager.get_settings();
-        settings.editor
+        settings
+            .editor
             .and_then(|e| e.tabs_to_spaces)
             .unwrap_or(false)
     } else {
@@ -527,7 +530,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Convert Tabs to Spaces",
         "Replace tab characters with spaces.",
         &tabs_to_spaces_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&tabs_to_spaces_row);
 
@@ -538,7 +541,8 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     // Load current syntax colors setting from SettingsManager
     let current_syntax_colors = if let Some(ref settings_manager) = settings_manager_opt {
         let settings = settings_manager.get_settings();
-        settings.editor
+        settings
+            .editor
             .and_then(|e| e.syntax_colors)
             .unwrap_or(true)
     } else {
@@ -605,7 +609,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Syntax Colors",
         "Enable or disable syntax-based color highlighting for Markdown.",
         &syntax_colors_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&syntax_colors_row);
 
@@ -618,7 +622,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
         "Enable Markdown Linting",
         "Check for Markdown syntax issues and style problems.",
         &linting_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&linting_row);
 

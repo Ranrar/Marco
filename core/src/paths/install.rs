@@ -51,7 +51,7 @@ pub fn detect_install_location() -> InstallLocation {
     // Try to determine from asset root
     if let Ok(asset_root) = find_asset_root() {
         let asset_str = asset_root.to_string_lossy();
-        
+
         if asset_str.contains(".local/share/marco") {
             return InstallLocation::UserLocal;
         } else if asset_str.contains("/usr/local/share/marco") {
@@ -65,23 +65,18 @@ pub fn detect_install_location() -> InstallLocation {
     InstallLocation::UserLocal
 }
 
-/// Get the config directory for the current install location
+/// Get the user configuration directory.
 ///
-/// - User local: ~/.config/marco/
-/// - System: /etc/marco/
+/// For GUI apps like Marco/Polo, settings must be writable for the *current user*.
+/// System-wide defaults can live under /usr/share/marco/, but persisted user changes
+/// should go under XDG config.
+///
+/// Default: $XDG_CONFIG_HOME/marco/ (usually ~/.config/marco/)
 pub fn config_dir() -> PathBuf {
-    match detect_install_location() {
-        InstallLocation::UserLocal | InstallLocation::Development => {
-            dirs::config_dir()
-                .map(|c| c.join("marco"))
-                .unwrap_or_else(|| dirs::home_dir()
-                    .map(|h| h.join(".config/marco"))
-                    .unwrap_or_else(|| PathBuf::from("/tmp/marco/config")))
-        }
-        InstallLocation::SystemLocal | InstallLocation::SystemGlobal => {
-            PathBuf::from("/etc/marco")
-        }
-    }
+    dirs::config_dir()
+        .map(|c| c.join("marco"))
+        .or_else(|| dirs::home_dir().map(|h| h.join(".config/marco")))
+        .unwrap_or_else(|| PathBuf::from("/tmp/marco/config"))
 }
 
 /// Get the user data directory (for storing user-specific data like recent files)

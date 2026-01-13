@@ -39,7 +39,7 @@ use super::constants::*;
 /// Generate complete dialog CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(2048);
-    
+
     // Base dialog styling (theme-independent)
     css.push_str(&format!(
         r#"
@@ -103,13 +103,13 @@ pub fn generate_css() -> String {
         button_font_weight = DIALOG_BUTTON_FONT_WEIGHT,
         transition = STANDARD_TRANSITION,
     ));
-    
+
     // Light theme
     css.push_str(&generate_theme_css("marco-theme-light", &LIGHT_PALETTE));
-    
+
     // Dark theme
     css.push_str(&generate_theme_css("marco-theme-dark", &DARK_PALETTE));
-    
+
     css
 }
 
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn smoke_test_dialog_css_generation() {
         let css = generate_css();
-        
+
         // Verify basic structure
         assert!(css.contains(".polo-dialog"));
         assert!(css.contains(".polo-dialog-content"));
@@ -207,40 +207,40 @@ mod tests {
         assert!(css.contains(".polo-dialog-message"));
         assert!(css.contains(".polo-dialog-button"));
         assert!(css.contains(".polo-dialog-button-box"));
-        
+
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify button variants
         assert!(css.contains(".primary"));
         assert!(css.contains(".destructive"));
-        
+
         // Verify essential properties
         assert!(css.contains("border-radius: 6px"));
         assert!(css.contains("min-width: 340px")); // Updated to compact size
         assert!(css.contains("min-height: 24px")); // Updated to compact size
         assert!(css.contains("transition:"));
-        
+
         // Verify not empty
         assert!(!css.is_empty());
         assert!(css.len() > 500);
     }
-    
+
     #[test]
     fn smoke_test_dialog_has_proper_spacing() {
         let css = generate_css();
-        
+
         // Verify spacing properties (updated to compact sizing)
         assert!(css.contains("padding: 20px")); // Updated from 24px
         assert!(css.contains("margin-bottom:"));
         assert!(css.contains("margin-top:"));
     }
-    
+
     #[test]
     fn smoke_test_dialog_theme_specificity() {
         let css = generate_css();
-        
+
         // Each theme should have background, color, and border rules
         assert!(css.matches(".marco-theme-light").count() >= 5);
         assert!(css.matches(".marco-theme-dark").count() >= 5);

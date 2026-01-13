@@ -6,12 +6,50 @@ use std::path::Path;
 use webkit6::prelude::*;
 use webkit6::WebView;
 
+/// Load HTML into a WebView once it is realized and has a non-trivial allocation.
+///
+/// This avoids GTK warnings such as:
+/// "Trying to snapshot GtkGizmo ... without a current allocation".
+///
+/// Note: an idle callback is used to poll readiness; we cap retries to avoid
+/// a runaway idle source if the WebView is never realized (e.g. destroyed).
+pub fn load_html_when_ready(webview: &WebView, html: String, base_uri: Option<String>) {
+    use std::cell::Cell;
+
+    let webview = webview.clone();
+    let tries = Cell::new(0u32);
+
+    glib::idle_add_local(move || {
+        let t = tries.get();
+        if t >= 300 {
+            log::debug!(
+                "[webkit6] Giving up delayed load_html after {} idle iterations",
+                t
+            );
+            return glib::ControlFlow::Break;
+        }
+        tries.set(t + 1);
+
+        // Realized implies a backing surface exists, but allocation can still be
+        // pending during the first frame(s).
+        if !webview.is_realized() {
+            return glib::ControlFlow::Continue;
+        }
+        if webview.allocated_width() <= 1 || webview.allocated_height() <= 1 {
+            return glib::ControlFlow::Continue;
+        }
+
+        webview.load_html(&html, base_uri.as_deref());
+        glib::ControlFlow::Break
+    });
+}
+
 /// Parse a hex color string (e.g., "#2b303b") into a gtk4::gdk::RGBA struct.
 /// Supports both 6-digit (#RRGGBB) and 3-digit (#RGB) formats.
 /// Returns None if parsing fails.
 fn parse_hex_to_rgba(hex: &str) -> Option<gtk4::gdk::RGBA> {
     let hex = hex.trim().trim_start_matches('#');
-    
+
     let (r, g, b) = if hex.len() == 6 {
         // 6-digit format: #RRGGBB
         let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
@@ -27,7 +65,7 @@ fn parse_hex_to_rgba(hex: &str) -> Option<gtk4::gdk::RGBA> {
     } else {
         return None;
     };
-    
+
     Some(gtk4::gdk::RGBA::new(
         r as f32 / 255.0,
         g as f32 / 255.0,
@@ -60,12 +98,19 @@ fn setup_user_content_manager(webview: &WebView) {
     // Store a reference to track if cleanup is needed
     // For now, we'll implement the cleanup pattern in the HTML template
     // and use proper JavaScript management through the template system
-    log::debug!("[webkit6] Setting up UserContentManager for WebView: {:p}", webview);
+    log::debug!(
+        "[webkit6] Setting up UserContentManager for WebView: {:p}",
+        webview
+    );
 }
 /// Create a WebView widget with an optional base URI for resolving relative paths.
 /// This version allows specifying a base URI to resolve local file references.
 /// Optionally accepts a background_color hex string (e.g., "#2b303b") to set widget background.
-pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>, background_color: Option<&str>) -> WebView {
+pub fn create_html_viewer_with_base(
+    html: &str,
+    base_uri: Option<&str>,
+    background_color: Option<&str>,
+) -> WebView {
     let webview = WebView::new();
 
     // This prevents white flash during WebKit initialization (0ms delay)
@@ -110,20 +155,12 @@ pub fn create_html_viewer_with_base(html: &str, base_uri: Option<&str>, backgrou
         }
     });
 
-    // Defer loading HTML until the main loop is idle to ensure the widget
-    // has been allocated and avoid 'trying to snapshot GtkGizmo without a current allocation' warnings.
-    let html_string = html.to_string();
-    let base_uri_string = base_uri.map(|s| s.to_string());
-    let webview_clone = webview.clone();
-    glib::idle_add_local(move || {
-        webview_clone.load_html(&html_string, base_uri_string.as_deref());
-        // Stop the idle source after one run
-        glib::ControlFlow::Break
-    });
-    
+    // Defer loading HTML until the WebView is realized+allocated.
+    load_html_when_ready(&webview, html.to_string(), base_uri.map(|s| s.to_string()));
+
     // Setup link handling for external/internal links
     setup_link_handling(&webview);
-    
+
     webview.set_vexpand(true);
     webview.set_hexpand(true);
     webview
@@ -138,7 +175,7 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
         log::debug!("[webkit6] Skipping update: WebView not yet realized");
         return;
     }
-    
+
     let escaped_content = content
         .replace('\\', "\\\\")
         .replace('\'', "\\'")
@@ -213,117 +250,13 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
 
 /// Wraps the HTML body with a full HTML document, injecting the provided CSS string into the <head>.
 /// Enhanced with proper cleanup mechanisms to prevent memory leaks.
-pub fn wrap_html_document(body: &str, css: &str, theme_mode: &str, background_color: Option<&str>) -> String {
-    // Include a named <style> element and small JS helpers so the host can
-    // update CSS and theme class without reloading the whole document.
-    // Enhanced with cleanup mechanisms to prevent memory accumulation.
-    
-    // Generate inline background style for instant dark mode support (eliminates white flash)
-    let inline_bg_style = if let Some(bg_color) = background_color {
-        format!("body {{ background-color: {} !important; }}\n", bg_color)
-    } else {
-        String::new()
-    };
-    
-    let doc = format!(
-        r#"<!DOCTYPE html>
-<html class="{}">
-    <head>
-        <meta charset=\"utf-8\">
-        <style id=\"marco-preview-style\">{}{}</style>
-        <script>
-            // Marco Preview Management Object - prevents global namespace pollution
-            window.MarcoPreview = (function() {{
-                var scrollTimeouts = [];
-                
-                // Cleanup function to clear any pending timeouts
-                function cleanup() {{
-                    scrollTimeouts.forEach(function(id) {{
-                        clearTimeout(id);
-                    }});
-                    scrollTimeouts = [];
-                }}
-                
-                return {{
-                    setCSS: function(css) {{
-                        try {{
-                            var el = document.getElementById('marco-preview-style');
-                            if (el) {{
-                                el.innerHTML = css;
-                            }}
-                        }} catch(e) {{
-                            console.error('Error setting CSS:', e);
-                        }}
-                    }},
-                    
-                    setTheme: function(mode) {{
-                        try {{
-                            document.documentElement.className = mode;
-                        }} catch(e) {{
-                            console.error('Error setting theme:', e);
-                        }}
-                    }},
-                    
-                    updateContent: function(htmlContent) {{
-                        try {{
-                            // Clean up any pending scroll restoration
-                            cleanup();
-                            
-                            // Save current scroll position
-                            var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-                            
-                            // Update content container
-                            var container = document.getElementById('marco-content-container');
-                            if (container) {{
-                                container.innerHTML = htmlContent;
-                                
-                                // Restore scroll position after a brief delay
-                                var timeoutId = setTimeout(function() {{
-                                    document.documentElement.scrollTop = scrollTop;
-                                    document.body.scrollTop = scrollTop;
-                                    // Remove this timeout from tracking
-                                    var index = scrollTimeouts.indexOf(timeoutId);
-                                    if (index > -1) {{
-                                        scrollTimeouts.splice(index, 1);
-                                    }}
-                                }}, 10);
-                                scrollTimeouts.push(timeoutId);
-                            }}
-                        }} catch(e) {{
-                            console.error('Error updating content:', e);
-                        }}
-                    }},
-                    
-                    setContent: function(htmlContent) {{
-                        try {{
-                            var container = document.getElementById('marco-content-container');
-                            if (container) {{
-                                container.innerHTML = htmlContent;
-                            }}
-                        }} catch(e) {{
-                            console.error('Error setting content:', e);
-                        }}
-                    }},
-                    
-                    cleanup: cleanup
-                }};
-            }})();
-            
-            // Cleanup on page unload
-            window.addEventListener('beforeunload', function() {{
-                if (window.MarcoPreview) {{
-                    MarcoPreview.cleanup();
-                }}
-            }});
-        </script>
-    </head>
-    <body>
-        <div id="marco-content-container">{}</div>
-    </body>
-</html>"#,
-        theme_mode, inline_bg_style, css, body
-    );
-    doc
+pub fn wrap_html_document(
+    body: &str,
+    css: &str,
+    theme_mode: &str,
+    background_color: Option<&str>,
+) -> String {
+    core::render::wrap_preview_html_document(body, css, theme_mode, background_color)
 }
 
 // Note: in-page JS helpers are embedded in the HTML template produced by
@@ -363,19 +296,24 @@ pub fn create_html_source_viewer_webview(
     scrollbar_thumb: Option<&str>,
     scrollbar_track: Option<&str>,
 ) -> Result<WebView, String> {
-    use crate::components::viewer::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
-    
+    use crate::components::viewer::syntax_highlighter::{
+        generate_css_with_global, global_syntax_highlighter,
+    };
+
     // Normalize theme mode to "light" or "dark"
     let normalized_theme = if theme_mode.contains("dark") {
         "dark"
     } else {
         "light"
     };
-    
-    log::debug!("[webkit6] Creating WebView-based code viewer with theme: {} (normalized: {})", 
-        theme_mode, normalized_theme);
+
+    log::debug!(
+        "[webkit6] Creating WebView-based code viewer with theme: {} (normalized: {})",
+        theme_mode,
+        normalized_theme
+    );
     log::debug!("[webkit6] HTML source length: {} bytes", html_source.len());
-    
+
     // If HTML source is empty, use a placeholder
     let display_html = if html_source.is_empty() {
         log::debug!("[webkit6] HTML source is empty, using placeholder");
@@ -383,25 +321,27 @@ pub fn create_html_source_viewer_webview(
     } else {
         html_source
     };
-    
+
     // Initialize global syntax highlighter
     global_syntax_highlighter()
         .map_err(|e| format!("Failed to initialize syntax highlighter: {}", e))?;
-    
+
     // Get syntect CSS for current theme
     let syntect_css = generate_css_with_global(normalized_theme)
         .map_err(|e| format!("Failed to generate CSS: {}", e))?;
-    
+
     // Highlight HTML source using syntect
     let highlighted_html = SYNTAX_HIGHLIGHTER.with(|highlighter| {
         let h = highlighter.borrow();
-        let syntax_highlighter = h.as_ref()
+        let syntax_highlighter = h
+            .as_ref()
             .ok_or_else(|| "Syntax highlighter not initialized".to_string())?;
-            
-        syntax_highlighter.highlight_to_html(display_html, "html", normalized_theme)
+
+        syntax_highlighter
+            .highlight_to_html(display_html, "html", normalized_theme)
             .map_err(|e| format!("Highlighting failed: {}", e))
     })?;
-    
+
     // Determine theme colors - use editor colors if provided, otherwise use defaults
     let (bg_color, fg_color) = if let (Some(bg), Some(fg)) = (editor_bg, editor_fg) {
         (bg, fg)
@@ -410,14 +350,14 @@ pub fn create_html_source_viewer_webview(
     } else {
         ("#fdf6e3", "#657b83") // Solarized Light colors
     };
-    
+
     // Generate webkit scrollbar CSS to match editor
     let scrollbar_css = if let (Some(thumb), Some(track)) = (scrollbar_thumb, scrollbar_track) {
         crate::components::viewer::webview_utils::webkit_scrollbar_css(thumb, track)
     } else {
         String::new()
     };
-    
+
     // Build complete HTML page with syntect CSS and scrollbar styling
     let complete_page = format!(
         r#"<!DOCTYPE html>
@@ -469,34 +409,43 @@ pub fn create_html_source_viewer_webview(
 </html>"#,
         bg_color, fg_color, syntect_css, scrollbar_css, highlighted_html
     );
-    
-    log::debug!("[webkit6] Generated HTML page: {} bytes, bg={}, fg={}", 
-        complete_page.len(), bg_color, fg_color);
-    log::debug!("[webkit6] Highlighted HTML length: {} bytes", highlighted_html.len());
-    log::debug!("[webkit6] Highlighted HTML preview: {}", 
-        &highlighted_html.chars().take(200).collect::<String>());
+
+    log::debug!(
+        "[webkit6] Generated HTML page: {} bytes, bg={}, fg={}",
+        complete_page.len(),
+        bg_color,
+        fg_color
+    );
+    log::debug!(
+        "[webkit6] Highlighted HTML length: {} bytes",
+        highlighted_html.len()
+    );
+    log::debug!(
+        "[webkit6] Highlighted HTML preview: {}",
+        &highlighted_html.chars().take(200).collect::<String>()
+    );
     log::debug!("[webkit6] Syntect CSS length: {} bytes", syntect_css.len());
-    
+
     // Debug: Write HTML to temporary file for inspection
     if let Err(e) = std::fs::write("/tmp/marco_code_view_debug.html", &complete_page) {
         log::warn!("[webkit6] Failed to write debug HTML: {}", e);
     } else {
         log::debug!("[webkit6] Debug HTML written to /tmp/marco_code_view_debug.html");
     }
-    
+
     // Create WebView
     let webview = WebView::new();
-    
+
     // Configure security settings (same as HTML preview)
     if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
         settings.set_allow_file_access_from_file_urls(true);
         settings.set_allow_universal_access_from_file_urls(true);
         settings.set_auto_load_images(true);
     }
-    
+
     // Initialize UserContentManager
     setup_user_content_manager(&webview);
-    
+
     // Set up cleanup on destruction
     webview.connect_destroy({
         let webview_cleanup = webview.clone();
@@ -510,24 +459,24 @@ pub fn create_html_source_viewer_webview(
             );
         }
     });
-    
-    // Defer loading HTML until idle
-    let complete_page_owned = complete_page.clone();
-    let base_uri_owned = base_uri.map(|s| s.to_string());
-    let webview_clone = webview.clone();
-    glib::idle_add_local(move || {
-        log::debug!("[webkit6] Loading HTML into code view WebView: {} bytes", 
-            complete_page_owned.len());
-        webview_clone.load_html(&complete_page_owned, base_uri_owned.as_deref());
-        glib::ControlFlow::Break
-    });
-    
+
+    // Defer loading HTML until the WebView is realized+allocated.
+    log::debug!(
+        "[webkit6] Scheduling code view WebView initial load: {} bytes",
+        complete_page.len()
+    );
+    load_html_when_ready(
+        &webview,
+        complete_page.clone(),
+        base_uri.map(|s| s.to_string()),
+    );
+
     // Setup link handling for external/internal links
     setup_link_handling(&webview);
-    
+
     webview.set_vexpand(true);
     webview.set_hexpand(true);
-    
+
     log::debug!("[webkit6] Code viewer WebView created successfully");
     Ok(webview)
 }
@@ -543,61 +492,68 @@ pub fn update_code_view_smooth(
     scrollbar_thumb: Option<&str>,
     scrollbar_track: Option<&str>,
 ) -> Result<(), String> {
-    use crate::components::viewer::syntax_highlighter::{global_syntax_highlighter, generate_css_with_global};
-    
+    use crate::components::viewer::syntax_highlighter::{
+        generate_css_with_global, global_syntax_highlighter,
+    };
+
     // Early return if webview is not realized yet to prevent GtkGizmo snapshot warnings
     if !webview.is_realized() {
         log::debug!("[webkit6] Skipping code view update: WebView not yet realized");
         return Ok(());
     }
-    
+
     // Normalize theme mode
     let normalized_theme = if theme_mode.contains("dark") {
         "dark"
     } else {
         "light"
     };
-    
-    log::debug!("[webkit6] Smooth updating code view with theme: {} (normalized: {})", 
-        theme_mode, normalized_theme);
-    
+
+    log::debug!(
+        "[webkit6] Smooth updating code view with theme: {} (normalized: {})",
+        theme_mode,
+        normalized_theme
+    );
+
     // Handle empty HTML
     let display_html = if html_source.is_empty() {
         "<!-- No content yet -->"
     } else {
         html_source
     };
-    
+
     // Initialize and get CSS
     global_syntax_highlighter()
         .map_err(|e| format!("Failed to initialize syntax highlighter: {}", e))?;
-    
+
     let syntect_css = generate_css_with_global(normalized_theme)
         .map_err(|e| format!("Failed to generate CSS: {}", e))?;
-    
+
     // Highlight HTML
     let highlighted_html = SYNTAX_HIGHLIGHTER.with(|highlighter| {
         let h = highlighter.borrow();
-        let syntax_highlighter = h.as_ref()
+        let syntax_highlighter = h
+            .as_ref()
             .ok_or_else(|| "Syntax highlighter not initialized".to_string())?;
-            
-        syntax_highlighter.highlight_to_html(display_html, "html", normalized_theme)
+
+        syntax_highlighter
+            .highlight_to_html(display_html, "html", normalized_theme)
             .map_err(|e| format!("Highlighting failed: {}", e))
     })?;
-    
+
     // Escape for JavaScript
     let escaped_html = highlighted_html
         .replace('\\', "\\\\")
         .replace('\'', "\\'")
         .replace('\n', "\\n")
         .replace('\r', "\\r");
-    
+
     let escaped_css = syntect_css
         .replace('\\', "\\\\")
         .replace('\'', "\\'")
         .replace('\n', "\\n")
         .replace('\r', "\\r");
-    
+
     // Determine colors for theme - use editor colors if provided, otherwise use defaults
     let (bg_color, fg_color) = if let (Some(bg), Some(fg)) = (editor_bg, editor_fg) {
         (bg, fg)
@@ -606,20 +562,20 @@ pub fn update_code_view_smooth(
     } else {
         ("#fdf6e3", "#657b83")
     };
-    
+
     // Generate webkit scrollbar CSS
     let scrollbar_css = if let (Some(thumb), Some(track)) = (scrollbar_thumb, scrollbar_track) {
         crate::components::viewer::webview_utils::webkit_scrollbar_css(thumb, track)
     } else {
         String::new()
     };
-    
+
     let escaped_scrollbar_css = scrollbar_css
         .replace('\\', "\\\\")
         .replace('\'', "\\'")
         .replace('\n', "\\n")
         .replace('\r', "\\r");
-    
+
     // JavaScript to update content and theme
     let js_code = format!(
         r#"
@@ -663,7 +619,7 @@ pub fn update_code_view_smooth(
         "#,
         bg_color, fg_color, escaped_css, escaped_scrollbar_css, escaped_html
     );
-    
+
     let webview_clone = webview.clone();
     glib::idle_add_local(move || {
         webview_clone.evaluate_javascript(
@@ -678,7 +634,7 @@ pub fn update_code_view_smooth(
         );
         glib::ControlFlow::Break
     });
-    
+
     Ok(())
 }
 
@@ -699,22 +655,22 @@ use crate::components::viewer::syntax_highlighter::SYNTAX_HIGHLIGHTER;
 /// - Empty or None URIs
 fn is_external_uri(uri: &str) -> bool {
     let uri_lower = uri.to_lowercase();
-    
+
     // External: HTTP/HTTPS schemes
     if uri_lower.starts_with("http://") || uri_lower.starts_with("https://") {
         return true;
     }
-    
+
     // External: www. prefix (treat as http)
     if uri_lower.starts_with("www.") {
         return true;
     }
-    
+
     // External: mailto links (open in email client)
     if uri_lower.starts_with("mailto:") {
         return true;
     }
-    
+
     // Internal: everything else (file://, #anchors, relative paths, etc.)
     false
 }
@@ -735,13 +691,19 @@ fn open_external_uri(uri: &str) -> Result<(), String> {
     } else {
         uri.to_string()
     };
-    
-    log::info!("[webkit6] Opening external URI in system browser: {}", normalized_uri);
-    
+
+    log::info!(
+        "[webkit6] Opening external URI in system browser: {}",
+        normalized_uri
+    );
+
     // Use gio's AppInfo to launch the URI with the system's default handler
     match gio::AppInfo::launch_default_for_uri(&normalized_uri, None::<&gio::AppLaunchContext>) {
         Ok(_) => {
-            log::debug!("[webkit6] Successfully launched external URI: {}", normalized_uri);
+            log::debug!(
+                "[webkit6] Successfully launched external URI: {}",
+                normalized_uri
+            );
             Ok(())
         }
         Err(e) => {
@@ -759,49 +721,59 @@ fn open_external_uri(uri: &str) -> Result<(), String> {
 /// This function should be called after creating a WebView to enable link handling.
 fn setup_link_handling(webview: &WebView) {
     use webkit6::prelude::*;
-    
+
     webview.connect_decide_policy(|_webview, decision, decision_type| {
         // Handle both navigation actions and new window actions (target="_blank" links)
-        if decision_type != webkit6::PolicyDecisionType::NavigationAction 
-            && decision_type != webkit6::PolicyDecisionType::NewWindowAction {
+        if decision_type != webkit6::PolicyDecisionType::NavigationAction
+            && decision_type != webkit6::PolicyDecisionType::NewWindowAction
+        {
             return false; // Let WebKit handle other decision types
         }
-        
+
         // Try to downcast to NavigationPolicyDecision to get the URI
-        if let Ok(navigation_decision) = decision.clone().downcast::<webkit6::NavigationPolicyDecision>() {
+        if let Ok(navigation_decision) = decision
+            .clone()
+            .downcast::<webkit6::NavigationPolicyDecision>()
+        {
             // Get the navigation action to extract the request URI
             if let Some(mut navigation_action) = navigation_decision.navigation_action() {
                 if let Some(request) = navigation_action.request() {
                     if let Some(uri) = request.uri() {
                         let uri_str = uri.as_str();
                         log::debug!("[webkit6] Navigation decision for URI: {}", uri_str);
-                        
+
                         // Check if this is an external link
                         if is_external_uri(uri_str) {
                             log::info!("[webkit6] External link detected: {}", uri_str);
-                            
+
                             // Prevent WebView from loading the external URL
                             decision.ignore();
-                            
+
                             // Open in system browser
                             if let Err(e) = open_external_uri(uri_str) {
                                 log::warn!("[webkit6] Failed to open external link: {}", e);
                             }
-                            
+
                             return true; // We handled this decision
                         } else {
-                            log::debug!("[webkit6] Internal/local link, allowing WebView to handle: {}", uri_str);
+                            log::debug!(
+                                "[webkit6] Internal/local link, allowing WebView to handle: {}",
+                                uri_str
+                            );
                         }
                     }
                 }
             }
         }
-        
+
         // Let WebKit handle the navigation for internal links
         false
     });
-    
-    log::debug!("[webkit6] Link handling setup completed for WebView: {:p}", webview);
+
+    log::debug!(
+        "[webkit6] Link handling setup completed for WebView: {:p}",
+        webview
+    );
 }
 
 #[cfg(test)]
@@ -811,42 +783,93 @@ mod tests {
     #[test]
     fn smoke_test_url_classification() {
         // Test external URLs - should return true
-        assert!(is_external_uri("http://example.com"), "HTTP URL should be external");
-        assert!(is_external_uri("https://example.com"), "HTTPS URL should be external");
-        assert!(is_external_uri("http://example.com/path?query=value"), "HTTP URL with path should be external");
-        assert!(is_external_uri("https://example.com:8080/path"), "HTTPS URL with port should be external");
-        assert!(is_external_uri("www.example.com"), "www URL should be external");
-        assert!(is_external_uri("www.example.com/page"), "www URL with path should be external");
-        
+        assert!(
+            is_external_uri("http://example.com"),
+            "HTTP URL should be external"
+        );
+        assert!(
+            is_external_uri("https://example.com"),
+            "HTTPS URL should be external"
+        );
+        assert!(
+            is_external_uri("http://example.com/path?query=value"),
+            "HTTP URL with path should be external"
+        );
+        assert!(
+            is_external_uri("https://example.com:8080/path"),
+            "HTTPS URL with port should be external"
+        );
+        assert!(
+            is_external_uri("www.example.com"),
+            "www URL should be external"
+        );
+        assert!(
+            is_external_uri("www.example.com/page"),
+            "www URL with path should be external"
+        );
+
         // Test mailto links - should return true (open in email client)
-        assert!(is_external_uri("mailto:user@example.com"), "mailto link should be external");
-        assert!(is_external_uri("mailto:admin@localhost"), "mailto with localhost should be external");
-        assert!(is_external_uri("MAILTO:USER@EXAMPLE.COM"), "Uppercase mailto should be external");
-        
+        assert!(
+            is_external_uri("mailto:user@example.com"),
+            "mailto link should be external"
+        );
+        assert!(
+            is_external_uri("mailto:admin@localhost"),
+            "mailto with localhost should be external"
+        );
+        assert!(
+            is_external_uri("MAILTO:USER@EXAMPLE.COM"),
+            "Uppercase mailto should be external"
+        );
+
         // Test internal/local URLs - should return false
-        assert!(!is_external_uri("file:///home/user/document.md"), "file:// URL should be internal");
-        assert!(!is_external_uri("#section-id"), "Anchor link should be internal");
+        assert!(
+            !is_external_uri("file:///home/user/document.md"),
+            "file:// URL should be internal"
+        );
+        assert!(
+            !is_external_uri("#section-id"),
+            "Anchor link should be internal"
+        );
         assert!(!is_external_uri("#"), "Empty anchor should be internal");
-        assert!(!is_external_uri("relative/path/to/file.html"), "Relative path should be internal");
-        assert!(!is_external_uri("/absolute/path/to/file.html"), "Absolute path should be internal");
+        assert!(
+            !is_external_uri("relative/path/to/file.html"),
+            "Relative path should be internal"
+        );
+        assert!(
+            !is_external_uri("/absolute/path/to/file.html"),
+            "Absolute path should be internal"
+        );
         assert!(!is_external_uri(""), "Empty string should be internal");
-        
+
         // Edge cases
-        assert!(!is_external_uri("data:text/html,<h1>Hello</h1>"), "data: URL should be internal");
-        assert!(!is_external_uri("about:blank"), "about: URL should be internal");
-        assert!(is_external_uri("HTTP://EXAMPLE.COM"), "Uppercase HTTP should be external");
-        assert!(is_external_uri("WWW.EXAMPLE.COM"), "Uppercase www should be external");
+        assert!(
+            !is_external_uri("data:text/html,<h1>Hello</h1>"),
+            "data: URL should be internal"
+        );
+        assert!(
+            !is_external_uri("about:blank"),
+            "about: URL should be internal"
+        );
+        assert!(
+            is_external_uri("HTTP://EXAMPLE.COM"),
+            "Uppercase HTTP should be external"
+        );
+        assert!(
+            is_external_uri("WWW.EXAMPLE.COM"),
+            "Uppercase www should be external"
+        );
     }
-    
+
     #[test]
     fn smoke_test_open_external_uri() {
         // Test that the function exists and has correct signature
         // We can't actually test launching browsers in unit tests, but we can verify error handling
-        
+
         // Invalid URI should return error
         let result = open_external_uri("");
         assert!(result.is_err(), "Empty URI should return error");
-        
+
         // These would actually try to open the browser, so we skip them in automated tests
         // In manual testing, verify:
         // - open_external_uri("https://example.com") opens browser

@@ -22,8 +22,8 @@ pub fn build_layout_tab(
     on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 ) -> Box {
     use gtk4::{
-        Adjustment, Box as GtkBox, DropDown, Orientation, SpinButton,
-        StringList, PropertyExpression, StringObject, Expression, Switch,
+        Adjustment, Box as GtkBox, DropDown, Expression, Orientation, PropertyExpression,
+        SpinButton, StringList, StringObject, Switch,
     };
 
     let container = GtkBox::new(Orientation::Vertical, 0);
@@ -31,7 +31,9 @@ pub fn build_layout_tab(
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(settings_path) = settings_path {
-        match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(settings_path)) {
+        match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(
+            settings_path,
+        )) {
             Ok(sm) => Some(sm),
             Err(e) => {
                 debug!("Failed to initialize SettingsManager in layout tab: {}", e);
@@ -44,14 +46,11 @@ pub fn build_layout_tab(
 
     // View Mode (Dropdown)
     let view_mode_options = StringList::new(&["HTML Preview", "Source Code"]);
-    let view_mode_expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<&Expression>,
-        "string",
-    );
+    let view_mode_expression =
+        PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
     let view_mode_combo = DropDown::new(Some(view_mode_options), Some(view_mode_expression));
     view_mode_combo.add_css_class("marco-dropdown");
-    
+
     // Set active index based on saved setting if provided.
     let active_index = match initial_view_mode.as_deref() {
         Some(s)
@@ -82,7 +81,7 @@ pub fn build_layout_tab(
         "View Mode",
         "Choose the default mode for previewing Markdown content.",
         &view_mode_combo,
-        true  // First row - no top margin
+        true, // First row - no top margin
     );
     container.append(&view_mode_row);
 
@@ -92,7 +91,8 @@ pub fn build_layout_tab(
 
     // Load current sync scrolling setting using existing SettingsManager
     let current_sync_scrolling = if let Some(ref settings_manager) = settings_manager_opt {
-        settings_manager.get_settings()
+        settings_manager
+            .get_settings()
             .layout
             .as_ref()
             .and_then(|l| l.sync_scrolling)
@@ -108,7 +108,7 @@ pub fn build_layout_tab(
         let settings_manager_clone = settings_manager.clone();
         sync_scroll_switch.connect_state_set(move |_switch, is_active| {
             debug!("Sync scrolling changed to: {}", is_active);
-            
+
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 // Ensure layout settings exist
                 if settings.layout.is_none() {
@@ -144,14 +144,15 @@ pub fn build_layout_tab(
         "Sync Scrolling",
         "Synchronize scrolling between the editor and the preview pane.",
         &sync_scroll_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&sync_scroll_row);
 
     // Editor/View Split (SpinButton)
     // Load current split ratio from settings or use default (60%)
     let current_split_ratio = if let Some(ref settings_manager) = settings_manager_opt {
-        settings_manager.get_settings()
+        settings_manager
+            .get_settings()
             .window
             .as_ref()
             .and_then(|w| w.split_ratio)
@@ -205,7 +206,7 @@ pub fn build_layout_tab(
         "Editor/View Split",
         "Adjust how much horizontal space the editor takes.",
         &split_spin,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&split_row);
 
@@ -215,7 +216,8 @@ pub fn build_layout_tab(
 
     // Load current line numbers setting from SettingsManager
     let current_line_numbers = if let Some(ref settings_manager) = settings_manager_opt {
-        settings_manager.get_settings()
+        settings_manager
+            .get_settings()
             .layout
             .as_ref()
             .and_then(|l| l.show_line_numbers)
@@ -267,17 +269,14 @@ pub fn build_layout_tab(
         "Show Line Numbers",
         "Display line numbers in the editor gutter.",
         &line_numbers_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&line_numbers_row);
 
     // Text Direction (Dropdown)
     let text_dir_options = StringList::new(&["Left-to-Right (LTR)", "Right-to-Left (RTL)"]);
-    let text_dir_expression = PropertyExpression::new(
-        StringObject::static_type(),
-        None::<&Expression>,
-        "string",
-    );
+    let text_dir_expression =
+        PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
     let text_dir_combo = DropDown::new(Some(text_dir_options), Some(text_dir_expression));
     text_dir_combo.add_css_class("marco-dropdown");
     text_dir_combo.set_selected(0);
@@ -287,7 +286,7 @@ pub fn build_layout_tab(
         "Text Direction",
         "Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout.",
         &text_dir_combo,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&text_dir_row);
 

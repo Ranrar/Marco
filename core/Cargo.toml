@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Core"
 license = "MIT"
-rust-version = "1.90.0"
+rust-version = "1.92.0"
 
 [[test]]
 name = "test_suite"
@@ -15,8 +15,7 @@ harness = false  # Disable test harness to use custom main() with clap CLI
 [dependencies]
 # Core parsing dependencies (nom-based)
 nom = { workspace = true }
-nom_locate = "4.2"                   # Position tracking for nom parsers
-nom-recursive = "0.5"                # Recursive parsers for nom
+nom_locate = { workspace = true }
 
 # Serialization
 ron = { workspace = true }
@@ -29,15 +28,11 @@ anyhow = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
 tempfile = { workspace = true }
-emojis = { workspace = true }
 fontconfig = { workspace = true }
 dirs = { workspace = true }
 moka = { workspace = true }
 unicode-normalization  = { workspace = true }
-
-# Syntax highlighting (needed for code blocks)
-syntect = { workspace = true }
-syntect-assets = { workspace = true }
+htmlescape = { workspace = true }
 
 [build-dependencies]
 serde_json = { workspace = true }

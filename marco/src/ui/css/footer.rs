@@ -20,34 +20,34 @@ use super::constants::*;
 /// Generate complete footer CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(2048);
-    
+
     // Footer container (light theme)
     css.push_str(&generate_footer_container_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Footer container (dark theme)
     css.push_str(&generate_footer_container_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Footer labels (light theme)
     css.push_str(&generate_footer_label_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
-    
+
     // Footer labels (dark theme)
     css.push_str(&generate_footer_label_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
-    
+
     // Footer spacer (empty labels) - theme-independent
     css.push_str(&generate_footer_spacer_css());
-    
+
     css
 }
 
@@ -121,10 +121,10 @@ mod tests {
     #[test]
     fn smoke_test_footer_css_generation() {
         let css = generate_css();
-        
+
         // Verify not empty
         assert!(!css.is_empty(), "Footer CSS should not be empty");
-        
+
         // Verify major components present
         assert!(css.contains(".footer"), "Should contain footer class");
         assert!(
@@ -135,25 +135,25 @@ mod tests {
             css.contains(".footer-spacer"),
             "Should contain footer-spacer styling"
         );
-        
+
         // Verify both themes present
         assert!(
             css.contains(".marco-theme-light"),
             "Should contain light theme"
         );
-        assert!(css.contains(".marco-theme-dark"), "Should contain dark theme");
-        
-        // Verify specific properties
         assert!(
-            css.contains("min-height"),
-            "Footer should have min-height"
+            css.contains(".marco-theme-dark"),
+            "Should contain dark theme"
         );
+
+        // Verify specific properties
+        assert!(css.contains("min-height"), "Footer should have min-height");
         assert!(css.contains("border-top"), "Footer should have top border");
         assert!(
             css.contains("background-color"),
             "Footer should have background"
         );
-        
+
         // Verify substantial output (at least 500 bytes)
         assert!(
             css.len() > 500,
@@ -185,7 +185,9 @@ mod tests {
         assert!(css.contains(".footer-spacer"));
         assert!(css.contains("transparent"));
         // Verify label:empty is NOT used as a selector (GTK doesn't fully support it)
-        assert!(!css.contains("label:empty"), "Should not use label:empty selector");
+        assert!(
+            !css.contains("label:empty"),
+            "Should not use label:empty selector"
+        );
     }
 }
-

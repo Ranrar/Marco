@@ -31,7 +31,7 @@ const DARK_SCROLLBAR_TRACK: &str = "#252526";
 /// Generate complete scrollbar CSS for both light and dark themes
 pub fn generate_css() -> String {
     let mut css = String::with_capacity(2048);
-    
+
     // Base scrollbar styling (theme-independent)
     css.push_str(
         r#"
@@ -71,21 +71,21 @@ pub fn generate_css() -> String {
     }
 "#,
     );
-    
+
     // Light theme
     css.push_str(&generate_theme_css(
         "marco-theme-light",
         LIGHT_SCROLLBAR_THUMB,
         LIGHT_SCROLLBAR_TRACK,
     ));
-    
+
     // Dark theme
     css.push_str(&generate_theme_css(
         "marco-theme-dark",
         DARK_SCROLLBAR_THUMB,
         DARK_SCROLLBAR_TRACK,
     ));
-    
+
     css
 }
 
@@ -119,51 +119,51 @@ mod tests {
     #[test]
     fn smoke_test_scrollbar_css_generation() {
         let css = generate_css();
-        
+
         // Verify basic structure
         assert!(css.contains("scrollbar"));
         assert!(css.contains("scrollbar trough"));
         assert!(css.contains("scrollbar slider"));
-        
+
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));
         assert!(css.contains(".marco-theme-dark"));
-        
+
         // Verify light theme colors
         assert!(css.contains(LIGHT_SCROLLBAR_THUMB));
         assert!(css.contains(LIGHT_SCROLLBAR_TRACK));
-        
+
         // Verify dark theme colors
         assert!(css.contains(DARK_SCROLLBAR_THUMB));
         assert!(css.contains(DARK_SCROLLBAR_TRACK));
-        
+
         // Verify essential properties
         assert!(css.contains("min-width: 12px"));
         assert!(css.contains("min-height: 12px"));
         assert!(css.contains("border-radius: 0px"));
-        
+
         // Verify not empty
         assert!(!css.is_empty());
         assert!(css.len() > 500);
     }
-    
+
     #[test]
     fn smoke_test_scrollbar_colors_match_webkit() {
         let css = generate_css();
-        
+
         // Verify light theme colors match editor XML
         assert!(css.contains("#D0D4D8")); // light thumb
         assert!(css.contains("#F0F0F0")); // light track
-        
+
         // Verify dark theme colors match editor XML
         assert!(css.contains("#3A3F44")); // dark thumb
         assert!(css.contains("#252526")); // dark track
     }
-    
+
     #[test]
     fn smoke_test_scrollbar_12px_width() {
         let css = generate_css();
-        
+
         // Verify 12px width/height matching WebKit
         assert!(css.matches("12px").count() >= 6);
     }

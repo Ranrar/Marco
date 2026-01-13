@@ -72,39 +72,39 @@ pub struct ColorPalette {
 /// Light theme color palette (matches Marco exactly)
 pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     window_bg: "#ffffff",
-    titlebar_bg: "#e8ecef",           // Marco's titlebar_bg
-    foreground: "#2c3e50",            // Marco's titlebar_foreground
-    border: "#ccc",                   // Marco's titlebar_border (was #d0d0d0)
-    border_hover: "#0066cc",          // Marco's menu_active
-    hover_accent: "#5a6c7d",          // Marco's menu_hover / window_control_hover
-    active_text: "#000",              // Marco's menu_active / window_control_active
-    popover_bg: "#f5f5f5",            // Marco's toolbar_popover_bg (was #ffffff)
-    item_hover_bg: "#e8e8e8",         // Slightly darker for hover
-    tooltip_bg: "#2c3e50",            // Matches foreground for contrast
-    tooltip_fg: "#ffffff",            // White text on dark tooltip
-    tooltip_border: "#5a6c7d",        // Subtle border
-    disabled_bg: "#ddd",              // Marco's disabled button background
-    disabled_fg: "#999",              // Marco's disabled button text
-    disabled_border: "#ccc",          // Marco's disabled button border
+    titlebar_bg: "#e8ecef",    // Marco's titlebar_bg
+    foreground: "#2c3e50",     // Marco's titlebar_foreground
+    border: "#ccc",            // Marco's titlebar_border (was #d0d0d0)
+    border_hover: "#0066cc",   // Marco's menu_active
+    hover_accent: "#5a6c7d",   // Marco's menu_hover / window_control_hover
+    active_text: "#000",       // Marco's menu_active / window_control_active
+    popover_bg: "#f5f5f5",     // Marco's toolbar_popover_bg (was #ffffff)
+    item_hover_bg: "#e8e8e8",  // Slightly darker for hover
+    tooltip_bg: "#2c3e50",     // Matches foreground for contrast
+    tooltip_fg: "#ffffff",     // White text on dark tooltip
+    tooltip_border: "#5a6c7d", // Subtle border
+    disabled_bg: "#ddd",       // Marco's disabled button background
+    disabled_fg: "#999",       // Marco's disabled button text
+    disabled_border: "#ccc",   // Marco's disabled button border
 };
 
 /// Dark theme color palette (matches Marco exactly)
 pub const DARK_PALETTE: ColorPalette = ColorPalette {
-    window_bg: "#252526",             // Marco's toolbar_bg (was #1a1a1a)
-    titlebar_bg: "#23272e",           // Marco's titlebar_bg
-    foreground: "#f0f5f1",            // Marco's window_control (was #f0f5f1, correct)
-    border: "#444",                   // Marco's titlebar_border (was #505050)
-    border_hover: "#4f8cff",          // Marco's toolbar_button_hover_border
-    hover_accent: "#9198a1",          // Marco's window_control_hover
-    active_text: "#fff",              // Marco's window_control_active
-    popover_bg: "#23272e",            // Marco's toolbar_popover_bg (was #2d2d2d)
-    item_hover_bg: "#3d3d3d",         // Slightly lighter for hover visibility
-    tooltip_bg: "#3d3d3d",            // Dark tooltip background
-    tooltip_fg: "#e0e0e0",            // Marco's title_label dark
-    tooltip_border: "#444",           // Marco's titlebar_border (was #505050)
-    disabled_bg: "#555",              // Marco's disabled button background
-    disabled_fg: "#aaa",              // Marco's disabled button text
-    disabled_border: "#555",          // Marco's disabled button border
+    window_bg: "#252526",     // Marco's toolbar_bg (was #1a1a1a)
+    titlebar_bg: "#23272e",   // Marco's titlebar_bg
+    foreground: "#f0f5f1",    // Marco's window_control (was #f0f5f1, correct)
+    border: "#444",           // Marco's titlebar_border (was #505050)
+    border_hover: "#4f8cff",  // Marco's toolbar_button_hover_border
+    hover_accent: "#9198a1",  // Marco's window_control_hover
+    active_text: "#fff",      // Marco's window_control_active
+    popover_bg: "#23272e",    // Marco's toolbar_popover_bg (was #2d2d2d)
+    item_hover_bg: "#3d3d3d", // Slightly lighter for hover visibility
+    tooltip_bg: "#3d3d3d",    // Dark tooltip background
+    tooltip_fg: "#e0e0e0",    // Marco's title_label dark
+    tooltip_border: "#444",   // Marco's titlebar_border (was #505050)
+    disabled_bg: "#555",      // Marco's disabled button background
+    disabled_fg: "#aaa",      // Marco's disabled button text
+    disabled_border: "#555",  // Marco's disabled button border
 };
 
 /// Standard titlebar height in pixels
@@ -189,7 +189,7 @@ mod tests {
         assert!(LIGHT_PALETTE.foreground.starts_with('#'));
         assert!(LIGHT_PALETTE.border.starts_with('#'));
         assert!(LIGHT_PALETTE.border_hover.starts_with('#'));
-        
+
         // Verify color format (# followed by 3 or 6 hex digits)
         assert!(LIGHT_PALETTE.window_bg.len() == 7); // #ffffff
         assert!(LIGHT_PALETTE.titlebar_bg.len() == 7); // #e8ecef
@@ -203,7 +203,7 @@ mod tests {
         assert!(DARK_PALETTE.foreground.starts_with('#'));
         assert!(DARK_PALETTE.border.starts_with('#'));
         assert!(DARK_PALETTE.border_hover.starts_with('#'));
-        
+
         // Verify color format
         assert!(DARK_PALETTE.window_bg.len() == 7);
         assert!(DARK_PALETTE.titlebar_bg.len() == 7);
@@ -224,7 +224,7 @@ mod tests {
         assert!(TITLEBAR_HEIGHT.ends_with("px"));
         assert!(BUTTON_PADDING.contains("px"));
         assert!(BORDER_RADIUS.ends_with("px"));
-        
+
         // Verify constants have expected values
         assert_eq!(TITLEBAR_HEIGHT, "32px");
         assert_eq!(BUTTON_PADDING, "2px 8px");

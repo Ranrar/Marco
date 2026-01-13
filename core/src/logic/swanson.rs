@@ -1,5 +1,5 @@
 //! Centralized Settings Manager using RON and Serde
-//! 
+//!
 //! This module provides thread-safe, centralized settings management for Marco.
 //! SettingsManager is the single authority for all settings operations.
 
@@ -19,14 +19,14 @@ pub struct Settings {
     // Marco-specific settings
     pub editor: Option<EditorSettings>,
     pub layout: Option<LayoutSettings>,
-    pub window: Option<WindowSettings>,  // Marco window settings
+    pub window: Option<WindowSettings>, // Marco window settings
     pub files: Option<FileSettings>,
     pub active_schema: Option<String>,
     pub schema_disabled: Option<bool>,
-    
+
     // Polo-specific settings
     pub polo: Option<PoloSettings>,
-    
+
     // Common settings (shared between Marco and Polo)
     pub appearance: Option<AppearanceSettings>,
     pub language: Option<LanguageSettings>,
@@ -195,7 +195,7 @@ impl Settings {
             }),
             active_schema: None,
             schema_disabled: None,
-            
+
             // Polo-specific settings
             polo: Some(PoloSettings {
                 window: Some(PoloWindowSettings {
@@ -208,13 +208,13 @@ impl Settings {
                 auto_refresh: Some(false),
                 refresh_interval_ms: Some(1000),
             }),
-            
+
             // Common settings (shared between Marco and Polo)
             appearance: Some(AppearanceSettings {
                 editor_mode: Some("marco-light".to_string()),
                 preview_theme: Some("github".to_string()),
                 ui_font_size: Some(11),
-                ..Default::default() 
+                ..Default::default()
             }),
             language: None,
             debug: Some(false),
@@ -278,19 +278,19 @@ impl SettingsManager {
             change_listeners: Arc::new(RwLock::new(HashMap::new())),
             last_modified: Arc::new(RwLock::new(None)),
         });
-        
+
         // Ensure settings file exists and load settings
         manager.ensure_settings_file_exists()?;
         manager.reload_settings()?;
-        
+
         Ok(manager)
     }
-    
+
     /// Get current settings (read-only clone)
     pub fn get_settings(&self) -> Settings {
         self.settings.read().unwrap().clone()
     }
-    
+
     /// Update settings using a closure and notify listeners
     pub fn update_settings<F>(&self, updater: F) -> Result<(), SettingsError>
     where
@@ -299,22 +299,22 @@ impl SettingsManager {
         {
             let mut settings = self.settings.write().unwrap();
             updater(&mut settings);
-            
+
             // Validate settings after update
             if let Err(validation_errors) = self.validate_settings(&settings) {
                 return Err(SettingsError::Validation(validation_errors));
             }
         }
-        
+
         // Save to file
         self.save_settings()?;
-        
+
         // Notify listeners
         self.notify_listeners();
-        
+
         Ok(())
     }
-    
+
     /// Register a change listener
     pub fn register_change_listener<F>(&self, id: String, callback: F)
     where
@@ -323,13 +323,13 @@ impl SettingsManager {
         let mut listeners = self.change_listeners.write().unwrap();
         listeners.insert(id, Box::new(callback));
     }
-    
+
     /// Remove a change listener
     pub fn remove_change_listener(&self, id: &str) {
         let mut listeners = self.change_listeners.write().unwrap();
         listeners.remove(id);
     }
-    
+
     /// Register a listener specifically for theme/appearance changes
     pub fn register_theme_listener<F>(&self, id: String, callback: F)
     where
@@ -341,7 +341,7 @@ impl SettingsManager {
             }
         });
     }
-    
+
     /// Register a listener specifically for editor settings changes
     pub fn register_editor_listener<F>(&self, id: String, callback: F)
     where
@@ -353,7 +353,7 @@ impl SettingsManager {
             }
         });
     }
-    
+
     /// Register a listener specifically for window settings changes
     pub fn register_window_listener<F>(&self, id: String, callback: F)
     where
@@ -365,7 +365,7 @@ impl SettingsManager {
             }
         });
     }
-    
+
     /// Register a listener specifically for layout settings changes
     pub fn register_layout_listener<F>(&self, id: String, callback: F)
     where
@@ -377,7 +377,7 @@ impl SettingsManager {
             }
         });
     }
-    
+
     /// Ensure settings file exists, create with defaults if missing
     pub fn ensure_settings_file_exists(&self) -> Result<(), SettingsError> {
         if !self.settings_path.exists() {
@@ -385,49 +385,52 @@ impl SettingsManager {
             if let Some(parent) = self.settings_path.parent() {
                 fs::create_dir_all(parent)?;
             }
-            
+
             // Create default settings
             let default_settings = Settings::create_default_for_system();
-            
+
             // Save with pretty formatting
             let pretty_config = ron::ser::PrettyConfig::new()
                 .enumerate_arrays(true)
                 .indentor("  ".to_string());
             let ron_content = ron::ser::to_string_pretty(&default_settings, pretty_config)?;
-            
+
             fs::write(&self.settings_path, ron_content)?;
-            
+
             trace!("Created default settings file at {:?}", self.settings_path);
         }
-        
+
         Ok(())
     }
-    
+
     /// Reload settings from file
     fn reload_settings(&self) -> Result<(), SettingsError> {
         let content = fs::read_to_string(&self.settings_path)?;
         let parsed_settings: Settings = ron::de::from_str(&content)?;
-        
+
         // Validate loaded settings
         if let Err(validation_error) = self.validate_settings(&parsed_settings) {
-            warn!("Settings validation failed, using repaired settings: {}", validation_error);
+            warn!(
+                "Settings validation failed, using repaired settings: {}",
+                validation_error
+            );
             let mut repaired_settings = parsed_settings;
             self.repair_invalid_settings(&mut repaired_settings);
             *self.settings.write().unwrap() = repaired_settings;
         } else {
             *self.settings.write().unwrap() = parsed_settings;
         }
-        
+
         // Update last modified time
         if let Ok(metadata) = fs::metadata(&self.settings_path) {
             if let Ok(modified) = metadata.modified() {
                 *self.last_modified.write().unwrap() = Some(modified);
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Save current settings to file
     fn save_settings(&self) -> Result<(), SettingsError> {
         let settings = self.settings.read().unwrap();
@@ -435,59 +438,71 @@ impl SettingsManager {
             .enumerate_arrays(true)
             .indentor("  ".to_string());
         let ron_content = ron::ser::to_string_pretty(&*settings, pretty_config)?;
-        
+
         fs::write(&self.settings_path, ron_content)?;
-        
+
         // Update last modified time
         if let Ok(metadata) = fs::metadata(&self.settings_path) {
             if let Ok(modified) = metadata.modified() {
                 *self.last_modified.write().unwrap() = Some(modified);
             }
         }
-        
+
         trace!("Settings saved to {:?}", self.settings_path);
         Ok(())
     }
-    
+
     /// Validate settings and return error message if invalid
     fn validate_settings(&self, settings: &Settings) -> Result<(), String> {
         let mut errors = Vec::new();
-        
+
         // Validate editor settings
         if let Some(editor) = &settings.editor {
             if let Some(font_size) = editor.font_size {
                 if !(8..=72).contains(&font_size) {
-                    errors.push(format!("Font size {} is out of valid range (8-72)", font_size));
+                    errors.push(format!(
+                        "Font size {} is out of valid range (8-72)",
+                        font_size
+                    ));
                 }
             }
         }
-        
+
         // Validate window settings
         if let Some(window) = &settings.window {
             if let Some(width) = window.width {
                 if !(400..=5000).contains(&width) {
-                    errors.push(format!("Window width {} is out of valid range (400-5000)", width));
+                    errors.push(format!(
+                        "Window width {} is out of valid range (400-5000)",
+                        width
+                    ));
                 }
             }
             if let Some(height) = window.height {
                 if !(300..=4000).contains(&height) {
-                    errors.push(format!("Window height {} is out of valid range (300-4000)", height));
+                    errors.push(format!(
+                        "Window height {} is out of valid range (300-4000)",
+                        height
+                    ));
                 }
             }
             if let Some(split_ratio) = window.split_ratio {
                 if !(10..=90).contains(&split_ratio) {
-                    errors.push(format!("Split ratio {} is out of valid range (10-90)", split_ratio));
+                    errors.push(format!(
+                        "Split ratio {} is out of valid range (10-90)",
+                        split_ratio
+                    ));
                 }
             }
         }
-                
+
         if errors.is_empty() {
             Ok(())
         } else {
             Err(errors.join("; "))
         }
     }
-    
+
     /// Repair invalid settings by clamping to valid ranges and removing invalid entries
     fn repair_invalid_settings(&self, settings: &mut Settings) {
         // Repair editor settings
@@ -496,7 +511,7 @@ impl SettingsManager {
                 *font_size = (*font_size).clamp(8, 72);
             }
         }
-        
+
         // Repair window settings
         if let Some(window) = &mut settings.window {
             if let Some(width) = &mut window.width {
@@ -509,7 +524,7 @@ impl SettingsManager {
                 *split_ratio = (*split_ratio).clamp(10, 90);
             }
         }
-        
+
         // Remove non-existent recent files
         if let Some(files) = &mut settings.files {
             if let Some(recent_files) = &mut files.recent_files {
@@ -517,19 +532,19 @@ impl SettingsManager {
             }
         }
     }
-    
+
     /// Notify all registered listeners of settings changes
     fn notify_listeners(&self) {
         let settings = self.get_settings();
         let listeners = self.change_listeners.read().unwrap();
-        
+
         for (id, listener) in listeners.iter() {
             // Use trace level to avoid spamming logs
             trace!("Notifying settings listener: {}", id);
             listener(&settings);
         }
     }
-    
+
     /// Get the settings file path
     pub fn get_settings_path(&self) -> &Path {
         &self.settings_path
@@ -622,8 +637,8 @@ pub struct FileSettings {
 pub struct PoloSettings {
     pub window: Option<PoloWindowSettings>,
     pub last_opened_file: Option<PathBuf>,
-    pub auto_refresh: Option<bool>,  // Future: watch file for changes
-    pub refresh_interval_ms: Option<u32>,  // Future: how often to check for changes
+    pub auto_refresh: Option<bool>, // Future: watch file for changes
+    pub refresh_interval_ms: Option<u32>, // Future: how often to check for changes
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -687,39 +702,57 @@ mod tests {
     fn smoke_test_ron_0_11_compatibility() {
         // Test that RON 0.11 can parse the actual settings file
         let settings_path = "src/assets/settings.ron";
-        
+
         // Skip if settings file doesn't exist (CI environment)
         if !std::path::Path::new(settings_path).exists() {
             return;
         }
-        
+
         // Test loading settings
         let result = Settings::load_from_file(settings_path);
-        assert!(result.is_ok(), "Failed to load settings with RON 0.11: {:?}", result.err());
-        
+        assert!(
+            result.is_ok(),
+            "Failed to load settings with RON 0.11: {:?}",
+            result.err()
+        );
+
         let settings = result.unwrap();
-        
+
         // Verify some expected fields exist
-        assert!(settings.editor.is_some(), "Editor settings should be present");
-        assert!(settings.appearance.is_some(), "Appearance settings should be present");
-        
+        assert!(
+            settings.editor.is_some(),
+            "Editor settings should be present"
+        );
+        assert!(
+            settings.appearance.is_some(),
+            "Appearance settings should be present"
+        );
+
         // Test that we can serialize it back
         let pretty = ron::ser::PrettyConfig::new();
         let serialized = ron::ser::to_string_pretty(&settings, pretty);
-        assert!(serialized.is_ok(), "Failed to serialize settings with RON 0.11: {:?}", serialized.err());
-        
+        assert!(
+            serialized.is_ok(),
+            "Failed to serialize settings with RON 0.11: {:?}",
+            serialized.err()
+        );
+
         // Test that the serialized version can be parsed again
         let reparsed: Result<Settings, _> = ron::de::from_str(&serialized.unwrap());
-        assert!(reparsed.is_ok(), "Failed to reparse serialized settings: {:?}", reparsed.err());
+        assert!(
+            reparsed.is_ok(),
+            "Failed to reparse serialized settings: {:?}",
+            reparsed.err()
+        );
     }
-    
+
     #[test]
     fn smoke_test_ron_error_types() {
         // Test that RON 0.11 error types work correctly with our error handling
         let bad_ron = "( invalid: Some( }";
         let result: Result<Settings, _> = ron::de::from_str(bad_ron);
         assert!(result.is_err(), "Should fail to parse invalid RON");
-        
+
         // Test that error can be converted to SettingsError
         let settings_error: SettingsError = result.unwrap_err().into();
         assert!(matches!(settings_error, SettingsError::Parse(_)));
