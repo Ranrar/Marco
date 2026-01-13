@@ -9,7 +9,7 @@
 //! Cell contents are parsed with the inline parser so emphasis/links/etc work
 //! inside table cells.
 
-use super::shared::{to_parser_span, to_parser_span_range, GrammarSpan};
+use super::shared::{to_parser_span, GrammarSpan};
 use crate::grammar::blocks::gfm_table::{split_pipe_row_cells, GfmTableBlock};
 use crate::parser::ast::{Node, NodeKind, TableAlignment};
 use nom::Input;
@@ -24,7 +24,9 @@ pub fn parse_gfm_table<'a>(
     full_start: GrammarSpan<'a>,
     full_end: GrammarSpan<'a>,
 ) -> Node {
-    let span = to_parser_span_range(full_start, full_end);
+    // `full_end` is the remainder span returned by the grammar parser, so we
+    // must use exclusive range semantics here.
+    let span = crate::parser::shared::to_parser_span_range(full_start, full_end);
 
     let header_cells = split_pipe_row_cells(table.header_line);
     let delimiter_cells = split_pipe_row_cells(table.delimiter_line);

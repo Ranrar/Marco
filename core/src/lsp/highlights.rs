@@ -34,6 +34,14 @@ pub enum HighlightTag {
     HtmlBlock,
     List,
     ListItem,
+    TaskCheckboxChecked,
+    TaskCheckboxUnchecked,
+    Table,
+    TableRow,
+    TableRowHeader,
+    TableCell,
+    TableCellHeader,
+    LinkReference,
 }
 
 // Generate highlights from AST by walking all nodes
@@ -125,6 +133,14 @@ fn tag_rank(tag: &HighlightTag) -> u8 {
         HighlightTag::HtmlBlock => 51,
         HighlightTag::List => 60,
         HighlightTag::ListItem => 61,
+        HighlightTag::TaskCheckboxUnchecked => 62,
+        HighlightTag::TaskCheckboxChecked => 63,
+        HighlightTag::Table => 70,
+        HighlightTag::TableRowHeader => 71,
+        HighlightTag::TableRow => 72,
+        HighlightTag::TableCellHeader => 73,
+        HighlightTag::TableCell => 74,
+        HighlightTag::LinkReference => 80,
     }
 }
 
@@ -261,6 +277,48 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     tag: HighlightTag::ListItem,
                 });
             }
+            NodeKind::TaskCheckbox { checked } | NodeKind::TaskCheckboxInline { checked } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: if *checked {
+                        HighlightTag::TaskCheckboxChecked
+                    } else {
+                        HighlightTag::TaskCheckboxUnchecked
+                    },
+                });
+            }
+            NodeKind::Table { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Table,
+                });
+            }
+            NodeKind::TableRow { header } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: if *header {
+                        HighlightTag::TableRowHeader
+                    } else {
+                        HighlightTag::TableRow
+                    },
+                });
+            }
+            NodeKind::TableCell { header, .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: if *header {
+                        HighlightTag::TableCellHeader
+                    } else {
+                        HighlightTag::TableCell
+                    },
+                });
+            }
+            NodeKind::LinkReference { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::LinkReference,
+                });
+            }
             // SKIP only structural nodes without visual representation
             NodeKind::Paragraph | NodeKind::Text(_) => {
                 // These are pure containers, no visual styling needed
@@ -269,9 +327,6 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
             NodeKind::HardBreak | NodeKind::SoftBreak => {
                 // Line breaks are formatting, not content
                 // Don't highlight them
-            }
-            _ => {
-                log::trace!("No highlight for node kind: {:?}", node.kind);
             }
         }
     }
@@ -1085,5 +1140,128 @@ mod tests {
             .iter()
             .any(|h| h.tag == HighlightTag::Superscript));
         assert!(highlights.iter().any(|h| h.tag == HighlightTag::Subscript));
+    }
+
+    #[test]
+    fn smoke_test_task_checkbox_highlights_checked_unchecked() {
+        let checked_span = Span {
+            start: Position {
+                line: 1,
+                column: 1,
+                offset: 0,
+            },
+            end: Position {
+                line: 1,
+                column: 4,
+                offset: 3,
+            },
+        };
+        let unchecked_span = Span {
+            start: Position {
+                line: 2,
+                column: 1,
+                offset: 4,
+            },
+            end: Position {
+                line: 2,
+                column: 4,
+                offset: 7,
+            },
+        };
+
+        let doc = Document {
+            children: vec![
+                Node {
+                    kind: NodeKind::TaskCheckbox { checked: true },
+                    span: Some(checked_span),
+                    children: vec![],
+                },
+                Node {
+                    kind: NodeKind::TaskCheckboxInline { checked: false },
+                    span: Some(unchecked_span),
+                    children: vec![],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let highlights = compute_highlights(&doc);
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::TaskCheckboxChecked));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::TaskCheckboxUnchecked));
+    }
+
+    #[test]
+    fn smoke_test_table_highlights_row_and_cell() {
+        // Minimal table with a header row and one cell.
+        let table_span = Span {
+            start: Position {
+                line: 1,
+                column: 1,
+                offset: 0,
+            },
+            end: Position {
+                line: 2,
+                column: 1,
+                offset: 10,
+            },
+        };
+        let row_span = Span {
+            start: Position {
+                line: 1,
+                column: 1,
+                offset: 0,
+            },
+            end: Position {
+                line: 1,
+                column: 6,
+                offset: 5,
+            },
+        };
+        let cell_span = Span {
+            start: Position {
+                line: 1,
+                column: 3,
+                offset: 2,
+            },
+            end: Position {
+                line: 1,
+                column: 4,
+                offset: 3,
+            },
+        };
+
+        let doc = Document {
+            children: vec![Node {
+                kind: NodeKind::Table { alignments: vec![] },
+                span: Some(table_span),
+                children: vec![Node {
+                    kind: NodeKind::TableRow { header: true },
+                    span: Some(row_span),
+                    children: vec![Node {
+                        kind: NodeKind::TableCell {
+                            header: true,
+                            alignment: crate::parser::ast::TableAlignment::None,
+                        },
+                        span: Some(cell_span),
+                        children: vec![],
+                    }],
+                }],
+            }],
+            ..Default::default()
+        };
+
+        let highlights = compute_highlights(&doc);
+
+        assert!(highlights.iter().any(|h| h.tag == HighlightTag::Table));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::TableRowHeader));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::TableCellHeader));
     }
 }

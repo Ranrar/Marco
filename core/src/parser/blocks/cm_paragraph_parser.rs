@@ -3,7 +3,7 @@
 //! Handles conversion of paragraphs from grammar layer to parser AST,
 //! including recursive inline element parsing for emphasis, links, etc.
 
-use super::shared::{to_parser_span, to_parser_span_range, GrammarSpan};
+use super::shared::{to_parser_span, GrammarSpan};
 use crate::parser::ast::{Node, NodeKind};
 
 use nom::Input;
@@ -37,15 +37,17 @@ pub fn parse_paragraph(content: GrammarSpan) -> Node {
     //
     // This matters when the author uses hard breaks (two spaces + newline) to
     // create a checklist-like block without list markers:
-    //   [ ] first  
-    //   [ ] second  
+    //   [ ] first
+    //   [ ] second
     //
     // Those lines are still a single paragraph in CommonMark; we still want to
     // render the checkbox SVG on each line.
     let mut inline_children: Vec<Node> = Vec::new();
     let mut remaining = content;
 
-    while let Some((start, checked, consumed)) = find_next_task_checkbox_marker(remaining.fragment()) {
+    while let Some((start, checked, consumed)) =
+        find_next_task_checkbox_marker(remaining.fragment())
+    {
         // Emit any content before the marker using the inline parser.
         if start > 0 {
             let (rest, prefix) = remaining.take_split(start);
@@ -57,7 +59,10 @@ pub fn parse_paragraph(content: GrammarSpan) -> Node {
         let (after_marker, _marker_taken) = remaining.take_split(consumed);
         inline_children.push(Node {
             kind: NodeKind::TaskCheckboxInline { checked },
-            span: Some(to_parser_span_range(remaining, after_marker)),
+            span: Some(crate::parser::shared::to_parser_span_range(
+                remaining,
+                after_marker,
+            )),
             children: Vec::new(),
         });
         remaining = after_marker;
@@ -130,7 +135,10 @@ fn parse_task_checkbox_prefix_len(input: &str) -> Option<(bool, usize)> {
 
     let (checked, after_marker) = if let Some(after) = rest.strip_prefix("[ ]") {
         (false, after)
-    } else if let Some(after) = rest.strip_prefix("[x]").or_else(|| rest.strip_prefix("[X]")) {
+    } else if let Some(after) = rest
+        .strip_prefix("[x]")
+        .or_else(|| rest.strip_prefix("[X]"))
+    {
         (true, after)
     } else {
         return None;

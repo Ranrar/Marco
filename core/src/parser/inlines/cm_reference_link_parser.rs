@@ -77,7 +77,8 @@ pub fn parse_reference_link(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let mut consumed_len = after_first_bracket;
 
     // Full/collapsed reference link: `[text][label]` or `[label][]`
-    if after_first_bracket < content_str.len() && content_str.as_bytes()[after_first_bracket] == b'['
+    if after_first_bracket < content_str.len()
+        && content_str.as_bytes()[after_first_bracket] == b'['
     {
         // Collapsed reference link: `[]`
         if after_first_bracket + 1 < content_str.len()
@@ -124,10 +125,7 @@ mod tests {
         let input = GrammarSpan::new("[foo] bar");
         let (rest, node) = parse_reference_link(input).expect("parse failed");
         assert_eq!(rest.fragment(), &" bar");
-        assert!(matches!(
-            node.kind,
-            NodeKind::LinkReference { .. }
-        ));
+        assert!(matches!(node.kind, NodeKind::LinkReference { .. }));
     }
 
     #[test]

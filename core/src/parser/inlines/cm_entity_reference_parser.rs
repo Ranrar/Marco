@@ -31,7 +31,10 @@ pub fn parse_entity_reference(input: GrammarSpan) -> IResult<GrammarSpan, Node> 
         .find(';')
         .filter(|&idx| idx > 0 && idx < MAX_ENTITY_LEN)
         .ok_or_else(|| {
-            nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::TakeUntil))
+            nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::TakeUntil,
+            ))
         })?;
 
     let consumed_len = semi_pos + 1;

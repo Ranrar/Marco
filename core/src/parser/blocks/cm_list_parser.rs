@@ -7,6 +7,7 @@ use super::shared::{dedent_list_item_content, to_parser_span, to_parser_span_ran
 use crate::grammar::blocks::cm_list::ListMarker;
 use crate::parser::ast::{Document, Node, NodeKind};
 use anyhow::Result;
+use nom::Input;
 
 /// Represents the parser state needed for list item parsing.
 /// This trait allows the list parser to work with the main parser's state.
@@ -98,10 +99,13 @@ where
 
         // GFM task list item marker detection.
         // If present, strip it from the content before parsing blocks.
-        let (task_checked, content_to_parse) = match parse_task_checkbox_prefix(&dedented_content) {
-            Some((checked, rest)) => (Some(checked), rest.to_string()),
-            None => (None, dedented_content),
-        };
+        // We also compute an accurate span for the marker itself so the editor
+        // can color `[ ]` / `[x]` distinctly.
+        let (task, content_to_parse) =
+            match detect_task_checkbox_in_list_item(content, content_indent) {
+                Some((checked, marker_span, rest)) => (Some((checked, marker_span)), rest),
+                None => (None, dedented_content),
+            };
 
         // Parse the item's content as block elements
         // Create a sub-state for list item content to track nested structures
@@ -117,10 +121,10 @@ where
 
         let mut item_children = Vec::new();
 
-        if let Some(checked) = task_checked {
+        if let Some((checked, marker_span)) = task {
             item_children.push(Node {
                 kind: NodeKind::TaskCheckbox { checked },
-                span: None,
+                span: Some(marker_span),
                 children: Vec::new(),
             });
         }
@@ -139,14 +143,90 @@ where
     Ok(list_node)
 }
 
-/// Detect and strip a GFM task list marker from the start of a list item's content.
+/// Detect a GFM task checkbox marker in a list item's content and return:
+/// - `checked`
+/// - a precise `Span` for just the marker (`[ ]` / `[x]`)
+/// - the dedented content with the marker removed (what we should parse as blocks)
+fn detect_task_checkbox_in_list_item(
+    content: GrammarSpan,
+    content_indent: usize,
+) -> Option<(bool, crate::parser::position::Span, String)> {
+    // Fast path: if there's no marker in the dedented string, bail early.
+    // This keeps behaviour identical for non-task items.
+    let dedented = dedent_list_item_content(content.fragment(), content_indent);
+    let (checked, dedented_rest, _dedented_consumed) =
+        parse_task_checkbox_prefix_with_consumed(&dedented)?;
+
+    // Compute marker span in the original input using the grammar span.
+    // We try to mirror the dedent behaviour for the *first line* only to find
+    // where the marker begins.
+    let raw = content.fragment();
+    let raw_prefix = raw_dedent_prefix_len_first_line(raw, content_indent);
+    if raw_prefix > raw.len() {
+        return None;
+    }
+
+    // Slice to the first line after the dedent prefix.
+    let after_prefix = content.take_from(raw_prefix);
+    let bytes = after_prefix.fragment().as_bytes();
+
+    // Allow up to 3 spaces before the marker.
+    let mut i = 0usize;
+    for _ in 0..3 {
+        if bytes.get(i) == Some(&b' ') {
+            i += 1;
+        } else {
+            break;
+        }
+    }
+
+    let rest = &after_prefix.fragment()[i..];
+    let (checked_raw, after_marker_raw): (bool, &str) = if let Some(after) = rest.strip_prefix("[ ]") {
+        (false, after)
+    } else if let Some(after) = rest
+        .strip_prefix("[x]")
+        .or_else(|| rest.strip_prefix("[X]"))
+    {
+        (true, after)
+    } else {
+        return None;
+    };
+
+    // Must be followed by at least one whitespace character.
+    let mut chars = after_marker_raw.chars();
+    match chars.next() {
+        Some(' ') | Some('\t') => {
+            // ok
+        }
+        _ => return None,
+    }
+
+    // Keep the dedented parser behaviour as the source of truth for content.
+    if checked_raw != checked {
+        log::debug!(
+            "Task checkbox mismatch between raw and dedented detection (raw_checked={}, dedented_checked={})",
+            checked_raw,
+            checked
+        );
+    }
+
+    // Build the marker span using exclusive end semantics.
+    // Note: `blocks::shared::to_parser_span_range` is inclusive; we want the
+    // canonical exclusive version from `parser::shared`.
+    let marker_start = after_prefix.take_from(i);
+    let (after_marker, _marker_taken) = marker_start.take_split(3);
+    let marker_span = crate::parser::shared::to_parser_span_range(marker_start, after_marker);
+
+    Some((checked, marker_span, dedented_rest.to_string()))
+}
+
+/// Parse a task checkbox prefix and return (checked, rest, consumed_bytes).
 ///
-/// Recognizes:
-/// - `[ ] ` (unchecked)
-/// - `[x] ` / `[X] ` (checked)
-///
-/// The marker may be preceded by up to 3 spaces (CommonMark/GFM indentation).
-fn parse_task_checkbox_prefix(input: &str) -> Option<(bool, &str)> {
+/// Consumed bytes include:
+/// - up to 3 leading spaces
+/// - the 3-byte marker (`[ ]` / `[x]` / `[X]`)
+/// - exactly one whitespace character after the marker
+fn parse_task_checkbox_prefix_with_consumed(input: &str) -> Option<(bool, &str, usize)> {
     let mut i = 0usize;
     for _ in 0..3 {
         if input.as_bytes().get(i) == Some(&b' ') {
@@ -160,22 +240,61 @@ fn parse_task_checkbox_prefix(input: &str) -> Option<(bool, &str)> {
 
     let (checked, after_marker) = if let Some(after) = rest.strip_prefix("[ ]") {
         (false, after)
-    } else if let Some(after) = rest.strip_prefix("[x]").or_else(|| rest.strip_prefix("[X]")) {
+    } else if let Some(after) = rest
+        .strip_prefix("[x]")
+        .or_else(|| rest.strip_prefix("[X]"))
+    {
         (true, after)
     } else {
         return None;
     };
 
-    // Must be followed by at least one whitespace character.
     let mut chars = after_marker.chars();
     match chars.next() {
         Some(' ') | Some('\t') => {
-            // Skip exactly one whitespace. Leave additional whitespace intact.
             let remaining = chars.as_str();
-            Some((checked, remaining))
+            Some((checked, remaining, i + 3 + 1))
         }
         _ => None,
     }
+}
+
+/// Compute how many raw bytes are removed from the *first line* when
+/// `dedent_list_item_content` strips `content_indent` columns.
+///
+/// This is needed to map marker highlighting back onto original `GrammarSpan`
+/// offsets without relying on the dedented string (which expands tabs).
+fn raw_dedent_prefix_len_first_line(input: &str, content_indent: usize) -> usize {
+    let first_line = input.split_once('\n').map(|(l, _)| l).unwrap_or(input);
+
+    let mut stripped_cols = 0usize;
+    let mut column = content_indent;
+    let mut bytes = 0usize;
+
+    for (byte_idx, ch) in first_line.char_indices() {
+        if stripped_cols >= content_indent {
+            break;
+        }
+
+        match ch {
+            ' ' => {
+                stripped_cols += 1;
+                column += 1;
+                bytes = byte_idx + 1;
+            }
+            '\t' => {
+                // Tab advances to next multiple of 4, starting from `content_indent`.
+                let spaces_to_add = 4 - (column % 4);
+                stripped_cols = stripped_cols.saturating_add(spaces_to_add);
+                column += spaces_to_add;
+                bytes = byte_idx + 1;
+            }
+            _ => break,
+        }
+    }
+
+    // Clamp to the input line length.
+    bytes.min(first_line.len())
 }
 
 #[cfg(test)]
@@ -213,8 +332,13 @@ mod tests {
 
         let item = &node.children[0];
         assert!(matches!(item.kind, NodeKind::ListItem));
-        assert!(matches!(item.children.first().map(|n| &n.kind), Some(NodeKind::TaskCheckbox { checked: true })));
-        assert!(matches!(item.children.get(1).map(|n| &n.kind), Some(NodeKind::Text(t)) if t == "item"));
+        assert!(matches!(
+            item.children.first().map(|n| &n.kind),
+            Some(NodeKind::TaskCheckbox { checked: true })
+        ));
+        assert!(
+            matches!(item.children.get(1).map(|n| &n.kind), Some(NodeKind::Text(t)) if t == "item")
+        );
     }
 
     #[test]
@@ -227,8 +351,13 @@ mod tests {
 
         let item = &node.children[0];
         assert!(matches!(item.kind, NodeKind::ListItem));
-        assert!(matches!(item.children.first().map(|n| &n.kind), Some(NodeKind::TaskCheckbox { checked: false })));
-        assert!(matches!(item.children.get(1).map(|n| &n.kind), Some(NodeKind::Text(t)) if t == "item"));
+        assert!(matches!(
+            item.children.first().map(|n| &n.kind),
+            Some(NodeKind::TaskCheckbox { checked: false })
+        ));
+        assert!(
+            matches!(item.children.get(1).map(|n| &n.kind), Some(NodeKind::Text(t)) if t == "item")
+        );
     }
 
     #[test]

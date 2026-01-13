@@ -278,6 +278,14 @@ fn get_or_create_tag(buffer: &sourceview5::Buffer, tag: &core::lsp::HighlightTag
         HighlightTag::HtmlBlock => "html-block",
         HighlightTag::List => "list",
         HighlightTag::ListItem => "list-item",
+        HighlightTag::TaskCheckboxChecked => "task-checkbox-checked",
+        HighlightTag::TaskCheckboxUnchecked => "task-checkbox-unchecked",
+        HighlightTag::Table => "table",
+        HighlightTag::TableRow => "table-row",
+        HighlightTag::TableRowHeader => "table-row-header",
+        HighlightTag::TableCell => "table-cell",
+        HighlightTag::TableCellHeader => "table-cell-header",
+        HighlightTag::LinkReference => "link-reference",
     };
 
     let tag_table = buffer.tag_table();

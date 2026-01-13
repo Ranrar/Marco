@@ -44,6 +44,14 @@ pub const LSP_TAG_NAMES: &[&str] = &[
     "html-block",
     "list",
     "list-item",
+    "task-checkbox-checked",
+    "task-checkbox-unchecked",
+    "table",
+    "table-row",
+    "table-row-header",
+    "table-cell",
+    "table-cell-header",
+    "link-reference",
 ];
 
 /// Return a map of style name -> hex color string for the light theme.
@@ -74,6 +82,20 @@ fn light_color_map() -> HashMap<&'static str, &'static str> {
     // Lists can be visually subtle; give them a slight tint so they read as a structure.
     m.insert("list", "#6E7781");
     m.insert("list-item", "#6E7781");
+
+    // Task checkboxes (GFM)
+    m.insert("task-checkbox-checked", "#1A7F37");
+    m.insert("task-checkbox-unchecked", "#6E7781");
+
+    // Tables (GFM)
+    m.insert("table", "#0550AE");
+    m.insert("table-row", "#0969DA");
+    m.insert("table-row-header", "#8250DF");
+    m.insert("table-cell", "#0A3069");
+    m.insert("table-cell-header", "#8250DF");
+
+    // Reference-style links (unresolved placeholders)
+    m.insert("link-reference", "#8250DF");
     m
 }
 
@@ -105,6 +127,20 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
     // Lists can be visually subtle; give them a slight tint so they read as a structure.
     m.insert("list", "#9CDCFE");
     m.insert("list-item", "#9CDCFE");
+
+    // Task checkboxes (GFM)
+    m.insert("task-checkbox-checked", "#6A9955");
+    m.insert("task-checkbox-unchecked", "#808080");
+
+    // Tables (GFM)
+    m.insert("table", "#4FC1FF");
+    m.insert("table-row", "#9CDCFE");
+    m.insert("table-row-header", "#C586C0");
+    m.insert("table-cell", "#B5CEA8");
+    m.insert("table-cell-header", "#C586C0");
+
+    // Reference-style links (unresolved placeholders)
+    m.insert("link-reference", "#C586C0");
     m
 }
 
