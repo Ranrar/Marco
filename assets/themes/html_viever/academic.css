@@ -500,10 +500,6 @@ body {
     list-style-type: none;
 }
 
-.task-list-item {
-    /* no extra variables needed; values are defined on body */
-}
-
 .marco-task-checkbox,
 .task-list-item .task-list-item-checkbox {
     display: inline-flex;
@@ -540,37 +536,85 @@ body {
 
 /* Academic-style admonitions */
 .admonition {
-    margin: 2rem 0;
-    padding: 1rem 1.5rem;
+    margin: 1rem 0;
+    padding: 0.6rem 0.9rem;
     border: 1px solid var(--admonition-border);
     border-radius: 5px;
     background-color: var(--admonition-bg);
 }
 
+.admonition p {
+    margin: 0.5rem 0;
+}
+
+.admonition .markdown-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0 0 0.5rem 0;
+}
+
+.admonition .markdown-alert-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.admonition .markdown-alert-icon svg {
+    width: 1.4em;
+    height: 1.4em;
+    display: block;
+    shape-rendering: auto;
+}
+
 /* Standard admonition types with specific colors */
 .admonition-note {
-    border-left: 4px solid #5bc0de; /* Blue */
+    border-left: 4px solid #0969da; /* Blue */
     background-color: var(--note-bg);
 }
 
+.admonition-note .markdown-alert-title {
+    color: #0969da;
+}
+
 .admonition-tip {
-    border-left: 4px solid #5cb85c; /* Green */
+    border-left: 4px solid #1a7f37; /* Green */
     background-color: var(--tip-bg);
 }
 
+.admonition-tip .markdown-alert-title {
+    color: #1a7f37;
+}
+
 .admonition-important {
-    border-left: 4px solid #8e44ad; /* Purple */
+    border-left: 4px solid #8250df; /* Purple */
     background-color: var(--important-bg);
 }
 
+.admonition-important .markdown-alert-title {
+    color: #8250df;
+}
+
 .admonition-warning {
-    border-left: 4px solid #f0ad4e; /* Yellow */
+    border-left: 4px solid #d97706; /* Orange */
     background-color: var(--warning-bg);
 }
 
+.admonition-warning .markdown-alert-title {
+    color: #d97706;
+}
+
 .admonition-caution {
-    border-left: 4px solid #d9534f; /* Red */
+    border-left: 4px solid #cf222e; /* Red */
     background-color: var(--caution-bg);
+}
+
+.admonition-caution .markdown-alert-title {
+    color: #cf222e;
 }
 
 /* Table of Contents (TOC) styles */

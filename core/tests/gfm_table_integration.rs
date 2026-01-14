@@ -70,7 +70,7 @@ fn test_setext_heading_not_misparsed_as_table() {
 
     assert_eq!(doc.children.len(), 1);
     match &doc.children[0].kind {
-        NodeKind::Heading { level, text } => {
+        NodeKind::Heading { level, text, .. } => {
             assert_eq!(*level, 2);
             assert_eq!(text, "Title");
         }

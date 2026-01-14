@@ -71,6 +71,21 @@ pub enum TableAlignment {
     Right,
 }
 
+/// GitHub-style admonitions / alerts (GFM extension).
+///
+/// Syntax is based on blockquotes, e.g.
+///
+/// `> [!NOTE]`
+/// `> body...`
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmonitionKind {
+    Note,
+    Tip,
+    Important,
+    Warning,
+    Caution,
+}
+
 // All node types
 #[derive(Debug, Clone)]
 pub enum NodeKind {
@@ -78,6 +93,11 @@ pub enum NodeKind {
     Heading {
         level: u8,
         text: String,
+        /// Explicit heading id, e.g. `### Title {#custom-id}`.
+        ///
+        /// When present, the renderer should emit it as `id="..."` on the
+        /// heading element.
+        id: Option<String>,
     },
     Paragraph,
     CodeBlock {
@@ -103,6 +123,13 @@ pub enum NodeKind {
         checked: bool,
     },
     Blockquote,
+    /// GitHub-style admonition / alert (GFM extension).
+    ///
+    /// This is created by a post-parse transformation that recognizes a special
+    /// first line inside a blockquote (e.g. `[!NOTE]`) and removes that marker.
+    Admonition {
+        kind: AdmonitionKind,
+    },
     /// GFM table (pipe table extension).
     ///
     /// Children convention:
@@ -121,6 +148,20 @@ pub enum NodeKind {
     HtmlBlock {
         html: String,
     }, // Block-level HTML (comments, tags, etc.)
+
+    /// GFM-style footnote definition (extension).
+    ///
+    /// Syntax:
+    /// - `[^label]: definition text`
+    /// - Continuation lines may be indented.
+    ///
+    /// Rendering convention:
+    /// - This node should not be rendered in place.
+    /// - Instead, the renderer collects referenced footnotes and emits a
+    ///   footnotes section at the end of the document.
+    FootnoteDefinition {
+        label: String,
+    },
 
     // Inline-level
     Text(String),
@@ -170,6 +211,16 @@ pub enum NodeKind {
         /// Extra literal suffix after the first `]` (e.g. "[]" or "[label]").
         /// Empty for shortcut reference links.
         suffix: String,
+    },
+
+    /// GFM-style footnote reference (extension), e.g. `[^label]`.
+    ///
+    /// Rendering convention:
+    /// - If a matching `FootnoteDefinition` exists, this renders as a numbered
+    ///   superscript link.
+    /// - Otherwise it should fall back to literal text.
+    FootnoteReference {
+        label: String,
     },
     Image {
         url: String,

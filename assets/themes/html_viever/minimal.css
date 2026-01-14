@@ -410,8 +410,8 @@ body {
 
 /* Simple admonitions */
 .admonition {
-    margin: 1.5rem 0;
-    padding: 1rem;
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.9rem;
     /* Fallback */
     border-left: 4px solid #ccc;
     background-color: #f9f9f9;
@@ -420,27 +420,75 @@ body {
     background-color: var(--admonition-bg);
 }
 
+.admonition p {
+    margin: 0.5rem 0;
+}
+
+.admonition .markdown-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 0.5rem 0;
+}
+
+.admonition .markdown-alert-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.admonition .markdown-alert-icon svg {
+    width: 1.4em;
+    height: 1.4em;
+    display: block;
+    shape-rendering: auto;
+}
+
 
 
 /* Standard admonition types with specific colors */
 .admonition-note { 
-    border-left-color: #5bc0de; /* Blue */
+    border-left-color: #0969da; /* Blue */
+}
+
+.admonition-note .markdown-alert-title {
+    color: #0969da;
 }
 
 .admonition-tip { 
-    border-left-color: #5cb85c; /* Green */
+    border-left-color: #1a7f37; /* Green */
+}
+
+.admonition-tip .markdown-alert-title {
+    color: #1a7f37;
 }
 
 .admonition-important { 
-    border-left-color: #8e44ad; /* Purple */
+    border-left-color: #8250df; /* Purple */
+}
+
+.admonition-important .markdown-alert-title {
+    color: #8250df;
 }
 
 .admonition-warning { 
-    border-left-color: #f0ad4e; /* Yellow */
+    border-left-color: #d97706; /* Orange */
+}
+
+.admonition-warning .markdown-alert-title {
+    color: #d97706;
 }
 
 .admonition-caution { 
-    border-left-color: #d9534f; /* Red */
+    border-left-color: #cf222e; /* Red */
+}
+
+.admonition-caution .markdown-alert-title {
+    color: #cf222e;
 }
 
 /* Table of Contents (TOC) styles */

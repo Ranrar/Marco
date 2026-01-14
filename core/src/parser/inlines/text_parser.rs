@@ -34,6 +34,13 @@ use nom::Parser;
 pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let text_fragment = input.fragment();
 
+    // GFM autolink literals can appear in the middle of a text node.
+    // If we can see a valid autolink literal starting at some offset, we must
+    // stop before it so the dedicated parser can run.
+    let next_autolink_literal =
+        super::gfm_autolink_literal_parser::find_next_autolink_literal_start(text_fragment)
+            .unwrap_or(text_fragment.len());
+
     // Find the next special character / delimiter start.
     //
     // Important: we intentionally do NOT treat a single '-' as special because
@@ -61,6 +68,16 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
             _ => None,
         })
         .unwrap_or(text_fragment.len());
+
+    // If an autolink literal begins at offset 0, do not treat it as plain text.
+    if next_autolink_literal == 0 {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Verify,
+        )));
+    }
+
+    let next_special = next_special.min(next_autolink_literal);
 
     if next_special == 0 {
         // No text - input starts with special character

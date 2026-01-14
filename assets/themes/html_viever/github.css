@@ -432,10 +432,15 @@ hr {
 
 /* GitHub-style alerts/admonitions */
 .markdown-alert {
-    padding: 0.5rem 1rem;
-    margin-bottom: 16px;
+    padding: 0.25rem 0.75rem;
+    margin-bottom: 8px;
     color: inherit;
     border-left: 0.25em solid #d0d7de;
+}
+
+.markdown-alert p {
+    margin-top: 0.4rem;
+    margin-bottom: 0.4rem;
 }
 
 .markdown-alert > :first-child {
@@ -448,9 +453,27 @@ hr {
 
 .markdown-alert .markdown-alert-title {
     display: flex;
-    font-weight: 500;
+    gap: 0.4rem;
+    font-weight: 600;
     align-items: center;
-    line-height: 1;
+    line-height: 1.2;
+    margin-top: 0;
+    margin-bottom: 0.4rem;
+}
+
+.markdown-alert .markdown-alert-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.markdown-alert .markdown-alert-icon svg {
+    width: 1.4em;
+    height: 1.4em;
+    display: block;
+    shape-rendering: auto;
 }
 
 .markdown-alert.markdown-alert-note {
@@ -478,11 +501,11 @@ hr {
 }
 
 .markdown-alert.markdown-alert-warning {
-    border-left-color: #9a6700;
+    border-left-color: #d97706;
 }
 
 .markdown-alert.markdown-alert-warning .markdown-alert-title {
-    color: #9a6700;
+    color: #d97706;
 }
 
 .markdown-alert.markdown-alert-caution {
@@ -494,30 +517,30 @@ hr {
 }
 
 /* Standard admonitions for compatibility */
-.admonition {
-    padding: 0.5rem 1rem;
-    margin-bottom: 16px;
+.admonition:not(.markdown-alert) {
+    padding: 0.25rem 0.75rem;
+    margin-bottom: 8px;
     color: inherit;
     border-left: 0.25em solid #d0d7de;
 }
 
-.admonition-note {
+.admonition-note:not(.markdown-alert-note) {
     border-left-color: #5bc0de; /* Blue */
 }
 
-.admonition-tip {
+.admonition-tip:not(.markdown-alert-tip) {
     border-left-color: #5cb85c; /* Green */
 }
 
-.admonition-important {
+.admonition-important:not(.markdown-alert-important) {
     border-left-color: #8e44ad; /* Purple */
 }
 
-.admonition-warning {
+.admonition-warning:not(.markdown-alert-warning) {
     border-left-color: #f0ad4e; /* Yellow */
 }
 
-.admonition-caution {
+.admonition-caution:not(.markdown-alert-caution) {
     border-left-color: #d9534f; /* Red */
 }
 

@@ -275,6 +275,7 @@ fn get_or_create_tag(buffer: &sourceview5::Buffer, tag: &core::lsp::HighlightTag
         HighlightTag::SoftBreak => "soft-break",
         HighlightTag::ThematicBreak => "thematic-break",
         HighlightTag::Blockquote => "blockquote",
+        HighlightTag::Admonition => "blockquote",
         HighlightTag::HtmlBlock => "html-block",
         HighlightTag::List => "list",
         HighlightTag::ListItem => "list-item",

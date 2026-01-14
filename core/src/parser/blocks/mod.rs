@@ -18,6 +18,7 @@ pub mod cm_link_reference_parser;
 pub mod cm_list_parser;
 pub mod cm_paragraph_parser;
 pub mod cm_thematic_break_parser;
+pub mod gfm_footnote_definition_parser;
 pub mod gfm_table_parser;
 
 // Re-export shared utilities
@@ -429,6 +430,14 @@ fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> 
 
         // Try parsing link reference definition
         // Must come BEFORE paragraph to avoid treating definitions as paragraphs
+        if let Some((rest, node)) =
+            gfm_footnote_definition_parser::parse_footnote_definition(remaining)
+        {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
         if let Ok((rest, (label, url, title))) = grammar::link_reference_definition(remaining) {
             cm_link_reference_parser::parse_link_reference(&mut document, &label, url, title);
             remaining = rest;

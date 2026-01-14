@@ -170,9 +170,41 @@ pub fn create_html_viewer_with_base(
 /// This avoids full page reloads and provides smooth updates while preserving scroll position.
 /// Enhanced to prevent memory leaks by using a more efficient approach.
 pub fn update_html_content_smooth(webview: &WebView, content: &str) {
-    // Early return if webview is not realized yet to prevent GtkGizmo snapshot warnings
-    if !webview.is_realized() {
-        log::debug!("[webkit6] Skipping update: WebView not yet realized");
+    // Avoid GTK warnings such as:
+    // "Trying to snapshot GtkGizmo ... without a current allocation".
+    // A WebView can be realized but still not have a size allocation during the
+    // first frame(s) after being added to a container.
+    if !webview.is_realized() || webview.allocated_width() <= 1 || webview.allocated_height() <= 1 {
+        let webview = webview.clone();
+        let content = content.to_string();
+
+        // Retry briefly instead of dropping the update. This keeps first-load
+        // behavior deterministic (open file => preview eventually updates).
+        use std::cell::Cell;
+        let tries = Cell::new(0u32);
+
+        glib::timeout_add_local(std::time::Duration::from_millis(16), move || {
+            let t = tries.get();
+            if t >= 120 {
+                log::debug!(
+                    "[webkit6] Giving up delayed smooth update after {} retries",
+                    t
+                );
+                return glib::ControlFlow::Break;
+            }
+            tries.set(t + 1);
+
+            if !webview.is_realized()
+                || webview.allocated_width() <= 1
+                || webview.allocated_height() <= 1
+            {
+                return glib::ControlFlow::Continue;
+            }
+
+            update_html_content_smooth(&webview, &content);
+            glib::ControlFlow::Break
+        });
+
         return;
     }
 
@@ -496,9 +528,50 @@ pub fn update_code_view_smooth(
         generate_css_with_global, global_syntax_highlighter,
     };
 
-    // Early return if webview is not realized yet to prevent GtkGizmo snapshot warnings
-    if !webview.is_realized() {
-        log::debug!("[webkit6] Skipping code view update: WebView not yet realized");
+    // Avoid GTK warnings such as:
+    // "Trying to snapshot GtkGizmo ... without a current allocation".
+    if !webview.is_realized() || webview.allocated_width() <= 1 || webview.allocated_height() <= 1 {
+        let webview = webview.clone();
+        let html_source = html_source.to_string();
+        let theme_mode = theme_mode.to_string();
+        let editor_bg = editor_bg.map(|s| s.to_string());
+        let editor_fg = editor_fg.map(|s| s.to_string());
+        let scrollbar_thumb = scrollbar_thumb.map(|s| s.to_string());
+        let scrollbar_track = scrollbar_track.map(|s| s.to_string());
+
+        use std::cell::Cell;
+        let tries = Cell::new(0u32);
+
+        glib::timeout_add_local(std::time::Duration::from_millis(16), move || {
+            let t = tries.get();
+            if t >= 120 {
+                log::debug!(
+                    "[webkit6] Giving up delayed code view update after {} retries",
+                    t
+                );
+                return glib::ControlFlow::Break;
+            }
+            tries.set(t + 1);
+
+            if !webview.is_realized()
+                || webview.allocated_width() <= 1
+                || webview.allocated_height() <= 1
+            {
+                return glib::ControlFlow::Continue;
+            }
+
+            let _ = update_code_view_smooth(
+                &webview,
+                &html_source,
+                &theme_mode,
+                editor_bg.as_deref(),
+                editor_fg.as_deref(),
+                scrollbar_thumb.as_deref(),
+                scrollbar_track.as_deref(),
+            );
+            glib::ControlFlow::Break
+        });
+
         return Ok(());
     }
 

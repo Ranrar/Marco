@@ -1,8 +1,19 @@
 // HTML output generator with syntax highlighting for code blocks
 
 use super::RenderOptions;
-use crate::parser::{Document, Node, NodeKind};
+use crate::parser::{AdmonitionKind, Document, Node, NodeKind};
 use anyhow::Result;
+use std::collections::HashMap;
+
+const HEADING_ANCHOR_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-anchor" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v12m-8 -8a8 8 0 0 0 16 0m1 0h-2m-14 0h-2" /><path d="M9 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /></svg>"#;
+
+#[derive(Default)]
+struct RenderContext<'a> {
+    footnote_defs: HashMap<String, &'a Node>,
+    footnote_numbers: HashMap<String, usize>,
+    footnote_order: Vec<String>,
+    footnote_ref_counts: HashMap<String, usize>,
+}
 
 // Render document to HTML
 pub fn render_html(document: &Document, options: &RenderOptions) -> Result<String> {
@@ -10,25 +21,98 @@ pub fn render_html(document: &Document, options: &RenderOptions) -> Result<Strin
 
     let mut html = String::new();
 
+    let mut ctx = RenderContext::default();
     for node in &document.children {
-        render_node(node, &mut html, options)?;
+        collect_footnote_definitions(node, &mut ctx.footnote_defs);
+    }
+
+    for node in &document.children {
+        render_node(node, &mut html, options, &mut ctx)?;
+    }
+
+    if !ctx.footnote_order.is_empty() {
+        html.push_str("<section class=\"footnotes\">\n");
+        html.push_str("<ol>\n");
+
+        let mut i = 0usize;
+        while i < ctx.footnote_order.len() {
+            let label = ctx.footnote_order[i].clone();
+            let Some(n) = ctx.footnote_numbers.get(&label).copied() else {
+                i += 1;
+                continue;
+            };
+
+            let Some(def_node) = ctx.footnote_defs.get(&label).copied() else {
+                i += 1;
+                continue;
+            };
+
+            html.push_str(&format!("<li id=\"fn{}\">", n));
+            for child in &def_node.children {
+                render_node(child, &mut html, options, &mut ctx)?;
+            }
+            html.push_str("</li>\n");
+
+            i += 1;
+        }
+
+        html.push_str("</ol>\n");
+        html.push_str("</section>\n");
     }
 
     Ok(html)
 }
 
+fn collect_footnote_definitions<'a>(node: &'a Node, defs: &mut HashMap<String, &'a Node>) {
+    if let NodeKind::FootnoteDefinition { label } = &node.kind {
+        defs.entry(label.clone()).or_insert(node);
+    }
+
+    for child in &node.children {
+        collect_footnote_definitions(child, defs);
+    }
+}
+
 // Render individual node
-fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+fn render_node(
+    node: &Node,
+    output: &mut String,
+    options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
+) -> Result<()> {
     match &node.kind {
-        NodeKind::Heading { level, text } => {
+        NodeKind::Heading { level, text, id } => {
             log::trace!("Rendering heading level {}", level);
             let escaped_text = escape_html(text);
-            output.push_str(&format!("<h{}>{}</h{}>\n", level, escaped_text, level));
+            output.push_str("<h");
+            output.push_str(&level.to_string());
+            if let Some(id) = id {
+                output.push_str(" id=\"");
+                output.push_str(&escape_html(id));
+                output.push('"');
+            }
+            output.push('>');
+            output.push_str(&escaped_text);
+
+            // Optional, GitHub-style heading anchor link shown on hover.
+            // We keep the SVG stroke as `currentColor` and let CSS inherit
+            // the heading color so it matches the theme.
+            if let Some(id) = id {
+                output.push_str("<a class=\"marco-heading-anchor\" href=\"#");
+                output.push_str(&escape_html(id));
+                output.push_str("\" aria-label=\"Link to this heading\">");
+                output.push_str(HEADING_ANCHOR_SVG);
+                output.push_str("</a>");
+            }
+
+            output.push_str("</h");
+            output.push_str(&level.to_string());
+            output.push_str(">\n");
         }
         NodeKind::Paragraph => {
             output.push_str("<p>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</p>\n");
         }
@@ -61,24 +145,53 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
         NodeKind::Blockquote => {
             output.push_str("<blockquote>\n");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</blockquote>\n");
         }
+        NodeKind::Admonition { kind } => {
+            let (slug, title, icon_svg) = admonition_presentation(kind);
+
+            // Render with both GitHub-compatible classes (`markdown-alert`) and
+            // our theme-compatible classes (`admonition`).
+            output.push_str("<div class=\"");
+            output.push_str("markdown-alert markdown-alert-");
+            output.push_str(slug);
+            output.push_str(" admonition admonition-");
+            output.push_str(slug);
+            output.push_str("\">\n");
+
+            output.push_str("<p class=\"markdown-alert-title\">");
+            output.push_str("<span class=\"markdown-alert-icon\" aria-hidden=\"true\">");
+            output.push_str(icon_svg);
+            output.push_str("</span>");
+            output.push_str(&escape_html(title));
+            output.push_str("</p>\n");
+
+            for child in &node.children {
+                render_node(child, output, options, ctx)?;
+            }
+
+            output.push_str("</div>\n");
+        }
         NodeKind::Table { .. } => {
-            render_table(node, output, options)?;
+            render_table(node, output, options, ctx)?;
         }
         NodeKind::TableRow { .. } => {
             // Tables should be rendered via `render_table` so we can decide
             // whether a row belongs in <thead> or <tbody>.
             log::warn!("TableRow rendered outside of Table context");
-            render_table_row(node, output, options)?;
+            render_table_row(node, output, options, ctx)?;
             output.push('\n');
         }
         NodeKind::TableCell { .. } => {
             // Cells should be rendered via `render_table_row`.
             log::warn!("TableCell rendered outside of TableRow context");
-            render_table_cell(node, output, options)?;
+            render_table_cell(node, output, options, ctx)?;
+        }
+        NodeKind::FootnoteDefinition { .. } => {
+            // Footnote definitions are rendered in a dedicated section at the
+            // end of the document.
         }
         NodeKind::Text(text) => {
             output.push_str(&escape_html(text));
@@ -91,14 +204,14 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
         NodeKind::Emphasis => {
             output.push_str("<em>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</em>");
         }
         NodeKind::Strong => {
             output.push_str("<strong>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</strong>");
         }
@@ -106,35 +219,35 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             // Triple delimiter: bold + italic.
             output.push_str("<strong><em>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</em></strong>");
         }
         NodeKind::Strikethrough => {
             output.push_str("<del>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</del>");
         }
         NodeKind::Mark => {
             output.push_str("<mark>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</mark>");
         }
         NodeKind::Superscript => {
             output.push_str("<sup>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</sup>");
         }
         NodeKind::Subscript => {
             output.push_str("<sub>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</sub>");
         }
@@ -149,7 +262,7 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             }
             output.push('>');
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</a>");
         }
@@ -159,10 +272,45 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             // render the original source-ish form as literal text.
             output.push('[');
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push(']');
             output.push_str(&escape_html(suffix));
+        }
+        NodeKind::FootnoteReference { label } => {
+            if !ctx.footnote_defs.contains_key(label) {
+                output.push_str("[^");
+                output.push_str(&escape_html(label));
+                output.push(']');
+                // Missing definition: keep the literal source form.
+                return Ok(());
+            }
+
+            let n = match ctx.footnote_numbers.get(label) {
+                Some(n) => *n,
+                None => {
+                    let next = ctx.footnote_order.len() + 1;
+                    ctx.footnote_order.push(label.clone());
+                    ctx.footnote_numbers.insert(label.clone(), next);
+                    next
+                }
+            };
+
+            let count = ctx.footnote_ref_counts.entry(label.clone()).or_insert(0);
+            *count += 1;
+            let ref_id = if *count == 1 {
+                format!("fnref{}", n)
+            } else {
+                format!("fnref{}-{}", n, *count)
+            };
+
+            output.push_str("<sup class=\"footnote-ref\"><a href=\"#fn");
+            output.push_str(&n.to_string());
+            output.push_str("\" id=\"");
+            output.push_str(&escape_html(&ref_id));
+            output.push_str("\">");
+            output.push_str(&n.to_string());
+            output.push_str("</a></sup>");
         }
         NodeKind::Image { url, alt } => {
             output.push_str("<img src=\"");
@@ -203,7 +351,7 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
 
             // Render list items
             for child in &node.children {
-                render_list_item(child, output, *tight, options)?;
+                render_list_item(child, output, *tight, options, ctx)?;
             }
 
             // Render list closing tag
@@ -218,7 +366,7 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
             log::warn!("ListItem rendered outside of List context");
             output.push_str("<li>");
             for child in &node.children {
-                render_node(child, output, options)?;
+                render_node(child, output, options, ctx)?;
             }
             output.push_str("</li>\n");
         }
@@ -233,6 +381,38 @@ fn render_node(node: &Node, output: &mut String, options: &RenderOptions) -> Res
     }
 
     Ok(())
+}
+
+fn admonition_presentation(kind: &AdmonitionKind) -> (&'static str, &'static str, &'static str) {
+    // Icons use `stroke="currentColor"` so theme CSS can color them by setting
+    // `color` on `.markdown-alert-title`.
+    match kind {
+        AdmonitionKind::Note => (
+            "note",
+            "Note",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>"#,
+        ),
+        AdmonitionKind::Tip => (
+            "tip",
+            "Tip",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15.02 19.52c-2.341 .736 -5 .606 -7.32 -.52l-4.7 1l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c1.649 1.407 2.575 3.253 2.742 5.152" /><path d="M19 22v.01" /><path d="M19 19a2.003 2.003 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483" /></svg>"#,
+        ),
+        AdmonitionKind::Important => (
+            "important",
+            "Important",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 9h8" /><path d="M8 13h6" /><path d="M15 18l-3 3l-3 -3h-3a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v5.5" /><path d="M19 16v3" /><path d="M19 22v.01" /></svg>"#,
+        ),
+        AdmonitionKind::Warning => (
+            "warning",
+            "Warning",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>"#,
+        ),
+        AdmonitionKind::Caution => (
+            "caution",
+            "Caution",
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.875 6.27c.7 .398 1.13 1.143 1.125 1.948v7.284c0 .809 -.443 1.555 -1.158 1.948l-6.75 4.27a2.269 2.269 0 0 1 -2.184 0l-6.75 -4.27a2.225 2.225 0 0 1 -1.158 -1.948v-7.285c0 -.809 .443 -1.554 1.158 -1.947l6.75 -3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98h-.033" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>"#,
+        ),
+    }
 }
 
 fn render_task_checkbox_icon(output: &mut String, checked: bool) {
@@ -259,7 +439,12 @@ fn render_task_checkbox_icon(output: &mut String, checked: bool) {
     }
 }
 
-fn render_table(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+fn render_table(
+    node: &Node,
+    output: &mut String,
+    options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
+) -> Result<()> {
     output.push_str("<table>\n");
 
     let mut header_rows: Vec<&Node> = Vec::new();
@@ -278,7 +463,7 @@ fn render_table(node: &Node, output: &mut String, options: &RenderOptions) -> Re
     if !header_rows.is_empty() {
         output.push_str("<thead>\n");
         for row in header_rows {
-            render_table_row(row, output, options)?;
+            render_table_row(row, output, options, ctx)?;
             output.push('\n');
         }
         output.push_str("</thead>\n");
@@ -287,7 +472,7 @@ fn render_table(node: &Node, output: &mut String, options: &RenderOptions) -> Re
     if !body_rows.is_empty() {
         output.push_str("<tbody>\n");
         for row in body_rows {
-            render_table_row(row, output, options)?;
+            render_table_row(row, output, options, ctx)?;
             output.push('\n');
         }
         output.push_str("</tbody>\n");
@@ -297,16 +482,26 @@ fn render_table(node: &Node, output: &mut String, options: &RenderOptions) -> Re
     Ok(())
 }
 
-fn render_table_row(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+fn render_table_row(
+    node: &Node,
+    output: &mut String,
+    options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
+) -> Result<()> {
     output.push_str("<tr>");
     for cell in &node.children {
-        render_table_cell(cell, output, options)?;
+        render_table_cell(cell, output, options, ctx)?;
     }
     output.push_str("</tr>");
     Ok(())
 }
 
-fn render_table_cell(node: &Node, output: &mut String, options: &RenderOptions) -> Result<()> {
+fn render_table_cell(
+    node: &Node,
+    output: &mut String,
+    options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
+) -> Result<()> {
     let (is_header, alignment) = match &node.kind {
         NodeKind::TableCell { header, alignment } => (*header, *alignment),
         _ => {
@@ -327,7 +522,7 @@ fn render_table_cell(node: &Node, output: &mut String, options: &RenderOptions) 
 
     output.push('>');
     for child in &node.children {
-        render_node(child, output, options)?;
+        render_node(child, output, options, ctx)?;
     }
     output.push_str("</");
     output.push_str(tag);
@@ -350,6 +545,7 @@ fn render_list_item(
     output: &mut String,
     tight: bool,
     options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
 ) -> Result<()> {
     let task_checked = match node.children.first().map(|n| &n.kind) {
         Some(NodeKind::TaskCheckbox { checked }) => Some(*checked),
@@ -382,12 +578,12 @@ fn render_list_item(
                 NodeKind::Paragraph => {
                     // Render paragraph children directly without <p> wrapper
                     for grandchild in &child.children {
-                        render_node(grandchild, output, options)?;
+                        render_node(grandchild, output, options, ctx)?;
                     }
                 }
                 _ => {
                     // Other block elements render normally
-                    render_node(child, output, options)?;
+                    render_node(child, output, options, ctx)?;
                 }
             }
         }
@@ -410,7 +606,7 @@ fn render_list_item(
                             output.push_str("<p>");
                             render_task_checkbox_icon(output, checked);
                             for grandchild in &child.children {
-                                render_node(grandchild, output, options)?;
+                                render_node(grandchild, output, options, ctx)?;
                             }
                             output.push_str("</p>");
                             checkbox_emitted = true;
@@ -425,7 +621,7 @@ fn render_list_item(
                 }
             }
 
-            render_node(child, output, options)?;
+            render_node(child, output, options, ctx)?;
         }
     }
 
@@ -474,6 +670,7 @@ mod tests {
                 kind: NodeKind::Heading {
                     level: 1,
                     text: "Hello World".to_string(),
+                    id: None,
                 },
                 span: None,
                 children: vec![],
@@ -492,6 +689,7 @@ mod tests {
                 kind: NodeKind::Heading {
                     level: 2,
                     text: "Code <example> & test".to_string(),
+                    id: None,
                 },
                 span: None,
                 children: vec![],
@@ -624,6 +822,7 @@ mod tests {
                     kind: NodeKind::Heading {
                         level: 1,
                         text: "Title".to_string(),
+                        id: None,
                     },
                     span: None,
                     children: vec![],

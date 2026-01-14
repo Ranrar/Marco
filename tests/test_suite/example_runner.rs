@@ -144,7 +144,7 @@ fn format_node_tree(
 
     // Format node type and key info
     let node_info = match &node.kind {
-        NodeKind::Heading { level, text } => {
+        NodeKind::Heading { level, text, .. } => {
             format!("Heading(level={}) \"{}\"", level, truncate(text, 40))
         }
         NodeKind::Paragraph => "Paragraph".to_string(),
@@ -170,6 +170,7 @@ fn format_node_tree(
             format!("TaskCheckboxInline(checked={})", checked)
         }
         NodeKind::Blockquote => "Blockquote".to_string(),
+        NodeKind::Admonition { kind } => format!("Admonition({:?})", kind),
         NodeKind::ThematicBreak => "ThematicBreak".to_string(),
         NodeKind::Table { alignments } => format!("Table(cols={})", alignments.len()),
         NodeKind::TableRow { header } => format!("TableRow(header={})", header),
@@ -177,6 +178,9 @@ fn format_node_tree(
             format!("TableCell(header={}, alignment={:?})", header, alignment)
         }
         NodeKind::HtmlBlock { html } => format!("HtmlBlock {} bytes", html.len()),
+        NodeKind::FootnoteDefinition { label } => {
+            format!("FootnoteDefinition(label=\"{}\")", truncate(label, 30))
+        }
         NodeKind::Emphasis => "Emphasis".to_string(),
         NodeKind::Strong => "Strong".to_string(),
         NodeKind::StrongEmphasis => "StrongEmphasis".to_string(),
@@ -194,6 +198,9 @@ fn format_node_tree(
                 truncate(label, 30),
                 truncate(suffix, 30)
             )
+        }
+        NodeKind::FootnoteReference { label } => {
+            format!("FootnoteReference(label=\"{}\")", truncate(label, 30))
         }
         NodeKind::Image { url, alt } => {
             format!(

@@ -37,6 +37,184 @@ table.marco-resize-active td {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+
+/* Marco: heading anchor links (visible on hover/focus) */
+.marco-heading-anchor {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.35em;
+    padding: 0.1em;
+    border-radius: 4px;
+    opacity: 0;
+    text-decoration: none !important;
+    color: inherit !important;
+    user-select: none;
+    -webkit-user-select: none;
+    transition: opacity 0.12s ease-in-out;
+}
+
+.marco-heading-anchor:link,
+.marco-heading-anchor:visited {
+    /* Force link/visited to be the same as the heading text color (no purple/blue). */
+    color: inherit !important;
+}
+
+.marco-heading-anchor svg {
+    width: 1em;
+    height: 1em;
+    display: block;
+    stroke: currentColor;
+}
+
+/* Show on hover like GitHub; also show for keyboard focus */
+h1:hover .marco-heading-anchor,
+h2:hover .marco-heading-anchor,
+h3:hover .marco-heading-anchor,
+h4:hover .marco-heading-anchor,
+h5:hover .marco-heading-anchor,
+h6:hover .marco-heading-anchor {
+    opacity: 0.9;
+}
+
+.marco-heading-anchor:focus,
+.marco-heading-anchor:focus-visible {
+    opacity: 0.9;
+    color: inherit !important;
+}
+
+/* Subtle hover affordance without changing theme colors */
+.marco-heading-anchor:hover {
+    opacity: 1;
+    color: inherit !important;
+}
+
+.marco-heading-anchor:active {
+    color: inherit !important;
+}
+
+/* Marco: internal jumping links (href starting with #)
+   - Keeps internal links looking like normal links.
+   - On hover/focus, appends an icon (like heading anchors) and suppresses theme hover effects.
+   - Uses an SVG mask so the icon inherits the link color via `currentColor`.
+   - Excludes the injected heading anchor link itself.
+*/
+a[href^='#']:not(.marco-heading-anchor) {
+    position: relative;
+}
+
+a[href^='#']:not(.marco-heading-anchor):link,
+a[href^='#']:not(.marco-heading-anchor):visited {
+    /* Force internal links to stay the theme's normal link color (no visited purple). */
+    color: var(--link-color) !important;
+}
+
+a[href^='#']:not(.marco-heading-anchor):hover,
+a[href^='#']:not(.marco-heading-anchor):focus,
+a[href^='#']:not(.marco-heading-anchor):focus-visible,
+a[href^='#']:not(.marco-heading-anchor):active {
+    color: var(--link-color) !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    background: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    filter: none !important;
+}
+
+a[href^='#']:not(.marco-heading-anchor)::after {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-left: 0.35em;
+    vertical-align: -0.125em;
+    opacity: 0;
+    background-color: currentColor;
+    pointer-events: none;
+    transition: opacity 0.12s ease-in-out;
+
+    /* Tabler icon: circles-relation (stroked). Use opaque stroke for mask. */
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9.183%206.117a6%206%200%201%200%204.511%203.986'%2F%3E%3Cpath%20d%3D'M14.813%2017.883a6%206%200%201%200%20-4.496%20-3.954'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9.183%206.117a6%206%200%201%200%204.511%203.986'%2F%3E%3Cpath%20d%3D'M14.813%2017.883a6%206%200%201%200%20-4.496%20-3.954'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
+}
+
+a[href^='#']:not(.marco-heading-anchor):hover::after,
+a[href^='#']:not(.marco-heading-anchor):focus::after,
+a[href^='#']:not(.marco-heading-anchor):focus-visible::after {
+    opacity: 0.9;
+}
+
+/* Marco: external links (http/https/mailto)
+   Same idea as internal jump links: keep links looking normal, but on hover/focus
+   append an icon and suppress theme hover effects.
+*/
+a[href^='http://']:not(.marco-heading-anchor),
+a[href^='https://']:not(.marco-heading-anchor),
+a[href^='mailto:']:not(.marco-heading-anchor) {
+    position: relative;
+}
+
+a[href^='http://']:not(.marco-heading-anchor):link,
+a[href^='http://']:not(.marco-heading-anchor):visited,
+a[href^='https://']:not(.marco-heading-anchor):link,
+a[href^='https://']:not(.marco-heading-anchor):visited,
+a[href^='mailto:']:not(.marco-heading-anchor):link,
+a[href^='mailto:']:not(.marco-heading-anchor):visited {
+    color: var(--link-color) !important;
+}
+
+a[href^='http://']:not(.marco-heading-anchor):hover,
+a[href^='http://']:not(.marco-heading-anchor):focus,
+a[href^='http://']:not(.marco-heading-anchor):focus-visible,
+a[href^='http://']:not(.marco-heading-anchor):active,
+a[href^='https://']:not(.marco-heading-anchor):hover,
+a[href^='https://']:not(.marco-heading-anchor):focus,
+a[href^='https://']:not(.marco-heading-anchor):focus-visible,
+a[href^='https://']:not(.marco-heading-anchor):active,
+a[href^='mailto:']:not(.marco-heading-anchor):hover,
+a[href^='mailto:']:not(.marco-heading-anchor):focus,
+a[href^='mailto:']:not(.marco-heading-anchor):focus-visible,
+a[href^='mailto:']:not(.marco-heading-anchor):active {
+    color: var(--link-color) !important;
+    text-decoration: none !important;
+    text-shadow: none !important;
+    background: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+    filter: none !important;
+}
+
+a[href^='http://']:not(.marco-heading-anchor)::after,
+a[href^='https://']:not(.marco-heading-anchor)::after,
+a[href^='mailto:']:not(.marco-heading-anchor)::after {
+    content: "";
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    margin-left: 0.35em;
+    vertical-align: -0.125em;
+    opacity: 0;
+    background-color: currentColor;
+    pointer-events: none;
+    transition: opacity 0.12s ease-in-out;
+
+    /* Tabler icon: link (stroked). Use opaque stroke for mask. */
+    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2015l6%20-6'%2F%3E%3Cpath%20d%3D'M11%206l.463%20-.536a5%205%200%200%201%207.071%207.072l-.534%20.464'%2F%3E%3Cpath%20d%3D'M13%2018l-.397%20.534a5.068%205.068%200%200%201%20-7.127%200a4.972%204.972%200%200%201%200%20-7.071l.524%20-.463'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2015l6%20-6'%2F%3E%3Cpath%20d%3D'M11%206l.463%20-.536a5%205%200%200%201%207.071%207.072l-.534%20.464'%2F%3E%3Cpath%20d%3D'M13%2018l-.397%20.534a5.068%205.068%200%200%201%20-7.127%200a4.972%204.972%200%200%201%200%20-7.071l.524%20-.463'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
+}
+
+a[href^='http://']:not(.marco-heading-anchor):hover::after,
+a[href^='http://']:not(.marco-heading-anchor):focus::after,
+a[href^='http://']:not(.marco-heading-anchor):focus-visible::after,
+a[href^='https://']:not(.marco-heading-anchor):hover::after,
+a[href^='https://']:not(.marco-heading-anchor):focus::after,
+a[href^='https://']:not(.marco-heading-anchor):focus-visible::after,
+a[href^='mailto:']:not(.marco-heading-anchor):hover::after,
+a[href^='mailto:']:not(.marco-heading-anchor):focus::after,
+a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
+    opacity: 0.9;
+}
 "#;
 
     // NOTE: This HTML template is used as a Rust `format!` string. All literal

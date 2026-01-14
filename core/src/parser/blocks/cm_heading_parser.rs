@@ -28,10 +28,10 @@ use crate::parser::ast::{Node, NodeKind};
 /// ```
 pub fn parse_atx_heading(level: u8, content: GrammarSpan) -> Node {
     let span = to_parser_span(content);
-    let text = content.fragment().to_string();
+    let (text, id) = split_extended_heading_id(content.fragment());
 
     Node {
-        kind: NodeKind::Heading { level, text },
+        kind: NodeKind::Heading { level, text, id },
         span: Some(span),
         children: Vec::new(),
     }
@@ -63,13 +63,56 @@ pub fn parse_setext_heading(
     // - `full_start..full_end` covers the entire setext construct including the underline,
     //   which is what we want for highlighting.
     let span = to_parser_span_range(full_start, full_end);
-    let text = content.fragment().to_string();
+    let (text, id) = split_extended_heading_id(content.fragment());
 
     Node {
-        kind: NodeKind::Heading { level, text },
+        kind: NodeKind::Heading { level, text, id },
         span: Some(span),
         children: Vec::new(),
     }
+}
+
+/// Split a heading's text from an optional extended id suffix.
+///
+/// Supported syntax (Markdown Guide "extended" style):
+/// - `### Title {#custom-id}`
+///
+/// Rules (intentionally strict):
+/// - The suffix must be at the end of the heading.
+/// - The opening must be exactly `{#` (no whitespace between).
+/// - The id must be non-empty and contain no whitespace.
+/// - There must be at least one whitespace character before the `{`.
+fn split_extended_heading_id(input: &str) -> (String, Option<String>) {
+    let trimmed = input.trim_end();
+    if !trimmed.ends_with('}') {
+        return (input.to_string(), None);
+    }
+
+    let start = match trimmed.rfind("{#") {
+        Some(pos) => pos,
+        None => return (input.to_string(), None),
+    };
+
+    // Require at least one whitespace char right before the `{`.
+    if start == 0 {
+        return (input.to_string(), None);
+    }
+    let before = &trimmed[..start];
+    if !before.chars().last().is_some_and(|c| c.is_whitespace()) {
+        return (input.to_string(), None);
+    }
+
+    let id = &trimmed[start + 2..trimmed.len() - 1];
+    if id.is_empty()
+        || id
+            .chars()
+            .any(|c| c.is_whitespace() || c == '{' || c == '}')
+    {
+        return (input.to_string(), None);
+    }
+
+    let text = before.trim_end().to_string();
+    (text, Some(id.to_string()))
 }
 
 #[cfg(test)]
@@ -82,9 +125,10 @@ mod tests {
         let content = GrammarSpan::new("Hello World");
         let node = parse_atx_heading(1, content);
 
-        if let NodeKind::Heading { level, text } = node.kind {
+        if let NodeKind::Heading { level, text, id } = node.kind {
             assert_eq!(level, 1);
             assert_eq!(text, "Hello World");
+            assert!(id.is_none());
         } else {
             panic!("Expected Heading node");
         }
@@ -95,9 +139,10 @@ mod tests {
         let content = GrammarSpan::new("Small heading");
         let node = parse_atx_heading(6, content);
 
-        if let NodeKind::Heading { level, text } = node.kind {
+        if let NodeKind::Heading { level, text, id } = node.kind {
             assert_eq!(level, 6);
             assert_eq!(text, "Small heading");
+            assert!(id.is_none());
         } else {
             panic!("Expected Heading node");
         }
@@ -109,9 +154,10 @@ mod tests {
         let (rest, (level, content)) = grammar::setext_heading(start).unwrap();
         let node = parse_setext_heading(level, content, start, rest);
 
-        if let NodeKind::Heading { level, text } = node.kind {
+        if let NodeKind::Heading { level, text, id } = node.kind {
             assert_eq!(level, 1);
             assert_eq!(text, "Main Title");
+            assert!(id.is_none());
         } else {
             panic!("Expected Heading node");
         }
@@ -123,9 +169,10 @@ mod tests {
         let (rest, (level, content)) = grammar::setext_heading(start).unwrap();
         let node = parse_setext_heading(level, content, start, rest);
 
-        if let NodeKind::Heading { level, text } = node.kind {
+        if let NodeKind::Heading { level, text, id } = node.kind {
             assert_eq!(level, 2);
             assert_eq!(text, "Subtitle");
+            assert!(id.is_none());
         } else {
             panic!("Expected Heading node");
         }
@@ -174,6 +221,21 @@ mod tests {
             assert_eq!(text, "");
         } else {
             panic!("Expected Heading node");
+        }
+    }
+
+    #[test]
+    fn smoke_test_parse_extended_heading_id_suffix() {
+        let content = GrammarSpan::new("Title {#custom-id}");
+        let node = parse_atx_heading(3, content);
+
+        match node.kind {
+            NodeKind::Heading { level, text, id } => {
+                assert_eq!(level, 3);
+                assert_eq!(text, "Title");
+                assert_eq!(id.as_deref(), Some("custom-id"));
+            }
+            _ => panic!("Expected Heading node"),
         }
     }
 }

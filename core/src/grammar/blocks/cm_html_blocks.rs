@@ -399,6 +399,25 @@ pub fn html_block_tag(input: Span) -> IResult<Span, Span> {
         nom::Err::Error(nom::error::Error::new(input, nom::error::ErrorKind::Tag))
     })?;
 
+    // User-friendly deviation from strict CommonMark:
+    // If the opening line contains a matching closing tag for the same element,
+    // treat this as a single-line HTML block (only that line), instead of a
+    // multi-line HTML block that runs until the next blank line.
+    //
+    // Why:
+    // - In editor UX, a single-line `<div>...</div>` is typically expected to not
+    //   swallow subsequent Markdown lines into a raw HTML block.
+    // - Keeping it as a block (not inline) avoids wrapping block-level tags
+    //   inside `<p>` which would be invalid HTML.
+    let first_line = if let Some(newline_pos) = start.fragment().find('\n') {
+        &start.fragment()[..newline_pos]
+    } else {
+        start.fragment()
+    };
+    let first_line_lower = first_line.to_lowercase();
+    let closing_tag = format!("</{}>", tag_name);
+    let closes_on_same_line = first_line_lower.contains(&closing_tag);
+
     // Consume rest of current line
     let mut remaining = input;
     if let Some(newline_pos) = remaining.fragment().find('\n') {
@@ -406,6 +425,18 @@ pub fn html_block_tag(input: Span) -> IResult<Span, Span> {
     } else {
         // No newline, consume rest
         remaining = remaining.take_from(remaining.fragment().len());
+    }
+
+    if closes_on_same_line {
+        let consumed_len = remaining.location_offset() - start.location_offset();
+        let block_span = start.take(consumed_len);
+
+        log::debug!(
+            "Parsed single-line block HTML tag ({}): {:?}",
+            tag_name,
+            crate::logic::logger::safe_preview(block_span.fragment(), 40)
+        );
+        return Ok((remaining, block_span));
     }
 
     // Type 6 blocks end at next blank line
@@ -756,5 +787,19 @@ mod tests {
         let (remaining, content) = result.unwrap();
         assert!(content.fragment().contains("Line 1"));
         assert!(remaining.fragment().trim_start().starts_with("After blank"));
+    }
+
+    #[test]
+    fn smoke_test_html_block_tag_single_line_closed_does_not_swallow_next_line() {
+        let input = Span::new("<div>html</div>\n`www.example.com`\n");
+        let result = html_block_tag(input);
+        assert!(result.is_ok());
+        let (remaining, content) = result.unwrap();
+
+        assert!(content.fragment().contains("<div>html</div>"));
+        assert!(
+            remaining.fragment().starts_with("`www.example.com`"),
+            "following line should remain to be parsed as Markdown"
+        );
     }
 }

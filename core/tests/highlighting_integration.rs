@@ -9,7 +9,8 @@ fn integration_test_compute_highlights_multi_byte() {
             Node {
                 kind: NodeKind::Heading {
                     level: 1,
-                    text: "Title 🎨".to_string(),
+                    text: "Title Café".to_string(),
+                    id: None,
                 },
                 span: Some(Span {
                     start: Position {

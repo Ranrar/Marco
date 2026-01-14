@@ -181,16 +181,17 @@ fn detect_task_checkbox_in_list_item(
     }
 
     let rest = &after_prefix.fragment()[i..];
-    let (checked_raw, after_marker_raw): (bool, &str) = if let Some(after) = rest.strip_prefix("[ ]") {
-        (false, after)
-    } else if let Some(after) = rest
-        .strip_prefix("[x]")
-        .or_else(|| rest.strip_prefix("[X]"))
-    {
-        (true, after)
-    } else {
-        return None;
-    };
+    let (checked_raw, after_marker_raw): (bool, &str) =
+        if let Some(after) = rest.strip_prefix("[ ]") {
+            (false, after)
+        } else if let Some(after) = rest
+            .strip_prefix("[x]")
+            .or_else(|| rest.strip_prefix("[X]"))
+        {
+            (true, after)
+        } else {
+            return None;
+        };
 
     // Must be followed by at least one whitespace character.
     let mut chars = after_marker_raw.chars();

@@ -31,6 +31,7 @@ pub enum HighlightTag {
     SoftBreak,
     ThematicBreak,
     Blockquote,
+    Admonition,
     HtmlBlock,
     List,
     ListItem,
@@ -130,7 +131,8 @@ fn tag_rank(tag: &HighlightTag) -> u8 {
         HighlightTag::SoftBreak => 41,
         HighlightTag::ThematicBreak => 42,
         HighlightTag::Blockquote => 50,
-        HighlightTag::HtmlBlock => 51,
+        HighlightTag::Admonition => 51,
+        HighlightTag::HtmlBlock => 52,
         HighlightTag::List => 60,
         HighlightTag::ListItem => 61,
         HighlightTag::TaskCheckboxUnchecked => 62,
@@ -265,6 +267,12 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     tag: HighlightTag::Blockquote,
                 });
             }
+            NodeKind::Admonition { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Admonition,
+                });
+            }
             NodeKind::List { .. } => {
                 highlights.push(Highlight {
                     span: *span,
@@ -318,6 +326,16 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     span: *span,
                     tag: HighlightTag::LinkReference,
                 });
+            }
+            NodeKind::FootnoteReference { .. } => {
+                // Footnote references behave like navigational links.
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Link,
+                });
+            }
+            NodeKind::FootnoteDefinition { .. } => {
+                // Definition blocks are rendered out-of-band; keep them unstyled.
             }
             // SKIP only structural nodes without visual representation
             NodeKind::Paragraph | NodeKind::Text(_) => {
@@ -381,6 +399,7 @@ mod tests {
                     kind: NodeKind::Heading {
                         level: 1,
                         text: "Title".to_string(),
+                        id: None,
                     },
                     span: Some(Span {
                         start: Position {
@@ -400,6 +419,7 @@ mod tests {
                     kind: NodeKind::Heading {
                         level: 2,
                         text: "Subtitle".to_string(),
+                        id: None,
                     },
                     span: Some(Span {
                         start: Position {
@@ -448,6 +468,7 @@ mod tests {
                 kind: NodeKind::Heading {
                     level: 1,
                     text: "Title".to_string(),
+                    id: None,
                 },
                 span: Some(node_span),
                 children: vec![],

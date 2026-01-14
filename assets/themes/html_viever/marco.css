@@ -172,6 +172,9 @@ h1, h2, h3, h4, h5, h6 {
     margin-top: 2rem;
     margin-bottom: 1rem;
     line-height: 1.25;
+    /* Provide a real computed color for descendants (e.g. heading anchor icon).
+       The heading text itself uses gradient fill via `-webkit-text-fill-color: transparent`. */
+    color: var(--heading-color);
     background: linear-gradient(45deg, var(--heading-color), var(--secondary-accent));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -594,13 +597,41 @@ abbr {
 
 /* Admonitions with astro colors */
 .admonition {
-    margin: 1.5rem 0;
-    padding: 1rem;
+    margin: 0.75rem 0;
+    padding: 0.6rem 0.9rem;
     border-left: 4px solid var(--border-strong);
     background-color: var(--bg-secondary);
     border-radius: 6px;
     position: relative;
     overflow: hidden;
+}
+
+.admonition p {
+    margin: 0.5rem 0;
+}
+
+.admonition .markdown-alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    line-height: 1.2;
+    margin: 0 0 0.5rem 0;
+}
+
+.admonition .markdown-alert-icon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    line-height: 0;
+}
+
+.admonition .markdown-alert-icon svg {
+    width: 1.4em;
+    height: 1.4em;
+    display: block;
+    shape-rendering: auto;
 }
 
 .admonition::before {
@@ -615,43 +646,63 @@ abbr {
 
 /* Admonition types with design manual colors */
 .admonition-note {
-    border-left-color: var(--info-green);
+    border-left-color: #0969da;
+}
+
+.admonition-note .markdown-alert-title {
+    color: #0969da;
 }
 
 .admonition-note::before {
-    background: linear-gradient(to bottom, var(--info-green), #059669);
+    background: linear-gradient(to bottom, #0969da, #0550ae);
 }
 
 .admonition-tip {
-    border-left-color: var(--info-green);
+    border-left-color: #1a7f37;
+}
+
+.admonition-tip .markdown-alert-title {
+    color: #1a7f37;
 }
 
 .admonition-tip::before {
-    background: linear-gradient(to bottom, var(--info-green), #047857);
+    background: linear-gradient(to bottom, #1a7f37, #116329);
 }
 
 .admonition-important {
-    border-left-color: var(--primary-accent);
+    border-left-color: #8250df;
+}
+
+.admonition-important .markdown-alert-title {
+    color: #8250df;
 }
 
 .admonition-important::before {
-    background: linear-gradient(to bottom, var(--primary-accent), #7c3aed);
+    background: linear-gradient(to bottom, #8250df, #6f42c1);
 }
 
 .admonition-warning {
-    border-left-color: var(--warning-yellow);
+    border-left-color: #d97706;
+}
+
+.admonition-warning .markdown-alert-title {
+    color: #d97706;
 }
 
 .admonition-warning::before {
-    background: linear-gradient(to bottom, var(--warning-yellow), #d97706);
+    background: linear-gradient(to bottom, #d97706, #b45309);
 }
 
 .admonition-caution {
-    border-left-color: var(--secondary-accent);
+    border-left-color: #cf222e;
+}
+
+.admonition-caution .markdown-alert-title {
+    color: #cf222e;
 }
 
 .admonition-caution::before {
-    background: linear-gradient(to bottom, var(--secondary-accent), #db2777);
+    background: linear-gradient(to bottom, #cf222e, #a40e26);
 }
 
 /* Table of Contents (TOC) with astro styling */

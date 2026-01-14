@@ -38,7 +38,7 @@ pub fn compute_diagnostics(document: &Document) -> Vec<Diagnostic> {
 fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
     if let Some(span) = &node.span {
         match &node.kind {
-            NodeKind::Heading { level, text } => {
+            NodeKind::Heading { level, text, .. } => {
                 // Check for invalid heading levels
                 if *level > 6 {
                     diagnostics.push(Diagnostic {
@@ -363,6 +363,7 @@ mod tests {
                     kind: NodeKind::Heading {
                         level: 7, // Invalid level
                         text: "Too deep".to_string(),
+                        id: None,
                     },
                     span: Some(Span {
                         start: Position {
@@ -382,6 +383,7 @@ mod tests {
                     kind: NodeKind::Heading {
                         level: 1,
                         text: "".to_string(), // Empty heading
+                        id: None,
                     },
                     span: Some(Span {
                         start: Position {
@@ -536,6 +538,7 @@ mod tests {
                     kind: NodeKind::Heading {
                         level: 1,
                         text: "Good heading".to_string(),
+                        id: None,
                     },
                     span: Some(Span {
                         start: Position {

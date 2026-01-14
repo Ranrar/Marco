@@ -18,7 +18,7 @@ pub fn run_parser_tests() {
     match parser::parse(input) {
         Ok(doc) => {
             if doc.children.len() == 1 {
-                if let core::parser::NodeKind::Heading { level, text } = &doc.children[0].kind {
+                if let core::parser::NodeKind::Heading { level, text, .. } = &doc.children[0].kind {
                     if *level == 1 && text == "Hello World" {
                         println!("  ✓ Heading parsed: level={}, text={:?}", level, text);
                         passed += 1;
@@ -158,7 +158,7 @@ pub fn run_parser_tests() {
         (passed as f64 / total as f64) * 100.0
     );
     if failed > 0 {
-        println!("  ⚠ {} test(s) failed", failed);
+        println!("  ! {} test(s) failed", failed);
     }
 }
 

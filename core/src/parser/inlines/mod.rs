@@ -21,6 +21,8 @@ pub mod cm_link_parser;
 pub mod cm_reference_link_parser;
 pub mod cm_strong_emphasis_parser;
 pub mod cm_strong_parser;
+pub mod gfm_autolink_literal_parser;
+pub mod gfm_footnote_reference_parser;
 pub mod gfm_strikethrough_parser;
 pub mod marco_dash_strikethrough_parser;
 pub mod marco_mark_parser;
@@ -42,6 +44,8 @@ pub use cm_link_parser::parse_link;
 pub use cm_reference_link_parser::parse_reference_link;
 pub use cm_strong_emphasis_parser::parse_strong_emphasis;
 pub use cm_strong_parser::parse_strong;
+pub use gfm_autolink_literal_parser::parse_gfm_autolink_literal;
+pub use gfm_footnote_reference_parser::parse_footnote_reference;
 pub use gfm_strikethrough_parser::parse_strikethrough;
 pub use marco_dash_strikethrough_parser::parse_dash_strikethrough;
 pub use marco_mark_parser::parse_mark;
@@ -50,10 +54,10 @@ pub use marco_subscript_parser::parse_subscript;
 pub use marco_superscript_parser::parse_superscript;
 pub use text_parser::{parse_special_as_text, parse_text};
 
-use super::ast::Node;
+use super::ast::{Node, NodeKind};
 use anyhow::Result;
 use nom::bytes::complete::take;
-use shared::GrammarSpan;
+use shared::{to_parser_span, GrammarSpan};
 
 /// Parse inline elements within text content
 /// Takes a GrammarSpan to preserve position information
@@ -139,6 +143,26 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
             continue;
         }
 
+        // CommonMark underscore emphasis has special delimiter rules. In
+        // particular, intraword underscores (alnum _ alnum) should not open
+        // or close emphasis. Because our parser advances left-to-right, the
+        // underscore parsers may not be able to see the previous character.
+        //
+        // Workaround: when we're at an underscore run and the previous emitted
+        // character is alphanumeric and the next character after the run is
+        // alphanumeric, consume the underscore run as literal text.
+        if let Some(run_len) = intraword_underscore_run_len(&nodes, remaining.fragment()) {
+            if let Ok((rest, consumed)) = take::<_, _, nom::error::Error<_>>(run_len)(remaining) {
+                nodes.push(Node {
+                    kind: NodeKind::Text("_".repeat(run_len)),
+                    span: Some(to_parser_span(consumed)),
+                    children: Vec::new(),
+                });
+                remaining = rest;
+                continue;
+            }
+        }
+
         // Try parsing strong+emphasis (***text*** / ___text___) before strong
         // so we don't consume the first two delimiters as strong and leave a
         // dangling delimiter behind.
@@ -180,8 +204,23 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
             continue;
         }
 
+        // Try parsing GFM autolink literals (www/http(s)/email/protocol forms)
+        if let Ok((rest, node)) = parse_gfm_autolink_literal(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
         // Try parsing autolink (must come before link and inline HTML since syntax starts with <)
         if let Ok((rest, node)) = parse_autolink(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
+        // Try parsing GFM-style footnote references `[^label]`.
+        // Must come before link parsing since it also starts with '['.
+        if let Ok((rest, node)) = parse_footnote_reference(remaining) {
             nodes.push(node);
             remaining = rest;
             continue;
@@ -265,6 +304,37 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
 
     log::debug!("Parsed {} inline nodes", nodes.len());
     Ok(nodes)
+}
+
+fn intraword_underscore_run_len(nodes: &[Node], fragment: &str) -> Option<usize> {
+    if !fragment.starts_with('_') {
+        return None;
+    }
+
+    let prev = last_emitted_char(nodes)?;
+    if !prev.is_alphanumeric() {
+        return None;
+    }
+
+    let run_len = fragment.chars().take_while(|&c| c == '_').count();
+    let after = fragment.chars().nth(run_len)?;
+    if !after.is_alphanumeric() {
+        return None;
+    }
+
+    Some(run_len)
+}
+
+fn last_emitted_char(nodes: &[Node]) -> Option<char> {
+    nodes.iter().rev().find_map(last_char_in_node)
+}
+
+fn last_char_in_node(node: &Node) -> Option<char> {
+    match &node.kind {
+        NodeKind::Text(t) => t.chars().last(),
+        // Formatting/container nodes: use their last child.
+        _ => node.children.iter().rev().find_map(last_char_in_node),
+    }
 }
 
 /// Parse inline elements within text content (backward compatibility wrapper)

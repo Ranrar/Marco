@@ -72,7 +72,7 @@ fn find_hover_at_position(node: &Node, position: Position) -> Option<HoverInfo> 
                         range: Some(*span),
                     })
                 }
-                NodeKind::Heading { level, text } => {
+                NodeKind::Heading { level, text, .. } => {
                     Some(HoverInfo {
                         contents: format!("**Heading Level {}**\n\n{}", level, text),
                         range: Some(*span),
@@ -399,6 +399,7 @@ mod tests {
                 kind: NodeKind::Heading {
                     level: 1,
                     text: "Title".to_string(),
+                    id: None,
                 },
                 span: Some(Span {
                     start: Position {
