@@ -4,9 +4,10 @@
 # This script ONLY builds the package. It does not install/uninstall.
 #
 # Usage:
-#   bash tests/install/build_deb.sh
-#   bash tests/install/build_deb.sh --check
-#   bash tests/install/build_deb.sh --help
+#   bash install/build_deb.sh
+#   bash install/build_deb.sh --check
+#   bash install/build_deb.sh --version-only
+#   bash install/build_deb.sh --help
 
 set -euo pipefail
 
@@ -34,7 +35,7 @@ print_warning() { echo -e "${YELLOW}WARN: $1${NC}"; }
 print_info() { echo -e "${BLUE}INFO: $1${NC}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
 # Configuration
@@ -42,48 +43,221 @@ PACKAGE_NAME="marco-suite"
 MAINTAINER="Kim Skov Rasmussen <kim@skovrasmussen.com>"
 INSTALL_PREFIX="/usr"
 
-if command -v dpkg &>/dev/null; then
-    ARCHITECTURE="$(dpkg --print-architecture)"
-else
-    ARCHITECTURE="amd64"
-fi
+# Repo policy: always produce amd64-named packages/artifacts.
+# (This is a naming/packaging constraint for our CI/release flow.)
+ARCHITECTURE="amd64"
 
 BUILD_DIR="$(mktemp -d /tmp/marco-deb-build.XXXXXX)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-MARCO_VERSION="$(grep '^version' marco/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+VERSION_FILE="$ROOT_DIR/install/version.json"
+
+CORE_VERSION=""
+MARCO_VERSION=""
+POLO_VERSION=""
 
 show_help() {
     cat << 'EOF'
 Marco & Polo Debian Package Builder
 
 USAGE:
-    bash tests/install/build_deb.sh [OPTIONS]
+    bash install/build_deb.sh [OPTIONS]
 
 DESCRIPTION:
     Builds a Debian package (.deb) for Marco (editor) and Polo (viewer).
-    Does NOT install it. Use tests/install/install_deb.sh to install.
+    Does NOT install it.
+
+    Versions are tracked in: install/version.json
+    By default, running this script bumps patch versions for Core/Marco/Polo,
+    updates Cargo.toml versions, then builds.
 
 OPTIONS:
     -h, --help      Show this help message
     -c, --check     Check dependencies only (don't build)
+    --version-only  Bump/set versions and sync Cargo.toml, then exit (no build)
+    --no-bump       Build using current versions (do not change version.json)
+    --bump MODE     Bump version before building: patch|minor|major (default: patch)
+    --set VERSION   Set Core/Marco/Polo versions to VERSION (X.Y.Z) before building
+    --alpha-artifact  Also create a CI-friendly alpha-named copy:
+                    marco-suite_alpha_VERSION_amd64.deb
 
 OUTPUT:
-    Creates: marco-suite_VERSION_ARCH.deb in the workspace root.
+    Creates: marco-suite_VERSION_amd64.deb in the workspace root.
+    If --alpha-artifact is set, also creates: marco-suite_alpha_VERSION_amd64.deb
 EOF
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-    show_help
-    exit 0
-fi
+BUMP_MODE="patch"
+DO_BUMP="true"
+SET_VERSION=""
+CHECK_ONLY="false"
+CREATE_ALPHA_ARTIFACT="false"
+VERSION_ONLY="false"
 
-# Reject unknown options
-if [ -n "${1:-}" ] && [ "${1:-}" != "-c" ] && [ "${1:-}" != "--check" ]; then
-    print_error "Unknown option: ${1:-}"
-    echo "Use 'bash tests/install/build_deb.sh --help' for usage information"
-    exit 1
-fi
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        -c|--check)
+            CHECK_ONLY="true"
+            shift
+            ;;
+        --version-only)
+            VERSION_ONLY="true"
+            shift
+            ;;
+        --no-bump)
+            DO_BUMP="false"
+            shift
+            ;;
+        --bump)
+            if [ -z "${2:-}" ]; then
+                print_error "--bump requires a value: patch|minor|major"
+                exit 1
+            fi
+            BUMP_MODE="$2"
+            shift 2
+            ;;
+        --set)
+            if [ -z "${2:-}" ]; then
+                print_error "--set requires a version: X.Y.Z"
+                exit 1
+            fi
+            SET_VERSION="$2"
+            DO_BUMP="false"
+            shift 2
+            ;;
+        --alpha-artifact)
+            CREATE_ALPHA_ARTIFACT="true"
+            shift
+            ;;
+        *)
+            print_error "Unknown option: $1"
+            echo "Use 'bash install/build_deb.sh --help' for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+validate_semver() {
+    local v="$1"
+    if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        return 1
+    fi
+    return 0
+}
+
+ensure_version_file() {
+    if [ -f "$VERSION_FILE" ]; then
+        return 0
+    fi
+
+    print_warning "Version file not found; creating: $VERSION_FILE"
+
+    local core_v marco_v polo_v
+    core_v="$(grep '^version' core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+    marco_v="$(grep '^version' marco/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+    polo_v="$(grep '^version' polo/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+
+    python3 - <<PY
+import json
+from pathlib import Path
+Path("$VERSION_FILE").write_text(json.dumps({
+  "core": "$core_v",
+  "marco": "$marco_v",
+  "polo": "$polo_v",
+}, indent=2) + "\n")
+PY
+}
+
+read_versions() {
+    CORE_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["core"])')"
+    MARCO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["marco"])')"
+    POLO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["polo"])')"
+}
+
+write_versions() {
+    local core_v="$1"
+    local marco_v="$2"
+    local polo_v="$3"
+    python3 - <<PY
+import json
+from pathlib import Path
+Path("$VERSION_FILE").write_text(json.dumps({
+  "core": "$core_v",
+  "marco": "$marco_v",
+  "polo": "$polo_v",
+}, indent=2) + "\n")
+PY
+}
+
+bump_semver() {
+    local v="$1"
+    local mode="$2"
+    python3 - <<PY
+import sys
+v = sys.argv[1]
+mode = sys.argv[2]
+maj, mi, pa = [int(x) for x in v.split('.')]
+if mode == 'patch':
+    pa += 1
+elif mode == 'minor':
+    mi += 1
+    pa = 0
+elif mode == 'major':
+    maj += 1
+    mi = 0
+    pa = 0
+else:
+    raise SystemExit(2)
+print(f"{maj}.{mi}.{pa}")
+PY "$v" "$mode"
+}
+
+set_cargo_version() {
+    local toml_path="$1"
+    local new_version="$2"
+    python3 - "$toml_path" "$new_version" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+toml_path = sys.argv[1]
+new_version = sys.argv[2]
+
+path = Path(toml_path)
+text = path.read_text(encoding="utf-8")
+lines = text.splitlines(True)
+
+in_pkg = False
+done = False
+
+for i, line in enumerate(lines):
+    if re.match(r"^\[package\]\s*$", line.strip()):
+        in_pkg = True
+        continue
+
+    # Stop once we leave the [package] section.
+    if in_pkg and line.lstrip().startswith('[') and line.strip() != "[package]":
+        in_pkg = False
+
+    if in_pkg and (not done) and re.match(r"^version\s*=\s*\"[^\"]+\"", line):
+        lines[i] = re.sub(
+            r"^version\s*=\s*\"[^\"]+\"",
+            f'version = "{new_version}"',
+            line,
+        )
+        done = True
+        break
+
+if not done:
+    raise SystemExit(f"Could not update version in {path}")
+
+path.write_text(''.join(lines), encoding="utf-8")
+PY
+}
 
 check_dependencies() {
     print_header "Checking Dependencies"
@@ -97,6 +271,13 @@ check_dependencies() {
         echo "  Install from: https://rustup.rs/"
     else
         print_success "Rust/Cargo found ($(cargo --version))"
+    fi
+
+    if ! command -v python3 &>/dev/null; then
+        print_error "python3 not found (required for version management)"
+        missing_deps+=("python3")
+    else
+        print_success "python3 found ($(python3 --version 2>&1))"
     fi
 
     if ! command -v pkg-config &>/dev/null; then
@@ -198,7 +379,7 @@ check_dependencies() {
     return 0
 }
 
-if [ "${1:-}" = "-c" ] || [ "${1:-}" = "--check" ]; then
+if [ "$CHECK_ONLY" = "true" ]; then
     check_dependencies
     exit $?
 fi
@@ -209,6 +390,62 @@ check_dependencies || {
     print_error "Please install missing dependencies and try again"
     exit 1
 }
+
+print_header "Versioning"
+
+ensure_version_file
+read_versions
+
+if ! validate_semver "$CORE_VERSION" || ! validate_semver "$MARCO_VERSION" || ! validate_semver "$POLO_VERSION"; then
+    print_error "Invalid version found in $VERSION_FILE (expected X.Y.Z)"
+    exit 1
+fi
+
+if [ -n "$SET_VERSION" ]; then
+    if ! validate_semver "$SET_VERSION"; then
+        print_error "Invalid version for --set: $SET_VERSION (expected X.Y.Z)"
+        exit 1
+    fi
+
+    print_info "Setting Core/Marco/Polo version to: $SET_VERSION"
+    CORE_VERSION="$SET_VERSION"
+    MARCO_VERSION="$SET_VERSION"
+    POLO_VERSION="$SET_VERSION"
+    write_versions "$CORE_VERSION" "$MARCO_VERSION" "$POLO_VERSION"
+elif [ "$DO_BUMP" = "true" ]; then
+    if [ "$BUMP_MODE" != "patch" ] && [ "$BUMP_MODE" != "minor" ] && [ "$BUMP_MODE" != "major" ]; then
+        print_error "Invalid bump mode: $BUMP_MODE (expected patch|minor|major)"
+        exit 1
+    fi
+
+    print_info "Bumping versions ($BUMP_MODE)..."
+    CORE_VERSION="$(bump_semver "$CORE_VERSION" "$BUMP_MODE")"
+    MARCO_VERSION="$(bump_semver "$MARCO_VERSION" "$BUMP_MODE")"
+    POLO_VERSION="$(bump_semver "$POLO_VERSION" "$BUMP_MODE")"
+    write_versions "$CORE_VERSION" "$MARCO_VERSION" "$POLO_VERSION"
+else
+    print_info "Using existing versions from $VERSION_FILE"
+fi
+
+print_info "Core version:  $CORE_VERSION"
+print_info "Marco version: $MARCO_VERSION"
+print_info "Polo version:  $POLO_VERSION"
+
+print_info "Syncing Cargo.toml versions..."
+set_cargo_version "core/Cargo.toml" "$CORE_VERSION"
+set_cargo_version "marco/Cargo.toml" "$MARCO_VERSION"
+set_cargo_version "polo/Cargo.toml" "$POLO_VERSION"
+print_success "Versions updated"
+
+if [ "$VERSION_ONLY" = "true" ]; then
+    print_header "Version Sync Complete"
+    echo "Updated versions only (no build):"
+    echo "  install/version.json: core=$CORE_VERSION marco=$MARCO_VERSION polo=$POLO_VERSION"
+    echo "  core/Cargo.toml:       $CORE_VERSION"
+    echo "  marco/Cargo.toml:      $MARCO_VERSION"
+    echo "  polo/Cargo.toml:       $POLO_VERSION"
+    exit 0
+fi
 
 print_header "Building Debian Package"
 
@@ -238,8 +475,8 @@ fi
 print_success "Binaries copied"
 
 print_info "Copying desktop entries..."
-install -m 0644 tests/install/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/marco.desktop"
-install -m 0644 tests/install/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/polo.desktop"
+install -m 0644 install/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/marco.desktop"
+install -m 0644 install/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/polo.desktop"
 print_success "Desktop entries copied"
 
 print_info "Installing system icons..."
@@ -324,7 +561,7 @@ https://github.com/Ranrar/marco
 MANEOF
 
 cat > "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/polo.1" << MANEOF
-.TH POLO 1 "${MANPAGE_DATE}" "polo ${MARCO_VERSION}" "User Commands"
+.TH POLO 1 "${MANPAGE_DATE}" "polo ${POLO_VERSION}" "User Commands"
 .SH NAME
 polo \- A lightweight GTK4-based Markdown viewer with WebKit6 rendering
 .SH SYNOPSIS
@@ -467,6 +704,12 @@ else
 fi
 print_success "Package created: $PACKAGE_FILE"
 
+if [ "$CREATE_ALPHA_ARTIFACT" = "true" ]; then
+    ALPHA_PACKAGE_FILE="${PACKAGE_NAME}_alpha_${MARCO_VERSION}_${ARCHITECTURE}.deb"
+    cp -f "$PACKAGE_FILE" "$ALPHA_PACKAGE_FILE"
+    print_success "Alpha artifact created: $ALPHA_PACKAGE_FILE"
+fi
+
 print_header "Build Complete"
 echo "Debian package created successfully!"
 echo ""
@@ -476,7 +719,8 @@ INSTALLED_MIB="$(awk -v kib="$INSTALLED_SIZE" 'BEGIN{printf "%.1f", kib/1024}')"
 echo "Installed size (uncompressed): ${INSTALLED_SIZE} KiB (~${INSTALLED_MIB} MiB)"
 echo ""
 print_success "To install the package:"
-echo "  sudo bash tests/install/install_deb.sh $PACKAGE_FILE"
+echo "  sudo dpkg -i $PACKAGE_FILE"
+echo "  # If dependencies are missing, run: sudo apt -f install"
 echo ""
 print_success "To uninstall the package:"
-echo "  sudo bash tests/install/uninstall_deb.sh"
+echo "  sudo dpkg -r ${PACKAGE_NAME}"

@@ -37,6 +37,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
+            python3 \
             build-essential pkg-config \
             libgtk-4-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev libfontconfig-dev \
             dpkg-dev fakeroot gzip \
@@ -44,16 +45,15 @@ jobs:
 
       - name: Build Debian package
         run: |
-          bash tests/install/build_deb.sh
+          # CI should not mutate version.json or Cargo.toml; build with the repo's tracked versions.
+          bash install/build_deb.sh --no-bump --alpha-artifact
 
       - name: Prepare Alpha artifact name
         id: prep
         run: |
           set -euo pipefail
-          deb_file="$(ls -1 marco-suite_*.deb | head -n 1)"
-          alpha_name="marco-suite_alpha_amd64.deb"
-          mv -f "$deb_file" "$alpha_name"
-          echo "alpha_deb=$alpha_name" >> "$GITHUB_OUTPUT"
+          alpha_deb="$(ls -1 marco-suite_alpha_*.deb | head -n 1)"
+          echo "alpha_deb=$alpha_deb" >> "$GITHUB_OUTPUT"
 
       - name: Update Alpha release (overwrite asset)
         uses: ncipollo/release-action@v1

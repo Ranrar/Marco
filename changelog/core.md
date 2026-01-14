@@ -1,0 +1,103 @@
+# Changelog
+All notable user-visible changes to **Core** are documented here.
+
+This project follows **Semantic Versioning** and uses the **Keep a Changelog** format.
+
+Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
+
+## [Unreleased]
+
+### Added
+- Nothing yet.
+
+### Changed
+- Nothing yet.
+
+### Fixed
+- Nothing yet.
+
+### Removed
+- Nothing yet.
+
+### Security
+- Nothing yet.
+
+## [0.13.0] - 2026-01-14
+
+### Added
+- Syntax-highlighted code rendering.
+- Emoji shortcodes in rendered output.
+- Footnotes.
+- Extended heading identifiers.
+
+## [0.12.0] - 2026-01-13
+
+### Added
+- Editor/LSP support for task list checkboxes and tables.
+
+## [0.11.0] - 2026-01-12
+
+### Changed
+- Packaging/build workflow for Linux installs was updated and simplified.
+
+## [0.10.0] - 2026-01-11
+
+### Added
+- GitHub Flavored Markdown tables.
+- Additional inline formatting extensions.
+
+## [0.9.0] - 2025-10-28
+
+### Fixed
+- More robust handling of autolinks vs inline HTML (reduces false-positive autolinks around common tags).
+
+## [0.8.0] - 2025-10-27
+
+### Fixed
+- More consistent parsing of thematic breaks.
+
+## [0.7.0] - 2025-10-25
+
+### Added
+- Syntax highlighting support in editor integrations.
+
+## [0.6.0] - 2025-10-24
+
+### Changed
+- Theme color definitions were standardized for consistent appearance.
+
+## [0.5.0] - 2025-10-23
+
+### Added
+- Editor/LSP completions and diagnostics for common Markdown structures (including lists, blockquotes, thematic breaks, and HTML blocks).
+
+### Changed
+- Linux install flow moved toward packaged installation.
+
+## [0.4.0] - 2025-10-21
+
+### Changed
+- Parsing pipeline was modularized and legacy components were removed to improve maintainability and stability.
+
+## [0.3.0] - 2025-10-20
+
+### Added
+- Unicode normalization for more consistent parsing of equivalent text.
+- Link reference definitions.
+- HTML blocks.
+
+### Changed
+- Block parsing improved for nested structures and blank-line edge cases.
+
+## [0.2.0] - 2025-10-19
+
+### Fixed
+- Improved handling of invalid or tricky UTF-8 input.
+
+## [0.1.0] - 2025-10-18
+
+### Added
+- Initial Core crate integration as a shared library used by Marco and Polo.
+
+### Changed
+- Parsing engine was rebuilt around a nom-based pipeline.

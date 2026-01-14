@@ -133,6 +133,79 @@ cargo build -p polo     # Viewer only
 cargo build --workspace # All crates
 ```
 
+### Versioning, Changelogs, and Packaging
+
+#### Version tracking (single source of truth)
+- **Do not** hand-edit crate versions in multiple places.
+- Use `install/version.json` as the single version source for the workspace crates (`core`, `marco`, `polo`).
+- `install/build_deb.sh` is responsible for (optionally) bumping versions and syncing them into:
+    - `core/Cargo.toml`
+    - `marco/Cargo.toml`
+    - `polo/Cargo.toml`
+
+#### Automated version bump (recommended)
+- Prefer using `install/build_deb.sh` to bump versions and sync the three `Cargo.toml` files.
+- For version changes without building a `.deb`, use:
+    - `bash install/build_deb.sh --version-only` (defaults to patch bump)
+    - `bash install/build_deb.sh --version-only --bump minor|major`
+    - `bash install/build_deb.sh --version-only --set X.Y.Z`
+
+#### Release workflow (repo practice)
+For a real release commit:
+1. Update the three changelogs (`changelog/core.md`, `changelog/marco.md`, `changelog/polo.md`).
+2. Bump versions via `install/build_deb.sh` (recommended: `--version-only`), which updates `install/version.json` + all `Cargo.toml` versions.
+3. Run tests (`cargo test --workspace --locked`).
+4. Commit the changelog + version changes.
+5. Tag the release (for example `vX.Y.Z`) and push.
+
+#### Cargo/SemVer Zero-Padding Policy (Simple)
+
+* **No leading zeros** in major, minor, or patch numbers.
+
+    * ✅ Correct: `1.2.3`, `0.1.0`, `1.0.0-alpha.1`
+    * ❌ Incorrect: `01.2.3`, `1.02.3`, `1.2.03`
+
+* **Zero is allowed** if it's the only digit (`0`) in major, minor, or patch.
+
+* **Pre-release tags** (like `-alpha.1`) and **build metadata** (like `+build.123`) are allowed, but numeric parts must still have no leading zeros.
+
+**Example valid versions:**
+
+```toml
+version = "1.2.3"
+version = "0.9.1-alpha.2"
+version = "2.0.0+build.123"
+```
+
+#### Changelogs
+- Changelogs live in `changelog/`:
+    - `changelog/core.md`
+    - `changelog/marco.md`
+    - `changelog/polo.md`
+- Format: **Keep a Changelog** sections (`Added`, `Changed`, `Fixed`, `Removed`, `Security`).
+- Entries should be **user-visible** and avoid commit hashes/file names.
+- If details are ambiguous, prefer neutral wording and avoid guessing.
+
+#### Debian packaging (Linux)
+- Debian packaging assets and scripts live in `install/`.
+- Primary entry point: `install/build_deb.sh`
+    - Builds the workspace and produces a `.deb` (marco-suite package) using the versions from `install/version.json`.
+    - Supports flags to control version bumping (for example, CI uses a no-bump mode so builds don't mutate versions).
+
+**Package naming policy:** the repo uses a fixed `amd64` suffix for produced package filenames.
+
+**Alpha artifact naming:** use `--alpha-artifact` to create an additional copy named:
+- `marco-suite_alpha_<version>_amd64.deb`
+
+### GitHub Actions / CI workflows
+- Workflows live in `.github/workflows/`.
+- The Debian release workflow builds the `.deb` and publishes it as a release asset.
+- CI should build deterministically:
+    - Avoid changing `install/version.json` or `Cargo.toml` during CI runs.
+    - Ensure required build tools are installed (notably `python3` is used by the packaging/version script).
+
+**Alpha release behavior:** the `alpha` GitHub Release is a moving target; CI overwrites the existing alpha asset on each run.
+
 ### Error Handling & Logging
 - Panic hook installed early in `marco/src/main.rs` with logger flush on crash
 - File-based logging via `core::logic::logger::SimpleFileLogger`
