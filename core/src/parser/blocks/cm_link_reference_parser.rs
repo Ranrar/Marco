@@ -19,7 +19,7 @@ use crate::parser::ast::Document;
 /// # Example
 /// ```ignore
 /// let mut doc = Document::new();
-/// parse_link_reference(&mut doc, "foo", "http://example.com", Some("Example"));
+/// parse_link_reference(&mut doc, "foo", "https://example.com", Some("Example"));
 /// // Reference is now stored and can be resolved by [foo] links
 /// ```
 pub fn parse_link_reference(
@@ -39,13 +39,13 @@ mod tests {
     #[test]
     fn smoke_test_parse_link_reference_basic() {
         let mut doc = Document::new();
-        parse_link_reference(&mut doc, "foo", "http://example.com".to_string(), None);
+        parse_link_reference(&mut doc, "foo", "https://example.com".to_string(), None);
 
         let resolved = doc.references.get("foo");
         assert!(resolved.is_some());
 
         let (url, title) = resolved.unwrap();
-        assert_eq!(url, "http://example.com");
+        assert_eq!(url, "https://example.com");
         assert_eq!(title, &None);
     }
 
@@ -55,7 +55,7 @@ mod tests {
         parse_link_reference(
             &mut doc,
             "bar",
-            "http://test.com".to_string(),
+            "https://test.com".to_string(),
             Some("Test Site".to_string()),
         );
 
@@ -63,14 +63,14 @@ mod tests {
         assert!(resolved.is_some());
 
         let (url, title) = resolved.unwrap();
-        assert_eq!(url, "http://test.com");
+        assert_eq!(url, "https://test.com");
         assert_eq!(title, &Some("Test Site".to_string()));
     }
 
     #[test]
     fn smoke_test_link_reference_case_insensitive() {
         let mut doc = Document::new();
-        parse_link_reference(&mut doc, "FOO", "http://example.com".to_string(), None);
+        parse_link_reference(&mut doc, "FOO", "https://example.com".to_string(), None);
 
         // Should be retrievable with different case
         let resolved = doc.references.get("foo");
@@ -83,9 +83,9 @@ mod tests {
     #[test]
     fn smoke_test_multiple_references() {
         let mut doc = Document::new();
-        parse_link_reference(&mut doc, "ref1", "http://one.com".to_string(), None);
-        parse_link_reference(&mut doc, "ref2", "http://two.com".to_string(), None);
-        parse_link_reference(&mut doc, "ref3", "http://three.com".to_string(), None);
+        parse_link_reference(&mut doc, "ref1", "https://one.com".to_string(), None);
+        parse_link_reference(&mut doc, "ref2", "https://two.com".to_string(), None);
+        parse_link_reference(&mut doc, "ref3", "https://three.com".to_string(), None);
 
         assert!(doc.references.get("ref1").is_some());
         assert!(doc.references.get("ref2").is_some());
@@ -95,13 +95,13 @@ mod tests {
     #[test]
     fn smoke_test_reference_overwrite() {
         let mut doc = Document::new();
-        parse_link_reference(&mut doc, "foo", "http://old.com".to_string(), None);
-        parse_link_reference(&mut doc, "foo", "http://new.com".to_string(), None);
+        parse_link_reference(&mut doc, "foo", "https://old.com".to_string(), None);
+        parse_link_reference(&mut doc, "foo", "https://new.com".to_string(), None);
 
         let resolved = doc.references.get("foo");
         let (url, _) = resolved.unwrap();
 
         // Last definition wins (HashMap insert behavior)
-        assert_eq!(url, "http://new.com");
+        assert_eq!(url, "https://new.com");
     }
 }

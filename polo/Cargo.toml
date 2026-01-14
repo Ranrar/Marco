@@ -1,6 +1,6 @@
 [package]
 name = "polo"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
@@ -16,15 +16,4 @@ gtk4 = { workspace = true }
 glib = { workspace = true }
 gio = { workspace = true }
 webkit6 = { workspace = true }
-dark-light = { workspace = true }
-
-# Utilities
-anyhow = { workspace = true }
-serde = { workspace = true }
-ron = { workspace = true }
 log = { workspace = true }
-dirs = { workspace = true }
-
-[dev-dependencies]
-serial_test = { workspace = true }
-tempfile = { workspace = true }

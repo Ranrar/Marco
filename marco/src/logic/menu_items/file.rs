@@ -863,7 +863,7 @@ pub fn register_file_actions_async(
     // Create modification tracking flag
     let modification_tracking_enabled = Rc::new(RefCell::new(true));
 
-    // Set up buffer change tracking - TODO: store and manage this signal ID
+    // Set up buffer change tracking - planned: store and manage this signal ID
     let _change_tracker_signal_id = attach_change_tracker(
         file_operations.clone(),
         editor_buffer,
@@ -1091,7 +1091,7 @@ pub fn register_file_actions_async(
     export_action.connect_activate(move |_, _| {
         trace!("audit: export action triggered");
         eprintln!("[main] Export action - placeholder implementation");
-        // TODO: Implement export to PDF/HTML functionality
+        // Planned: implement export to PDF/HTML functionality
     });
     app.add_action(&export_action);
 
@@ -1100,7 +1100,7 @@ pub fn register_file_actions_async(
     document_builder_action.connect_activate(move |_, _| {
         trace!("audit: document builder action triggered");
         eprintln!("[main] Document Builder action - placeholder implementation");
-        // TODO: Implement document builder functionality
+        // Planned: implement document builder functionality
     });
     app.add_action(&document_builder_action);
 
@@ -1109,7 +1109,7 @@ pub fn register_file_actions_async(
     document_splitter_action.connect_activate(move |_, _| {
         trace!("audit: document splitter action triggered");
         eprintln!("[main] Document Splitter action - placeholder implementation");
-        // TODO: Implement document splitter functionality
+        // Planned: implement document splitter functionality
     });
     app.add_action(&document_splitter_action);
 

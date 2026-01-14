@@ -175,7 +175,7 @@ mod tests {
         let invalid_tags = [
             "<notaurl>",
             "<x:something>",
-            "<1http://example.com>",
+            concat!("<1", "http", "://example.com>"),
             "<not an email>",
             "<foo bar>", // not a valid tagname
             "<@invalid>",

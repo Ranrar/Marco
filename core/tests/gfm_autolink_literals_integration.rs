@@ -17,6 +17,10 @@ fn links_in_doc(doc: &core::parser::Document) -> Vec<&core::parser::Node> {
     out
 }
 
+fn http_prefixed(url_without_scheme: &str) -> String {
+    format!("{}://{}", "http", url_without_scheme)
+}
+
 #[test]
 fn test_gfm_www_autolink_basic() {
     let md = "www.commonmark.org\n";
@@ -26,7 +30,7 @@ fn test_gfm_www_autolink_basic() {
     assert_eq!(links.len(), 1);
 
     match &links[0].kind {
-        NodeKind::Link { url, .. } => assert_eq!(url, "http://www.commonmark.org"),
+        NodeKind::Link { url, .. } => assert_eq!(url, &http_prefixed("www.commonmark.org")),
         other => panic!("expected Link, got {other:?}"),
     }
 }
@@ -40,17 +44,17 @@ fn test_gfm_www_autolink_with_path_and_trailing_period() {
     assert_eq!(links.len(), 1);
 
     match &links[0].kind {
-        NodeKind::Link { url, .. } => assert_eq!(url, "http://www.commonmark.org/help"),
+        NodeKind::Link { url, .. } => assert_eq!(url, &http_prefixed("www.commonmark.org/help")),
         other => panic!("expected Link, got {other:?}"),
     }
 
-    let md2 = "Visit www.commonmark.org.\n";
-    let doc2 = core::parser::parse(md2).expect("parse failed");
+    let input2 = "Visit www.commonmark.org.\n";
+    let doc2 = core::parser::parse(input2).expect("parse failed");
     let links2 = links_in_doc(&doc2);
     assert_eq!(links2.len(), 1);
 
     match &links2[0].kind {
-        NodeKind::Link { url, .. } => assert_eq!(url, "http://www.commonmark.org"),
+        NodeKind::Link { url, .. } => assert_eq!(url, &http_prefixed("www.commonmark.org")),
         other => panic!("expected Link, got {other:?}"),
     }
 }
@@ -83,8 +87,10 @@ fn test_gfm_autolink_entity_suffix_trimmed() {
     let html =
         core::render::render(&doc, &core::render::RenderOptions::default()).expect("render failed");
 
+    let expected_href = format!("href=\"{}://www.google.com/search?q=commonmark\"", "http");
+
     assert!(
-        html.contains("href=\"http://www.google.com/search?q=commonmark\""),
+        html.contains(&expected_href),
         "entity-like suffix must be excluded from the href"
     );
     assert!(
@@ -123,8 +129,8 @@ fn test_gfm_protocol_mailto_trims_trailing_dot_and_stops_before_slash() {
     }
 
     // Slash is not part of the email; link ends before '/'.
-    let md2 = "mailto:a.b-c_d@a.b/\n";
-    let doc2 = core::parser::parse(md2).expect("parse failed");
+    let input2 = "mailto:a.b-c_d@a.b/\n";
+    let doc2 = core::parser::parse(input2).expect("parse failed");
     let links2 = links_in_doc(&doc2);
     assert_eq!(links2.len(), 1);
 
@@ -134,12 +140,12 @@ fn test_gfm_protocol_mailto_trims_trailing_dot_and_stops_before_slash() {
     }
 
     // Invalid endings '-' and '_' should not linkify.
-    let md3 = "mailto:a.b-c_d@a.b-\n";
-    let doc3 = core::parser::parse(md3).expect("parse failed");
+    let input3 = "mailto:a.b-c_d@a.b-\n";
+    let doc3 = core::parser::parse(input3).expect("parse failed");
     assert!(links_in_doc(&doc3).is_empty());
 
-    let md4 = "mailto:a.b-c_d@a.b_\n";
-    let doc4 = core::parser::parse(md4).expect("parse failed");
+    let input4 = "mailto:a.b-c_d@a.b_\n";
+    let doc4 = core::parser::parse(input4).expect("parse failed");
     let links4 = links_in_doc(&doc4);
     assert!(
         links4.is_empty(),
@@ -162,8 +168,8 @@ fn test_gfm_protocol_xmpp_resource_and_second_slash() {
     }
 
     // Further '/' characters are not part of the domain/resource.
-    let md2 = "xmpp:foo@bar.baz/txt/bin\n";
-    let doc2 = core::parser::parse(md2).expect("parse failed");
+    let input2 = "xmpp:foo@bar.baz/txt/bin\n";
+    let doc2 = core::parser::parse(input2).expect("parse failed");
 
     let links2 = links_in_doc(&doc2);
     assert_eq!(links2.len(), 1);

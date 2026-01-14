@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.13.0"
+version = "0.13.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
@@ -15,7 +15,6 @@ doctest = false
 
 [features]
 default = []
-integration-tests = ["dep:clap", "dep:similar", "dep:colored", "dep:atty", "dep:serde_json"]
 
 [[bin]]
 name = "marco"
@@ -35,22 +34,9 @@ dark-light = { workspace = true }
 
 # Utilities (also in core but needed here)
 anyhow = { workspace = true }
-serde = { workspace = true }
-ron = { workspace = true }
 log = { workspace = true }
-dirs = { workspace = true }
 syntect = { workspace = true }
-syntect-assets = { workspace = true }
-
-# Test suite dependencies
-clap = { workspace = true, optional = true }
-similar = { workspace = true, optional = true }
-colored = { workspace = true, optional = true }
-atty = { workspace = true, optional = true }
-serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
-criterion = { workspace = true }
-rand = { workspace = true }
 serial_test = { workspace = true }
 tempfile = { workspace = true }

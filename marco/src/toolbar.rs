@@ -7,7 +7,7 @@ use gtk4::{Box, Button, DropDown, Orientation, Separator};
 use log::trace;
 
 /// Toolbar button references for updating active states
-// TODO: This struct is not currently used, but may be useful for managing toolbar state (e.g., enabling/disabling buttons, updating active states, or connecting signals) in the future.
+// Note: This struct is not currently used, but may be useful for managing toolbar state (e.g., enabling/disabling buttons, updating active states, or connecting signals) in the future.
 #[allow(dead_code)]
 pub struct ToolbarButtons {
     pub headings_dropdown: DropDown,

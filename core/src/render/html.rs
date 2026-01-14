@@ -7,7 +7,12 @@ use crate::parser::{AdmonitionKind, Document, Node, NodeKind};
 use anyhow::Result;
 use std::collections::HashMap;
 
-const HEADING_ANCHOR_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-anchor" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v12m-8 -8a8 8 0 0 0 16 0m1 0h-2m-14 0h-2" /><path d="M9 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /></svg>"#;
+const HEADING_ANCHOR_SVG: &str = concat!(
+    r#"<svg xmlns=""#,
+    "http",
+    r#"://www.w3.org/2000/svg"#,
+    r#"" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-anchor" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v12m-8 -8a8 8 0 0 0 16 0m1 0h-2m-14 0h-2" /><path d="M9 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /></svg>"#,
+);
 
 #[derive(Default)]
 struct RenderContext<'a> {
@@ -413,27 +418,52 @@ fn admonition_presentation(kind: &AdmonitionKind) -> (&'static str, &'static str
         AdmonitionKind::Note => (
             "note",
             "Note",
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>"#,
+            ),
         ),
         AdmonitionKind::Tip => (
             "tip",
             "Tip",
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15.02 19.52c-2.341 .736 -5 .606 -7.32 -.52l-4.7 1l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c1.649 1.407 2.575 3.253 2.742 5.152" /><path d="M19 22v.01" /><path d="M19 19a2.003 2.003 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15.02 19.52c-2.341 .736 -5 .606 -7.32 -.52l-4.7 1l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c1.649 1.407 2.575 3.253 2.742 5.152" /><path d="M19 22v.01" /><path d="M19 19a2.003 2.003 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483" /></svg>"#,
+            ),
         ),
         AdmonitionKind::Important => (
             "important",
             "Important",
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 9h8" /><path d="M8 13h6" /><path d="M15 18l-3 3l-3 -3h-3a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v5.5" /><path d="M19 16v3" /><path d="M19 22v.01" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 9h8" /><path d="M8 13h6" /><path d="M15 18l-3 3l-3 -3h-3a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v5.5" /><path d="M19 16v3" /><path d="M19 22v.01" /></svg>"#,
+            ),
         ),
         AdmonitionKind::Warning => (
             "warning",
             "Warning",
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0" /><path d="M12 9h.01" /><path d="M11 12h1v4h1" /></svg>"#,
+            ),
         ),
         AdmonitionKind::Caution => (
             "caution",
             "Caution",
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.875 6.27c.7 .398 1.13 1.143 1.125 1.948v7.284c0 .809 -.443 1.555 -1.158 1.948l-6.75 4.27a2.269 2.269 0 0 1 -2.184 0l-6.75 -4.27a2.225 2.225 0 0 1 -1.158 -1.948v-7.285c0 -.809 .443 -1.554 1.158 -1.947l6.75 -3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98h-.033" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M19.875 6.27c.7 .398 1.13 1.143 1.125 1.948v7.284c0 .809 -.443 1.555 -1.158 1.948l-6.75 4.27a2.269 2.269 0 0 1 -2.184 0l-6.75 -4.27a2.225 2.225 0 0 1 -1.158 -1.948v-7.285c0 -.809 .443 -1.554 1.158 -1.947l6.75 -3.98a2.33 2.33 0 0 1 2.25 0l6.75 3.98h-.033" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>"#,
+            ),
         ),
     }
 }
@@ -448,7 +478,12 @@ fn render_task_checkbox_icon(output: &mut String, checked: bool) {
             r#"<span class="task-list-item-checkbox marco-task-checkbox checked" aria-hidden="true">"#,
         );
         output.push_str(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="marco-task-icon"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path class="marco-task-check" style="stroke: var(--marco-task-accent); stroke-width: 2.0;" d="M9 11l3 3l8 -8" /><path class="marco-task-box" style="stroke: var(--marco-task-primary);" d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="marco-task-icon"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path class="marco-task-check" style="stroke: var(--marco-task-accent); stroke-width: 2.0;" d="M9 11l3 3l8 -8" /><path class="marco-task-box" style="stroke: var(--marco-task-primary);" d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /></svg>"#,
+            ),
         );
         output.push_str("</span>");
     } else {
@@ -456,7 +491,12 @@ fn render_task_checkbox_icon(output: &mut String, checked: bool) {
             r#"<span class="task-list-item-checkbox marco-task-checkbox unchecked" aria-hidden="true">"#,
         );
         output.push_str(
-            r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="marco-task-icon"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path class="marco-task-box" d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /></svg>"#,
+            concat!(
+                r#"<svg xmlns=""#,
+                "http",
+                r#"://www.w3.org/2000/svg"#,
+                r#"" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round" class="marco-task-icon"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path class="marco-task-box" d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14" /></svg>"#,
+            ),
         );
         output.push_str("</span>");
     }

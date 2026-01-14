@@ -38,7 +38,7 @@ use core::logic::cache::SimpleFileCache;
 pub struct SearchOptions {
     pub match_case: bool,
     pub match_whole_word: bool,
-    pub match_markdown_only: bool, // TODO: Not yet implemented - requires integration with Marco's grammar parser
+    pub match_markdown_only: bool, // Not yet implemented: requires integration with Marco's grammar parser
     pub use_regex: bool,
 }
 
@@ -1615,10 +1615,10 @@ mod tests {
         let _manager = AsyncSearchManager::new();
 
         // This test passes if the code compiles and instantiates correctly
-        println!("✅ Simple async integration working");
-        println!("✅ SignalManager integrated");
-        println!("✅ SimpleFileCache integrated");
-        println!("✅ Basic debouncing implemented");
+        println!("Simple async integration working");
+        println!("SignalManager integrated");
+        println!("SimpleFileCache integrated");
+        println!("Basic debouncing implemented");
     }
 
     #[test]

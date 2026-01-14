@@ -10,7 +10,6 @@ nom_locate = "5.0.0"                 # Position tracking for nom parsers
 ron = "0.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-regex = "1.12.2"
 anyhow = "1.0.100"
 log = "0.4.29"
 chrono = { version = "0.4.42", features = ["serde"] }
@@ -22,7 +21,6 @@ moka = { version = "0.12.12", features = ["sync"] }  # High-performance caching
 unicode-normalization = "0.1.25"                  # Unicode NFC normalization for consistent parsing
 htmlescape = "0.3.1"                              # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting
-syntect-assets = "0.23.6"            # Syntax highlighting
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.3"
@@ -36,7 +34,6 @@ dark-light = "2.0.0"
 clap = { version = "4.5.54", features = ["derive"] }
 similar = { version = "2.7", features = ["inline", "unicode"] }
 colored = "3.0.0"
-atty = "0.2.14"
 criterion = "0.8.1"
 rand = "0.9.2"
 serial_test = "3.3.1"

@@ -66,7 +66,7 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_autolink_url() {
-        let input = GrammarSpan::new("<http://example.com>");
+        let input = GrammarSpan::new("<https://example.com>");
         let result = parse_autolink(input);
 
         assert!(result.is_ok(), "Failed to parse URL autolink");
@@ -75,7 +75,7 @@ mod tests {
         assert_eq!(rest.fragment(), &"");
 
         if let NodeKind::Link { url, title } = &node.kind {
-            assert_eq!(url, "http://example.com");
+            assert_eq!(url, "https://example.com");
             assert!(title.is_none());
         } else {
             panic!("Expected Link node");
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_autolink_unclosed() {
-        let input = GrammarSpan::new("<http://example.com");
+        let input = GrammarSpan::new("<https://example.com");
         let result = parse_autolink(input);
 
         assert!(result.is_err(), "Should not parse unclosed autolink");
@@ -122,7 +122,7 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_autolink_position() {
-        let input = GrammarSpan::new("<http://example.com> and text");
+        let input = GrammarSpan::new("<https://example.com> and text");
         let result = parse_autolink(input);
 
         assert!(result.is_ok());

@@ -24,6 +24,20 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.1] - 2026-01-14
+
+**Uses:** Core 0.13.1
+
+### Changed
+- Reduced build footprint by removing unused direct dependencies.
+- External links that start with `www.` are now opened as `https://…` by default.
+
+### Fixed
+- Prevented intermittent GTK/WebKit warnings by deferring WebView loads/updates until the widget is mapped and has an allocation.
+
+### Security
+- Tuned DevSkim/code-scanning configuration to ignore vendored/spec fixture content (improves signal-to-noise in Security scans).
+
 ## [0.13.0] - 2026-01-14
 
 **Uses:** Core 0.13.0

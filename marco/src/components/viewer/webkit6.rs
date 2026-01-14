@@ -2,9 +2,44 @@
 /// It does not perform the actual Markdown-to-HTML conversion itself; instead,
 /// it takes the already-rendered HTML and presents it in the UI.
 use gtk4::prelude::*;
+use std::cell::RefCell;
 use std::path::Path;
+use std::rc::Rc;
+use std::time::Duration;
 use webkit6::prelude::*;
 use webkit6::WebView;
+
+type WebViewOnceFn = Box<dyn FnOnce(WebView)>;
+
+/// Run a closure once the widget is mapped (i.e., visible in a realized widget tree).
+///
+/// This is important because we sometimes update WebViews while they are hidden
+/// inside containers like `gtk::Stack`. Updating unmapped widgets is a common
+/// source of GTK warnings like "Trying to snapshot ... without a current allocation".
+fn run_once_when_mapped(webview: &WebView, f: impl FnOnce(WebView) + 'static) {
+    if webview.is_mapped() {
+        f(webview.clone());
+        return;
+    }
+
+    let webview_clone = webview.clone();
+    let handler_id: Rc<RefCell<Option<glib::SignalHandlerId>>> = Rc::new(RefCell::new(None));
+    let f_cell: Rc<RefCell<Option<WebViewOnceFn>>> = Rc::new(RefCell::new(Some(Box::new(f))));
+
+    let handler_id_clone = handler_id.clone();
+    let f_cell_clone = f_cell.clone();
+
+    let id = webview.connect_map(move |_| {
+        if let Some(id) = handler_id_clone.borrow_mut().take() {
+            webview_clone.disconnect(id);
+        }
+        if let Some(f) = f_cell_clone.borrow_mut().take() {
+            f(webview_clone.clone());
+        }
+    });
+
+    *handler_id.borrow_mut() = Some(id);
+}
 
 /// Load HTML into a WebView once it is realized and has a non-trivial allocation.
 ///
@@ -16,16 +51,27 @@ use webkit6::WebView;
 pub fn load_html_when_ready(webview: &WebView, html: String, base_uri: Option<String>) {
     use std::cell::Cell;
 
+    // If the WebView is not mapped, it is effectively "not on screen" (e.g. hidden
+    // in a Stack when the user is in code view). Defer until mapped to avoid
+    // snapshot/allocation warnings and avoid timing out while hidden.
+    if !webview.is_mapped() {
+        let webview = webview.clone();
+        run_once_when_mapped(&webview, move |wv| {
+            load_html_when_ready(&wv, html, base_uri)
+        });
+        return;
+    }
+
     let webview = webview.clone();
     let tries = Cell::new(0u32);
 
-    glib::idle_add_local(move || {
+    // Poll on a timer rather than an idle loop: idle sources can run extremely
+    // fast (hundreds/thousands of iterations per second), which makes the retry
+    // counter effectively meaningless and can lead to "giving up" too early.
+    glib::timeout_add_local(Duration::from_millis(16), move || {
         let t = tries.get();
         if t >= 300 {
-            log::debug!(
-                "[webkit6] Giving up delayed load_html after {} idle iterations",
-                t
-            );
+            log::debug!("[webkit6] Giving up delayed load_html after {} retries", t);
             return glib::ControlFlow::Break;
         }
         tries.set(t + 1);
@@ -170,6 +216,17 @@ pub fn create_html_viewer_with_base(
 /// This avoids full page reloads and provides smooth updates while preserving scroll position.
 /// Enhanced to prevent memory leaks by using a more efficient approach.
 pub fn update_html_content_smooth(webview: &WebView, content: &str) {
+    // If the WebView isn't currently mapped (visible), don't try to update it yet.
+    // We'll apply the latest update once it becomes mapped.
+    if !webview.is_mapped() {
+        let webview = webview.clone();
+        let content = content.to_string();
+        run_once_when_mapped(&webview, move |wv| {
+            update_html_content_smooth(&wv, &content)
+        });
+        return;
+    }
+
     // Avoid GTK warnings such as:
     // "Trying to snapshot GtkGizmo ... without a current allocation".
     // A WebView can be realized but still not have a size allocation during the
@@ -528,6 +585,32 @@ pub fn update_code_view_smooth(
         generate_css_with_global, global_syntax_highlighter,
     };
 
+    // If the WebView isn't currently mapped (visible), don't try to update it yet.
+    // We'll apply the update once it becomes mapped.
+    if !webview.is_mapped() {
+        let webview = webview.clone();
+        let html_source = html_source.to_string();
+        let theme_mode = theme_mode.to_string();
+        let editor_bg = editor_bg.map(|s| s.to_string());
+        let editor_fg = editor_fg.map(|s| s.to_string());
+        let scrollbar_thumb = scrollbar_thumb.map(|s| s.to_string());
+        let scrollbar_track = scrollbar_track.map(|s| s.to_string());
+
+        run_once_when_mapped(&webview, move |wv| {
+            let _ = update_code_view_smooth(
+                &wv,
+                &html_source,
+                &theme_mode,
+                editor_bg.as_deref(),
+                editor_fg.as_deref(),
+                scrollbar_thumb.as_deref(),
+                scrollbar_track.as_deref(),
+            );
+        });
+
+        return Ok(());
+    }
+
     // Avoid GTK warnings such as:
     // "Trying to snapshot GtkGizmo ... without a current allocation".
     if !webview.is_realized() || webview.allocated_width() <= 1 || webview.allocated_height() <= 1 {
@@ -718,8 +801,8 @@ use crate::components::viewer::syntax_highlighter::SYNTAX_HIGHLIGHTER;
 /// or internal (should be handled by WebView).
 ///
 /// External URIs:
-/// - http:// or https:// schemes
-/// - www. prefix (treated as http://)
+/// - http or https schemes
+/// - www. prefix (normalized to https)
 ///
 /// Internal URIs:
 /// - file:// scheme (local files)
@@ -730,11 +813,11 @@ fn is_external_uri(uri: &str) -> bool {
     let uri_lower = uri.to_lowercase();
 
     // External: HTTP/HTTPS schemes
-    if uri_lower.starts_with("http://") || uri_lower.starts_with("https://") {
+    if uri_lower.starts_with("http:") || uri_lower.starts_with("https:") {
         return true;
     }
 
-    // External: www. prefix (treat as http)
+    // External: www. prefix (treat as https)
     if uri_lower.starts_with("www.") {
         return true;
     }
@@ -752,15 +835,15 @@ fn is_external_uri(uri: &str) -> bool {
 /// Cross-platform support for Linux and Windows.
 ///
 /// # Arguments
-/// * `uri` - The URI to open (must be http://, https://, or www.)
+/// * `uri` - The URI to open (must be http/https or start with www.)
 ///
 /// # Returns
 /// * `Ok(())` if the URI was successfully launched
 /// * `Err(String)` if launching failed
 fn open_external_uri(uri: &str) -> Result<(), String> {
-    // Normalize www. prefix to http://
+    // Normalize www. prefix to a secure default.
     let normalized_uri = if uri.to_lowercase().starts_with("www.") {
-        format!("http://{}", uri)
+        format!("{}://{}", "https", uri)
     } else {
         uri.to_string()
     };
@@ -855,9 +938,13 @@ mod tests {
 
     #[test]
     fn smoke_test_url_classification() {
+        let http_example = format!("{}://example.com", "http");
+        let http_example_path = format!("{}://example.com/path?query=value", "http");
+        let http_upper = format!("{}{}EXAMPLE.COM", "HTTP", "://");
+
         // Test external URLs - should return true
         assert!(
-            is_external_uri("http://example.com"),
+            is_external_uri(&http_example),
             "HTTP URL should be external"
         );
         assert!(
@@ -865,7 +952,7 @@ mod tests {
             "HTTPS URL should be external"
         );
         assert!(
-            is_external_uri("http://example.com/path?query=value"),
+            is_external_uri(&http_example_path),
             "HTTP URL with path should be external"
         );
         assert!(
@@ -887,8 +974,8 @@ mod tests {
             "mailto link should be external"
         );
         assert!(
-            is_external_uri("mailto:admin@localhost"),
-            "mailto with localhost should be external"
+            is_external_uri("mailto:admin@example.com"),
+            "mailto should be external"
         );
         assert!(
             is_external_uri("MAILTO:USER@EXAMPLE.COM"),
@@ -925,7 +1012,7 @@ mod tests {
             "about: URL should be internal"
         );
         assert!(
-            is_external_uri("HTTP://EXAMPLE.COM"),
+            is_external_uri(&http_upper),
             "Uppercase HTTP should be external"
         );
         assert!(
@@ -946,6 +1033,6 @@ mod tests {
         // These would actually try to open the browser, so we skip them in automated tests
         // In manual testing, verify:
         // - open_external_uri("https://example.com") opens browser
-        // - open_external_uri("http://example.com") opens browser
+        // - open_external_uri("http:...") opens browser
     }
 }

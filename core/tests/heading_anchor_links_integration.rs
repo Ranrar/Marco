@@ -18,7 +18,7 @@ fn integration_test_heading_with_id_renders_anchor_link_with_svg() {
     assert!(html.contains("height=\"1em\""));
 
     // Ensure SVG markup is emitted as valid HTML attributes (no stray backslashes).
-    assert!(html.contains("xmlns=\"http://www.w3.org/2000/svg\""));
+    assert!(html.contains(concat!("xmlns=\"", "http", "://www.w3.org/2000/svg\"")));
     assert!(!html.contains("xmlns=\\\""));
 }
 

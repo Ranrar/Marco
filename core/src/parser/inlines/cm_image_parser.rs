@@ -42,7 +42,7 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_image_basic() {
-        let input = GrammarSpan::new("![alt text](http://example.com/image.png)");
+        let input = GrammarSpan::new("![alt text](https://example.com/image.png)");
         let result = parse_image(input);
 
         assert!(result.is_ok(), "Failed to parse image");
@@ -51,7 +51,7 @@ mod tests {
         assert_eq!(rest.fragment(), &"");
 
         if let NodeKind::Image { url, alt } = &node.kind {
-            assert_eq!(url, "http://example.com/image.png");
+            assert_eq!(url, "https://example.com/image.png");
             assert_eq!(alt, "alt text");
         } else {
             panic!("Expected Image node");

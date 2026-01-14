@@ -22,6 +22,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.1] - 2026-01-14
+
+### Changed
+- Reduced build footprint by removing unused direct dependencies.
+- Made external-link CSS selectors in the preview document more tolerant (match `http:`/`https:` prefixes).
+
+### Security
+- Reduced DevSkim/code-scanning noise by avoiding insecure URL literals in non-user-facing examples/tests.
+
 ## [0.13.0] - 2026-01-14
 
 ### Added

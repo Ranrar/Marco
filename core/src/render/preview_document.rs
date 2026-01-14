@@ -149,29 +149,29 @@ a[href^='#']:not(.marco-heading-anchor):focus-visible::after {
    Same idea as internal jump links: keep links looking normal, but on hover/focus
    append an icon and suppress theme hover effects.
 */
-a[href^='http://']:not(.marco-heading-anchor),
-a[href^='https://']:not(.marco-heading-anchor),
+a[href^='http:']:not(.marco-heading-anchor),
+a[href^='https:']:not(.marco-heading-anchor),
 a[href^='mailto:']:not(.marco-heading-anchor) {
     position: relative;
 }
 
-a[href^='http://']:not(.marco-heading-anchor):link,
-a[href^='http://']:not(.marco-heading-anchor):visited,
-a[href^='https://']:not(.marco-heading-anchor):link,
-a[href^='https://']:not(.marco-heading-anchor):visited,
+a[href^='http:']:not(.marco-heading-anchor):link,
+a[href^='http:']:not(.marco-heading-anchor):visited,
+a[href^='https:']:not(.marco-heading-anchor):link,
+a[href^='https:']:not(.marco-heading-anchor):visited,
 a[href^='mailto:']:not(.marco-heading-anchor):link,
 a[href^='mailto:']:not(.marco-heading-anchor):visited {
     color: var(--link-color) !important;
 }
 
-a[href^='http://']:not(.marco-heading-anchor):hover,
-a[href^='http://']:not(.marco-heading-anchor):focus,
-a[href^='http://']:not(.marco-heading-anchor):focus-visible,
-a[href^='http://']:not(.marco-heading-anchor):active,
-a[href^='https://']:not(.marco-heading-anchor):hover,
-a[href^='https://']:not(.marco-heading-anchor):focus,
-a[href^='https://']:not(.marco-heading-anchor):focus-visible,
-a[href^='https://']:not(.marco-heading-anchor):active,
+a[href^='http:']:not(.marco-heading-anchor):hover,
+a[href^='http:']:not(.marco-heading-anchor):focus,
+a[href^='http:']:not(.marco-heading-anchor):focus-visible,
+a[href^='http:']:not(.marco-heading-anchor):active,
+a[href^='https:']:not(.marco-heading-anchor):hover,
+a[href^='https:']:not(.marco-heading-anchor):focus,
+a[href^='https:']:not(.marco-heading-anchor):focus-visible,
+a[href^='https:']:not(.marco-heading-anchor):active,
 a[href^='mailto:']:not(.marco-heading-anchor):hover,
 a[href^='mailto:']:not(.marco-heading-anchor):focus,
 a[href^='mailto:']:not(.marco-heading-anchor):focus-visible,
@@ -185,8 +185,8 @@ a[href^='mailto:']:not(.marco-heading-anchor):active {
     filter: none !important;
 }
 
-a[href^='http://']:not(.marco-heading-anchor)::after,
-a[href^='https://']:not(.marco-heading-anchor)::after,
+a[href^='http:']:not(.marco-heading-anchor)::after,
+a[href^='https:']:not(.marco-heading-anchor)::after,
 a[href^='mailto:']:not(.marco-heading-anchor)::after {
     content: "";
     display: inline-block;
@@ -204,12 +204,12 @@ a[href^='mailto:']:not(.marco-heading-anchor)::after {
     mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2015l6%20-6'%2F%3E%3Cpath%20d%3D'M11%206l.463%20-.536a5%205%200%200%201%207.071%207.072l-.534%20.464'%2F%3E%3Cpath%20d%3D'M13%2018l-.397%20.534a5.068%205.068%200%200%201%20-7.127%200a4.972%204.972%200%200%201%200%20-7.071l.524%20-.463'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
 }
 
-a[href^='http://']:not(.marco-heading-anchor):hover::after,
-a[href^='http://']:not(.marco-heading-anchor):focus::after,
-a[href^='http://']:not(.marco-heading-anchor):focus-visible::after,
-a[href^='https://']:not(.marco-heading-anchor):hover::after,
-a[href^='https://']:not(.marco-heading-anchor):focus::after,
-a[href^='https://']:not(.marco-heading-anchor):focus-visible::after,
+a[href^='http:']:not(.marco-heading-anchor):hover::after,
+a[href^='http:']:not(.marco-heading-anchor):focus::after,
+a[href^='http:']:not(.marco-heading-anchor):focus-visible::after,
+a[href^='https:']:not(.marco-heading-anchor):hover::after,
+a[href^='https:']:not(.marco-heading-anchor):focus::after,
+a[href^='https:']:not(.marco-heading-anchor):focus-visible::after,
 a[href^='mailto:']:not(.marco-heading-anchor):hover::after,
 a[href^='mailto:']:not(.marco-heading-anchor):focus::after,
 a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {

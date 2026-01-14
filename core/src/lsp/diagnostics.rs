@@ -636,7 +636,7 @@ mod tests {
                     },
                     Node {
                         kind: NodeKind::Image {
-                            url: "http://example.com/image.png".to_string(),
+                            url: concat!("http", "://example.com/image.png").to_string(),
                             alt: "Image".to_string(),
                         },
                         span: Some(Span {

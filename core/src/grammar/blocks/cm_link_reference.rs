@@ -21,7 +21,7 @@ use nom::{
 ///
 /// Examples:
 /// - `[foo]: /url "title"`
-/// - `[bar]: <http://example.com>`
+/// - `[bar]: <https://example.com>`
 /// - `[baz]: /url\n  "title on next line"`
 ///
 /// # Arguments
@@ -153,11 +153,11 @@ mod tests {
 
     #[test]
     fn smoke_test_link_ref_angle_brackets() {
-        let input = Span::new("[foo]: <http://example.com>\n");
+        let input = Span::new("[foo]: <https://example.com>\n");
         let result = link_reference_definition(input);
         assert!(result.is_ok());
         let (_, (_, url, _)) = result.unwrap();
-        assert_eq!(url, "http://example.com");
+        assert_eq!(url, "https://example.com");
     }
 
     #[test]

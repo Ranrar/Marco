@@ -209,7 +209,7 @@ mod tests {
 
     #[test]
     fn smoke_test_paragraph_with_link() {
-        let content = GrammarSpan::new("Check [this link](http://example.com) out.");
+        let content = GrammarSpan::new("Check [this link](https://example.com) out.");
         let node = parse_paragraph(content);
 
         assert!(matches!(node.kind, NodeKind::Paragraph));

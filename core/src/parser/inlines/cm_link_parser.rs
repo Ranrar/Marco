@@ -52,7 +52,7 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_link_basic() {
-        let input = GrammarSpan::new("[link text](http://example.com)");
+        let input = GrammarSpan::new("[link text](https://example.com)");
         let result = parse_link(input);
 
         assert!(result.is_ok(), "Failed to parse link");
@@ -61,7 +61,7 @@ mod tests {
         assert_eq!(rest.fragment(), &"");
 
         if let NodeKind::Link { url, title } = &node.kind {
-            assert_eq!(url, "http://example.com");
+            assert_eq!(url, "https://example.com");
             assert!(title.is_none());
         } else {
             panic!("Expected Link node");
@@ -72,14 +72,14 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_link_with_title() {
-        let input = GrammarSpan::new(r#"[link](http://example.com "Title")"#);
+        let input = GrammarSpan::new(r#"[link](https://example.com "Title")"#);
         let result = parse_link(input);
 
         assert!(result.is_ok());
         let (_, node) = result.unwrap();
 
         if let NodeKind::Link { url, title } = &node.kind {
-            assert_eq!(url, "http://example.com");
+            assert_eq!(url, "https://example.com");
             assert_eq!(title.as_deref(), Some("Title"));
         } else {
             panic!("Expected Link node");
@@ -88,7 +88,7 @@ mod tests {
 
     #[test]
     fn smoke_test_parse_link_with_emphasis() {
-        let input = GrammarSpan::new("[*emphasized* text](http://example.com)");
+        let input = GrammarSpan::new("[*emphasized* text](https://example.com)");
         let result = parse_link(input);
 
         assert!(result.is_ok());

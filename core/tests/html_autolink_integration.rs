@@ -58,7 +58,7 @@ fn test_html_span_not_autolink() {
 
 #[test]
 fn test_valid_autolink_url() {
-    let input = "Visit <http://example.com> for info.";
+    let input = "Visit <https://example.com> for info.";
     let doc = parse(input).expect("Parse failed");
 
     let para = &doc.children[0];
@@ -73,7 +73,7 @@ fn test_valid_autolink_url() {
 
         // Verify it's a Link with correct URL
         if let NodeKind::Link { url, .. } = &inlines[1].kind {
-            assert_eq!(url, "http://example.com");
+            assert_eq!(url, "https://example.com");
         }
     }
 }
@@ -155,7 +155,7 @@ fn test_highlighting_html_vs_autolink() {
     );
 
     // Autolink content
-    let link_input = "<http://example.com>";
+    let link_input = "<https://example.com>";
     let link_doc = parse(link_input).expect("Parse failed");
     let link_highlights = compute_highlights(&link_doc);
 

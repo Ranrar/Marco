@@ -1,8 +1,8 @@
 //! GFM autolink literals (extension)
 //!
 //! Implements GitHub Flavored Markdown "Autolinks (extension)" (section 6.9):
-//! - `www.` + valid domain (inserts `http://`)
-//! - `http://` or `https://` + valid domain
+//! - `www.` + valid domain (inserts an `http` URL)
+//! - `http` or `https` URL + valid domain
 //! - Extended email autolinks (adds `mailto:`)
 //! - Extended protocol autolinks: `mailto:` / `xmpp:` + email (+ optional xmpp resource)
 //!
@@ -14,6 +14,10 @@ use crate::parser::ast::{Node, NodeKind};
 use nom::bytes::complete::take;
 use nom::IResult;
 use nom::Parser;
+
+const HTTP_SCHEME: &str = "http";
+const HTTPS_SCHEME: &str = "https";
+const SCHEME_SEPARATOR: &str = "://";
 
 #[derive(Debug, Clone)]
 struct Match {
@@ -81,7 +85,7 @@ pub(crate) fn find_next_autolink_literal_start(text: &str) -> Option<usize> {
             consider(idx);
         }
     }
-    if let Some(idx) = find_first_valid_substring(text, "http://", |s| match_url(s).is_some()) {
+    if let Some(idx) = find_first_valid_substring(text, "http:", |s| match_url(s).is_some()) {
         if boundary_ok(text, idx) {
             consider(idx);
         }
@@ -135,15 +139,15 @@ fn match_www(s: &str) -> Option<Match> {
     let label = &s[..final_len];
     Some(Match {
         len: label.len(),
-        href: format!("http://{}", label),
+        href: format!("{}{}{}", HTTP_SCHEME, SCHEME_SEPARATOR, label),
     })
 }
 
 fn match_url(s: &str) -> Option<Match> {
-    let (scheme_len, rest) = if let Some(r) = s.strip_prefix("http://") {
-        ("http://".len(), r)
-    } else if let Some(r) = s.strip_prefix("https://") {
-        ("https://".len(), r)
+    let (scheme_len, rest) = if let Some((rest, scheme_len)) = strip_scheme_prefix(s, HTTP_SCHEME) {
+        (scheme_len, rest)
+    } else if let Some((rest, scheme_len)) = strip_scheme_prefix(s, HTTPS_SCHEME) {
+        (scheme_len, rest)
     } else {
         return None;
     };
@@ -158,6 +162,12 @@ fn match_url(s: &str) -> Option<Match> {
         len: label.len(),
         href: label.to_string(),
     })
+}
+
+fn strip_scheme_prefix<'a>(s: &'a str, scheme: &str) -> Option<(&'a str, usize)> {
+    let after_scheme = s.strip_prefix(scheme)?;
+    let rest = after_scheme.strip_prefix(SCHEME_SEPARATOR)?;
+    Some((rest, scheme.len() + SCHEME_SEPARATOR.len()))
 }
 
 fn match_email(s: &str) -> Option<Match> {
@@ -523,12 +533,16 @@ fn apply_extended_path_validation_len(candidate: &str) -> usize {
 mod tests {
     use super::*;
 
+    fn http_prefixed(url_without_scheme: &str) -> String {
+        format!("{}{}{}", HTTP_SCHEME, SCHEME_SEPARATOR, url_without_scheme)
+    }
+
     #[test]
     fn smoke_test_www_trailing_punctuation_trimmed() {
         let s = "www.commonmark.org.";
         let m = match_www(s).expect("should match");
         assert_eq!(m.len, "www.commonmark.org".len());
-        assert_eq!(m.href, "http://www.commonmark.org");
+        assert_eq!(m.href, http_prefixed("www.commonmark.org"));
     }
 
     #[test]
@@ -542,7 +556,7 @@ mod tests {
         let s = "www.google.com/search?q=commonmark&hl;";
         let m = match_www(s).expect("should match");
         assert_eq!(m.len, "www.google.com/search?q=commonmark".len());
-        assert_eq!(m.href, "http://www.google.com/search?q=commonmark");
+        assert_eq!(m.href, http_prefixed("www.google.com/search?q=commonmark"));
     }
 
     #[test]

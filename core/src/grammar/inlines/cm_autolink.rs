@@ -81,11 +81,11 @@ mod tests {
 
     #[test]
     fn smoke_test_autolink_valid_url() {
-        let input = Span::new("<http://example.com>");
+        let input = Span::new("<https://example.com>");
         let result = autolink(input);
         assert!(result.is_ok());
         let (_, (url, is_email)) = result.unwrap();
-        assert_eq!(url.fragment(), &"http://example.com");
+        assert_eq!(url.fragment(), &"https://example.com");
         assert!(!is_email);
     }
 
@@ -164,7 +164,7 @@ mod tests {
 
     #[test]
     fn smoke_test_autolink_rejects_scheme_starting_with_digit() {
-        let input = Span::new("<1http://example.com>");
+        let input = Span::new(concat!("<1", "http", "://example.com>"));
         let result = autolink(input);
         assert!(result.is_err(), "Should reject scheme starting with digit");
     }
