@@ -54,3 +54,13 @@ opt-level = 3
 debug = false
 lto = true
 codegen-units = 1
+
+# CI on Ubuntu 24.04 can fail to compile `ashpd 0.10.x` (pulled in by
+# `dark-light 2.0.0`) due to stricter trait bounds in newer `zbus`/`zvariant`.
+# Upstream `dark-light` has already removed the `ashpd` dependency on its main
+# branch, but hasn't published a new crates.io release yet.
+#
+# To keep CI reproducible while we wait for an upstream release, we patch
+# `dark-light` to a pinned git revision.
+[patch.crates-io]
+dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }

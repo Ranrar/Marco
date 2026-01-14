@@ -222,7 +222,8 @@ install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}"
 
 print_info "Building Marco and Polo binaries (release, workspace)..."
-cargo build --release --workspace
+# Use Cargo.lock to ensure reproducible builds (especially in CI).
+cargo build --release --workspace --locked
 print_success "Build complete"
 
 print_info "Copying binaries..."
