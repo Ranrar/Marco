@@ -48,11 +48,27 @@ jobs:
           # CI should not mutate version.json or Cargo.toml; build with the repo's tracked versions.
           bash install/build_deb.sh --no-bump --alpha-artifact
 
+      - name: List produced artifacts
+        run: |
+          set -euo pipefail
+          ls -lah
+          echo "---"
+          ls -lah marco-suite*.deb || true
+
       - name: Prepare Alpha artifact name
         id: prep
         run: |
           set -euo pipefail
-          alpha_deb="$(ls -1 marco-suite_alpha_*.deb | head -n 1)"
+          version="$(python3 -c 'import json;print(json.load(open("install/version.json"))["marco"])')"
+          alpha_deb="marco-suite_alpha_${version}_amd64.deb"
+
+          if [ ! -f "$alpha_deb" ]; then
+            echo "ERROR: expected alpha artifact not found: $alpha_deb" >&2
+            echo "Available .deb files:" >&2
+            ls -lah marco-suite*.deb >&2 || true
+            exit 1
+          fi
+
           echo "alpha_deb=$alpha_deb" >> "$GITHUB_OUTPUT"
 
       - name: Update Alpha release (overwrite asset)
