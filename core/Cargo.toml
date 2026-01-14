@@ -33,6 +33,7 @@ dirs = { workspace = true }
 moka = { workspace = true }
 unicode-normalization  = { workspace = true }
 htmlescape = { workspace = true }
+syntect = { workspace = true }
 
 [build-dependencies]
 serde_json = { workspace = true }

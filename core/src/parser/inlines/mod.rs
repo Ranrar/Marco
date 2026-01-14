@@ -25,6 +25,7 @@ pub mod gfm_autolink_literal_parser;
 pub mod gfm_footnote_reference_parser;
 pub mod gfm_strikethrough_parser;
 pub mod marco_dash_strikethrough_parser;
+pub mod marco_emoji_shortcode_parser;
 pub mod marco_mark_parser;
 pub mod marco_subscript_arrow_parser;
 pub mod marco_subscript_parser;
@@ -48,6 +49,7 @@ pub use gfm_autolink_literal_parser::parse_gfm_autolink_literal;
 pub use gfm_footnote_reference_parser::parse_footnote_reference;
 pub use gfm_strikethrough_parser::parse_strikethrough;
 pub use marco_dash_strikethrough_parser::parse_dash_strikethrough;
+pub use marco_emoji_shortcode_parser::parse_emoji_shortcode;
 pub use marco_mark_parser::parse_mark;
 pub use marco_subscript_arrow_parser::parse_subscript_arrow;
 pub use marco_subscript_parser::parse_subscript;
@@ -274,6 +276,13 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
 
         // Try parsing entity references (e.g. &copy;, &#169;)
         if let Ok((rest, node)) = parse_entity_reference(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
+        // Try parsing emoji shortcodes (Marco extension), e.g. :joy:
+        if let Ok((rest, node)) = parse_emoji_shortcode(remaining) {
             nodes.push(node);
             remaining = rest;
             continue;

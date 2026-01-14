@@ -89,18 +89,12 @@ pub fn load_theme_css_from_path(theme: &str, asset_root: &std::path::Path) -> St
     }
 }
 
-/// Generate CSS for syntax highlighting based on current theme mode
+/// Generate CSS for syntect-based syntax highlighting based on current theme mode.
 ///
-/// Note: Polo uses a simplified approach - syntax highlighting is handled
-/// by the core renderer's HTML output (class="language-xxx" attributes).
-/// External CSS themes or browser extensions can provide the actual styling.
-/// This function returns an empty string to avoid duplicating marco's
-/// complex syntect integration.
-pub fn generate_syntax_highlighting_css(_theme_mode: &str) -> String {
-    // Return empty - let core's HTML class attributes and external CSS handle highlighting
-    // This keeps polo lightweight and avoids duplicating marco's syntect dependency
-    log::debug!("Polo uses simplified syntax highlighting via HTML class attributes");
-    String::new()
+/// This delegates to `core` so both `marco` and `polo` share the same CSS
+/// generator and language tokenization rules.
+pub fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
+    core::render::syntect_css_for_theme_mode(theme_mode)
 }
 
 #[cfg(test)]

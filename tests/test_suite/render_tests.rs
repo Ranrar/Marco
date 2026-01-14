@@ -82,12 +82,15 @@ pub fn run_render_tests() {
             let options = RenderOptions::default();
             match render_html(&doc, &options) {
                 Ok(html) => {
-                    if html.contains("language-rust") && html.contains("let x = 42;") {
-                        println!("  ✓ Code block: ```rust ... ``` → '<pre><code class=\"language-rust\">...'");
+                    if html.contains("language-rust")
+                        && html.contains("data-language=\"Rust\"")
+                        && html.contains("let x = 42;")
+                    {
+                        println!("  ✓ Code block: ```rust ... ``` → '<pre data-language=\"Rust\"><code class=\"language-rust\">...'");
                         passed += 1;
                     } else {
                         println!(
-                            "  ✗ HTML missing language class or code content: {:?}",
+                            "  ✗ HTML missing language class, data-language label, or code content: {:?}",
                             html
                         );
                         failed += 1;
@@ -215,7 +218,7 @@ pub fn run_render_tests() {
         (passed as f64 / total as f64) * 100.0
     );
     if failed > 0 {
-        println!("  ⚠ {} test(s) failed", failed);
+        println!("  [WARN] {} test(s) failed", failed);
     }
 }
 
@@ -584,7 +587,7 @@ pub fn run_inline_pipeline_tests() {
         (passed as f64 / total as f64) * 100.0
     );
     if failed > 0 {
-        println!("  ⚠ {} test(s) failed", failed);
+        println!("  [WARN] {} test(s) failed", failed);
     }
 }
 

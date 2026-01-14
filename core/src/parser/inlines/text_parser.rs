@@ -41,6 +41,12 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         super::gfm_autolink_literal_parser::find_next_autolink_literal_start(text_fragment)
             .unwrap_or(text_fragment.len());
 
+    // Emoji shortcodes (Marco extension) can appear in the middle of a text node.
+    // Only stop for *recognized* shortcodes; unknown ones remain literal.
+    let next_emoji_shortcode =
+        super::marco_emoji_shortcode_parser::find_next_emoji_shortcode_start(text_fragment)
+            .unwrap_or(text_fragment.len());
+
     // Find the next special character / delimiter start.
     //
     // Important: we intentionally do NOT treat a single '-' as special because
@@ -77,7 +83,17 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         )));
     }
 
-    let next_special = next_special.min(next_autolink_literal);
+    // If an emoji shortcode begins at offset 0, do not treat it as plain text.
+    if next_emoji_shortcode == 0 {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Verify,
+        )));
+    }
+
+    let next_special = next_special
+        .min(next_autolink_literal)
+        .min(next_emoji_shortcode);
 
     if next_special == 0 {
         // No text - input starts with special character

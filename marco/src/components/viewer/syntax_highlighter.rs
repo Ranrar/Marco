@@ -172,43 +172,15 @@ impl SyntaxHighlighter {
             return syntax;
         }
 
-        // Try common aliases
-        let normalized_language = language.to_lowercase();
-        let language_aliases = match normalized_language.as_str() {
-            "js" | "javascript" | "node" => "JavaScript",
-            "ts" | "typescript" => "TypeScript",
-            "py" | "python3" => "Python",
-            "rs" | "rust" => "Rust",
-            "sh" | "bash" | "shell" => "Bash",
-            "html" | "htm" => "HTML",
-            "css" => "CSS",
-            "json" => "JSON",
-            "xml" => "XML",
-            "yaml" | "yml" => "YAML",
-            "md" | "markdown" => "Markdown",
-            "toml" => "TOML",
-            "sql" => "SQL",
-            "c" => "C",
-            "cpp" | "c++" | "cxx" => "C++",
-            "java" => "Java",
-            "go" => "Go",
-            "php" => "PHP",
-            "rb" | "ruby" => "Ruby",
-            _ => language, // use original if no alias found
-        };
-
-        // Try with alias
-        if let Some(syntax) = self.syntax_set.find_syntax_by_token(language_aliases) {
-            return syntax;
+        // Try shared alias normalization from core.
+        if let Some(canonical) = core::render::canonical_language_name(language) {
+            if let Some(syntax) = self.syntax_set.find_syntax_by_token(canonical) {
+                return syntax;
+            }
         }
 
         // Try by extension
-        let extension = if language.starts_with('.') {
-            language
-        } else {
-            &format!(".{}", language)
-        };
-
+        let extension = language.trim().trim_start_matches('.');
         if let Some(syntax) = self.syntax_set.find_syntax_by_extension(extension) {
             return syntax;
         }

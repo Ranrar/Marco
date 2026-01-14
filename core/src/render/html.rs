@@ -1,5 +1,7 @@
 // HTML output generator with syntax highlighting for code blocks
 
+use super::code_languages::language_display_label;
+use super::syntect_highlighter::highlight_code_to_classed_html;
 use super::RenderOptions;
 use crate::parser::{AdmonitionKind, Document, Node, NodeKind};
 use anyhow::Result;
@@ -118,16 +120,37 @@ fn render_node(
         }
         NodeKind::CodeBlock { language, code } => {
             log::trace!("Rendering code block: {:?}", language);
-            output.push_str("<pre><code");
+            let language_raw = language.as_deref().map(str::trim).filter(|s| !s.is_empty());
+
+            output.push_str("<pre");
+            if let Some(raw) = language_raw {
+                if let Some(label) = language_display_label(raw) {
+                    output.push_str(" data-language=\"");
+                    output.push_str(&escape_html(label.as_ref()));
+                    output.push('"');
+                }
+            }
+            output.push_str("><code");
 
             // Add language class attribute if language specified
-            if let Some(lang) = language {
-                if !lang.is_empty() {
-                    output.push_str(&format!(" class=\"language-{}\"", escape_html(lang)));
-                }
+            if let Some(lang) = language_raw {
+                output.push_str(&format!(" class=\"language-{}\"", escape_html(lang)));
             }
 
             output.push('>');
+
+            // Optional syntax highlighting. If syntect can't resolve the language,
+            // fall back to plain escaped code.
+            if options.syntax_highlighting {
+                if let Some(lang) = language_raw {
+                    if let Some(highlighted) = highlight_code_to_classed_html(code, lang) {
+                        output.push_str(&highlighted);
+                        output.push_str("</code></pre>\n");
+                        return Ok(());
+                    }
+                }
+            }
+
             output.push_str(&escape_html(code));
             output.push_str("</code></pre>\n");
         }
@@ -754,11 +777,14 @@ mod tests {
             }],
             ..Default::default()
         };
-        let options = RenderOptions::default();
+        let options = RenderOptions {
+            syntax_highlighting: false,
+            ..RenderOptions::default()
+        };
         let result = render_html(&doc, &options).unwrap();
         assert_eq!(
             result,
-            "<pre><code class=\"language-rust\">let x = 42;</code></pre>\n"
+            "<pre data-language=\"Rust\"><code class=\"language-rust\">let x = 42;</code></pre>\n"
         );
     }
 
@@ -775,11 +801,14 @@ mod tests {
             }],
             ..Default::default()
         };
-        let options = RenderOptions::default();
+        let options = RenderOptions {
+            syntax_highlighting: false,
+            ..RenderOptions::default()
+        };
         let result = render_html(&doc, &options).unwrap();
         assert_eq!(
             result,
-            "<pre><code class=\"language-html\">&lt;div&gt;Test &amp; verify&lt;/div&gt;</code></pre>\n"
+            "<pre data-language=\"HTML\"><code class=\"language-html\">&lt;div&gt;Test &amp; verify&lt;/div&gt;</code></pre>\n"
         );
     }
 
@@ -847,11 +876,14 @@ mod tests {
             ],
             ..Default::default()
         };
-        let options = RenderOptions::default();
+        let options = RenderOptions {
+            syntax_highlighting: false,
+            ..RenderOptions::default()
+        };
         let result = render_html(&doc, &options).unwrap();
         assert_eq!(
             result,
-            "<h1>Title</h1>\n<p>Some text.</p>\n<pre><code class=\"language-python\">print(&#39;hello&#39;)</code></pre>\n"
+            "<h1>Title</h1>\n<p>Some text.</p>\n<pre data-language=\"Python\"><code class=\"language-python\">print(&#39;hello&#39;)</code></pre>\n"
         );
     }
 

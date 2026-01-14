@@ -6,7 +6,7 @@
   <img src="https://img.shields.io/badge/CommonMark-100%25-brightgreen?style=for-the-badge&logo=markdown&logoColor=white" alt="100% CommonMark Compliant" />
   <img src="https://img.shields.io/badge/International-Characters-blue?style=for-the-badge&logo=translate&logoColor=white" alt="International Characters Support" />
 
-**Marco** is a fast, native Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
+**Marco** is a fast Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
 
 **Polo**, its companion viewer, lets you open and read Markdown documents with identical rendering and minimal resource use.  
 
@@ -21,20 +21,28 @@ Both are built with **GTK4 and Rust**, designed for speed, clarity, and modern t
 
 Ready to try Marco? Installation is simple and takes less than a minute:
 
-```bash
-# Clone and install
-git clone https://github.com/Ranrar/marco.git
-cd marco
-bash tests/install/install.sh
+## Linux
 
-# Launch and start writing!
-marco    # Full editor with live preview
-polo     # Lightweight viewer
-```
+### Alpha (latest dev build)
 
-The install script automatically builds everything and sets up desktop integration. No manual configuration needed—just run and write!
+Download the latest Alpha `.deb` from the **Alpha** release:
 
-For detailed installation options, see [tests/install/README.md](tests/install/README.md).
+- https://github.com/Ranrar/Marco/releases/tag/alpha
+
+The asset is currently published as:
+
+- `marco-suite_alpha_amd64.deb`
+
+Install it (Debian/Ubuntu):
+
+1. Download the `*.deb` asset for your architecture (typically `amd64`).
+2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted.
+
+## Windows
+
+No option yet.
+
+
 
 ## Why Marco?
 
@@ -56,16 +64,51 @@ It's built for developers, engineers, and writers who need:
 
 Whether you're writing technical docs, tutorials, or long-form text, Marco turns Markdown into a professional writing tool — fast, clear, and extensible.
 
-## Marco Markdown Flavor
+## Marco Markdown Functions
 
-- **Full CommonMark support** — complete compatibility with the standard specification (652/652 tests passing)
-- **International characters** — Proper handling of international charters like Japanese (日本語), Arabic (العربية), and emoji (🎉)
+Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests passing), plus a growing set of carefully-scoped extensions.
+
+| Markdown / Syntax feature | Status | Notes |
+|---|---|---|
+| CommonMark core (block + inline) | ✅ Supported | Includes ATX + Setext headings, paragraphs, blockquotes, thematic breaks, lists, code spans/blocks, links, images, HTML blocks/inlines, hard/soft breaks, and entity references. |
+| International text (Unicode) | ✅ Supported | Works with non-Latin scripts (e.g. 日本語, العربية) and emoji. |
+| Heading IDs (`# Title {#id}`) | ✅ Supported | Extension for stable anchors/links. |
+| Autolinks (`<https://…>` / `<user@…>`) | ✅ Supported | CommonMark autolinks (email becomes `mailto:`). |
+| GFM-style autolink literals (`https://…`, `www.…`, `user@…`) | ✅ Supported | Rendered as links when detected in text. |
+| Task lists (`- [ ]` / `- [x]`) | ✅ Supported | Rendered with themed checkbox icons. |
+| Tables (GFM pipe tables) | ✅ Supported | Header/body separation + per-column alignment. |
+| Strikethrough (`~~text~~`) | ✅ Supported | GFM extension. |
+| Admonitions / callouts | ✅ Supported | GitHub-style alerts (e.g. Note/Tip/Important/Warning/Caution). |
+| Footnotes (`[^a]` + `[^a]: …`) | ✅ Supported | Rendered as an end-of-document footnotes section. |
+| Highlight/mark (`==text==`) | ✅ Supported | Rendered as `<mark>…</mark>`. |
+| Superscript / subscript | ✅ Supported | Rendered as `<sup>…</sup>` / `<sub>…</sub>`. |
+| Emoji shortcodes (`:joy:`) | ✅ Supported (limited set) | Only recognized shortcodes convert; unknown ones stay literal text. |
+| Admonition blocks (`:::note ... :::`) | Not implemented yet | Planned Marco extension (colon-fenced blocks, optional titles/icons). |
+| Tab blocks (`:::tab` + `@tab`) | Not implemented yet | Planned Marco extension that renders as an interactive tab UI in the HTML preview (switch tabs to show/hide the content blocks). |
+| User mentions (`@name[platform]`) | Not implemented yet | Planned Marco extension (render policy TBD). |
+| Inline footnotes (`^[...]`) | Not implemented yet | Planned (reference footnotes are already supported). |
+| YouTube embeds | Not implemented yet | Planned (URLs render as links today; embed would be opt-in). |
+| "Headerless tables" (no delimiter row) | Not implemented yet | Currently treated as plain text; support is TBD. |
+| Inline checkboxes mid-paragraph (`... [x] ...`) | Not implemented yet | Currently only supported at line/paragraph start. |
+| Math (KaTeX / LaTeX) | Not implemented yet | Planned. |
+| Diagrams (Mermaid) | Not implemented yet | Planned. |
+
+## Future functions in pipeline
+
 - **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
 - **Document navigation** — automatic TOC, bookmarks, and cross-file links  
-- **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons  
+- **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons
 - **Structured formatting** — semantic elements for headings, notes, and exports  
+- **Export to PDF** - Export into PDF in A4 or US Letter
+- **Templates** — start from predefined markdown templates (README, runbook, etc.)
 
-Marco's parser transforms Markdown into a full document model (AST) for advanced features like live TOC generation, PDF page layouts, and multi-document navigation.
+## AI-assisted development
+
+This project is developed with occasional help from AI tools (for example, Copilot-style code suggestions). AI can speed up prototyping and refactors, but:
+
+- Changes are still reviewed by a human.
+- Tests and linting are expected to pass before merging.
+- If something looks "too magical to be true", please open an issue — bugs don't get a free pass just because a robot wrote the first draft.
 
 ## Architecture & internals
 
@@ -114,23 +157,22 @@ Marco uses a **Cargo workspace** with three crates:
 - [ ] Syntax highlighting in editor (via LSP)
 
 ### Document Features
-- [ ] Export to HTML and PDF
+- [x] Smart code blocks with programming languages syntax
+- [ ] Export to PDF
 - [ ] Page size presets for export (A4, US Letter, etc.)
 - [ ] Document navigation: TOC sidebar, bookmarks, cross-file links
-- [ ] Smart code blocks with 100+ programming languages
 - [ ] Template system for common document types
 - [ ] Math rendering: KaTeX support for equations and formulas
 - [ ] Diagram support: Mermaid for flowcharts and visualizations
 
 ### Advanced Features
-- [ ] AI-assisted tools: writing suggestions, grammar checking, content improvement
+- [ ] Local AI-assisted tools: writing suggestions, grammar checking, content improvement
 - [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
 - [ ] Language plugin system (add support for new languages via plugins)
 
 ### Distribution & Platform
-- [ ] Packaging: AppImage, Flatpak, Snap, .deb, .rpm
+- [ ] Packaging: Snap, .deb and (.MSI or.exe)
 - [ ] Cross-platform support: Linux and Windows builds
-
 
 ## Contributing
 
