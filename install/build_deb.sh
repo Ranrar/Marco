@@ -196,7 +196,7 @@ PY
 bump_semver() {
     local v="$1"
     local mode="$2"
-    python3 - <<PY
+    python3 - "$v" "$mode" <<'PY'
 import sys
 v = sys.argv[1]
 mode = sys.argv[2]
@@ -213,7 +213,7 @@ elif mode == 'major':
 else:
     raise SystemExit(2)
 print(f"{maj}.{mi}.{pa}")
-PY "$v" "$mode"
+PY
 }
 
 set_cargo_version() {
