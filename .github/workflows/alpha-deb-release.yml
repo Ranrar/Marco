@@ -19,6 +19,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Move alpha tag to this commit
+        run: |
+          set -euo pipefail
+
+          # The GitHub Release "Source code" archives are generated from the release tag.
+          # If the moving 'alpha' tag isn't updated, the source tar/zip stays stuck on an old commit.
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git tag -f alpha "${GITHUB_SHA}"
+          git push --force origin alpha
 
       - name: Install Rust toolchain (pinned)
         id: toolchain
@@ -74,10 +89,13 @@ jobs:
       - name: Update Alpha release (overwrite asset)
         uses: ncipollo/release-action@v1
         with:
+          token: ${{ secrets.GITHUB_TOKEN }}
           tag: alpha
           name: Alpha
           prerelease: true
           allowUpdates: true
+          removeArtifacts: true
           replacesArtifacts: true
+          artifactErrorsFailBuild: true
           commit: ${{ github.sha }}
           artifacts: ${{ steps.prep.outputs.alpha_deb }}
