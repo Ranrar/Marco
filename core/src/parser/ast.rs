@@ -111,6 +111,17 @@ pub enum NodeKind {
         tight: bool,        // No blank lines between items
     },
     ListItem,
+
+    /// Extended definition lists (Markdown Guide / Markdown Extra-style).
+    ///
+    /// Rendering convention:
+    /// - A `DefinitionList` contains alternating `DefinitionTerm` (`<dt>`) and
+    ///   `DefinitionDescription` (`<dd>`) children.
+    /// - `DefinitionTerm` should contain inline children.
+    /// - `DefinitionDescription` should contain block children.
+    DefinitionList,
+    DefinitionTerm,
+    DefinitionDescription,
     /// GFM task list checkbox marker for a list item.
     ///
     /// This is emitted by the list parser when a list item begins with
@@ -230,6 +241,21 @@ pub enum NodeKind {
     InlineHtml(String),
     HardBreak, // Two spaces + newline, or backslash + newline
     SoftBreak, // Regular newline (rendered as space in HTML)
+
+    /// Marco extended user mentions.
+    ///
+    /// Syntax:
+    /// - `@username[platform]`
+    /// - `@username[platform](Display Name)`
+    ///
+    /// Rendering policy:
+    /// - The renderer may convert this to an external profile link based on
+    ///   a platform mapping table.
+    PlatformMention {
+        username: String,
+        platform: String,
+        display: Option<String>,
+    },
 }
 
 impl Document {

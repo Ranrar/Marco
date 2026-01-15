@@ -87,6 +87,59 @@ fn test_task_checkbox_marker_without_list_still_renders_svg() {
 }
 
 #[test]
+fn test_task_checkbox_marker_mid_paragraph_renders_svg_and_strips_marker() {
+    let md = "This is [ ] an inline task, and this is [x].\n";
+    let doc = core::parser::parse(md).expect("parse failed");
+
+    let paragraph = doc
+        .children
+        .iter()
+        .find(|n| matches!(n.kind, NodeKind::Paragraph))
+        .expect("expected a Paragraph node");
+
+    let inline_count = paragraph
+        .children
+        .iter()
+        .filter(|n| matches!(n.kind, NodeKind::TaskCheckboxInline { .. }))
+        .count();
+    assert_eq!(inline_count, 2, "expected two inline checkboxes");
+
+    let html =
+        core::render::render(&doc, &core::render::RenderOptions::default()).expect("render failed");
+    assert!(html.contains("marco-task-icon"), "expected svg icon class");
+    assert!(
+        !html.contains("[ ]"),
+        "marker should be stripped from output"
+    );
+    assert!(
+        !html.contains("[x]"),
+        "marker should be stripped from output"
+    );
+}
+
+#[test]
+fn test_inline_task_checkbox_does_not_break_link_syntax() {
+    // This should parse as a link, not a checkbox.
+    let md = "[x](https://example.com)\n";
+    let doc = core::parser::parse(md).expect("parse failed");
+
+    let paragraph = doc
+        .children
+        .iter()
+        .find(|n| matches!(n.kind, NodeKind::Paragraph))
+        .expect("expected a Paragraph node");
+
+    assert!(paragraph
+        .children
+        .iter()
+        .all(|n| !matches!(n.kind, NodeKind::TaskCheckboxInline { .. })));
+    assert!(paragraph
+        .children
+        .iter()
+        .any(|n| matches!(n.kind, NodeKind::Link { .. })));
+}
+
+#[test]
 fn test_task_checkbox_markers_after_hardbreak_lines_render_svg_for_each_line() {
     // When multiple lines are combined into a single paragraph via hard breaks
     // (two spaces + newline), each line-start marker should still render as an

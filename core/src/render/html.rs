@@ -1,6 +1,7 @@
 // HTML output generator with syntax highlighting for code blocks
 
 use super::code_languages::language_display_label;
+use super::plarform_mentions;
 use super::syntect_highlighter::highlight_code_to_classed_html;
 use super::RenderOptions;
 use crate::parser::{AdmonitionKind, Document, Node, NodeKind};
@@ -294,6 +295,28 @@ fn render_node(
             }
             output.push_str("</a>");
         }
+        NodeKind::PlatformMention {
+            username,
+            platform,
+            display,
+        } => {
+            let label = display.as_deref().unwrap_or(username);
+            let platform_key = platform.trim().to_ascii_lowercase();
+
+            if let Some(url) = plarform_mentions::profile_url(&platform_key, username) {
+                output.push_str("<a class=\"marco-mention mention-");
+                output.push_str(&escape_html(&platform_key));
+                output.push_str("\" href=\"");
+                output.push_str(&escape_html(&url));
+                output.push_str("\">");
+                output.push_str(&escape_html(label));
+                output.push_str("</a>");
+            } else {
+                output.push_str("<span class=\"marco-mention mention-unknown\">");
+                output.push_str(&escape_html(label));
+                output.push_str("</span>");
+            }
+        }
         NodeKind::LinkReference { suffix, .. } => {
             // Reference links should normally be resolved during parsing.
             // If a reference is missing, or a caller bypasses the resolver,
@@ -388,6 +411,27 @@ fn render_node(
             } else {
                 output.push_str("</ul>\n");
             }
+        }
+        NodeKind::DefinitionList => {
+            output.push_str("<dl>\n");
+            for child in &node.children {
+                render_node(child, output, options, ctx)?;
+            }
+            output.push_str("</dl>\n");
+        }
+        NodeKind::DefinitionTerm => {
+            output.push_str("<dt>");
+            for child in &node.children {
+                render_node(child, output, options, ctx)?;
+            }
+            output.push_str("</dt>\n");
+        }
+        NodeKind::DefinitionDescription => {
+            output.push_str("<dd>\n");
+            for child in &node.children {
+                render_node(child, output, options, ctx)?;
+            }
+            output.push_str("</dd>\n");
         }
         NodeKind::ListItem => {
             // This should only be called via render_list_item

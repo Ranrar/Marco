@@ -24,6 +24,17 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.2] - 2026-01-15
+
+**Uses:** Core 0.13.2
+
+### Added
+- Editor syntax highlighting coverage for additional structural elements (reference-style link placeholders and extended definition lists).
+
+### Changed
+- LSP highlight application is now chunked to reduce UI stutter on large documents.
+- LSP tag cleanup uses a centralized authoritative tag list to keep UI and Core highlight tags in sync.
+
 ## [0.13.1] - 2026-01-14
 
 **Uses:** Core 0.13.1

@@ -26,10 +26,13 @@ pub mod gfm_footnote_reference_parser;
 pub mod gfm_strikethrough_parser;
 pub mod marco_dash_strikethrough_parser;
 pub mod marco_emoji_shortcode_parser;
+pub mod marco_inline_footnote_parser;
 pub mod marco_mark_parser;
+pub mod marco_platform_mentions_parser;
 pub mod marco_subscript_arrow_parser;
 pub mod marco_subscript_parser;
 pub mod marco_superscript_parser;
+pub mod marco_task_checkbox_inline_parser;
 pub mod text_parser;
 
 // Re-export parser functions for convenience
@@ -50,10 +53,13 @@ pub use gfm_footnote_reference_parser::parse_footnote_reference;
 pub use gfm_strikethrough_parser::parse_strikethrough;
 pub use marco_dash_strikethrough_parser::parse_dash_strikethrough;
 pub use marco_emoji_shortcode_parser::parse_emoji_shortcode;
+pub use marco_inline_footnote_parser::parse_inline_footnote;
 pub use marco_mark_parser::parse_mark;
+pub use marco_platform_mentions_parser::parse_platform_mention;
 pub use marco_subscript_arrow_parser::parse_subscript_arrow;
 pub use marco_subscript_parser::parse_subscript;
 pub use marco_superscript_parser::parse_superscript;
+pub use marco_task_checkbox_inline_parser::parse_task_checkbox_inline;
 pub use text_parser::{parse_special_as_text, parse_text};
 
 use super::ast::{Node, NodeKind};
@@ -188,6 +194,15 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
             continue;
         }
 
+        // Marco extension: inline footnotes `^[...]`.
+        // Try before superscript since both start with '^'.
+        if let Ok((rest, (ref_node, def_node))) = parse_inline_footnote(remaining) {
+            nodes.push(ref_node);
+            nodes.push(def_node);
+            remaining = rest;
+            continue;
+        }
+
         if let Ok((rest, node)) = parse_superscript(remaining) {
             nodes.push(node);
             remaining = rest;
@@ -226,6 +241,16 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
             nodes.push(node);
             remaining = rest;
             continue;
+        }
+
+        // Marco extension: inline task checkbox markers mid-paragraph.
+        // This must come before link parsing since it starts with '['.
+        if is_task_checkbox_inline_start_boundary_ok(&nodes, remaining.fragment()) {
+            if let Ok((rest, node)) = parse_task_checkbox_inline(remaining) {
+                nodes.push(node);
+                remaining = rest;
+                continue;
+            }
         }
 
         // Try parsing image (must come before link since syntax is similar but starts with !)
@@ -288,6 +313,13 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
             continue;
         }
 
+        // Try parsing platform mentions (Marco extension), e.g. @user[github](Name)
+        if let Ok((rest, node)) = parse_platform_mention(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
         // No inline element matched - try parsing plain text
         if let Ok((rest, node)) = parse_text(remaining) {
             nodes.push(node);
@@ -332,6 +364,19 @@ fn intraword_underscore_run_len(nodes: &[Node], fragment: &str) -> Option<usize>
     }
 
     Some(run_len)
+}
+
+fn is_task_checkbox_inline_start_boundary_ok(nodes: &[Node], fragment: &str) -> bool {
+    if !fragment.starts_with('[') {
+        return false;
+    }
+
+    // If the previous emitted character is alphanumeric/underscore, we do not
+    // treat `[x]` / `[ ]` as a task marker (avoid matching `word[x]`).
+    match last_emitted_char(nodes) {
+        None => true,
+        Some(prev) => !(prev.is_alphanumeric() || prev == '_'),
+    }
 }
 
 fn last_emitted_char(nodes: &[Node]) -> Option<char> {

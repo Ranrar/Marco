@@ -69,7 +69,7 @@ pub fn parse_gfm_table<'a>(
     }
 }
 
-fn parse_table_row<'a>(
+pub(crate) fn parse_table_row<'a>(
     header: bool,
     row_line: GrammarSpan<'a>,
     mut cells: Vec<GrammarSpan<'a>>,
@@ -141,7 +141,7 @@ fn empty_span_at_end_of_line<'a>(line: GrammarSpan<'a>) -> GrammarSpan<'a> {
     line.take_from(len).take(0)
 }
 
-fn parse_alignment(cell: &str) -> TableAlignment {
+pub(crate) fn parse_alignment(cell: &str) -> TableAlignment {
     let cell = cell.trim_matches([' ', '\t']);
     let left = cell.starts_with(':');
     let right = cell.ends_with(':');

@@ -46,6 +46,14 @@ These are commonly written as hard-break-separated lines.
 
 ### Inline occurrences
 
-This [x] should remain plain text unless inline task parsing is explicitly supported.
+Inline task markers are supported mid-paragraph:
+
+This [x] is a checked inline task marker.
+
+This [ ] is an unchecked inline task marker.
+
+Punctuation adjacency should work: done? [x], nice.
+
+This should stay a link (not a checkbox): [x](https://example.com)
 
 `[x]` inside code spans must stay literal.

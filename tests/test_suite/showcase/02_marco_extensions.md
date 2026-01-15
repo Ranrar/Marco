@@ -80,7 +80,17 @@ Back to warning level.
 
 ## Tables
 
-### Tables without Headers
+### Regular GFM table (with header)
+
+| Column 1 | Column 2 | Column 3 |
+|---------:|:---------|:--------:|
+| Right    | Left     | Center   |
+| 1        | 2        | 3        |
+
+### Headerless table (Marco extension, delimiter-first)
+
+This table intentionally starts with the delimiter row.
+It should parse as a table with **no header row**.
 
 |--------|--------|--------|
 | Data 1 | Data 2 | Data 3 |
@@ -201,6 +211,10 @@ More default content at the end.
 
 Regular paragraph with [x] inline completed task here.
 Another paragraph with [ ] incomplete inline task (user: pending).
+
+Punctuation adjacency: done? [x], nice.
+
+Should stay a link (not a checkbox): [x](https://example.com)
 
 ## Definition Lists
 

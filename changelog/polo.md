@@ -24,6 +24,13 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.2] - 2026-01-15
+
+**Uses:** Core 0.13.2
+
+### Changed
+- Updated to the latest Core engine (no Polo-specific changes documented).
+
 ## [0.13.1] - 2026-01-14
 
 **Uses:** Core 0.13.1

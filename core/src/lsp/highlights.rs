@@ -43,6 +43,9 @@ pub enum HighlightTag {
     TableCell,
     TableCellHeader,
     LinkReference,
+    DefinitionList,
+    DefinitionTerm,
+    DefinitionDescription,
 }
 
 // Generate highlights from AST by walking all nodes
@@ -143,6 +146,9 @@ fn tag_rank(tag: &HighlightTag) -> u8 {
         HighlightTag::TableCellHeader => 73,
         HighlightTag::TableCell => 74,
         HighlightTag::LinkReference => 80,
+        HighlightTag::DefinitionList => 90,
+        HighlightTag::DefinitionTerm => 91,
+        HighlightTag::DefinitionDescription => 92,
     }
 }
 
@@ -220,6 +226,13 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                 });
             }
             NodeKind::Link { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::Link,
+                });
+            }
+            NodeKind::PlatformMention { .. } => {
+                // Mentions behave like navigational links.
                 highlights.push(Highlight {
                     span: *span,
                     tag: HighlightTag::Link,
@@ -336,6 +349,24 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
             }
             NodeKind::FootnoteDefinition { .. } => {
                 // Definition blocks are rendered out-of-band; keep them unstyled.
+            }
+            NodeKind::DefinitionList => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::DefinitionList,
+                });
+            }
+            NodeKind::DefinitionTerm => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::DefinitionTerm,
+                });
+            }
+            NodeKind::DefinitionDescription => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::DefinitionDescription,
+                });
             }
             // SKIP only structural nodes without visual representation
             NodeKind::Paragraph | NodeKind::Text(_) => {
@@ -1284,5 +1315,73 @@ mod tests {
         assert!(highlights
             .iter()
             .any(|h| h.tag == HighlightTag::TableCellHeader));
+    }
+
+    #[test]
+    fn smoke_test_definition_list_highlights() {
+        let doc = Document {
+            children: vec![Node {
+                kind: NodeKind::DefinitionList,
+                span: Some(Span {
+                    start: Position {
+                        line: 1,
+                        column: 1,
+                        offset: 0,
+                    },
+                    end: Position {
+                        line: 3,
+                        column: 1,
+                        offset: 20,
+                    },
+                }),
+                children: vec![
+                    Node {
+                        kind: NodeKind::DefinitionTerm,
+                        span: Some(Span {
+                            start: Position {
+                                line: 1,
+                                column: 1,
+                                offset: 0,
+                            },
+                            end: Position {
+                                line: 1,
+                                column: 5,
+                                offset: 4,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                    Node {
+                        kind: NodeKind::DefinitionDescription,
+                        span: Some(Span {
+                            start: Position {
+                                line: 2,
+                                column: 1,
+                                offset: 5,
+                            },
+                            end: Position {
+                                line: 3,
+                                column: 1,
+                                offset: 20,
+                            },
+                        }),
+                        children: vec![],
+                    },
+                ],
+            }],
+            ..Default::default()
+        };
+
+        let highlights = compute_highlights(&doc);
+
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::DefinitionList));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::DefinitionTerm));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::DefinitionDescription));
     }
 }

@@ -47,6 +47,11 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         super::marco_emoji_shortcode_parser::find_next_emoji_shortcode_start(text_fragment)
             .unwrap_or(text_fragment.len());
 
+    // Platform mentions (Marco extension) can appear in the middle of a text node.
+    let next_platform_mention =
+        super::marco_platform_mentions_parser::find_next_platform_mention_start(text_fragment)
+            .unwrap_or(text_fragment.len());
+
     // Find the next special character / delimiter start.
     //
     // Important: we intentionally do NOT treat a single '-' as special because
@@ -91,9 +96,18 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         )));
     }
 
+    // If a platform mention begins at offset 0, do not treat it as plain text.
+    if next_platform_mention == 0 {
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Verify,
+        )));
+    }
+
     let next_special = next_special
         .min(next_autolink_literal)
-        .min(next_emoji_shortcode);
+        .min(next_emoji_shortcode)
+        .min(next_platform_mention);
 
     if next_special == 0 {
         // No text - input starts with special character

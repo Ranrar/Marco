@@ -22,6 +22,22 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.2] - 2026-01-15
+
+### Added
+- Extended definition lists (Markdown Guide / Markdown Extra-style).
+- Headerless pipe tables (delimiter-first, no header row).
+- Inline footnotes (`^[...]`) (inline definitions collected into the document footnotes section).
+- Platform mentions (`@username[platform]` with optional display name) rendered as profile links for known platforms.
+- Inline task checkbox markers (`[ ]` / `[x]` / `[X]`) inside paragraphs (including mid-paragraph markers and after hard line breaks).
+
+### Changed
+- Emoji shortcode handling now uses a full shortcode dataset for broader support.
+- LSP highlight output is now sorted and de-duplicated for deterministic application.
+
+### Fixed
+- Prevented a UTF-8 boundary slicing panic when scanning for emoji shortcode candidates.
+
 ## [0.13.1] - 2026-01-14
 
 ### Changed

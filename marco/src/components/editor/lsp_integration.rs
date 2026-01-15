@@ -287,6 +287,9 @@ fn get_or_create_tag(buffer: &sourceview5::Buffer, tag: &core::lsp::HighlightTag
         HighlightTag::TableCell => "table-cell",
         HighlightTag::TableCellHeader => "table-cell-header",
         HighlightTag::LinkReference => "link-reference",
+        HighlightTag::DefinitionList => "definition-list",
+        HighlightTag::DefinitionTerm => "definition-term",
+        HighlightTag::DefinitionDescription => "definition-description",
     };
 
     let tag_table = buffer.tag_table();

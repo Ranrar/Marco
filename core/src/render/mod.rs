@@ -3,6 +3,7 @@
 pub mod code_languages;
 pub mod html;
 pub mod options;
+pub mod plarform_mentions;
 pub mod preview_document;
 pub mod syntect_highlighter;
 

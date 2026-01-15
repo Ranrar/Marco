@@ -52,6 +52,9 @@ pub const LSP_TAG_NAMES: &[&str] = &[
     "table-cell",
     "table-cell-header",
     "link-reference",
+    "definition-list",
+    "definition-term",
+    "definition-description",
 ];
 
 /// Return a map of style name -> hex color string for the light theme.
@@ -96,6 +99,12 @@ fn light_color_map() -> HashMap<&'static str, &'static str> {
 
     // Reference-style links (unresolved placeholders)
     m.insert("link-reference", "#8250DF");
+
+    // Extended definition lists (Markdown Guide-style)
+    // Keep these subtle like lists: it's structural syntax.
+    m.insert("definition-list", "#6E7781");
+    m.insert("definition-term", "#6E7781");
+    m.insert("definition-description", "#6E7781");
     m
 }
 
@@ -141,6 +150,12 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
 
     // Reference-style links (unresolved placeholders)
     m.insert("link-reference", "#C586C0");
+
+    // Extended definition lists (Markdown Guide-style)
+    // Keep these subtle like lists: it's structural syntax.
+    m.insert("definition-list", "#9CDCFE");
+    m.insert("definition-term", "#9CDCFE");
+    m.insert("definition-description", "#9CDCFE");
     m
 }
 

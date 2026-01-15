@@ -165,6 +165,9 @@ fn format_node_tree(
             )
         }
         NodeKind::ListItem => "ListItem".to_string(),
+        NodeKind::DefinitionList => "DefinitionList".to_string(),
+        NodeKind::DefinitionTerm => "DefinitionTerm".to_string(),
+        NodeKind::DefinitionDescription => "DefinitionDescription".to_string(),
         NodeKind::TaskCheckbox { checked } => format!("TaskCheckbox(checked={})", checked),
         NodeKind::TaskCheckboxInline { checked } => {
             format!("TaskCheckboxInline(checked={})", checked)
@@ -199,6 +202,16 @@ fn format_node_tree(
                 truncate(suffix, 30)
             )
         }
+        NodeKind::PlatformMention {
+            username,
+            platform,
+            display,
+        } => format!(
+            "PlatformMention(@{}[{}] display={:?})",
+            truncate(username, 30),
+            truncate(platform, 30),
+            display.as_deref().map(|d| truncate(d, 30))
+        ),
         NodeKind::FootnoteReference { label } => {
             format!("FootnoteReference(label=\"{}\")", truncate(label, 30))
         }

@@ -238,7 +238,7 @@ fn trim_ws_span(span: Span) -> Span {
     }
 }
 
-fn count_unescaped_pipes(s: &str) -> usize {
+pub(crate) fn count_unescaped_pipes(s: &str) -> usize {
     let bytes = s.as_bytes();
     let mut count = 0usize;
     let mut backslash_run = 0usize;
@@ -262,7 +262,7 @@ fn count_unescaped_pipes(s: &str) -> usize {
     count
 }
 
-fn is_valid_delimiter_cell(cell: &str) -> bool {
+pub(crate) fn is_valid_delimiter_cell(cell: &str) -> bool {
     // Trim spaces/tabs already applied by caller.
     let cell = cell.trim_matches([' ', '\t']);
     if cell.is_empty() {

@@ -1,12 +1,21 @@
 # Footnotes showcase
 
-Planned feature: GitHub-style footnotes (`[^1]` + `[^1]: ...`).
+Supported:
+
+- GitHub-style footnotes (`[^1]` + `[^1]: ...`).
+- Marco inline footnotes (`^[...]`).
 
 ## Canonical examples
 
 Here is a footnote reference[^1].
 
 [^1]: Footnote definition.
+
+## Inline footnotes (Marco extension)
+
+Inline footnote right here.^[This content is defined at the reference point.]
+
+Complex inline footnote.^[*italic*, **bold**, and `code`]
 
 ## Multiple references + multiple definitions
 

@@ -75,21 +75,22 @@ Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests pass
 | Heading IDs (`# Title {#id}`) | ✅ Supported | Extension for stable anchors/links. |
 | Autolinks (`<https://…>` / `<user@…>`) | ✅ Supported | CommonMark autolinks (email becomes `mailto:`). |
 | GFM-style autolink literals (`https://…`, `www.…`, `user@…`) | ✅ Supported | Rendered as links when detected in text. |
-| Task lists (`- [ ]` / `- [x]`) | ✅ Supported | Rendered with themed checkbox icons. |
+| Reference-style links (`[text][label]`, `[label][]`, `[label]`) | ✅ Supported | Resolved against `[label]: url` definitions (supports forward definitions). |
+| Task lists (`- [ ]` / `- [x]`) | ✅ Supported | Rendered with themed checkbox icons. Also supports checklist-style paragraph markers (`[ ]` / `[x]` / `[X]`) and mid-paragraph markers like `Do this [ ] today`. |
 | Tables (GFM pipe tables) | ✅ Supported | Header/body separation + per-column alignment. |
+| Headerless pipe tables (delimiter-first, no header row) | ✅ Supported | Marco extension: the first line is the delimiter row, followed by 1+ body rows; renders as a normal table with `<tbody>` only. |
 | Strikethrough (`~~text~~`) | ✅ Supported | GFM extension. |
 | Admonitions / callouts | ✅ Supported | GitHub-style alerts (e.g. Note/Tip/Important/Warning/Caution). |
 | Footnotes (`[^a]` + `[^a]: …`) | ✅ Supported | Rendered as an end-of-document footnotes section. |
+| Inline footnotes (`^[...]`) | ✅ Supported | Marco extension: inline footnote content is defined at the reference point and rendered into the same footnotes section. |
 | Highlight/mark (`==text==`) | ✅ Supported | Rendered as `<mark>…</mark>`. |
 | Superscript / subscript | ✅ Supported | Rendered as `<sup>…</sup>` / `<sub>…</sub>`. |
-| Emoji shortcodes (`:joy:`) | ✅ Supported (limited set) | Only recognized shortcodes convert; unknown ones stay literal text. |
+| Emoji shortcodes (`:joy:`) | ✅ Supported | Only recognized shortcodes convert; unknown ones stay literal text. |
+| User mentions (`@name[platform]`) | ✅ Supported | Marco extension: renders as a profile link when `(platform, username)` maps to a stable public profile URL; otherwise renders as non-link text. |
+| Inline checkboxes mid-paragraph (`... [x] ...`) | ✅ Supported | Marco extension: `[ ]` / `[x]` / `[X]` markers are recognized inside normal text (with conservative parsing to avoid breaking link syntax). |
 | Admonition blocks (`:::note ... :::`) | Not implemented yet | Planned Marco extension (colon-fenced blocks, optional titles/icons). |
 | Tab blocks (`:::tab` + `@tab`) | Not implemented yet | Planned Marco extension that renders as an interactive tab UI in the HTML preview (switch tabs to show/hide the content blocks). |
-| User mentions (`@name[platform]`) | Not implemented yet | Planned Marco extension (render policy TBD). |
-| Inline footnotes (`^[...]`) | Not implemented yet | Planned (reference footnotes are already supported). |
 | YouTube embeds | Not implemented yet | Planned (URLs render as links today; embed would be opt-in). |
-| "Headerless tables" (no delimiter row) | Not implemented yet | Currently treated as plain text; support is TBD. |
-| Inline checkboxes mid-paragraph (`... [x] ...`) | Not implemented yet | Currently only supported at line/paragraph start. |
 | Math (KaTeX / LaTeX) | Not implemented yet | Planned. |
 | Diagrams (Mermaid) | Not implemented yet | Planned. |
 

@@ -1,6 +1,6 @@
 # Extended definition lists showcase
 
-Planned syntax example (Markdown Guide extended syntax):
+Implemented syntax (Markdown Guide extended syntax):
 
 Term
 : definition
@@ -14,6 +14,12 @@ Term 2
 : Definition for term 2
 : Alternative definition for term 2
 
+Term 2b (blank line between items)
+: Definition for term 2b
+
+Term 2c
+: Definition for term 2c
+
 ## Edge cases
 
 ### Formatting in terms and definitions
@@ -25,9 +31,18 @@ Complex Term with **Formatting**
 ### Indentation and multi-line definitions
 
 Term 3
-: First line
-  continuation line (indented)
+: First line  
+  continuation line (indented)  
   another continuation
+
+Term 3b (blank line inside a definition, only continues when next line is indented)
+: First line of definition
+
+  continuation after a blank line
+  still same definition
+
+Term 3c (definition marker line may have up to 3 leading spaces)
+   : Definition marker with leading spaces
 
 ### Nested blocks inside a definition (design choice)
 

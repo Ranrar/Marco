@@ -1,6 +1,6 @@
 [package]
 name = "core"
-version = "0.13.1"
+version = "0.13.2"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Core"
@@ -33,6 +33,7 @@ moka = { workspace = true }
 unicode-normalization  = { workspace = true }
 htmlescape = { workspace = true }
 syntect = { workspace = true }
+emojis = { workspace = true }
 
 [build-dependencies]
 serde_json = { workspace = true }

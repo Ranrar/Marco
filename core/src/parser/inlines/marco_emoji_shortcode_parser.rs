@@ -100,6 +100,11 @@ pub fn find_next_emoji_shortcode_start(text: &str) -> Option<usize> {
     let mut search_from = 0usize;
 
     while search_from < text.len() {
+        // `search_from` is a byte offset; keep it on a UTF-8 char boundary.
+        while search_from < text.len() && !text.is_char_boundary(search_from) {
+            search_from += 1;
+        }
+
         let rel = text[search_from..].find(':')?;
         let start = search_from + rel;
 
@@ -109,20 +114,37 @@ pub fn find_next_emoji_shortcode_start(text: &str) -> Option<usize> {
         }
 
         // We only consider short candidates within a small max window.
-        let window_end = (start + 1 + MAX_SHORTCODE_LEN + 1).min(text.len());
-        let window = &text[start + 1..window_end];
+        let mut window_end = (start + 1 + MAX_SHORTCODE_LEN + 1).min(text.len());
+        // Avoid slicing through a multibyte UTF-8 codepoint.
+        while window_end > start + 1 && !text.is_char_boundary(window_end) {
+            window_end -= 1;
+        }
+
+        let Some(window) = text.get(start + 1..window_end) else {
+            // If the slice is still invalid, skip this ':' candidate.
+            search_from = start + 1;
+            continue;
+        };
 
         if let Some(close_rel) = window.find(':') {
             let close = start + 1 + close_rel;
 
             // Reject newlines inside the candidate.
-            if let Some(nl) = text[start..=close].find('\n') {
+            let Some(candidate) = text.get(start..close + 1) else {
+                search_from = start + 1;
+                continue;
+            };
+
+            if let Some(nl) = candidate.find('\n') {
                 // Move past the newline to avoid quadratic scanning.
                 search_from = start + nl + 1;
                 continue;
             }
 
-            let shortcode = &text[start + 1..close];
+            let Some(shortcode) = text.get(start + 1..close) else {
+                search_from = start + 1;
+                continue;
+            };
             if !shortcode.is_empty()
                 && shortcode.len() <= MAX_SHORTCODE_LEN
                 && is_valid_shortcode(shortcode)
@@ -147,29 +169,8 @@ fn is_valid_shortcode(s: &str) -> bool {
 }
 
 fn lookup_shortcode(s: &str) -> Option<&'static str> {
-    // Minimal built-in set (common in docs). Expand as needed.
-    match s {
-        "+1" | "thumbsup" => Some("👍"),
-        "-1" | "thumbsdown" => Some("👎"),
-        "joy" => Some("😂"),
-        "smile" => Some("😄"),
-        "grin" => Some("😁"),
-        "heart" => Some("❤️"),
-        "rocket" => Some("🚀"),
-        "warning" => Some("⚠️"),
-        "info" => Some("ℹ️"),
-        "check" | "white_check_mark" => Some("✅"),
-        "x" => Some("❌"),
-        "fire" => Some("🔥"),
-        "star" => Some("⭐"),
-        "eyes" => Some("👀"),
-        "tada" => Some("🎉"),
-        "clap" => Some("👏"),
-        "coffee" => Some("☕"),
-        "memo" => Some("📝"),
-        "bug" => Some("🐛"),
-        _ => None,
-    }
+    // Delegate to the `emojis` crate for full GitHub (gemoji) shortcode support.
+    emojis::get_by_shortcode(s).map(|e| e.as_str())
 }
 
 #[cfg(test)]
@@ -204,5 +205,21 @@ mod tests {
         let s = "a :unknown: b :joy: c";
         // Should find the joy, not the unknown.
         assert_eq!(find_next_emoji_shortcode_start(s), Some(14));
+    }
+
+    #[test]
+    fn regression_find_next_emoji_shortcode_start_utf8_window_end_not_boundary() {
+        // Construct a case where the internal scan window end lands inside a multibyte
+        // UTF-8 character (here: '·' = 2 bytes). Previously this panicked when slicing.
+        let s = format!(":{}·b", "a".repeat(MAX_SHORTCODE_LEN));
+        assert_eq!(find_next_emoji_shortcode_start(&s), None);
+    }
+
+    #[test]
+    fn regression_find_next_emoji_shortcode_start_utf8_then_valid_shortcode() {
+        let prefix = format!(":{}·b ", "a".repeat(MAX_SHORTCODE_LEN));
+        let s = format!("{prefix}later :joy: end");
+        let expected = prefix.len() + "later ".len();
+        assert_eq!(find_next_emoji_shortcode_start(&s), Some(expected));
     }
 }
