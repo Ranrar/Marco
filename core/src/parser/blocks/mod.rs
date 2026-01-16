@@ -21,6 +21,7 @@ pub mod cm_thematic_break_parser;
 pub mod gfm_footnote_definition_parser;
 pub mod gfm_table_parser;
 pub mod marco_headerless_table_parser;
+pub mod gfm_admonitions;
 
 // Re-export shared utilities
 pub use shared::{dedent_list_item_content, to_parser_span, to_parser_span_range, GrammarSpan};

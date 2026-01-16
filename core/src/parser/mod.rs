@@ -9,8 +9,6 @@ pub mod shared;
 pub mod blocks;
 pub mod inlines;
 
-mod gfm_admonitions;
-
 // Re-export public API
 pub use ast::*;
 pub use blocks::parse_blocks;
@@ -31,7 +29,7 @@ pub fn parse(input: &str) -> Result<Document> {
     resolve_reference_links(&mut document);
 
     // Third pass: transform top-level GitHub-style alert blockquotes (`> [!NOTE]`).
-    gfm_admonitions::apply_gfm_admonitions(&mut document);
+    blocks::gfm_admonitions::apply_gfm_admonitions(&mut document);
 
     Ok(document)
 }
