@@ -11,7 +11,7 @@
 //! GitHub docs note that alerts cannot be nested within other elements.
 //! We implement that by only transforming *top-level* blockquotes.
 
-use crate::parser::ast::{AdmonitionKind, Document, Node, NodeKind};
+use crate::parser::ast::{AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind};
 
 /// Convert eligible top-level blockquotes into `NodeKind::Admonition`.
 ///
@@ -44,7 +44,7 @@ fn try_transform_blockquote(node: &mut Node) {
         return;
     };
 
-    let Some((kind, remove_first_paragraph)) =
+    let Some((spec, remove_first_paragraph)) =
         strip_admonition_marker_from_first_paragraph(first_child)
     else {
         return;
@@ -55,12 +55,25 @@ fn try_transform_blockquote(node: &mut Node) {
         node.children.remove(0);
     }
 
-    node.kind = NodeKind::Admonition { kind };
+    node.kind = NodeKind::Admonition {
+        kind: spec.kind,
+        title: spec.title,
+        icon: spec.icon,
+        style: spec.style,
+    };
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct AdmonitionSpec {
+    kind: AdmonitionKind,
+    title: Option<String>,
+    icon: Option<String>,
+    style: AdmonitionStyle,
 }
 
 fn strip_admonition_marker_from_first_paragraph(
     paragraph: &mut Node,
-) -> Option<(AdmonitionKind, bool)> {
+) -> Option<(AdmonitionSpec, bool)> {
     if !matches!(paragraph.kind, NodeKind::Paragraph) {
         return None;
     }
@@ -89,7 +102,7 @@ fn strip_admonition_marker_from_first_paragraph(
         }
     }
 
-    let kind = admonition_marker_kind_from_raw(&raw)?;
+    let spec = admonition_marker_spec_from_raw(&raw)?;
 
     // If there's a break after the marker, remove the marker and the break,
     // leaving the rest of the paragraph as the first body line.
@@ -100,23 +113,97 @@ fn strip_admonition_marker_from_first_paragraph(
         )
     {
         paragraph.children.drain(0..=idx);
-        return Some((kind, false));
+        return Some((spec, false));
     }
 
     // Marker consumed the full paragraph.
-    Some((kind, true))
+    Some((spec, true))
 }
 
-fn admonition_marker_kind_from_raw(raw: &str) -> Option<AdmonitionKind> {
+fn admonition_marker_spec_from_raw(raw: &str) -> Option<AdmonitionSpec> {
     let normalized = raw.trim().to_ascii_uppercase();
     match normalized.as_str() {
-        "[!NOTE]" => Some(AdmonitionKind::Note),
-        "[!TIP]" => Some(AdmonitionKind::Tip),
-        "[!IMPORTANT]" => Some(AdmonitionKind::Important),
-        "[!WARNING]" => Some(AdmonitionKind::Warning),
-        "[!CAUTION]" => Some(AdmonitionKind::Caution),
-        _ => None,
+        "[!NOTE]" => Some(AdmonitionSpec {
+            kind: AdmonitionKind::Note,
+            title: None,
+            icon: None,
+            style: AdmonitionStyle::Alert,
+        }),
+        "[!TIP]" => Some(AdmonitionSpec {
+            kind: AdmonitionKind::Tip,
+            title: None,
+            icon: None,
+            style: AdmonitionStyle::Alert,
+        }),
+        "[!IMPORTANT]" => Some(AdmonitionSpec {
+            kind: AdmonitionKind::Important,
+            title: None,
+            icon: None,
+            style: AdmonitionStyle::Alert,
+        }),
+        "[!WARNING]" => Some(AdmonitionSpec {
+            kind: AdmonitionKind::Warning,
+            title: None,
+            icon: None,
+            style: AdmonitionStyle::Alert,
+        }),
+        "[!CAUTION]" => Some(AdmonitionSpec {
+            kind: AdmonitionKind::Caution,
+            title: None,
+            icon: None,
+            style: AdmonitionStyle::Alert,
+        }),
+        _ => parse_custom_header_admonition(raw),
     }
+}
+
+fn parse_custom_header_admonition(raw: &str) -> Option<AdmonitionSpec> {
+    // Extended (non-standard) GFM-style marker that uses the same blockquote-based
+    // structure as GitHub alerts, but with a custom icon and title.
+    //
+    // Examples:
+    // - `[😂 Happy Header]` (often produced from `[:joy: Happy Header]` after emoji shortcode expansion)
+    // - `[🔥 Fire Alert]`
+    //
+    // Notes:
+    // - This is intentionally conservative: require bracketed marker with at least
+    //   two "words" (icon + title).
+    // - This is styled with quote-like colors via `AdmonitionStyle::Quote`.
+    let trimmed = raw.trim();
+    if !trimmed.starts_with('[') || !trimmed.ends_with(']') {
+        return None;
+    }
+
+    let inner = trimmed
+        .strip_prefix('[')
+        .and_then(|s| s.strip_suffix(']'))?
+        .trim();
+    if inner.is_empty() {
+        return None;
+    }
+
+    // Reject standard GitHub marker shapes (handled elsewhere) and leave room
+    // for future extensions.
+    if inner.trim_start().starts_with('!') {
+        return None;
+    }
+
+    let mut parts = inner.splitn(2, char::is_whitespace);
+    let icon = parts.next()?.trim();
+    let title = parts.next().unwrap_or("").trim();
+
+    if icon.is_empty() || title.is_empty() {
+        return None;
+    }
+
+    Some(AdmonitionSpec {
+        // `kind` is kept for compatibility with the existing Admonition node.
+        // For quote-style custom headers we render neutral styling regardless of kind.
+        kind: AdmonitionKind::Note,
+        title: Some(title.to_string()),
+        icon: Some(icon.to_string()),
+        style: AdmonitionStyle::Quote,
+    })
 }
 
 #[cfg(test)]
@@ -135,8 +222,9 @@ mod tests {
             }],
         };
 
-        let (kind, remove) = strip_admonition_marker_from_first_paragraph(&mut marker).unwrap();
-        assert_eq!(kind, AdmonitionKind::Note);
+        let (spec, remove) = strip_admonition_marker_from_first_paragraph(&mut marker).unwrap();
+        assert_eq!(spec.kind, AdmonitionKind::Note);
+        assert_eq!(spec.style, AdmonitionStyle::Alert);
         assert!(remove);
     }
 
@@ -194,7 +282,8 @@ mod tests {
         assert!(matches!(
             doc.children[0].kind,
             NodeKind::Admonition {
-                kind: AdmonitionKind::Note
+                kind: AdmonitionKind::Note,
+                ..
             }
         ));
 

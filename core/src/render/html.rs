@@ -4,7 +4,7 @@ use super::code_languages::language_display_label;
 use super::plarform_mentions;
 use super::syntect_highlighter::highlight_code_to_classed_html;
 use super::RenderOptions;
-use crate::parser::{AdmonitionKind, Document, Node, NodeKind};
+use crate::parser::{AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind};
 use anyhow::Result;
 use std::collections::HashMap;
 
@@ -15,12 +15,28 @@ const HEADING_ANCHOR_SVG: &str = concat!(
     r#"" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-anchor" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v12m-8 -8a8 8 0 0 0 16 0m1 0h-2m-14 0h-2" /><path d="M9 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /></svg>"#,
 );
 
+// Marco sliders UI icons (Tabler).
+// These are embedded as inline SVG so they inherit `currentColor`.
+const SLIDER_ARROW_LEFT_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-left" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0" /><path d="M5 12l4 4" /><path d="M5 12l4 -4" /></svg>"#;
+
+const SLIDER_ARROW_RIGHT_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-right" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0" /><path d="M15 16l4 -4" /><path d="M15 8l4 4" /></svg>"#;
+
+const SLIDER_PLAY_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-player-play" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 4v16l13 -8l-13 -8" /></svg>"#;
+
+const SLIDER_PAUSE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-player-pause" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12" /><path d="M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12" /></svg>"#;
+
+const SLIDER_DOT_INACTIVE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-point" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /></svg>"#;
+
+const SLIDER_DOT_ACTIVE_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" class="icon icon-tabler icons-tabler-filled icon-tabler-point" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z" /></svg>"#;
+
 #[derive(Default)]
 struct RenderContext<'a> {
     footnote_defs: HashMap<String, &'a Node>,
     footnote_numbers: HashMap<String, usize>,
     footnote_order: Vec<String>,
     footnote_ref_counts: HashMap<String, usize>,
+    tab_group_counter: usize,
+    slider_deck_counter: usize,
 }
 
 // Render document to HTML
@@ -178,23 +194,53 @@ fn render_node(
             }
             output.push_str("</blockquote>\n");
         }
-        NodeKind::Admonition { kind } => {
-            let (slug, title, icon_svg) = admonition_presentation(kind);
+        NodeKind::Admonition {
+            kind,
+            title,
+            icon,
+            style,
+        } => {
+            let (slug, default_title, icon_svg) = admonition_presentation(kind);
+
+            let title_text = title.as_deref().unwrap_or(default_title);
 
             // Render with both GitHub-compatible classes (`markdown-alert`) and
             // our theme-compatible classes (`admonition`).
+            //
+            // Quote-style admonitions intentionally omit the `*-<kind>` classes
+            // so themes keep neutral/blockquote-like colors.
             output.push_str("<div class=\"");
-            output.push_str("markdown-alert markdown-alert-");
-            output.push_str(slug);
-            output.push_str(" admonition admonition-");
-            output.push_str(slug);
+            output.push_str("markdown-alert");
+
+            if *style == AdmonitionStyle::Alert {
+                output.push_str(" markdown-alert-");
+                output.push_str(slug);
+            }
+
+            output.push_str(" admonition");
+
+            if *style == AdmonitionStyle::Alert {
+                output.push_str(" admonition-");
+                output.push_str(slug);
+            } else {
+                output.push_str(" admonition-quote");
+            }
+
             output.push_str("\">\n");
 
             output.push_str("<p class=\"markdown-alert-title\">");
             output.push_str("<span class=\"markdown-alert-icon\" aria-hidden=\"true\">");
-            output.push_str(icon_svg);
+            if let Some(icon_text) = icon {
+                // Icon is text (typically emoji). Use an inner span so themes can
+                // override line-height without affecting SVG icons.
+                output.push_str("<span class=\"markdown-alert-emoji\">");
+                output.push_str(&escape_html(icon_text));
+                output.push_str("</span>");
+            } else {
+                output.push_str(icon_svg);
+            }
             output.push_str("</span>");
-            output.push_str(&escape_html(title));
+            output.push_str(&escape_html(title_text));
             output.push_str("</p>\n");
 
             for child in &node.children {
@@ -202,6 +248,28 @@ fn render_node(
             }
 
             output.push_str("</div>\n");
+        }
+        NodeKind::TabGroup => {
+            render_tab_group(node, output, options, ctx)?;
+        }
+        NodeKind::TabItem { .. } => {
+            // Tab items should be rendered via `render_tab_group` so we can
+            // coordinate radio inputs/labels/panels.
+            log::warn!("TabItem rendered outside of TabGroup context");
+            for child in &node.children {
+                render_node(child, output, options, ctx)?;
+            }
+        }
+        NodeKind::SliderDeck { .. } => {
+            render_slider_deck(node, output, options, ctx)?;
+        }
+        NodeKind::Slide { .. } => {
+            // Slides should be rendered via `render_slider_deck` so we can
+            // coordinate controls and timers.
+            log::warn!("Slide rendered outside of SliderDeck context");
+            for child in &node.children {
+                render_node(child, output, options, ctx)?;
+            }
         }
         NodeKind::Table { .. } => {
             render_table(node, output, options, ctx)?;
@@ -510,6 +578,201 @@ fn admonition_presentation(kind: &AdmonitionKind) -> (&'static str, &'static str
             ),
         ),
     }
+}
+
+fn render_tab_group(
+    node: &Node,
+    output: &mut String,
+    options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
+) -> Result<()> {
+    // Assign a stable sequential id for this render pass.
+    let group_id = ctx.tab_group_counter;
+    ctx.tab_group_counter = ctx.tab_group_counter.saturating_add(1);
+
+    // Collect tab items in order.
+    let mut items: Vec<(&str, &Node)> = Vec::new();
+    for child in &node.children {
+        if let NodeKind::TabItem { title } = &child.kind {
+            items.push((title.as_str(), child));
+        } else {
+            log::warn!("Unexpected child inside TabGroup: {:?}", child.kind);
+        }
+    }
+
+    if items.is_empty() {
+        return Ok(());
+    }
+
+    output.push_str("<div class=\"marco-tabs\">\n");
+
+    // Radio inputs must come before the tablist/panels so generic nth-of-type CSS rules work.
+    for (i, (title, _item_node)) in items.iter().enumerate() {
+        output.push_str("<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-");
+        output.push_str(&group_id.to_string());
+        output.push_str("\" id=\"marco-tabs-");
+        output.push_str(&group_id.to_string());
+        output.push('-');
+        output.push_str(&i.to_string());
+        output.push_str("\" aria-label=\"");
+        output.push_str(&escape_html(title));
+        output.push('"');
+        if i == 0 {
+            output.push_str(" checked");
+        }
+        output.push_str(" />\n");
+    }
+
+    output.push_str("<div class=\"marco-tabs__tablist\">\n");
+    for (i, (title, _item_node)) in items.iter().enumerate() {
+        output.push_str("<label class=\"marco-tabs__tab\" for=\"marco-tabs-");
+        output.push_str(&group_id.to_string());
+        output.push('-');
+        output.push_str(&i.to_string());
+        output.push_str("\">");
+        output.push_str(&escape_html(title));
+        output.push_str("</label>\n");
+    }
+    output.push_str("</div>\n");
+
+    output.push_str("<div class=\"marco-tabs__panels\">\n");
+    for &(_title, item_node) in items.iter() {
+        output.push_str("<div class=\"marco-tabs__panel\">\n");
+        for panel_child in &item_node.children {
+            render_node(panel_child, output, options, ctx)?;
+        }
+        output.push_str("</div>\n");
+    }
+    output.push_str("</div>\n");
+
+    output.push_str("</div>\n");
+    Ok(())
+}
+
+fn render_slider_deck(
+    node: &Node,
+    output: &mut String,
+    options: &RenderOptions,
+    ctx: &mut RenderContext<'_>,
+) -> Result<()> {
+    let timer_seconds = match &node.kind {
+        NodeKind::SliderDeck { timer_seconds } => *timer_seconds,
+        other => {
+            log::warn!(
+                "render_slider_deck called with non SliderDeck node: {:?}",
+                other
+            );
+            return Ok(());
+        }
+    };
+
+    // Assign a stable sequential id for this render pass.
+    let deck_id = ctx.slider_deck_counter;
+    ctx.slider_deck_counter = ctx.slider_deck_counter.saturating_add(1);
+
+    // Collect slides in order.
+    let mut slides: Vec<(bool, &Node)> = Vec::new();
+    for child in &node.children {
+        if let NodeKind::Slide { vertical } = &child.kind {
+            slides.push((*vertical, child));
+        } else {
+            log::warn!("Unexpected child inside SliderDeck: {:?}", child.kind);
+        }
+    }
+
+    if slides.is_empty() {
+        return Ok(());
+    }
+
+    output.push_str("<div class=\"marco-sliders\" id=\"marco-sliders-");
+    output.push_str(&deck_id.to_string());
+    output.push('"');
+    if let Some(seconds) = timer_seconds {
+        output.push_str(" data-timer-seconds=\"");
+        output.push_str(&seconds.to_string());
+        output.push('"');
+    }
+    output.push('>');
+
+    output.push_str("<div class=\"marco-sliders__viewport\">");
+    for (i, (vertical, slide_node)) in slides.iter().enumerate() {
+        output.push_str("<section class=\"marco-sliders__slide");
+        if i == 0 {
+            output.push_str(" is-active");
+        }
+        output.push_str("\" data-slide-index=\"");
+        output.push_str(&i.to_string());
+        output.push('"');
+        if *vertical {
+            output.push_str(" data-vertical=\"true\"");
+        }
+        output.push_str(">\n");
+        for child in &slide_node.children {
+            render_node(child, output, options, ctx)?;
+        }
+        output.push_str("</section>\n");
+    }
+    output.push_str("</div>");
+
+    // Controls: prev / play-pause / next
+    output.push_str("<div class=\"marco-sliders__controls\" aria-label=\"Slideshow controls\">");
+
+    output.push_str(
+        "<button class=\"marco-sliders__btn marco-sliders__btn--prev\" type=\"button\" data-action=\"prev\" aria-label=\"Previous slide\">",
+    );
+    output.push_str(SLIDER_ARROW_LEFT_SVG);
+    output.push_str("</button>");
+
+    output.push_str(
+        "<button class=\"marco-sliders__btn marco-sliders__btn--toggle\" type=\"button\" data-action=\"toggle\" aria-label=\"Toggle autoplay\">",
+    );
+    output.push_str("<span class=\"marco-sliders__icon marco-sliders__icon--play\">");
+    output.push_str(SLIDER_PLAY_SVG);
+    output.push_str("</span>");
+    output.push_str("<span class=\"marco-sliders__icon marco-sliders__icon--pause\">");
+    output.push_str(SLIDER_PAUSE_SVG);
+    output.push_str("</span>");
+    output.push_str("</button>");
+
+    output.push_str(
+        "<button class=\"marco-sliders__btn marco-sliders__btn--next\" type=\"button\" data-action=\"next\" aria-label=\"Next slide\">",
+    );
+    output.push_str(SLIDER_ARROW_RIGHT_SVG);
+    output.push_str("</button>");
+
+    output.push_str("</div>");
+
+    // Dots navigation
+    output.push_str(
+        "<div class=\"marco-sliders__dots\" role=\"tablist\" aria-label=\"Slideshow navigation\">",
+    );
+    for i in 0..slides.len() {
+        output.push_str("<button class=\"marco-sliders__dot");
+        if i == 0 {
+            output.push_str(" is-active");
+        }
+        output.push_str("\" type=\"button\" data-action=\"goto\" data-index=\"");
+        output.push_str(&i.to_string());
+        output.push_str("\" aria-label=\"Go to slide ");
+        output.push_str(&(i + 1).to_string());
+        output.push('"');
+        if i == 0 {
+            output.push_str(" aria-selected=\"true\"");
+        }
+        output.push_str(">\n");
+        output
+            .push_str("<span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--inactive\">");
+        output.push_str(SLIDER_DOT_INACTIVE_SVG);
+        output.push_str("</span>");
+        output.push_str("<span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--active\">");
+        output.push_str(SLIDER_DOT_ACTIVE_SVG);
+        output.push_str("</span>");
+        output.push_str("</button>");
+    }
+    output.push_str("</div>");
+
+    output.push_str("</div>\n");
+    Ok(())
 }
 
 fn render_task_checkbox_icon(output: &mut String, checked: bool) {

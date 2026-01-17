@@ -1,4 +1,4 @@
-use core::parser::ast::NodeKind;
+use core::parser::ast::{AdmonitionStyle, NodeKind};
 use core::parser::AdmonitionKind;
 
 fn find_first_kind(
@@ -24,7 +24,8 @@ fn test_gfm_admonition_transforms_top_level_blockquote_and_strips_marker() {
     assert!(matches!(
         doc.children.first().map(|n| &n.kind),
         Some(NodeKind::Admonition {
-            kind: AdmonitionKind::Note
+            kind: AdmonitionKind::Note,
+            ..
         })
     ));
 
@@ -61,7 +62,7 @@ fn test_gfm_admonition_all_kinds_render_classes() {
 
         assert!(matches!(
             doc.children.first().map(|n| &n.kind),
-            Some(NodeKind::Admonition { kind: k }) if *k == kind
+            Some(NodeKind::Admonition { kind: k, .. }) if *k == kind
         ));
 
         let html = core::render::render(&doc, &core::render::RenderOptions::default())
@@ -71,6 +72,49 @@ fn test_gfm_admonition_all_kinds_render_classes() {
         assert!(html.contains(&format!("admonition-{}", slug)));
         assert!(!html.contains(&format!("[!{}]", marker)));
     }
+}
+
+#[test]
+fn test_gfm_custom_header_admonition_renders_quote_style_and_strips_marker() {
+    let md = "> [:joy: Happy Header]\n> Body line 1\n";
+    let doc = core::parser::parse(md).expect("parse failed");
+
+    let first = doc.children.first().expect("expected a top-level node");
+    match &first.kind {
+        NodeKind::Admonition {
+            kind,
+            title,
+            icon,
+            style,
+        } => {
+            assert_eq!(*kind, AdmonitionKind::Note);
+            assert_eq!(*style, AdmonitionStyle::Quote);
+            assert_eq!(title.as_deref(), Some("Happy Header"));
+            // `:joy:` should be converted to the Unicode emoji by the inline parser.
+            assert_eq!(icon.as_deref(), Some("😂"));
+        }
+        other => panic!("expected Admonition node, got: {other:?}"),
+    }
+
+    let html =
+        core::render::render(&doc, &core::render::RenderOptions::default()).expect("render failed");
+
+    assert!(html.contains("admonition-quote"));
+    assert!(html.contains("markdown-alert-title"));
+    assert!(html.contains("markdown-alert-emoji"));
+    assert!(html.contains("😂"));
+    assert!(html.contains("Happy Header"));
+    assert!(html.contains("Body line 1"));
+    assert!(!html.contains("markdown-alert-note"));
+    assert!(!html.contains("admonition-note"));
+    assert!(
+        !html.contains("[:joy: Happy Header]"),
+        "marker should be stripped"
+    );
+    assert!(
+        !html.contains("[😂 Happy Header]"),
+        "expanded marker should be stripped"
+    );
 }
 
 #[test]

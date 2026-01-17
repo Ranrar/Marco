@@ -142,6 +142,66 @@ Nested admonition inside warning
 End of warning
 :::
 
+### Tab Blocks (Marco_Extended)
+
+#### Indentation rules (0–3 spaces allowed)
+
+ :::tab
+ @tab One
+ This opener and header are indented by 1 space.
+ :::
+
+   :::tab
+   @tab Two
+   This opener and header are indented by 3 spaces.
+   :::
+
+    :::tab
+    @tab FourSpaces
+    This should NOT be recognized as a tab block (4 leading spaces).
+    :::
+
+#### Markers inside fenced code (must not terminate tabs)
+
+:::tab
+@tab Fence
+```txt
+@tab NotAHeader
+:::
+```
+
+This content should still belong to the "Fence" tab.
+
+@tab AfterFence
+After fence content.
+:::
+
+#### Nested tab blocks are forbidden (inner :::tab should be treated as literal)
+
+:::tab
+@tab Outer
+
+:::tab
+@tab Inner
+Inner content
+:::
+
+Outer continues.
+:::
+
+#### Invalid header (empty title) should not parse as a tab block
+
+:::tab
+@tab
+This should render as literal text / normal markdown, not a tab UI.
+:::
+
+#### Missing closing marker (should not crash; should not become tabs)
+
+:::tab
+@tab Unclosed
+This is unclosed.
+
 ## Boundary Cases
 
 ### Empty Elements

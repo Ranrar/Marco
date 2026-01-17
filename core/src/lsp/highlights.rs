@@ -46,6 +46,18 @@ pub enum HighlightTag {
     DefinitionList,
     DefinitionTerm,
     DefinitionDescription,
+
+    /// Marco extended tab blocks: container markers (`:::tab` and closing `:::`).
+    TabBlockContainer,
+    /// Marco extended tab blocks: item header line (`@tab Title`).
+    TabBlockHeader,
+
+    /// Marco sliders: deck marker lines (`@slidestart...` and `@slideend`).
+    SliderDeckMarker,
+    /// Marco sliders: horizontal slide separator line (`---`).
+    SliderSeparatorHorizontal,
+    /// Marco sliders: vertical split marker line (`--`).
+    SliderSeparatorVertical,
 }
 
 // Generate highlights from AST by walking all nodes
@@ -61,6 +73,21 @@ pub fn compute_highlights(document: &Document) -> Vec<Highlight> {
         collect_highlights(node, &mut highlights);
     }
 
+    finalize_highlights(highlights)
+}
+
+/// Compute highlights using AST + the raw source text.
+///
+/// This augments the AST-driven highlights with additional marker highlights
+/// that are easier to derive from the raw text (e.g., tab block marker lines).
+pub fn compute_highlights_with_source(document: &Document, source: &str) -> Vec<Highlight> {
+    let mut highlights = compute_highlights(document);
+    highlights.extend(compute_tab_block_marker_highlights(source));
+    highlights.extend(compute_slider_marker_highlights(source));
+    finalize_highlights(highlights)
+}
+
+fn finalize_highlights(mut highlights: Vec<Highlight>) -> Vec<Highlight> {
     // Make the output deterministic and robust for UI application.
     //
     // Why:
@@ -149,6 +176,303 @@ fn tag_rank(tag: &HighlightTag) -> u8 {
         HighlightTag::DefinitionList => 90,
         HighlightTag::DefinitionTerm => 91,
         HighlightTag::DefinitionDescription => 92,
+
+        // Marco tab block markers (treat as structural syntax)
+        HighlightTag::TabBlockContainer => 100,
+        HighlightTag::TabBlockHeader => 101,
+
+        // Marco slider markers
+        HighlightTag::SliderDeckMarker => 110,
+        HighlightTag::SliderSeparatorHorizontal => 111,
+        HighlightTag::SliderSeparatorVertical => 112,
+    }
+}
+
+fn compute_tab_block_marker_highlights(source: &str) -> Vec<Highlight> {
+    // This is a lightweight scanner for Marco's tab syntax markers.
+    //
+    // We scan the raw text instead of relying on AST spans because the AST
+    // currently carries spans for *content*, not for marker lines.
+
+    fn trim_upto_3_spaces(s: &str) -> (&str, usize) {
+        let bytes = s.as_bytes();
+        let mut i = 0usize;
+        for _ in 0..3 {
+            if bytes.get(i) == Some(&b' ') {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        (&s[i..], i)
+    }
+
+    fn fence_prefix(rest: &str) -> Option<(char, usize, &str)> {
+        let mut chars = rest.chars();
+        let ch = chars.next()?;
+        if ch != '`' && ch != '~' {
+            return None;
+        }
+        let mut count = 1usize;
+        for c in chars.clone() {
+            if c == ch {
+                count += 1;
+            } else {
+                break;
+            }
+        }
+        if count >= 3 {
+            Some((ch, count, &rest[count..]))
+        } else {
+            None
+        }
+    }
+
+    let mut highlights: Vec<Highlight> = Vec::new();
+
+    let mut in_tab_block = false;
+    let mut in_fence: Option<(char, usize)> = None;
+
+    let mut line_start_offset: usize = 0;
+    let mut line_no: usize = 1;
+
+    for seg in source.split_inclusive('\n') {
+        let seg_len = seg.len();
+
+        // Strip trailing line endings from the line we pattern-match against.
+        let mut line = seg;
+        if line.ends_with('\n') {
+            line = &line[..line.len() - 1];
+        }
+        if line.ends_with('\r') {
+            line = &line[..line.len() - 1];
+        }
+
+        let (rest, _indent_len) = trim_upto_3_spaces(line);
+
+        // Fence handling: always active so we avoid highlighting markers inside fenced code.
+        if let Some((fch, fcount, after_fence)) = fence_prefix(rest) {
+            match in_fence {
+                None => {
+                    in_fence = Some((fch, fcount));
+                }
+                Some((open_ch, open_count)) => {
+                    if fch == open_ch && fcount >= open_count && after_fence.trim().is_empty() {
+                        in_fence = None;
+                    }
+                }
+            }
+        }
+
+        if in_fence.is_none() {
+            // Container opener (only when not already inside a tab block).
+            if !in_tab_block {
+                if let Some(after) = rest.strip_prefix(":::tab") {
+                    // Must be followed by whitespace or end.
+                    if after.is_empty()
+                        || after
+                            .chars()
+                            .next()
+                            .is_some_and(|ch| ch == ' ' || ch == '\t')
+                    {
+                        highlights.push(line_highlight(
+                            line_no,
+                            line_start_offset,
+                            line.len(),
+                            HighlightTag::TabBlockContainer,
+                        ));
+                        in_tab_block = true;
+                    }
+                }
+            } else {
+                // Item header
+                if let Some(after) = rest.strip_prefix("@tab") {
+                    let after = after.strip_prefix(' ').or_else(|| after.strip_prefix('\t'));
+                    if let Some(after_ws) = after {
+                        if !after_ws.trim().is_empty() {
+                            highlights.push(line_highlight(
+                                line_no,
+                                line_start_offset,
+                                line.len(),
+                                HighlightTag::TabBlockHeader,
+                            ));
+                        }
+                    }
+                }
+
+                // Container closer
+                if let Some(after) = rest.strip_prefix(":::") {
+                    if after.trim().is_empty() {
+                        highlights.push(line_highlight(
+                            line_no,
+                            line_start_offset,
+                            line.len(),
+                            HighlightTag::TabBlockContainer,
+                        ));
+                        in_tab_block = false;
+                    }
+                }
+            }
+        }
+
+        line_start_offset = line_start_offset.saturating_add(seg_len);
+        line_no = line_no.saturating_add(1);
+    }
+
+    highlights
+}
+
+fn compute_slider_marker_highlights(source: &str) -> Vec<Highlight> {
+    // Lightweight scanner for Marco slider syntax markers.
+    // Highlights only inside a slider deck (between @slidestart and @slideend)
+    // and ignores markers inside fenced code blocks.
+
+    fn trim_upto_3_spaces(s: &str) -> (&str, usize) {
+        let bytes = s.as_bytes();
+        let mut i = 0usize;
+        for _ in 0..3 {
+            if bytes.get(i) == Some(&b' ') {
+                i += 1;
+            } else {
+                break;
+            }
+        }
+        (&s[i..], i)
+    }
+
+    fn fence_prefix(rest: &str) -> Option<(char, usize, &str)> {
+        let mut chars = rest.chars();
+        let ch = chars.next()?;
+        if ch != '`' && ch != '~' {
+            return None;
+        }
+        let mut count = 1usize;
+        for c in chars.clone() {
+            if c == ch {
+                count += 1;
+            } else {
+                break;
+            }
+        }
+        if count >= 3 {
+            Some((ch, count, &rest[count..]))
+        } else {
+            None
+        }
+    }
+
+    let mut highlights: Vec<Highlight> = Vec::new();
+
+    let mut in_slider_deck = false;
+    let mut in_fence: Option<(char, usize)> = None;
+
+    let mut line_start_offset: usize = 0;
+    let mut line_no: usize = 1;
+
+    for seg in source.split_inclusive('\n') {
+        let seg_len = seg.len();
+
+        // Strip trailing line endings from the line we pattern-match against.
+        let mut line = seg;
+        if line.ends_with('\n') {
+            line = &line[..line.len() - 1];
+        }
+        if line.ends_with('\r') {
+            line = &line[..line.len() - 1];
+        }
+
+        let (rest, _indent_len) = trim_upto_3_spaces(line);
+
+        // Fence handling
+        if let Some((fch, fcount, after_fence)) = fence_prefix(rest) {
+            match in_fence {
+                None => {
+                    in_fence = Some((fch, fcount));
+                }
+                Some((open_ch, open_count)) => {
+                    if fch == open_ch && fcount >= open_count && after_fence.trim().is_empty() {
+                        in_fence = None;
+                    }
+                }
+            }
+        }
+
+        if in_fence.is_none() {
+            if !in_slider_deck {
+                if let Some(after) = rest.strip_prefix("@slidestart") {
+                    // Valid if end-of-line, whitespace, or timer suffix.
+                    let ok = after.is_empty()
+                        || after
+                            .chars()
+                            .next()
+                            .is_some_and(|ch| ch == ' ' || ch == '\t' || ch == ':');
+                    if ok {
+                        highlights.push(line_highlight(
+                            line_no,
+                            line_start_offset,
+                            line.len(),
+                            HighlightTag::SliderDeckMarker,
+                        ));
+                        in_slider_deck = true;
+                    }
+                }
+            } else {
+                if let Some(after) = rest.strip_prefix("@slideend") {
+                    // Must be followed by whitespace or end.
+                    if after.is_empty()
+                        || after
+                            .chars()
+                            .next()
+                            .is_some_and(|ch| ch == ' ' || ch == '\t')
+                    {
+                        highlights.push(line_highlight(
+                            line_no,
+                            line_start_offset,
+                            line.len(),
+                            HighlightTag::SliderDeckMarker,
+                        ));
+                        in_slider_deck = false;
+                    }
+                }
+
+                // Slide separators
+                if rest.trim() == "---" {
+                    highlights.push(line_highlight(
+                        line_no,
+                        line_start_offset,
+                        line.len(),
+                        HighlightTag::SliderSeparatorHorizontal,
+                    ));
+                } else if rest.trim() == "--" {
+                    highlights.push(line_highlight(
+                        line_no,
+                        line_start_offset,
+                        line.len(),
+                        HighlightTag::SliderSeparatorVertical,
+                    ));
+                }
+            }
+        }
+
+        line_start_offset = line_start_offset.saturating_add(seg_len);
+        line_no = line_no.saturating_add(1);
+    }
+
+    highlights
+}
+
+fn line_highlight(
+    line: usize,
+    line_start_offset: usize,
+    line_len_bytes: usize,
+    tag: HighlightTag,
+) -> Highlight {
+    // Highlight the visible part of the line (excluding trailing newline).
+    let start = Position::new(line, 1, line_start_offset);
+    let end = Position::new(line, line_len_bytes + 1, line_start_offset + line_len_bytes);
+    Highlight {
+        span: Span::new(start, end),
+        tag,
     }
 }
 
@@ -376,6 +700,15 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
             NodeKind::HardBreak | NodeKind::SoftBreak => {
                 // Line breaks are formatting, not content
                 // Don't highlight them
+            }
+            // SKIP structural UI containers (rendered via HTML/CSS, not SourceView tags)
+            NodeKind::TabGroup | NodeKind::TabItem { .. } => {
+                // No editor-side syntax highlight for tab UI wrappers.
+            }
+
+            // SKIP slider UI containers (markers are handled via source scanning)
+            NodeKind::SliderDeck { .. } | NodeKind::Slide { .. } => {
+                // No AST-span highlight for slider wrapper nodes.
             }
         }
     }
@@ -1383,5 +1716,72 @@ mod tests {
         assert!(highlights
             .iter()
             .any(|h| h.tag == HighlightTag::DefinitionDescription));
+    }
+
+    #[test]
+    fn smoke_test_tab_block_marker_highlights_basic() {
+        let src = ":::tab\n@tab One\nHello\n\n@tab Two\nWorld\n:::\n";
+        let doc = crate::parser::parse(src).expect("parse failed");
+
+        let highlights = compute_highlights_with_source(&doc, src);
+
+        assert!(highlights
+            .iter()
+            .any(|h| { h.tag == HighlightTag::TabBlockContainer && h.span.start.line == 1 }));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::TabBlockHeader && h.span.start.line == 2));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::TabBlockHeader && h.span.start.line == 5));
+        assert!(highlights
+            .iter()
+            .any(|h| { h.tag == HighlightTag::TabBlockContainer && h.span.start.line == 7 }));
+    }
+
+    #[test]
+    fn smoke_test_tab_markers_not_highlighted_inside_fenced_code() {
+        let src = "```text\n:::tab\n@tab One\nHello\n:::\n```\n";
+        let doc = crate::parser::parse(src).expect("parse failed");
+        let highlights = compute_highlights_with_source(&doc, src);
+
+        assert!(!highlights.iter().any(|h| matches!(
+            h.tag,
+            HighlightTag::TabBlockContainer | HighlightTag::TabBlockHeader
+        )));
+    }
+
+    #[test]
+    fn smoke_test_slider_marker_highlights_basic() {
+        let src = "@slidestart:t5\n# One\n---\nTwo\n--\nThree\n@slideend\n";
+        let doc = crate::parser::parse(src).expect("parse failed");
+        let highlights = compute_highlights_with_source(&doc, src);
+
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::SliderDeckMarker && h.span.start.line == 1));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::SliderSeparatorHorizontal && h.span.start.line == 3));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::SliderSeparatorVertical && h.span.start.line == 5));
+        assert!(highlights
+            .iter()
+            .any(|h| h.tag == HighlightTag::SliderDeckMarker && h.span.start.line == 7));
+    }
+
+    #[test]
+    fn smoke_test_slider_markers_not_highlighted_inside_fenced_code() {
+        let src = "```text\n@slidestart\n---\n--\n@slideend\n```\n";
+        let doc = crate::parser::parse(src).expect("parse failed");
+        let highlights = compute_highlights_with_source(&doc, src);
+
+        assert!(!highlights.iter().any(|h| matches!(
+            h.tag,
+            HighlightTag::SliderDeckMarker
+                | HighlightTag::SliderSeparatorHorizontal
+                | HighlightTag::SliderSeparatorVertical
+        )));
     }
 }

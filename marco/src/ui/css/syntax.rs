@@ -55,6 +55,13 @@ pub const LSP_TAG_NAMES: &[&str] = &[
     "definition-list",
     "definition-term",
     "definition-description",
+    // Marco extended tab blocks
+    "tab-block-container",
+    "tab-block-header",
+    // Marco sliders
+    "slider-deck-marker",
+    "slider-separator-horizontal",
+    "slider-separator-vertical",
 ];
 
 /// Return a map of style name -> hex color string for the light theme.
@@ -105,6 +112,15 @@ fn light_color_map() -> HashMap<&'static str, &'static str> {
     m.insert("definition-list", "#6E7781");
     m.insert("definition-term", "#6E7781");
     m.insert("definition-description", "#6E7781");
+
+    // Marco extended tab blocks (structural markers)
+    m.insert("tab-block-container", "#8250DF");
+    m.insert("tab-block-header", "#0550AE");
+
+    // Marco sliders (structural markers)
+    m.insert("slider-deck-marker", "#8250DF");
+    m.insert("slider-separator-horizontal", "#8250DF");
+    m.insert("slider-separator-vertical", "#0550AE");
     m
 }
 
@@ -156,6 +172,15 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
     m.insert("definition-list", "#9CDCFE");
     m.insert("definition-term", "#9CDCFE");
     m.insert("definition-description", "#9CDCFE");
+
+    // Marco extended tab blocks (structural markers)
+    m.insert("tab-block-container", "#C586C0");
+    m.insert("tab-block-header", "#4FC1FF");
+
+    // Marco sliders (structural markers)
+    m.insert("slider-deck-marker", "#C586C0");
+    m.insert("slider-separator-horizontal", "#C586C0");
+    m.insert("slider-separator-vertical", "#4FC1FF");
     m
 }
 

@@ -24,6 +24,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.14.0] - 2026-01-18
+
+**Uses:** Core 0.14.0
+
+### Added
+- Preview rendering support for Marco tab blocks (`:::tab` / `@tab ...`) via the shared Core HTML renderer.
+- Preview styling for extended GitHub-style custom-header admonitions (quote-styled callouts with theme-primary title color).
+- Preview rendering support for Marco_sliders slideshow decks (`@slidestart[:tN]` … `@slideend`) via the shared Core HTML renderer.
+
 ## [0.13.3] - 2026-01-17
 
 **Uses:** Core 0.13.3

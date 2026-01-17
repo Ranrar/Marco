@@ -290,6 +290,15 @@ fn get_or_create_tag(buffer: &sourceview5::Buffer, tag: &core::lsp::HighlightTag
         HighlightTag::DefinitionList => "definition-list",
         HighlightTag::DefinitionTerm => "definition-term",
         HighlightTag::DefinitionDescription => "definition-description",
+
+        // Marco extended tab blocks
+        HighlightTag::TabBlockContainer => "tab-block-container",
+        HighlightTag::TabBlockHeader => "tab-block-header",
+
+        // Marco sliders
+        HighlightTag::SliderDeckMarker => "slider-deck-marker",
+        HighlightTag::SliderSeparatorHorizontal => "slider-separator-horizontal",
+        HighlightTag::SliderSeparatorVertical => "slider-separator-vertical",
     };
 
     let tag_table = buffer.tag_table();

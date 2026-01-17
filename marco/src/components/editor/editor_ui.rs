@@ -859,8 +859,9 @@ paned > separator {{
 
             glib::spawn_future_local(async move {
                 let result = gio::spawn_blocking(move || {
-                    core::parser::parse(&current_text_for_lsp)
-                        .map(|doc| core::lsp::compute_highlights(&doc))
+                    let src = current_text_for_lsp;
+                    core::parser::parse(&src)
+                        .map(|doc| core::lsp::compute_highlights_with_source(&doc, &src))
                 })
                 .await;
 
@@ -1166,12 +1167,12 @@ paned > separator {{
 
             // Debug: log the document path being passed
             if let Some(ref path) = doc_path {
-                eprintln!(
-                    "[DEBUG] Theme refresh: Passing document path to preview: {}",
+                log::debug!(
+                    "[theme] refresh: passing document path to preview: {}",
                     path.display()
                 );
             } else {
-                eprintln!("[DEBUG] Theme refresh: No document path available (untitled document)");
+                log::debug!("[theme] refresh: no document path available (untitled document)");
             }
 
             refresh_preview_into_webview(

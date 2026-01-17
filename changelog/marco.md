@@ -24,6 +24,16 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.14.0] - 2026-01-18
+
+**Uses:** Core 0.14.0
+
+### Added
+- Preview styling for extended GitHub-style custom-header admonitions (quote-styled callouts with theme-primary title color).
+- Editor syntax highlighting for Marco tab block markers (`:::tab`, `@tab ...`, closing `:::`).
+- Preview support + styling for Marco_sliders slideshow decks (`@slidestart[:tN]` … `@slideend` with `---` / `--` separators).
+- Editor syntax highlighting for Marco_sliders marker/separator lines.
+
 ## [0.13.3] - 2026-01-17
 
 **Uses:** Core 0.13.3

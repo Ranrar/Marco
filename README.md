@@ -80,7 +80,7 @@ Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests pass
 | Tables (GFM pipe tables) | ✅ Supported | Header/body separation + per-column alignment. |
 | Headerless pipe tables (delimiter-first, no header row) | ✅ Supported | Marco extension: the first line is the delimiter row, followed by 1+ body rows; renders as a normal table with `<tbody>` only. |
 | Strikethrough (`~~text~~`) | ✅ Supported | GFM extension. |
-| Admonitions / callouts | ✅ Supported | GitHub-style alerts (e.g. Note/Tip/Important/Warning/Caution). |
+| Admonitions / callouts | ✅ Supported | GitHub-style alerts (e.g. Note/Tip/Important/Warning/Caution) plus an extended custom-header form: `> [:joy: Happy Header]` (quote-styled with a custom emoji/icon + title). |
 | Footnotes (`[^a]` + `[^a]: …`) | ✅ Supported | Rendered as an end-of-document footnotes section. |
 | Inline footnotes (`^[...]`) | ✅ Supported | Marco extension: inline footnote content is defined at the reference point and rendered into the same footnotes section. |
 | Highlight/mark (`==text==`) | ✅ Supported | Rendered as `<mark>…</mark>`. |
@@ -88,8 +88,8 @@ Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests pass
 | Emoji shortcodes (`:joy:`) | ✅ Supported | Only recognized shortcodes convert; unknown ones stay literal text. |
 | User mentions (`@name[platform]`) | ✅ Supported | Marco extension: renders as a profile link when `(platform, username)` maps to a stable public profile URL; otherwise renders as non-link text. |
 | Inline checkboxes mid-paragraph (`... [x] ...`) | ✅ Supported | Marco extension: `[ ]` / `[x]` / `[X]` markers are recognized inside normal text (with conservative parsing to avoid breaking link syntax). |
-| Admonition blocks (`:::note ... :::`) | Not implemented yet | Planned Marco extension (colon-fenced blocks, optional titles/icons). |
-| Tab blocks (`:::tab` + `@tab`) | Not implemented yet | Planned Marco extension that renders as an interactive tab UI in the HTML preview (switch tabs to show/hide the content blocks). |
+| Tab blocks (`:::tab` + `@tab`) | ✅ Supported | Marco extension: `:::tab` container with `@tab <title>` headers; renders as a no-JS tab UI in the HTML preview (radio+label panels). Nested tab blocks are intentionally not supported. |
+| Slideshow decks (`@slidestart` / `@slideend`) | ✅ Supported | Marco extension: author slide decks inside Markdown using `@slidestart[:tN]` … `@slideend`. Use `---` for horizontal slide breaks and `--` for vertical breaks (stored as metadata). Renders as an interactive slideshow in the preview (controls + dots); adds autoplay when a timer is provided. |
 | YouTube embeds | Not implemented yet | Planned (URLs render as links today; embed would be opt-in). |
 | Math (KaTeX / LaTeX) | Not implemented yet | Planned. |
 | Diagrams (Mermaid) | Not implemented yet | Planned. |
@@ -148,7 +148,7 @@ Marco uses a **Cargo workspace** with three crates:
 - [ ] Advanced syntax features with linting support
 - [ ] Optimize parser performance and caching
 
-### Editor Features
+### Editor Features (Marco)
 - [x] Multiple layout modes: editor+preview, editor only, preview only, detachable preview
 - [x] Scroll sync between editor and preview
 - [x] Intelligent search
@@ -156,6 +156,11 @@ Marco uses a **Cargo workspace** with three crates:
 - [ ] Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
 - [ ] Multi-cursor editing support
 - [ ] Syntax highlighting in editor (via LSP)
+
+### Viewer Fetures (Polo)
+- [x] Same viewer engine as Marco
+- [ ] Search function
+- [ ] Mouse over link information 
 
 ### Document Features
 - [x] Smart code blocks with programming languages syntax

@@ -173,7 +173,7 @@ fn format_node_tree(
             format!("TaskCheckboxInline(checked={})", checked)
         }
         NodeKind::Blockquote => "Blockquote".to_string(),
-        NodeKind::Admonition { kind } => format!("Admonition({:?})", kind),
+        NodeKind::Admonition { kind, .. } => format!("Admonition({:?})", kind),
         NodeKind::ThematicBreak => "ThematicBreak".to_string(),
         NodeKind::Table { alignments } => format!("Table(cols={})", alignments.len()),
         NodeKind::TableRow { header } => format!("TableRow(header={})", header),
@@ -225,6 +225,12 @@ fn format_node_tree(
         NodeKind::InlineHtml(html) => format!("InlineHtml \"{}\"", truncate(html, 40)),
         NodeKind::HardBreak => "HardBreak".to_string(),
         NodeKind::SoftBreak => "SoftBreak".to_string(),
+        NodeKind::TabGroup => "TabGroup".to_string(),
+        NodeKind::TabItem { title } => format!("TabItem(\"{}\")", truncate(title, 40)),
+        NodeKind::SliderDeck { timer_seconds } => {
+            format!("SliderDeck(timer_seconds={:?})", timer_seconds)
+        }
+        NodeKind::Slide { vertical } => format!("Slide(vertical={})", vertical),
     };
 
     writeln!(output, "{}{}{}", prefix, connector, node_info).unwrap();

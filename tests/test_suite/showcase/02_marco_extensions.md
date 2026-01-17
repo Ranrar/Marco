@@ -176,9 +176,6 @@ ORDER BY created_at DESC;
 ### Mixed Content Tab Block
 
 :::tab Documentation
-Default content before any tabs.
-This appears in the default tab.
-
 @tab Installation
 ## Installation Steps
 
@@ -203,8 +200,6 @@ This appears in the default tab.
 - Issue 1: Check permissions
 - Issue 2: Restart service  
 - Issue 3: Clear cache
-
-More default content at the end.
 :::
 
 ### Inline Tasks

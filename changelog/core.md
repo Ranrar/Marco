@@ -22,6 +22,14 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.14.0] - 2026-01-18
+
+### Added
+- Extended GitHub-style admonitions with custom headers, e.g. `> [:joy: Happy Header]` (quote-styled, with optional emoji/icon + custom title).
+- Marco_Extended tab blocks (`:::tab` + `@tab ...` + closing `:::`), parsed into `TabGroup`/`TabItem` and rendered as a no-JS tab UI in HTML preview.
+- Marco_sliders slideshow decks (`@slidestart[:tN]` … `@slideend` with `---` / `--` separators), parsed into a dedicated AST and rendered as an interactive slideshow in the preview.
+- Source-aware LSP highlighting helper (`compute_highlights_with_source`) to color structural marker lines like tab block markers.
+
 ## [0.13.3] - 2026-01-17
 
 ### Added

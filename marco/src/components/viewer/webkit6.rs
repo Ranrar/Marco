@@ -349,10 +349,30 @@ pub fn wrap_html_document(
 }
 
 // Note: in-page JS helpers are embedded in the HTML template produced by
-// `wrap_html_document`. To avoid binding issues across webkit6 versions we
-// intentionally don't call JS from Rust here. If/when needed, add a small
-// compatibility wrapper that uses the correct webkit6 API available in the
-// project's environment.
+// `wrap_html_document`. When we need to trigger preview interactions from Rust,
+// we do so via small helper functions that call into `window.MarcoPreview`.
+
+/// Start autoplay timers for all `marco_sliders` decks in the current preview (if any).
+#[allow(dead_code)]
+pub fn sliders_play_all(webview: &WebView) {
+    let js = r#"(function(){try{if(window.MarcoPreview&&window.MarcoPreview.sliders&&typeof window.MarcoPreview.sliders.playAll==='function'){window.MarcoPreview.sliders.playAll();}}catch(e){console.error('sliders_play_all error',e);}})();"#;
+    let webview_clone = webview.clone();
+    glib::idle_add_local(move || {
+        webview_clone.evaluate_javascript(js, None, None, None::<&gio::Cancellable>, |_result| {});
+        glib::ControlFlow::Break
+    });
+}
+
+/// Stop autoplay timers for all `marco_sliders` decks in the current preview (if any).
+#[allow(dead_code)]
+pub fn sliders_pause_all(webview: &WebView) {
+    let js = r#"(function(){try{if(window.MarcoPreview&&window.MarcoPreview.sliders&&typeof window.MarcoPreview.sliders.pauseAll==='function'){window.MarcoPreview.sliders.pauseAll();}}catch(e){console.error('sliders_pause_all error',e);}})();"#;
+    let webview_clone = webview.clone();
+    glib::idle_add_local(move || {
+        webview_clone.evaluate_javascript(js, None, None, None::<&gio::Cancellable>, |_result| {});
+        glib::ControlFlow::Break
+    });
+}
 
 /// Create a WebView-based HTML source viewer with syntax highlighting.
 ///

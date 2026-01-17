@@ -16,6 +16,8 @@ pub mod cm_setext_heading;
 pub mod cm_thematic_break;
 pub mod gfm_table;
 pub mod marco_headerless_table;
+pub mod marco_sliders;
+pub mod marco_tab_blocks;
 
 // Re-export all block parsers
 pub use cm_blockquote::*;
@@ -30,3 +32,5 @@ pub use cm_setext_heading::*;
 pub use cm_thematic_break::*;
 pub use gfm_table::*;
 pub use marco_headerless_table::*;
+pub use marco_sliders::*;
+pub use marco_tab_blocks::*;

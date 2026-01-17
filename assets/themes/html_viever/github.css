@@ -35,6 +35,10 @@
   --toc-bg: #f8f9fa;
   --toc-border: #d0d7de;
   --toc-shadow: rgba(0, 0, 0, 0.1);
+
+    /* Marco sliders */
+    --marco-sliders-bg: var(--bg-secondary);
+    --marco-sliders-border: var(--border-color);
 }
 
 /* Dark theme colors using CSS media query */
@@ -72,6 +76,10 @@
     --toc-bg: #0d1117;
     --toc-border: #30363d;
     --toc-shadow: rgba(0, 0, 0, 0.3);
+
+        /* Marco sliders */
+        --marco-sliders-bg: var(--bg-secondary);
+        --marco-sliders-border: var(--border-color);
   }
 }
 
@@ -109,6 +117,10 @@
   --toc-bg: #f8f9fa;
   --toc-border: #d0d7de;
   --toc-shadow: rgba(0, 0, 0, 0.1);
+
+    /* Marco sliders */
+    --marco-sliders-bg: var(--bg-secondary);
+    --marco-sliders-border: var(--border-color);
 }
 
 /* Force dark theme class override */
@@ -145,6 +157,10 @@
   --toc-bg: #0d1117;
   --toc-border: #30363d;
   --toc-shadow: rgba(0, 0, 0, 0.3);
+
+    /* Marco sliders */
+    --marco-sliders-bg: var(--bg-secondary);
+    --marco-sliders-border: var(--border-color);
 }
 
 body {
@@ -476,6 +492,16 @@ hr {
     shape-rendering: auto;
 }
 
+.markdown-alert .markdown-alert-emoji {
+    width: 1.4em;
+    height: 1.4em;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    font-size: 1.2em;
+}
+
 .markdown-alert.markdown-alert-note {
     border-left-color: #0969da;
 }
@@ -514,6 +540,16 @@ hr {
 
 .markdown-alert.markdown-alert-caution .markdown-alert-title {
     color: #cf222e;
+}
+
+/* Quote-style admonitions (neutral / blockquote-like colors) */
+.markdown-alert.admonition-quote {
+    border-left-color: var(--blockquote-border);
+    color: var(--blockquote-text);
+}
+
+.markdown-alert.admonition-quote .markdown-alert-title {
+    color: var(--link-color);
 }
 
 /* Standard admonitions for compatibility */
@@ -727,4 +763,95 @@ textview text {
 textview text selection {
     background-color: var(--link-color);
     color: var(--bg-color);
+}
+
+/* Marco extended tab blocks */
+.marco-tabs {
+    position: relative;
+    margin: 1rem 0;
+    border: 1px solid var(--border-color, var(--blockquote-border, #d0d7de));
+    border-radius: 8px;
+    background-color: var(--bg-color, #ffffff);
+    overflow: hidden;
+}
+
+/* Keep radios in the accessibility tree while hiding them visually */
+.marco-tabs__radio {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.marco-tabs__tablist {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    padding: 0.35rem;
+    border-bottom: 1px solid var(--border-color, var(--blockquote-border, #d0d7de));
+    background-color: var(--bg-secondary, var(--code-bg, #f6f8fa));
+}
+
+.marco-tabs__tab {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.35rem 0.65rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--link-color, #0969da);
+    user-select: none;
+}
+
+.marco-tabs__tab:hover {
+    background-color: var(--border-light, rgba(0, 0, 0, 0.06));
+}
+
+.marco-tabs__panels {
+    padding: 0.85rem 1rem;
+}
+
+.marco-tabs__panel {
+    display: none;
+}
+
+.marco-tabs__panel > :first-child {
+    margin-top: 0;
+}
+
+.marco-tabs__panel > :last-child {
+    margin-bottom: 0;
+}
+
+/* Show the selected panel + style the selected tab label.
+   Note: The radios are direct children of `.marco-tabs`, so nth-of-type rules are stable. */
+.marco-tabs > input.marco-tabs__radio:nth-of-type(1):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(1),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(2):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(2),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(3):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(3),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(4):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(4),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(5):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(5),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(6):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(6),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(7):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(7),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(8):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(8),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(9):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(9),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(10):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(10),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(11):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(11),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(12):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(12) {
+    display: block;
+}
+
+.marco-tabs > input.marco-tabs__radio:nth-of-type(1):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(1),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(2):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(2),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(3):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(3),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(4):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(4),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(5):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(5),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(6):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(6),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(7):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(7),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(8):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(8),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(9):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(9),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(10):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(10),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(11):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(11),
+.marco-tabs > input.marco-tabs__radio:nth-of-type(12):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(12) {
+    background-color: var(--bg-color, #ffffff);
+    color: var(--text-color, #24292f);
+    box-shadow: inset 0 0 0 1px var(--border-color, var(--blockquote-border, #d0d7de));
 }

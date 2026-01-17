@@ -22,6 +22,8 @@ pub mod gfm_admonitions;
 pub mod gfm_footnote_definition_parser;
 pub mod gfm_table_parser;
 pub mod marco_headerless_table_parser;
+pub mod marco_sliders_parser;
+pub mod marco_tab_blocks_parser;
 
 // Re-export shared utilities
 pub use shared::{dedent_list_item_content, to_parser_span, to_parser_span_range, GrammarSpan};
@@ -76,11 +78,33 @@ impl BlockContext {
 /// Track all currently open block contexts
 struct ParserState {
     blocks: Vec<BlockContext>,
+    allow_tab_blocks: bool,
+    allow_sliders: bool,
 }
 
 impl ParserState {
     fn new() -> Self {
-        Self { blocks: Vec::new() }
+        Self {
+            blocks: Vec::new(),
+            allow_tab_blocks: true,
+            allow_sliders: true,
+        }
+    }
+
+    fn new_with_tab_blocks(allow_tab_blocks: bool) -> Self {
+        Self {
+            blocks: Vec::new(),
+            allow_tab_blocks,
+            allow_sliders: true,
+        }
+    }
+
+    fn new_with_sliders(allow_sliders: bool) -> Self {
+        Self {
+            blocks: Vec::new(),
+            allow_tab_blocks: true,
+            allow_sliders,
+        }
     }
 
     /// Add a new block context to the stack
@@ -420,6 +444,31 @@ fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> 
             continue;
         }
 
+        // Try parsing Marco sliders (extension)
+        // Must come BEFORE setext heading. Otherwise, the internal `---` / `--`
+        // separators can be consumed as setext underlines and the deck is lost.
+        if state.allow_sliders {
+            let deck_start = remaining;
+            if let Ok((rest, deck)) = grammar::marco_slide_deck(remaining) {
+                let node = marco_sliders_parser::parse_marco_slide_deck(
+                    deck,
+                    deck_start,
+                    rest,
+                    depth,
+                    |slide_body, new_depth| {
+                        // Slides support arbitrary markdown, but nested
+                        // `@slidestart` decks are disallowed.
+                        let mut slide_state = ParserState::new_with_sliders(false);
+                        parse_blocks_internal(slide_body, new_depth, &mut slide_state)
+                    },
+                )?;
+
+                nodes.push(node);
+                remaining = rest;
+                continue;
+            }
+        }
+
         // Try parsing Setext heading (underline style: === or ---)
         // NOTE: Must come AFTER lists to avoid eating list marker patterns like "- foo\n---"
         let full_start = remaining;
@@ -469,6 +518,31 @@ fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> 
             nodes.push(gfm_table_parser::parse_gfm_table(table, table_start, rest));
             remaining = rest;
             continue;
+        }
+
+        // Try parsing Marco extended tab blocks (extension)
+        // Must come BEFORE paragraph so the container isn't consumed as plain text.
+        if state.allow_tab_blocks {
+            let tab_start = remaining;
+            if let Ok((rest, block)) = grammar::marco_tab_block(remaining) {
+                let node = marco_tab_blocks_parser::parse_marco_tab_block(
+                    block,
+                    tab_start,
+                    rest,
+                    depth,
+                    |panel, new_depth| {
+                        // Tabs must support arbitrary markdown in each panel, but nested
+                        // `:::tab` containers are disallowed. We implement that by
+                        // disabling tab parsing while parsing the panel body.
+                        let mut panel_state = ParserState::new_with_tab_blocks(false);
+                        parse_blocks_internal(panel, new_depth, &mut panel_state)
+                    },
+                )?;
+
+                nodes.push(node);
+                remaining = rest;
+                continue;
+            }
         }
 
         // Try parsing extended definition lists (Markdown Guide / Markdown Extra-style)

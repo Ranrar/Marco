@@ -86,6 +86,17 @@ pub enum AdmonitionKind {
     Caution,
 }
 
+/// Rendering style for admonitions.
+///
+/// - `Alert`: Standard GitHub-style alert coloring (NOTE/TIP/WARNING/etc).
+/// - `Quote`: Quote-colored styling (neutral border/colors like regular blockquotes) while
+///   keeping the admonition title layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AdmonitionStyle {
+    Alert,
+    Quote,
+}
+
 // All node types
 #[derive(Debug, Clone)]
 pub enum NodeKind {
@@ -140,6 +151,61 @@ pub enum NodeKind {
     /// first line inside a blockquote (e.g. `[!NOTE]`) and removes that marker.
     Admonition {
         kind: AdmonitionKind,
+        /// Optional custom title for the admonition header.
+        ///
+        /// Used by extended GFM-style admonitions (e.g. `> [😂 Happy Header]`).
+        title: Option<String>,
+        /// Optional custom icon content (typically a Unicode emoji) for the title.
+        ///
+        /// Rendered as text (not SVG) and must be styled by CSS.
+        icon: Option<String>,
+        /// Render variant.
+        style: AdmonitionStyle,
+    },
+
+    /// Marco extended tab blocks.
+    ///
+    /// Syntax (container + items):
+    /// ```text
+    /// :::tab
+    /// @tab Title
+    /// Content...
+    /// :::
+    /// ```
+    ///
+    /// Children convention:
+    /// - A `TabGroup` contains one or more `TabItem` children.
+    /// - Each `TabItem` contains block children representing the tab panel content.
+    TabGroup,
+    TabItem {
+        title: String,
+    },
+
+    /// Marco sliders (planned Reveal.js-like syntax, rendered as a simple slideshow).
+    ///
+    /// Syntax:
+    /// ```text
+    /// @slidestart
+    /// slide 1
+    /// ---
+    /// slide 2
+    /// @slideend
+    /// ```
+    ///
+    /// Optional timer (seconds per slide): `@slidestart:t5`.
+    ///
+    /// Children convention:
+    /// - A `SliderDeck` contains one or more `Slide` children.
+    /// - Each `Slide` contains block children representing the slide content.
+    SliderDeck {
+        timer_seconds: Option<u32>,
+    },
+    Slide {
+        /// True if this slide started after a vertical separator (`--`).
+        ///
+        /// The current Marco viewer treats slides as a single linear sequence
+        /// (left/right). This flag is preserved for future vertical navigation.
+        vertical: bool,
     },
     /// GFM table (pipe table extension).
     ///

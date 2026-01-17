@@ -29,6 +29,15 @@ GitHub often treats these as a single paragraph with a soft break.
 > First line
 > second line continues the same paragraph
 
+## Custom-header (quote-style) extension
+
+This repo also supports a neutral, blockquote-colored variant that keeps the
+admonition title layout but uses a custom icon + title.
+
+> [:joy: Happy Header]
+> This should render as an admonition with a custom emoji icon and title,  
+> but with quote-like (neutral) colors.
+
 ## Edge cases
 
 ### Case-insensitive marker

@@ -215,6 +215,135 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus::after,
 a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
     opacity: 0.9;
 }
+
+/* Marco: sliders / slide decks */
+.marco-sliders {
+    position: relative;
+    margin: 1rem 0;
+    padding: 0.75rem 0.9rem;
+    border-radius: 10px;
+    border: 1px solid var(--marco-sliders-border, transparent);
+    background: var(--marco-sliders-bg, transparent);
+}
+
+.marco-sliders__viewport {
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    overflow: hidden;
+}
+
+.marco-sliders__slide {
+    grid-area: 1 / 1;
+    align-self: start;
+    justify-self: stretch;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(0.35rem);
+    transition: opacity 180ms ease-in-out, transform 180ms ease-in-out;
+}
+
+.marco-sliders__slide.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .marco-sliders__slide {
+        transition: none !important;
+        transform: none !important;
+    }
+}
+
+.marco-sliders__controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.marco-sliders__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.35rem;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.85;
+}
+
+.marco-sliders__btn:hover,
+.marco-sliders__dot:hover {
+    opacity: 1;
+}
+
+.marco-sliders__btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.marco-sliders__btn svg,
+.marco-sliders__dot svg {
+    width: 1.15em;
+    height: 1.15em;
+    display: block;
+}
+
+.marco-sliders__dots {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    margin-top: 0.35rem;
+}
+
+.marco-sliders__dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.1rem;
+    border: none;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.75;
+}
+
+.marco-sliders__dot.is-active {
+    opacity: 1;
+}
+
+.marco-sliders__dot-icon--active {
+    display: none;
+}
+
+.marco-sliders__dot.is-active .marco-sliders__dot-icon--inactive {
+    display: none;
+}
+
+.marco-sliders__dot.is-active .marco-sliders__dot-icon--active {
+    display: inline-flex;
+}
+
+/* Toggle button shows play when paused, pause when playing */
+.marco-sliders .marco-sliders__icon--pause {
+    display: none;
+}
+
+.marco-sliders.is-playing .marco-sliders__icon--play {
+    display: none;
+}
+
+.marco-sliders.is-playing .marco-sliders__icon--pause {
+    display: inline-flex;
+}
 "#;
 
     // NOTE: This HTML template is used as a Rust `format!` string. All literal
@@ -233,6 +362,11 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                 var scrollTimeouts = [];
                 var tableResizerCleanup = null;
                 var tableSizeState = Object.create(null);
+                var sliderDeckState = Object.create(null);
+                var sliderDelegatedInstalled = false;
+                var sliderResizeObservers = Object.create(null);
+                var sliderMeasureScheduled = Object.create(null);
+                var sliderWindowResizeInstalled = false;
                 
                 // Cleanup function to clear any pending timeouts
                 function cleanupScrollRestoration() {{
@@ -248,6 +382,31 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                 function cleanup() {{
                     cleanupScrollRestoration();
 
+                    // Stop any slider timers
+                    try {{
+                        Object.keys(sliderDeckState).forEach(function(deckId) {{
+                            var st = sliderDeckState[deckId];
+                            if (st && st.intervalId) {{
+                                clearInterval(st.intervalId);
+                                st.intervalId = null;
+                            }}
+                        }});
+                    }} catch(e) {{
+                        console.error('Error stopping sliders:', e);
+                    }}
+
+                    // Disconnect any ResizeObservers
+                    try {{
+                        Object.keys(sliderResizeObservers).forEach(function(deckId) {{
+                            var ro = sliderResizeObservers[deckId];
+                            if (ro && typeof ro.disconnect === 'function') {{
+                                ro.disconnect();
+                            }}
+                        }});
+                    }} catch(e) {{
+                        console.error('Error disconnecting slider ResizeObservers:', e);
+                    }}
+
                     // Remove table resizer listeners (if installed)
                     try {{
                         if (typeof tableResizerCleanup === 'function') {{
@@ -259,6 +418,325 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
 
                     // Clear any persisted state
                     tableSizeState = Object.create(null);
+                    sliderDeckState = Object.create(null);
+                    sliderResizeObservers = Object.create(null);
+                    sliderMeasureScheduled = Object.create(null);
+                }}
+
+                function parsePositiveInt(s) {{
+                    var n = parseInt(s, 10);
+                    if (!isFinite(n) || isNaN(n) || n <= 0) return null;
+                    return n;
+                }}
+
+                function setDeckPlaying(deck, playing) {{
+                    try {{
+                        if (playing) deck.classList.add('is-playing');
+                        else deck.classList.remove('is-playing');
+                    }} catch(_e) {{
+                        // ignore
+                    }}
+                }}
+
+                function getDeckState(deck) {{
+                    if (!deck || !deck.id) return null;
+                    return sliderDeckState[deck.id] || null;
+                }}
+
+                function measureDeckViewportHeight(deck) {{
+                    try {{
+                        if (!deck) return;
+                        var viewport = deck.querySelector('.marco-sliders__viewport');
+                        if (!viewport) return;
+
+                        var slides = deck.querySelectorAll('.marco-sliders__slide');
+                        if (!slides || slides.length === 0) return;
+
+                        var maxH = 0;
+                        for (var i = 0; i < slides.length; i++) {{
+                            var el = slides[i];
+                            if (!el) continue;
+                            var r = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+                            var h = (r && r.height) ? r.height : (el.scrollHeight || 0);
+                            if (h > maxH) maxH = h;
+                        }}
+
+                        if (maxH > 0) {{
+                            viewport.style.minHeight = Math.ceil(maxH) + 'px';
+                        }}
+                    }} catch(e) {{
+                        console.error('Failed to measure slider deck height:', e);
+                    }}
+                }}
+
+                function scheduleDeckMeasure(deck) {{
+                    try {{
+                        if (!deck || !deck.id) return;
+                        if (sliderMeasureScheduled[deck.id]) return;
+                        sliderMeasureScheduled[deck.id] = true;
+                        requestAnimationFrame(function() {{
+                            try {{
+                                delete sliderMeasureScheduled[deck.id];
+                                measureDeckViewportHeight(deck);
+                            }} catch(_e) {{
+                                // ignore
+                            }}
+                        }});
+                    }} catch(_e) {{
+                        // ignore
+                    }}
+                }}
+
+                function ensureSliderWindowResizeInstalled() {{
+                    if (sliderWindowResizeInstalled) return;
+                    sliderWindowResizeInstalled = true;
+
+                    window.addEventListener('resize', function() {{
+                        try {{
+                            Object.keys(sliderDeckState).forEach(function(deckId) {{
+                                var st = sliderDeckState[deckId];
+                                if (st && st.deckEl) scheduleDeckMeasure(st.deckEl);
+                            }});
+                        }} catch(e) {{
+                            console.error('Slider resize handler error:', e);
+                        }}
+                    }}, true);
+                }}
+
+                function installDeckResizeObserver(deck) {{
+                    try {{
+                        if (!deck || !deck.id) return;
+                        if (sliderResizeObservers[deck.id]) return;
+
+                        if (!window.ResizeObserver) return;
+                        var ro = new ResizeObserver(function(_entries) {{
+                            scheduleDeckMeasure(deck);
+                        }});
+
+                        // Observe the viewport and each slide so height changes (e.g. images loading)
+                        // trigger a re-measure.
+                        var viewport = deck.querySelector('.marco-sliders__viewport');
+                        if (viewport) ro.observe(viewport);
+
+                        var slides = deck.querySelectorAll('.marco-sliders__slide');
+                        for (var i = 0; i < slides.length; i++) {{
+                            ro.observe(slides[i]);
+                        }}
+
+                        sliderResizeObservers[deck.id] = ro;
+                    }} catch(e) {{
+                        // ResizeObserver is best-effort; don't break sliders if it fails.
+                        console.error('Failed to install ResizeObserver for slider deck:', e);
+                    }}
+                }}
+
+                function showSlide(deck, index) {{
+                    var st = getDeckState(deck);
+                    if (!st) return;
+                    var slides = deck.querySelectorAll('.marco-sliders__slide');
+                    var dots = deck.querySelectorAll('.marco-sliders__dot');
+                    if (!slides || slides.length === 0) return;
+
+                    var n = slides.length;
+                    var i = index;
+                    if (i < 0) i = n - 1;
+                    if (i >= n) i = 0;
+                    st.index = i;
+
+                    for (var k = 0; k < slides.length; k++) {{
+                        if (k === i) slides[k].classList.add('is-active');
+                        else slides[k].classList.remove('is-active');
+
+                        // Keep hidden slides out of the accessibility tree.
+                        try {{
+                            if (k === i) slides[k].removeAttribute('aria-hidden');
+                            else slides[k].setAttribute('aria-hidden', 'true');
+                        }} catch(_e) {{
+                            // ignore
+                        }}
+                    }}
+
+                    for (var d = 0; d < dots.length; d++) {{
+                        if (d === i) dots[d].classList.add('is-active');
+                        else dots[d].classList.remove('is-active');
+
+                        // Sync ARIA for keyboard/screen-reader navigation.
+                        try {{
+                            if (d === i) {{
+                                dots[d].setAttribute('aria-selected', 'true');
+                                dots[d].setAttribute('tabindex', '0');
+                            }} else {{
+                                dots[d].setAttribute('aria-selected', 'false');
+                                dots[d].setAttribute('tabindex', '-1');
+                            }}
+                        }} catch(_e) {{
+                            // ignore
+                        }}
+                    }}
+
+                    // Lock the viewport size to the tallest slide to avoid layout jumps.
+                    scheduleDeckMeasure(deck);
+                }}
+
+                function slidersPauseDeck(deckId) {{
+                    var st = sliderDeckState[deckId];
+                    if (!st) return;
+                    if (st.intervalId) {{
+                        clearInterval(st.intervalId);
+                        st.intervalId = null;
+                    }}
+                    st.playing = false;
+                    if (st.deckEl) setDeckPlaying(st.deckEl, false);
+                }}
+
+                function slidersPlayDeck(deckId) {{
+                    var st = sliderDeckState[deckId];
+                    if (!st) return;
+                    if (!st.timerSeconds || st.timerSeconds <= 0) return;
+
+                    slidersPauseDeck(deckId);
+                    st.playing = true;
+                    if (st.deckEl) setDeckPlaying(st.deckEl, true);
+
+                    st.intervalId = setInterval(function() {{
+                        try {{
+                            var deck = st.deckEl;
+                            if (!deck) return;
+                            showSlide(deck, st.index + 1);
+                        }} catch(e) {{
+                            console.error('Slider tick error:', e);
+                        }}
+                    }}, st.timerSeconds * 1000);
+                }}
+
+                function slidersToggleDeck(deckId) {{
+                    var st = sliderDeckState[deckId];
+                    if (!st) return;
+                    if (st.playing) slidersPauseDeck(deckId);
+                    else slidersPlayDeck(deckId);
+                }}
+
+                function slidersPauseAll() {{
+                    Object.keys(sliderDeckState).forEach(function(deckId) {{
+                        slidersPauseDeck(deckId);
+                    }});
+                }}
+
+                function slidersPlayAll() {{
+                    Object.keys(sliderDeckState).forEach(function(deckId) {{
+                        slidersPlayDeck(deckId);
+                    }});
+                }}
+
+                function slidersToggleAll() {{
+                    Object.keys(sliderDeckState).forEach(function(deckId) {{
+                        slidersToggleDeck(deckId);
+                    }});
+                }}
+
+                function initSliderDeck(deck) {{
+                    if (!deck || !deck.id) return;
+                    var timerSeconds = parsePositiveInt(deck.getAttribute('data-timer-seconds'));
+                    var slides = deck.querySelectorAll('.marco-sliders__slide');
+                    if (!slides || slides.length === 0) return;
+
+                    sliderDeckState[deck.id] = {{
+                        deckEl: deck,
+                        index: 0,
+                        timerSeconds: timerSeconds,
+                        intervalId: null,
+                        playing: false
+                    }};
+
+                    // Disable toggle button if no timer.
+                    var toggleBtn = deck.querySelector('.marco-sliders__btn--toggle');
+                    if (toggleBtn) {{
+                        if (!timerSeconds) {{
+                            toggleBtn.disabled = true;
+                            toggleBtn.setAttribute('aria-disabled', 'true');
+                        }} else {{
+                            toggleBtn.disabled = false;
+                            toggleBtn.removeAttribute('aria-disabled');
+                        }}
+                    }}
+
+                    showSlide(deck, 0);
+                    setDeckPlaying(deck, false);
+
+                    // Prevent content jumps by measuring the largest slide and
+                    // keeping the viewport height stable.
+                    ensureSliderWindowResizeInstalled();
+                    installDeckResizeObserver(deck);
+                    scheduleDeckMeasure(deck);
+
+                    // Autoplay if timer is present.
+                    if (timerSeconds) {{
+                        slidersPlayDeck(deck.id);
+                    }}
+                }}
+
+                function ensureSliderDelegationInstalled() {{
+                    if (sliderDelegatedInstalled) return;
+                    sliderDelegatedInstalled = true;
+
+                    // Delegated click handler; survives innerHTML updates.
+                    document.addEventListener('click', function(ev) {{
+                        try {{
+                            var target = ev.target;
+                            if (!target) return;
+                            var btn = target.closest('button');
+                            if (!btn) return;
+                            var deck = btn.closest('.marco-sliders');
+                            if (!deck) return;
+
+                            var action = btn.getAttribute('data-action');
+                            var st = getDeckState(deck);
+                            if (!st) return;
+
+                            if (action === 'prev') {{
+                                showSlide(deck, st.index - 1);
+                            }} else if (action === 'next') {{
+                                showSlide(deck, st.index + 1);
+                            }} else if (action === 'goto') {{
+                                var idx = parseInt(btn.getAttribute('data-index'), 10);
+                                if (!isNaN(idx)) showSlide(deck, idx);
+                            }} else if (action === 'toggle') {{
+                                slidersToggleDeck(deck.id);
+                            }}
+                        }} catch(e) {{
+                            console.error('Slider click handler error:', e);
+                        }}
+                    }}, true);
+                }}
+
+                function installSliders(container) {{
+                    try {{
+                        // Stop existing timers and rebuild state for the new DOM.
+                        slidersPauseAll();
+
+                        // Disconnect any prior observers (they reference old DOM nodes).
+                        try {{
+                            Object.keys(sliderResizeObservers).forEach(function(deckId) {{
+                                var ro = sliderResizeObservers[deckId];
+                                if (ro && typeof ro.disconnect === 'function') ro.disconnect();
+                            }});
+                        }} catch(_e) {{
+                            // ignore
+                        }}
+
+                        sliderDeckState = Object.create(null);
+                        sliderResizeObservers = Object.create(null);
+                        sliderMeasureScheduled = Object.create(null);
+                        ensureSliderDelegationInstalled();
+
+                        if (!container) return;
+                        var decks = container.querySelectorAll('.marco-sliders');
+                        for (var i = 0; i < decks.length; i++) {{
+                            initSliderDeck(decks[i]);
+                        }}
+                    }} catch(e) {{
+                        console.error('Failed to install sliders:', e);
+                    }}
                 }}
 
                 function applyStoredTableSizes(container) {{
@@ -714,6 +1192,21 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                 }} catch(e) {{
                     console.error('Failed to install table resizer:', e);
                 }}
+
+                // Initialize any sliders that are already present in the initial HTML.
+                // Without this, slider slides default to `display:none` and nothing shows
+                // until the host app calls setContent()/updateContent().
+                try {{
+                    document.addEventListener('DOMContentLoaded', function() {{
+                        var container = document.getElementById('marco-content-container');
+                        if (container) {{
+                            applyStoredTableSizes(container);
+                            installSliders(container);
+                        }}
+                    }});
+                }} catch(e) {{
+                    console.error('Failed to auto-init sliders:', e);
+                }}
                 
                 return {{
                     setCSS: function(css) {{
@@ -748,6 +1241,7 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                             if (container) {{
                                 container.innerHTML = htmlContent;
                                 applyStoredTableSizes(container);
+                                installSliders(container);
                                 
                                 // Restore scroll position after a brief delay
                                 var timeoutId = setTimeout(function() {{
@@ -772,10 +1266,20 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                             if (container) {{
                                 container.innerHTML = htmlContent;
                                 applyStoredTableSizes(container);
+                                installSliders(container);
                             }}
                         }} catch(e) {{
                             console.error('Error setting content:', e);
                         }}
+                    }},
+
+                    sliders: {{
+                        playAll: slidersPlayAll,
+                        pauseAll: slidersPauseAll,
+                        toggleAll: slidersToggleAll,
+                        playDeck: slidersPlayDeck,
+                        pauseDeck: slidersPauseDeck,
+                        toggleDeck: slidersToggleDeck
                     }},
                     
                     cleanup: cleanup
@@ -814,6 +1318,8 @@ mod tests {
         assert!(doc.contains("id=\\\"marco-preview-internal-style\\\""));
         assert!(doc.contains("window.MarcoPreview"));
         assert!(doc.contains("installTableResizer"));
+        assert!(doc.contains("installSliders"));
+        assert!(doc.contains("sliders:"));
         assert!(doc.contains("marco-content-container"));
     }
 }
