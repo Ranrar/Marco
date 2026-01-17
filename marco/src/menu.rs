@@ -253,7 +253,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
 
     // App icon (left) - uses dynamic asset directory path
-    let icon_path = asset_root.join("icons/favicon.png");
+    let icon_path = asset_root.join("icons/icon_64x64_marco.png");
     let icon = Image::from_file(&icon_path);
     icon.set_pixel_size(16);
     icon.set_halign(Align::Start);

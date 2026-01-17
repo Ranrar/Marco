@@ -1,5 +1,5 @@
 <center>
-<img src="logo.png" alt="Marco" width="300" height="200">
+<img src="Logo_marco_and_polo.png" alt="Marco" width="" height="">
 </center>
 
 ---

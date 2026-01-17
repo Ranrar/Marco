@@ -22,6 +22,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.3] - 2026-01-17
+
+### Added
+- Per-application icon/logo helpers in `SharedPaths` (Marco vs Polo), with backwards-compatible fallbacks for older shared icon filenames.
+- New Marco and Polo logo/icon assets are now supported by the shared asset resolution layer.
+
+### Changed
+- Shared asset icon resolution now prefers the Marco/Polo-specific icon/favicons when present.
+
 ## [0.13.2] - 2026-01-15
 
 ### Added

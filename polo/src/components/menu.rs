@@ -76,7 +76,7 @@ pub fn create_custom_titlebar(
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
 
     // LEFT SIDE: App icon + filename
-    let icon_path = asset_root.join("icons/favicon.png");
+    let icon_path = asset_root.join("icons/icon_64x64_polo.png");
     let icon = Image::from_file(&icon_path);
     icon.set_pixel_size(16);
     icon.set_halign(Align::Start);

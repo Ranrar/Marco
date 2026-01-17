@@ -480,37 +480,58 @@ install -m 0644 install/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applicat
 print_success "Desktop entries copied"
 
 print_info "Installing system icons..."
-install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/64x64/apps"
-install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps"
-install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps"
+ICON_SIZES="16 24 32 48 64 96 128 160 192 256 512"
+for sz in $ICON_SIZES; do
+    install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/${sz}x${sz}/apps"
+done
 
-install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/64x64/apps/marco.png"
-install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/64x64/apps/polo.png"
+# Repo icon sources (per-app)
+MARCO_ICON_64="assets/icons/icon_64x64_marco.png"
+POLO_ICON_64="assets/icons/icon_64x64_polo.png"
+MARCO_ICON_662="assets/icons/icon_662x662_marco.png"
+POLO_ICON_662="assets/icons/icon_662x662_polo.png"
 
+HAS_CONVERT="false"
 if command -v convert &>/dev/null; then
+    HAS_CONVERT="true"
     print_info "Scaling icons with ImageMagick..."
-    convert assets/icons/icon_662x662.png -resize 128x128 \
-        "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/marco.png" 2>/dev/null || {
-        print_warning "Failed to create 128x128 icon, using favicon as fallback"
-        install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/marco.png"
-    }
-    install -m 0644 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/marco.png" \
-        "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/polo.png"
-
-    convert assets/icons/icon_662x662.png -resize 256x256 \
-        "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps/marco.png" 2>/dev/null || {
-        print_warning "Failed to create 256x256 icon, using favicon as fallback"
-        install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps/marco.png"
-    }
-    install -m 0644 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps/marco.png" \
-        "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps/polo.png"
 else
-    print_warning "ImageMagick not found, using favicon for all icon sizes"
-    install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/marco.png"
-    install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/128x128/apps/polo.png"
-    install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps/marco.png"
-    install -m 0644 assets/icons/favicon.png "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/256x256/apps/polo.png"
+    print_warning "ImageMagick not found, using 64x64 icons as fallbacks for all sizes"
 fi
+
+install_icon_set() {
+    local app="$1"
+    local src64="$2"
+    local src662="$3"
+
+    for sz in $ICON_SIZES; do
+        local out="$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor/${sz}x${sz}/apps/${app}.png"
+
+        if [ "$sz" = "64" ]; then
+            install -m 0644 "$src64" "$out"
+            continue
+        fi
+
+        if [ "$HAS_CONVERT" = "true" ]; then
+            # Produce a *square* icon matching the target directory size.
+            # Some sources may have a non-square canvas; lintian requires exact NxN.
+            convert "$src662" \
+                -resize "${sz}x${sz}" \
+                -background none \
+                -gravity center \
+                -extent "${sz}x${sz}" \
+                "$out" 2>/dev/null || {
+                print_warning "Failed to create ${app} ${sz}x${sz} icon, using 64x64 as fallback"
+                install -m 0644 "$src64" "$out"
+            }
+        else
+            install -m 0644 "$src64" "$out"
+        fi
+    done
+}
+
+install_icon_set "marco" "$MARCO_ICON_64" "$MARCO_ICON_662"
+install_icon_set "polo" "$POLO_ICON_64" "$POLO_ICON_662"
 print_success "Icons installed"
 
 print_info "Copying shared assets..."
@@ -603,7 +624,7 @@ Upstream-Contact: Kim Skov Rasmussen <kim@skovrasmussen.com>
 Source: https://github.com/Ranrar/marco
 
 Files: *
-Copyright: 2024-2025 Kim Skov Rasmussen
+Copyright: 2025-2026 Kim Skov Rasmussen
 License: MIT
 
 License: MIT
@@ -658,15 +679,19 @@ Installed-Size: ${INSTALLED_SIZE}
 Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44)
 Suggests: imagemagick
 Description: Marco & Polo - A Markdown Composer and Viewer
- Marco is a fast, native Markdown editor built in Rust with live preview,
- syntax extensions, and a custom parser for technical documentation.
+ Marco is a fast, Markdown editor with a live preview to help you write
+ clean documentation, notes, and README files.
  .
- Polo is a lightweight Markdown viewer with identical rendering engine.
+ Polo is the companion viewer for quickly opening Markdown documents with the
+ same rendering as Marco, using minimal resources.
  .
- Includes:
-  - marco: Full-featured Markdown editor with SourceView5 text editing
-  - polo: Lightweight Markdown viewer
-  - Themes, fonts, and documentation
+ Highlights include CommonMark-compliant Markdown plus useful extensions like
+ tables, task lists, footnotes, and callouts.
+ .
+ This package includes:
+    - marco: Markdown editor with live preview
+    - polo: Markdown viewer
+    - Built-in themes, fonts, and documentation
 Homepage: https://github.com/Ranrar/marco
 EOF
 
@@ -676,6 +701,60 @@ cat > "$BUILD_DIR/DEBIAN/postinst" << 'EOF'
 #!/bin/bash
 set -e
 
+install_user_icons() {
+    # This is intentionally opt-in-ish: only runs when we can reliably identify
+    # the interactive user that invoked sudo/dpkg.
+    #
+    # NOTE: Debian policy generally discourages touching per-user files from a package.
+    # This project supports it as a convenience for local installs when requested.
+
+    local user="${SUDO_USER:-}"
+    if [ -z "$user" ] || [ "$user" = "root" ]; then
+        return 0
+    fi
+
+    # Resolve home directory
+    local home
+    home="$(getent passwd "$user" | cut -d: -f6 2>/dev/null || true)"
+    if [ -z "$home" ]; then
+        home="/home/$user"
+    fi
+    if [ ! -d "$home" ]; then
+        return 0
+    fi
+
+    local base="$home/.local/share/icons/hicolor"
+    local marker_dir="$home/.local/share/marco-suite"
+    local marker_file="$marker_dir/user-icons-installed"
+
+    # Keep in sync with the system icon sizes installed by the package.
+    local icon_sizes="16 24 32 48 64 96 128 160 192 256 512"
+
+    # Create directories with correct ownership
+    install -d -m 0755 -o "$user" -g "$user" "$marker_dir"
+
+    for sz in $icon_sizes; do
+        install -d -m 0755 -o "$user" -g "$user" "$base/${sz}x${sz}/apps"
+
+        # Copy icons from the system-installed hicolor theme. These exist because they are dpkg-managed.
+        if [ -f "/usr/share/icons/hicolor/${sz}x${sz}/apps/marco.png" ]; then
+            install -m 0644 -o "$user" -g "$user" "/usr/share/icons/hicolor/${sz}x${sz}/apps/marco.png" "$base/${sz}x${sz}/apps/marco.png" || true
+        fi
+        if [ -f "/usr/share/icons/hicolor/${sz}x${sz}/apps/polo.png" ]; then
+            install -m 0644 -o "$user" -g "$user" "/usr/share/icons/hicolor/${sz}x${sz}/apps/polo.png" "$base/${sz}x${sz}/apps/polo.png" || true
+        fi
+    done
+
+    echo "installed-by=marco-suite" > "$marker_file" || true
+    chown "$user:$user" "$marker_file" 2>/dev/null || true
+    chmod 0644 "$marker_file" 2>/dev/null || true
+
+    if command -v gtk-update-icon-cache &>/dev/null; then
+        # Run as the user so the cache files are user-owned.
+        su -s /bin/sh -c "gtk-update-icon-cache -f -t '$base' || true" "$user" 2>/dev/null || true
+    fi
+}
+
 if command -v update-desktop-database &>/dev/null; then
     update-desktop-database /usr/share/applications/ || true
 fi
@@ -684,10 +763,84 @@ if command -v gtk-update-icon-cache &>/dev/null; then
     gtk-update-icon-cache -f -t /usr/share/icons/hicolor/ || true
 fi
 
+# Optional: also install icons to the invoking user's ~/.local/share/icons/hicolor
+install_user_icons
+
 echo "Marco and Polo installed successfully!"
 echo "Launch with: marco or polo"
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/postinst"
+
+cat > "$BUILD_DIR/DEBIAN/postrm" << 'EOF'
+#!/bin/bash
+set -e
+
+# NOTE:
+# Debian packages typically should not modify per-user files in home directories (e.g. ~/.local/share/icons).
+# This project optionally installs per-user icons for convenience; when it does, it also removes them.
+
+remove_user_icons() {
+    local user="${SUDO_USER:-}"
+    if [ -z "$user" ] || [ "$user" = "root" ]; then
+        return 0
+    fi
+
+    local home
+    home="$(getent passwd "$user" | cut -d: -f6 2>/dev/null || true)"
+    if [ -z "$home" ]; then
+        home="/home/$user"
+    fi
+    if [ ! -d "$home" ]; then
+        return 0
+    fi
+
+    local base="$home/.local/share/icons/hicolor"
+    local marker_file="$home/.local/share/marco-suite/user-icons-installed"
+
+    # Only remove if we previously installed them.
+    if [ ! -f "$marker_file" ]; then
+        return 0
+    fi
+
+    local icon_sizes="16 24 32 48 64 96 128 160 192 256 512"
+    for sz in $icon_sizes; do
+        rm -f "$base/${sz}x${sz}/apps/marco.png" "$base/${sz}x${sz}/apps/polo.png" 2>/dev/null || true
+    done
+    rm -f "$marker_file" 2>/dev/null || true
+
+    if command -v gtk-update-icon-cache &>/dev/null; then
+        su -s /bin/sh -c "gtk-update-icon-cache -f -t '$base' || true" "$user" 2>/dev/null || true
+    fi
+}
+
+case "$1" in
+    remove|purge|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+        if command -v update-desktop-database &>/dev/null; then
+            update-desktop-database /usr/share/applications/ || true
+        fi
+
+        if command -v gtk-update-icon-cache &>/dev/null; then
+            gtk-update-icon-cache -f -t /usr/share/icons/hicolor/ || true
+        fi
+
+        # Optional user-local cleanup (if installed by postinst)
+        remove_user_icons
+
+        # Only on purge: remove empty directories if dpkg has already removed payload files.
+        if [ "$1" = "purge" ]; then
+            rmdir --ignore-fail-on-non-empty /usr/share/marco/icons 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/marco/fonts 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/marco/language 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/marco/themes 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/marco/doc 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/marco 2>/dev/null || true
+        fi
+        ;;
+esac
+
+exit 0
+EOF
+chmod 755 "$BUILD_DIR/DEBIAN/postrm"
 print_success "Maintainer scripts created"
 
 print_header "Creating .deb Package"

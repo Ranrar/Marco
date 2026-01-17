@@ -24,6 +24,17 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.13.3] - 2026-01-17
+
+**Uses:** Core 0.13.3
+
+### Added
+- New Polo logo (application icon), used in the titlebar and installed for desktop integration.
+
+### Changed
+- Debian packaging (`install/build_deb.sh`) was improved (dependency checks, deterministic `--locked` builds, icon installation/scaling, and additional build/versioning options).
+- Linux desktop entry now uses the system icon name `polo`.
+
 ## [0.13.2] - 2026-01-15
 
 **Uses:** Core 0.13.2

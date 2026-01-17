@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.13.2"
+version = "0.13.3"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"

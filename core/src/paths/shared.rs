@@ -76,12 +76,58 @@ impl SharedPaths {
 
     /// Get path to the application icon
     pub fn app_icon(&self) -> PathBuf {
-        self.icon("icon.png")
+        // Legacy helper: historically there was a single `icon.png` shared by both apps.
+        // Marco/Polo now have separate icons; prefer `marco_app_icon()` / `polo_app_icon()`.
+        let preferred = self.marco_app_icon();
+        if preferred.exists() {
+            return preferred;
+        }
+
+        let legacy = self.icon("icon.png");
+        if legacy.exists() {
+            return legacy;
+        }
+
+        // If neither exists (e.g. in some test/dev environments), still return a sensible path.
+        self.icon("icon_662x662_marco.png")
     }
 
     /// Get path to the application favicon
     pub fn app_favicon(&self) -> PathBuf {
-        self.icon("favicon.png")
+        // Legacy helper: historically there was a single `favicon.png` shared by both apps.
+        // Marco/Polo now have separate favicons; prefer `marco_app_favicon()` / `polo_app_favicon()`.
+        let preferred = self.marco_app_favicon();
+        if preferred.exists() {
+            return preferred;
+        }
+
+        let legacy = self.icon("favicon.png");
+        if legacy.exists() {
+            return legacy;
+        }
+
+        // If neither exists (e.g. in some test/dev environments), still return a sensible path.
+        self.icon("icon_64x64_marco.png")
+    }
+
+    /// Marco application icon (high resolution source)
+    pub fn marco_app_icon(&self) -> PathBuf {
+        self.icon("icon_662x662_marco.png")
+    }
+
+    /// Polo application icon (high resolution source)
+    pub fn polo_app_icon(&self) -> PathBuf {
+        self.icon("icon_662x662_polo.png")
+    }
+
+    /// Marco favicon (small app icon used in titlebars, etc.)
+    pub fn marco_app_favicon(&self) -> PathBuf {
+        self.icon("icon_64x64_marco.png")
+    }
+
+    /// Polo favicon (small app icon used in titlebars, etc.)
+    pub fn polo_app_favicon(&self) -> PathBuf {
+        self.icon("icon_64x64_polo.png")
     }
 
     // ========================================================================
