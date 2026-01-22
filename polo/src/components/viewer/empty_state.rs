@@ -110,7 +110,12 @@ pub fn show_empty_state_with_theme(
     
     if let Ok(mut file) = std::fs::File::create(&temp_file) {
         if file.write_all(html.as_bytes()).is_ok() {
-            let temp_url = format!("file://{}", temp_file.display());
+            let temp_url = if cfg!(windows) {
+                let path_str = temp_file.display().to_string().replace('\\', "/");
+                format!("file:///{}", path_str)
+            } else {
+                format!("file://{}", temp_file.display())
+            };
             webview.load_url(&temp_url);
         }
     }

@@ -46,16 +46,40 @@ impl PoloPaths {
             if let Some(workspace) = super::dev::workspace_root() {
                 workspace.join("tests").join("settings")
             } else {
+                // Dev mode fallback
+                #[cfg(target_os = "windows")]
+                {
+                    dirs::config_dir()
+                        .map(|c| c.join("polo"))
+                        .unwrap_or_else(|| {
+                            std::env::temp_dir().join("polo").join("config")
+                        })
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    dirs::config_dir()
+                        .map(|c| c.join("polo"))
+                        .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
+                        .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
+                }
+            }
+        } else {
+            // Install mode
+            #[cfg(target_os = "windows")]
+            {
+                dirs::config_dir()
+                    .map(|c| c.join("polo"))
+                    .unwrap_or_else(|| {
+                        std::env::temp_dir().join("polo").join("config")
+                    })
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
                 dirs::config_dir()
                     .map(|c| c.join("polo"))
                     .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
                     .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
             }
-        } else {
-            dirs::config_dir()
-                .map(|c| c.join("polo"))
-                .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
-                .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
         }
     }
 
@@ -80,18 +104,40 @@ impl PoloPaths {
 
     /// Get Polo's user data directory
     pub fn user_data_dir(&self) -> PathBuf {
-        dirs::data_local_dir()
-            .map(|d| d.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".local/share/polo")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/polo/data"))
+        #[cfg(target_os = "windows")]
+        {
+            dirs::data_local_dir()
+                .map(|d| d.join("polo"))
+                .unwrap_or_else(|| {
+                    std::env::temp_dir().join("polo").join("data")
+                })
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            dirs::data_local_dir()
+                .map(|d| d.join("polo"))
+                .or_else(|| dirs::home_dir().map(|h| h.join(".local/share/polo")))
+                .unwrap_or_else(|| PathBuf::from("/tmp/polo/data"))
+        }
     }
 
     /// Get Polo's cache directory
     pub fn cache_dir(&self) -> PathBuf {
-        dirs::cache_dir()
-            .map(|c| c.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache/polo")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/polo/cache"))
+        #[cfg(target_os = "windows")]
+        {
+            dirs::cache_dir()
+                .map(|c| c.join("polo"))
+                .unwrap_or_else(|| {
+                    std::env::temp_dir().join("polo").join("cache")
+                })
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            dirs::cache_dir()
+                .map(|c| c.join("polo"))
+                .or_else(|| dirs::home_dir().map(|h| h.join(".cache/polo")))
+                .unwrap_or_else(|| PathBuf::from("/tmp/polo/cache"))
+        }
     }
 }
 

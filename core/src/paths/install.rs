@@ -20,21 +20,53 @@ pub enum InstallLocation {
     Development,
 }
 
-/// Get user local install directory (~/.local/share/marco/)
+/// Get user local install directory
+///
+/// - Windows: %APPDATA%\marco
+/// - Unix: ~/.local/share/marco/
 pub fn user_install_dir() -> PathBuf {
-    dirs::home_dir()
-        .map(|h| h.join(".local/share/marco"))
-        .unwrap_or_else(|| PathBuf::from("/tmp/marco"))
+    #[cfg(target_os = "windows")]
+    {
+        dirs::data_dir()
+            .map(|d| d.join("marco"))
+            .unwrap_or_else(|| {
+                std::env::temp_dir().join("marco")
+            })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        dirs::home_dir()
+            .map(|h| h.join(".local/share/marco"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/marco"))
+    }
 }
 
 /// Get system local install directory (/usr/local/share/marco/)
+///
+/// Unix-only: Windows doesn't use /usr paths
+#[cfg(not(target_os = "windows"))]
 pub fn system_local_install_dir() -> PathBuf {
     PathBuf::from("/usr/local/share/marco")
 }
 
+#[cfg(target_os = "windows")]
+pub fn system_local_install_dir() -> PathBuf {
+    // Not applicable on Windows
+    PathBuf::new()
+}
+
 /// Get system global install directory (/usr/share/marco/)
+///
+/// Unix-only: Windows doesn't use /usr paths
+#[cfg(not(target_os = "windows"))]
 pub fn system_global_install_dir() -> PathBuf {
     PathBuf::from("/usr/share/marco")
+}
+
+#[cfg(target_os = "windows")]
+pub fn system_global_install_dir() -> PathBuf {
+    // Not applicable on Windows
+    PathBuf::new()
 }
 
 /// Detect the current installation location
@@ -52,12 +84,23 @@ pub fn detect_install_location() -> InstallLocation {
     if let Ok(asset_root) = find_asset_root() {
         let asset_str = asset_root.to_string_lossy();
 
-        if asset_str.contains(".local/share/marco") {
-            return InstallLocation::UserLocal;
-        } else if asset_str.contains("/usr/local/share/marco") {
-            return InstallLocation::SystemLocal;
-        } else if asset_str.contains("/usr/share/marco") {
-            return InstallLocation::SystemGlobal;
+        #[cfg(not(target_os = "windows"))]
+        {
+            if asset_str.contains(".local/share/marco") {
+                return InstallLocation::UserLocal;
+            } else if asset_str.contains("/usr/local/share/marco") {
+                return InstallLocation::SystemLocal;
+            } else if asset_str.contains("/usr/share/marco") {
+                return InstallLocation::SystemGlobal;
+            }
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // On Windows, check for AppData/Roaming/marco or AppData/Local/marco
+            if asset_str.contains("AppData") && asset_str.contains("marco") {
+                return InstallLocation::UserLocal;
+            }
         }
     }
 
@@ -68,26 +111,47 @@ pub fn detect_install_location() -> InstallLocation {
 /// Get the user configuration directory.
 ///
 /// For GUI apps like Marco/Polo, settings must be writable for the *current user*.
-/// System-wide defaults can live under /usr/share/marco/, but persisted user changes
-/// should go under XDG config.
 ///
-/// Default: $XDG_CONFIG_HOME/marco/ (usually ~/.config/marco/)
+/// - Windows: %APPDATA%\marco
+/// - Unix: $XDG_CONFIG_HOME/marco/ (usually ~/.config/marco/)
 pub fn config_dir() -> PathBuf {
-    dirs::config_dir()
-        .map(|c| c.join("marco"))
-        .or_else(|| dirs::home_dir().map(|h| h.join(".config/marco")))
-        .unwrap_or_else(|| PathBuf::from("/tmp/marco/config"))
+    #[cfg(target_os = "windows")]
+    {
+        dirs::config_dir()
+            .map(|c| c.join("marco"))
+            .unwrap_or_else(|| {
+                std::env::temp_dir().join("marco").join("config")
+            })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        dirs::config_dir()
+            .map(|c| c.join("marco"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".config/marco")))
+            .unwrap_or_else(|| PathBuf::from("/tmp/marco/config"))
+    }
 }
 
 /// Get the user data directory (for storing user-specific data like recent files)
 ///
-/// - User: ~/.local/share/marco/
-/// - System: Falls back to /tmp/marco/
+/// - Windows: %LOCALAPPDATA%\marco
+/// - Unix: ~/.local/share/marco/
 pub fn user_data_dir() -> PathBuf {
-    dirs::data_local_dir()
-        .map(|d| d.join("marco"))
-        .or_else(|| dirs::home_dir().map(|h| h.join(".local/share/marco")))
-        .unwrap_or_else(|| PathBuf::from("/tmp/marco/data"))
+    #[cfg(target_os = "windows")]
+    {
+        dirs::data_local_dir()
+            .map(|d| d.join("marco"))
+            .unwrap_or_else(|| {
+                std::env::temp_dir().join("marco").join("data")
+            })
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        dirs::data_local_dir()
+            .map(|d| d.join("marco"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".local/share/marco")))
+            .unwrap_or_else(|| PathBuf::from("/tmp/marco/data"))
+    }
 }
 
 #[cfg(test)]

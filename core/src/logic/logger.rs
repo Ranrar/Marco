@@ -27,8 +27,37 @@ impl SimpleFileLogger {
             return Ok(());
         }
 
-        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-        let log_root = cwd.join("log"); // Dont change
+        // Determine log root directory based on platform and context
+        let log_root = if cfg!(target_os = "windows") {
+            // On Windows, prefer AppData\Local\marco\log for installed apps
+            // but fall back to cwd/log for development
+            if let Ok(exe_path) = std::env::current_exe() {
+                // Check if running from target/ (development mode)
+                let exe_str = exe_path.to_string_lossy();
+                if exe_str.contains("target\\") || exe_str.contains("target/") {
+                    // Development mode: use cwd/log
+                    std::env::current_dir()
+                        .map(|d| d.join("log"))
+                        .unwrap_or_else(|_| PathBuf::from("log"))
+                } else {
+                    // Installed/portable mode: use AppData\Local\marco\log
+                    dirs::data_local_dir()
+                        .map(|d| d.join("marco").join("log"))
+                        .unwrap_or_else(|| {
+                            std::env::temp_dir().join("marco").join("log")
+                        })
+                }
+            } else {
+                // Fallback to temp if we can't determine exe path
+                std::env::temp_dir().join("marco").join("log")
+            }
+        } else {
+            // Unix: use cwd/log for both dev and installed (traditional behavior)
+            std::env::current_dir()
+                .map(|d| d.join("log"))
+                .unwrap_or_else(|_| PathBuf::from("log"))
+        };
+
         fs::create_dir_all(&log_root).map_err(|e| e.to_string())?;
 
         // YYYYMM folder

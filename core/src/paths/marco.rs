@@ -135,10 +135,21 @@ impl MarcoPaths {
 
     /// Get Marco's cache directory
     pub fn cache_dir(&self) -> PathBuf {
-        dirs::cache_dir()
-            .map(|c| c.join("marco"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache/marco")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/marco/cache"))
+        #[cfg(target_os = "windows")]
+        {
+            dirs::cache_dir()
+                .map(|c| c.join("marco"))
+                .unwrap_or_else(|| {
+                    std::env::temp_dir().join("marco").join("cache")
+                })
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            dirs::cache_dir()
+                .map(|c| c.join("marco"))
+                .or_else(|| dirs::home_dir().map(|h| h.join(".cache/marco")))
+                .unwrap_or_else(|| PathBuf::from("/tmp/marco/cache"))
+        }
     }
 }
 

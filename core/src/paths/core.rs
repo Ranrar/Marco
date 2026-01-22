@@ -101,23 +101,55 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             let dev_path = parent.join("marco_assets");
             candidate_paths.push(dev_path.clone());
 
-            // 2. User local install
-            if let Some(home) = dirs::home_dir() {
-                candidate_paths.push(home.join(".local/share/marco"));
+            // 2. Windows portable mode: next to exe (for Windows portable distribution)
+            #[cfg(target_os = "windows")]
+            {
+                // On Windows, also check parent directory for portable distribution
+                // This supports running polo.exe directly from the distribution folder
+                if let Some(exe_dir) = exe_path.parent() {
+                    candidate_paths.push(exe_dir.join("marco_assets"));
+                }
             }
 
-            // 3. System local install
-            candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
+            // 3. User local install
+            if let Some(home) = dirs::home_dir() {
+                #[cfg(target_os = "windows")]
+                {
+                    // Windows: AppData\Roaming\marco
+                    if let Some(appdata) = dirs::data_dir() {
+                        candidate_paths.push(appdata.join("marco"));
+                    }
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    candidate_paths.push(home.join(".local/share/marco"));
+                }
+            }
 
-            // 4. System global install
-            candidate_paths.push(PathBuf::from("/usr/share/marco"));
+            // 4. System install (Unix-like systems)
+            #[cfg(not(target_os = "windows"))]
+            {
+                // System local install
+                candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
+
+                // System global install
+                candidate_paths.push(PathBuf::from("/usr/share/marco"));
+            }
 
             // Find first existing directory
             for path in &candidate_paths {
                 if path.exists() && path.is_dir() {
-                    log::debug!("Found asset root: {}", path.display());
+                    log::info!("Found asset root: {}", path.display());
                     return Ok(path.clone());
+                } else {
+                    log::debug!("Asset path not found: {}", path.display());
                 }
+            }
+
+            // None found - log all searched paths
+            log::error!("Asset directory not found. Searched {} locations:", candidate_paths.len());
+            for path in &candidate_paths {
+                log::error!("  - {}", path.display());
             }
 
             // None found

@@ -40,7 +40,27 @@ Install it (Debian/Ubuntu):
 
 ## Windows
 
-No option yet.
+### Experimental Build Support
+
+**Status:** Early experimental support for Windows builds is in progress.
+
+**Current Limitations:**
+- Polo requires servo-gtk which is Unix-only (Linux support only)
+- Windows builds require additional dependencies (see servo_runner/README.md)
+- No official Windows packages yet
+
+**Build Requirements:**
+- Rust toolchain (1.90.0 or later)
+- Visual Studio 2022 with C++ build tools
+- LLVM/Clang (for libclang)
+- Protocol Buffers compiler (protoc)
+- Python package manager (uv)
+
+See [servo_runner/README.md](servo_runner/README.md#windows) for detailed Windows build instructions.
+
+**Marco (editor only):** Windows support is being implemented with cross-platform path handling.
+
+**Polo (viewer):** Not yet available on Windows due to servo-gtk Unix dependency. Alternative rendering engine needed.
 
 
 

@@ -111,6 +111,35 @@ fn main() -> glib::ExitCode {
     let polo_paths_for_cmdline = polo_paths.clone();
     let polo_paths_for_open = polo_paths.clone();
 
+    // Ensure we shut down cleanly on SIGINT/SIGTERM so buffered log writes are flushed.
+    // This is especially important now that the file logger uses a `BufWriter`.
+    #[cfg(unix)]
+    {
+        use glib::source::unix_signal_add_local;
+        use glib::ControlFlow;
+        use gtk4::gio::prelude::ApplicationExt;
+
+        // POSIX signal numbers (stable across Unix platforms).
+        const SIGINT: i32 = 2;
+        const SIGTERM: i32 = 15;
+
+        let app_for_sigint = app.clone();
+        unix_signal_add_local(SIGINT, move || {
+            log::warn!("Received SIGINT, requesting graceful shutdown...");
+            core::logic::logger::shutdown_file_logger();
+            app_for_sigint.quit();
+            ControlFlow::Break
+        });
+
+        let app_for_sigterm = app.clone();
+        unix_signal_add_local(SIGTERM, move || {
+            log::warn!("Received SIGTERM, requesting graceful shutdown...");
+            core::logic::logger::shutdown_file_logger();
+            app_for_sigterm.quit();
+            ControlFlow::Break
+        });
+    }
+
     // Handle command-line arguments
     app.connect_command_line(move |app, cmd_line| {
         let args: Vec<String> = cmd_line
@@ -400,11 +429,21 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // Ensure proper cleanup when window closes
     // Use close-request signal which fires BEFORE the window is destroyed
     // This ensures we can clean up servo-runner subprocess properly
+    #[cfg(unix)]
     let webview_for_cleanup = webview.clone();
     window.connect_close_request(move |_| {
         log::info!("Window close requested - triggering WebView cleanup");
         // Explicitly call cleanup method to force servo-runner termination
-        webview_for_cleanup.cleanup();
+        // Note: cleanup() method availability may vary by platform
+        #[cfg(unix)]
+        {
+            webview_for_cleanup.cleanup();
+        }
+        #[cfg(not(unix))]
+        {
+            // On Windows, rely on Drop implementation to clean up servo-runner
+            log::info!("Cleanup will be handled by Drop implementation");
+        }
         glib::Propagation::Proceed
     });
 

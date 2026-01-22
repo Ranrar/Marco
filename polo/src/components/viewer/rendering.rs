@@ -107,7 +107,16 @@ pub fn load_and_render_markdown(
                         return;
                     }
                     
-                    let temp_url = format!("file://{}", temp_file.display());
+                    // Create proper file:// URL for cross-platform compatibility
+                    // Windows: file:///C:/Users/...
+                    // Linux: file:///home/...
+                    let temp_url = if cfg!(windows) {
+                        // Convert Windows path (C:\Users\...) to file URL (file:///C:/Users/...)
+                        let path_str = temp_file.display().to_string().replace('\\', "/");
+                        format!("file:///{}", path_str)
+                    } else {
+                        format!("file://{}", temp_file.display())
+                    };
                     log::debug!("Loading HTML via temporary file: {}", temp_url);
                     
                     // Load HTML via file URL
@@ -173,7 +182,12 @@ pub fn load_and_render_markdown(
             
             if let Ok(mut file) = std::fs::File::create(&temp_file) {
                 let _ = file.write_all(error_html.as_bytes());
-                let temp_url = format!("file://{}", temp_file.display());
+                let temp_url = if cfg!(windows) {
+                    let path_str = temp_file.display().to_string().replace('\\', "/");
+                    format!("file:///{}", path_str)
+                } else {
+                    format!("file://{}", temp_file.display())
+                };
                 webview.load_url(&temp_url);
             }
         }

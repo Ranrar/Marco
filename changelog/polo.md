@@ -10,23 +10,31 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ## [Unreleased]
 
 ### Added
-- Servo web engine integration replacing WebKit6 for HTML preview rendering
-- Explicit subprocess cleanup mechanism via `WebView::cleanup()` method
+- Servo web engine integration replacing WebKit6 for HTML preview rendering (Linux)
+- Explicit subprocess cleanup mechanism via `WebView::cleanup()` method (Unix only)
 - Icon loading from system icon theme (`Image::from_icon_name`) for production installs
+- Windows build support with proper file:// URL handling
+- SIGINT/SIGTERM signal handlers for graceful shutdown on Unix
+- Cross-platform file URL generation (Windows: file:///C:/, Unix: file:///)
 
 ### Changed
-- Web rendering engine changed from WebKit6 to Servo (via servo-gtk bindings)
-- Icon installation now uses ImageMagick to resize icons to all standard sizes (16x16 through 512x512)
+- Web rendering engine changed from WebKit6 to Servo (via servo-gtk bindings, Linux only)
+- Icon installation now uses ImageMagick to resize icons to all standard sizes (16x16 through 512x512, Linux)
 - Window close handling changed from `connect_destroy` to `connect_close_request` for reliable cleanup
-- servo-runner subprocess now properly terminated on window close using `force_exit()`
+- servo-runner subprocess now properly terminated on window close using `force_exit()` (Unix only)
+- File URL handling improved with platform-specific path conversion (backslash to forward slash on Windows)
+- Empty state and error rendering now use platform-appropriate file URLs
+- servo-gtk dependency path changed from third_party/servo-gtk to /servo-gtk/ (external repository)
 
 ### Fixed
-- Window titlebar icon missing after .deb installation (now uses system icon theme)
-- servo-runner subprocess orphaned when polo closes (now explicitly killed via force_exit)
-- Icon file naming mismatch in build script (now correctly uses icon_64x64_polo.png and icon_662x662_polo.png)
+- Window titlebar icon missing after .deb installation (now uses system icon theme, Linux)
+- servo-runner subprocess orphaned when polo closes (now explicitly killed via force_exit, Unix)
+- Icon file naming mismatch in build script (now correctly uses icon_64x64_polo.png and icon_662x662_polo.png, Linux)
+- File URL format on Windows (now uses file:/// with forward slashes)
 
 ### Removed
-- WebKit6 dependency removed in favor of Servo
+- WebKit6 dependency removed in favor of Servo (Linux only, Marco still uses WebKit6)
+- third_party directory reference (servo-gtk moved to external repository)
 
 ### Security
 - Nothing yet.

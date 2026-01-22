@@ -43,7 +43,7 @@ The two-process architecture provides:
 
 ## Source
 
-This code is vendored from the [servo-gtk](https://github.com/nacho/servo-gtk) repository (main branch).
+This code depends on the [servo-gtk](https://github.com/nacho/servo-gtk) library, which is maintained as an external repository at `/servo-gtk/`.
 
 ## Files
 
@@ -99,6 +99,68 @@ pkill -9 servo-runner
 The Servo git revision in `Cargo.toml` must match the revision used by servo-gtk to avoid dependency conflicts. Both packages depend on:
 - `libservo`: Core Servo web engine
 - `embedder_traits`: Servo embedder API
+
+### Windows
+
+Building servo-runner and polo on Windows requires several additional dependencies beyond the standard Rust toolchain:
+
+#### Required Tools
+
+1. **uv** (Python package manager)
+   - Required by Servo's build system for WebIDL code generation
+   - Install: `irm https://astral.sh/uv/install.ps1 | iex`
+   - Adds to: `C:\Users\<username>\.local\bin`
+   - Set in PATH or session: `$env:Path = "C:\Users\<username>\.local\bin;$env:Path"`
+
+2. **LLVM/Clang** (libclang for bindgen)
+   - Required for generating Rust FFI bindings
+   - Install: `winget install LLVM.LLVM`
+   - Default location: `C:\Program Files\LLVM\bin`
+   - Set environment variable: `$env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"`
+   - Permanent: `[Environment]::SetEnvironmentVariable("LIBCLANG_PATH", "C:\Program Files\LLVM\bin", "User")`
+
+3. **Protocol Buffers Compiler (protoc)**
+   - Required for IPC message code generation
+   - Download: https://github.com/protocolbuffers/protobuf/releases (get `protoc-*-win64.zip`)
+   - Extract to: `C:\protoc` (or any location)
+   - Add to PATH: `$env:Path = "C:\protoc\bin;$env:Path"`
+
+4. **Visual Studio 2022** (for Servo compilation)
+   - Required components via Visual Studio Installer:
+     - Windows 10/11 SDK (version ≥ 10.0.19041.0)
+     - MSVC v143 - VS 2022 C++ x64/x86 build tools (Latest)
+     - C++ ATL for latest v143 build tools (x86 & x64)
+   - Can be installed during rustup setup or separately
+
+#### Build Environment Setup
+
+For a complete build session, set all required environment variables:
+
+```powershell
+# Add tools to PATH
+$env:Path = "C:\Users\kim\.local\bin;C:\protoc\bin;$env:Path"
+
+# Set libclang path for bindgen
+$env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
+
+# Build polo (includes servo-runner)
+cargo build -p polo --release
+```
+
+#### Permanent Configuration
+
+To avoid setting variables each session, add them permanently:
+
+```powershell
+# Add to user PATH
+$currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
+[Environment]::SetEnvironmentVariable("Path", "$currentPath;C:\protoc\bin;C:\Users\kim\.local\bin", "User")
+
+# Set LIBCLANG_PATH
+[Environment]::SetEnvironmentVariable("LIBCLANG_PATH", "C:\Program Files\LLVM\bin", "User")
+```
+
+Then restart your shell for changes to take effect.
 
 ## Updating
 

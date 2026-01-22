@@ -98,12 +98,17 @@ Each build script follows this workflow:
 
 ## Servo Integration (Polo)
 
-Polo uses a locally patched version of servo-gtk from `third_party/servo-gtk/`:
+**Platform Support:** Linux only (servo-gtk requires Unix)
+
+Polo uses servo-gtk from `/servo-gtk/` (external repository):
 
 - **Servo Version**: 0.0.2 (git revision b9f5a7920f18bd5294ebb95bbb422199f6371a54)
 - **Patch**: Changed from `cargo run --bin servo-runner` to direct `servo-runner` execution
 - **Binary**: `servo-runner` is packaged alongside `polo` binary
 - **Subprocess Cleanup**: Explicit `force_exit()` call on window close to prevent orphaned processes
+- **Repository**: Moved from `third_party/servo-gtk/` to external `/servo-gtk/`
+
+**Note:** Polo on Windows will require a different web engine (servo-gtk is Unix-only).
 
 ## Troubleshooting
 

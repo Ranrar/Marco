@@ -8,10 +8,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ## [Unreleased]
 
 ### Added
-- Nothing yet.
+- Windows-specific icon loader with `FONTCONFIG_PATH` environment variable support
+- Cross-platform log directory support (Windows: AppData\Local\marco\log, Unix: cwd/log)
+- Platform-specific path resolution for config, data, and cache directories
 
 ### Changed
-- Nothing yet.
+- Path resolution now platform-aware (Windows uses AppData, Unix uses XDG standards)
+- Asset root discovery improved with detailed logging and Windows portable mode support
+- Icon loader split into platform-specific implementations (Linux: XDG_DATA_HOME, Windows: FONTCONFIG_PATH)
+- Logger uses AppData\Local on Windows for installed apps, falls back to cwd/log in dev mode
 
 ### Fixed
 - Nothing yet.
