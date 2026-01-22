@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["core", "marco", "polo"]
+members = ["core", "marco", "polo", "servo_runner"]
 
 # Shared workspace dependencies
 [workspace.dependencies]
@@ -27,7 +27,8 @@ gtk4 = "0.10.3"
 glib = "0.21.3"
 gio = "0.21.2"
 sourceview5 = "0.10.0"
-webkit6 = "0.5.0"
+webkit6 = "0.5.0"  # Still used by marco
+servo-gtk = { path = "third_party/servo-gtk" }  # Patched version for production use
 dark-light = "2.0.0"
 
 # Test dependencies

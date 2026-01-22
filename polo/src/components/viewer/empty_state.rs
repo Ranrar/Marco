@@ -19,11 +19,11 @@
 use crate::components::utils::get_theme_mode;
 use core::logic::swanson::SettingsManager;
 use std::sync::Arc;
-use webkit6::prelude::WebViewExt;
+use servo_gtk::WebView;
 
 /// Show empty state when no file is opened - theme-aware version matching markdown rendering
 pub fn show_empty_state_with_theme(
-    webview: &webkit6::WebView,
+    webview: &WebView,
     settings_manager: &Arc<SettingsManager>,
 ) {
     // Determine theme_mode from settings (same logic as markdown rendering)
@@ -103,9 +103,15 @@ pub fn show_empty_state_with_theme(
         theme_class
     );
 
-    let webview_clone = webview.clone();
-    let html_string = html.to_string();
-    gtk4::glib::idle_add_local_once(move || {
-        webview_clone.load_html(&html_string, None);
-    });
+    // Servo requires loading via file:// URL, so save to temp file
+    use std::io::Write;
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join(format!("polo_empty_{}.html", std::process::id()));
+    
+    if let Ok(mut file) = std::fs::File::create(&temp_file) {
+        if file.write_all(html.as_bytes()).is_ok() {
+            let temp_url = format!("file://{}", temp_file.display());
+            webview.load_url(&temp_url);
+        }
+    }
 }

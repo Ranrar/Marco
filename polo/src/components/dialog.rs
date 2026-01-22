@@ -50,7 +50,7 @@ use gtk4::{
 };
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use webkit6::WebView;
+use servo_gtk::WebView;
 
 /// Show file chooser dialog to open a markdown file
 pub fn show_open_file_dialog(

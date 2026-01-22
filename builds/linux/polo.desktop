@@ -4,7 +4,7 @@ Type=Application
 Name=Polo
 GenericName=Markdown Viewer
 Comment=Polo is a fast and lightweight markdown viewer
-Exec=polo %F
+Exec=env PATH=/usr/local/bin:/usr/bin:/bin polo %F
 Icon=polo
 Terminal=false
 StartupNotify=true
@@ -16,4 +16,4 @@ Actions=new-window;
 
 [Desktop Action new-window]
 Name=New Window
-Exec=polo
+Exec=env PATH=/usr/local/bin:/usr/bin:/bin polo

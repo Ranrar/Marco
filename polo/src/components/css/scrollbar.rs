@@ -18,7 +18,8 @@
 //! - **Light**: thumb `#D0D4D8`, track `#F0F0F0`
 //! - **Dark**: thumb `#3A3F44`, track `#252526`
 //!
-//! These colors match the WebKit scrollbar styling used in the HTML preview.
+//! Note: Servo handles HTML scrollbars internally. These GTK scrollbar styles
+//! apply to the Polo window's scrollbars, not the rendered HTML content.
 
 /// Light theme scrollbar colors (from assets/themes/editor/light.xml)
 const LIGHT_SCROLLBAR_THUMB: &str = "#D0D4D8";
@@ -35,7 +36,7 @@ pub fn generate_css() -> String {
     // Base scrollbar styling (theme-independent)
     css.push_str(
         r#"
-    /* Base GTK scrollbar styling - 12px width matching WebKit */
+    /* Base GTK scrollbar styling - 12px width */
     scrollbar {
         -gtk-icon-transform: none;
         min-width: 12px;
@@ -148,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_scrollbar_colors_match_webkit() {
+    fn smoke_test_scrollbar_colors_from_editor_theme() {
         let css = generate_css();
 
         // Verify light theme colors match editor XML
@@ -164,7 +165,7 @@ mod tests {
     fn smoke_test_scrollbar_12px_width() {
         let css = generate_css();
 
-        // Verify 12px width/height matching WebKit
+        // Verify 12px width/height for scrollbars
         assert!(css.matches("12px").count() >= 6);
     }
 }

@@ -1,13 +1,13 @@
 #!/bin/bash
-# Build Debian package (.deb) for Marco Markdown Editor + Polo Viewer (Linux)
+# Build Debian package (.deb) for Marco Suite (Marco Editor + Polo Viewer) (Linux)
 #
-# This script ONLY builds the package. It does not install/uninstall.
+# This script ONLY builds the combined suite package. It does not install/uninstall.
 #
 # Usage:
-#   bash install/build_deb.sh
-#   bash install/build_deb.sh --check
-#   bash install/build_deb.sh --version-only
-#   bash install/build_deb.sh --help
+#   bash builds/linux/build_marco_suite.sh
+#   bash builds/linux/build_marco_suite.sh --check
+#   bash builds/linux/build_marco_suite.sh --version-only
+#   bash builds/linux/build_marco_suite.sh --help
 
 set -euo pipefail
 
@@ -35,7 +35,7 @@ print_warning() { echo -e "${YELLOW}WARN: $1${NC}"; }
 print_info() { echo -e "${BLUE}INFO: $1${NC}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 # Configuration
@@ -50,7 +50,7 @@ ARCHITECTURE="amd64"
 BUILD_DIR="$(mktemp -d /tmp/marco-deb-build.XXXXXX)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-VERSION_FILE="$ROOT_DIR/install/version.json"
+VERSION_FILE="$ROOT_DIR/builds/linux/version.json"
 
 CORE_VERSION=""
 MARCO_VERSION=""
@@ -58,16 +58,16 @@ POLO_VERSION=""
 
 show_help() {
     cat << 'EOF'
-Marco & Polo Debian Package Builder
+Marco Suite Debian Package Builder
 
 USAGE:
-    bash install/build_deb.sh [OPTIONS]
+    bash builds/linux/build_marco_suite.sh [OPTIONS]
 
 DESCRIPTION:
-    Builds a Debian package (.deb) for Marco (editor) and Polo (viewer).
+    Builds a combined Debian package (.deb) for Marco (editor) and Polo (viewer).
     Does NOT install it.
 
-    Versions are tracked in: install/version.json
+    Versions are tracked in: builds/linux/version.json
     By default, running this script bumps patch versions for Core/Marco/Polo,
     updates Cargo.toml versions, then builds.
 
@@ -135,7 +135,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             print_error "Unknown option: $1"
-            echo "Use 'bash install/build_deb.sh --help' for usage information"
+            echo "Use 'bash builds/linux/build_marco_suite.sh --help' for usage information"
             exit 1
             ;;
     esac

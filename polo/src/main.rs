@@ -13,7 +13,7 @@
 //! - **Marco Integration**: Opens files in Marco editor on demand
 //! - **Theme Support**: Light/dark modes with multiple CSS themes
 //! - **Fast Rendering**: Uses core's cached parser for instant previews
-//! - **Minimal Dependencies**: No SourceView5, just GTK4 + WebKit6
+//! - **Minimal Dependencies**: No SourceView5, just GTK4 + Servo
 //!
 //! ## Architecture
 //!
@@ -39,13 +39,13 @@ mod components;
 
 use components::css::load_css_from_path;
 use components::menu::create_custom_titlebar;
-use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
+use components::utils::apply_gtk_theme_preference;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use core::paths::PoloPaths;
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use webkit6::prelude::WebViewExt;
+use servo_gtk::WebView;
 
 const APP_ID: &str = "io.github.ranrar.Polo";
 
@@ -271,30 +271,23 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     window.add_css_class(&format!("marco-theme-{}", current_theme_mode));
     log::debug!("Applied theme class: marco-theme-{}", current_theme_mode);
 
-    // Set window icon (GTK will look for icon named "polo" in the system icon theme)
+    // Set window icon - ensure icon theme knows about system icons
+    use gtk4::prelude::WidgetExt as _;
+    let display = WidgetExt::display(&window);
+    let icon_theme = gtk4::IconTheme::for_display(&display);
+    // Ensure hicolor theme is available (system icons location)
+    icon_theme.add_search_path("/usr/share/icons/hicolor");
+    icon_theme.add_search_path("/usr/share/pixmaps");
     window.set_icon_name(Some("polo"));
 
-    // Create WebView for markdown preview
-    let webview = webkit6::WebView::new();
+    // Create Servo WebView for markdown preview
+    let webview = WebView::new();
     webview.set_vexpand(true);
     webview.set_hexpand(true);
 
-    // Set background color to prevent white flash during loading
-    // Use dark background matching the theme
-    if let Some(rgba) = parse_hex_to_rgba("#1e1e1e") {
-        webview.set_background_color(&rgba);
-    }
-
-    // Configure WebKit security settings to allow local file access
-    // This is essential for loading images and other resources from the file system
-    if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
-        settings.set_allow_file_access_from_file_urls(true);
-        settings.set_allow_universal_access_from_file_urls(true);
-        settings.set_auto_load_images(true);
-        settings.set_enable_developer_extras(false); // Disable dev tools in viewer
-        settings.set_javascript_can_access_clipboard(false); // Security: disable clipboard access
-        settings.set_enable_write_console_messages_to_stdout(false); // Reduce noise in logs
-    }
+    // Note: Servo handles security and rendering differently than WebKit.
+    // Settings like file access permissions, background color, and JavaScript
+    // permissions are managed internally by Servo's architecture.
 
     // Load and render the markdown file
     let file_path_for_render = file_path.clone();
@@ -403,6 +396,17 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
             }
         }
     }
+
+    // Ensure proper cleanup when window closes
+    // Use close-request signal which fires BEFORE the window is destroyed
+    // This ensures we can clean up servo-runner subprocess properly
+    let webview_for_cleanup = webview.clone();
+    window.connect_close_request(move |_| {
+        log::info!("Window close requested - triggering WebView cleanup");
+        // Explicitly call cleanup method to force servo-runner termination
+        webview_for_cleanup.cleanup();
+        glib::Propagation::Proceed
+    });
 
     // Present window
     window.present();

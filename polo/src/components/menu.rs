@@ -49,7 +49,7 @@ use gtk4::{
     PropertyExpression, StringList, StringObject, WindowHandle,
 };
 use std::sync::{Arc, RwLock};
-use webkit6::WebView;
+use servo_gtk::WebView;
 
 /// Create custom titlebar with icon, filename, theme dropdown, and "Open in Editor" button
 ///
@@ -76,8 +76,9 @@ pub fn create_custom_titlebar(
     headerbar.set_show_title_buttons(false); // We'll add custom window controls
 
     // LEFT SIDE: App icon + filename
-    let icon_path = asset_root.join("icons/icon_64x64_polo.png");
-    let icon = Image::from_file(&icon_path);
+    // Use icon from system icon theme (installed in /usr/share/icons/hicolor)
+    // This works both for dev (if icon is in local assets) and production (system-wide install)
+    let icon = Image::from_icon_name("polo");
     icon.set_pixel_size(16);
     icon.set_halign(Align::Start);
     icon.set_margin_start(5);

@@ -60,9 +60,21 @@ It's built for developers, engineers, and writers who need:
 - **Native performance** — no login, no cloud, your documents stay on your machine
 - **Structured documents** — full control over headings, blocks, and formatting  
 - **Custom Markdown grammar** — hand-crafted parser for extensibility and AST-level control  
-- **Seamless preview** — rendered with WebKit and perfectly synced with the editor  
+- **Seamless preview** — Marco uses WebKit6, Polo uses Servo for fast HTML rendering
 
 Whether you're writing technical docs, tutorials, or long-form text, Marco turns Markdown into a professional writing tool — fast, clear, and extensible.
+
+## Polo - Lightweight Viewer
+
+**Polo** is the lightweight companion to Marco, designed for viewing Markdown documents:
+
+- **Read-only** — focused on viewing, not editing
+- **Servo-powered** — uses the Servo web engine for modern, fast HTML rendering
+- **Shared rendering** — identical preview output to Marco using the same core parser
+- **Minimal dependencies** — no SourceView5 required, just GTK4 + Servo
+- **Quick launch** — open Markdown files instantly for reading
+
+Install Polo separately or as part of the Marco Suite package.
 
 ## Marco Markdown Functions
 

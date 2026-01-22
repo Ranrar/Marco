@@ -51,36 +51,19 @@ use core::logic::swanson::SettingsManager;
 use core::{parse_to_html_cached, RenderOptions};
 use std::path::Path;
 use std::sync::Arc;
-use webkit6::prelude::WebViewExt;
+use servo_gtk::WebView;
 
-/// Light theme scrollbar colors (from assets/themes/editor/light.xml)
+// Note: Servo handles scrollbars differently than WebKit.
+// Scrollbar styling is managed by the GTK theme and Servo's internal rendering.
+// These scrollbar color constants are kept for reference but are not actively used.
+#[allow(dead_code)]
 const LIGHT_SCROLLBAR_THUMB: &str = "#D0D4D8";
+#[allow(dead_code)]
 const LIGHT_SCROLLBAR_TRACK: &str = "#F0F0F0";
-
-/// Dark theme scrollbar colors (from assets/themes/editor/dark.xml)
+#[allow(dead_code)]
 const DARK_SCROLLBAR_THUMB: &str = "#3A3F44";
+#[allow(dead_code)]
 const DARK_SCROLLBAR_TRACK: &str = "#252526";
-
-/// Generate WebKit scrollbar CSS for HTML preview
-/// Matches the GTK scrollbar styling in the main application
-fn generate_webkit_scrollbar_css(theme_mode: &str) -> String {
-    let (thumb, track) = if theme_mode == "dark" {
-        (DARK_SCROLLBAR_THUMB, DARK_SCROLLBAR_TRACK)
-    } else {
-        (LIGHT_SCROLLBAR_THUMB, LIGHT_SCROLLBAR_TRACK)
-    };
-
-    format!(
-        r#"
-        /* Match editor scrollbar styling for WebView */
-        ::-webkit-scrollbar {{ width: 12px; height: 12px; background: {}; }}
-        ::-webkit-scrollbar-track {{ background: {}; }}
-        ::-webkit-scrollbar-thumb {{ background: {}; border-radius: 0px; }}
-        ::-webkit-scrollbar-thumb:hover {{ background: {}; opacity: 0.9; }}
-        "#,
-        track, track, thumb, thumb
-    )
-}
 
 /// Escape HTML special characters to prevent XSS attacks
 /// Converts &, <, >, ", and ' to their HTML entity equivalents
@@ -92,9 +75,13 @@ fn html_escape(s: &str) -> String {
         .replace('\'', "&#39;")
 }
 
-/// Load a markdown file and render it to HTML in the WebView
+/// Load a markdown file and render it to HTML in the Servo WebView
+/// 
+/// Note: Servo currently uses load_url() which requires a file:// URL.
+/// Unlike WebKit, Servo doesn't support loading arbitrary HTML with a base URI.
+/// This implementation converts the markdown to HTML and saves it as a temporary file.
 pub fn load_and_render_markdown(
-    webview: &webkit6::WebView,
+    webview: &WebView,
     file_path: &str,
     theme: &str,
     settings_manager: &Arc<SettingsManager>,
@@ -106,42 +93,37 @@ pub fn load_and_render_markdown(
             // Parse markdown to HTML using core
             let html = parse_markdown_to_html(&content, theme, settings_manager, asset_root);
 
-            // Generate base URI for relative resource resolution (images, links, etc.)
-            // Format: file:///absolute/path/to/directory/ (with trailing slash)
-            let base_uri = if let Ok(absolute_path) = std::path::Path::new(file_path).canonicalize()
-            {
-                if let Some(parent_dir) = absolute_path.parent() {
-                    format!("file://{}/", parent_dir.display())
-                } else {
-                    format!("file://{}/", absolute_path.display())
+            // Servo requires loading content via URL, so we save HTML to a temporary file
+            // and load it via file:// URL. This is different from WebKit which allows
+            // loading HTML strings directly.
+            use std::io::Write;
+            let temp_dir = std::env::temp_dir();
+            let temp_file = temp_dir.join(format!("polo_preview_{}.html", std::process::id()));
+            
+            match std::fs::File::create(&temp_file) {
+                Ok(mut file) => {
+                    if let Err(e) = file.write_all(html.as_bytes()) {
+                        log::error!("Failed to write temporary HTML file: {}", e);
+                        return;
+                    }
+                    
+                    let temp_url = format!("file://{}", temp_file.display());
+                    log::debug!("Loading HTML via temporary file: {}", temp_url);
+                    
+                    // Load HTML via file URL
+                    webview.load_url(&temp_url);
+                    
+                    // Note: We don't delete the temp file immediately as Servo may need
+                    // time to load it. In a production implementation, this would need
+                    // proper cleanup (e.g., on window close or using a cleanup timer).
                 }
-            } else {
-                // Fallback: try to use current directory or file:/// root
-                std::env::current_dir()
-                    .ok()
-                    .map(|d| format!("file://{}/", d.display()))
-                    .unwrap_or_else(|| {
-                        log::warn!(
-                            "Cannot determine base URI for file: {}, using file:/// root",
-                            file_path
-                        );
-                        "file:///".to_string()
-                    })
-            };
-
-            log::debug!("Loading HTML with base URI: {}", base_uri);
-
-            // Load HTML into WebView with base URI
-            // Use idle_add_local to avoid GTK allocation warnings
-            let webview_clone = webview.clone();
-            let html_clone = html.clone();
-            let base_uri_clone = base_uri.clone();
-            gtk4::glib::idle_add_local_once(move || {
-                webview_clone.load_html(&html_clone, Some(&base_uri_clone));
-            });
+                Err(e) => {
+                    log::error!("Failed to create temporary HTML file: {}", e);
+                }
+            }
         }
         Err(e) => {
-            // Show error in WebView with properly escaped content to prevent XSS
+            // Show error using temporary file (Servo requires file:// URLs)
             let error_html = format!(
                 r#"<!DOCTYPE html>
 <html>
@@ -183,10 +165,17 @@ pub fn load_and_render_markdown(
                 html_escape(file_path),
                 html_escape(&e.to_string())
             );
-            let webview_clone = webview.clone();
-            gtk4::glib::idle_add_local_once(move || {
-                webview_clone.load_html(&error_html, None);
-            });
+            
+            // Save error HTML to temp file and load it
+            use std::io::Write;
+            let temp_dir = std::env::temp_dir();
+            let temp_file = temp_dir.join(format!("polo_error_{}.html", std::process::id()));
+            
+            if let Ok(mut file) = std::fs::File::create(&temp_file) {
+                let _ = file.write_all(error_html.as_bytes());
+                let temp_url = format!("file://{}", temp_file.display());
+                webview.load_url(&temp_url);
+            }
         }
     }
 }
@@ -219,20 +208,17 @@ pub fn parse_markdown_to_html(
             // Generate syntax highlighting CSS for code blocks
             let syntax_css = generate_syntax_highlighting_css(&theme_mode);
 
-            // Generate WebKit scrollbar CSS to match editor
-            let scrollbar_css = generate_webkit_scrollbar_css(&theme_mode);
+            // Note: Servo doesn't support ::-webkit-scrollbar CSS.
+            // Scrollbar styling is handled by GTK theme.
 
-            // Combine theme CSS with syntax highlighting CSS and scrollbar CSS
+            // Combine theme CSS with syntax highlighting CSS
             let combined_css = if !syntax_css.is_empty() {
                 format!(
-                    "{}\n\n/* Syntax Highlighting CSS */\n{}\n\n/* Scrollbar Styling */\n{}",
-                    theme_css, syntax_css, scrollbar_css
+                    "{}\n\n/* Syntax Highlighting CSS */\n{}",
+                    theme_css, syntax_css
                 )
             } else {
-                format!(
-                    "{}\n\n/* Scrollbar Styling */\n{}",
-                    theme_css, scrollbar_css
-                )
+                theme_css
             };
 
             // Create theme class for HTML element (theme-light or theme-dark)

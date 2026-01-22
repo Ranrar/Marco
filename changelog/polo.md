@@ -10,16 +10,23 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ## [Unreleased]
 
 ### Added
-- Nothing yet.
+- Servo web engine integration replacing WebKit6 for HTML preview rendering
+- Explicit subprocess cleanup mechanism via `WebView::cleanup()` method
+- Icon loading from system icon theme (`Image::from_icon_name`) for production installs
 
 ### Changed
-- Nothing yet.
+- Web rendering engine changed from WebKit6 to Servo (via servo-gtk bindings)
+- Icon installation now uses ImageMagick to resize icons to all standard sizes (16x16 through 512x512)
+- Window close handling changed from `connect_destroy` to `connect_close_request` for reliable cleanup
+- servo-runner subprocess now properly terminated on window close using `force_exit()`
 
 ### Fixed
-- Nothing yet.
+- Window titlebar icon missing after .deb installation (now uses system icon theme)
+- servo-runner subprocess orphaned when polo closes (now explicitly killed via force_exit)
+- Icon file naming mismatch in build script (now correctly uses icon_64x64_polo.png and icon_662x662_polo.png)
 
 ### Removed
-- Nothing yet.
+- WebKit6 dependency removed in favor of Servo
 
 ### Security
 - Nothing yet.
