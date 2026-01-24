@@ -43,9 +43,7 @@ impl SimpleFileLogger {
                     // Installed/portable mode: use AppData\Local\marco\log
                     dirs::data_local_dir()
                         .map(|d| d.join("marco").join("log"))
-                        .unwrap_or_else(|| {
-                            std::env::temp_dir().join("marco").join("log")
-                        })
+                        .unwrap_or_else(|| std::env::temp_dir().join("marco").join("log"))
                 }
             } else {
                 // Fallback to temp if we can't determine exe path

@@ -24,11 +24,13 @@ syntect = "5.3.0"                    # Syntax highlighting
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.3"
+gtk = { package = "gtk4", version = "0.10.3" }
 glib = "0.21.3"
 gio = "0.21.2"
 sourceview5 = "0.10.0"
 webkit6 = "0.5.0"  # Still used by marco
-servo-gtk = { path = "/servo-gtk" }  # Patched version for production use
+# Local servo integration (wraps libservo from https://github.com/servo/servo)
+servo-runner = { path = "servo_runner" }
 dark-light = "2.0.0"
 
 # Test dependencies

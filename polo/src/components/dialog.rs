@@ -48,9 +48,9 @@ use gtk4::{
     prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction, FileChooserDialog,
     FileFilter, Label, Orientation, ResponseType, Window,
 };
+use servo_runner::WebView;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use servo_gtk::WebView;
 
 /// Show file chooser dialog to open a markdown file
 pub fn show_open_file_dialog(

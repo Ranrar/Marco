@@ -147,7 +147,10 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             }
 
             // None found - log all searched paths
-            log::error!("Asset directory not found. Searched {} locations:", candidate_paths.len());
+            log::error!(
+                "Asset directory not found. Searched {} locations:",
+                candidate_paths.len()
+            );
             for path in &candidate_paths {
                 log::error!("  - {}", path.display());
             }

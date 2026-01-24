@@ -39,6 +39,6 @@
 pub mod empty_state;
 pub mod rendering;
 
-pub use empty_state::show_empty_state_with_theme;
+pub use empty_state::{show_empty_state_with_theme, show_empty_state_with_theme_mode};
 pub use rendering::load_and_render_markdown;
 // parse_markdown_to_html is internal, not re-exported

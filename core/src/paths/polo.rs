@@ -51,9 +51,7 @@ impl PoloPaths {
                 {
                     dirs::config_dir()
                         .map(|c| c.join("polo"))
-                        .unwrap_or_else(|| {
-                            std::env::temp_dir().join("polo").join("config")
-                        })
+                        .unwrap_or_else(|| std::env::temp_dir().join("polo").join("config"))
                 }
                 #[cfg(not(target_os = "windows"))]
                 {
@@ -69,9 +67,7 @@ impl PoloPaths {
             {
                 dirs::config_dir()
                     .map(|c| c.join("polo"))
-                    .unwrap_or_else(|| {
-                        std::env::temp_dir().join("polo").join("config")
-                    })
+                    .unwrap_or_else(|| std::env::temp_dir().join("polo").join("config"))
             }
             #[cfg(not(target_os = "windows"))]
             {
@@ -108,9 +104,7 @@ impl PoloPaths {
         {
             dirs::data_local_dir()
                 .map(|d| d.join("polo"))
-                .unwrap_or_else(|| {
-                    std::env::temp_dir().join("polo").join("data")
-                })
+                .unwrap_or_else(|| std::env::temp_dir().join("polo").join("data"))
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -127,9 +121,7 @@ impl PoloPaths {
         {
             dirs::cache_dir()
                 .map(|c| c.join("polo"))
-                .unwrap_or_else(|| {
-                    std::env::temp_dir().join("polo").join("cache")
-                })
+                .unwrap_or_else(|| std::env::temp_dir().join("polo").join("cache"))
         }
         #[cfg(not(target_os = "windows"))]
         {

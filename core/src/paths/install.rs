@@ -29,9 +29,7 @@ pub fn user_install_dir() -> PathBuf {
     {
         dirs::data_dir()
             .map(|d| d.join("marco"))
-            .unwrap_or_else(|| {
-                std::env::temp_dir().join("marco")
-            })
+            .unwrap_or_else(|| std::env::temp_dir().join("marco"))
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -119,9 +117,7 @@ pub fn config_dir() -> PathBuf {
     {
         dirs::config_dir()
             .map(|c| c.join("marco"))
-            .unwrap_or_else(|| {
-                std::env::temp_dir().join("marco").join("config")
-            })
+            .unwrap_or_else(|| std::env::temp_dir().join("marco").join("config"))
     }
     #[cfg(not(target_os = "windows"))]
     {
@@ -141,9 +137,7 @@ pub fn user_data_dir() -> PathBuf {
     {
         dirs::data_local_dir()
             .map(|d| d.join("marco"))
-            .unwrap_or_else(|| {
-                std::env::temp_dir().join("marco").join("data")
-            })
+            .unwrap_or_else(|| std::env::temp_dir().join("marco").join("data"))
     }
     #[cfg(not(target_os = "windows"))]
     {

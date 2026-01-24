@@ -49,9 +49,9 @@ use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme
 use crate::components::utils::get_theme_mode;
 use core::logic::swanson::SettingsManager;
 use core::{parse_to_html_cached, RenderOptions};
+use servo_runner::WebView;
 use std::path::Path;
 use std::sync::Arc;
-use servo_gtk::WebView;
 
 // Note: Servo handles scrollbars differently than WebKit.
 // Scrollbar styling is managed by the GTK theme and Servo's internal rendering.
@@ -76,7 +76,7 @@ fn html_escape(s: &str) -> String {
 }
 
 /// Load a markdown file and render it to HTML in the Servo WebView
-/// 
+///
 /// Note: Servo currently uses load_url() which requires a file:// URL.
 /// Unlike WebKit, Servo doesn't support loading arbitrary HTML with a base URI.
 /// This implementation converts the markdown to HTML and saves it as a temporary file.
@@ -99,14 +99,14 @@ pub fn load_and_render_markdown(
             use std::io::Write;
             let temp_dir = std::env::temp_dir();
             let temp_file = temp_dir.join(format!("polo_preview_{}.html", std::process::id()));
-            
+
             match std::fs::File::create(&temp_file) {
                 Ok(mut file) => {
                     if let Err(e) = file.write_all(html.as_bytes()) {
                         log::error!("Failed to write temporary HTML file: {}", e);
                         return;
                     }
-                    
+
                     // Create proper file:// URL for cross-platform compatibility
                     // Windows: file:///C:/Users/...
                     // Linux: file:///home/...
@@ -118,10 +118,10 @@ pub fn load_and_render_markdown(
                         format!("file://{}", temp_file.display())
                     };
                     log::debug!("Loading HTML via temporary file: {}", temp_url);
-                    
+
                     // Load HTML via file URL
                     webview.load_url(&temp_url);
-                    
+
                     // Note: We don't delete the temp file immediately as Servo may need
                     // time to load it. In a production implementation, this would need
                     // proper cleanup (e.g., on window close or using a cleanup timer).
@@ -174,12 +174,12 @@ pub fn load_and_render_markdown(
                 html_escape(file_path),
                 html_escape(&e.to_string())
             );
-            
+
             // Save error HTML to temp file and load it
             use std::io::Write;
             let temp_dir = std::env::temp_dir();
             let temp_file = temp_dir.join(format!("polo_error_{}.html", std::process::id()));
-            
+
             if let Ok(mut file) = std::fs::File::create(&temp_file) {
                 let _ = file.write_all(error_html.as_bytes());
                 let temp_url = if cfg!(windows) {

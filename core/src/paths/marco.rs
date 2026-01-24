@@ -139,9 +139,7 @@ impl MarcoPaths {
         {
             dirs::cache_dir()
                 .map(|c| c.join("marco"))
-                .unwrap_or_else(|| {
-                    std::env::temp_dir().join("marco").join("cache")
-                })
+                .unwrap_or_else(|| std::env::temp_dir().join("marco").join("cache"))
         }
         #[cfg(not(target_os = "windows"))]
         {

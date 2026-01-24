@@ -15,5 +15,5 @@ core = { path = "../core" }
 gtk4 = { workspace = true }
 glib = { workspace = true }
 gio = { workspace = true }
-servo-gtk = { workspace = true }
+servo-runner = { workspace = true }
 log = { workspace = true }

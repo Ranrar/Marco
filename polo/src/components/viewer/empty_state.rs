@@ -16,18 +16,32 @@
 //! `.theme-dark` classes on the `<html>` element, ensuring visual consistency
 //! with markdown rendering.
 
-use crate::components::utils::get_theme_mode;
 use core::logic::swanson::SettingsManager;
+use servo_runner::WebView;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use servo_gtk::WebView;
+
+static EMPTY_STATE_SEQ: AtomicU64 = AtomicU64::new(0);
 
 /// Show empty state when no file is opened - theme-aware version matching markdown rendering
-pub fn show_empty_state_with_theme(
-    webview: &WebView,
-    settings_manager: &Arc<SettingsManager>,
-) {
+pub fn show_empty_state_with_theme(webview: &WebView, settings_manager: &Arc<SettingsManager>) {
     // Determine theme_mode from settings (same logic as markdown rendering)
-    let theme_mode = get_theme_mode(settings_manager);
+    let theme_mode = crate::components::utils::get_theme_mode(settings_manager);
+
+    show_empty_state_with_theme_mode(webview, &theme_mode);
+}
+
+/// Show empty state using an explicit theme mode.
+///
+/// This is intentionally decoupled from settings reads so callers that just toggled
+/// theme can render a consistent empty state even if settings persistence is delayed.
+pub fn show_empty_state_with_theme_mode(webview: &WebView, theme_mode: &str) {
+    // Normalize inputs like "marco-dark" → "dark" (defensive; callers should pass "light"/"dark")
+    let theme_mode = if theme_mode.contains("dark") {
+        "dark"
+    } else {
+        "light"
+    };
 
     // Create theme class for HTML element (theme-light or theme-dark)
     let theme_class = format!("theme-{}", theme_mode);
@@ -103,11 +117,13 @@ pub fn show_empty_state_with_theme(
         theme_class
     );
 
-    // Servo requires loading via file:// URL, so save to temp file
+    // Servo loads via file:// URL. Use a unique temp filename per call to avoid
+    // caching/stale loads when we re-render the empty state (e.g. during theme toggles).
     use std::io::Write;
     let temp_dir = std::env::temp_dir();
-    let temp_file = temp_dir.join(format!("polo_empty_{}.html", std::process::id()));
-    
+    let seq = EMPTY_STATE_SEQ.fetch_add(1, Ordering::Relaxed);
+    let temp_file = temp_dir.join(format!("polo_empty_{}_{}.html", std::process::id(), seq));
+
     if let Ok(mut file) = std::fs::File::create(&temp_file) {
         if file.write_all(html.as_bytes()).is_ok() {
             let temp_url = if cfg!(windows) {

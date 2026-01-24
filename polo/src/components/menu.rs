@@ -42,14 +42,16 @@
 
 use crate::components::dialog::{show_open_file_dialog, show_open_in_editor_dialog};
 use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
-use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
+use crate::components::viewer::{
+    load_and_render_markdown, show_empty_state_with_theme, show_empty_state_with_theme_mode,
+};
 use core::logic::swanson::SettingsManager;
 use gtk4::{
     prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar, Image, Label,
     PropertyExpression, StringList, StringObject, WindowHandle,
 };
+use servo_runner::WebView;
 use std::sync::{Arc, RwLock};
-use servo_gtk::WebView;
 
 /// Create custom titlebar with icon, filename, theme dropdown, and "Open in Editor" button
 ///
@@ -294,7 +296,13 @@ pub fn create_custom_titlebar(
                 );
             } else {
                 // No file loaded - reload empty state with new theme
-                show_empty_state_with_theme(&webview_for_mode, &settings_manager_for_mode);
+                // Use the explicit mode we just computed to keep the WebView in sync with
+                // the GTK/titlebar theme even if settings persistence lags.
+                let webview_clone = webview_for_mode.clone();
+                let new_mode_for_empty = new_mode.clone();
+                glib::timeout_add_local_once(std::time::Duration::from_millis(50), move || {
+                    show_empty_state_with_theme_mode(&webview_clone, &new_mode_for_empty);
+                });
             }
         }
     });

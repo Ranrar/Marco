@@ -44,7 +44,7 @@ pub fn set_local_font_dir(font_dir: &str) {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "windows")))]  
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 pub fn set_local_font_dir(_font_dir: &str) {
     // Unsupported platform - no-op
     // Font loading may not work correctly on this platform

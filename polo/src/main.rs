@@ -43,9 +43,9 @@ use components::utils::apply_gtk_theme_preference;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use core::paths::PoloPaths;
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
+use servo_runner::WebView;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use servo_gtk::WebView;
 
 const APP_ID: &str = "io.github.ranrar.Polo";
 
@@ -427,25 +427,8 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     }
 
     // Ensure proper cleanup when window closes
-    // Use close-request signal which fires BEFORE the window is destroyed
-    // This ensures we can clean up servo-runner subprocess properly
-    #[cfg(unix)]
-    let webview_for_cleanup = webview.clone();
-    window.connect_close_request(move |_| {
-        log::info!("Window close requested - triggering WebView cleanup");
-        // Explicitly call cleanup method to force servo-runner termination
-        // Note: cleanup() method availability may vary by platform
-        #[cfg(unix)]
-        {
-            webview_for_cleanup.cleanup();
-        }
-        #[cfg(not(unix))]
-        {
-            // On Windows, rely on Drop implementation to clean up servo-runner
-            log::info!("Cleanup will be handled by Drop implementation");
-        }
-        glib::Propagation::Proceed
-    });
+    // Window will clean up automatically when closed
+    // Servo handles its own shutdown via Drop
 
     // Present window
     window.present();

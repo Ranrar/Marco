@@ -32,7 +32,7 @@ use std::sync::Arc;
 
 /// Parse hex color string to RGBA
 /// Supports formats: #RGB, #RRGGBB, #RRGGBBAA
-/// 
+///
 /// Note: Currently unused in Polo but kept for future enhancements.
 /// WebKit background color setting used this function, which was removed
 /// during Servo migration as Servo handles rendering differently.

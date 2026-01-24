@@ -1,29 +1,31 @@
 [package]
 name = "servo-runner"
-version = "0.14.0"
-edition = "2024"
-
-[[bin]]
-name = "servo-runner"
-path = "src/main.rs"
+version = "0.0.4"
+edition = "2021"
+authors = ["Kim Skov Rasmussen"]
+description = "GTK4 integration for Servo web engine"
+license = "MIT"
 
 [dependencies]
-gio = { workspace = true }
+# GTK4
+gtk = { workspace = true }
 glib = { workspace = true }
-servo-gtk = { workspace = true }
-libservo = { git = "https://github.com/servo/servo.git", rev = "b9f5a7920f18bd5294ebb95bbb422199f6371a54" }
-embedder_traits = { git = "https://github.com/servo/servo.git", rev = "b9f5a7920f18bd5294ebb95bbb422199f6371a54" }
-surfman = { version = "0.9", features = ["chains", "sm-angle", "sm-angle-default"] }
-gl = "0.14.0"
-euclid = "0.22"
-url = "2.3"
-dpi = "0.1"
-rustls = { version = "0.23.12", default-features = false, features = ["aws-lc-rs"] }
-log = "0.4.0"
-image = "0.25"
-keyboard-types = "0.8"
-prost = "0.13"
+gio = { workspace = true }
 
-[build-dependencies]
-glib-build-tools = "0.21"
-prost-build = "0.13"
+# Servo
+servo = { git = "https://github.com/servo/servo.git", rev = "b73ae025690cce16185520ea88a6df162fc1298d", package = "libservo" }
+embedder_traits = { git = "https://github.com/servo/servo.git", rev = "b73ae025690cce16185520ea88a6df162fc1298d" }
+compositing_traits = { git = "https://github.com/servo/servo.git", rev = "b73ae025690cce16185520ea88a6df162fc1298d" }
+servo_url = { git = "https://github.com/servo/servo.git", rev = "b73ae025690cce16185520ea88a6df162fc1298d" }
+euclid = "0.22"
+rustls = { version = "0.23", features = ["aws_lc_rs"] }
+dpi = "0.1"
+
+# OpenGL
+surfman = { version = "0.11.0", features = ["chains", "sm-angle", "sm-angle-default"] }
+gl = "0.14.0"
+
+# Utilities
+log = { workspace = true }
+url = "2.3"
+image = "0.25"
