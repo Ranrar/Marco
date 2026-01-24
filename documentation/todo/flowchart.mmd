@@ -1,0 +1,32 @@
+flowchart TD
+
+  A["GTK Widget constructed"] --> B["realize signal"]
+  B --> C["initialize_servo"]
+  C --> D["create RenderingContext - Software now, OpenGL later"]
+  D --> E["build Servo WebView with delegate"]
+  E --> F["map signal"]
+  F --> G["queue_draw initial"]
+
+  H["load_url"] --> I["webview.load"]
+  I --> J["start_ticker_if_needed"]
+  J --> K["GTK timeout 16ms"]
+  K --> L["servo.spin_event_loop"]
+
+  L --> M{"Servo has new frame"}
+  M -->|yes| N["delegate.notify_new_frame_ready"]
+  N --> O["webview.paint"]
+  O --> P["rendering_context.present"]
+
+  P --> Q{"Rendering mode"}
+
+  Q -->|Software| R["read_to_image viewport"]
+  R --> S["cache RGBA frame"]
+  S --> T["request GTK redraw -> queue_draw"]
+
+  Q -->|OpenGL| U["produce or share GPU texture"]
+  U --> T
+
+  T --> V["GTK snapshot"]
+  V --> W{"Cached frame or texture available"}
+  W -->|yes| X["draw texture to snapshot"]
+  W -->|no| Y["draw fallback color"]
