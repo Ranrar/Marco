@@ -4,10 +4,10 @@
 # This script ONLY builds the package. It does not install/uninstall.
 #
 # Usage:
-#   bash install/build_deb.sh
-#   bash install/build_deb.sh --check
-#   bash install/build_deb.sh --version-only
-#   bash install/build_deb.sh --help
+#   bash build/linux/build_deb.sh
+#   bash build/linux/build_deb.sh --check
+#   bash build/linux/build_deb.sh --version-only
+#   bash build/linux/build_deb.sh --help
 
 set -euo pipefail
 
@@ -35,7 +35,7 @@ print_warning() { echo -e "${YELLOW}WARN: $1${NC}"; }
 print_info() { echo -e "${BLUE}INFO: $1${NC}"; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 # Configuration
@@ -50,7 +50,7 @@ ARCHITECTURE="amd64"
 BUILD_DIR="$(mktemp -d /tmp/marco-deb-build.XXXXXX)"
 trap 'rm -rf "$BUILD_DIR"' EXIT
 
-VERSION_FILE="$ROOT_DIR/install/version.json"
+VERSION_FILE="$ROOT_DIR/build/version.json"
 
 CORE_VERSION=""
 MARCO_VERSION=""
@@ -61,15 +61,15 @@ show_help() {
 Marco & Polo Debian Package Builder
 
 USAGE:
-    bash install/build_deb.sh [OPTIONS]
+    bash build/linux/build_deb.sh [OPTIONS]
 
 DESCRIPTION:
     Builds a Debian package (.deb) for Marco (editor) and Polo (viewer).
     Does NOT install it.
 
-    Versions are tracked in: install/version.json
-    By default, running this script bumps patch versions for Core/Marco/Polo,
-    updates Cargo.toml versions, then builds.
+    Versions are tracked in: build/version.json
+    By default, running this script uses the current versions from version.json.
+    Use --bump or --set to change versions before building.
 
 OPTIONS:
     -h, --help      Show this help message
@@ -82,13 +82,13 @@ OPTIONS:
                     marco-suite_alpha_VERSION_amd64.deb
 
 OUTPUT:
-    Creates: marco-suite_VERSION_amd64.deb in the workspace root.
-    If --alpha-artifact is set, also creates: marco-suite_alpha_VERSION_amd64.deb
+    Creates: build/installer/linux/marco-suite_VERSION_amd64.deb
+    If --alpha-artifact is set, also creates: build/installer/linux/marco-suite_alpha_VERSION_amd64.deb
 EOF
 }
 
 BUMP_MODE="patch"
-DO_BUMP="true"
+DO_BUMP="false"
 SET_VERSION=""
 CHECK_ONLY="false"
 CREATE_ALPHA_ARTIFACT="false"
@@ -135,7 +135,7 @@ while [ $# -gt 0 ]; do
             ;;
         *)
             print_error "Unknown option: $1"
-            echo "Use 'bash install/build_deb.sh --help' for usage information"
+            echo "Use 'bash build/linux/build_deb.sh --help' for usage information"
             exit 1
             ;;
     esac
@@ -165,17 +165,24 @@ ensure_version_file() {
 import json
 from pathlib import Path
 Path("$VERSION_FILE").write_text(json.dumps({
-  "core": "$core_v",
-  "marco": "$marco_v",
-  "polo": "$polo_v",
+  "linux": {
+    "core": "$core_v",
+    "marco": "$marco_v",
+    "polo": "$polo_v"
+  },
+  "windows": {
+    "core": "$core_v",
+    "marco": "$marco_v",
+    "polo": "$polo_v"
+  }
 }, indent=2) + "\n")
 PY
 }
 
 read_versions() {
-    CORE_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["core"])')"
-    MARCO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["marco"])')"
-    POLO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["polo"])')"
+    CORE_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["core"])')"
+    MARCO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["marco"])')"
+    POLO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["polo"])')"
 }
 
 write_versions() {
@@ -186,9 +193,16 @@ write_versions() {
 import json
 from pathlib import Path
 Path("$VERSION_FILE").write_text(json.dumps({
-  "core": "$core_v",
-  "marco": "$marco_v",
-  "polo": "$polo_v",
+  "linux": {
+    "core": "$core_v",
+    "marco": "$marco_v",
+    "polo": "$polo_v"
+  },
+  "windows": {
+    "core": "$core_v",
+    "marco": "$marco_v",
+    "polo": "$polo_v"
+  }
 }, indent=2) + "\n")
 PY
 }
@@ -440,7 +454,7 @@ print_success "Versions updated"
 if [ "$VERSION_ONLY" = "true" ]; then
     print_header "Version Sync Complete"
     echo "Updated versions only (no build):"
-    echo "  install/version.json: core=$CORE_VERSION marco=$MARCO_VERSION polo=$POLO_VERSION"
+    echo "  build/version.json: core=$CORE_VERSION marco=$MARCO_VERSION polo=$POLO_VERSION"
     echo "  core/Cargo.toml:       $CORE_VERSION"
     echo "  marco/Cargo.toml:      $MARCO_VERSION"
     echo "  polo/Cargo.toml:       $POLO_VERSION"
@@ -459,8 +473,7 @@ install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}"
 
 print_info "Building Marco and Polo binaries (release, workspace)..."
-# Use Cargo.lock to ensure reproducible builds (especially in CI).
-cargo build --release --workspace --locked
+cargo build --release --workspace
 print_success "Build complete"
 
 print_info "Copying binaries..."
@@ -475,8 +488,8 @@ fi
 print_success "Binaries copied"
 
 print_info "Copying desktop entries..."
-install -m 0644 install/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/marco.desktop"
-install -m 0644 install/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/polo.desktop"
+install -m 0644 build/linux/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/marco.desktop"
+install -m 0644 build/linux/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/polo.desktop"
 print_success "Desktop entries copied"
 
 print_info "Installing system icons..."
@@ -845,7 +858,11 @@ print_success "Maintainer scripts created"
 
 print_header "Creating .deb Package"
 
-PACKAGE_FILE="${PACKAGE_NAME}_${MARCO_VERSION}_${ARCHITECTURE}.deb"
+# Ensure installer output directory exists
+INSTALLER_DIR="$ROOT_DIR/build/installer/linux"
+mkdir -p "$INSTALLER_DIR"
+
+PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_${MARCO_VERSION}_${ARCHITECTURE}.deb"
 print_info "Building package: $PACKAGE_FILE"
 
 # Build under fakeroot so files in the package are owned by root:root
@@ -858,7 +875,7 @@ fi
 print_success "Package created: $PACKAGE_FILE"
 
 if [ "$CREATE_ALPHA_ARTIFACT" = "true" ]; then
-    ALPHA_PACKAGE_FILE="${PACKAGE_NAME}_alpha_${MARCO_VERSION}_${ARCHITECTURE}.deb"
+    ALPHA_PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_alpha_${MARCO_VERSION}_${ARCHITECTURE}.deb"
     cp -f "$PACKAGE_FILE" "$ALPHA_PACKAGE_FILE"
     print_success "Alpha artifact created: $ALPHA_PACKAGE_FILE"
 fi

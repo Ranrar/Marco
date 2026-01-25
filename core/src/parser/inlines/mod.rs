@@ -63,14 +63,13 @@ pub use marco_task_checkbox_inline_parser::parse_task_checkbox_inline;
 pub use text_parser::{parse_special_as_text, parse_text};
 
 use super::ast::{Node, NodeKind};
-use anyhow::Result;
 use nom::bytes::complete::take;
 use shared::{to_parser_span, GrammarSpan};
 
 /// Parse inline elements within text content
 /// Takes a GrammarSpan to preserve position information
 /// Returns a vector of inline nodes (Text, Emphasis, Strong, Link, CodeSpan)
-pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>> {
+pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
     log::debug!(
         "Parsing inline elements in span at line {}: {:?}",
         span.location_line(),
@@ -394,7 +393,7 @@ fn last_char_in_node(node: &Node) -> Option<char> {
 /// Parse inline elements within text content (backward compatibility wrapper)
 /// Creates a new span at position 0:0 - USE parse_inlines_from_span() for position-aware parsing
 /// Returns a vector of inline nodes (Text, Emphasis, Strong, Link, CodeSpan)
-pub fn parse_inlines(text: &str) -> Result<Vec<Node>> {
+pub fn parse_inlines(text: &str) -> Result<Vec<Node>, Box<dyn std::error::Error>> {
     parse_inlines_from_span(GrammarSpan::new(text))
 }
 

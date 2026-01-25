@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.14.0"
+version = "0.15.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
@@ -24,18 +24,23 @@ path = "src/main.rs"
 # Core library
 core = { path = "../core" }
 
-# UI dependencies
+# Utilities
+log = { workspace = true }
+syntect = { workspace = true }
+
+# UI dependencies (common)
 gtk4 = { workspace = true }
 glib = { workspace = true }
 gio = { workspace = true }
 sourceview5 = { workspace = true }
-webkit6 = { workspace = true }
 dark-light = { workspace = true }
 
-# Utilities (also in core but needed here)
-anyhow = { workspace = true }
-log = { workspace = true }
-syntect = { workspace = true }
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit6 = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+wry = { workspace = true }
+tao = { workspace = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }

@@ -209,7 +209,7 @@ version = "2.0.0+build.123"
 ### Error Handling & Logging
 - Panic hook installed early in `marco/src/main.rs` with logger flush on crash
 - File-based logging via `core::logic::logger::SimpleFileLogger`
-- Parser errors return `Result<T, anyhow::Error>`
+- Parser errors return `Result<T, Box<dyn std::error::Error>>`
 
 ### Code Organization Rules
 1. **No logic in `marco/src/main.rs`** - only application setup and UI creation

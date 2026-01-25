@@ -8,7 +8,6 @@ mod tests {
     fn test_platform_variants() {
         let _ = Platform::Linux;
         let _ = Platform::Windows;
-        let _ = Platform::MacOS;
         let _ = Platform::Unknown;
     }
 
@@ -23,7 +22,6 @@ mod tests {
 pub enum Platform {
     Linux,
     Windows,
-    MacOS,
     Unknown,
 }
 
@@ -32,8 +30,6 @@ pub fn detect_platform() -> Platform {
         Platform::Linux
     } else if cfg!(target_os = "windows") {
         Platform::Windows
-    } else if cfg!(target_os = "macos") {
-        Platform::MacOS
     } else {
         Platform::Unknown
     }
@@ -42,6 +38,6 @@ pub fn detect_platform() -> Platform {
 pub fn is_dark_mode_supported() -> bool {
     matches!(
         detect_platform(),
-        Platform::Linux | Platform::Windows | Platform::MacOS
+        Platform::Linux | Platform::Windows
     )
 }

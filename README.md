@@ -40,9 +40,13 @@ Install it (Debian/Ubuntu):
 
 ## Windows
 
-No option yet.
+Windows support is in development. Marco and Polo are being designed with cross-platform compatibility:
 
-
+- ✅ **File paths**: Full Windows path support (`%PROGRAMFILES%`, `%APPDATA%`, `%LOCALAPPDATA%`)
+- ✅ **Asset discovery**: Platform-specific install locations
+- ⏳ **GTK4**: Requires MSYS2 + GTK4 for Windows
+- ⏳ **WebView**: Windows builds will use WebView2 (via `wry`)
+- ⏳ **Installer**: Windows installer package coming soon
 
 ## Why Marco?
 

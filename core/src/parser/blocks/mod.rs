@@ -31,7 +31,6 @@ pub use shared::{dedent_list_item_content, to_parser_span, to_parser_span_range,
 use super::ast::Document;
 use crate::grammar::blocks as grammar;
 use crate::parser::ast::{Node, NodeKind};
-use anyhow::Result;
 use nom::Input;
 
 // ============================================================================
@@ -153,13 +152,13 @@ impl ParserState {
 // ============================================================================
 
 /// Parse document into block-level structure, returning a Document
-pub fn parse_blocks(input: &str) -> Result<Document> {
+pub fn parse_blocks(input: &str) -> Result<Document, Box<dyn std::error::Error>> {
     let mut state = ParserState::new();
     parse_blocks_internal(input, 0, &mut state)
 }
 
 // Internal parser with recursion depth limit and state tracking
-fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> Result<Document> {
+fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> Result<Document, Box<dyn std::error::Error>> {
     // Prevent infinite recursion
     const MAX_DEPTH: usize = 100;
     if depth > MAX_DEPTH {

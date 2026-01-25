@@ -27,8 +27,6 @@ Before you begin, ensure you have the following installed:
 
 :::warning[Platform Requirements]
 **Windows Users:** Some scripts require WSL2. See our [@doc](./windows_setup.md) guide.
-
-**macOS Users:** Ensure you have Xcode command line tools installed: run@bash(xcode-select --install)
 :::
 
 ### Initial Setup
@@ -36,7 +34,7 @@ Before you begin, ensure you have the following installed:
 Follow these steps to set up your development environment:
 
 :::tab Environment Setup
-@tab Linux/macOS
+@tab Linux
 ```run@bash
 # Clone the repository
 git clone https://github.com/company/project.git

@@ -5,7 +5,6 @@ use super::plarform_mentions;
 use super::syntect_highlighter::highlight_code_to_classed_html;
 use super::RenderOptions;
 use crate::parser::{AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind};
-use anyhow::Result;
 use std::collections::HashMap;
 
 const HEADING_ANCHOR_SVG: &str = concat!(
@@ -40,7 +39,7 @@ struct RenderContext<'a> {
 }
 
 // Render document to HTML
-pub fn render_html(document: &Document, options: &RenderOptions) -> Result<String> {
+pub fn render_html(document: &Document, options: &RenderOptions) -> Result<String, Box<dyn std::error::Error>> {
     log::debug!("Rendering {} nodes to HTML", document.len());
 
     let mut html = String::new();
@@ -103,7 +102,7 @@ fn render_node(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     match &node.kind {
         NodeKind::Heading { level, text, id } => {
             log::trace!("Rendering heading level {}", level);
@@ -585,7 +584,7 @@ fn render_tab_group(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     // Assign a stable sequential id for this render pass.
     let group_id = ctx.tab_group_counter;
     ctx.tab_group_counter = ctx.tab_group_counter.saturating_add(1);
@@ -654,7 +653,7 @@ fn render_slider_deck(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let timer_seconds = match &node.kind {
         NodeKind::SliderDeck { timer_seconds } => *timer_seconds,
         other => {
@@ -814,7 +813,7 @@ fn render_table(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     output.push_str("<table>\n");
 
     let mut header_rows: Vec<&Node> = Vec::new();
@@ -857,7 +856,7 @@ fn render_table_row(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     output.push_str("<tr>");
     for cell in &node.children {
         render_table_cell(cell, output, options, ctx)?;
@@ -871,7 +870,7 @@ fn render_table_cell(
     output: &mut String,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let (is_header, alignment) = match &node.kind {
         NodeKind::TableCell { header, alignment } => (*header, *alignment),
         _ => {
@@ -916,7 +915,7 @@ fn render_list_item(
     tight: bool,
     options: &RenderOptions,
     ctx: &mut RenderContext<'_>,
-) -> Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     let task_checked = match node.children.first().map(|n| &n.kind) {
         Some(NodeKind::TaskCheckbox { checked }) => Some(*checked),
         _ => None,

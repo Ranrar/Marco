@@ -22,6 +22,27 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.0] - 2026-01-25
+
+### Added
+- Cross-platform file path support for Windows and Linux
+  - Asset root discovery now supports Windows paths (`%LOCALAPPDATA%`, `%PROGRAMFILES%`, `%PROGRAMDATA%`)
+  - Install location detection works for both Linux (`/usr/share`, `~/.local/share`) and Windows (Program Files, AppData)
+  - Platform-appropriate log directories (Linux: `~/.cache/marco/logs`, Windows: `%LOCALAPPDATA%\Marco\logs`)
+  - Config and data directories use platform-specific locations via `dirs` crate
+
+### Changed
+- Logger now uses platform-appropriate cache directory instead of hardcoded `cwd/log`
+- Path detection uses conditional compilation for Linux and Windows specific logic
+
+### Fixed
+- Removed `anyhow` dependency, replaced with standard `Result<T, Box<dyn std::error::Error>>`
+- Fixed all Result type annotations throughout parser and logic modules
+- Fixed thread safety issues for error types used with GTK's `gio::spawn_blocking`
+
+### Removed
+- `anyhow` dependency removed from core library
+
 ## [0.14.0] - 2026-01-18
 
 ### Added

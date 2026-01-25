@@ -21,20 +21,38 @@ pub struct SimpleFileLogger {
 const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 
 impl SimpleFileLogger {
-    pub fn init(enabled: bool, level: LevelFilter) -> Result<(), String> {
+    pub fn init(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn std::error::Error>> {
         if !enabled {
             log::set_max_level(LevelFilter::Off);
             return Ok(());
         }
 
-        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-        let log_root = cwd.join("log"); // Dont change
-        fs::create_dir_all(&log_root).map_err(|e| e.to_string())?;
+        // Use platform-appropriate cache directory for logs
+        // Linux: ~/.cache/marco/logs OR cwd/log (dev mode)
+        // Windows: %LOCALAPPDATA%\Marco\logs OR cwd\log (dev mode)
+        let log_root = if let Some(cache_dir) = dirs::cache_dir() {
+            cache_dir.join("marco").join("logs")
+        } else {
+            // Fallback to cwd/log for development or when cache_dir is unavailable
+            std::env::current_dir()
+                .map(|cwd| cwd.join("log"))
+                .unwrap_or_else(|_| {
+                    #[cfg(windows)]
+                    {
+                        PathBuf::from("C:\\Temp\\marco\\log")
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        PathBuf::from("/tmp/marco/log")
+                    }
+                })
+        };
+        fs::create_dir_all(&log_root).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
         // YYYYMM folder
         let month_folder = Local::now().format("%Y%m").to_string();
         let month_dir = log_root.join(month_folder);
-        fs::create_dir_all(&month_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&month_dir).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         // File name: YYMMDD.log
         let file_name = Local::now().format("%y%m%d.log").to_string();
         let file_path = month_dir.join(file_name);
@@ -43,7 +61,7 @@ impl SimpleFileLogger {
             .create(true)
             .append(true)
             .open(&file_path)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
         let initial_size = file.metadata().map(|m| m.len()).unwrap_or(0);
 
@@ -62,7 +80,7 @@ impl SimpleFileLogger {
 
         log::set_max_level(level);
         // Safe to unwrap because we just set LOGGER
-        log::set_logger(unsafe { LOGGER.unwrap() }).map_err(|e| e.to_string())?;
+        log::set_logger(unsafe { LOGGER.unwrap() }).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         Ok(())
     }
 
@@ -174,8 +192,8 @@ impl Log for SimpleFileLogger {
     }
 }
 
-pub fn init_file_logger(enabled: bool, level: LevelFilter) -> anyhow::Result<()> {
-    SimpleFileLogger::init(enabled, level).map_err(|e| anyhow::anyhow!(e))
+pub fn init_file_logger(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn std::error::Error>> {
+    SimpleFileLogger::init(enabled, level).map_err(|e| format!("{}", e).into())
 }
 
 impl SimpleFileLogger {

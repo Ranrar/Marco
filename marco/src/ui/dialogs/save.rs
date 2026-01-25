@@ -1,5 +1,4 @@
 use crate::logic::menu_items::file::SaveChangesResult;
-use anyhow::Result;
 use gtk4::{glib, prelude::*, Align, Box, Button, Label, Orientation, Window};
 use std::cell::RefCell;
 use std::future::Future;
@@ -34,7 +33,7 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     parent: &W,
     document_name: &str,
     action: &str,
-) -> Result<SaveChangesResult> {
+) -> Result<SaveChangesResult, std::boxed::Box<dyn std::error::Error>> {
     // ========================================================================
     // Dialog Window Setup
     // ========================================================================

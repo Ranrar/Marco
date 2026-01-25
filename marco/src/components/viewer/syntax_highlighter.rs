@@ -23,7 +23,6 @@ const DARK_THEME_NAME: &str = "Monokai";
 
 // ============================================================================
 
-use anyhow::{Context, Result};
 use std::collections::HashMap;
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::html::{css_for_theme_with_class_style, ClassStyle, ClassedHTMLGenerator};
@@ -39,7 +38,7 @@ pub struct SyntaxHighlighter {
 
 impl SyntaxHighlighter {
     /// Create a new syntax highlighter with configurable themes
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         log::debug!("[syntax_highlighter] Initializing syntax highlighter");
 
         // Load syntax sets using syntect-assets for better performance
@@ -55,11 +54,11 @@ impl SyntaxHighlighter {
             .or_else(|| theme_set.themes.get("InspiredGitHub")) // fallback
             .or_else(|| theme_set.themes.get("Solarized (light)")) // another fallback
             .or_else(|| theme_set.themes.values().next()) // final fallback to any theme
-            .with_context(|| {
+            .ok_or_else(|| -> Box<dyn std::error::Error> {
                 format!(
                     "Light theme '{}' not found and no fallbacks available",
                     LIGHT_THEME_NAME
-                )
+                ).into()
             })?
             .clone();
 
@@ -70,11 +69,11 @@ impl SyntaxHighlighter {
             .or_else(|| theme_set.themes.get("Solarized (dark)")) // fallback
             .or_else(|| theme_set.themes.get("base16-ocean.dark")) // another fallback
             .or_else(|| theme_set.themes.values().next()) // final fallback to any theme
-            .with_context(|| {
+            .ok_or_else(|| -> Box<dyn std::error::Error> {
                 format!(
                     "Dark theme '{}' not found and no fallbacks available",
                     DARK_THEME_NAME
-                )
+                ).into()
             })?
             .clone();
 
@@ -101,7 +100,7 @@ impl SyntaxHighlighter {
         code: &str,
         language: &str,
         _theme_mode: &str,
-    ) -> Result<String> {
+    ) -> Result<String, Box<dyn std::error::Error>> {
         // Find the syntax definition for the language
         let syntax = self.find_syntax_for_language(language);
 
@@ -203,7 +202,7 @@ thread_local! {
 }
 
 /// Get the global syntax highlighter instance, initializing if needed
-pub fn global_syntax_highlighter() -> Result<()> {
+pub fn global_syntax_highlighter() -> Result<(), Box<dyn std::error::Error>> {
     SYNTAX_HIGHLIGHTER.with(|highlighter| {
         let mut h = highlighter.borrow_mut();
         if h.is_none() {
@@ -215,14 +214,14 @@ pub fn global_syntax_highlighter() -> Result<()> {
 }
 
 /// Generate CSS using the global syntax highlighter  
-pub fn generate_css_with_global(theme_mode: &str) -> Result<String> {
+pub fn generate_css_with_global(theme_mode: &str) -> Result<String, Box<dyn std::error::Error>> {
     global_syntax_highlighter()?;
 
     SYNTAX_HIGHLIGHTER.with(|highlighter| {
         let mut h = highlighter.borrow_mut();
         let syntax_highlighter = h
             .as_mut()
-            .context("Global syntax highlighter not initialized")?;
+            .ok_or_else(|| "Syntax highlighter not initialized")?;
 
         Ok(syntax_highlighter.generate_css(theme_mode))
     })

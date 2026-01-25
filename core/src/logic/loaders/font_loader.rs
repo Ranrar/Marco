@@ -1,4 +1,3 @@
-use anyhow::Result;
 use fontconfig::Fontconfig;
 use log::{debug, error, warn};
 use std::collections::HashMap;
@@ -38,15 +37,15 @@ pub struct FontLoader {
 
 impl FontLoader {
     /// Create a new font loader instance
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         debug!("Initializing font loader with fontconfig");
         let fc =
-            Fontconfig::new().ok_or_else(|| anyhow::anyhow!("Failed to initialize fontconfig"))?;
+            Fontconfig::new().ok_or_else(|| -> Box<dyn std::error::Error> { "Failed to initialize fontconfig".into() })?;
         Ok(Self { fc: Some(fc) })
     }
 
     /// Initialize monospace font cache at startup (fast)
-    pub fn init_monospace_cache() -> Result<()> {
+    pub fn init_monospace_cache() -> Result<(), Box<dyn std::error::Error>> {
         debug!("Initializing monospace font cache at startup");
         let loader = Self::new()?;
         let monospace_fonts = loader.load_monospace_fonts_only()?;
@@ -118,7 +117,7 @@ impl FontLoader {
     }
 
     /// Refresh the monospace font cache by reloading from system
-    pub fn refresh_monospace_cache() -> Result<Vec<FontFamily>> {
+    pub fn refresh_monospace_cache() -> Result<Vec<FontFamily>, Box<dyn std::error::Error>> {
         debug!("Refreshing monospace font cache");
         let loader = Self::new()?;
         let monospace_fonts = loader.load_monospace_fonts_only()?;
@@ -160,11 +159,11 @@ impl FontLoader {
     }
 
     /// Load only monospace fonts (optimized for startup)
-    pub fn load_monospace_fonts_only(&self) -> Result<Vec<FontFamily>> {
+    pub fn load_monospace_fonts_only(&self) -> Result<Vec<FontFamily>, Box<dyn std::error::Error>> {
         let fc = self
             .fc
             .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Fontconfig not initialized"))?;
+            .ok_or_else(|| "Fontconfig not initialized")?;
 
         debug!("Loading only monospace fonts for fast startup");
 

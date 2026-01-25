@@ -9,8 +9,8 @@
 //!
 //! SIMPLIFIED: No complex threading to avoid GTK main context issues.
 
-use anyhow::Result;
 use std::collections::HashMap;
+use std::result::Result;
 use std::time::Instant;
 
 /// Result from processing a single extension (simplified)
@@ -33,7 +33,7 @@ pub struct AsyncExtensionManager {
 
 impl AsyncExtensionManager {
     /// Create new AsyncExtensionManager with simple processing (no complex threading)
-    pub fn new() -> Result<Self> {
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Setup enabled extensions as per spec
         let mut enabled_extensions = HashMap::new();
         enabled_extensions.insert("line_wrapping".to_string(), true);
@@ -51,7 +51,7 @@ impl AsyncExtensionManager {
         content: String,
         cursor_position: Option<u32>,
         callback: F,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: Fn(Vec<ExtensionResult>) + 'static,
     {
@@ -101,7 +101,7 @@ impl AsyncExtensionManager {
             let lightweight_callback = std::sync::Arc::clone(&shared_callback);
 
             glib::spawn_future_local(async move {
-                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>> {
+                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>, String> {
                     let mut pool_results = Vec::new();
 
                     for extension_name in &lightweight_extensions {
@@ -177,7 +177,7 @@ impl AsyncExtensionManager {
             let heavyweight_callback = std::sync::Arc::clone(&shared_callback);
 
             glib::spawn_future_local(async move {
-                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>> {
+                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>, String> {
                     let mut pool_results = Vec::new();
 
                     for extension_name in &heavyweight_extensions {
@@ -253,7 +253,7 @@ impl AsyncExtensionManager {
         content: String,
         cursor_position: Option<u32>,
         callback: F,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: Fn(Vec<ExtensionResult>) + 'static,
     {

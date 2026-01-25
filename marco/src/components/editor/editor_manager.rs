@@ -30,7 +30,7 @@ pub struct EditorManager {
 
 impl EditorManager {
     /// Create a new editor manager
-    pub fn new(settings_manager: Arc<SettingsManager>) -> anyhow::Result<Self> {
+    pub fn new(settings_manager: Arc<SettingsManager>) -> Result<Self, Box<dyn std::error::Error>> {
         let editor_config = EditorConfiguration::new(settings_manager)?;
         Ok(Self {
             editor_callbacks: Rc::new(std::cell::RefCell::new(HashMap::new())),
@@ -67,7 +67,7 @@ impl EditorManager {
     pub fn update_editor_settings(
         &mut self,
         editor_settings: &EditorDisplaySettings,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         // Prevent infinite callback loops
         if *self.updating_settings.borrow() {
             debug!("Skipping redundant settings update (already updating)");
@@ -137,7 +137,7 @@ impl EditorManager {
     }
 
     /// Update line numbers setting and notify all registered callbacks
-    pub fn update_line_numbers(&self, show_line_numbers: bool) -> anyhow::Result<()> {
+    pub fn update_line_numbers(&self, show_line_numbers: bool) -> Result<(), Box<dyn std::error::Error>> {
         debug!("Updating line numbers setting: {}", show_line_numbers);
 
         // Notify all line numbers callbacks
@@ -176,7 +176,7 @@ thread_local! {
 }
 
 /// Initialize the global editor manager and apply startup settings
-pub fn init_editor_manager(settings_manager: Arc<SettingsManager>) -> anyhow::Result<()> {
+pub fn init_editor_manager(settings_manager: Arc<SettingsManager>) -> Result<(), Box<dyn std::error::Error>> {
     let manager = EditorManager::new(settings_manager.clone())?;
 
     // Log the startup editor settings for debugging
@@ -227,7 +227,7 @@ pub fn shutdown_editor_manager() {
 }
 
 /// Apply startup editor settings to all registered editors
-pub fn apply_startup_editor_settings() -> anyhow::Result<()> {
+pub fn apply_startup_editor_settings() -> Result<(), Box<dyn std::error::Error>> {
     if let Some(manager) = get_editor_manager() {
         let mgr = manager.borrow();
         let startup_settings = mgr.get_current_editor_settings();
@@ -248,7 +248,7 @@ pub fn apply_startup_editor_settings() -> anyhow::Result<()> {
 
         Ok(())
     } else {
-        Err(anyhow::anyhow!("Editor manager not initialized"))
+        Err(format!("Editor manager not initialized").into())
     }
 }
 
@@ -271,12 +271,12 @@ where
 /// Update editor settings globally and notify all callbacks
 pub fn update_editor_settings_globally(
     editor_settings: &EditorDisplaySettings,
-) -> anyhow::Result<()> {
+) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(manager) = get_editor_manager() {
         let mut mgr = manager.borrow_mut();
         mgr.update_editor_settings(editor_settings)
     } else {
-        Err(anyhow::anyhow!("Editor manager not initialized"))
+        Err(format!("Editor manager not initialized").into())
     }
 }
 
@@ -313,23 +313,23 @@ where
 }
 
 /// Update line numbers setting globally and notify all callbacks
-pub fn update_line_numbers_globally(show_line_numbers: bool) -> anyhow::Result<()> {
+pub fn update_line_numbers_globally(show_line_numbers: bool) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(manager) = get_editor_manager() {
         let mgr = manager.borrow();
         mgr.update_line_numbers(show_line_numbers)
     } else {
-        Err(anyhow::anyhow!("Editor manager not initialized"))
+        Err(format!("Editor manager not initialized").into())
     }
 }
 
 /// Set scroll synchronization enabled/disabled globally
-pub fn set_scroll_sync_enabled_globally(enabled: bool) -> anyhow::Result<()> {
+pub fn set_scroll_sync_enabled_globally(enabled: bool) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(manager) = get_editor_manager() {
         let mgr = manager.borrow();
         mgr.set_scroll_sync_enabled(enabled);
         Ok(())
     } else {
-        Err(anyhow::anyhow!("Editor manager not initialized"))
+        Err(format!("Editor manager not initialized").into())
     }
 }
 

@@ -24,6 +24,25 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.0] - 2026-01-25
+
+**Uses:** Core 0.15.0
+
+### Added
+- Cross-platform path support for asset discovery and file operations
+
+### Changed
+- File operations now fully compatible with Windows file paths
+- Error handling updated to use standard Rust error types instead of `anyhow`
+
+### Fixed
+- Fixed Result type annotations in file dialogs, menu handlers, and editor components
+- Fixed error type conversions for GTK threading safety (`Send` trait compatibility)
+- Editor settings save operations now properly handle errors
+
+### Removed
+- `anyhow` dependency removed
+
 ## [0.14.0] - 2026-01-18
 
 **Uses:** Core 0.14.0

@@ -1,4 +1,3 @@
-use anyhow::Result;
 use core::logic::{
     loaders::font_loader::{AvailableFonts, FontLoader},
     swanson::{EditorSettings, SettingsManager},
@@ -14,7 +13,7 @@ pub struct EditorConfiguration {
 
 impl EditorConfiguration {
     /// Create a new editor configuration instance using cached fonts (fast)
-    pub fn new(settings_manager: Arc<SettingsManager>) -> Result<Self> {
+    pub fn new(settings_manager: Arc<SettingsManager>) -> Result<Self, Box<dyn std::error::Error>> {
         // Use cached monospace fonts for fast loading
         let monospace_fonts = FontLoader::get_cached_monospace_fonts();
 
@@ -66,7 +65,7 @@ impl EditorConfiguration {
     }
 
     /// Save editor settings to storage
-    pub fn save_editor_settings(&self, editor_settings: &EditorDisplaySettings) -> Result<()> {
+    pub fn save_editor_settings(&self, editor_settings: &EditorDisplaySettings) -> Result<(), Box<dyn std::error::Error>> {
         debug!(
             "Saving editor settings: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{}",
             editor_settings.font_family,
@@ -95,7 +94,7 @@ impl EditorConfiguration {
                     editor.syntax_colors = Some(editor_settings.syntax_colors);
                 }
             })
-            .map_err(|e| anyhow::anyhow!("Failed to save editor settings: {}", e))?;
+            .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
 
         debug!("Editor settings saved successfully");
         Ok(())

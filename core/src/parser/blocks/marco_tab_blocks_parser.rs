@@ -9,7 +9,6 @@
 use super::shared::{to_parser_span, to_parser_span_range, GrammarSpan};
 use crate::grammar::blocks::marco_tab_blocks::MarcoTabBlock;
 use crate::parser::ast::{Document, Node, NodeKind};
-use anyhow::Result;
 
 /// Parse a Marco tab block into an AST node.
 ///
@@ -24,9 +23,9 @@ pub fn parse_marco_tab_block<F>(
     full_end: GrammarSpan<'_>,
     depth: usize,
     mut parse_blocks_fn: F,
-) -> Result<Node>
+) -> Result<Node, Box<dyn std::error::Error>>
 where
-    F: FnMut(&str, usize) -> Result<Document>,
+    F: FnMut(&str, usize) -> Result<Document, Box<dyn std::error::Error>>,
 {
     let group_span = to_parser_span_range(full_start, full_end);
 
@@ -63,7 +62,7 @@ mod tests {
     use super::*;
     use crate::grammar::shared::Span;
 
-    fn mock_parse_blocks(input: &str, _depth: usize) -> Result<Document> {
+    fn mock_parse_blocks(input: &str, _depth: usize) -> Result<Document, Box<dyn std::error::Error>> {
         let mut doc = Document::new();
         if !input.trim().is_empty() {
             doc.children.push(Node {

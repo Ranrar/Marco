@@ -101,16 +101,46 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             let dev_path = parent.join("marco_assets");
             candidate_paths.push(dev_path.clone());
 
-            // 2. User local install
-            if let Some(home) = dirs::home_dir() {
-                candidate_paths.push(home.join(".local/share/marco"));
+            // 2. User local install (platform-specific)
+            #[cfg(target_os = "linux")]
+            {
+                if let Some(home) = dirs::home_dir() {
+                    candidate_paths.push(home.join(".local/share/marco"));
+                }
+            }
+            #[cfg(windows)]
+            {
+                // Windows: %LOCALAPPDATA%\Marco
+                if let Some(local_app_data) = dirs::data_local_dir() {
+                    candidate_paths.push(local_app_data.join("Marco"));
+                }
             }
 
-            // 3. System local install
-            candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
+            // 3. System local install (platform-specific)
+            #[cfg(target_os = "linux")]
+            {
+                candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
+            }
+            #[cfg(windows)]
+            {
+                // Windows: %PROGRAMFILES%\Marco
+                if let Ok(program_files) = env::var("PROGRAMFILES") {
+                    candidate_paths.push(PathBuf::from(program_files).join("Marco"));
+                }
+            }
 
-            // 4. System global install
-            candidate_paths.push(PathBuf::from("/usr/share/marco"));
+            // 4. System global install (platform-specific)
+            #[cfg(target_os = "linux")]
+            {
+                candidate_paths.push(PathBuf::from("/usr/share/marco"));
+            }
+            #[cfg(windows)]
+            {
+                // Windows: %PROGRAMDATA%\Marco (for system-wide shared data)
+                if let Ok(program_data) = env::var("PROGRAMDATA") {
+                    candidate_paths.push(PathBuf::from(program_data).join("Marco"));
+                }
+            }
 
             // Find first existing directory
             for path in &candidate_paths {

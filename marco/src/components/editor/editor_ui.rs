@@ -861,6 +861,7 @@ paned > separator {{
                 let result = gio::spawn_blocking(move || {
                     let src = current_text_for_lsp;
                     core::parser::parse(&src)
+                        .map_err(|e| e.to_string())
                         .map(|doc| core::lsp::compute_highlights_with_source(&doc, &src))
                 })
                 .await;

@@ -6,7 +6,6 @@
 use super::shared::{dedent_list_item_content, to_parser_span, to_parser_span_range, GrammarSpan};
 use crate::grammar::blocks::cm_list::ListMarker;
 use crate::parser::ast::{Document, Node, NodeKind};
-use anyhow::Result;
 use nom::Input;
 
 /// Represents the parser state needed for list item parsing.
@@ -52,9 +51,9 @@ pub fn parse_list<F, S, G>(
     depth: usize,
     parse_blocks_fn: F,
     mut create_state_fn: G,
-) -> Result<Node>
+) -> Result<Node, Box<dyn std::error::Error>>
 where
-    F: Fn(&str, usize, &mut S) -> Result<Document>,
+    F: Fn(&str, usize, &mut S) -> Result<Document, Box<dyn std::error::Error>>,
     G: FnMut(usize) -> S,
 {
     // Determine if tight or loose
@@ -307,7 +306,7 @@ mod tests {
     struct MockState;
 
     // Mock parse function for testing
-    fn mock_parse_blocks(input: &str, _depth: usize, _state: &mut MockState) -> Result<Document> {
+    fn mock_parse_blocks(input: &str, _depth: usize, _state: &mut MockState) -> Result<Document, Box<dyn std::error::Error>> {
         let mut doc = Document::new();
         if !input.is_empty() {
             doc.children.push(Node {

@@ -1,5 +1,4 @@
 use crate::logic::menu_items::file::SaveChangesResult;
-use anyhow::Result;
 use gtk4::{
     prelude::*, ButtonsType, DialogFlags, FileChooserAction, FileChooserNative, MessageDialog,
     MessageType, ResponseType, Window,
@@ -28,7 +27,7 @@ impl FileDialogs {
     /// # Returns
     /// * `Ok(Some(PathBuf))` - User selected a file
     /// * `Ok(None)` - User cancelled the dialog
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -40,7 +39,7 @@ impl FileDialogs {
     pub async fn show_open_dialog<W: IsA<Window>>(
         parent: &W,
         title: &str,
-    ) -> Result<Option<PathBuf>> {
+    ) -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
@@ -74,7 +73,7 @@ impl FileDialogs {
                         return Ok(Some(path));
                     }
                 }
-                Err(anyhow::anyhow!("No file selected"))
+                Err(format!("No file selected").into())
             }
             _ => {
                 log::debug!("[FileDialogs] Open dialog cancelled");
@@ -93,7 +92,7 @@ impl FileDialogs {
     /// # Returns
     /// * `Ok(Some(PathBuf))` - User selected a save location
     /// * `Ok(None)` - User cancelled the dialog
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -106,7 +105,7 @@ impl FileDialogs {
         parent: &W,
         title: &str,
         suggested_name: Option<&str>,
-    ) -> Result<Option<PathBuf>> {
+    ) -> Result<Option<PathBuf>, Box<dyn std::error::Error>> {
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
@@ -143,7 +142,7 @@ impl FileDialogs {
                         return Ok(Some(path));
                     }
                 }
-                Err(anyhow::anyhow!("No save location selected"))
+                Err(format!("No save location selected").into())
             }
             _ => {
                 log::debug!("[FileDialogs] Save dialog cancelled");
@@ -163,7 +162,7 @@ impl FileDialogs {
     /// * `Ok(SaveChangesResult::Save)` - User wants to save
     /// * `Ok(SaveChangesResult::Discard)` - User wants to discard changes
     /// * `Ok(SaveChangesResult::Cancel)` - User cancelled the operation
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -177,7 +176,7 @@ impl FileDialogs {
         parent: &W,
         document_name: &str,
         action: &str,
-    ) -> Result<SaveChangesResult> {
+    ) -> Result<SaveChangesResult, Box<dyn std::error::Error>> {
         // Delegate to the dedicated save dialog module
         crate::ui::dialogs::save::show_save_changes_dialog(parent, document_name, action).await
     }
@@ -191,7 +190,7 @@ impl FileDialogs {
     /// # Returns
     /// * `Ok(true)` - User confirmed overwrite
     /// * `Ok(false)` - User cancelled overwrite
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -204,7 +203,7 @@ impl FileDialogs {
     pub async fn show_overwrite_dialog<W: IsA<Window>>(
         parent: &W,
         file_path: &Path,
-    ) -> Result<bool> {
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         let filename = file_path
             .file_name()
             .and_then(|name| name.to_str())
@@ -356,7 +355,7 @@ impl FileDialogs {
     pub async fn handle_file_error<W: IsA<Window>>(
         parent: &W,
         operation: &str,
-        error: &anyhow::Error,
+        error: &Box<dyn std::error::Error>,
     ) {
         let title = format!("Error {}", operation);
         let message = format!("An error occurred while {}.", operation);
