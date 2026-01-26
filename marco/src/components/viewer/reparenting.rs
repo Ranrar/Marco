@@ -1,8 +1,12 @@
-//! WebView Reparenting Utilities
+//! WebView Reparenting Utilities for Marco
 //!
 //! This module provides safe utility functions for reparenting the WebView widget
 //! between the main window and the preview window. It handles the GTK4 widget
 //! hierarchy changes and includes safety mechanisms to prevent issues.
+//!
+//! # Platform Support
+//!
+//! Currently Linux-only (uses WebKit6). Windows support will be added in the future.
 //!
 //! # Reparenting Pattern
 //!
@@ -20,7 +24,7 @@
 //! # Example
 //!
 //! ```no_run
-//! use marco::components::viewer::webview_reparent::{
+//! use marco::components::viewer::switcher::{
 //!     move_webview_to_preview_window, move_webview_to_main_window
 //! };
 //!
@@ -31,7 +35,9 @@
 //! move_webview_to_main_window(&webview, &paned, &preview_window, true)?;
 //! ```
 
-use crate::components::viewer::previewwindow::PreviewWindow;
+#![cfg(target_os = "linux")]
+
+use crate::components::viewer::detached_window::PreviewWindow;
 use gtk4::prelude::*;
 use gtk4::{Paned, Stack};
 use std::cell::Cell;

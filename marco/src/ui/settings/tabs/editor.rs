@@ -98,7 +98,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 let settings = settings_manager_clone.get_settings();
                 let editor = settings.editor.unwrap_or_default();
                 let editor_settings =
-                    crate::components::editor::font_config::EditorDisplaySettings {
+                    crate::components::editor::display_config::EditorDisplaySettings {
                         font_family: selected_font,
                         font_size: editor.font_size.unwrap_or(14),
                         line_height: editor.line_height.unwrap_or(1.4),
@@ -174,7 +174,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
+            let editor_settings = crate::components::editor::display_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
                 font_size: new_size,
                 line_height: editor.line_height.unwrap_or(1.4),
@@ -248,7 +248,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
+            let editor_settings = crate::components::editor::display_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
                 font_size: editor.font_size.unwrap_or(14),
                 line_height: new_line_height,
@@ -325,7 +325,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
+            let editor_settings = crate::components::editor::display_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
                 font_size: editor.font_size.unwrap_or(14),
                 line_height: editor.line_height.unwrap_or(1.4),
@@ -417,7 +417,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
+            let editor_settings = crate::components::editor::display_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
                 font_size: editor.font_size.unwrap_or(14),
                 line_height: editor.line_height.unwrap_or(1.4),
@@ -496,7 +496,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
+            let editor_settings = crate::components::editor::display_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
                 font_size: editor.font_size.unwrap_or(14),
                 line_height: editor.line_height.unwrap_or(1.4),
@@ -575,7 +575,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
+            let editor_settings = crate::components::editor::display_config::EditorDisplaySettings {
                 font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
                 font_size: editor.font_size.unwrap_or(14),
                 line_height: editor.line_height.unwrap_or(1.4),

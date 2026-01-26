@@ -1,10 +1,38 @@
-use crate::components::editor::processing_utilities::AsyncExtensionManager;
-use crate::components::editor::render::render_editor_with_view;
-use crate::components::editor::theme_utils::extract_xml_color_value;
-use crate::components::viewer::preview::refresh_preview_into_webview;
-use crate::components::viewer::viewmode::{EditorReturn, ViewMode};
-use crate::components::viewer::webview_js::{wheel_js, SCROLL_REPORT_JS};
-use crate::components::viewer::webview_utils::webkit_scrollbar_css;
+//! Main editor construction with integrated preview
+//!
+//! This module builds the complete editor interface including:
+//! - Split pane layout (editor + preview)
+//! - SourceView5 text editing
+//! - WebKit6 HTML preview rendering
+//! - Bidirectional scroll synchronization
+//! - Theme management and syntax highlighting
+//! - Document buffer integration
+//! - Debounced content processing (LSP, rendering, extensions)
+//!
+//! # Architecture
+//!
+//! The editor is constructed as a GTK Paned widget containing:
+//! 1. **Left pane**: SourceView editor with syntax highlighting
+//! 2. **Right pane**: WebKit WebView for HTML preview
+//!
+//! Content changes trigger debounced processing:
+//! - Preview rendering (300ms debounce)
+//! - LSP syntax highlighting (150ms debounce)
+//! - Extension processing (500ms debounce)
+//!
+//! # Platform Support
+//!
+//! Currently Linux-only (uses WebKit6 for preview).
+//! Cross-platform support planned using wry/WebView2 for Windows.
+//!
+//! When adding Windows support, `create_editor_with_preview_and_buffer()`
+//! will need conditional compilation for WebView creation.
+
+use crate::components::editor::utilities::AsyncExtensionManager;
+use crate::components::editor::sourceview::render_editor_with_view;
+use crate::components::editor::display_config::extract_xml_color_value;
+use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
+use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS};
 use crate::footer::FooterLabels;
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
@@ -16,6 +44,13 @@ use sourceview5::prelude::*;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
+
+// Linux-only imports for WebView preview functionality
+#[cfg(target_os = "linux")]
+use crate::components::viewer::{
+    renderer::refresh_preview_into_webview,
+    css_utils::{pretty_print_html, webkit_scrollbar_css},
+};
 
 pub fn create_editor_with_preview_and_buffer(
     preview_theme_filename: &str,
@@ -31,7 +66,7 @@ pub fn create_editor_with_preview_and_buffer(
     paned.set_position(600);
 
     // Create split controller to manage position constraints and locking
-    use crate::components::viewer::controller::SplitController;
+    use crate::components::viewer::layout_controller::SplitController;
     let split_controller = SplitController::new(paned.clone());
 
     let (style_scheme, font_family, font_size_pt, show_line_numbers) = {
@@ -144,7 +179,7 @@ pub fn create_editor_with_preview_and_buffer(
 
     // Add Marco indentation CSS to the theme CSS
     css.push('\n');
-    css.push_str(&crate::components::viewer::webview_utils::complete_indentation_css());
+    css.push_str(&crate::components::viewer::css_utils::complete_indentation_css());
 
     // wheel JS with scroll report for bidirectional sync
     let scroll_scale: f64 = std::env::var("MARCO_SCROLL_SCALE")
@@ -219,7 +254,7 @@ pub fn create_editor_with_preview_and_buffer(
     // storing it in a variable and re-registering updated rules when themes
     // change.
     let gtk_scroll_css =
-        crate::components::viewer::webview_utils::gtk_scrollbar_css(&initial_thumb, &initial_track);
+        crate::components::viewer::css_utils::gtk_scrollbar_css(&initial_thumb, &initial_track);
     if let Some(display) = gtk4::gdk::Display::default() {
         let gtk_scroll_provider = gtk4::CssProvider::new();
         gtk_scroll_provider.load_from_data(&gtk_scroll_css);
@@ -369,7 +404,7 @@ paned > separator {{
         let buffer_for_callback = Rc::clone(&buffer_rc);
         let theme_manager_for_callback = Rc::clone(&theme_manager);
         if let Some(_editor_id) = crate::components::editor::editor_manager::register_editor_callback_globally(
-                move |new_settings: &crate::components::editor::font_config::EditorDisplaySettings| {
+                move |new_settings: &crate::components::editor::display_config::EditorDisplaySettings| {
                     log::debug!("Applying editor settings update to SourceView: {} {}px", 
                         new_settings.font_family, new_settings.font_size);
 
@@ -470,7 +505,7 @@ paned > separator {{
         };
 
     let pretty_initial =
-        crate::components::viewer::html_format::pretty_print_html(&initial_html_body);
+        pretty_print_html(&initial_html_body);
 
     // Build initial HTML for the WebView using the rendered markdown body and the
     // wheel JS so the preview shows content immediately.
@@ -610,7 +645,7 @@ paned > separator {{
                     .as_ref()
                     .and_then(|buf| buf.borrow().get_base_uri_for_webview());
 
-                let params = crate::components::viewer::preview::PreviewRefreshParams {
+                let params = crate::components::viewer::renderer::PreviewRefreshParams {
                     webview: &webview.borrow(),
                     css: &css,
                     html_options: html_opts.as_ref(),
@@ -619,19 +654,19 @@ paned > separator {{
                     theme_mode: &theme_mode,
                     base_uri: base_uri.as_deref(),
                 };
-                crate::components::viewer::preview::refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
+                crate::components::viewer::renderer::refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
 
                 // Mark as no longer initial load
                 *is_initial_load_clone.borrow_mut() = false;
             } else {
                 // Use smooth updates for subsequent content changes
-                let params = crate::components::viewer::preview::SmoothUpdateParams {
+                let params = crate::components::viewer::renderer::SmoothUpdateParams {
                     webview: &webview.borrow(),
                     html_options: html_opts.as_ref(),
                     buffer: buffer.as_ref(),
                     wheel_js: &wheel_js_local,
                 };
-                crate::components::viewer::preview::refresh_preview_content_smooth_with_doc_buffer(
+                crate::components::viewer::renderer::refresh_preview_content_smooth_with_doc_buffer(
                     params,
                 );
             }
@@ -685,7 +720,7 @@ paned > separator {{
 
             // Format the HTML for better readability in code view
             let formatted_html =
-                crate::components::viewer::html_format::pretty_print_html(&html_body);
+                pretty_print_html(&html_body);
 
             log::debug!(
                 "[editor_ui] Formatted HTML length: {} bytes",
@@ -792,9 +827,9 @@ paned > separator {{
     //
     // Important: preview + LSP highlighting can be expensive on large documents.
     // Use trailing-edge debouncing so we update only after the user pauses typing.
-    let preview_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(400));
-    let extension_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(400));
-    let lsp_debouncer = Rc::new(crate::components::editor::debouncer::Debouncer::new(250));
+    let preview_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(400));
+    let extension_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(400));
+    let lsp_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(250));
 
     // Guard against re-entrant buffer "changed" notifications caused by applying
     // syntax highlight tags. Applying/removing tags can emit `changed`, which would
@@ -1071,7 +1106,7 @@ paned > separator {{
                                         track = v;
                                     }
                                     let gtk_css =
-                                        crate::components::viewer::webview_utils::gtk_scrollbar_css(
+                                        crate::components::viewer::css_utils::gtk_scrollbar_css(
                                             &thumb, &track,
                                         );
                                     let provider = gtk4::CssProvider::new();

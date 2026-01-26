@@ -1,3 +1,23 @@
+//! Display configuration for the editor
+//!
+//! This module manages editor display settings including:
+//! - Font family selection and caching
+//! - Font size configuration
+//! - Line height and wrapping
+//! - Visibility toggles (invisibles, line numbers)
+//! - Tab behavior (tabs vs spaces)
+//!
+//! # Font Management
+//!
+//! Fonts are loaded from the system using cached lookups for performance.
+//! The module prefers common monospace coding fonts (Hack, Fira Code, etc.)
+//! and falls back to system defaults if unavailable.
+//!
+//! # Settings Storage
+//!
+//! Display settings are persisted via the `SettingsManager` and can be
+//! updated at runtime through the editor settings dialog.
+
 use core::logic::{
     loaders::font_loader::{AvailableFonts, FontLoader},
     swanson::{EditorSettings, SettingsManager},
@@ -163,4 +183,26 @@ impl Default for EditorDisplaySettings {
             show_line_numbers: true,
         }
     }
+}
+
+/// Extract a color value from an editor theme XML file
+///
+/// Looks for XML color elements like:
+/// ```xml
+/// <color name="<key>" value="#RRGGBB"/>
+/// ```
+///
+/// Returns the hex color string if found.
+pub fn extract_xml_color_value(contents: &str, key: &str) -> Option<String> {
+    let needle = format!("name=\"{}\"", key);
+    if let Some(pos) = contents.find(&needle) {
+        if let Some(val_pos) = contents[pos..].find("value=\"") {
+            let start = pos + val_pos + "value=\"".len();
+            if let Some(end_rel) = contents[start..].find('"') {
+                let val = contents[start..start + end_rel].trim().to_string();
+                return Some(val);
+            }
+        }
+    }
+    None
 }

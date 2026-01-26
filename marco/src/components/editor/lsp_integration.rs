@@ -1,60 +1,31 @@
-// LSP integration for Marco editor
-// Applies syntax highlighting based on parser LSP features
+//! LSP integration for Marco editor
+//!
+//! This module provides syntax highlighting based on the parser's LSP features.
+//! It applies highlighting tags to the GTK SourceView buffer using chunked processing
+//! to avoid blocking the main thread on large documents.
+//!
+//! # Architecture
+//!
+//! The highlighting system uses a **line-based coordinate approach** for robustness:
+//! 1. Parser provides line (1-based) and column (1-based byte offset from line start)
+//! 2. We convert to GTK coordinates: line (0-based) and char offset (0-based from line start)
+//! 3. This avoids cumulative errors from UTF-8 multi-byte characters
 
 use gtk4::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-/// Apply LSP highlights to the buffer using line/column positioning
+/// Apply LSP highlights in small chunks scheduled on the main loop
 ///
-/// This function converts parser highlights (line/column coordinates) to GTK TextIter positions
-/// and applies appropriate tags for syntax highlighting.
-///
-/// # Architecture
-///
-/// The conversion uses a **line-based approach** for robustness:
-/// 1. Parser provides line (1-based) and column (1-based byte offset from line start)
-/// 2. We convert to GTK coordinates: line (0-based) and char offset (0-based from line start)
-/// 3. This avoids cumulative errors from UTF-8 multi-byte characters
+/// For large documents, applying thousands of tags in one go can block the
+/// GTK main thread and cause visible stutter. Chunked processing yields back
+/// to the main loop between batches for smooth UI responsiveness.
 ///
 /// # Arguments
 ///
 /// * `buffer` - The GTK SourceView buffer to apply highlights to
 /// * `highlights` - Vec of highlights from the parser's LSP module
-#[allow(dead_code)]
-pub fn apply_lsp_highlights(buffer: &sourceview5::Buffer, highlights: &[core::lsp::Highlight]) {
-    log::debug!("Applying {} LSP highlights", highlights.len());
-
-    // Remove all existing LSP tags first
-    remove_all_lsp_tags(buffer);
-
-    // Apply each highlight
-    for highlight in highlights {
-        if let Some((start_iter, end_iter)) = span_to_text_iter(buffer, &highlight.span) {
-            let tag = get_or_create_tag(buffer, &highlight.tag);
-            buffer.apply_tag(&tag, &start_iter, &end_iter);
-        } else {
-            log::warn!(
-                "Failed to convert span for highlight {:?} at [{}:{} to {}:{}]",
-                highlight.tag,
-                highlight.span.start.line,
-                highlight.span.start.column,
-                highlight.span.end.line,
-                highlight.span.end.column
-            );
-        }
-    }
-
-    log::debug!("LSP highlights applied successfully");
-}
-
-/// Apply LSP highlights in small chunks scheduled on the main loop.
-///
-/// Why: For large documents, applying thousands of tags in one go can block the
-/// GTK main thread and cause visible stutter. Chunking yields back to the main
-/// loop between batches.
-///
-/// `on_done` is invoked on the main thread once all chunks are applied.
+/// * `on_done` - Callback invoked on the main thread once all chunks are applied
 pub fn apply_lsp_highlights_chunked<F>(
     buffer: &sourceview5::Buffer,
     highlights: Vec<core::lsp::Highlight>,

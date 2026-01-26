@@ -14,9 +14,9 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::editor_ui::create_editor_with_preview_and_buffer;
-use crate::components::editor::footer_updates::wire_footer_updates;
-use crate::components::viewer::viewmode::ViewMode;
+use crate::components::editor::editor::create_editor_with_preview_and_buffer;
+use crate::components::editor::footer::wire_footer_updates;
+use crate::components::viewer::preview_types::ViewMode;
 use crate::logic::menu_items::file::FileOperations;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
@@ -370,12 +370,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     split_overlay.add_css_class("split-view"); // Apply CSS to overlay
 
     // --- WebView Reparenting State for EditorAndViewSeparate Mode ---
-    use crate::components::viewer::controller::WebViewLocationTracker;
-    use crate::components::viewer::previewwindow::PreviewWindow;
+    use crate::components::viewer::layout_controller::WebViewLocationTracker;
+    use crate::components::viewer::detached_window::PreviewWindow;
 
     let webview_location_tracker = WebViewLocationTracker::new();
     let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
-    let reparent_guard = crate::components::viewer::switcher::ReparentGuard::new();
+    let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
 
     log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode");
 
@@ -856,12 +856,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &window,
         &editor_buffer,
         &title_label,
-        std::sync::Arc::new(|w, title| Box::pin(FileDialogs::show_open_dialog(w, title))),
+        std::sync::Arc::new(|w, title| Box::pin(FileDialogs::show_open_dialog(w, title)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>),
         std::sync::Arc::new(|w, doc_name, action| {
-            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))
+            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::logic::menu_items::file::SaveChangesResult, Box<dyn std::error::Error>>> + '_>>
         }),
         std::sync::Arc::new(|w, title, suggested| {
-            Box::pin(FileDialogs::show_save_dialog(w, title, suggested))
+            Box::pin(FileDialogs::show_save_dialog(w, title, suggested)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>
         }),
     );
 
@@ -874,10 +874,10 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &editor_buffer,
         &title_label,
         std::sync::Arc::new(|w, doc_name, action| {
-            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))
+            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::logic::menu_items::file::SaveChangesResult, Box<dyn std::error::Error>>> + '_>>
         }),
         std::sync::Arc::new(|w, title, suggested| {
-            Box::pin(FileDialogs::show_save_dialog(w, title, suggested))
+            Box::pin(FileDialogs::show_save_dialog(w, title, suggested)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>
         }),
     );
 
@@ -890,9 +890,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             editor_buffer.clone(),
             title_label.clone(),
             |w, doc_name, action| {
-                Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))
+                Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::logic::menu_items::file::SaveChangesResult, Box<dyn std::error::Error>>> + '_>>
             },
-            |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
+            |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>,
         );
     }
 

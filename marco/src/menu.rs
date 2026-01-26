@@ -21,14 +21,14 @@ fn reparent_webview_to_main_window(
     webview_rc_opt: &Option<Rc<RefCell<webkit6::WebView>>>,
     split_opt: &Option<Paned>,
     preview_window_opt: &Option<
-        Rc<RefCell<Option<crate::components::viewer::previewwindow::PreviewWindow>>>,
+        Rc<RefCell<Option<crate::components::viewer::detached_window::PreviewWindow>>>,
     >,
-    tracker_opt: &Option<crate::components::viewer::controller::WebViewLocationTracker>,
-    guard_opt: &Option<crate::components::viewer::switcher::ReparentGuard>,
+    tracker_opt: &Option<crate::components::viewer::layout_controller::WebViewLocationTracker>,
+    guard_opt: &Option<crate::components::viewer::reparenting::ReparentGuard>,
     layout_mode: &str, // For logging purposes
 ) -> bool {
-    use crate::components::viewer::controller::WebViewLocation;
-    use crate::components::viewer::switcher::move_webview_to_main_window;
+    use crate::components::viewer::layout_controller::WebViewLocation;
+    use crate::components::viewer::reparenting::move_webview_to_main_window;
 
     if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) = (
         webview_rc_opt,
@@ -212,9 +212,9 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     (menu_box, recent_menu)
 }
 
-use crate::components::viewer::controller::{SplitController, WebViewLocationTracker};
-use crate::components::viewer::previewwindow::PreviewWindow;
-use crate::components::viewer::switcher::ReparentGuard;
+use crate::components::viewer::layout_controller::{SplitController, WebViewLocationTracker};
+use crate::components::viewer::detached_window::PreviewWindow;
+use crate::components::viewer::reparenting::ReparentGuard;
 
 /// Configuration for creating the custom titlebar
 pub struct TitlebarConfig<'a> {
@@ -510,9 +510,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                 if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) =
                     (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt)
                 {
-                    use crate::components::viewer::previewwindow::PreviewWindow;
-                    use crate::components::viewer::switcher::move_webview_to_preview_window;
-                    use crate::components::viewer::controller::WebViewLocation;
+                    use crate::components::viewer::detached_window::PreviewWindow;
+                    use crate::components::viewer::reparenting::move_webview_to_preview_window;
+                    use crate::components::viewer::layout_controller::WebViewLocation;
 
                     // Only reparent if WebView is currently in main window
                     if tracker.current() == WebViewLocation::MainWindow {
@@ -542,8 +542,8 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                             let split_controller_for_callback = split_controller_opt.clone();
 
                                             new_preview_window.set_on_close_callback(move || {
-                                                use crate::components::viewer::switcher::move_webview_to_main_window;
-                                                use crate::components::viewer::controller::WebViewLocation;
+                                                use crate::components::viewer::reparenting::move_webview_to_main_window;
+                                                use crate::components::viewer::layout_controller::WebViewLocation;
 
                                                 log::info!("Preview window close callback triggered");
 

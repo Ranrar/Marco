@@ -1,21 +1,35 @@
-//! Simple Async Extension Processing - FIXED for GTK Threading
+//! Editor extension utilities and async processing
 //!
-//! Background processing for editor extensions as per optimization spec:
-//! - Line wrapping
-//! - Tab to spaces conversion
-//! - Marco-specific extensions (@run, [toc], [Page])
-//! - Auto-pairing (📋 FUTURE)
-//! - Markdown linting (📋 FUTURE)
+//! This module provides background processing for editor extensions:
 //!
-//! SIMPLIFIED: No complex threading to avoid GTK main context issues.
+//! ## Active Extensions
+//! - **Line wrapping** - Smart word wrapping at 80 characters
+//! - **Tab conversion** - Convert tabs to spaces
+//! - **Marco extensions** - Process `@run`, `[toc]`, `[Page]` syntax
+//!
+//! ## Planned Extensions
+//! - Auto-pairing for brackets/quotes
+//! - Markdown linting and validation
+//!
+//! # Threading Model
+//!
+//! Uses GTK-safe async patterns to avoid blocking the UI:
+//! - **Lightweight pool** - tab_to_spaces, line_wrapping (shared thread pool)
+//! - **Heavyweight pool** - marco_extensions (dedicated thread pool)
+//! - **Main thread** - All GTK interactions via `glib::spawn_future_local`
+//!
+//! Extensions are processed in parallel and results are delivered via callbacks.
 
 use std::collections::HashMap;
 use std::result::Result;
 use std::time::Instant;
 
-/// Result from processing a single extension (simplified)
-#[allow(dead_code)]
+/// Result from processing a single extension
+///
+/// Returned by extension processing callbacks. Fields provide detailed
+/// information about processing results for potential debugging/logging.
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields are part of the API design for extension callbacks
 pub struct ExtensionResult {
     pub extension_name: String,
     pub processed_content: String,
@@ -245,23 +259,10 @@ impl AsyncExtensionManager {
         Ok(())
     }
 
-    /// Process extensions asynchronously using proper GTK threading patterns
-    /// Uses glib::spawn_future_local + gio::spawn_blocking for GTK-safe background processing
-    #[allow(dead_code)]
-    pub fn process_extensions_async<F>(
-        &self,
-        content: String,
-        cursor_position: Option<u32>,
-        callback: F,
-    ) -> Result<(), Box<dyn std::error::Error>>
-    where
-        F: Fn(Vec<ExtensionResult>) + 'static,
-    {
-        // Use parallel processing for better performance
-        self.process_extensions_parallel(content, cursor_position, callback)
-    }
-
-    /// Process line wrapping (✅ DONE as per spec)
+    /// Process line wrapping
+    ///
+    /// Wraps long lines at word boundaries while preserving indentation.
+    /// Uses 80-character wrap width.
     fn process_line_wrapping(
         content: &str,
         _cursor_position: Option<u32>,

@@ -1,4 +1,29 @@
-use crate::components::editor::font_config::{EditorConfiguration, EditorDisplaySettings};
+//! Editor instance management and settings coordination
+//!
+//! This module manages multiple editor instances and coordinates settings changes
+//! across the application. It provides:
+//!
+//! - **Editor lifecycle management** - Track and coordinate multiple editor instances
+//! - **Settings synchronization** - Propagate settings changes to all editors
+//! - **Callback registration** - Register callbacks for settings and line number changes
+//! - **Scroll synchronization** - Manage scroll sync state across editors
+//!
+//! # Architecture
+//!
+//! The `EditorManager` acts as a central coordinator for editor settings.
+//! When settings change (via settings dialog or theme changes), the manager
+//! notifies all registered editors through callbacks.
+//!
+//! # Example
+//!
+//! ```ignore
+//! let manager = EditorManager::new(settings_manager, scroll_sync);
+//! let editor_id = manager.register_editor(|settings| {
+//!     // Update editor with new settings
+//! });
+//! ```
+
+use crate::components::editor::display_config::{EditorConfiguration, EditorDisplaySettings};
 use crate::components::editor::scroll_sync::ScrollSynchronizer;
 use core::logic::swanson::SettingsManager;
 use log::debug;

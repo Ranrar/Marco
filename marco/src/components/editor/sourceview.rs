@@ -1,3 +1,29 @@
+//! Editor rendering and SourceView configuration
+//!
+//! This module handles the construction and styling of the main editor view
+//! using GTK's SourceView5 component. It provides:
+//!
+//! - **SourceView creation** - Configure syntax highlighting and editor behavior
+//! - **Font configuration** - Apply custom fonts and sizes
+//! - **CSS styling** - Generate and apply editor-specific CSS
+//! - **Line number display** - Toggle line number visibility
+//!
+//! # Editor Features
+//!
+//! The rendered editor includes:
+//! - Syntax highlighting via SourceView schemes
+//! - Smart indentation and auto-indent
+//! - Line number display (configurable)
+//! - Custom font rendering
+//! - Monospace background styling
+//!
+//! # Usage
+//!
+//! ```ignore
+//! let (container, buffer, view, css_provider, scrolled_window) =
+//!     render_editor_with_view(scheme_id, style_scheme, "Fira Mono", 14.0, true);
+//! ```
+
 use sourceview5::prelude::*;
 
 pub fn render_editor_with_view(

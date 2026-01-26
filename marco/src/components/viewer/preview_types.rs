@@ -1,4 +1,4 @@
-use crate::components::viewer::controller::SplitController;
+use crate::components::viewer::layout_controller::SplitController;
 use gtk4::{Overlay, Paned};
 use std::cell::RefCell;
 use std::rc::Rc;

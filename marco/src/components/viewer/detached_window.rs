@@ -4,6 +4,10 @@
 //! for the EditorAndViewSeparate layout mode. The window provides a dedicated space for
 //! viewing the HTML preview while editing in the main window.
 //!
+//! # Platform Support
+//!
+//! Currently Linux-only (uses WebKit6). Windows support will be added in the future.
+//!
 //! # Reparenting Approach
 //!
 //! The PreviewWindow does NOT create its own WebView. Instead, it receives the existing
@@ -36,6 +40,8 @@
 //! }
 //! preview_window.hide();
 //! ```
+
+#![cfg(target_os = "linux")]
 
 use gtk4::prelude::*;
 use gtk4::{ApplicationWindow, ScrolledWindow};

@@ -2,11 +2,18 @@
 //!
 //! This module provides functionality to synchronize scrolling between different
 //! ScrolledWindow widgets, particularly the editor and preview panes.
+//!
+//! # Platform Support
+//!
+//! WebView synchronization is Linux-only (uses WebKit6).
+//! Basic ScrolledWindow synchronization is cross-platform.
 
 use gtk4::prelude::*;
 use log::debug;
 use std::cell::Cell;
 use std::rc::Rc;
+
+#[cfg(target_os = "linux")]
 use webkit6::prelude::*;
 
 /// Core scroll synchronization system with loop prevention and runtime control
@@ -63,6 +70,11 @@ impl ScrollSynchronizer {
     }
 
     /// Connect ScrolledWindow to WebView using JavaScript scroll events
+    ///
+    /// # Platform Support
+    ///
+    /// Linux-only (uses WebKit6 for WebView)
+    #[cfg(target_os = "linux")]
     pub fn connect_scrolled_window_to_webview(
         &self,
         source_sw: &gtk4::ScrolledWindow,

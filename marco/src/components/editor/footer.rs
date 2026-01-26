@@ -1,3 +1,24 @@
+//! Footer status bar updates for the editor
+//!
+//! This module provides debounced footer updates that display:
+//! - Current cursor position (line and column)
+//! - Insert/overwrite mode status
+//! - Character and word count statistics
+//!
+//! # Debouncing Strategy
+//!
+//! Footer updates are debounced (300ms) to avoid excessive GTK redraws during
+//! rapid text editing. This prevents UI stutter while maintaining responsive
+//! feedback for cursor movement and mode changes.
+//!
+//! # Integration
+//!
+//! Wire footer updates to a SourceView buffer using `wire_footer_updates()`:
+//!
+//! ```ignore
+//! wire_footer_updates(&buffer, labels, insert_mode_state);
+//! ```
+
 use crate::footer::{FooterLabels, FooterUpdate};
 use crate::logic::signal_manager::safe_source_remove;
 use gtk4::glib::ControlFlow;
