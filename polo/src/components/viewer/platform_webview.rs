@@ -9,6 +9,9 @@ use gtk4::prelude::*;
 #[cfg(target_os = "linux")]
 use gio;
 
+#[cfg(target_os = "linux")]
+use webkit6::prelude::WebViewExt;
+
 /// Unified WebView wrapper exposed to the rest of the codebase.
 ///
 /// - On Linux this wraps `webkit6::WebView` and keeps identical behavior to the
@@ -68,6 +71,8 @@ impl PlatformWebView {
         });
     }
 
+    /// Kept for API consistency with Windows implementation, not currently used on Linux
+    #[allow(dead_code)]
     pub fn evaluate_script(&self, script: &str) {
         self.inner.evaluate_javascript(
             script,
