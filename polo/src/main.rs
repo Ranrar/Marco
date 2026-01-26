@@ -41,11 +41,11 @@ use components::css::load_css_from_path;
 use components::menu::create_custom_titlebar;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
+use components::viewer::platform_webview::PlatformWebView;
 use core::paths::PoloPaths;
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use webkit6::prelude::WebViewExt;
 
 const APP_ID: &str = "io.github.ranrar.Polo";
 
@@ -91,15 +91,6 @@ fn main() -> glib::ExitCode {
             .to_str()
             .expect("Invalid asset root path"),
     );
-
-    // Verify font is accessible
-    let ui_menu_font = polo_paths.shared().font("ui_menu.ttf");
-    if !ui_menu_font.exists() {
-        log::warn!("UI menu font not found at {:?}", ui_menu_font);
-        log::warn!("Icon font may not display correctly");
-    } else {
-        log::debug!("Icon font loaded: {}", ui_menu_font.display());
-    }
 
     let app = Application::builder()
         .application_id(APP_ID)
@@ -274,26 +265,17 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // Set window icon (GTK will look for icon named "polo" in the system icon theme)
     window.set_icon_name(Some("polo"));
 
-    // Create WebView for markdown preview
-    let webview = webkit6::WebView::new();
-    webview.set_vexpand(true);
-    webview.set_hexpand(true);
+    // Create platform WebView for markdown preview
+    let webview = PlatformWebView::new(&window)
+        .map_err(|e| {
+            log::error!("Failed to create WebView: {}", e);
+            e
+        })
+        .unwrap_or_else(|e| fatal_error(&format!("Cannot create WebView: {}", e)));
 
     // Set background color to prevent white flash during loading
-    // Use dark background matching the theme
     if let Some(rgba) = parse_hex_to_rgba("#1e1e1e") {
-        webview.set_background_color(&rgba);
-    }
-
-    // Configure WebKit security settings to allow local file access
-    // This is essential for loading images and other resources from the file system
-    if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
-        settings.set_allow_file_access_from_file_urls(true);
-        settings.set_allow_universal_access_from_file_urls(true);
-        settings.set_auto_load_images(true);
-        settings.set_enable_developer_extras(false); // Disable dev tools in viewer
-        settings.set_javascript_can_access_clipboard(false); // Security: disable clipboard access
-        settings.set_enable_write_console_messages_to_stdout(false); // Reduce noise in logs
+        webview.set_background_color_rgba(&rgba);
     }
 
     // Load and render the markdown file
@@ -325,7 +307,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     );
     window.set_titlebar(Some(&titlebar_handle));
 
-    window.set_child(Some(&webview));
+    window.set_child(Some(&webview.widget()));
 
     // Save window size changes to Polo-specific settings
     let settings_manager_width = settings_manager.clone();

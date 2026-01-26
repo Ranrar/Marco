@@ -22,6 +22,13 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.1] - 2026-01-26
+
+### Changed
+- Icon loader now supports inline SVG rendering for window controls
+  - Added window icon SVG generation (minimize, maximize, restore, close)
+  - Integrated with rsvg/librsvg for high-quality SVG rasterization
+
 ## [0.15.0] - 2026-01-25
 
 ### Added

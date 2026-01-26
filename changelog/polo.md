@@ -24,6 +24,29 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.1] - 2026-01-26
+
+**Uses:** Core 0.15.1
+
+### Added
+- SVG icon support for window controls (minimize, maximize/restore, close)
+  - Crisp 2x rendering for HiDPI displays
+  - Event-based hover and active color states (#2563eb blue hover, #1e40af active)
+  - Centralized ICON_SIZE constant for easy maintenance
+
+### Changed
+- Consolidated duplicate SVG rendering code into shared `render_svg_icon()` function
+- Improved code organization in menu.rs (reduced from ~850 to ~776 lines)
+- Window control buttons now use Material Design 3 inspired color palette
+  - Light mode: subtle gray-blue (#4a5568) to blue hover
+  - Dark mode: light gray (#9ca3af) to blue hover
+- Enhanced color palette in CSS constants with window control states
+
+### Fixed
+- Window control icon colors no longer conflict between CSS filters and event handlers
+- Arc<ParentWindowHandle> clippy warning (changed to Rc for single-threaded Windows UI)
+- SVG icon pixelation issue resolved with 2x supersampling
+
 ## [0.15.0] - 2026-01-25
 
 **Uses:** Core 0.15.0

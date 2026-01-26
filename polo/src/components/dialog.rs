@@ -42,7 +42,7 @@
 //! - Marco launch failures show user-friendly error messages
 //! - Invalid paths are validated before attempting operations
 
-use crate::components::viewer::load_and_render_markdown;
+use crate::components::viewer::{load_and_render_markdown, platform_webview::PlatformWebView};
 use core::logic::swanson::SettingsManager;
 use gtk4::{
     prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction, FileChooserDialog,
@@ -50,12 +50,11 @@ use gtk4::{
 };
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-use webkit6::WebView;
 
 /// Show file chooser dialog to open a markdown file
 pub fn show_open_file_dialog(
     window: &ApplicationWindow,
-    webview: WebView,
+    webview: PlatformWebView,
     settings_manager: Arc<SettingsManager>,
     current_file_path: Arc<RwLock<Option<String>>>,
     open_editor_btn: &Button,

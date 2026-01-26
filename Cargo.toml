@@ -11,7 +11,7 @@ ron = "0.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 log = "0.4.29"
-chrono = { version = "0.4.42", features = ["serde"] }
+chrono = { version = "0.4.43", features = ["serde"] }
 tempfile = "3.24.0"
 emojis = "0.8.0"
 fontconfig = "0.10.0"
@@ -23,10 +23,13 @@ syntect = "5.3.0"                    # Syntax highlighting
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.3"
-glib = "0.21.3"
-gio = "0.21.2"
+glib = "0.21.5"
+gio = "0.21.5"
 sourceview5 = "0.10.0"
 dark-light = "2.0.0"
+librsvg = "2.60"
+cairo-rs = "0.21.5"
+gdk-pixbuf = "0.21.5"
 
 # Platform-specific WebView dependencies
 # Linux: webkit6 (GTK4-native WebKit)
@@ -34,6 +37,8 @@ webkit6 = "0.5.0"
 # Windows: wry (cross-platform WebView wrapper)
 wry = { version = "0.54.1", default-features = false, features = ["os-webview", "protocol"] }
 tao = "0.34.5"
+gdk4-win32 = "0.10.3"
+raw-window-handle = "0.6.2"
 
 # Test dependencies
 clap = { version = "4.5.54", features = ["derive"] }
