@@ -100,9 +100,18 @@ impl FontLoader {
 
     /// Get fallback monospace fonts when cache fails
     fn fallback_monospace_fonts() -> Vec<FontFamily> {
-        vec![
+        #[cfg(target_os = "linux")]
+        let fallback = vec![
             FontFamily {
                 name: "Monospace".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "DejaVu Sans Mono".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Liberation Mono".to_string(),
                 is_monospace: true,
             },
             FontFamily {
@@ -113,7 +122,33 @@ impl FontLoader {
                 name: "Fixed".to_string(),
                 is_monospace: true,
             },
-        ]
+        ];
+
+        #[cfg(windows)]
+        let fallback = vec![
+            FontFamily {
+                name: "Consolas".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Cascadia Code".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Cascadia Mono".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Courier New".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Lucida Console".to_string(),
+                is_monospace: true,
+            },
+        ];
+
+        fallback
     }
 
     /// Refresh the monospace font cache by reloading from system
@@ -229,6 +264,9 @@ impl FontLoader {
             "droid sans mono",
             "liberation mono",
             "dejavu sans mono",
+            "cascadia",  // Windows: Cascadia Code, Cascadia Mono
+            "consolas",  // Windows default monospace
+            "lucida console",  // Windows legacy monospace
         ];
 
         let name_lower = font_name.to_lowercase();
@@ -239,6 +277,7 @@ impl FontLoader {
 
     /// Add common monospace fallback fonts if they're not available
     fn add_monospace_fallbacks(&self, fonts: &mut Vec<FontFamily>) {
+        #[cfg(target_os = "linux")]
         let common_monospace = [
             "Monospace",
             "Fixed",
@@ -246,6 +285,15 @@ impl FontLoader {
             "Courier",
             "Liberation Mono",
             "DejaVu Sans Mono",
+        ];
+
+        #[cfg(windows)]
+        let common_monospace = [
+            "Consolas",
+            "Cascadia Code",
+            "Cascadia Mono",
+            "Courier New",
+            "Lucida Console",
         ];
 
         for mono_font in &common_monospace {
