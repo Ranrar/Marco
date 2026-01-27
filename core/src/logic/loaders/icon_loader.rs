@@ -1,17 +1,35 @@
-//! Utilities for using a bundled IcoMoon TTF icon font with GTK/Pango.
-//!
-//! Font family: `icomoon` (glyphs U+31..U+39 map to the app icons):
-//! - U+31: split_scene_left (layout)
-//! - U+32: only_preview
-//! - U+33: only_editor
-//! - U+34: minimize
-//! - U+35: fullscreen_exit (restore)
-//! - U+36: fullscreen (maximize)
-//! - U+37: editor_preview (split)
-//! - U+38: detatch
-//! - U+39: close
-//!
-//! Call `set_local_font_dir` before initializing GTK so the bundled TTF is discoverable.
+/// Additional SVG icon variants for layout and view controls.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayoutIcon {
+    LayoutButton,
+    HtmlViewOnly,
+    EditorOnly,
+    OpenViewWindow,
+}
+
+/// Get the inline SVG string for a layout/view icon.
+pub fn layout_icon_svg(icon: LayoutIcon) -> &'static str {
+    match icon {
+        LayoutIcon::LayoutButton => r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M4 6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v1a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -1' /><path d='M4 15a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -3' /><path d='M14 6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -12' /></svg>"#,
+        LayoutIcon::HtmlViewOnly => r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v10a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -10' /><path d='M7 10a2 2 0 1 0 4 0a2 2 0 1 0 -4 0' /><path d='M15 8l2 0' /><path d='M15 12l2 0' /><path d='M7 16l10 0' /></svg>"#,
+        LayoutIcon::EditorOnly => r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12' /><path d='M7 8h10' /><path d='M7 12h10' /><path d='M7 16h10' /></svg>"#,
+        LayoutIcon::OpenViewWindow => r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M3 17a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1l0 -3' /><path d='M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-6' /><path d='M12 8h4v4' /><path d='M16 8l-5 5' /></svg>"#,
+    }
+}
+// Utilities for using a bundled IcoMoon TTF icon font with GTK/Pango.
+//
+// Font family: `icomoon` (glyphs U+31..U+39 map to the app icons):
+// - U+31: split_scene_left (layout)
+// - U+32: only_preview
+// - U+33: only_editor
+// - U+34: minimize
+// - U+35: fullscreen_exit (restore)
+// - U+36: fullscreen (maximize)
+// - U+37: editor_preview (split)
+// - U+38: detatch
+// - U+39: close
+//
+// Call `set_local_font_dir` before initializing GTK so the bundled TTF is discoverable.
 
 use crate::logic::crossplatforms::{detect_platform, Platform};
 use std::{env, fs, path::Path, sync::OnceLock};
