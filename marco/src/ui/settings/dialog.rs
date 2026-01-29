@@ -2,7 +2,7 @@
 // This ensures user preferences are not lost when changing schema or other options.
 // Settings structure
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Button, Label, Notebook, Orientation, Window};
+use gtk4::{Align, Box as GtkBox, Button, Label, Orientation, Window};
 
 use crate::logic::signal_manager::SignalManager;
 use crate::ui::settings::tabs;
@@ -253,15 +253,23 @@ fn create_dialog_impl(
 
     window.set_titlebar(Some(&headerbar));
 
-    let notebook = Notebook::new();
-    notebook.set_tab_pos(gtk4::PositionType::Top);
-    notebook.add_css_class("marco-settings-notebook");
+    // Create Stack and StackSidebar for left-side navigation
+    let stack = gtk4::Stack::new();
+    stack.add_css_class("marco-settings-stack");
+    stack.set_hexpand(true);
+    stack.set_vexpand(true);
 
-    // Add each tab
-    notebook.append_page(
-        &tabs::editor::build_editor_tab(settings_path.to_str().unwrap()),
-        Some(&Label::new(Some("Editor"))),
-    );
+    let stack_sidebar = gtk4::StackSidebar::new();
+    stack_sidebar.add_css_class("marco-settings-sidebar");
+    stack_sidebar.set_stack(&stack);
+    // Fixed sidebar width to provide consistent layout
+    stack_sidebar.set_size_request(180, -1);
+    stack_sidebar.set_margin_end(8);
+
+    // Add each tab to the stack using stable names so the sidebar shows titles
+    let editor_tab = tabs::editor::build_editor_tab(settings_path.to_str().unwrap());
+    stack.add_titled(&editor_tab, Some("editor"), "Editor");
+
     // Build layout tab and provide a callback that will persist the setting and
     // forward the value to any external on_view_mode_changed handler supplied by
     // the caller via the `callbacks` struct.
@@ -303,17 +311,15 @@ fn create_dialog_impl(
         }
     }) as std::boxed::Box<dyn Fn(String) + 'static>;
 
-    notebook.append_page(
-        &tabs::layout::build_layout_tab(
-            saved_view_mode,
-            Some(layout_cb),
-            settings_path.to_str(),
-            callbacks.on_split_ratio_changed,
-            callbacks.on_sync_scrolling_changed,
-            callbacks.on_line_numbers_changed,
-        ),
-        Some(&Label::new(Some("Layout"))),
+    let layout_tab = tabs::layout::build_layout_tab(
+        saved_view_mode,
+        Some(layout_cb),
+        settings_path.to_str(),
+        callbacks.on_split_ratio_changed,
+        callbacks.on_sync_scrolling_changed,
+        callbacks.on_line_numbers_changed,
     );
+    stack.add_titled(&layout_tab, Some("layout"), "Layout");
 
     // Collect signal managers for cleanup on dialog close
     let mut signal_managers: Vec<Rc<RefCell<SignalManager>>> = Vec::new();
@@ -331,7 +337,7 @@ fn create_dialog_impl(
             refresh_preview_cb,
             callbacks.on_editor_theme_changed,
         );
-        notebook.append_page(&appearance_tab, Some(&Label::new(Some("Appearance"))));
+        stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
         signal_managers.push(appearance_signals);
     } else {
         let (appearance_tab, appearance_signals) = tabs::appearance::build_appearance_tab(
@@ -342,19 +348,14 @@ fn create_dialog_impl(
             Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
             callbacks.on_editor_theme_changed,
         );
-        notebook.append_page(&appearance_tab, Some(&Label::new(Some("Appearance"))));
+        stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
         signal_managers.push(appearance_signals);
     }
-    notebook.append_page(
-        &tabs::language::build_language_tab(),
-        Some(&Label::new(Some("Language"))),
-    );
+    stack.add_titled(&tabs::language::build_language_tab(), Some("language"), "Language");
 
     // Add Markdown tab for markdown-specific settings
-    notebook.append_page(
-        &tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap()),
-        Some(&Label::new(Some("Markdown"))),
-    );
+    let markdown_tab = tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap());
+    stack.add_titled(&markdown_tab, Some("markdown"), "Markdown");
 
     // Optionally show Debug tab when `debug` is enabled in settings.ron
     {
@@ -364,20 +365,24 @@ fn create_dialog_impl(
             if app_settings.debug.unwrap_or(false) {
                 // Pass settings path as string to debug tab builder so it can save changes
                 let settings_path_str = settings_path.to_string_lossy().to_string();
-                notebook.append_page(
-                    &tabs::debug::build_debug_tab(&settings_path_str),
-                    Some(&Label::new(Some("Debug"))),
-                );
+                let debug_tab = tabs::debug::build_debug_tab(&settings_path_str);
+                stack.add_titled(&debug_tab, Some("debug"), "Debug");
             }
         } else {
             eprintln!("Failed to initialize settings manager for debug tab visibility check");
         }
     }
 
-    // Layout: notebook + close button at bottom right
+    // Layout: sidebar + stack + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
     content_box.add_css_class("marco-settings-content");
-    content_box.append(&notebook);
+    
+    let main_box = GtkBox::new(Orientation::Horizontal, 0);
+    main_box.add_css_class("marco-settings-main");
+    main_box.append(&stack_sidebar);
+    main_box.append(&stack);
+
+    content_box.append(&main_box);
 
     // Create close button wrapped in a table-like frame for alignment
     let close_button = Button::with_label("Close");

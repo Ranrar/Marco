@@ -52,6 +52,12 @@ pub struct ColorPalette {
     pub window_control_hover: &'static str,
     /// Window control button icon color (active/pressed state)
     pub window_control_active: &'static str,
+    /// Control icon color (used for SVG window controls - matches Polo naming)
+    pub control_icon: &'static str,
+    /// Control icon hover color
+    pub control_icon_hover: &'static str,
+    /// Control icon active color
+    pub control_icon_active: &'static str,
     /// Layout state icon color (default)
     pub layout_icon: &'static str,
     /// Layout state icon color (hover)
@@ -108,6 +114,10 @@ pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     window_control: "#2c3e50",
     window_control_hover: "#5a6c7d",
     window_control_active: "#000",
+    // Polo-aligned control icon colors
+    control_icon: "#4a5568",
+    control_icon_hover: "#2563eb",
+    control_icon_active: "#1e40af",
     layout_icon: "#2c3e50",
     layout_icon_hover: "#5a6c7d",
     layout_icon_active: "#000",
@@ -146,6 +156,10 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
     window_control: "#f0f5f1",
     window_control_hover: "#9198a1",
     window_control_active: "#fff",
+    // Polo-aligned control icon colors for dark theme
+    control_icon: "#9ca3af",
+    control_icon_hover: "#2563eb",
+    control_icon_active: "#1e40af",
     layout_icon: "#f0f5f1",
     layout_icon_hover: "#9198a1",
     layout_icon_active: "#fff",
@@ -269,8 +283,8 @@ pub const TOOLBAR_SEPARATOR_WIDTH: &str = "2px";
 /// Toolbar separator margin
 pub const TOOLBAR_SEPARATOR_MARGIN: &str = "0 4px";
 
-/// Window control button padding
-pub const WINDOW_CONTROL_PADDING: &str = "0 2px";
+/// Window control button padding (match Polo: comfortable click target)
+pub const WINDOW_CONTROL_PADDING: &str = "2px 6px";
 
 /// Icon font padding
 pub const ICON_FONT_PADDING: &str = "0 2px";
@@ -278,11 +292,14 @@ pub const ICON_FONT_PADDING: &str = "0 2px";
 /// Layout state padding
 pub const LAYOUT_STATE_PADDING: &str = "0px";
 
-/// Top right button margins
-pub const TOPRIGHT_BTN_MARGIN: &str = "0px";
+/// Top right button margins (small gap between control buttons)
+pub const TOPRIGHT_BTN_MARGIN: &str = "1px";
 
 /// Title label padding
 pub const TITLE_LABEL_PADDING: &str = "0 0px";
+
+/// Window control button border radius (match Polo)
+pub const WINDOW_CONTROL_BORDER_RADIUS: &str = "6px";
 
 /// Title label margin
 pub const TITLE_LABEL_MARGIN: &str = "0 0px";
@@ -375,8 +392,7 @@ pub const TOOLBAR_POPOVER_BORDER_WIDTH: &str = "1px solid";
 /// Toolbar button border width (matches other buttons)
 pub const TOOLBAR_BUTTON_BORDER_WIDTH: &str = "1px solid";
 
-/// Window control button border radius
-pub const WINDOW_CONTROL_BORDER_RADIUS: &str = "0px";
+// Window control button border radius defined earlier near control padding (match Polo)
 
 // ============================================================================
 // Opacity Constants

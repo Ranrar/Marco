@@ -619,34 +619,55 @@ fn generate_menuitem_disabled_css() -> String {
 
 /// Generate window control button CSS for a specific theme
 fn generate_window_controls_css(theme_class: &str, palette: &ColorPalette) -> String {
-    format!(
-        r#"
-/* Window controls - {theme} */
-.{theme} .window-control-btn .icon-font {{ color: {color}; }}
-.{theme} .window-control-btn:hover .icon-font {{ color: {color_hover}; transform: translateY(0); }}
-.{theme} .window-control-btn:active .icon-font {{ color: {color_active}; transform: translateY(0); }}
+    // Add both icon color rules and background hover/active background rules to match Polo
+    let mut css = String::new();
+    css.push_str(&format!(
+        r#"/* Window controls - {theme} */
+.{theme} .window-control-btn, .{theme} .window-control-btn .icon-font {{ color: {color}; }}
+.{theme} .window-control-btn:hover, .{theme} .window-control-btn:hover .icon-font {{ color: {color_hover}; transform: translateY(0); }}
+.{theme} .window-control-btn:active, .{theme} .window-control-btn:active .icon-font {{ color: {color_active}; transform: translateY(0); }}
 "#,
         theme = theme_class,
-        color = palette.window_control,
-        color_hover = palette.window_control_hover,
-        color_active = palette.window_control_active,
-    )
+        color = palette.control_icon,
+        color_hover = palette.control_icon_hover,
+        color_active = palette.control_icon_active,
+    ));
+
+    // Add background hover/active colors per theme (use same RGBA values as Polo)
+    if theme_class == "marco-theme-light" {
+        css.push_str(r#"
+.marco-theme-light .window-control-btn:hover {
+    background: rgba(37, 99, 235, 0.08);
+}
+.marco-theme-light .window-control-btn:active {
+    background: rgba(30, 64, 175, 0.12);
+}
+"#);
+    } else if theme_class == "marco-theme-dark" {
+        css.push_str(r#"
+.marco-theme-dark .window-control-btn:hover {
+    background: rgba(37, 99, 235, 0.12);
+}
+.marco-theme-dark .window-control-btn:active {
+    background: rgba(30, 64, 175, 0.16);
+}
+"#);
+    }
+
+    css
 }
 
 /// Generate window control button base CSS (theme-independent)
 fn generate_window_control_base_css() -> String {
     format!(
-        r#"
-/* Window control hover/active states target the icon font directly */
-.window-control-btn .icon-font,
-.topright-btn .icon-font {{
-    transition: {transition};
+        r#"/* Window control hover/active states target the icon font directly and buttons for SVG icons */
+.window-control-btn, .topright-btn, .window-control-btn .icon-font, .topright-btn .icon-font {{
+    transition: background 0.15s ease, color 0.12s, transform 0.08s;
 }}
 
 /* Window control button base */
 .window-control-btn {{ background: transparent; border: none; padding: {padding}; border-radius: {radius}; }}
 "#,
-        transition = ICON_TRANSITION,
         padding = WINDOW_CONTROL_PADDING,
         radius = WINDOW_CONTROL_BORDER_RADIUS,
     )

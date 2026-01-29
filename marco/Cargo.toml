@@ -34,6 +34,9 @@ glib = { workspace = true }
 gio = { workspace = true }
 sourceview5 = { workspace = true }
 dark-light = { workspace = true }
+# SVG rendering and Cairo required for high-quality window control icons
+librsvg = { workspace = true }
+cairo-rs = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }

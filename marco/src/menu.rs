@@ -5,7 +5,10 @@ use std::rc::{Rc, Weak};
 use gtk4::gio;
 use gtk4::{
     self, prelude::*, Align, Box as GtkBox, Button, Label, Orientation, Paned, WindowHandle,
+    Picture,
 };
+use rsvg::{CairoRenderer, Loader};
+use gtk4::gdk;
 use log::trace;
 
 // Type alias for the complex rebuild callback type
@@ -740,15 +743,66 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
 
     use gtk4::Label;
 
-    // Helper to create a button with icon font
-    fn icon_button(label_text: &str, tooltip: &str) -> Button {
-        let markup = format!("<span font_family='icomoon'>{}</span>", label_text);
-        let label = Label::new(None);
-        label.set_markup(&markup);
-        label.set_valign(Align::Center);
-        label.add_css_class("icon-font");
+    use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+
+    // Helper: render an SVG icon into a GDK memory texture at high DPI for crisp icons
+    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = window_icon_svg(icon).replace("currentColor", color);
+        let bytes = glib::Bytes::from_owned(svg.into_bytes());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
+
+        // Use librsvg for native SVG rendering
+        let handle = Loader::new()
+            .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
+            .expect("load SVG handle");
+
+        // Get scale factor for HiDPI displays
+        let display_scale = gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+
+        // Render at 2x the display scale for extra sharpness (prevents pixelation)
+        let render_scale = display_scale * 2.0;
+        let render_size = (icon_size * render_scale) as i32;
+
+        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+            .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+            renderer.render_document(&cr, &viewport).expect("render SVG");
+        }
+
+        // Convert cairo surface to GDK texture
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    }
+
+    // Helper to create a button with SVG icon and hover/active color changes
+    fn svg_icon_button(window: &gtk4::ApplicationWindow, icon: WindowIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+        let pic = Picture::new();
+        let texture = render_svg_icon(icon, color, icon_size);
+        pic.set_paintable(Some(&texture));
+        pic.set_size_request(icon_size as i32, icon_size as i32);
+        pic.set_can_shrink(false);
+        pic.set_halign(Align::Center);
+        pic.set_valign(Align::Center);
+
         let btn = Button::new();
-        btn.set_child(Some(&label));
+        btn.set_child(Some(&pic));
         btn.set_tooltip_text(Some(tooltip));
         btn.set_valign(Align::Center);
         btn.set_margin_start(1);
@@ -756,108 +810,230 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         btn.set_focusable(false);
         btn.set_can_focus(false);
         btn.set_has_frame(false);
+        // Auto-calculate button size: icon + padding for comfortable click target
+        btn.set_width_request((icon_size + 6.0) as i32);
+        btn.set_height_request((icon_size + 6.0) as i32);
         btn.add_css_class("topright-btn");
         btn.add_css_class("window-control-btn");
+
+        // Add hover state handling - regenerate icon with hover color
+        {
+            let pic_hover = pic.clone();
+            let normal_color = color.to_string();
+            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
+
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let icon_for_enter = icon;
+            let hover_color_enter = hover_color.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let texture = render_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
+                pic_hover.set_paintable(Some(&texture));
+            });
+
+            let pic_leave = pic.clone();
+            let icon_for_leave = icon;
+            let normal_color_leave = normal_color.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let texture = render_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn.add_controller(motion_controller);
+
+            // Add click state handling
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = pic.clone();
+            let icon_for_pressed = icon;
+            let active_color_pressed = active_color.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+
+            let pic_released = pic.clone();
+            let icon_for_released = icon;
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_released, &hover_color, icon_size);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn.add_controller(gesture);
+        }
+
         btn
     }
 
-    // IcoMoon Unicode glyphs for window controls
-    // | Unicode | Icon Name             | Description   |
-    // |---------|-----------------------|--------------|
-    // | \u{34}  | marco-minimize        | Minimize      |
-    // | \u{36}  | marco-fullscreen      | Maximize      |
-    // | \u{35}  | marco-fullscreen_exit | Exit maximize |
-    // | \u{39}  | marco-close           | Close         |
+    // Create window control buttons (minimize, maximize/restore, close)
+    fn create_window_controls(window: &gtk4::ApplicationWindow) -> (Button, Button, Button) {
+        const ICON_SIZE: f64 = 8.0;
 
-    let btn_min = icon_button("\u{34}", "Minimize");
-    let btn_close = icon_button("\u{39}", "Close");
+        // Use palette colors for window control icons (not hardcoded)
+        // Use Polo-aligned palette control colors for the icon itself
+        let icon_color: std::borrow::Cow<'static, str> = if window.style_context().has_class("marco-theme-dark") {
+            std::borrow::Cow::from(DARK_PALETTE.control_icon)
+        } else {
+            std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+        };
 
-    // Create a single toggle button for maximize/restore and keep its label so we can update it
-    let max_label = gtk4::Label::new(None);
-    let initial_glyph = if window.is_maximized() {
-        "\u{35}"
-    } else {
-        "\u{36}"
-    };
-    max_label.set_markup(&format!(
-        "<span font_family='icomoon'>{}</span>",
-        initial_glyph
-    ));
-    max_label.set_valign(Align::Center);
-    max_label.add_css_class("icon-font");
-    let btn_max_toggle = Button::new();
-    btn_max_toggle.set_child(Some(&max_label));
-    btn_max_toggle.set_tooltip_text(Some("Maximize / Restore"));
-    btn_max_toggle.set_valign(Align::Center);
-    btn_max_toggle.set_margin_start(1);
-    btn_max_toggle.set_margin_end(1);
-    btn_max_toggle.set_focusable(false);
-    btn_max_toggle.set_can_focus(false);
-    btn_max_toggle.set_has_frame(false);
-    btn_max_toggle.add_css_class("topright-btn");
-    btn_max_toggle.add_css_class("window-control-btn");
+        let btn_min = svg_icon_button(window, WindowIcon::Minimize, "Minimize", &icon_color, ICON_SIZE);
+        let btn_close = svg_icon_button(window, WindowIcon::Close, "Close", &icon_color, ICON_SIZE);
+
+        // Create maximize/restore toggle button with its own picture for dynamic icon switching
+        let max_pic = Picture::new();
+        max_pic.set_size_request(ICON_SIZE as i32, ICON_SIZE as i32);
+        max_pic.set_can_shrink(false);
+        max_pic.set_halign(Align::Center);
+        max_pic.set_valign(Align::Center);
+
+        // Helper closure to update maximize button icon based on window state
+        let update_max_icon = {
+            let color = icon_color.clone();
+            move |is_maximized: bool, pic: &Picture| {
+                let icon = if is_maximized { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let texture = render_svg_icon(icon, &color, ICON_SIZE);
+                pic.set_paintable(Some(&texture));
+            }
+        };
+
+        update_max_icon(window.is_maximized(), &max_pic);
+
+        let btn_max_toggle = Button::new();
+        btn_max_toggle.set_child(Some(&max_pic));
+        btn_max_toggle.set_tooltip_text(Some("Maximize / Restore"));
+        btn_max_toggle.set_valign(Align::Center);
+        btn_max_toggle.set_margin_start(1);
+        btn_max_toggle.set_margin_end(1);
+        btn_max_toggle.set_focusable(false);
+        // Auto-calculate button size: icon + padding for comfortable click target
+        btn_max_toggle.set_width_request((ICON_SIZE + 6.0) as i32);
+        btn_max_toggle.set_height_request((ICON_SIZE + 6.0) as i32);
+        btn_max_toggle.set_can_focus(false);
+        btn_max_toggle.set_has_frame(false);
+        btn_max_toggle.add_css_class("topright-btn");
+        btn_max_toggle.add_css_class("window-control-btn");
+
+        // Add hover/active color changes for maximize button
+        {
+            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
+            let normal_color = icon_color.to_string();
+
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let pic_hover = max_pic.clone();
+            let hover_color_enter = hover_color.clone();
+            let window_hover_enter = window.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let icon = if window_hover_enter.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let texture = render_svg_icon(icon, &hover_color_enter, ICON_SIZE);
+                pic_hover.set_paintable(Some(&texture));
+            });
+
+            let pic_leave = max_pic.clone();
+            let normal_color_leave = normal_color.clone();
+            let window_hover_leave = window.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let icon = if window_hover_leave.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let texture = render_svg_icon(icon, &normal_color_leave, ICON_SIZE);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn_max_toggle.add_controller(motion_controller);
+
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = max_pic.clone();
+            let active_color_pressed = active_color.clone();
+            let window_pressed = window.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let icon = if window_pressed.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let texture = render_svg_icon(icon, &active_color_pressed, ICON_SIZE);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+
+            let pic_released = max_pic.clone();
+            let hover_color_released = hover_color.clone();
+            let window_released = window.clone();
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let icon = if window_released.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let texture = render_svg_icon(icon, &hover_color_released, ICON_SIZE);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn_max_toggle.add_controller(gesture);
+        }
+
+        // Wire up window controls
+        let window_for_min = window.clone();
+        btn_min.connect_clicked(move |_| {
+            window_for_min.minimize();
+            trace!("audit: window minimize clicked");
+        });
+
+        // Click toggles window state and updates icon immediately
+        let pic_for_toggle = max_pic.clone();
+        let window_for_toggle = window.clone();
+        let update_for_toggle = update_max_icon.clone();
+        btn_max_toggle.connect_clicked(move |_| {
+            if window_for_toggle.is_maximized() {
+                window_for_toggle.unmaximize();
+                update_for_toggle(false, &pic_for_toggle);
+            } else {
+                window_for_toggle.maximize();
+                update_for_toggle(true, &pic_for_toggle);
+            }
+            trace!("audit: window maximize/restore clicked");
+        });
+
+        // Keep icon in sync if window is maximized/unmaximized externally
+        let pic_for_notify = max_pic.clone();
+        let update_for_notify = update_max_icon.clone();
+        window.connect_notify_local(Some("is-maximized"), move |w, _| {
+            update_for_notify(w.is_maximized(), &pic_for_notify);
+        });
+
+        let window_for_close = window.clone();
+        btn_close.connect_clicked(move |_| {
+            if let Some(app) = window_for_close.application() {
+                // Activate the app-level action 'app.quit' which is registered in main.rs
+                if let Some(action) = app.lookup_action("quit") {
+                    action.activate(None);
+                } else {
+                    // Fallback: close the window if action not found
+                    window_for_close.close();
+                }
+            } else {
+                // Fallback: close the window if no application is associated
+                window_for_close.close();
+            }
+            trace!("audit: window close clicked");
+        });
+
+        (btn_min, btn_max_toggle, btn_close)
+    }
+
+    // Create window controls (SVG-based) and add them to the headerbar
+    let (btn_min, btn_max_toggle, btn_close) = create_window_controls(window);
 
     // Add controls to headerbar from right to left (pack_end order)
-    // Since pack_end adds from right to left, we add in reverse visual order:
-    // First add window controls (they'll be rightmost)
     headerbar.pack_end(&btn_close); // Rightmost
     headerbar.pack_end(&btn_max_toggle); // Middle
     headerbar.pack_end(&btn_min); // Left of window controls
-                                  // Then add layout button (it will be to the left of window controls)
+    // Then add layout button (it will be to the left of window controls)
     headerbar.pack_end(&layout_menu_btn); // Left of minimize button
-
-    // Minimize and close actions
-    let win_clone = window.clone();
-    btn_min.connect_clicked(move |_| {
-        win_clone.minimize();
-        trace!("audit: window minimize clicked");
-    });
-    // When close is pressed, activate the application's quit action so
-    // the unified quit flow (including FileOperations::quit_async) runs.
-    let win_for_close = window.clone();
-    btn_close.connect_clicked(move |_| {
-        if let Some(app) = win_for_close.application() {
-            // Activate the app-level action 'app.quit' which is registered in main.rs
-            if let Some(action) = app.lookup_action("quit") {
-                action.activate(None);
-            } else {
-                // Fallback: close the window if action not found
-                win_for_close.close();
-            }
-        } else {
-            // Fallback: close the window if no application is associated
-            win_for_close.close();
-        }
-        trace!("audit: window close clicked");
-    });
-
-    // Click toggles window state and updates glyph immediately
-    let label_for_toggle = max_label.clone();
-    let window_for_toggle = window.clone();
-    btn_max_toggle.connect_clicked(move |_| {
-        if window_for_toggle.is_maximized() {
-            window_for_toggle.unmaximize();
-            label_for_toggle
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
-        } else {
-            window_for_toggle.maximize();
-            label_for_toggle
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
-        }
-        trace!("audit: window maximize/restore clicked");
-    });
-
-    // Keep glyph in sync if window is maximized/unmaximized externally
-    let label_for_notify = max_label.clone();
-    window.connect_notify_local(Some("is-maximized"), move |w, _| {
-        if w.is_maximized() {
-            label_for_notify
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
-        } else {
-            label_for_notify
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
-        }
-    });
 
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));

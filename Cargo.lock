@@ -2215,11 +2215,13 @@ dependencies = [
 name = "marco"
 version = "0.15.0"
 dependencies = [
+ "cairo-rs 0.21.5",
  "core",
  "dark-light",
  "gio 0.21.5",
  "glib 0.21.5",
  "gtk4",
+ "librsvg",
  "log",
  "serial_test",
  "sourceview5",
