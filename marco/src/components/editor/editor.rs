@@ -45,14 +45,14 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-// Linux-only imports for WebView preview functionality
+use crate::components::viewer::css_utils::{pretty_print_html, webkit_scrollbar_css};
+
+// Renderer functions are Linux-only (keep use guarded where necessary)
 #[cfg(target_os = "linux")]
-use crate::components::viewer::{
-    renderer::refresh_preview_into_webview,
-    css_utils::{pretty_print_html, webkit_scrollbar_css},
-};
+use crate::components::viewer::renderer;
 
 pub fn create_editor_with_preview_and_buffer(
+    window: &gtk4::ApplicationWindow,
     preview_theme_filename: &str,
     preview_theme_dir: &str,
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
@@ -498,6 +498,18 @@ paned > separator {{
         .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
         .to_string();
 
+    // Precreated ScrolledWindow for code view - shared between platforms
+    let precreated_code_sw: Rc<gtk4::ScrolledWindow> = {
+        let sw = gtk4::ScrolledWindow::new();
+        sw.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+        sw.add_css_class("editor-scrolled");
+        Rc::new(sw)
+    };
+
+    // Shared stack and optional webview wrapper so both platforms can add children
+    let stack = gtk4::Stack::new();
+    let mut webview_rc_opt: Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>> = None;
+
     let initial_html_body =
         match global_parser_cache().render_with_cache(&initial_text, (*html_opts_rc).clone()) {
             Ok(html) => html,
@@ -507,6 +519,8 @@ paned > separator {{
     let pretty_initial =
         pretty_print_html(&initial_html_body);
 
+#[cfg(target_os = "linux")]
+{
     // Build initial HTML for the WebView using the rendered markdown body and the
     // wheel JS so the preview shows content immediately.
     let mut initial_html_body_with_js = initial_html_body.clone();
@@ -573,21 +587,57 @@ paned > separator {{
     )
     .expect("Failed to create code viewer WebView");
 
-    // Wrap WebView in ScrolledWindow for consistency
-    let sw = gtk4::ScrolledWindow::new();
-    sw.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
-    sw.set_child(Some(&webview_code));
-    sw.add_css_class("editor-scrolled"); // Match editor scrollbar style
-    let precreated_code_sw = Rc::new(sw);
+    // Wrap WebView into precreated ScrolledWindow for consistency
+    precreated_code_sw.set_child(Some(&webview_code));
 
     let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
         Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
 
-    let stack = gtk4::Stack::new();
     stack.add_named(&webview, Some("html_preview"));
     stack.add_named(precreated_code_sw.as_ref(), Some("code_preview"));
     stack.set_visible_child(&webview);
     paned.set_end_child(Some(&stack));
+
+    // Expose webview wrapper for reparenting/return
+    webview_rc_opt = Some(Rc::new(RefCell::new(webview.clone())));
+}
+
+#[cfg(not(target_os = "linux"))]
+{
+    // Windows (and other) fallback: create PlatformWebView (wry) where possible
+    let mut initial_html_body_with_js = initial_html_body.clone();
+    initial_html_body_with_js.push_str(&wheel_js_rc);
+    let pretty_initial = pretty_print_html(&initial_html_body_with_js);
+
+    // Try to create a native Windows embedded WebView (wry). PlatformWebView
+    // will fallback to a placeholder container if it cannot obtain a Win32 handle.
+    let platform_webview = crate::components::viewer::wry_platform_webview::PlatformWebView::new(window);
+
+    // Load initial HTML into the platform webview (safe no-op if inner not ready)
+    platform_webview.load_html_with_base(&initial_html_body_with_js, None);
+
+    let webview_widget: gtk4::Widget = platform_webview.widget();
+    let webview_rc = Rc::new(RefCell::new(platform_webview.clone()));
+
+    // Create a simple (read-only) TextView for code preview
+    let code_view = gtk4::TextView::new();
+    code_view.set_editable(false);
+    let buf = code_view.buffer();
+    buf.set_text(&pretty_initial);
+
+    precreated_code_sw.set_child(Some(&code_view));
+
+    let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
+        Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
+
+    stack.add_named(&webview_widget, Some("html_preview"));
+    stack.add_named(precreated_code_sw.as_ref(), Some("code_preview"));
+    stack.set_visible_child(&webview_widget);
+    paned.set_end_child(Some(&stack));
+
+    // Expose webview wrapper for reparenting/return
+    webview_rc_opt = Some(Rc::new(RefCell::new(platform_webview)));
+}
 
     // refresh_preview closure
     let wheel_js_for_refresh = wheel_js_rc.clone();
@@ -596,6 +646,8 @@ paned > separator {{
     let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
                                                                                 // Clone document_buffer for use in refresh closure
     let document_buffer_for_refresh = document_buffer.as_ref().map(Rc::clone);
+
+    #[cfg(target_os = "linux")]
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
@@ -669,6 +721,83 @@ paned > separator {{
                 crate::components::viewer::renderer::refresh_preview_content_smooth_with_doc_buffer(
                     params,
                 );
+            }
+        })
+    };
+
+    #[cfg(not(target_os = "linux"))]
+    let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
+        let buffer = Rc::clone(&buffer_rc);
+        let css = Rc::clone(&css_rc);
+        let precreated_code_sw = precreated_code_sw.clone();
+        let html_opts = std::rc::Rc::clone(&html_opts_rc);
+        let wheel_js_local = wheel_js_for_refresh.clone();
+        let is_initial_load_clone = Rc::clone(&is_initial_load);
+        let last_css_hash_clone = Rc::clone(&last_css_hash);
+        let last_document_path_clone = Rc::clone(&last_document_path);
+        let document_buffer_capture = document_buffer_for_refresh.clone();
+        let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+        // Capture the in-editor platform webview if present
+        let webview_for_preview = webview_rc_opt.clone();
+        std::rc::Rc::new(move || {
+            let is_first_load = *is_initial_load_clone.borrow();
+
+            // Basic behaviour: re-render HTML into the code view (TextView) for preview
+            let text = buffer
+                .text(
+                    &buffer.start_iter(),
+                    &buffer.end_iter(),
+                    false,
+                )
+                .to_string();
+
+            let html_body = match global_parser_cache().render_with_cache(&text, (*html_opts).clone()) {
+                Ok(html) => html,
+                Err(e) => format!("Error rendering HTML: {}", e),
+            };
+
+            let formatted = pretty_print_html(&html_body);
+
+            // Store the full HTML for detached preview windows (Windows fallback)
+            let full_html = {
+                let mut html_with_js = html_body.clone();
+                html_with_js.push_str(&wheel_js_local);
+                let combined_css = css.borrow().clone();
+                let theme_mode = theme_mode_for_preview.borrow().clone();
+                crate::components::viewer::wry::wrap_html_document(&html_with_js, &combined_css, &theme_mode, None)
+            };
+
+            if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML.get_or_init(|| std::sync::Mutex::new(String::new())).lock() {
+                *guard = full_html.clone();
+            }
+
+            // If we have an embedded in-editor webview, load the HTML into it
+            if let Some(ref wv_rc) = webview_for_preview {
+                if let Ok(wv) = wv_rc.try_borrow() {
+                    wv.load_html_with_base(&full_html, None);
+                } else {
+                    log::debug!("In-editor webview borrow busy; skipping load");
+                }
+            }
+
+            // Update the code view if present
+            if let Some(sw_child) = precreated_code_sw.child() {
+                match sw_child.downcast::<gtk4::Viewport>() {
+                    Ok(viewport) => {
+                        if let Some(child) = viewport.child() {
+                            if let Ok(text_view) = child.downcast::<gtk4::TextView>() {
+                                let buf = text_view.buffer();
+                                buf.set_text(&formatted);
+                            }
+                        }
+                    }
+                    Err(widget) => {
+                        if let Ok(text_view) = widget.downcast::<gtk4::TextView>() {
+                            let buf = text_view.buffer();
+                            buf.set_text(&formatted);
+                        }
+                    }
+                }
             }
         })
     };
@@ -753,7 +882,8 @@ paned > separator {{
                 };
 
                 if let Some(widget) = actual_widget {
-                    log::debug!("[editor_ui] Actual widget type: {:?}", widget.type_());
+                    let widget_type = widget.type_();
+                    log::debug!("[editor_ui] Actual widget type: {:?}", widget_type);
 
                     // Get current theme and check if it changed
                     let theme_changed = *last_code_view_theme.borrow() != current_theme;
@@ -766,43 +896,60 @@ paned > separator {{
                         *last_code_view_theme.borrow_mut() = current_theme.clone();
                     }
 
-                    // Update WebView with smooth transition
-                    if widget.is::<webkit6::WebView>() {
-                        log::debug!(
-                            "[editor_ui] Widget is WebView, updating with smooth transition"
-                        );
+                    // Update WebView with smooth transition (Linux) or TextView content on other platforms
+                    #[cfg(target_os = "linux")]
+                    {
+                        if widget.is::<webkit6::WebView>() {
+                            log::debug!(
+                                "[editor_ui] Widget is WebView, updating with smooth transition"
+                            );
 
-                        if let Ok(webview) = widget.downcast::<webkit6::WebView>() {
-                            // Get editor colors
-                            let bg_owned = editor_bg_for_code.borrow().clone();
-                            let fg_owned = editor_fg_for_code.borrow().clone();
-                            let bg = bg_owned.as_deref();
-                            let fg = fg_owned.as_deref();
+                            if let Ok(webview) = widget.clone().downcast::<webkit6::WebView>() {
+                                // Get editor colors
+                                let bg_owned = editor_bg_for_code.borrow().clone();
+                                let fg_owned = editor_fg_for_code.borrow().clone();
+                                let bg = bg_owned.as_deref();
+                                let fg = fg_owned.as_deref();
 
-                            // Get scrollbar colors
-                            let thumb = scrollbar_thumb_for_code.borrow().clone();
-                            let track = scrollbar_track_for_code.borrow().clone();
+                                // Get scrollbar colors
+                                let thumb = scrollbar_thumb_for_code.borrow().clone();
+                                let track = scrollbar_track_for_code.borrow().clone();
 
-                            // Use smooth update to avoid flickering
-                            if let Err(e) =
-                                crate::components::viewer::webkit6::update_code_view_smooth(
-                                    &webview,
-                                    &formatted_html,
-                                    &current_theme,
-                                    bg,
-                                    fg,
-                                    Some(&thumb),
-                                    Some(&track),
-                                )
-                            {
-                                log::error!("Failed to smooth update code view: {}", e);
+                                // Use smooth update to avoid flickering
+                                if let Err(e) =
+                                    crate::components::viewer::webkit6::update_code_view_smooth(
+                                        &webview,
+                                        &formatted_html,
+                                        &current_theme,
+                                        bg,
+                                        fg,
+                                        Some(&thumb),
+                                        Some(&track),
+                                    )
+                                {
+                                    log::error!("Failed to smooth update code view: {}", e);
+                                }
                             }
+                        } else {
+                            log::warn!(
+                                "[editor_ui] Code view widget is not a WebView: {:?}",
+                                widget_type
+                            );
                         }
-                    } else {
-                        log::warn!(
-                            "[editor_ui] Code view widget is not a WebView: {:?}",
-                            widget.type_()
-                        );
+                    }
+
+                    #[cfg(not(target_os = "linux"))]
+                    {
+                        // On non-Linux platforms we expect a TextView in the code view
+                        if let Ok(child) = widget.clone().downcast::<gtk4::TextView>() {
+                            let buf = child.buffer();
+                            buf.set_text(&formatted_html);
+                        } else {
+                            log::warn!(
+                                "[editor_ui] Code view widget is not a TextView: {:?}",
+                                widget_type
+                            );
+                        }
                     }
                 } else {
                     log::warn!("[editor_ui] No actual widget found in code view");
@@ -986,150 +1133,155 @@ paned > separator {{
         }
     }) as Box<dyn Fn(&str)>;
 
-    // Clones for preview theme updater
-    let theme_manager_for_preview = Rc::clone(&theme_manager);
-    let css_rc_for_preview = Rc::clone(&css_rc);
-    let html_opts_for_preview = std::rc::Rc::clone(&html_opts_rc);
-    let buffer_rc_for_preview = Rc::clone(&buffer_rc);
-    let webview_rc_for_preview = Rc::clone(&webview_rc);
-    let wheel_js_for_preview = wheel_js_for_refresh.clone();
-    let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
-    let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
-    let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
-    let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
-    let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
-    let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
-    let editor_sw_for_preview = editor_scrolled_window.clone(); // For checking scrollbar state
-    let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
-    let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
-    let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
-    let update_html_code_view_for_preview = Rc::clone(&update_html_code_view_rc);
-    let update_preview_theme = Box::new(move |scheme_id: &str| {
-        // Re-extract editor bg/fg colors from the selected editor style scheme
-        // so the Source Code viewer can match the editor theme.
-        if editor_dir_for_preview.exists() && editor_dir_for_preview.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&editor_dir_for_preview) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .map(|s| s.eq_ignore_ascii_case("xml"))
-                        .unwrap_or(false)
-                    {
-                        if let Ok(contents) = std::fs::read_to_string(&path) {
-                            let id_search = format!("id=\"{}\"", scheme_id);
-                            if contents.contains(&id_search) {
-                                // Try to extract preferred bg/fg tokens
-                                if let Some(v) = extract_xml_color_value(&contents, "dark-bg") {
-                                    *editor_bg_color_for_preview.borrow_mut() = Some(v);
-                                } else if let Some(v) =
-                                    extract_xml_color_value(&contents, "light-bg")
-                                {
-                                    *editor_bg_color_for_preview.borrow_mut() = Some(v);
-                                }
-                                if let Some(v) = extract_xml_color_value(&contents, "dark-text") {
-                                    *editor_fg_color_for_preview.borrow_mut() = Some(v);
-                                } else if let Some(v) =
-                                    extract_xml_color_value(&contents, "light-text")
-                                {
-                                    *editor_fg_color_for_preview.borrow_mut() = Some(v);
-                                }
+    // Default no-op preview theme updater for non-Linux platforms
+    let update_preview_theme: Box<dyn Fn(&str)> = Box::new(|_s: &str| {});
 
-                                // Extract scrollbar colors for code view
-                                if let Some(v) =
-                                    extract_xml_color_value(&contents, "scrollbar-thumb")
-                                {
-                                    *scrollbar_thumb_for_preview.borrow_mut() = v;
-                                }
-                                if let Some(v) =
-                                    extract_xml_color_value(&contents, "scrollbar-track")
-                                {
-                                    *scrollbar_track_for_preview.borrow_mut() = v;
-                                }
-
-                                // Update webkit scrollbar CSS in the preview CSS string
-                                // This ensures the HTML preview scrollbar matches the theme
-                                let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
-                                let new_track = scrollbar_track_for_preview.borrow().clone();
-                                let new_webkit_css = webkit_scrollbar_css(&new_thumb, &new_track);
-
-                                // Regenerate the CSS with new webkit scrollbar styling
-                                let mut updated_css = css_rc_for_preview.borrow().clone();
-                                // Remove old webkit scrollbar CSS (everything after the last occurrence of ::-webkit-scrollbar)
-                                if let Some(pos) = updated_css.rfind("::-webkit-scrollbar") {
-                                    // Find the start of the webkit CSS block (search backwards for newline before the comment)
-                                    if let Some(start) = updated_css[..pos].rfind("\n/*") {
-                                        updated_css.truncate(start);
-                                    } else {
-                                        updated_css.truncate(pos);
+    // Clones for preview theme updater (Linux-only implementation overrides the default)
+    #[cfg(target_os = "linux")]
+    {
+        let theme_manager_for_preview = Rc::clone(&theme_manager);
+        let css_rc_for_preview = Rc::clone(&css_rc);
+        let html_opts_for_preview = std::rc::Rc::clone(&html_opts_rc);
+        let buffer_rc_for_preview = Rc::clone(&buffer_rc);
+        let webview_rc_for_preview = Rc::clone(&webview_rc);
+        let wheel_js_for_preview = wheel_js_for_refresh.clone();
+        let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+        let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
+        let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
+        let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
+        let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
+        let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
+        let editor_sw_for_preview = editor_scrolled_window.clone(); // For checking scrollbar state
+        let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
+        let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
+        let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
+        let update_html_code_view_for_preview = Rc::clone(&update_html_code_view_rc);
+        let update_preview_theme = Box::new(move |scheme_id: &str| {
+            // Re-extract editor bg/fg colors from the selected editor style scheme
+            // so the Source Code viewer can match the editor theme.
+            if editor_dir_for_preview.exists() && editor_dir_for_preview.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&editor_dir_for_preview) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .map(|s| s.eq_ignore_ascii_case("xml"))
+                            .unwrap_or(false)
+                        {
+                            if let Ok(contents) = std::fs::read_to_string(&path) {
+                                let id_search = format!("id=\"{}\"", scheme_id);
+                                if contents.contains(&id_search) {
+                                    // Try to extract preferred bg/fg tokens
+                                    if let Some(v) = extract_xml_color_value(&contents, "dark-bg") {
+                                        *editor_bg_color_for_preview.borrow_mut() = Some(v);
+                                    } else if let Some(v) =
+                                        extract_xml_color_value(&contents, "light-bg")
+                                    {
+                                        *editor_bg_color_for_preview.borrow_mut() = Some(v);
                                     }
-                                }
-                                // Append new webkit scrollbar CSS
-                                updated_css.push('\n');
-                                updated_css.push_str(&new_webkit_css);
-                                *css_rc_for_preview.borrow_mut() = updated_css;
-                                log::debug!("Updated webkit scrollbar CSS in preview CSS string");
+                                    if let Some(v) = extract_xml_color_value(&contents, "dark-text") {
+                                        *editor_fg_color_for_preview.borrow_mut() = Some(v);
+                                    } else if let Some(v) =
+                                        extract_xml_color_value(&contents, "light-text")
+                                    {
+                                        *editor_fg_color_for_preview.borrow_mut() = Some(v);
+                                    }
 
-                                // Register a small CSS provider to update the source preview
-                                if let Some(display) = gtk4::gdk::Display::default() {
-                                    let mut css_rules = String::new();
-                                    let bg_val = editor_bg_color_for_preview.borrow().clone();
-                                    let fg_val = editor_fg_color_for_preview.borrow().clone();
-                                    let bg = bg_val.as_deref().unwrap_or("transparent");
-                                    let fg = fg_val.as_deref().unwrap_or("#000000");
-                                    css_rules.push_str(&format!(
-                                        ".source-preview .monospace {{ background-color: {}; color: {}; }}",
-                                        bg, fg
-                                    ));
-                                    let provider = gtk4::CssProvider::new();
-                                    provider.load_from_data(&css_rules);
-                                    gtk4::style_context_add_provider_for_display(
-                                        &display,
-                                        &provider,
-                                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-                                    );
-                                }
-                                // Also update GTK scrollbar CSS provider so scrollbars
-                                // match the newly selected editor scheme at runtime.
-                                if let Some(display) = gtk4::gdk::Display::default() {
-                                    let mut thumb = String::from("#D0D4D8");
-                                    let mut track = String::from("#F0F0F0");
+                                    // Extract scrollbar colors for code view
                                     if let Some(v) =
                                         extract_xml_color_value(&contents, "scrollbar-thumb")
                                     {
-                                        thumb = v;
+                                        *scrollbar_thumb_for_preview.borrow_mut() = v;
                                     }
                                     if let Some(v) =
                                         extract_xml_color_value(&contents, "scrollbar-track")
                                     {
-                                        track = v;
+                                        *scrollbar_track_for_preview.borrow_mut() = v;
                                     }
-                                    let gtk_css =
-                                        crate::components::viewer::css_utils::gtk_scrollbar_css(
-                                            &thumb, &track,
+
+                                    // Update webkit scrollbar CSS in the preview CSS string
+                                    // This ensures the HTML preview scrollbar matches the theme
+                                    let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
+                                    let new_track = scrollbar_track_for_preview.borrow().clone();
+                                    let new_webkit_css = webkit_scrollbar_css(&new_thumb, &new_track);
+
+                                    // Regenerate the CSS with new webkit scrollbar styling
+                                    let mut updated_css = css_rc_for_preview.borrow().clone();
+                                    // Remove old webkit scrollbar CSS (everything after the last occurrence of ::-webkit-scrollbar)
+                                    if let Some(pos) = updated_css.rfind("::-webkit-scrollbar") {
+                                        // Find the start of the webkit CSS block (search backwards for newline before the comment)
+                                        if let Some(start) = updated_css[..pos].rfind("\n/*") {
+                                            updated_css.truncate(start);
+                                        } else {
+                                            updated_css.truncate(pos);
+                                        }
+                                    }
+                                    // Append new webkit scrollbar CSS
+                                    updated_css.push('\n');
+                                    updated_css.push_str(&new_webkit_css);
+                                    *css_rc_for_preview.borrow_mut() = updated_css;
+                                    log::debug!("Updated webkit scrollbar CSS in preview CSS string");
+
+                                    // Register a small CSS provider to update the source preview
+                                    if let Some(display) = gtk4::gdk::Display::default() {
+                                        let mut css_rules = String::new();
+                                        let bg_val = editor_bg_color_for_preview.borrow().clone();
+                                        let fg_val = editor_fg_color_for_preview.borrow().clone();
+                                        let bg = bg_val.as_deref().unwrap_or("transparent");
+                                        let fg = fg_val.as_deref().unwrap_or("#000000");
+                                        css_rules.push_str(&format!(
+                                            ".source-preview .monospace {{ background-color: {}; color: {}; }}",
+                                            bg, fg
+                                        ));
+                                        let provider = gtk4::CssProvider::new();
+                                        provider.load_from_data(&css_rules);
+                                        gtk4::style_context_add_provider_for_display(
+                                            &display,
+                                            &provider,
+                                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
                                         );
-                                    let provider = gtk4::CssProvider::new();
-                                    provider.load_from_data(&gtk_css);
-                                    gtk4::style_context_add_provider_for_display(
-                                        &display,
-                                        &provider,
-                                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-                                    );
+                                    }
+                                    // Also update GTK scrollbar CSS provider so scrollbars
+                                    // match the newly selected editor scheme at runtime.
+                                    if let Some(display) = gtk4::gdk::Display::default() {
+                                        let mut thumb = String::from("#D0D4D8");
+                                        let mut track = String::from("#F0F0F0");
+                                        if let Some(v) =
+                                            extract_xml_color_value(&contents, "scrollbar-thumb")
+                                        {
+                                            thumb = v;
+                                        }
+                                        if let Some(v) =
+                                            extract_xml_color_value(&contents, "scrollbar-track")
+                                        {
+                                            track = v;
+                                        }
+                                        let gtk_css =
+                                            crate::components::viewer::css_utils::gtk_scrollbar_css(
+                                                &thumb, &track,
+                                            );
+                                        let provider = gtk4::CssProvider::new();
+                                        provider.load_from_data(&gtk_css);
+                                        gtk4::style_context_add_provider_for_display(
+                                            &display,
+                                            &provider,
+                                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                                        );
 
-                                    log::debug!("Updated GTK scrollbar CSS for new theme: thumb={}, track={}", thumb, track);
+                                        log::debug!("Updated GTK scrollbar CSS for new theme: thumb={}, track={}", thumb, track);
 
-                                    // Force immediate paned separator CSS update for theme change
-                                    // Check current scrollbar visibility state
-                                    let vadj = editor_sw_for_preview.vadjustment();
-                                    let upper = vadj.upper();
-                                    let page_size = vadj.page_size();
-                                    let scrollbar_visible = upper > page_size;
+                                        // Force immediate paned separator CSS update for theme change
+                                        // Check current scrollbar visibility state
+                                        let vadj = editor_sw_for_preview.vadjustment();
+                                        let upper = vadj.upper();
+                                        let page_size = vadj.page_size();
+                                        let scrollbar_visible = upper > page_size;
 
-                                    let paned_css = if scrollbar_visible {
-                                        // Scrollbar visible - use 1px separator
-                                        format!(
-                                            r#"
+                                        let paned_css = if scrollbar_visible {
+                                            // Scrollbar visible - use 1px separator
+                                            format!(
+                                                r#"
 paned > separator {{
     min-width: 1px;
     min-height: 1px;
@@ -1143,12 +1295,12 @@ paned > separator:active {{
     opacity: 0.5;
 }}
                                             "#,
-                                            thumb
-                                        )
-                                    } else {
-                                        // No scrollbar - use 12px separator
-                                        format!(
-                                            r#"
+                                                thumb
+                                            )
+                                        } else {
+                                            // No scrollbar - use 12px separator
+                                            format!(
+                                                r#"
 paned > separator {{
     min-width: 12px;
     min-height: 12px;
@@ -1156,79 +1308,80 @@ paned > separator {{
     border: none;
 }}
                                             "#,
-                                            track
-                                        )
-                                    };
+                                                track
+                                            )
+                                        };
 
-                                    let paned_provider = gtk4::CssProvider::new();
-                                    paned_provider.load_from_data(&paned_css);
-                                    gtk4::style_context_add_provider_for_display(
-                                        &display,
-                                        &paned_provider,
-                                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-                                    );
-                                    log::debug!("Updated paned separator CSS for theme change: scrollbar_visible={}", scrollbar_visible);
+                                        let paned_provider = gtk4::CssProvider::new();
+                                        paned_provider.load_from_data(&paned_css);
+                                        gtk4::style_context_add_provider_for_display(
+                                            &display,
+                                            &paned_provider,
+                                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                                        );
+                                        log::debug!("Updated paned separator CSS for theme change: scrollbar_visible={}", scrollbar_visible);
+                                    }
+                                    break;
                                 }
-                                break;
                             }
                         }
                     }
                 }
             }
-        }
 
-        let new_theme_mode = theme_manager_for_preview
-            .borrow()
-            .preview_theme_mode_from_scheme(scheme_id);
-        *theme_mode_for_preview.borrow_mut() = new_theme_mode;
+            let new_theme_mode = theme_manager_for_preview
+                .borrow()
+                .preview_theme_mode_from_scheme(scheme_id);
+            *theme_mode_for_preview.borrow_mut() = new_theme_mode;
 
-        // debounce reloads to avoid rapid successive full-document reloads which cause blinking
-        if let Some(id) = preview_theme_timeout_clone.replace(None) {
-            safe_source_remove(id);
-        }
-        let preview_theme_timeout_clone2 = Rc::clone(&preview_theme_timeout_clone);
-        let webview_clone = webview_rc_for_preview.clone();
-        let css_clone = Rc::clone(&css_rc_for_preview);
-        let html_opts_clone = std::rc::Rc::clone(&html_opts_for_preview);
-        let buffer_clone = Rc::clone(&buffer_rc_for_preview);
-        let wheel_clone = wheel_js_for_preview.clone();
-        let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
-        let document_buffer_clone = document_buffer_for_preview.as_ref().map(Rc::clone);
-        let update_code_clone = Rc::clone(&update_html_code_view_for_preview);
-        let id = glib::timeout_add_local(std::time::Duration::from_millis(150), move || {
-            // Extract document path from DocumentBuffer for base URI generation
-            let doc_path = document_buffer_clone
-                .as_ref()
-                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
-
-            // Debug: log the document path being passed
-            if let Some(ref path) = doc_path {
-                log::debug!(
-                    "[theme] refresh: passing document path to preview: {}",
-                    path.display()
-                );
-            } else {
-                log::debug!("[theme] refresh: no document path available (untitled document)");
+            // debounce reloads to avoid rapid successive full-document reloads which cause blinking
+            if let Some(id) = preview_theme_timeout_clone.replace(None) {
+                safe_source_remove(id);
             }
+            let preview_theme_timeout_clone2 = Rc::clone(&preview_theme_timeout_clone);
+            let webview_clone = webview_rc_for_preview.clone();
+            let css_clone = Rc::clone(&css_rc_for_preview);
+            let html_opts_clone = std::rc::Rc::clone(&html_opts_for_preview);
+            let buffer_clone = Rc::clone(&buffer_rc_for_preview);
+            let wheel_clone = wheel_js_for_preview.clone();
+            let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
+            let document_buffer_clone = document_buffer_for_preview.as_ref().map(Rc::clone);
+            let update_code_clone = Rc::clone(&update_html_code_view_for_preview);
+            let id = glib::timeout_add_local(std::time::Duration::from_millis(150), move || {
+                // Extract document path from DocumentBuffer for base URI generation
+                let doc_path = document_buffer_clone
+                    .as_ref()
+                    .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
 
-            refresh_preview_into_webview(
-                &webview_clone.borrow(),
-                &css_clone,
-                &html_opts_clone,
-                &buffer_clone,
-                &wheel_clone,
-                &theme_mode_clone,
-                doc_path.as_deref(),
-            );
+                // Debug: log the document path being passed
+                if let Some(ref path) = doc_path {
+                    log::debug!(
+                        "[theme] refresh: passing document path to preview: {}",
+                        path.display()
+                    );
+                } else {
+                    log::debug!("[theme] refresh: no document path available (untitled document)");
+                }
 
-            // Also update code view if it exists (for theme changes)
-            (update_code_clone)();
+                refresh_preview_into_webview(
+                    &webview_clone.borrow(),
+                    &css_clone,
+                    &html_opts_clone,
+                    &buffer_clone,
+                    &wheel_clone,
+                    &theme_mode_clone,
+                    doc_path.as_deref(),
+                );
 
-            preview_theme_timeout_clone2.set(None);
-            glib::ControlFlow::Break
-        });
-        preview_theme_timeout_clone.set(Some(id));
-    }) as Box<dyn Fn(&str)>;
+                // Also update code view if it exists (for theme changes)
+                (update_code_clone)();
+
+                preview_theme_timeout_clone2.set(None);
+                glib::ControlFlow::Break
+            });
+            preview_theme_timeout_clone.set(Some(id));
+        }) as Box<dyn Fn(&str)>;
+    }
 
     // Set up split percentage indicator with cascade prevention from split controller
     let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(
@@ -1239,7 +1392,7 @@ paned > separator {{
 
     (
         paned,      // Return original paned for compatibility
-        webview_rc, // Return wrapped WebView for reparenting support
+        webview_rc_opt.expect("webview wrapper not set"), // Return wrapped WebView for reparenting support
         css_rc,
         Box::new({
             let r = std::rc::Rc::clone(&refresh_preview_impl);

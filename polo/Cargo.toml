@@ -25,7 +25,7 @@ gdk-pixbuf = { workspace = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(target_os = "windows")'.dependencies]
 wry = { workspace = true }
 tao = { workspace = true }
 gdk4-win32 = { workspace = true }

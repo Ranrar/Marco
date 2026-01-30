@@ -476,7 +476,7 @@ fn create_dialog_impl(
             if app_settings.debug.unwrap_or(false) {
                 // Pass settings path as string to debug tab builder so it can save changes
                 let settings_path_str = settings_path.to_string_lossy().to_string();
-                let debug_tab = tabs::debug::build_debug_tab(&settings_path_str);
+                let debug_tab = tabs::debug::build_debug_tab(&settings_path_str, &window);
                 stack.add_titled(&debug_tab, Some("debug"), "Debug");
             }
         } else {

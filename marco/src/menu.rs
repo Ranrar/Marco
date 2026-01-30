@@ -16,12 +16,11 @@ type RebuildCallback = Box<dyn Fn()>;
 type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 
-/// Helper function to reparent WebView back to main window from preview window
-///
-/// This encapsulates the common reparenting logic used by all layout button handlers.
+#[cfg(target_os = "linux")]
+/// Helper function to reparent WebView back to main window from preview window (Linux)
 /// Returns `true` if reparenting was performed or WebView was already in main window.
 fn reparent_webview_to_main_window(
-    webview_rc_opt: &Option<Rc<RefCell<webkit6::WebView>>>,
+    webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
     split_opt: &Option<Paned>,
     preview_window_opt: &Option<
         Rc<RefCell<Option<crate::components::viewer::detached_window::PreviewWindow>>>,
@@ -109,6 +108,29 @@ fn reparent_webview_to_main_window(
     }
 
     log::debug!("{}: Reparenting state not available", layout_mode);
+    false
+}
+
+// Non-Linux stub: try to ensure Stack shows the HTML preview and return false for reparenting
+#[cfg(not(target_os = "linux"))]
+fn reparent_webview_to_main_window(
+    _webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
+    split_opt: &Option<Paned>,
+    _preview_window_opt: &Option<Rc<RefCell<Option<PreviewWindowType>>>>,
+    _tracker_opt: &Option<crate::components::viewer::layout_controller::WebViewLocationTracker>,
+    _guard_opt: &Option<ReparentGuardType>,
+    _layout_mode: &str,
+) -> bool {
+    // Non-Linux fallback: just set the Stack to html_preview and return false to
+    // indicate no actual reparenting was performed.
+    if let Some(split) = split_opt {
+        if let Some(stack_widget) = split.end_child() {
+            if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
+                stack.set_visible_child_name("html_preview");
+                return true;
+            }
+        }
+    }
     false
 }
 
@@ -216,17 +238,28 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
 }
 
 use crate::components::viewer::layout_controller::{SplitController, WebViewLocationTracker};
-use crate::components::viewer::detached_window::PreviewWindow;
-use crate::components::viewer::reparenting::ReparentGuard;
+
+// Platform-specific type aliases so the TitlebarConfig structure can be compiled on all platforms
+#[cfg(target_os = "linux")]
+type PreviewWindowType = crate::components::viewer::detached_window::PreviewWindow;
+#[cfg(windows)]
+type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
+#[cfg(all(not(target_os = "linux"), not(windows)))]
+type PreviewWindowType = ();
+
+#[cfg(target_os = "linux")]
+type ReparentGuardType = crate::components::viewer::reparenting::ReparentGuard;
+#[cfg(not(target_os = "linux"))]
+type ReparentGuardType = ();
 
 /// Configuration for creating the custom titlebar
 pub struct TitlebarConfig<'a> {
     pub window: &'a gtk4::ApplicationWindow,
-    pub webview_rc: Option<Rc<RefCell<webkit6::WebView>>>,
+    pub webview_rc: Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
     pub split: Option<Paned>,
-    pub preview_window_opt: Option<Rc<RefCell<Option<PreviewWindow>>>>,
+    pub preview_window_opt: Option<Rc<RefCell<Option<PreviewWindowType>>>>,
     pub webview_location_tracker: Option<WebViewLocationTracker>,
-    pub reparent_guard: Option<ReparentGuard>,
+    pub reparent_guard: Option<ReparentGuardType>,
     pub split_controller: Option<SplitController>,
     pub asset_root: &'a std::path::Path,
 }
@@ -508,6 +541,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
         let reparent_guard_opt = reparent_guard_for_rebuild.clone();
         let window_weak = window_weak_for_reparent.clone();
+        let window_clone = window.clone();
         let split_controller_opt = split_controller_for_rebuild.clone();
         let previous_layout_state_for_btn3 = previous_layout_state.clone();
         let previous_split_position_for_btn3 = previous_split_position.clone();
@@ -522,135 +556,240 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                     log::info!("Storing previous DualView split position: {}", current_position);
                 }
             }
-            log::info!("Storing previous layout state: {:?} before switching to EditorAndViewSeparate", current_state);
+
+            log::info!("Switching to EditorAndViewSeparate mode (cross-platform fallback)");
             let next = LayoutState::EditorAndViewSeparate;
             *layout_state.borrow_mut() = next;
             if let Some(controller) = &split_controller_opt {
                 controller.set_mode(next);
             }
 
-            if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) = (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt) {
-                use crate::components::viewer::detached_window::PreviewWindow;
-                use crate::components::viewer::reparenting::move_webview_to_preview_window;
-                use crate::components::viewer::layout_controller::WebViewLocation;
-
-                if tracker.current() == WebViewLocation::MainWindow {
-                    if guard.try_begin() {
-                        let should_reparent = {
-                            let mut opt_borrow = preview_window_opt.borrow_mut();
-                            if opt_borrow.is_none() {
-                                if let Some(window) = window_weak.upgrade() {
-                                    if let Some(app) = window.application() {
-                                        let new_preview_window = PreviewWindow::new(&window, &app);
-                                        let layout_state_for_callback = layout_state.clone();
-                                        let previous_layout_state_for_callback = previous_layout_state_for_btn3.clone();
-                                        let previous_split_position_for_callback = previous_split_position_for_btn3.clone();
-                                        let webview_rc_for_callback = webview_rc.clone();
-                                        let split_for_callback = split.clone();
-                                        let tracker_for_callback = tracker.clone();
-                                        let guard_for_callback = guard.clone();
-                                        let preview_window_opt_weak = Rc::downgrade(preview_window_opt);
-                                        let weak_rebuild_for_callback = weak_rebuild_local.clone();
-                                        let split_controller_for_callback = split_controller_opt.clone();
-
-                                        new_preview_window.set_on_close_callback(move || {
-                                            use crate::components::viewer::reparenting::move_webview_to_main_window;
-                                            use crate::components::viewer::layout_controller::WebViewLocation;
-
-                                            log::info!("Preview window close callback triggered");
-
-                                            let preview_window_opt = match preview_window_opt_weak.upgrade() {
-                                                Some(p) => p,
-                                                None => {
-                                                    log::warn!("preview_window_opt dropped, aborting callback");
-                                                    return;
-                                                }
-                                            };
-
-                                            // Restore to the previous layout state (the state before EditorAndViewSeparate)
-                                            let previous_state = *previous_layout_state_for_callback.borrow();
-                                            *layout_state_for_callback.borrow_mut() = previous_state;
-                                            log::info!("Restoring to previous layout state: {:?}", previous_state);
-
-                                            if let Some(ref controller) = split_controller_for_callback {
-                                                controller.set_mode(previous_state);
-                                                log::info!("Split controller set to {:?} mode", previous_state);
-                                            }
-
-                                            if previous_state == LayoutState::DualView {
-                                                let saved_position = *previous_split_position_for_callback.borrow();
-                                                if saved_position > 0 {
-                                                    let split_for_position = split_for_callback.clone();
-                                                    glib::idle_add_local_once(move || {
-                                                        split_for_position.set_position(saved_position);
-                                                        log::info!("Restored DualView split position to: {}", saved_position);
-                                                    });
-                                                }
-                                            }
-
-                                            if tracker_for_callback.current() == WebViewLocation::PreviewWindow && guard_for_callback.try_begin() {
-                                                let webview_borrow = webview_rc_for_callback.borrow();
-                                                let preview_window_borrow = preview_window_opt.borrow();
-
-                                                if let Some(ref preview_window) = *preview_window_borrow {
-                                                    match move_webview_to_main_window(&webview_borrow, &split_for_callback, preview_window, true) {
-                                                        Ok(_) => {
-                                                            tracker_for_callback.set(WebViewLocation::MainWindow);
-                                                            if let Some(stack_widget) = split_for_callback.end_child() {
-                                                                if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
-                                                                    stack.set_visible_child_name("html_preview");
-                                                                    log::info!("Stack set to show html_preview after window close");
-                                                                }
-                                                            }
-                                                            log::info!("WebView reparented back to main window after preview window close");
-                                                        }
-                                                        Err(e) => {
-                                                            log::error!("Failed to reparent WebView after window close: {}", e);
-                                                        }
-                                                    }
-                                                }
-                                                guard_for_callback.end();
-                                            }
-
-                                            if let Some(rc) = weak_rebuild_for_callback.upgrade() {
-                                                if let Some(ref rebuild) = *rc.borrow() {
-                                                    rebuild();
-                                                }
-                                            }
-                                        });
-
-                                        *opt_borrow = Some(new_preview_window);
-                                        log::info!("Created new preview window for EditorAndViewSeparate mode with close callback");
-                                    }
-                                }
-                            }
-                            opt_borrow.is_some()
-                        };
-
-                        if should_reparent {
-                            let webview_borrow = webview_rc.borrow();
-                            let preview_window_borrow = preview_window_opt.borrow();
-                            if let Some(ref preview_window) = *preview_window_borrow {
-                                match move_webview_to_preview_window(&webview_borrow, split, preview_window) {
-                                    Ok(_) => {
-                                        tracker.set(WebViewLocation::PreviewWindow);
-                                        log::info!("Successfully moved WebView to preview window");
-                                        preview_window.show();
-                                    }
-                                    Err(e) => {
-                                        log::error!("Failed to move WebView to preview window: {}", e);
-                                    }
-                                }
-                            }
-                        }
-
-                        guard.end();
-                    } else {
-                        log::warn!("Cannot reparent WebView: reparenting already in progress");
+            // Simple cross-platform behavior: show html_preview stack child (no reparenting yet)
+            if let Some(split) = &split_opt {
+                if let Some(stack_widget) = split.end_child() {
+                    if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
+                        stack.set_visible_child_name("html_preview");
                     }
                 }
             }
 
+            // Cross-platform: create and show the preview window, and store it for reparenting
+            {
+                use crate::components::viewer::layout_controller::WebViewLocation;
+
+                if let Some(preview_rc) = &preview_window_opt_clone {
+                    // Lazily create and store platform-specific PreviewWindow
+                    let mut preview_borrow = preview_rc.borrow_mut();
+                    if preview_borrow.is_none() {
+                        #[cfg(target_os = "linux")]
+                        {
+                            use crate::components::viewer::detached_window::PreviewWindow;
+                            if let Some(app) = window_clone.application() {
+                                let pw = PreviewWindow::new(&window_clone, &app);
+                                *preview_borrow = Some(pw);
+                            } else {
+                                log::warn!("Cannot create preview window: parent has no application");
+                            }
+                        }
+
+                        #[cfg(windows)]
+                        {
+                            use crate::components::viewer::wry_detached_window::PreviewWindow;
+                            let pw = PreviewWindow::new(&window_clone);
+                            *preview_borrow = Some(pw);
+                        }
+                    }
+
+                    if let Some(ref pw) = *preview_borrow {
+                        // Attach inline webview if present (platform-specific attach)
+                        if let Some(ref wv_rc) = webview_rc_opt {
+                            let wv = wv_rc.borrow();
+                            #[cfg(target_os = "linux")]
+                            {
+                                // On Linux, PlatformWebView is a WebView
+                                pw.attach_webview(&wv);
+                            }
+                            #[cfg(windows)]
+                            {
+                                // On Windows, PlatformWebView exposes .widget(); pass as Option
+                                pw.attach_webview(Some(&wv.widget()));
+                            }
+                        } else {
+                            // No inline webview available; let the preview window load persisted HTML
+                            use crate::components::viewer::open_preview_in_separate_window;
+                            open_preview_in_separate_window(&window_clone, None);
+                        }
+
+                        pw.show();
+
+                        // When the preview window is closed by the user, restore the preview
+                        // state in the main window. This mirrors the Linux behavior where
+                        // closing the detached preview re-parents or shows the html_preview.
+                        {
+                            let webview_rc_cb = webview_rc_opt.clone();
+                            let split_cb = split_opt.clone();
+                            let preview_window_opt_cb = preview_window_opt_clone.clone();
+                            let tracker_cb = webview_location_tracker_opt.clone();
+                            let guard_cb = reparent_guard_opt.clone();
+                            let weak_rebuild_cb = weak_rebuild_local.clone();
+
+                            pw.set_on_close_callback(move || {
+                                use crate::components::viewer::layout_controller::WebViewLocation;
+                                log::info!("Preview window closed by user - restoring preview to main window");
+                            });
+                            log::info!("Registered on_close callback for preview window");
+                            // Re-set the callback to perform the actual restore logic
+                            pw.set_on_close_callback(move || {
+                                use crate::components::viewer::layout_controller::WebViewLocation;
+                                log::info!("Preview window closed by user - restoring preview to main window (inner)");
+
+                                // Try to reparent the webview back to the main window (safe for non-Linux)
+                                reparent_webview_to_main_window(
+                                    &webview_rc_cb,
+                                    &split_cb,
+                                    &preview_window_opt_cb,
+                                    &tracker_cb,
+                                    &guard_cb,
+                                    "PreviewWindowClose",
+                                );
+
+                                // Update tracker state
+                                if let Some(tracker) = &tracker_cb {
+                                    tracker.set(WebViewLocation::MainWindow);
+                                }
+
+                                // Trigger a UI rebuild so the Stack visibility and tooltips update
+                                if let Some(rc) = weak_rebuild_cb.upgrade() {
+                                    if let Some(ref rebuild) = *rc.borrow() {
+                                        rebuild();
+                                    }
+                                }
+                            });
+                        }
+
+                        if let Some(tracker) = &webview_location_tracker_opt {
+                            tracker.set(WebViewLocation::PreviewWindow);
+                        }
+                    }
+                } else {
+                    // No preview state available; fall back to helper
+                    use crate::components::viewer::open_preview_in_separate_window;
+                    if let Some(ref wv_rc) = webview_rc_opt {
+                        let wv = wv_rc.borrow();
+                        if let Some(pw) = open_preview_in_separate_window(&window_clone, Some(&*wv)) {
+                            // Keep the PreviewWindow alive by storing it in a holder so the
+                            // on-close callback remains valid even when this scope ends.
+                            let pw_holder: Rc<RefCell<Option<PreviewWindowType>>> = Rc::new(RefCell::new(Some(pw)));
+
+                            // Borrow to get reference to inner PreviewWindow and register callback
+                            {
+                                let pw_ref = pw_holder.borrow();
+                                if let Some(ref pw_inner) = *pw_ref {
+                                    let webview_rc_cb = webview_rc_opt.clone();
+                                    let split_cb = split_opt.clone();
+                                    let preview_window_opt_cb = preview_window_opt_clone.clone();
+                                    let tracker_cb = webview_location_tracker_opt.clone();
+                                    let guard_cb = reparent_guard_opt.clone();
+                                    let weak_rebuild_cb = weak_rebuild_local.clone();
+                                    let holder_clone = pw_holder.clone();
+
+                                    pw_inner.set_on_close_callback(move || {
+                                        log::info!("Preview window closed by user - restoring preview to main window (ad-hoc)");
+                                        log::debug!("Ad-hoc restore callback state: split={}, tracker={}, webview_rc={}, preview_window_opt={}",
+                                            split_cb.is_some(),
+                                            tracker_cb.is_some(),
+                                            webview_rc_cb.is_some(),
+                                            preview_window_opt_cb.is_some(),
+                                        );
+
+                                        let result = reparent_webview_to_main_window(
+                                            &webview_rc_cb,
+                                            &split_cb,
+                                            &preview_window_opt_cb,
+                                            &tracker_cb,
+                                            &guard_cb,
+                                            "PreviewWindowCloseAdhoc",
+                                        );
+                                        log::info!("Ad-hoc reparent result: {}", result);
+
+                                        if let Some(tracker) = &tracker_cb {
+                                            tracker.set(WebViewLocation::MainWindow);
+                                        }
+
+                                        if let Some(rc) = weak_rebuild_cb.upgrade() {
+                                            if let Some(ref rebuild) = *rc.borrow() {
+                                                rebuild();
+                                            }
+                                        }
+
+                                        // Drop the PreviewWindow inside the holder to allow cleanup
+                                        holder_clone.borrow_mut().take();
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        if let Some(pw) = open_preview_in_separate_window(&window_clone, None) {
+                            // Keep the PreviewWindow alive by storing it in a holder so the
+                            // on-close callback remains valid even when this scope ends.
+                            let pw_holder: Rc<RefCell<Option<PreviewWindowType>>> = Rc::new(RefCell::new(Some(pw)));
+
+                            // Borrow to get reference to inner PreviewWindow and register callback
+                            {
+                                let pw_ref = pw_holder.borrow();
+                                if let Some(ref pw_inner) = *pw_ref {
+                                    let webview_rc_cb = webview_rc_opt.clone();
+                                    let split_cb = split_opt.clone();
+                                    let preview_window_opt_cb = preview_window_opt_clone.clone();
+                                    let tracker_cb = webview_location_tracker_opt.clone();
+                                    let guard_cb = reparent_guard_opt.clone();
+                                    let weak_rebuild_cb = weak_rebuild_local.clone();
+                                    let holder_clone = pw_holder.clone();
+
+                                    pw_inner.set_on_close_callback(move || {
+                                        log::info!("Preview window closed by user - restoring preview to main window (ad-hoc)");
+                                        log::debug!("Ad-hoc restore callback state: split={}, tracker={}, webview_rc={}, preview_window_opt={}",
+                                            split_cb.is_some(),
+                                            tracker_cb.is_some(),
+                                            webview_rc_cb.is_some(),
+                                            preview_window_opt_cb.is_some(),
+                                        );
+
+                                        let result = reparent_webview_to_main_window(
+                                            &webview_rc_cb,
+                                            &split_cb,
+                                            &preview_window_opt_cb,
+                                            &tracker_cb,
+                                            &guard_cb,
+                                            "PreviewWindowCloseAdhoc",
+                                        );
+                                        log::info!("Ad-hoc reparent result: {}", result);
+
+                                        if let Some(tracker) = &tracker_cb {
+                                            tracker.set(WebViewLocation::MainWindow);
+                                        }
+
+                                        if let Some(rc) = weak_rebuild_cb.upgrade() {
+                                            if let Some(ref rebuild) = *rc.borrow() {
+                                                rebuild();
+                                            }
+                                        }
+
+                                        // Drop the PreviewWindow inside the holder to allow cleanup
+                                        holder_clone.borrow_mut().take();
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some(tracker) = &webview_location_tracker_opt {
+                        tracker.set(WebViewLocation::PreviewWindow);
+                    }
+                }
+            }
+
+            // Trigger UI rebuild if present
             if let Some(rc) = weak_rebuild_local.upgrade() {
                 if let Some(ref rebuild) = *rc.borrow() {
                     rebuild();

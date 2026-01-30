@@ -39,6 +39,7 @@ wry = { version = "0.54.1", default-features = false, features = ["os-webview", 
 tao = "0.34.5"
 gdk4-win32 = "0.10.3"
 raw-window-handle = "0.6.2"
+urlencoding = "2.1"
 
 # Test dependencies
 clap = { version = "4.5.54", features = ["derive"] }

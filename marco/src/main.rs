@@ -1,4 +1,7 @@
+#[cfg(target_os = "linux")]
 use webkit6::prelude::*;
+
+use gtk4::prelude::*;
 mod components;
 mod footer;
 mod logic;
@@ -219,21 +222,50 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         if let Err(e) = core::logic::logger::init_file_logger(enabled, level) {
             eprintln!("Failed to initialize file logger: {}", e);
         } else if enabled {
+            // Show the resolved log folder to avoid confusion about "./log" vs system cache
+            let resolved = core::logic::logger::current_log_dir();
             log::info!(
-                "Logger initialized with level: {:?}, RUST_LOG set: {}",
+                "Logger initialized with level: {:?}, RUST_LOG set: {}, log_dir: {}",
                 level,
-                rust_log_set
+                rust_log_set,
+                resolved.display()
             );
             log::debug!("Debug logging is working");
             log::trace!("Trace logging is working");
-        }
 
-        if rust_log_set || enabled {
             println!(
-                "Logging enabled (level: {:?}), check log files in ./log/ directory",
-                level
+                "Logging enabled (level: {:?}), log files stored under: {}",
+                level,
+                resolved.display()
+            );
+        } else if rust_log_set {
+            // RUST_LOG was set but settings did not explicitly enable file logging — still show intended path
+            let resolved = core::logic::logger::current_log_dir();
+            println!(
+                "Logging enabled via RUST_LOG (level: {:?}), log files stored under: {}",
+                level,
+                resolved.display()
             );
         }
+
+        // Register listener to toggle file logger at runtime when settings change.
+        // Use the explicit settings flag `log_to_file` or the alternate env var `MARCO_LOG`.
+        let settings_manager_for_logger = settings_manager.clone();
+        let level_for_logger = level;
+        settings_manager_for_logger.register_change_listener("logger".to_string(), move |s| {
+            let enabled_now = s.log_to_file.unwrap_or(false) || std::env::var("MARCO_LOG").is_ok();
+            if enabled_now {
+                if let Err(e) = core::logic::logger::init_file_logger(true, level_for_logger) {
+                    log::warn!("Failed to init file logger from settings listener: {}", e);
+                } else {
+                    log::info!("File logger enabled via settings listener");
+                }
+            } else {
+                // Shutdown file logger immediately
+                core::logic::logger::shutdown_file_logger();
+                log::info!("File logger disabled via settings listener");
+            }
+        });
     }
 
     // Initialize monospace font cache for fast settings loading
@@ -333,6 +365,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         split_overlay,
         split_controller,
     ) = create_editor_with_preview_and_buffer(
+        &window,
         preview_theme_filename.as_str(),
         preview_theme_dir_str.as_str(),
         theme_manager.clone(),
@@ -357,13 +390,33 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     // --- WebView Reparenting State for EditorAndViewSeparate Mode ---
     use crate::components::viewer::layout_controller::WebViewLocationTracker;
-    use crate::components::viewer::detached_window::PreviewWindow;
 
-    let webview_location_tracker = WebViewLocationTracker::new();
-    let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
-    let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
+    // Platform-specific reparenting state initialization. On Linux we create the actual
+    // objects; on non-Linux we pass `None` so titlebar/menu code uses safe fallbacks.
+    #[cfg(target_os = "linux")]
+    let (preview_window_opt, webview_location_tracker, reparent_guard) = {
+        use crate::components::viewer::detached_window::PreviewWindow;
+        let webview_location_tracker = WebViewLocationTracker::new();
+        let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
+        let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
+        log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode (Linux)");
+        (Some(preview_window_opt), Some(webview_location_tracker), Some(reparent_guard))
+    };
 
-    log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode");
+    #[cfg(not(target_os = "linux"))]
+    let (preview_window_opt, webview_location_tracker, reparent_guard) = (None::<Rc<RefCell<Option<()>>>>, None::<WebViewLocationTracker>, None::<()>);
+
+    // Windows: initialize detached preview window state so the titlebar can open a
+    // detached wry-based preview window.
+    #[cfg(windows)]
+    let (preview_window_opt, webview_location_tracker, reparent_guard) = {
+        use crate::components::viewer::wry_detached_window::PreviewWindow;
+        let webview_location_tracker = WebViewLocationTracker::new();
+        let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
+        let reparent_guard = None::<()>;
+        log::debug!("Initialized wry-based detached preview state for Windows");
+        (Some(preview_window_opt), Some(webview_location_tracker), reparent_guard)
+    };
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
     let (titlebar_handle, title_label, recent_menu) =
@@ -371,9 +424,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             window: &window,
             webview_rc: Some(editor_webview.clone()),
             split: Some(split.clone()),
-            preview_window_opt: Some(preview_window_opt.clone()),
-            webview_location_tracker: Some(webview_location_tracker.clone()),
-            reparent_guard: Some(reparent_guard.clone()),
+            preview_window_opt: preview_window_opt,
+            webview_location_tracker: webview_location_tracker,
+            reparent_guard: reparent_guard,
             split_controller: Some(split_controller.clone()),
             asset_root: &asset_root,
         });
@@ -820,14 +873,27 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
         let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
-            use crate::ui::dialogs::search::show_search_window;
-            show_search_window(
-                window.upcast_ref(),
-                cache.clone(),
-                Rc::clone(&buffer),
-                Rc::clone(&source_view),
-                webview.clone(),
-            );
+            #[cfg(target_os = "linux")]
+            {
+                use crate::ui::dialogs::search::show_search_window;
+                show_search_window(
+                    window.upcast_ref(),
+                    cache.clone(),
+                    Rc::clone(&buffer),
+                    Rc::clone(&source_view),
+                    webview.clone(),
+                );
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                use crate::ui::dialogs::search::show_search_window_no_webview;
+                show_search_window_no_webview(
+                    window.upcast_ref(),
+                    cache.clone(),
+                    Rc::clone(&buffer),
+                    Rc::clone(&source_view),
+                );
+            }
         }
     });
     app.add_action(&search_action);

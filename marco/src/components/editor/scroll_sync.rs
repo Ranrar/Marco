@@ -175,6 +175,7 @@ impl ScrollSynchronizer {
     }
 
     /// Set up bidirectional scroll synchronization between ScrolledWindow and WebView
+    #[cfg(target_os = "linux")]
     pub fn connect_scrolled_window_and_webview(
         &self,
         editor_sw: &gtk4::ScrolledWindow,
@@ -192,6 +193,7 @@ impl ScrollSynchronizer {
     }
 
     /// Setup title change listener in WebView to sync back to ScrolledWindow
+    #[cfg(target_os = "linux")]
     pub fn setup_webview_title_listener(
         &self,
         source_webview: &webkit6::WebView,

@@ -37,13 +37,17 @@ dark-light = { workspace = true }
 # SVG rendering and Cairo required for high-quality window control icons
 librsvg = { workspace = true }
 cairo-rs = { workspace = true }
+# Temp files for detached preview handling
+tempfile = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(target_os = "windows")'.dependencies]
 wry = { workspace = true }
 tao = { workspace = true }
+gdk4-win32 = { workspace = true }
+raw-window-handle = { workspace = true }
 
 [dev-dependencies]
 serial_test = { workspace = true }

@@ -9,6 +9,8 @@ use std::sync::Mutex;
 
 static mut LOGGER: Option<&'static SimpleFileLogger> = None;
 
+
+
 pub struct SimpleFileLogger {
     inner: Mutex<Option<BufWriter<File>>>,
     file_path: PathBuf,
@@ -73,15 +75,39 @@ impl SimpleFileLogger {
             level,
             bytes_written: AtomicU64::new(initial_size),
         });
-        let leaked: &'static SimpleFileLogger = Box::leak(boxed);
+
+        // If we already initialized our logger earlier in this process, behave idempotently
         unsafe {
-            LOGGER = Some(leaked);
+            if LOGGER.is_some() {
+                // Update global max level and return success
+                log::set_max_level(level);
+                return Ok(());
+            }
         }
 
-        log::set_max_level(level);
-        // Safe to unwrap because we just set LOGGER
-        log::set_logger(unsafe { LOGGER.unwrap() }).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
-        Ok(())
+        // Leak the box temporarily to obtain a &'static reference required by log::set_logger.
+        // If another logger is already registered, gracefully abort and drop our boxed logger.
+        let leaked: &'static SimpleFileLogger = Box::leak(boxed);
+
+        // Attempt to register; if it fails, drop the leaked box and return Ok with a warning.
+        match log::set_logger(leaked) {
+            Ok(()) => {
+                // Successfully set our logger; record the static reference and apply level.
+                unsafe {
+                    LOGGER = Some(leaked);
+                }
+                log::set_max_level(level);
+                Ok(())
+            }
+            Err(e) => {
+                // Another logger is already present (e.g., env_logger). Drop our leaked box to avoid leaking memory.
+                unsafe {
+                    let _ = Box::from_raw(leaked as *const SimpleFileLogger as *mut SimpleFileLogger);
+                }
+                // Return an error to the caller so the application can decide how to surface it.
+                return Err(format!("Failed to set global logger: {}", e).into());
+            }
+        }
     }
 
     fn rotate_if_needed_locked(&self, guard: &mut Option<BufWriter<File>>) {
@@ -195,6 +221,115 @@ impl Log for SimpleFileLogger {
 pub fn init_file_logger(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn std::error::Error>> {
     SimpleFileLogger::init(enabled, level).map_err(|e| format!("{}", e).into())
 }
+
+/// Returns true if the file logger was successfully initialized by this library.
+pub fn is_file_logger_initialized() -> bool {
+    unsafe { LOGGER.is_some() }
+}
+
+/// Return the resolved root logs directory (no month folder). This is a
+/// non-negotiable platform-specific location using the system cache dir and
+/// the folder name `logs` per project policy.
+pub fn current_log_root_dir() -> std::path::PathBuf {
+    // Prefer OS cache dir when available, else fall back to a platform temp path
+    if let Some(cache_dir) = dirs::cache_dir() {
+        return cache_dir.join("marco").join("logs");
+    }
+
+    // Platform fallback (should be rare)
+    #[cfg(windows)]
+    {
+        std::path::PathBuf::from("C:\\Temp\\marco\\logs")
+    }
+    #[cfg(not(windows))]
+    {
+        std::path::PathBuf::from("/tmp/marco/logs")
+    }
+}
+
+/// Return the resolved log directory for the current month (YYYYMM folder).
+pub fn current_log_dir() -> std::path::PathBuf {
+    use chrono::Local;
+    let mut root = current_log_root_dir();
+    let month_folder = Local::now().format("%Y%m").to_string();
+    root.push(month_folder);
+    root
+}
+
+/// Convenience: return the current log file path for today (YYMMDD.log) inside
+/// the resolved log directory.
+pub fn current_log_file_for_today() -> std::path::PathBuf {
+    use chrono::Local;
+    let dir = current_log_dir();
+    let file_name = Local::now().format("%y%m%d.log").to_string();
+    dir.join(file_name)
+}
+
+/// Compute total size in bytes of all log files under the root logs directory.
+pub fn total_log_size_bytes() -> u64 {
+    use std::fs;
+    let root = current_log_root_dir();
+    let mut total: u64 = 0;
+    if root.exists() {
+        // Walk month folders and files
+        if let Ok(entries) = fs::read_dir(&root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Ok(md) = entry.metadata() {
+                        total += md.len();
+                    }
+                } else if path.is_dir() {
+                    if let Ok(subs) = fs::read_dir(&path) {
+                        for s in subs.flatten() {
+                            if let Ok(md) = s.metadata() {
+                                if md.is_file() {
+                                    total += md.len();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    total
+}
+
+/// Delete all logs under the root logs directory.
+/// Best-effort: removes files and month folders, returns error on I/O failures.
+pub fn delete_all_logs() -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+    let root = current_log_root_dir();
+    if !root.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(&root)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            let _ = fs::remove_file(&path);
+        } else if path.is_dir() {
+            for sub in fs::read_dir(&path)? {
+                let sub = sub?;
+                let subpath = sub.path();
+                if subpath.is_file() {
+                    let _ = fs::remove_file(&subpath);
+                }
+            }
+            // Try to remove the month folder if empty
+            let _ = fs::remove_dir(&path);
+        }
+    }
+
+    // Remove root if empty
+    if root.read_dir()?.next().is_none() {
+        let _ = fs::remove_dir(&root);
+    }
+
+    Ok(())
+} 
 
 impl SimpleFileLogger {
     /// Flush and close the inner file. After shutdown, the global LOGGER will be cleared.

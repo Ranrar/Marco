@@ -27,6 +27,13 @@ use sourceview5::prelude::*;
 use sourceview5::{Buffer, SearchContext, SearchSettings, View};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+// Provide a lightweight WebView alias on non-Linux platforms so the code can
+// compile without WebKit6. The real WebView type is imported on Linux.
+#[cfg(not(target_os = "linux"))]
+type WebView = gtk4::Widget;
+
+#[cfg(target_os = "linux")]
 use webkit6::{prelude::*, WebView};
 
 use crate::logic::signal_manager::safe_source_remove;
@@ -99,6 +106,7 @@ thread_local! {
 
 /// Main entry point - shows or creates the search dialog
 /// Entry point for separate search window - shows search in a standalone window
+#[cfg(target_os = "linux")]
 pub fn show_search_window(
     parent: &Window,
     _file_cache: Rc<RefCell<SimpleFileCache>>,
@@ -120,8 +128,36 @@ pub fn show_search_window(
     focus_search_entry_in_window(&search_window);
 }
 
+// Minimal fallback for non-Linux platforms: show simple informational window
+#[cfg(not(target_os = "linux"))]
+pub fn show_search_window_no_webview(
+    parent: &Window,
+    _file_cache: Rc<RefCell<SimpleFileCache>>,
+    _buffer: Rc<Buffer>,
+    _source_view: Rc<View>,
+) {
+    let win = Window::builder()
+        .transient_for(parent)
+        .modal(true)
+        .default_width(420)
+        .default_height(120)
+        .resizable(false)
+        .build();
+    win.add_css_class("marco-search-window");
+    let label = Label::new(Some(
+        "Search in preview is not available on this platform. Use editor-only search.",
+    ));
+    label.set_margin_top(16);
+    label.set_margin_start(16);
+    label.set_margin_end(16);
+    label.set_wrap(true);
+    win.set_child(Some(&label));
+    win.present();
+}
+
 /// Get or create the singleton search dialog
 /// Get or create the singleton search window
+#[cfg(target_os = "linux")]
 fn get_or_create_search_window(
     parent: &Window,
     buffer: Rc<Buffer>,
@@ -1609,6 +1645,7 @@ fn scroll_to_match(match_iter: &gtk4::TextIter) {
 }
 
 /// Sync HTML preview scroll to match the given position (if scroll sync is enabled)
+#[cfg(target_os = "linux")]
 fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
     // Check if scroll sync is enabled globally
     use crate::components::editor::editor_manager::get_global_scroll_synchronizer;
@@ -1680,6 +1717,11 @@ fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
             }
         });
     }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn sync_html_preview_scroll(_match_iter: &gtk4::TextIter) {
+    // No-op on platforms without a WebView implementation
 }
 
 // Smoke tests for the search dialog
