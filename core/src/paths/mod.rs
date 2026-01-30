@@ -21,7 +21,7 @@
 //!
 //! // Get paths for the appropriate binary
 //! let marco_paths = MarcoPaths::new().expect("Failed to initialize paths");
-//! let font_path = marco_paths.shared().font("ui_menu.ttf");
+//! let font_path = marco_paths.shared().font("custom.ttf");
 //! let theme_path = marco_paths.editor_theme("dark");
 //! ```
 

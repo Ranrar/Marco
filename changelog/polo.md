@@ -24,6 +24,24 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.2] - 2026-01-30
+
+### Added
+- Replaced legacy IcoMoon icon-font glyphs with **inline SVG icons** in dialog controls and menu elements.
+- Introduced SVG-based window control icons with hover/active states and HiDPI supersampling.
+
+### Changed
+- CSS and button factories updated to rely on SVG rendering helpers; colors and hover/pressed behavior aligned with Marco's palette.
+
+### Fixed
+- Resolved pixelation and hover/press color glitches by using 2x rasterization and consistent event-driven texture swaps.
+
+### Removed
+- Legacy icon-font usage removed; packaging updated to remove `ui_menu.ttf` from packaged assets.
+
+### Security
+- Nothing yet.
+
 ## [0.15.1] - 2026-01-26
 
 **Uses:** Core 0.15.1

@@ -5,8 +5,8 @@
 //!
 //! ## Components Styled
 //!
-//! - `.icon-font`: Icon font styling using icomoon font
 //! - `.layout-state`: Layout buttons inside the layout popover
+//! - `.layout-btn`: Transparent buttons for layout popover
 //! - `.layout-btn`: Transparent buttons for layout popover
 //! - `.menubar`, `.titlebar`: Menu bar and titlebar container
 //! - `.menuitem`: Menu item buttons
@@ -129,24 +129,12 @@ fn generate_base_styles() -> String {
 /*
  * Styles for titlebar/menu icons and controls.
  *
- * Uses the bundled IcoMoon TTF font (family `icomoon`) for UI icons.
- * Glyph mapping (U+31..U+39) is documented in `src/logic/icon_loader.rs`.
- *
+ * Icons are SVG-based and rendered at high DPI for crispness.
  * Runtime Theme Switching:
  * - Uses .marco-theme-light and .marco-theme-dark classes on window
  * - Classes toggled dynamically when theme changes without app restart
  */
-.icon-font {{
-    font-family: '{icon_family}';
-    font-size: {icon_size};
-    padding: {icon_padding};
-    background: transparent;
-    border: none;
-}}
 "#,
-        icon_family = ICON_FONT_FAMILY,
-        icon_size = ICON_FONT_SIZE,
-        icon_padding = ICON_FONT_PADDING,
     )
 }
 
@@ -623,9 +611,9 @@ fn generate_window_controls_css(theme_class: &str, palette: &ColorPalette) -> St
     let mut css = String::new();
     css.push_str(&format!(
         r#"/* Window controls - {theme} */
-.{theme} .window-control-btn, .{theme} .window-control-btn .icon-font {{ color: {color}; }}
-.{theme} .window-control-btn:hover, .{theme} .window-control-btn:hover .icon-font {{ color: {color_hover}; transform: translateY(0); }}
-.{theme} .window-control-btn:active, .{theme} .window-control-btn:active .icon-font {{ color: {color_active}; transform: translateY(0); }}
+.{theme} .window-control-btn {{ color: {color}; }}
+.{theme} .window-control-btn:hover {{ color: {color_hover}; transform: translateY(0); }}
+.{theme} .window-control-btn:active {{ color: {color_active}; transform: translateY(0); }}
 "#,
         theme = theme_class,
         color = palette.control_icon,
@@ -660,8 +648,8 @@ fn generate_window_controls_css(theme_class: &str, palette: &ColorPalette) -> St
 /// Generate window control button base CSS (theme-independent)
 fn generate_window_control_base_css() -> String {
     format!(
-        r#"/* Window control hover/active states target the icon font directly and buttons for SVG icons */
-.window-control-btn, .topright-btn, .window-control-btn .icon-font, .topright-btn .icon-font {{
+        r#"/* Window control hover/active states for SVG icons and buttons */
+.window-control-btn, .topright-btn {{
     transition: background 0.15s ease, color 0.12s, transform 0.08s;
 }}
 
@@ -723,7 +711,6 @@ mod tests {
         assert!(!css.is_empty(), "Menu CSS should not be empty");
 
         // Verify major components present
-        assert!(css.contains(".icon-font"), "Should contain icon-font class");
         assert!(
             css.contains(".layout-state"),
             "Should contain layout-state class"
@@ -751,7 +738,6 @@ mod tests {
         );
 
         // Verify specific properties
-        assert!(css.contains("icomoon"), "Should use icomoon font");
         assert!(css.contains("32px"), "Should have 32px titlebar height");
 
         // Verify substantial output (at least 3KB)
@@ -782,7 +768,6 @@ mod tests {
     fn smoke_test_window_controls_generation() {
         let css = generate_window_controls_css("marco-theme-light", &LIGHT_PALETTE);
         assert!(css.contains(".window-control-btn"));
-        assert!(css.contains(".icon-font"));
     }
 
     #[test]

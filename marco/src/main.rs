@@ -57,7 +57,7 @@ fn main() -> glib::ExitCode {
     }));
 
     // path detection and environment setup
-    use core::paths::{MarcoPaths, PathProvider};
+    use core::paths::{MarcoPaths};
     let marco_paths = match MarcoPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -66,21 +66,7 @@ fn main() -> glib::ExitCode {
         }
     };
 
-    // Set local font dir for Fontconfig/Pango
-    // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
-    // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
-    let asset_root_for_fonts = marco_paths.asset_root();
-    core::logic::loaders::icon_loader::set_local_font_dir(
-        asset_root_for_fonts
-            .to_str()
-            .expect("Invalid asset root path"),
-    );
-
-    // Verify critical paths exist (optional, for debugging)
-    let ui_menu_font = marco_paths.shared().font("ui_menu.ttf");
-    if !ui_menu_font.exists() {
-        eprintln!("Warning: UI menu font not found at {:?}", ui_menu_font);
-    }
+    // Icon font support removed - icon fonts (IcoMoon) are no longer used. Use SVGs instead.
 
     let settings_path = marco_paths.settings_file();
     if !settings_path.exists() {

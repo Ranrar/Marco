@@ -22,6 +22,24 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.2] - 2026-01-30
+
+### Added
+- Added `DualView` layout **inline SVG** to the Core icon loader.
+- Icon loader documentation updated to describe inline SVG usage and HiDPI rasterization expectations.
+
+### Changed
+- Icon loader and related docs updated to formally deprecate icon-font usage across the workspace and to prefer inline SVG assets.
+
+### Fixed
+- N/A
+
+### Removed
+- Removed the legacy `icon_font()` helper from `core::paths::SharedPaths` (icon-font helper was no longer used).
+
+### Security
+- Nothing yet.
+
 ## [0.15.1] - 2026-01-26
 
 ### Changed

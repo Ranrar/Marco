@@ -162,10 +162,10 @@ mod tests {
         if let Ok(polo) = PoloPaths::new() {
             // Polo should have access to shared assets
             let preview_themes = polo.shared().preview_themes_dir();
-            let icon_font = polo.shared().icon_font();
+            let fonts_dir = polo.shared().fonts_dir();
 
             println!("Preview themes (via shared): {}", preview_themes.display());
-            println!("Icon font (via shared): {}", icon_font.display());
+            println!("Fonts dir (via shared): {}", fonts_dir.display());
         }
     }
 

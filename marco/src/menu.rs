@@ -307,7 +307,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     // Set initial tooltip to the human-readable current layout label
     layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
 
-    // Use SVG layout switcher icon instead of IcoMoon
+    // Use SVG layout switcher icon
     let layout_icon_color: std::borrow::Cow<'static, str> = if window.style_context().has_class("marco-theme-dark") {
         std::borrow::Cow::from(DARK_PALETTE.control_icon)
     } else {
@@ -700,8 +700,8 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     }
 
     let layout_state_clone2 = layout_state.clone(); // Used for popover logic
-    let previous_layout_state_clone = previous_layout_state.clone(); // Used for tracking state before EditorAndViewSeparate
-    let previous_split_position_clone = previous_split_position.clone(); // Used for tracking split position
+    let _previous_layout_state_clone = previous_layout_state.clone(); // Used for tracking state before EditorAndViewSeparate
+    let _previous_split_position_clone = previous_split_position.clone(); // Used for tracking split position
     let popover_clone = popover.clone();
     // Clone the layout menu button so the rebuild closure can update its tooltip
     let layout_menu_btn_for_rebuild = layout_menu_btn.clone();

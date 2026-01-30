@@ -26,7 +26,6 @@
 //! ## Fonts
 //!
 //! - `UI_FONT_FAMILY`: Standard UI font family
-//! - `ICON_FONT_FAMILY`: Icon font family (icomoon)
 
 /// Color palette for a single theme (light or dark)
 #[derive(Debug, Clone, Copy)]
@@ -286,8 +285,6 @@ pub const TOOLBAR_SEPARATOR_MARGIN: &str = "0 4px";
 /// Window control button padding (match Polo: comfortable click target)
 pub const WINDOW_CONTROL_PADDING: &str = "2px 6px";
 
-/// Icon font padding
-pub const ICON_FONT_PADDING: &str = "0 2px";
 
 /// Layout state padding
 pub const LAYOUT_STATE_PADDING: &str = "0px";
@@ -314,11 +311,7 @@ pub const UI_FONT_FAMILY: &str = "'Segoe UI', 'Roboto', 'Arial', sans-serif";
 /// Cantarell UI font family (alternative)
 pub const UI_FONT_FAMILY_ALT: &str = r#""Segoe UI", "Cantarell", "Arial", sans-serif"#;
 
-/// Icon font family (icomoon)
-pub const ICON_FONT_FAMILY: &str = "icomoon";
-
-/// Icon font size
-pub const ICON_FONT_SIZE: &str = "16px";
+// Note: Icon fonts (IcoMoon) are deprecated; UI now uses inline SVG icons.
 
 /// Layout state icon font size
 pub const LAYOUT_ICON_SIZE: &str = "24px";
@@ -433,10 +426,8 @@ mod tests {
         assert_eq!(TOOLBAR_BORDER_RADIUS, "6px");
         assert_eq!(MENU_BORDER_RADIUS, "4px");
 
-        // Verify font constants
-        assert_eq!(ICON_FONT_FAMILY, "icomoon");
-        assert_eq!(ICON_FONT_SIZE, "16px");
-
+        // Icon fonts removed - ensure transition constants still present
+        assert!(ICON_TRANSITION.contains("0.12s"));
         // Verify transition constants
         assert!(STANDARD_TRANSITION.contains("0.15s"));
         assert!(ICON_TRANSITION.contains("0.12s"));

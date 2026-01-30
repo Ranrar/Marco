@@ -310,13 +310,7 @@ impl PreviewWindow {
             btn
         };
 
-        // IcoMoon Unicode glyphs for window controls
-        // | Unicode | Icon Name             | Description   |
-        // |---------|-----------------------|--------------|
-        // | \u{34}  | marco-minimize        | Minimize      |
-        // | \u{36}  | marco-fullscreen      | Maximize      |
-        // | \u{35}  | marco-fullscreen_exit | Exit maximize |
-        // | \u{39}  | marco-close           | Close         |
+        // Window control icons (SVG)
 
         let btn_min = svg_icon_button(WindowIcon::Minimize, "Minimize");
         let btn_close = svg_icon_button(WindowIcon::Close, "Close");

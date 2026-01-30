@@ -1,7 +1,7 @@
 //! Shared asset paths used by both Marco and Polo
 //!
 //! This module provides paths to assets that are common between Marco and Polo:
-//! - Fonts (IcoMoon icon font, UI fonts)
+//! - Fonts (UI fonts)
 //! - Icons (application icons, UI icons)
 //! - Language files (translations)
 //! - Preview themes (HTML/CSS for markdown preview)
@@ -47,7 +47,7 @@ impl SharedPaths {
     ///
     /// # fn main() -> Result<(), core::paths::AssetError> {
     /// let shared = SharedPaths::new()?;
-    /// let icon_font = shared.font("ui_menu.ttf");
+    /// let some_font = shared.font("custom.ttf");
     /// # Ok(())
     /// # }
     /// ```
@@ -55,10 +55,6 @@ impl SharedPaths {
         self.fonts_dir().join(font_name)
     }
 
-    /// Get path to the IcoMoon icon font (ui_menu.ttf)
-    pub fn icon_font(&self) -> PathBuf {
-        self.font("ui_menu.ttf")
-    }
 
     // ========================================================================
     // Icons
@@ -278,12 +274,11 @@ mod tests {
     fn test_font_paths() {
         if let Ok(shared) = SharedPaths::new() {
             let fonts_dir = shared.fonts_dir();
-            let icon_font = shared.icon_font();
 
             println!("Fonts dir: {}", fonts_dir.display());
-            println!("Icon font: {}", icon_font.display());
 
-            assert!(icon_font.to_string_lossy().contains("ui_menu.ttf"));
+            // Asset bundles may not include old icon fonts; only verify fonts directory exists
+            assert!(!fonts_dir.to_string_lossy().is_empty());
         }
     }
 

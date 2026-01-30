@@ -77,24 +77,135 @@ pub async fn show_save_changes_dialog<W: IsA<Window>>(
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
 
-    // Close button with icon
-    let close_label = Label::new(None);
-    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>");
-    close_label.set_valign(Align::Center);
-    close_label.add_css_class("icon-font");
+    // Close button with SVG icon
+    use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use rsvg::{CairoRenderer, Loader};
+    use gio;
+    use gtk4::gdk;
 
-    let btn_close_titlebar = Button::new();
-    btn_close_titlebar.set_child(Some(&close_label));
-    btn_close_titlebar.set_tooltip_text(Some("Close"));
-    btn_close_titlebar.set_valign(Align::Center);
-    btn_close_titlebar.set_margin_start(1);
-    btn_close_titlebar.set_margin_end(1);
-    btn_close_titlebar.set_focusable(false);
-    btn_close_titlebar.set_can_focus(false);
-    btn_close_titlebar.set_has_frame(false);
-    btn_close_titlebar.add_css_class("topright-btn");
-    btn_close_titlebar.add_css_class("window-control-btn");
+    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = window_icon_svg(icon).replace("currentColor", color);
+        let bytes = glib::Bytes::from_owned(svg.into_bytes());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
+        let handle = match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+            Ok(h) => h,
+            Err(e) => {
+                log::error!("load SVG handle: {}", e);
+                // Fallback tiny transparent texture
+                let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
+                return gdk::MemoryTexture::new(1, 1, gdk::MemoryFormat::B8g8r8a8Premultiplied, &bytes, 4);
+            }
+        };
+
+        let display_scale = gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+
+        let render_scale = display_scale * 2.0;
+        let render_size = (icon_size * render_scale) as i32;
+
+        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+            .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+            renderer.render_document(&cr, &viewport).expect("render SVG");
+        }
+
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    }
+
+    fn svg_icon_button(window: &Window, icon: WindowIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+        let pic = gtk4::Picture::new();
+        let texture = render_svg_icon(icon, color, icon_size);
+        pic.set_paintable(Some(&texture));
+        pic.set_size_request(icon_size as i32, icon_size as i32);
+        pic.set_can_shrink(false);
+        pic.set_halign(gtk4::Align::Center);
+        pic.set_valign(gtk4::Align::Center);
+
+        let btn = Button::new();
+        btn.set_child(Some(&pic));
+        btn.set_tooltip_text(Some(tooltip));
+        btn.set_valign(gtk4::Align::Center);
+        btn.set_margin_start(1);
+        btn.set_margin_end(1);
+        btn.set_focusable(false);
+        btn.set_can_focus(false);
+        btn.set_has_frame(false);
+        btn.add_css_class("topright-btn");
+        btn.add_css_class("window-control-btn");
+        btn.set_width_request((icon_size + 6.0) as i32);
+        btn.set_height_request((icon_size + 6.0) as i32);
+
+        // Add hover and click interactions
+        {
+            let pic_hover = pic.clone();
+            let normal_color = color.to_string();
+            let is_dark = window.has_css_class("marco-theme-dark");
+            let hover_color = if is_dark { DARK_PALETTE.control_icon_hover.to_string() } else { LIGHT_PALETTE.control_icon_hover.to_string() };
+            let active_color = if is_dark { DARK_PALETTE.control_icon_active.to_string() } else { LIGHT_PALETTE.control_icon_active.to_string() };
+
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let icon_for_enter = icon;
+            let hover_color_enter = hover_color.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let texture = render_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
+                pic_hover.set_paintable(Some(&texture));
+            });
+
+            let pic_leave = pic.clone();
+            let icon_for_leave = icon;
+            let normal_color_leave = normal_color.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let texture = render_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn.add_controller(motion_controller);
+
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = pic.clone();
+            let icon_for_pressed = icon;
+            let active_color_pressed = active_color.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+
+            let pic_released = pic.clone();
+            let icon_for_released = icon;
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_released, &hover_color, icon_size);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn.add_controller(gesture);
+        }
+
+        btn
+    }
+
+    let icon_color: std::borrow::Cow<'static, str> = if dialog.has_css_class("marco-theme-dark") {
+        std::borrow::Cow::from(DARK_PALETTE.control_icon)
+    } else {
+        std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+    };
+
+    let btn_close_titlebar = svg_icon_button(&dialog, WindowIcon::Close, "Close", &icon_color, 8.0);
     headerbar.pack_end(&btn_close_titlebar);
     dialog.set_titlebar(Some(&headerbar));
 

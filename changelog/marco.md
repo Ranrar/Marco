@@ -24,6 +24,30 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.1] - 2026-01-30
+
+### Added
+- Replaced legacy IcoMoon icon-font glyphs with **inline SVG icons** across the UI (titlebar window controls, layout popover, dialogs, detached preview). These use `gtk::Picture` textures for crisp rendering and HiDPI supersampling.
+- Added helper functions to render inline SVGs to `gtk::Picture` with consistent theme-driven color states.
+- Added `DualView` layout SVG to the shared Core icon loader (see Core changelog).
+
+### Changed
+- Window control and layout buttons now use Picture-backed SVGs with hover and press color states aligned to Polo's visual behavior.
+- CSS generation updated to remove `.icon-font`/IcoMoon selectors; theme constants adjusted for SVG-driven icon states.
+- Popover logic improved: pre-created popover buttons and unparent them before re-append to avoid GTK parent assertion warnings.
+
+### Fixed
+- Added robust error handling for SVG parse/rasterization failures; a transparent 1x1 fallback texture avoids runtime panics on malformed SVG input.
+- Fixed GTK parent assertion warnings by unparenting widgets before reuse in popovers.
+
+### Removed
+- Dropped legacy icon-font support and removed references to `ui_menu.ttf` in the UI code and tests.
+- Removed the old `icon_font()` usage patterns (core paths helper moved/removed).
+- Packaging scripts were updated to defensively remove deprecated `ui_menu.ttf` from installer/package outputs.
+
+### Security
+- Nothing yet.
+
 ## [0.15.0] - 2026-01-25
 
 **Uses:** Core 0.15.0

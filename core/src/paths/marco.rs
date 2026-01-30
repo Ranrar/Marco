@@ -200,8 +200,8 @@ mod tests {
     #[test]
     fn test_shared_access() {
         if let Ok(marco) = MarcoPaths::new() {
-            let icon_font = marco.shared().icon_font();
-            println!("Icon font (via shared): {}", icon_font.display());
+            let fonts_dir = marco.shared().fonts_dir();
+            println!("Fonts dir (via shared): {}", fonts_dir.display());
         }
     }
 }

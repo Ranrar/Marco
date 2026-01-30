@@ -74,7 +74,7 @@ fn main() -> glib::ExitCode {
     }
 
     // Setup font directory for IcoMoon icon font (MUST be done before GTK init)
-    use core::paths::{PathProvider, PoloPaths};
+    use core::paths::{PoloPaths};
     let polo_paths = match PoloPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -82,15 +82,7 @@ fn main() -> glib::ExitCode {
         }
     };
 
-    // Set local font dir for Fontconfig/Pango
-    // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
-    // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
-    let asset_root_for_fonts = polo_paths.asset_root();
-    core::logic::loaders::icon_loader::set_local_font_dir(
-        asset_root_for_fonts
-            .to_str()
-            .expect("Invalid asset root path"),
-    );
+    // Icon font support removed - icon fonts (IcoMoon) are no longer used; use inline SVGs instead.
 
     let app = Application::builder()
         .application_id(APP_ID)

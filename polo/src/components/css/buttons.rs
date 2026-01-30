@@ -368,15 +368,11 @@ mod tests {
         assert!(css.contains(".marco-theme-light .window-control-btn"));
         assert!(css.contains(".marco-theme-dark .window-control-btn"));
 
-        // Verify icon font color styling for light mode
-        assert!(css.contains(".marco-theme-light .window-control-btn .icon-font { color: #2c3e50"));
 
-        // Verify icon font color styling for dark mode
-        assert!(css.contains(".marco-theme-dark .window-control-btn .icon-font { color: #f0f5f1"));
 
-        // Verify hover and active states
-        assert!(css.contains(":hover .icon-font"));
-        assert!(css.contains(":active .icon-font"));
+        // Verify hover and active states exist for window control buttons
+        assert!(css.contains(".marco-theme-light .window-control-btn:hover"));
+        assert!(css.contains(".marco-theme-dark .window-control-btn:active"));
     }
 
     #[test]
@@ -399,12 +395,12 @@ mod tests {
 
         // Verify emoji filter rules present
         assert!(css.contains("filter: grayscale(100%)"));
-        assert!(css.contains("brightness(0.3)")); // Light mode darken
-        assert!(css.contains("brightness(2)")); // Dark mode brighten
+        assert!(css.contains("brightness(0.6)")); // Light mode darken (hover)
+        assert!(css.contains("brightness(1.3)")); // Dark mode brighten (hover)
 
         // Verify hover and active filters
-        assert!(css.contains(":hover label"));
-        assert!(css.contains(":active label"));
+        assert!(css.contains(":hover picture"));
+        assert!(css.contains(":active picture"));
     }
 
     #[test]

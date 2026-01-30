@@ -59,10 +59,6 @@ use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 /// Note: This should rarely be used - menu.css is the canonical source
 const FALLBACK_MENU_CSS: &str = r#"
     /* Critical styles for basic functionality */
-    .icon-font {
-        font-family: 'icomoon';
-        font-size: 16px;
-    }
     .window-control-btn {
         background: transparent;
         border: none;

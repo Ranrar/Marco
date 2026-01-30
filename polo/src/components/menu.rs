@@ -26,13 +26,9 @@
 //! - Updates GTK global theme preference
 //! - Reloads WebView content with new theme
 //!
-//! ## Icon Font
+//! ## Icons
 //!
-//! Window control buttons use IcoMoon icon font:
-//! - `\u{34}` - Minimize
-//! - `\u{36}` - Maximize
-//! - `\u{35}` - Restore
-//! - `\u{39}` - Close
+//! Window control buttons use inline SVG icons rendered at high DPI.
 //!
 //! ## Functions
 //!
