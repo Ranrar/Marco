@@ -307,13 +307,94 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     // Set initial tooltip to the human-readable current layout label
     layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
 
-    // Use icon font glyph for layout button (IcoMoon '1' = split_scene_left)
-    let layout_label = gtk4::Label::new(None);
-    layout_label.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{31}"));
-    layout_label.set_valign(Align::Center);
-    layout_label.add_css_class("icon-font");
+    // Use SVG layout switcher icon instead of IcoMoon
+    let layout_icon_color: std::borrow::Cow<'static, str> = if window.style_context().has_class("marco-theme-dark") {
+        std::borrow::Cow::from(DARK_PALETTE.control_icon)
+    } else {
+        std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+    };
+    let layout_pic = Picture::new();
+    let layout_texture = {
+        let svg = layout_icon_svg(LayoutIcon::LayoutSwitcherButton).replace("currentColor", &layout_icon_color);
+        let bytes = glib::Bytes::from_owned(svg.into_bytes());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
+        let handle = Loader::new()
+            .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
+            .expect("load SVG handle");
+        let display_scale = gtk4::gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gtk4::gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+        let render_scale = display_scale * 2.0;
+        let render_size = (LAYOUT_ICON_SIZE_F * render_scale) as i32;
+        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+            .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, LAYOUT_ICON_SIZE_F, LAYOUT_ICON_SIZE_F);
+            renderer.render_document(&cr, &viewport).expect("render SVG");
+        }
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gtk4::gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gtk4::gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    };
+    layout_pic.set_paintable(Some(&layout_texture));
+    layout_pic.set_size_request(LAYOUT_ICON_SIZE_F as i32, LAYOUT_ICON_SIZE_F as i32);
     layout_menu_btn.add_css_class("window-control-btn");
-    layout_menu_btn.set_child(Some(&layout_label));
+    layout_menu_btn.set_child(Some(&layout_pic));
+
+    // Add hover/active interaction to layout switcher to match window controls
+    {
+        let pic_hover = layout_pic.clone();
+        let is_dark = window.style_context().has_class("marco-theme-dark");
+        let hover_color = if is_dark { DARK_PALETTE.control_icon_hover.to_string() } else { LIGHT_PALETTE.control_icon_hover.to_string() };
+        let active_color = if is_dark { DARK_PALETTE.control_icon_active.to_string() } else { LIGHT_PALETTE.control_icon_active.to_string() };
+        let normal_color = layout_icon_color.clone().to_string();
+        let icon = LayoutIcon::LayoutSwitcherButton;
+
+        let motion_controller = gtk4::EventControllerMotion::new();
+        let hover_color_enter = hover_color.clone();
+        motion_controller.connect_enter(move |_ctrl, _x, _y| {
+            let texture = render_layout_svg_icon(icon, &hover_color_enter, LAYOUT_ICON_SIZE_F);
+            pic_hover.set_paintable(Some(&texture));
+        });
+
+        let pic_leave = layout_pic.clone();
+        let normal_color_leave = normal_color.clone();
+        let icon_for_leave = icon;
+        motion_controller.connect_leave(move |_ctrl| {
+            let texture = render_layout_svg_icon(icon_for_leave, &normal_color_leave, LAYOUT_ICON_SIZE_F);
+            pic_leave.set_paintable(Some(&texture));
+        });
+        layout_menu_btn.add_controller(motion_controller);
+
+        let gesture = gtk4::GestureClick::new();
+        let pic_pressed = layout_pic.clone();
+        let active_color_pressed = active_color.clone();
+        let icon_for_pressed = icon;
+        gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+            let texture = render_layout_svg_icon(icon_for_pressed, &active_color_pressed, LAYOUT_ICON_SIZE_F);
+            pic_pressed.set_paintable(Some(&texture));
+        });
+
+        let pic_released = layout_pic.clone();
+        let hover_color_released = hover_color.clone();
+        let icon_for_released = icon;
+        gesture.connect_released(move |_gesture, _n, _x, _y| {
+            let texture = render_layout_svg_icon(icon_for_released, &hover_color_released, LAYOUT_ICON_SIZE_F);
+            pic_released.set_paintable(Some(&texture));
+        });
+        layout_menu_btn.add_controller(gesture);
+    }
 
     // Helper to (re)build the popover content based on state
     let popover = Popover::new();
@@ -334,6 +415,290 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     let rebuild_popover: RebuildPopover = Rc::new(RefCell::new(None));
 
     let weak_rebuild_popover: WeakRebuildPopover = Rc::downgrade(&rebuild_popover);
+
+    // Pre-create layout popover buttons to avoid capturing non-'static `window` inside the rebuild closure
+    const LAYOUT_ICON_SIZE_F: f64 = 14.0;
+    let base_icon_color: &'static str = if window.style_context().has_class("marco-theme-dark") {
+        DARK_PALETTE.control_icon
+    } else {
+        LIGHT_PALETTE.control_icon
+    };
+
+    // Button 1: Close view (show only editor)
+    let btn1 = svg_layout_button(window, LayoutIcon::EditorOnly, "Close view (show only editor)", base_icon_color, LAYOUT_ICON_SIZE_F);
+    btn1.add_css_class("layout-btn");
+    btn1.set_halign(Align::Start);
+    {
+        let layout_state = layout_state.clone();
+        let weak_rebuild_local = weak_rebuild_popover.clone();
+        let webview_rc_opt = webview_rc_for_rebuild.clone();
+        let split_opt = split_for_rebuild.clone();
+        let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+        let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let split_controller_opt = split_controller_for_rebuild.clone();
+        btn1.connect_clicked(move |_| {
+            let next = LayoutState::EditorOnly;
+            *layout_state.borrow_mut() = next;
+            reparent_webview_to_main_window(
+                &webview_rc_opt,
+                &split_opt,
+                &preview_window_opt_clone,
+                &webview_location_tracker_opt,
+                &reparent_guard_opt,
+                "EditorOnly",
+            );
+            if let Some(controller) = &split_controller_opt {
+                controller.set_mode(next);
+            }
+            if let Some(rc) = weak_rebuild_local.upgrade() {
+                if let Some(ref rebuild) = *rc.borrow() {
+                    rebuild();
+                }
+            }
+        });
+    }
+
+    // Button 2: Close editor (show only view)
+    let btn2 = svg_layout_button(window, LayoutIcon::ViewOnly, "Close editor (show only view)", base_icon_color, LAYOUT_ICON_SIZE_F);
+    btn2.add_css_class("layout-btn");
+    btn2.set_halign(Align::Start);
+    {
+        let layout_state = layout_state.clone();
+        let weak_rebuild_local = weak_rebuild_popover.clone();
+        let webview_rc_opt = webview_rc_for_rebuild.clone();
+        let split_opt = split_for_rebuild.clone();
+        let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+        let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let split_controller_opt = split_controller_for_rebuild.clone();
+        btn2.connect_clicked(move |_| {
+            let next = LayoutState::ViewOnly;
+            *layout_state.borrow_mut() = next;
+            reparent_webview_to_main_window(
+                &webview_rc_opt,
+                &split_opt,
+                &preview_window_opt_clone,
+                &webview_location_tracker_opt,
+                &reparent_guard_opt,
+                "ViewOnly",
+            );
+            if let Some(controller) = &split_controller_opt {
+                controller.set_mode(next);
+            }
+            if let Some(rc) = weak_rebuild_local.upgrade() {
+                if let Some(ref rebuild) = *rc.borrow() {
+                    rebuild();
+                }
+            }
+        });
+    }
+
+    // Button 3: Open view in separate window
+    let btn3 = svg_layout_button(window, LayoutIcon::EditorAndViewSeparate, "Open view in separate window", base_icon_color, LAYOUT_ICON_SIZE_F);
+    btn3.add_css_class("layout-btn");
+    btn3.set_tooltip_text(Some("Open view in separate window"));
+    btn3.set_halign(Align::Start);
+    {
+        let layout_state = layout_state.clone();
+        let weak_rebuild_local = weak_rebuild_popover.clone();
+        let webview_rc_opt = webview_rc_for_rebuild.clone();
+        let split_opt = split_for_rebuild.clone();
+        let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+        let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let window_weak = window_weak_for_reparent.clone();
+        let split_controller_opt = split_controller_for_rebuild.clone();
+        let previous_layout_state_for_btn3 = previous_layout_state.clone();
+        let previous_split_position_for_btn3 = previous_split_position.clone();
+        btn3.connect_clicked(move |_| {
+            // Store the current layout state before switching to EditorAndViewSeparate
+            let current_state = *layout_state.borrow();
+            *previous_layout_state_for_btn3.borrow_mut() = current_state;
+            if current_state == LayoutState::DualView {
+                if let Some(ref split) = split_opt {
+                    let current_position = split.position();
+                    *previous_split_position_for_btn3.borrow_mut() = current_position;
+                    log::info!("Storing previous DualView split position: {}", current_position);
+                }
+            }
+            log::info!("Storing previous layout state: {:?} before switching to EditorAndViewSeparate", current_state);
+            let next = LayoutState::EditorAndViewSeparate;
+            *layout_state.borrow_mut() = next;
+            if let Some(controller) = &split_controller_opt {
+                controller.set_mode(next);
+            }
+
+            if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) = (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt) {
+                use crate::components::viewer::detached_window::PreviewWindow;
+                use crate::components::viewer::reparenting::move_webview_to_preview_window;
+                use crate::components::viewer::layout_controller::WebViewLocation;
+
+                if tracker.current() == WebViewLocation::MainWindow {
+                    if guard.try_begin() {
+                        let should_reparent = {
+                            let mut opt_borrow = preview_window_opt.borrow_mut();
+                            if opt_borrow.is_none() {
+                                if let Some(window) = window_weak.upgrade() {
+                                    if let Some(app) = window.application() {
+                                        let new_preview_window = PreviewWindow::new(&window, &app);
+                                        let layout_state_for_callback = layout_state.clone();
+                                        let previous_layout_state_for_callback = previous_layout_state_for_btn3.clone();
+                                        let previous_split_position_for_callback = previous_split_position_for_btn3.clone();
+                                        let webview_rc_for_callback = webview_rc.clone();
+                                        let split_for_callback = split.clone();
+                                        let tracker_for_callback = tracker.clone();
+                                        let guard_for_callback = guard.clone();
+                                        let preview_window_opt_weak = Rc::downgrade(preview_window_opt);
+                                        let weak_rebuild_for_callback = weak_rebuild_local.clone();
+                                        let split_controller_for_callback = split_controller_opt.clone();
+
+                                        new_preview_window.set_on_close_callback(move || {
+                                            use crate::components::viewer::reparenting::move_webview_to_main_window;
+                                            use crate::components::viewer::layout_controller::WebViewLocation;
+
+                                            log::info!("Preview window close callback triggered");
+
+                                            let preview_window_opt = match preview_window_opt_weak.upgrade() {
+                                                Some(p) => p,
+                                                None => {
+                                                    log::warn!("preview_window_opt dropped, aborting callback");
+                                                    return;
+                                                }
+                                            };
+
+                                            // Restore to the previous layout state (the state before EditorAndViewSeparate)
+                                            let previous_state = *previous_layout_state_for_callback.borrow();
+                                            *layout_state_for_callback.borrow_mut() = previous_state;
+                                            log::info!("Restoring to previous layout state: {:?}", previous_state);
+
+                                            if let Some(ref controller) = split_controller_for_callback {
+                                                controller.set_mode(previous_state);
+                                                log::info!("Split controller set to {:?} mode", previous_state);
+                                            }
+
+                                            if previous_state == LayoutState::DualView {
+                                                let saved_position = *previous_split_position_for_callback.borrow();
+                                                if saved_position > 0 {
+                                                    let split_for_position = split_for_callback.clone();
+                                                    glib::idle_add_local_once(move || {
+                                                        split_for_position.set_position(saved_position);
+                                                        log::info!("Restored DualView split position to: {}", saved_position);
+                                                    });
+                                                }
+                                            }
+
+                                            if tracker_for_callback.current() == WebViewLocation::PreviewWindow && guard_for_callback.try_begin() {
+                                                let webview_borrow = webview_rc_for_callback.borrow();
+                                                let preview_window_borrow = preview_window_opt.borrow();
+
+                                                if let Some(ref preview_window) = *preview_window_borrow {
+                                                    match move_webview_to_main_window(&webview_borrow, &split_for_callback, preview_window, true) {
+                                                        Ok(_) => {
+                                                            tracker_for_callback.set(WebViewLocation::MainWindow);
+                                                            if let Some(stack_widget) = split_for_callback.end_child() {
+                                                                if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
+                                                                    stack.set_visible_child_name("html_preview");
+                                                                    log::info!("Stack set to show html_preview after window close");
+                                                                }
+                                                            }
+                                                            log::info!("WebView reparented back to main window after preview window close");
+                                                        }
+                                                        Err(e) => {
+                                                            log::error!("Failed to reparent WebView after window close: {}", e);
+                                                        }
+                                                    }
+                                                }
+                                                guard_for_callback.end();
+                                            }
+
+                                            if let Some(rc) = weak_rebuild_for_callback.upgrade() {
+                                                if let Some(ref rebuild) = *rc.borrow() {
+                                                    rebuild();
+                                                }
+                                            }
+                                        });
+
+                                        *opt_borrow = Some(new_preview_window);
+                                        log::info!("Created new preview window for EditorAndViewSeparate mode with close callback");
+                                    }
+                                }
+                            }
+                            opt_borrow.is_some()
+                        };
+
+                        if should_reparent {
+                            let webview_borrow = webview_rc.borrow();
+                            let preview_window_borrow = preview_window_opt.borrow();
+                            if let Some(ref preview_window) = *preview_window_borrow {
+                                match move_webview_to_preview_window(&webview_borrow, split, preview_window) {
+                                    Ok(_) => {
+                                        tracker.set(WebViewLocation::PreviewWindow);
+                                        log::info!("Successfully moved WebView to preview window");
+                                        preview_window.show();
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to move WebView to preview window: {}", e);
+                                    }
+                                }
+                            }
+                        }
+
+                        guard.end();
+                    } else {
+                        log::warn!("Cannot reparent WebView: reparenting already in progress");
+                    }
+                }
+            }
+
+            if let Some(rc) = weak_rebuild_local.upgrade() {
+                if let Some(ref rebuild) = *rc.borrow() {
+                    rebuild();
+                }
+            }
+        });
+    }
+
+    // Button 4: Restore default split view (pre-created)
+    let btn4 = svg_layout_button(window, LayoutIcon::DualView, "Restore default split view", base_icon_color, LAYOUT_ICON_SIZE_F);
+    btn4.add_css_class("layout-btn");
+    btn4.set_halign(Align::Start);
+    {
+        let layout_state = layout_state.clone();
+        let weak_rebuild_local = weak_rebuild_popover.clone();
+        let webview_rc_opt = webview_rc_for_rebuild.clone();
+        let split_opt = split_for_rebuild.clone();
+        let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
+        let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
+        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let split_controller_opt = split_controller_for_rebuild.clone();
+        btn4.connect_clicked(move |_| {
+            let next = LayoutState::DualView;
+            *layout_state.borrow_mut() = next;
+
+            // Handle reparenting if needed (from EditorAndViewSeparate back to DualView)
+            reparent_webview_to_main_window(
+                &webview_rc_opt,
+                &split_opt,
+                &preview_window_opt_clone,
+                &webview_location_tracker_opt,
+                &reparent_guard_opt,
+                "DualView",
+            );
+
+            // Set split controller to DualView mode (unlocks split, 50% position)
+            if let Some(controller) = &split_controller_opt {
+                controller.set_mode(next);
+            }
+
+            if let Some(rc) = weak_rebuild_local.upgrade() {
+                if let Some(ref rebuild) = *rc.borrow() {
+                    rebuild();
+                }
+            }
+        });
+    }
+
     let layout_state_clone2 = layout_state.clone(); // Used for popover logic
     let previous_layout_state_clone = previous_layout_state.clone(); // Used for tracking state before EditorAndViewSeparate
     let previous_split_position_clone = previous_split_position.clone(); // Used for tracking split position
@@ -355,52 +720,8 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             state,
             LayoutState::DualView | LayoutState::ViewOnly | LayoutState::EditorAndViewSeparate
         ) {
-            let btn1 = Button::new();
-            btn1.add_css_class("layout-btn");
-            // IcoMoon '3' = only_editor
-            let lbl = gtk4::Label::new(None);
-            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{33}"));
-            lbl.set_valign(Align::Center);
-            lbl.add_css_class("layout-state");
-            btn1.set_child(Some(&lbl));
-            btn1.set_tooltip_text(Some("Close view (show only editor)"));
-            btn1.set_halign(Align::Start);
-            let layout_state = layout_state_clone2.clone();
-            let weak_rebuild = weak_rebuild_popover.clone();
-
-            // Clone reparenting state for the handler
-            let webview_rc_opt = webview_rc_for_rebuild.clone();
-            let split_opt = split_for_rebuild.clone();
-            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
-            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
-            let split_controller_opt = split_controller_for_rebuild.clone();
-
-            btn1.connect_clicked(move |_| {
-                let next = LayoutState::EditorOnly;
-                *layout_state.borrow_mut() = next;
-
-                // Handle reparenting if needed (from EditorAndViewSeparate back to EditorOnly)
-                reparent_webview_to_main_window(
-                    &webview_rc_opt,
-                    &split_opt,
-                    &preview_window_opt_clone,
-                    &webview_location_tracker_opt,
-                    &reparent_guard_opt,
-                    "EditorOnly",
-                );
-
-                // Set split controller to EditorOnly mode (locks at 100%)
-                if let Some(controller) = &split_controller_opt {
-                    controller.set_mode(next);
-                }
-
-                if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() {
-                        rebuild();
-                    }
-                }
-            });
+            // Use pre-created button
+            if let Some(_) = btn1.parent() { btn1.unparent(); }
             popover_box.append(&btn1);
         }
 
@@ -409,311 +730,21 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             state,
             LayoutState::DualView | LayoutState::EditorOnly | LayoutState::EditorAndViewSeparate
         ) {
-            let btn2 = Button::new();
-            btn2.add_css_class("layout-btn");
-            // IcoMoon '2' = only_preview
-            let lbl = gtk4::Label::new(None);
-            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{32}"));
-            lbl.set_valign(Align::Center);
-            lbl.add_css_class("layout-state");
-            btn2.set_child(Some(&lbl));
-            btn2.set_tooltip_text(Some("Close editor (show only view)"));
-            btn2.set_halign(Align::Start);
-            let layout_state = layout_state_clone2.clone();
-            let weak_rebuild = weak_rebuild_popover.clone();
-
-            // Clone reparenting state for the handler
-            let webview_rc_opt = webview_rc_for_rebuild.clone();
-            let split_opt = split_for_rebuild.clone();
-            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
-            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
-            let split_controller_opt = split_controller_for_rebuild.clone();
-
-            btn2.connect_clicked(move |_| {
-                let next = LayoutState::ViewOnly;
-                *layout_state.borrow_mut() = next;
-
-                // Handle reparenting if needed (from EditorAndViewSeparate back to ViewOnly)
-                reparent_webview_to_main_window(
-                    &webview_rc_opt,
-                    &split_opt,
-                    &preview_window_opt_clone,
-                    &webview_location_tracker_opt,
-                    &reparent_guard_opt,
-                    "ViewOnly",
-                );
-
-                // Set split controller to ViewOnly mode (locks at 0%)
-                if let Some(controller) = &split_controller_opt {
-                    controller.set_mode(next);
-                }
-
-                if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() {
-                        rebuild();
-                    }
-                }
-            });
+            // Use pre-created button
+            if let Some(_) = btn2.parent() { btn2.unparent(); }
             popover_box.append(&btn2);
         }
 
         // Button 3: Close view (open view in separate window)
         if matches!(state, LayoutState::DualView | LayoutState::ViewOnly) {
-            let btn3 = Button::new();
-            btn3.add_css_class("layout-btn");
-            // IcoMoon '8' = detatch
-            let lbl = gtk4::Label::new(None);
-            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{38}"));
-            lbl.set_valign(Align::Center);
-            lbl.add_css_class("layout-state");
-            btn3.set_child(Some(&lbl));
-            btn3.set_tooltip_text(Some("Open view in separate window"));
-            btn3.set_halign(Align::Start);
-            let layout_state = layout_state_clone2.clone();
-            let weak_rebuild = weak_rebuild_popover.clone();
-
-            // Use the reparenting state clones from outer scope (before rebuild closure)
-            let webview_rc_opt = webview_rc_for_rebuild.clone();
-            let split_opt = split_for_rebuild.clone();
-            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
-            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
-            let window_weak = window_weak_for_reparent.clone();
-            let split_controller_opt = split_controller_for_rebuild.clone();
-            let previous_layout_state_for_btn3 = previous_layout_state_clone.clone();
-            let previous_split_position_for_btn3 = previous_split_position_clone.clone();
-
-            btn3.connect_clicked(move |_| {
-                // Store the current layout state before switching to EditorAndViewSeparate
-                // This allows us to return to the exact same state when closing the preview window
-                let current_state = *layout_state.borrow();
-                *previous_layout_state_for_btn3.borrow_mut() = current_state;
-
-                // If currently in DualView, also store the split position
-                if current_state == LayoutState::DualView {
-                    if let Some(ref split) = split_opt {
-                        let current_position = split.position();
-                        *previous_split_position_for_btn3.borrow_mut() = current_position;
-                        log::info!("Storing previous DualView split position: {}", current_position);
-                    }
-                }
-
-                log::info!("Storing previous layout state: {:?} before switching to EditorAndViewSeparate", current_state);
-
-                let next = LayoutState::EditorAndViewSeparate;
-                *layout_state.borrow_mut() = next;
-
-                // Set split controller to EditorAndViewSeparate mode first (locks at 100%)
-                if let Some(controller) = &split_controller_opt {
-                    controller.set_mode(next);
-                }
-
-                // Perform WebView reparenting if all required state is available
-                if let (Some(webview_rc), Some(split), Some(preview_window_opt), Some(tracker), Some(guard)) =
-                    (&webview_rc_opt, &split_opt, &preview_window_opt_clone, &webview_location_tracker_opt, &reparent_guard_opt)
-                {
-                    use crate::components::viewer::detached_window::PreviewWindow;
-                    use crate::components::viewer::reparenting::move_webview_to_preview_window;
-                    use crate::components::viewer::layout_controller::WebViewLocation;
-
-                    // Only reparent if WebView is currently in main window
-                    if tracker.current() == WebViewLocation::MainWindow {
-                        // Try to acquire reparent guard
-                        if guard.try_begin() {
-                            // Create or reuse preview window
-                            let should_reparent = {
-                                let mut opt_borrow = preview_window_opt.borrow_mut();
-                                if opt_borrow.is_none() {
-                                    if let Some(window) = window_weak.upgrade() {
-                                        if let Some(app) = window.application() {
-                                            let new_preview_window = PreviewWindow::new(&window, &app);
-
-                                            // Set up close callback to handle window closing
-                                            // Use a weak reference for preview_window_opt to prevent circular reference
-                                            // (PreviewWindow → callback → preview_window_opt creates a cycle)
-                                            let layout_state_for_callback = layout_state.clone();
-                                            let previous_layout_state_for_callback = previous_layout_state_for_btn3.clone();
-                                            let previous_split_position_for_callback = previous_split_position_for_btn3.clone();
-                                            let webview_rc_for_callback = webview_rc.clone();
-                                            let split_for_callback = split.clone();
-                                            let tracker_for_callback = tracker.clone();
-                                            let guard_for_callback = guard.clone();
-                                            // CRITICAL: Use weak reference here to break circular reference
-                                            let preview_window_opt_weak = Rc::downgrade(preview_window_opt);
-                                            let weak_rebuild_for_callback = weak_rebuild.clone();
-                                            let split_controller_for_callback = split_controller_opt.clone();
-
-                                            new_preview_window.set_on_close_callback(move || {
-                                                use crate::components::viewer::reparenting::move_webview_to_main_window;
-                                                use crate::components::viewer::layout_controller::WebViewLocation;
-
-                                                log::info!("Preview window close callback triggered");
-
-                                                // Upgrade the weak reference for preview_window_opt
-                                                let preview_window_opt = match preview_window_opt_weak.upgrade() {
-                                                    Some(p) => p,
-                                                    None => {
-                                                        log::warn!("preview_window_opt dropped, aborting callback");
-                                                        return;
-                                                    }
-                                                };
-
-                                                // Restore to the previous layout state (the state before EditorAndViewSeparate)
-                                                let previous_state = *previous_layout_state_for_callback.borrow();
-                                                *layout_state_for_callback.borrow_mut() = previous_state;
-                                                log::info!("Restoring to previous layout state: {:?}", previous_state);
-
-                                                // Update split controller to the previous mode
-                                                // For DualView, this will restore the split position via idle callback
-                                                if let Some(ref controller) = split_controller_for_callback {
-                                                    controller.set_mode(previous_state);
-                                                    log::info!("Split controller set to {:?} mode", previous_state);
-                                                }
-
-                                                // If restoring to DualView, also restore the split position
-                                                if previous_state == LayoutState::DualView {
-                                                    let saved_position = *previous_split_position_for_callback.borrow();
-                                                    if saved_position > 0 {
-                                                        // Use idle callback to set position after layout is complete
-                                                        let split_for_position = split_for_callback.clone();
-                                                        glib::idle_add_local_once(move || {
-                                                            split_for_position.set_position(saved_position);
-                                                            log::info!("Restored DualView split position to: {}", saved_position);
-                                                        });
-                                                    }
-                                                }
-
-                                                // Reparent WebView back if it's in the preview window
-                                                if tracker_for_callback.current() == WebViewLocation::PreviewWindow
-                                                    && guard_for_callback.try_begin() {
-                                                        let webview_borrow = webview_rc_for_callback.borrow();
-                                                        let preview_window_borrow = preview_window_opt.borrow();
-
-                                                        if let Some(ref preview_window) = *preview_window_borrow {
-                                                            match move_webview_to_main_window(&webview_borrow, &split_for_callback, preview_window, true) {
-                                                                Ok(_) => {
-                                                                    tracker_for_callback.set(WebViewLocation::MainWindow);
-
-                                                                    // Ensure Stack shows html_preview
-                                                                    if let Some(stack_widget) = split_for_callback.end_child() {
-                                                                        if let Some(stack) = stack_widget.downcast_ref::<gtk4::Stack>() {
-                                                                            stack.set_visible_child_name("html_preview");
-                                                                            log::info!("Stack set to show html_preview after window close");
-                                                                        }
-                                                                    }
-
-                                                                    log::info!("WebView reparented back to main window after preview window close");
-                                                                }
-                                                                Err(e) => {
-                                                                    log::error!("Failed to reparent WebView after window close: {}", e);
-                                                                }
-                                                            }
-                                                        }
-                                                        guard_for_callback.end();
-                                                    }
-
-                                                // Rebuild popover to show DualView as active
-                                                if let Some(rc) = weak_rebuild_for_callback.upgrade() {
-                                                    if let Some(ref rebuild) = *rc.borrow() {
-                                                        rebuild();
-                                                    }
-                                                }
-                                            });
-
-                                            *opt_borrow = Some(new_preview_window);
-                                            log::info!("Created new preview window for EditorAndViewSeparate mode with close callback");
-                                        }
-                                    }
-                                }
-                                opt_borrow.is_some()
-                            };
-
-                            if should_reparent {
-                                // Borrow webview and preview_window for reparenting
-                                let webview_borrow = webview_rc.borrow();
-                                let preview_window_borrow = preview_window_opt.borrow();
-
-                                if let Some(ref preview_window) = *preview_window_borrow {
-                                    // Perform reparenting
-                                    match move_webview_to_preview_window(&webview_borrow, split, preview_window) {
-                                        Ok(_) => {
-                                            tracker.set(WebViewLocation::PreviewWindow);
-                                            log::info!("Successfully moved WebView to preview window");
-                                            preview_window.show();
-                                            // Split position is already set to 100% by SplitController
-                                        }
-                                        Err(e) => {
-                                            log::error!("Failed to move WebView to preview window: {}", e);
-                                        }
-                                    }
-                                }
-                            }
-
-                            guard.end();
-                        } else {
-                            log::warn!("Cannot reparent WebView: reparenting already in progress");
-                        }
-                    }
-                }
-
-                if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() {
-                        rebuild();
-                    }
-                }
-            });
+            if let Some(_) = btn3.parent() { btn3.unparent(); }
             popover_box.append(&btn3);
         }
 
         // Button 4: Restore default split view
         if !matches!(state, LayoutState::DualView) {
-            let btn4 = Button::new();
-            btn4.add_css_class("layout-btn");
-            // IcoMoon '7' = editor_preview
-            let lbl = gtk4::Label::new(None);
-            lbl.set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{37}"));
-            lbl.set_valign(Align::Center);
-            lbl.add_css_class("layout-state");
-            btn4.set_child(Some(&lbl));
-            btn4.set_tooltip_text(Some("Restore default split view"));
-            btn4.set_halign(Align::Start);
-            let layout_state = layout_state_clone2.clone();
-            let weak_rebuild = weak_rebuild_popover.clone();
-
-            // Clone reparenting state for the handler
-            let webview_rc_opt = webview_rc_for_rebuild.clone();
-            let split_opt = split_for_rebuild.clone();
-            let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
-            let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-            let reparent_guard_opt = reparent_guard_for_rebuild.clone();
-            let split_controller_opt = split_controller_for_rebuild.clone();
-
-            btn4.connect_clicked(move |_| {
-                let next = LayoutState::DualView;
-                *layout_state.borrow_mut() = next;
-
-                // Handle reparenting if needed (from EditorAndViewSeparate back to DualView)
-                reparent_webview_to_main_window(
-                    &webview_rc_opt,
-                    &split_opt,
-                    &preview_window_opt_clone,
-                    &webview_location_tracker_opt,
-                    &reparent_guard_opt,
-                    "DualView",
-                );
-
-                // Set split controller to DualView mode (unlocks split, 50% position)
-                if let Some(controller) = &split_controller_opt {
-                    controller.set_mode(next);
-                }
-
-                if let Some(rc) = weak_rebuild.upgrade() {
-                    if let Some(ref rebuild) = *rc.borrow() {
-                        rebuild();
-                    }
-                }
-            });
+            // Use pre-created button
+            if let Some(_) = btn4.parent() { btn4.unparent(); }
             popover_box.append(&btn4);
         }
 
@@ -744,8 +775,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     use gtk4::Label;
 
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
-
+use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon_svg, WindowIcon};
     // Helper: render an SVG icon into a GDK memory texture at high DPI for crisp icons
     fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
         let svg = window_icon_svg(icon).replace("currentColor", color);
@@ -789,6 +819,135 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             &bytes,
             (render_size * 4) as usize,
         )
+    }
+
+    // Helper: render layout SVG icons (uses LayoutIcon) - same approach as render_svg_icon
+    fn render_layout_svg_icon(icon: LayoutIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = layout_icon_svg(icon).replace("currentColor", color);
+        let bytes = glib::Bytes::from_owned(svg.as_bytes().to_vec());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
+
+        let handle = match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+            Ok(h) => h,
+            Err(e) => {
+                log::error!("load layout SVG handle: {}", e);
+                log::error!("SVG content was: {}", svg);
+                // Fallback tiny transparent texture so UI can continue
+                let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
+                return gdk::MemoryTexture::new(1, 1, gdk::MemoryFormat::B8g8r8a8Premultiplied, &bytes, 4);
+            }
+        };
+
+        let display_scale = gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+
+        let render_scale = display_scale * 2.0;
+        let render_size = (icon_size * render_scale) as i32;
+
+        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+            .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+            renderer.render_document(&cr, &viewport).expect("render SVG");
+        }
+
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    }
+
+    // Helper to create a button with layout SVG icon and hover/active color changes
+    fn svg_layout_button(window: &gtk4::ApplicationWindow, icon: LayoutIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+        let pic = Picture::new();
+        let texture = render_layout_svg_icon(icon, color, icon_size);
+        pic.set_paintable(Some(&texture));
+        pic.set_size_request(icon_size as i32, icon_size as i32);
+        pic.set_can_shrink(false);
+        pic.set_halign(Align::Center);
+        pic.set_valign(Align::Center);
+
+        let btn = Button::new();
+        btn.set_child(Some(&pic));
+        btn.set_tooltip_text(Some(tooltip));
+        btn.set_valign(Align::Center);
+        btn.set_margin_start(1);
+        btn.set_margin_end(1);
+        btn.set_focusable(false);
+        btn.set_can_focus(false);
+        btn.set_has_frame(false);
+        // Auto-calculate button size: icon + padding for comfortable click target
+        btn.set_width_request((icon_size + 6.0) as i32);
+        btn.set_height_request((icon_size + 6.0) as i32);
+        btn.add_css_class("topright-btn");
+        btn.add_css_class("window-control-btn");
+        btn.add_css_class("layout-btn");
+
+        // Add hover state handling - regenerate icon with hover color
+        {
+            let pic_hover = pic.clone();
+            let normal_color = color.to_string();
+            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
+
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let icon_for_enter = icon;
+            let hover_color_enter = hover_color.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let texture = render_layout_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
+                pic_hover.set_paintable(Some(&texture));
+            });
+
+            let pic_leave = pic.clone();
+            let icon_for_leave = icon;
+            let normal_color_leave = normal_color.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let texture = render_layout_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn.add_controller(motion_controller);
+
+            // Add click state handling
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = pic.clone();
+            let icon_for_pressed = icon;
+            let active_color_pressed = active_color.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let texture = render_layout_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+
+            let pic_released = pic.clone();
+            let icon_for_released = icon;
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let texture = render_layout_svg_icon(icon_for_released, &hover_color, icon_size);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn.add_controller(gesture);
+        }
+
+        btn
     }
 
     // Helper to create a button with SVG icon and hover/active color changes
