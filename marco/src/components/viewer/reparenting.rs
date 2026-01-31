@@ -36,8 +36,40 @@
 //! ```
 
 #![cfg(target_os = "linux")]
+#![allow(dead_code)]
+// Reparenting helpers (Linux/webkit6) — retained for planned EditorAndViewSeparate flow
+//
+// Purpose
+// - Implement the reparenting flow used by the "EditorAndViewSeparate" layout mode
+//   (move the inline WebView widget into a detached preview window and back) so the
+//   single WebView instance preserves DOM state, scroll position, and memory usage.
+//
+// What's included
+// - `PreviewWindow` (linux/webkit6): window management and attach/detach APIs
+// - `move_webview_to_preview_window` / `move_webview_to_main_window`: reparent helpers
+// - `ReparentGuard`: concurrency protection for rapid layout switches
+// - A few small helpers & smoke tests (verify ReparentGuard behavior)
+//
+// Rationale for keeping
+// - Feature is planned and fairly invasive to re-create later; keeping these helpers
+//   reduces rework and makes future enablement straightforward. They are currently
+//   annotated with `#![allow(dead_code)]` to avoid warnings until the feature is wired
+//   into the UI on Linux (and ported for Windows later).
+//
+// Maintenance notes
+// - When enabling the feature, add integration tests that exercise reparenting in a
+//   headful GTK session and remove `#![allow(dead_code)]` to let the compiler help
+//   detect unused code paths.
+// - If you prefer to remove the feature entirely, delete these files and update
+//   references in `menu.rs`, `main.rs`, and tests:
+//     - `marco/src/components/viewer/reparenting.rs`
+//     - `marco/src/components/viewer/webkit6_detached_window.rs`
+//     - related menu wiring in `marco/src/menu.rs`
+//
+// TODO: add an integration test that exercises a full open/close reparent cycle (manual
+// test steps described in the module docs).
 
-use crate::components::viewer::detached_window::PreviewWindow;
+use crate::components::viewer::webkit6_detached_window::PreviewWindow;
 use gtk4::prelude::*;
 use gtk4::{Paned, Stack};
 use std::cell::Cell;
@@ -175,7 +207,7 @@ pub fn move_webview_to_preview_window(
                     "WebView parent is not the Stack, checking if it's already in preview window"
                 );
                 // It might already be in the preview window
-                if preview_window.container().child().is_some() {
+                if preview_window.has_webview() {
                     log::info!("WebView is already in preview window");
                     return Ok(());
                 }

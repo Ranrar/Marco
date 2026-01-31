@@ -1,5 +1,5 @@
 //! Detached preview window implementation that uses `wry` on Windows.
-#![cfg(windows)]
+#![cfg(target_os = "windows")]
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

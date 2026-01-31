@@ -48,14 +48,26 @@ impl PoloPaths {
             } else {
                 dirs::config_dir()
                     .map(|c| c.join("polo"))
-                    .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
-                    .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
+                    .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("polo")))
+                    .unwrap_or_else(|| {
+                        if cfg!(target_os = "windows") {
+                            PathBuf::from("C:\\Temp\\polo\\config")
+                        } else {
+                            PathBuf::from("/tmp/polo/config")
+                        }
+                    })
             }
         } else {
             dirs::config_dir()
                 .map(|c| c.join("polo"))
-                .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
-                .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
+                .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("polo")))
+                .unwrap_or_else(|| {
+                    if cfg!(target_os = "windows") {
+                        PathBuf::from("C:\\Temp\\polo\\config")
+                    } else {
+                        PathBuf::from("/tmp/polo/config")
+                    }
+                })
         }
     }
 
@@ -82,16 +94,28 @@ impl PoloPaths {
     pub fn user_data_dir(&self) -> PathBuf {
         dirs::data_local_dir()
             .map(|d| d.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".local/share/polo")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/polo/data"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share").join("polo")))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    PathBuf::from("C:\\Temp\\polo\\data")
+                } else {
+                    PathBuf::from("/tmp/polo/data")
+                }
+            })
     }
 
     /// Get Polo's cache directory
     pub fn cache_dir(&self) -> PathBuf {
         dirs::cache_dir()
             .map(|c| c.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache/polo")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/polo/cache"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("polo")))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    PathBuf::from("C:\\Temp\\polo\\cache")
+                } else {
+                    PathBuf::from("/tmp/polo/cache")
+                }
+            })
     }
 }
 

@@ -22,8 +22,13 @@ type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 fn reparent_webview_to_main_window(
     webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
     split_opt: &Option<Paned>,
+    #[cfg(target_os = "linux")]
     preview_window_opt: &Option<
-        Rc<RefCell<Option<crate::components::viewer::detached_window::PreviewWindow>>>,
+        Rc<RefCell<Option<crate::components::viewer::webkit6_detached_window::PreviewWindow>>>,
+    >,
+    #[cfg(target_os = "windows")]
+    preview_window_opt: &Option<
+        Rc<RefCell<Option<crate::components::viewer::wry_detached_window::PreviewWindow>>>,
     >,
     tracker_opt: &Option<crate::components::viewer::layout_controller::WebViewLocationTracker>,
     guard_opt: &Option<crate::components::viewer::reparenting::ReparentGuard>,
@@ -112,7 +117,7 @@ fn reparent_webview_to_main_window(
 }
 
 // Non-Linux stub: try to ensure Stack shows the HTML preview and return false for reparenting
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 fn reparent_webview_to_main_window(
     _webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
     split_opt: &Option<Paned>,
@@ -241,15 +246,13 @@ use crate::components::viewer::layout_controller::{SplitController, WebViewLocat
 
 // Platform-specific type aliases so the TitlebarConfig structure can be compiled on all platforms
 #[cfg(target_os = "linux")]
-type PreviewWindowType = crate::components::viewer::detached_window::PreviewWindow;
-#[cfg(windows)]
+type PreviewWindowType = crate::components::viewer::webkit6_detached_window::PreviewWindow;
+#[cfg(target_os = "windows")]
 type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
-#[cfg(all(not(target_os = "linux"), not(windows)))]
-type PreviewWindowType = ();
 
 #[cfg(target_os = "linux")]
 type ReparentGuardType = crate::components::viewer::reparenting::ReparentGuard;
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 type ReparentGuardType = ();
 
 /// Configuration for creating the custom titlebar
@@ -435,9 +438,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     popover.set_parent(&layout_menu_btn);
     // Remove unused duplicate clone
 
-    // Create window weak reference for reparenting logic (before rebuild closure)
     // Clone reparenting parameters for capture in rebuild closure
-    let window_weak_for_reparent = window.downgrade();
     let webview_rc_for_rebuild = webview_rc.clone();
     let split_for_rebuild = split.clone();
     let preview_window_opt_for_rebuild = preview_window_opt.clone();
@@ -540,7 +541,6 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
         let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
         let reparent_guard_opt = reparent_guard_for_rebuild.clone();
-        let window_weak = window_weak_for_reparent.clone();
         let window_clone = window.clone();
         let split_controller_opt = split_controller_for_rebuild.clone();
         let previous_layout_state_for_btn3 = previous_layout_state.clone();
@@ -583,7 +583,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                     if preview_borrow.is_none() {
                         #[cfg(target_os = "linux")]
                         {
-                            use crate::components::viewer::detached_window::PreviewWindow;
+                            use crate::components::viewer::webkit6_detached_window::PreviewWindow;
                             if let Some(app) = window_clone.application() {
                                 let pw = PreviewWindow::new(&window_clone, &app);
                                 *preview_borrow = Some(pw);
@@ -592,7 +592,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                             }
                         }
 
-                        #[cfg(windows)]
+                        #[cfg(target_os = "windows")]
                         {
                             use crate::components::viewer::wry_detached_window::PreviewWindow;
                             let pw = PreviewWindow::new(&window_clone);
@@ -609,7 +609,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                 // On Linux, PlatformWebView is a WebView
                                 pw.attach_webview(&wv);
                             }
-                            #[cfg(windows)]
+                            #[cfg(target_os = "windows")]
                             {
                                 // On Windows, PlatformWebView exposes .widget(); pass as Option
                                 pw.attach_webview(Some(&wv.widget()));
@@ -634,7 +634,6 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                             let weak_rebuild_cb = weak_rebuild_local.clone();
 
                             pw.set_on_close_callback(move || {
-                                use crate::components::viewer::layout_controller::WebViewLocation;
                                 log::info!("Preview window closed by user - restoring preview to main window");
                             });
                             log::info!("Registered on_close callback for preview window");

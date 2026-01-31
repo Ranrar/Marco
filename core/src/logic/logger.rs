@@ -39,11 +39,11 @@ impl SimpleFileLogger {
             std::env::current_dir()
                 .map(|cwd| cwd.join("log"))
                 .unwrap_or_else(|_| {
-                    #[cfg(windows)]
+                    #[cfg(target_os = "windows")]
                     {
                         PathBuf::from("C:\\Temp\\marco\\log")
                     }
-                    #[cfg(not(windows))]
+                    #[cfg(target_os = "linux")]
                     {
                         PathBuf::from("/tmp/marco/log")
                     }
@@ -237,11 +237,11 @@ pub fn current_log_root_dir() -> std::path::PathBuf {
     }
 
     // Platform fallback (should be rare)
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     {
         std::path::PathBuf::from("C:\\Temp\\marco\\logs")
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     {
         std::path::PathBuf::from("/tmp/marco/logs")
     }

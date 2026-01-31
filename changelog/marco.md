@@ -24,6 +24,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.15.1] - 2026-01-31
+
+### Added
+- Added Windows preview helpers using `wry` for embedded previews on Windows:
+  - `wry.rs` — HTML document wrapping, base URI generation, and HTML viewer creation using `wry`/WebView2 when available
+  - `wry_detached_window.rs` — Detached preview window implementation that can host a `wry` WebView and integrate with the GTK application lifecycle
+  - `wry_platform_webview.rs` — Platform-specific WebView wrapper for Windows that manages background color, HTML loading, and safe fallbacks when WebView2 is unavailable
+  - Included runtime-friendly fallbacks and defensive checks for missing WebView2 runtimes; the feature is gated per-platform and integrates with the existing preview reparenting and menu logic
+
 ## [0.15.1] - 2026-01-30
 
 ### Added
@@ -44,9 +53,6 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 - Dropped legacy icon-font support and removed references to `ui_menu.ttf` in the UI code and tests.
 - Removed the old `icon_font()` usage patterns (core paths helper moved/removed).
 - Packaging scripts were updated to defensively remove deprecated `ui_menu.ttf` from installer/package outputs.
-
-### Security
-- Nothing yet.
 
 ## [0.15.0] - 2026-01-25
 

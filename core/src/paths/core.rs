@@ -108,7 +108,7 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
                     candidate_paths.push(home.join(".local/share/marco"));
                 }
             }
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             {
                 // Windows: %LOCALAPPDATA%\Marco
                 if let Some(local_app_data) = dirs::data_local_dir() {
@@ -121,7 +121,7 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             {
                 candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
             }
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             {
                 // Windows: %PROGRAMFILES%\Marco
                 if let Ok(program_files) = env::var("PROGRAMFILES") {
@@ -134,7 +134,7 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             {
                 candidate_paths.push(PathBuf::from("/usr/share/marco"));
             }
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             {
                 // Windows: %PROGRAMDATA%\Marco (for system-wide shared data)
                 if let Ok(program_data) = env::var("PROGRAMDATA") {

@@ -1,32 +1,33 @@
-//! Main editor construction with integrated preview
-//!
-//! This module builds the complete editor interface including:
-//! - Split pane layout (editor + preview)
-//! - SourceView5 text editing
-//! - WebKit6 HTML preview rendering
-//! - Bidirectional scroll synchronization
-//! - Theme management and syntax highlighting
-//! - Document buffer integration
-//! - Debounced content processing (LSP, rendering, extensions)
-//!
-//! # Architecture
-//!
-//! The editor is constructed as a GTK Paned widget containing:
-//! 1. **Left pane**: SourceView editor with syntax highlighting
-//! 2. **Right pane**: WebKit WebView for HTML preview
-//!
-//! Content changes trigger debounced processing:
-//! - Preview rendering (300ms debounce)
-//! - LSP syntax highlighting (150ms debounce)
-//! - Extension processing (500ms debounce)
-//!
-//! # Platform Support
-//!
-//! Currently Linux-only (uses WebKit6 for preview).
-//! Cross-platform support planned using wry/WebView2 for Windows.
-//!
-//! When adding Windows support, `create_editor_with_preview_and_buffer()`
-//! will need conditional compilation for WebView creation.
+use crate::components::viewer::renderer::refresh_preview_into_webview;
+// Main editor construction with integrated preview
+//
+// This module builds the complete editor interface including:
+// - Split pane layout (editor + preview)
+// - SourceView5 text editing
+// - WebKit6 HTML preview rendering
+// - Bidirectional scroll synchronization
+// - Theme management and syntax highlighting
+// - Document buffer integration
+// - Debounced content processing (LSP, rendering, extensions)
+//
+// # Architecture
+//
+// The editor is constructed as a GTK Paned widget containing:
+// 1. **Left pane**: SourceView editor with syntax highlighting
+// 2. **Right pane**: WebKit WebView for HTML preview
+//
+// Content changes trigger debounced processing:
+// - Preview rendering (300ms debounce)
+// - LSP syntax highlighting (150ms debounce)
+// - Extension processing (500ms debounce)
+//
+// # Platform Support
+//
+// Currently Linux-only (uses WebKit6 for preview).
+// Cross-platform support planned using wry/WebView2 for Windows.
+//
+// When adding Windows support, `create_editor_with_preview_and_buffer()`
+// will need conditional compilation for WebView creation.
 
 use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::editor::sourceview::render_editor_with_view;
@@ -49,7 +50,6 @@ use crate::components::viewer::css_utils::{pretty_print_html, webkit_scrollbar_c
 
 // Renderer functions are Linux-only (keep use guarded where necessary)
 #[cfg(target_os = "linux")]
-use crate::components::viewer::renderer;
 
 pub fn create_editor_with_preview_and_buffer(
     window: &gtk4::ApplicationWindow,
@@ -602,7 +602,7 @@ paned > separator {{
     webview_rc_opt = Some(Rc::new(RefCell::new(webview.clone())));
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 {
     // Windows (and other) fallback: create PlatformWebView (wry) where possible
     let mut initial_html_body_with_js = initial_html_body.clone();
@@ -651,6 +651,7 @@ paned > separator {{
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
+        let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> = webview_rc_opt.as_ref().expect("webview_rc not set").clone();
         let webview = Rc::clone(&webview_rc);
         let theme_mode = Rc::clone(&theme_mode_rc);
         let html_opts = std::rc::Rc::clone(&html_opts_rc);
@@ -725,7 +726,7 @@ paned > separator {{
         })
     };
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
@@ -938,7 +939,7 @@ paned > separator {{
                         }
                     }
 
-                    #[cfg(not(target_os = "linux"))]
+                    #[cfg(target_os = "windows")]
                     {
                         // On non-Linux platforms we expect a TextView in the code view
                         if let Ok(child) = widget.clone().downcast::<gtk4::TextView>() {
@@ -1143,6 +1144,7 @@ paned > separator {{
         let css_rc_for_preview = Rc::clone(&css_rc);
         let html_opts_for_preview = std::rc::Rc::clone(&html_opts_rc);
         let buffer_rc_for_preview = Rc::clone(&buffer_rc);
+        let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> = webview_rc_opt.as_ref().expect("webview_rc not set").clone();
         let webview_rc_for_preview = Rc::clone(&webview_rc);
         let wheel_js_for_preview = wheel_js_for_refresh.clone();
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);

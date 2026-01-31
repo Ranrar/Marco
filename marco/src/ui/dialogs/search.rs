@@ -30,7 +30,7 @@ use std::rc::Rc;
 
 // Provide a lightweight WebView alias on non-Linux platforms so the code can
 // compile without WebKit6. The real WebView type is imported on Linux.
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 type WebView = gtk4::Widget;
 
 #[cfg(target_os = "linux")]
@@ -129,7 +129,7 @@ pub fn show_search_window(
 }
 
 // Minimal fallback for non-Linux platforms: show simple informational window
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 pub fn show_search_window_no_webview(
     parent: &Window,
     _file_cache: Rc<RefCell<SimpleFileCache>>,
@@ -1719,7 +1719,7 @@ fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
     }
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 fn sync_html_preview_scroll(_match_iter: &gtk4::TextIter) {
     // No-op on platforms without a WebView implementation
 }

@@ -23,11 +23,9 @@ impl std::fmt::Display for ViewMode {
 #[cfg(target_os = "linux")]
 pub type PlatformWebView = webkit6::WebView;
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 pub type PlatformWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
-#[cfg(all(not(target_os = "linux"), not(windows)))]
-pub type PlatformWebView = gtk4::Widget;
 
 // Keep the original type but add overlay and split controller support
 // WebView is now wrapped in Rc<RefCell<>> for shared ownership during reparenting

@@ -124,7 +124,7 @@ impl FontLoader {
             },
         ];
 
-        #[cfg(windows)]
+        #[cfg(target_os = "windows")]
         let fallback = vec![
             FontFamily {
                 name: "Consolas".to_string(),
@@ -287,7 +287,7 @@ impl FontLoader {
             "DejaVu Sans Mono",
         ];
 
-        #[cfg(windows)]
+        #[cfg(target_os = "windows")]
         let common_monospace = [
             "Consolas",
             "Cascadia Code",

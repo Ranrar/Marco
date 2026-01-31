@@ -137,8 +137,14 @@ impl MarcoPaths {
     pub fn cache_dir(&self) -> PathBuf {
         dirs::cache_dir()
             .map(|c| c.join("marco"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache/marco")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/marco/cache"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("marco")))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    PathBuf::from("C:\\Temp\\marco\\cache")
+                } else {
+                    PathBuf::from("/tmp/marco/cache")
+                }
+            })
     }
 }
 

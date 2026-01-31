@@ -48,6 +48,8 @@ wry = { workspace = true }
 tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
+# Ctrl-C handler for graceful shutdown on Windows
+ctrlc = "3.5.1"
 
 [dev-dependencies]
 serial_test = { workspace = true }

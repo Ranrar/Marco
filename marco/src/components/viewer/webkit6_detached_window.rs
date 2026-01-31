@@ -1,12 +1,9 @@
-//! Preview Window Module
+//! Detached preview window implementation that uses `webkit6` on Linux.
 //!
 //! This module manages a separate GTK ApplicationWindow that hosts the reparented WebView
 //! for the EditorAndViewSeparate layout mode. The window provides a dedicated space for
 //! viewing the HTML preview while editing in the main window.
 //!
-//! # Platform Support
-//!
-//! Currently Linux-only (uses WebKit6). Windows support will be added in the future.
 //!
 //! # Reparenting Approach
 //!
@@ -575,12 +572,13 @@ impl PreviewWindow {
         *self.on_close_callback.borrow_mut() = Some(Box::new(callback));
     }
 
-    /// Get a reference to the ScrolledWindow container
-    ///
-    /// Can be used to access or modify container properties.
-    pub fn container(&self) -> &ScrolledWindow {
-        &self.container
+    /// Returns true if the preview window currently has a child widget (usually the WebView)
+    #[allow(dead_code)]
+    pub fn has_webview(&self) -> bool {
+        self.container.child().is_some()
     }
+
+
 }
 
 #[cfg(test)]

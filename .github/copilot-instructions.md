@@ -125,6 +125,23 @@ let completions = get_completions(position, context); // Returns Vec<CompletionI
 - Font loading uses absolute paths via `logic::paths` helpers
 - Cross-platform support handled in `logic::crossplatforms`
 
+**Cross-platform cfg annotations**: When adding platform-specific code or dependencies, annotate modules or items with `#[cfg(target_os = "linux")]` or `#[cfg(target_os = "windows")]` to make behavior explicit and to keep builds clean. Prefer conditional dependencies in `Cargo.toml` for platform-only crates:
+
+> **Info:** Platform-specific conditional dependencies for `Cargo.toml`
+>
+> ```txt
+> [target.'cfg(target_os = "linux")'.dependencies]
+> # Linux: webkit6 (GTK4-native WebKit)
+> webkit6
+> [target.'cfg(target_os = "windows")'.dependencies]
+> # Windows: wry (Chromium-based native Windows webview, e.g., Edge)
+> wry
+> tao
+> gdk4-win32
+> raw-window-handle
+> urlencoding
+> ```
+
 Build commands:
 ```bash
 cargo build -p core     # Core library only

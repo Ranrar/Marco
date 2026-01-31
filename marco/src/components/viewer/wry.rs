@@ -3,7 +3,7 @@
 //! This module provides minimal, safe Windows implementations that mirror the
 //! `webkit6` API surface so the rest of the codebase can call the same functions.
 //!
-#![cfg(windows)]
+#![cfg(target_os = "windows")]
 
 use gtk4::prelude::*;
 use gtk4::{Label, ScrolledWindow, TextView, Box as GtkBox, Orientation};

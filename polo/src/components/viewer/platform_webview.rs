@@ -23,15 +23,15 @@ pub struct PlatformWebView {
     #[cfg(target_os = "linux")]
     inner: webkit6::WebView,
 
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     inner: std::rc::Rc<std::cell::RefCell<Option<wry::WebView>>>,
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     container: gtk4::Box,
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     parent_handle: std::rc::Rc<ParentWindowHandle>,
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     bg_color: std::rc::Rc<std::cell::Cell<(u8, u8, u8, u8)>>,
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     gtk_window: gtk4::ApplicationWindow,
 }
 
@@ -88,7 +88,7 @@ impl PlatformWebView {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 impl PlatformWebView {
     pub fn new(window: &gtk4::ApplicationWindow) -> Result<Self, String> {
         use gtk4::prelude::WidgetExt;
@@ -245,14 +245,14 @@ impl PlatformWebView {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 #[derive(Clone)]
 struct ParentWindowHandle {
     window: raw_window_handle::WindowHandle<'static>,
     display: raw_window_handle::DisplayHandle<'static>,
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
     fn window_handle(
         &self,
@@ -261,7 +261,7 @@ impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     fn display_handle(
         &self,
@@ -270,7 +270,7 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 fn inject_base_href(html: &str, base: &str) -> String {
     if html.contains("<base") {
         return html.to_string();

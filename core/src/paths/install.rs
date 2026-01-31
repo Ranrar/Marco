@@ -24,62 +24,58 @@ pub enum InstallLocation {
 /// - Linux: ~/.local/share/marco/
 /// - Windows: %LOCALAPPDATA%\Marco
 pub fn user_install_dir() -> PathBuf {
-    #[cfg(target_os = "linux")]
-    {
-        dirs::home_dir()
-            .map(|h| h.join(".local/share/marco"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/marco"))
+    if cfg!(target_os = "linux") {
+        return dirs::home_dir()
+            .map(|h| h.join(".local").join("share").join("marco"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/marco"));
     }
-    #[cfg(windows)]
-    {
-        dirs::data_local_dir()
+
+    if cfg!(target_os = "windows") {
+        return dirs::data_local_dir()
             .map(|d| d.join("Marco"))
-            .unwrap_or_else(|| PathBuf::from("C:\\Temp\\Marco"))
+            .unwrap_or_else(|| PathBuf::from("C:\\Temp\\Marco"));
     }
-    #[cfg(not(any(target_os = "linux", windows)))]
-    {
-        PathBuf::from("/tmp/marco")
-    }
+
+    // Fallback to Linux-style user dir
+    dirs::home_dir()
+        .map(|h| h.join(".local").join("share").join("marco"))
+        .unwrap_or_else(|| PathBuf::from("/tmp/marco"))
 }
 
 /// Get system local install directory
 /// - Linux: /usr/local/share/marco/
 /// - Windows: %PROGRAMFILES%\Marco
 pub fn system_local_install_dir() -> PathBuf {
-    #[cfg(target_os = "linux")]
-    {
-        PathBuf::from("/usr/local/share/marco")
+    if cfg!(target_os = "linux") {
+        return PathBuf::from("/usr/local/share/marco");
     }
-    #[cfg(windows)]
-    {
-        std::env::var("PROGRAMFILES")
+
+    if cfg!(target_os = "windows") {
+        return std::env::var("PROGRAMFILES")
             .map(|p| PathBuf::from(p).join("Marco"))
-            .unwrap_or_else(|_| PathBuf::from("C:\\Program Files\\Marco"))
+            .unwrap_or_else(|_| PathBuf::from("C:\\Program Files\\Marco"));
     }
-    #[cfg(not(any(target_os = "linux", windows)))]
-    {
-        PathBuf::from("/usr/local/share/marco")
-    }
+
+    // Fallback
+    PathBuf::from("/usr/local/share/marco")
 }
 
 /// Get system global install directory
 /// - Linux: /usr/share/marco/
 /// - Windows: %PROGRAMDATA%\Marco
 pub fn system_global_install_dir() -> PathBuf {
-    #[cfg(target_os = "linux")]
-    {
-        PathBuf::from("/usr/share/marco")
+    if cfg!(target_os = "linux") {
+        return PathBuf::from("/usr/share/marco");
     }
-    #[cfg(windows)]
-    {
-        std::env::var("PROGRAMDATA")
+
+    if cfg!(target_os = "windows") {
+        return std::env::var("PROGRAMDATA")
             .map(|p| PathBuf::from(p).join("Marco"))
-            .unwrap_or_else(|_| PathBuf::from("C:\\ProgramData\\Marco"))
+            .unwrap_or_else(|_| PathBuf::from("C:\\ProgramData\\Marco"));
     }
-    #[cfg(not(any(target_os = "linux", windows)))]
-    {
-        PathBuf::from("/usr/share/marco")
-    }
+
+    // Fallback
+    PathBuf::from("/usr/share/marco")
 }
 
 /// Detect the current installation location
@@ -122,26 +118,18 @@ pub fn config_dir() -> PathBuf {
     dirs::config_dir()
         .map(|c| c.join("marco"))
         .or_else(|| {
-            #[cfg(target_os = "linux")]
-            {
-                dirs::home_dir().map(|h| h.join(".config/marco"))
-            }
-            #[cfg(windows)]
-            {
-                dirs::data_local_dir().map(|d| d.join("Marco\\config"))
-            }
-            #[cfg(not(any(target_os = "linux", windows)))]
-            {
-                dirs::home_dir().map(|h| h.join(".config/marco"))
+            if cfg!(target_os = "linux") {
+                dirs::home_dir().map(|h| h.join(".config").join("marco"))
+            } else if cfg!(target_os = "windows") {
+                dirs::data_local_dir().map(|d| d.join("Marco").join("config"))
+            } else {
+                dirs::home_dir().map(|h| h.join(".config").join("marco"))
             }
         })
         .unwrap_or_else(|| {
-            #[cfg(windows)]
-            {
+            if cfg!(target_os = "windows") {
                 PathBuf::from("C:\\Temp\\marco\\config")
-            }
-            #[cfg(not(windows))]
-            {
+            } else {
                 PathBuf::from("/tmp/marco/config")
             }
         })
@@ -155,26 +143,18 @@ pub fn user_data_dir() -> PathBuf {
     dirs::data_local_dir()
         .map(|d| d.join("marco"))
         .or_else(|| {
-            #[cfg(target_os = "linux")]
-            {
-                dirs::home_dir().map(|h| h.join(".local/share/marco"))
-            }
-            #[cfg(windows)]
-            {
-                dirs::home_dir().map(|h| h.join("AppData\\Local\\Marco"))
-            }
-            #[cfg(not(any(target_os = "linux", windows)))]
-            {
-                dirs::home_dir().map(|h| h.join(".local/share/marco"))
+            if cfg!(target_os = "linux") {
+                dirs::home_dir().map(|h| h.join(".local").join("share").join("marco"))
+            } else if cfg!(target_os = "windows") {
+                dirs::home_dir().map(|h| h.join("AppData").join("Local").join("Marco"))
+            } else {
+                dirs::home_dir().map(|h| h.join(".local").join("share").join("marco"))
             }
         })
         .unwrap_or_else(|| {
-            #[cfg(windows)]
-            {
+            if cfg!(target_os = "windows") {
                 PathBuf::from("C:\\Temp\\marco\\data")
-            }
-            #[cfg(not(windows))]
-            {
+            } else {
                 PathBuf::from("/tmp/marco/data")
             }
         })

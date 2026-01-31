@@ -1,7 +1,6 @@
 #[cfg(target_os = "linux")]
 use webkit6::prelude::*;
 
-use gtk4::prelude::*;
 mod components;
 mod footer;
 mod logic;
@@ -83,7 +82,7 @@ fn main() -> glib::ExitCode {
 
     // Ensure we shut down cleanly on SIGINT/SIGTERM so buffered log writes are flushed.
     // This is especially important now that the file logger uses a `BufWriter`.
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         use glib::source::unix_signal_add_local;
         use glib::ControlFlow;
@@ -108,6 +107,18 @@ fn main() -> glib::ExitCode {
             app_for_sigterm.quit();
             ControlFlow::Break
         });
+    }
+
+    // Windows: use ctrlc handler for graceful shutdown
+    #[cfg(target_os = "windows")]
+    {
+        let app_for_ctrlc = app.clone();
+        ctrlc::set_handler(move || {
+            log::warn!("Received Ctrl-C, requesting graceful shutdown...");
+            core::logic::logger::shutdown_file_logger();
+            app_for_ctrlc.quit();
+        })
+        .expect("Failed to set Ctrl-C handler");
     }
 
     // Clone marco_paths for closures
@@ -395,7 +406,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // objects; on non-Linux we pass `None` so titlebar/menu code uses safe fallbacks.
     #[cfg(target_os = "linux")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
-        use crate::components::viewer::detached_window::PreviewWindow;
+        use crate::components::viewer::webkit6_detached_window::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
@@ -403,12 +414,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         (Some(preview_window_opt), Some(webview_location_tracker), Some(reparent_guard))
     };
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = (None::<Rc<RefCell<Option<()>>>>, None::<WebViewLocationTracker>, None::<()>);
 
     // Windows: initialize detached preview window state so the titlebar can open a
     // detached wry-based preview window.
-    #[cfg(windows)]
+    #[cfg(target_os = "windows")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
         use crate::components::viewer::wry_detached_window::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
@@ -884,7 +895,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     webview.clone(),
                 );
             }
-            #[cfg(not(target_os = "linux"))]
+            #[cfg(target_os = "windows")]
             {
                 use crate::ui::dialogs::search::show_search_window_no_webview;
                 show_search_window_no_webview(

@@ -76,7 +76,7 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
     let resolved_display = resolved_dir.display().to_string();
 
     let log_paths_text = format!(
-        "Resolved log directory: {}\n\nDefault locations:\n• Windows: %LOCALAPPDATA%\\Marco\\logs\\<YYYYMM>\\<YYMMDD.log>\n• Linux/macOS: ~/.cache/marco/logs/<YYYYMM>/<YYMMDD.log>\n\nFallback (development): ./log/<YYYYMM>/<YYMMDD.log> (used when system cache dir is unavailable).\n\nNote: File logging can be enabled/disabled immediately from this dialog without restarting the app.",
+        "Resolved log directory: {}\n\nDefault locations:\n• Windows: %LOCALAPPDATA%\\Marco\\logs\\<YYYYMM>\\<YYMMDD.log>\n• Linux: ~/.cache/marco/logs/<YYYYMM>/<YYMMDD.log>\n\nFallback (development): ./log/<YYYYMM>/<YYMMDD.log> (used when system cache dir is unavailable).\n\nNote: File logging can be enabled/disabled immediately from this dialog without restarting the app.",
         resolved_display
     );
 
@@ -101,13 +101,13 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
         let normalized_uri = {
             // Use canonicalized absolute path when possible
             let abs = path.canonicalize().unwrap_or(path.clone());
-            #[cfg(windows)]
+            #[cfg(target_os = "windows")]
             {
                 // Windows file URIs must start with file:/// and use forward slashes
                 let s = abs.to_string_lossy().replace("\\", "/");
                 format!("file:///{}", s)
             }
-            #[cfg(not(windows))]
+            #[cfg(target_os = "linux")]
             {
                 // Abs path already begins with '/'
                 format!("file://{}", abs.to_string_lossy())
@@ -117,21 +117,23 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
         if let Err(e) = gio::AppInfo::launch_default_for_uri(&normalized_uri, None::<&gio::AppLaunchContext>) {
             // Fallback: try platform-specific open command if GIO fails
             log::warn!("Failed to open logs folder {} via GIO: {}. Trying platform fallback...", normalized_uri, e);
-            #[cfg(windows)]
+
+            #[cfg(target_os = "windows")]
             {
-                if let Err(cmd_err) = std::process::Command::new("explorer").arg(dir_clone.to_string_lossy().to_string()).status() {
+                if let Err(cmd_err) = std::process::Command::new("explorer")
+                    .arg(dir_clone.to_string_lossy().to_string())
+                    .status()
+                {
                     log::error!("Failed to open logs folder with explorer: {}", cmd_err);
                 }
             }
-            #[cfg(target_os = "macos")]
+
+            #[cfg(target_os = "linux")]
             {
-                if let Err(cmd_err) = std::process::Command::new("open").arg(dir_clone.to_string_lossy().to_string()).status() {
-                    log::error!("Failed to open logs folder with open: {}", cmd_err);
-                }
-            }
-            #[cfg(all(unix, not(target_os = "macos")))]
-            {
-                if let Err(cmd_err) = std::process::Command::new("xdg-open").arg(dir_clone.to_string_lossy().to_string()).status() {
+                if let Err(cmd_err) = std::process::Command::new("xdg-open")
+                    .arg(dir_clone.to_string_lossy().to_string())
+                    .status()
+                {
                     log::error!("Failed to open logs folder with xdg-open: {}", cmd_err);
                 }
             }

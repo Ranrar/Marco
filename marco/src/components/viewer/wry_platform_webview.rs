@@ -5,16 +5,16 @@
 //! `wry::WebView` on Windows (using Win32 HWND obtained from GDK surface) and
 //! avoid spawning a separate tao EventLoop thread.
 
-#![cfg(windows)]
+#![cfg(target_os = "windows")]
 
 use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 use raw_window_handle::{RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle};
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 use std::num::NonZeroIsize;
 
 /// Windows PlatformWebView wrapper
@@ -202,28 +202,28 @@ impl PlatformWebView {
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 #[derive(Clone)]
 struct ParentWindowHandle {
     window: raw_window_handle::WindowHandle<'static>,
     display: raw_window_handle::DisplayHandle<'static>,
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
     fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.window)
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     fn display_handle(&self) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.display)
     }
 }
 
-#[cfg(windows)]
+#[cfg(target_os = "windows")]
 fn inject_base_href(html: &str, base: &str) -> String {
     if html.contains("<base") {
         return html.to_string();
