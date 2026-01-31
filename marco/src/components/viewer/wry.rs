@@ -80,6 +80,21 @@ pub fn create_html_viewer_with_base(
     sw.upcast::<gtk4::Widget>()
 }
 
+/// Generate test HTML content when the editor is empty
+pub(crate) fn generate_test_html(wheel_js: &str) -> String {
+    let welcome_html = r#"<div id=\"welcome-message\" style=\"
+  text-align:center; 
+  margin-top:20%; 
+  opacity:0.7; 
+  font-family:sans-serif;\">
+  <h1>Welcome to Marco</h1>
+  <p>Start typing or open a file to begin your writing journey ✍️</p>
+</div>"#;
+    let mut html_with_js = welcome_html.to_string();
+    html_with_js.push_str(wheel_js);
+    html_with_js
+}
+
 /// Load HTML into the placeholder widget. We store the HTML for detached preview
 /// windows and update the label to show a small preview message.
 pub fn load_html_when_ready(widget: &gtk4::Widget, html: String, _base_uri: Option<String>) {

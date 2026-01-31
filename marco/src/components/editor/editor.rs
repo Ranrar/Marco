@@ -1,3 +1,4 @@
+#[cfg(target_os = "linux")]
 use crate::components::viewer::renderer::refresh_preview_into_webview;
 // Main editor construction with integrated preview
 //
@@ -49,7 +50,6 @@ use std::rc::Rc;
 use crate::components::viewer::css_utils::{pretty_print_html, webkit_scrollbar_css};
 
 // Renderer functions are Linux-only (keep use guarded where necessary)
-#[cfg(target_os = "linux")]
 
 pub fn create_editor_with_preview_and_buffer(
     window: &gtk4::ApplicationWindow,
@@ -605,8 +605,14 @@ paned > separator {{
 #[cfg(target_os = "windows")]
 {
     // Windows (and other) fallback: create PlatformWebView (wry) where possible
-    let mut initial_html_body_with_js = initial_html_body.clone();
-    initial_html_body_with_js.push_str(&wheel_js_rc);
+    // Use test HTML for empty document to mirror Linux behaviour (welcome message)
+    let mut initial_html_body_with_js = if initial_html_body.trim().is_empty() {
+        crate::components::viewer::wry::generate_test_html(&wheel_js_rc)
+    } else {
+        let mut s = initial_html_body.clone();
+        s.push_str(&wheel_js_rc);
+        s
+    };
     let pretty_initial = pretty_print_html(&initial_html_body_with_js);
 
     // Try to create a native Windows embedded WebView (wry). PlatformWebView
@@ -756,6 +762,61 @@ paned > separator {{
                 Ok(html) => html,
                 Err(e) => format!("Error rendering HTML: {}", e),
             };
+
+            // If document is empty, show the test welcome HTML (non-invasive placeholder)
+            if text.trim().is_empty() {
+                let html_body = crate::components::viewer::wry::generate_test_html(&wheel_js_local);
+                let combined_css = css.borrow().clone();
+                let theme_mode = theme_mode_for_preview.borrow().clone();
+                let full_html = crate::components::viewer::wry::wrap_html_document(
+                    &html_body,
+                    &combined_css,
+                    &theme_mode,
+                    None,
+                );
+
+                if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
+                    .get_or_init(|| std::sync::Mutex::new(String::new()))
+                    .lock()
+                {
+                    *guard = full_html.clone();
+                }
+
+                // If we have an embedded in-editor webview, load the HTML into it
+                if let Some(ref wv_rc) = webview_for_preview {
+                    if let Ok(wv) = wv_rc.try_borrow() {
+                        wv.load_html_with_base(&full_html, None);
+                    } else {
+                        log::debug!("In-editor webview borrow busy; skipping load");
+                    }
+                } else {
+                    // No embedded webview available; HTML was stored in LATEST_PREVIEW_HTML for detached windows.
+                    log::debug!("No embedded webview available; stored welcome HTML for detached preview");
+                }
+
+                // Update the code view if present with pretty-printed welcome HTML
+                let formatted = pretty_print_html(&html_body);
+                if let Some(sw_child) = precreated_code_sw.child() {
+                    match sw_child.downcast::<gtk4::Viewport>() {
+                        Ok(viewport) => {
+                            if let Some(child) = viewport.child() {
+                                if let Ok(text_view) = child.downcast::<gtk4::TextView>() {
+                                    let buf = text_view.buffer();
+                                    buf.set_text(&formatted);
+                                }
+                            }
+                        }
+                        Err(widget) => {
+                            if let Ok(text_view) = widget.downcast::<gtk4::TextView>() {
+                                let buf = text_view.buffer();
+                                buf.set_text(&formatted);
+                            }
+                        }
+                    }
+                }
+
+                return;
+            }
 
             let formatted = pretty_print_html(&html_body);
 

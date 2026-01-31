@@ -10,6 +10,7 @@ mod theme;
 mod toolbar;
 pub mod ui;
 
+use gtk4::prelude::*;
 /*
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║    CRITICAL: This file (main.rs) serves ONLY as an APPLICATION GATEWAY    ║
@@ -109,16 +110,29 @@ fn main() -> glib::ExitCode {
         });
     }
 
-    // Windows: use ctrlc handler for graceful shutdown
+    // Windows: use ctrlc handler for graceful shutdown. Use an AtomicBool + polling timeout so handler is Send and we stay on the main thread.
     #[cfg(target_os = "windows")]
     {
         let app_for_ctrlc = app.clone();
+        let ctrlc_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ctrlc_flag_handler = std::sync::Arc::clone(&ctrlc_flag);
         ctrlc::set_handler(move || {
-            log::warn!("Received Ctrl-C, requesting graceful shutdown...");
-            core::logic::logger::shutdown_file_logger();
-            app_for_ctrlc.quit();
+            ctrlc_flag_handler.store(true, std::sync::atomic::Ordering::SeqCst);
         })
         .expect("Failed to set Ctrl-C handler");
+
+        // Poll the flag on the main loop and perform shutdown when set
+        let app_for_poll = app_for_ctrlc.clone();
+        glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+            if ctrlc_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                log::warn!("Received Ctrl-C, requesting graceful shutdown...");
+                core::logic::logger::shutdown_file_logger();
+                app_for_poll.quit();
+                glib::ControlFlow::Break
+            } else {
+                glib::ControlFlow::Continue
+            }
+        });
     }
 
     // Clone marco_paths for closures
