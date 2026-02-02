@@ -6,41 +6,43 @@ Cross-platform build scripts for Marco markdown editor.
 
 ```
 build/
-├── installer/           # All installer packages output here
-│   ├── linux/          # .deb packages
-│   └── windows/        # .zip packages
+├── installer/           # All installer packages output here (unified directory)
 ├── linux/              # Linux build scripts
+│   └── build_deb.sh   # Main build script for Debian packages
 ├── windows/            # Windows build scripts
-└── version.json        # Version tracking
+│   ├── build.ps1      # Binary build script
+│   ├── build_portable.ps1  # Portable package builder (recommended)
+│   └── package.ps1    # Full installer builder (advanced)
+└── version.json        # Version tracking (linux/windows sections)
 ```
 
 ## Platform-Specific Builds
 
 ### Linux (webkit6)
 ```bash
-# Build Debian package (includes compilation)
-bash build/linux/build_deb.sh
+# Build Debian package (includes compilation with explicit target)
+bash build/linux/build_deb.sh --no-bump
 
-# Output: build/installer/linux/marco-suite_VERSION_amd64.deb
+# Output: build/installer/marco-suite_alpha_VERSION_linux_amd64.deb
 ```
 
 ### Windows (wry/WebView2)
 ```powershell
-# Build binary (PowerShell)
-.\build\windows\build.ps1 -Release
+# Build and package (PowerShell - recommended)
+.\build\windows\build_portable.ps1
 
-# Create installer package (in Git Bash/WSL)
-bash build/windows/create_installer.sh
+# Skip build (use existing binaries)
+.\build\windows\build_portable.ps1 -SkipBuild
 
-# Output: build/installer/windows/marco-suite_VERSION_windows_x64.zip
+# Output: build/installer/marco-suite_alpha_VERSION_windows_amd64.zip
 ```
 
 ## Build Targets
 
-| Platform | WebView | Binary Location | Installer Output |
-|----------|---------|----------------|------------------|
-| Linux | webkit6 | `target/linux/release/marco` | `build/installer/linux/*.deb` |
-| Windows | wry (WebView2) | `target/windows/release/marco.exe` | `build/installer/windows/*.zip` |
+| Platform | Target Triple | Binary Location | Installer Output |
+|----------|--------------|----------------|------------------|
+| Linux | `x86_64-unknown-linux-gnu` | `target/x86_64-unknown-linux-gnu/release/marco` | `build/installer/*.deb` |
+| Windows | `x86_64-pc-windows-msvc` | `target/windows/x86_64-pc-windows-msvc/release/marco.exe` | `build/installer/*.zip` |
 
 
 ## Architecture

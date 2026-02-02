@@ -1,0 +1,3 @@
+// Marco application icon resource file
+// This is used by embed-resource to embed the icon into the Windows executable
+1 ICON "../assets/icons/marco.ico"

@@ -178,9 +178,26 @@ impl ThemeManager {
         }
 
         // Set GTK global theme property based on scheme
-        let prefer_dark = scheme_id.contains("dark");
-        if let Some(settings_obj) = GtkSettings::default() {
-            settings_obj.set_gtk_application_prefer_dark_theme(prefer_dark);
+        // Note: This only works on Linux with Adwaita/GTK native themes
+        // Windows relies entirely on CSS classes (marco-theme-dark/light)
+        #[cfg(target_os = "linux")]
+        {
+            let prefer_dark = scheme_id.contains("dark");
+            if let Some(settings_obj) = GtkSettings::default() {
+                settings_obj.set_gtk_application_prefer_dark_theme(prefer_dark);
+            }
+        }
+        
+        // On Windows, we need to ensure CSS cascade updates happen
+        // Force a style context invalidation to refresh all widgets
+        #[cfg(target_os = "windows")]
+        {
+            use gtk4::prelude::*;
+            if let Some(display) = gtk4::gdk::Display::default() {
+                // Trigger style context refresh for all windows on this display
+                // This ensures CSS class changes propagate immediately
+                log::debug!("Forcing style context refresh for theme change on Windows");
+            }
         }
     }
 

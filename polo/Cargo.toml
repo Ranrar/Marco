@@ -1,6 +1,6 @@
 [package]
 name = "polo"
-version = "0.15.1"
+version = "0.16.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
@@ -30,3 +30,6 @@ wry = { workspace = true }
 tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winres = "0.1"

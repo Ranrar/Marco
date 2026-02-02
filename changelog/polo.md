@@ -24,6 +24,19 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.16.0] - 2026-02-02
+
+### Added
+- **Full cross-platform support** for Windows and Linux.
+- Windows builds now use `wry` (WebView2) for HTML rendering.
+- Linux builds use `webkit6` for HTML rendering.
+- Windows icon embedding using `embed-resource` crate with `polo.rc` resource script.
+- Platform-specific conditional compilation for webview backends.
+
+### Changed
+- Build system now supports both x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu targets.
+- Updated dependencies to match core 0.16.0 and marco 0.16.0.
+
 ## [0.15.2] - 2026-01-30
 
 ### Added

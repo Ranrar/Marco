@@ -22,6 +22,19 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.16.0] - 2026-02-02
+
+### Added
+- **Full cross-platform support** for Windows and Linux.
+- Platform-agnostic core library works identically on both platforms.
+
+### Changed
+- Migrated logger from `static mut` to `OnceLock<T>` for Rust 2024 compatibility.
+- Removed all unsafe blocks for logger access in favor of safe initialization pattern.
+
+### Fixed
+- Fixed `static_mut_refs` warnings to comply with Rust 2024 edition.
+
 ## [0.15.2] - 2026-01-30
 
 ### Added

@@ -40,13 +40,24 @@ Install it (Debian/Ubuntu):
 
 ## Windows
 
-Windows support is in development. Marco and Polo are being designed with cross-platform compatibility:
+**Windows support is now available!** Marco and Polo run natively on Windows with full cross-platform compatibility:
 
-- ✅ **File paths**: Full Windows path support (`%PROGRAMFILES%`, `%APPDATA%`, `%LOCALAPPDATA%`)
-- ✅ **Asset discovery**: Platform-specific install locations
-- ⏳ **GTK4**: Requires MSYS2 + GTK4 for Windows
-- ⏳ **WebView**: Windows builds will use WebView2 (via `wry`)
-- ⏳ **Installer**: Windows installer package coming soon
+### Alpha (latest dev build)
+
+Download the latest Alpha `.zip` from the **Alpha** release:
+
+- https://github.com/Ranrar/Marco/releases/tag/alpha
+
+The asset is currently published as:
+
+- `marco-suite_alpha_windows_amd64.zip`
+
+Install it:
+
+1. Download the `.zip` asset
+2. Extract to any location (e.g., `C:\Program Files\Marco`)
+3. Run `marco.exe` or `polo.exe`
+4. Settings are stored in the extracted folder (portable mode)
 
 ## Why Marco?
 
@@ -120,8 +131,8 @@ This project is developed with occasional help from AI tools (for example, Copil
 Marco uses a **Cargo workspace** with three crates:
 
 - **`core/`** — Pure Rust library with hand-crafted parser, AST builder, HTML renderer, LSP features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies.
-- **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and WebKit6 preview. Depends on `core`.
-- **`polo/`** — Lightweight viewer binary with GTK4 UI and WebKit6 preview only (no SourceView5). Depends on `core`.
+- **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). Depends on `core`.
+- **`polo/`** — Lightweight viewer binary with GTK4 UI and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). No SourceView5. Depends on `core`.
 - **`assets/`** — Centralized workspace assets: themes, fonts, icons, settings.
 
 **Key technologies:**
@@ -130,7 +141,7 @@ Marco uses a **Cargo workspace** with three crates:
 
 - **SourceView5** (`sourceview5`) - Advanced text editor component with syntax highlighting and code editing features. Provides the main markdown editing area with features like line numbers, search/replace, and text formatting.
 
-- **WebKit6** (`webkit6`) - Modern web engine for HTML rendering and preview. Displays the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
+- **WebKit6 / WebView2** - Platform-specific web engines for HTML rendering and preview. Linux uses `webkit6` (GTK4-native WebKit), Windows uses `wry` (WebView2/Chromium wrapper). Both display the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
 
 - **nom** (`nom`) - Parser combinator library for building the custom markdown grammar. nom uses **recursive descent parsing** where you write Rust functions that parse pieces of input and compose them together. This approach provides total control, incremental parsing capability, and native Rust performance. The parser lives in `core/src/grammar/` and generates an AST for fine-grained control over rendering and extensibility.
 
@@ -181,8 +192,10 @@ Marco uses a **Cargo workspace** with three crates:
 - [ ] Language plugin system (add support for new languages via plugins)
 
 ### Distribution & Platform
-- [ ] Packaging: Snap, .deb and (.MSI or.exe)
-- [ ] Cross-platform support: Linux and Windows builds
+- [x] Cross-platform support: Linux and Windows builds
+- [x] Linux packaging: .deb packages
+- [x] Windows packaging: Portable .zip packages
+- [ ] Additional packaging: Snap, .MSI installer
 
 ## Contributing
 

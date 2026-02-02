@@ -178,6 +178,15 @@ impl PlatformWebView {
             origin_in_window.0 + offset_x - 1.0, origin_in_window.1 + offset_y,
             alloc.width().max(100) + 1, alloc.height().max(100)
         );
+        
+        // Configure WebView2 to use data directory (portable mode friendly)
+        // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
+        let data_dir = core::paths::install::user_data_dir().join("webview");
+        if let Err(e) = std::fs::create_dir_all(&data_dir) {
+            log::warn!("Failed to create WebView2 data directory: {}", e);
+        }
+        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
+        
         match wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
             .with_bounds(rect)

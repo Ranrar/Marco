@@ -5,9 +5,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
-static mut LOGGER: Option<&'static SimpleFileLogger> = None;
+static LOGGER: OnceLock<&'static SimpleFileLogger> = OnceLock::new();
 
 
 
@@ -30,25 +30,41 @@ impl SimpleFileLogger {
         }
 
         // Use platform-appropriate cache directory for logs
-        // Linux: ~/.cache/marco/logs OR cwd/log (dev mode)
-        // Windows: %LOCALAPPDATA%\Marco\logs OR cwd\log (dev mode)
+        // **Windows Portable Mode**: {exe_dir}\logs\
+        // **Windows Installed Mode**: %LOCALAPPDATA%\Marco\logs
+        // **Linux**: ~/.cache/marco/logs
+        
+        #[cfg(target_os = "windows")]
+        let log_root = {
+            // Check for portable mode first
+            if let Some(portable_root) = crate::paths::install::detect_portable_mode() {
+                portable_root.join("logs")
+            } else if let Some(cache_dir) = dirs::cache_dir() {
+                cache_dir.join("marco").join("logs")
+            } else {
+                // Fallback: Try LOCALAPPDATA, then TEMP
+                std::env::var_os("LOCALAPPDATA")
+                    .map(|p| PathBuf::from(p).join("Marco").join("logs"))
+                    .or_else(|| std::env::var_os("TEMP").map(|p| PathBuf::from(p).join("marco").join("logs")))
+                    .unwrap_or_else(|| PathBuf::from("C:\\Temp\\marco\\log"))
+            }
+        };
+        
+        #[cfg(target_os = "linux")]
         let log_root = if let Some(cache_dir) = dirs::cache_dir() {
             cache_dir.join("marco").join("logs")
         } else {
-            // Fallback to cwd/log for development or when cache_dir is unavailable
-            std::env::current_dir()
-                .map(|cwd| cwd.join("log"))
-                .unwrap_or_else(|_| {
-                    #[cfg(target_os = "windows")]
-                    {
-                        PathBuf::from("C:\\Temp\\marco\\log")
-                    }
-                    #[cfg(target_os = "linux")]
-                    {
-                        PathBuf::from("/tmp/marco/log")
-                    }
-                })
+            // Try XDG_CACHE_HOME, then ~/.cache, then /tmp
+            std::env::var_os("XDG_CACHE_HOME")
+                .map(|p| PathBuf::from(p).join("marco").join("logs"))
+                .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("marco").join("logs")))
+                .unwrap_or_else(|| PathBuf::from("/tmp/marco/log"))
         };
+        
+        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+        let log_root = dirs::cache_dir()
+            .map(|c| c.join("marco").join("logs"))
+            .unwrap_or_else(|| PathBuf::from("/tmp/marco/log"));
         fs::create_dir_all(&log_root).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
         // YYYYMM folder
@@ -77,12 +93,10 @@ impl SimpleFileLogger {
         });
 
         // If we already initialized our logger earlier in this process, behave idempotently
-        unsafe {
-            if LOGGER.is_some() {
-                // Update global max level and return success
-                log::set_max_level(level);
-                return Ok(());
-            }
+        if LOGGER.get().is_some() {
+            // Update global max level and return success
+            log::set_max_level(level);
+            return Ok(());
         }
 
         // Leak the box temporarily to obtain a &'static reference required by log::set_logger.
@@ -93,9 +107,8 @@ impl SimpleFileLogger {
         match log::set_logger(leaked) {
             Ok(()) => {
                 // Successfully set our logger; record the static reference and apply level.
-                unsafe {
-                    LOGGER = Some(leaked);
-                }
+                // OnceLock::set returns Err if already set, but we checked above, so this should always succeed
+                let _ = LOGGER.set(leaked);
                 log::set_max_level(level);
                 Ok(())
             }
@@ -224,7 +237,7 @@ pub fn init_file_logger(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn
 
 /// Returns true if the file logger was successfully initialized by this library.
 pub fn is_file_logger_initialized() -> bool {
-    unsafe { LOGGER.is_some() }
+    LOGGER.get().is_some()
 }
 
 /// Return the resolved root logs directory (no month folder). This is a
@@ -346,14 +359,11 @@ impl SimpleFileLogger {
 
 /// Public shutdown hook to safely flush and drop the global logger.
 pub fn shutdown_file_logger() {
-    unsafe {
-        if let Some(logger) = LOGGER {
-            logger.shutdown();
-            // Clear the static reference; we leaked a Box originally, but dropping the file
-            // and clearing the pointer is acceptable for program shutdown. We set to None
-            // to avoid double-use.
-            LOGGER = None;
-        }
+    if let Some(logger) = LOGGER.get() {
+        logger.shutdown();
+        // Note: OnceLock doesn't support clearing after initialization.
+        // The logger remains set but is shut down (file handle closed).
+        // This is acceptable for program shutdown.
     }
 }
 

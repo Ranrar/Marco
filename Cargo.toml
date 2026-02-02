@@ -51,17 +51,19 @@ serial_test = "3.3.1"
 
 # Profile optimizations
 [profile.dev]
-opt-level = 0
-debug = true
-incremental = true
-overflow-checks = true
-split-debuginfo = 'unpacked'
+opt-level = 0           # No optimization for fastest compilation
+debug = true            # Full debug info
+incremental = true      # Enable incremental compilation
+overflow-checks = true  # Safety checks in dev
+split-debuginfo = 'unpacked'  # Faster linking on Windows/macOS
 
 [profile.release]
-opt-level = 3
-debug = false
-lto = true
-codegen-units = 1
+opt-level = 3           # Maximum optimization
+debug = false           # No debug symbols
+lto = "thin"            # Thin LTO - faster than "fat" LTO with good optimization
+codegen-units = 16      # Parallel codegen - much faster than 1
+strip = true            # Strip symbols to reduce binary size
+panic = 'abort'         # Smaller binaries, no unwinding
 
 # CI on Ubuntu 24.04 can fail to compile `ashpd 0.10.x` (pulled in by
 # `dark-light 2.0.0`) due to stricter trait bounds in newer `zbus`/`zvariant`.

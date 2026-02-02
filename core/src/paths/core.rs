@@ -81,9 +81,10 @@ pub fn is_dev_mode() -> bool {
 ///
 /// Search order:
 /// 1. Development mode: `target/{debug|release}/marco_assets/`
-/// 2. User install: `~/.local/share/marco/`
-/// 3. System local: `/usr/local/share/marco/`
-/// 4. System global: `/usr/share/marco/`
+/// 1b. Windows production: `executable_dir/assets/` (installer layout)
+/// 2. User install: `~/.local/share/marco/` (Linux) or `%LOCALAPPDATA%\Marco` (Windows)
+/// 3. System local: `/usr/local/share/marco/` (Linux) or `%PROGRAMFILES%\Marco` (Windows)
+/// 4. System global: `/usr/share/marco/` (Linux) or `%PROGRAMDATA%\Marco` (Windows)
 ///
 /// Returns the first existing directory found.
 pub fn find_asset_root() -> Result<PathBuf, AssetError> {
@@ -100,6 +101,14 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             // 1. Development mode: next to binary (target/{debug|release}/marco_assets)
             let dev_path = parent.join("marco_assets");
             candidate_paths.push(dev_path.clone());
+
+            // 1b. Production Windows install: assets folder next to executable
+            // (Installer puts assets in C:\Program Files\Marco-suite\assets\)
+            #[cfg(target_os = "windows")]
+            {
+                let exe_dir_assets = parent.join("assets");
+                candidate_paths.push(exe_dir_assets);
+            }
 
             // 2. User local install (platform-specific)
             #[cfg(target_os = "linux")]

@@ -212,7 +212,7 @@ impl Settings {
             // Common settings (shared between Marco and Polo)
             appearance: Some(AppearanceSettings {
                 editor_mode: Some("marco-light".to_string()),
-                preview_theme: Some("github".to_string()),
+                preview_theme: Some("marco".to_string()),
                 ui_font_size: Some(11),
                 ..Default::default()
             }),

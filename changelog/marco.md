@@ -24,6 +24,26 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.16.0] - 2026-02-02
+
+### Added
+- **Full cross-platform support** for Windows and Linux.
+- Windows builds now use `wry` (WebView2) for HTML preview rendering.
+- Linux builds use `webkit6` for HTML preview rendering.
+- Windows icon embedding using `embed-resource` crate with `marco.rc` resource script.
+- Platform-specific conditional compilation for webview backends.
+
+### Changed
+- Migrated to webkit6 0.5.0 async API for Linux builds (`evaluate_javascript_future`).
+- Updated JavaScript evaluation to use async/await pattern with `glib::spawn_future_local`.
+- Build system now supports both x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu targets.
+
+### Fixed
+- Fixed Windows icon embedding - marco.exe now displays icon correctly.
+- Fixed Linux build compatibility with webkit6 0.5.0 (removed callback-based API).
+- Fixed borrow lifetime issues in webkit6 async JavaScript execution.
+- Removed unused imports from search navigation and replace modules.
+
 ## [0.15.1] - 2026-01-31
 
 ### Added

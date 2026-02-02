@@ -198,15 +198,21 @@ pub fn create_custom_titlebar(
     dark_mode_btn.set_has_frame(true);
     dark_mode_btn.add_css_class("polo-mode-toggle-btn");
 
-    // Determine current mode from settings
+    // Determine current mode from settings (check for "dark" in editor_mode)
     let current_mode = {
         let settings = settings_manager.get_settings();
-        settings
+        let editor_mode = settings
             .appearance
             .as_ref()
             .and_then(|a| a.editor_mode.as_ref())
-            .map(|m| m.to_string())
-            .unwrap_or_else(|| "light".to_string())
+            .map(|m| m.as_str())
+            .unwrap_or("marco-light");
+        // Extract simple dark/light from marco-dark/marco-light or just dark/light
+        if editor_mode.contains("dark") {
+            "dark"
+        } else {
+            "light"
+        }
     };
 
     // Determine icon color based on current theme
@@ -246,11 +252,12 @@ pub fn create_custom_titlebar(
                 .as_ref()
                 .and_then(|a| a.editor_mode.as_ref())
                 .map(|m| m.as_str())
-                .unwrap_or("light");
-            if current == "dark" {
-                "light".to_string()
+                .unwrap_or("marco-light");
+            // Use marco-dark/marco-light format to match Marco's settings format
+            if current.contains("dark") {
+                "marco-light".to_string()
             } else {
-                "dark".to_string()
+                "marco-dark".to_string()
             }
         };
 
@@ -268,20 +275,21 @@ pub fn create_custom_titlebar(
             }
         });
 
-        // Update button icon and tooltip
-        let new_icon_color = if new_mode == "dark" {
+        // Update button icon and tooltip (check for "dark" in mode string)
+        let is_dark_mode = new_mode.contains("dark");
+        let new_icon_color = if is_dark_mode {
             "#f0f5f1" // Light color for dark mode
         } else {
             "#2c3e50" // Dark color for light mode
         };
-        let new_icon = if new_mode == "dark" {
+        let new_icon = if is_dark_mode {
             WindowIcon::Sun
         } else {
             WindowIcon::Moon
         };
         let new_mode_pic = create_mode_icon_picture(new_icon, new_icon_color, 8.0);
         dark_mode_btn_clone.set_child(Some(&new_mode_pic));
-        dark_mode_btn_clone.set_tooltip_text(Some(if new_mode == "dark" {
+        dark_mode_btn_clone.set_tooltip_text(Some(if is_dark_mode {
             "Switch to Light Mode"
         } else {
             "Switch to Dark Mode"
@@ -291,12 +299,14 @@ pub fn create_custom_titlebar(
         apply_gtk_theme_preference(&settings_manager_for_mode);
 
         // Toggle CSS class on window for theme-specific styling
-        let old_class = if new_mode == "dark" {
+        // Extract simple theme name (dark/light) for CSS class
+        let theme_name = if new_mode.contains("dark") { "dark" } else { "light" };
+        let old_class = if theme_name == "dark" {
             "marco-theme-light"
         } else {
             "marco-theme-dark"
         };
-        let new_class = format!("marco-theme-{}", new_mode);
+        let new_class = format!("marco-theme-{}", theme_name);
         window_for_theme.remove_css_class(old_class);
         window_for_theme.add_css_class(&new_class);
         log::debug!("Switched CSS class from {} to {}", old_class, new_class);

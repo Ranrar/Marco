@@ -1,0 +1,198 @@
+name: Alpha Release (Linux & Windows)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux .deb
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install Rust toolchain (pinned)
+        id: toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-linux-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3 \
+            build-essential pkg-config \
+            libgtk-4-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev libfontconfig-dev \
+            dpkg-dev fakeroot gzip \
+            imagemagick
+
+      - name: Build Debian package
+        run: |
+          bash build/linux/build_deb.sh --no-bump
+
+      - name: List produced artifacts
+        run: |
+          set -euo pipefail
+          echo "Installer directory contents:"
+          ls -lah build/installer/
+          echo "---"
+          ls -lah build/installer/*.deb || true
+
+      - name: Prepare artifact name
+        id: prep
+        run: |
+          set -euo pipefail
+          version="$(python3 -c 'import json;print(json.load(open("build/version.json"))["linux"]["marco"])')"
+          alpha_deb="build/installer/marco-suite_alpha_${version}_linux_amd64.deb"
+
+          if [ ! -f "$alpha_deb" ]; then
+            echo "ERROR: expected alpha artifact not found: $alpha_deb" >&2
+            echo "Available .deb files:" >&2
+            ls -lah build/installer/*.deb >&2 || true
+            exit 1
+          fi
+
+          echo "alpha_deb=$alpha_deb" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: ${{ steps.prep.outputs.alpha_deb }}
+          retention-days: 1
+
+  build-windows:
+    name: Build Windows portable
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Install Rust toolchain (pinned)
+        id: toolchain
+        uses: dtolnay/rust-toolchain@1.90.0
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-windows-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build portable package
+        shell: powershell
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File build/windows/build_portable.ps1
+
+      - name: List produced artifacts
+        shell: powershell
+        run: |
+          Write-Host "Installer directory contents:"
+          Get-ChildItem -Path "build/installer/" -Recurse | Format-Table -AutoSize
+
+      - name: Prepare artifact name
+        id: prep
+        shell: powershell
+        run: |
+          $version = (Get-Content build/version.json | ConvertFrom-Json).windows.marco
+          $alphaZip = "build/installer/marco-suite_alpha_${version}_windows_amd64.zip"
+
+          if (-not (Test-Path $alphaZip)) {
+            Write-Error "Expected alpha artifact not found: $alphaZip"
+            Write-Host "Available ZIP files:"
+            Get-ChildItem -Path "build/installer/" -Filter "*.zip" -Recurse
+            exit 1
+          }
+
+          # Output for GitHub Actions
+          "alpha_zip=$alphaZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-zip
+          path: ${{ steps.prep.outputs.alpha_zip }}
+          retention-days: 1
+
+  release:
+    name: Update Alpha release
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    concurrency:
+      group: alpha-release
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Move alpha tag to this commit
+        run: |
+          set -euo pipefail
+
+          # The GitHub Release "Source code" archives are generated from the release tag.
+          # If the moving 'alpha' tag isn't updated, the source tar/zip stays stuck on an old commit.
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+
+          git tag -f alpha "${GITHUB_SHA}"
+          git push --force origin alpha
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-deb
+          path: artifacts/
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-zip
+          path: artifacts/
+
+      - name: List downloaded artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          ls -lah artifacts/
+
+      - name: Update Alpha release (overwrite assets)
+        uses: ncipollo/release-action@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag: alpha
+          name: Alpha
+          prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          replacesArtifacts: true
+          artifactErrorsFailBuild: true
+          commit: ${{ github.sha }}
+          artifacts: artifacts/*

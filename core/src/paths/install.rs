@@ -4,6 +4,7 @@
 //! - User local installation (~/.local/share/marco/)
 //! - System local installation (/usr/local/share/marco/)
 //! - System global installation (/usr/share/marco/)
+//! - Portable mode (Windows): runs from writable directory (USB drive, user folder)
 
 use std::path::PathBuf;
 
@@ -18,6 +19,8 @@ pub enum InstallLocation {
     SystemGlobal,
     /// Development mode (not installed)
     Development,
+    /// Portable mode (Windows): running from writable directory
+    Portable,
 }
 
 /// Get user local install directory
@@ -58,6 +61,61 @@ pub fn system_local_install_dir() -> PathBuf {
 
     // Fallback
     PathBuf::from("/usr/local/share/marco")
+}
+
+/// Check if a directory is writable by attempting to create a test file
+/// 
+/// Returns true if the directory exists and we can write to it
+fn is_directory_writable(dir: &std::path::Path) -> bool {
+    use std::fs;
+    use std::io::Write;
+    
+    if !dir.exists() {
+        // Try to create the directory
+        if fs::create_dir_all(dir).is_err() {
+            return false;
+        }
+    }
+    
+    // Try to create a test file
+    let test_file = dir.join(".marco_write_test");
+    let result = fs::File::create(&test_file)
+        .and_then(|mut f| {
+            f.write_all(b"test")?;
+            f.sync_all()?;
+            fs::remove_file(&test_file)
+        });
+    
+    result.is_ok()
+}
+
+/// Detect if running in portable mode (Windows only)
+/// 
+/// Portable mode: exe is in a user-writable directory (USB drive, user folder, Downloads, etc.)
+/// Returns the portable root directory if detected, None otherwise
+#[cfg(target_os = "windows")]
+pub fn detect_portable_mode() -> Option<PathBuf> {
+    use std::env;
+    
+    // Get exe directory
+    let exe_path = env::current_exe().ok()?;
+    let exe_dir = exe_path.parent()?;
+    
+    // Check if exe directory is writable
+    // If we can write to the exe directory, we're in portable mode
+    if is_directory_writable(exe_dir) {
+        log::debug!("Portable mode detected: exe directory is writable at {}", exe_dir.display());
+        return Some(exe_dir.to_path_buf());
+    }
+    
+    log::debug!("Not in portable mode: exe directory is not writable at {}", exe_dir.display());
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn detect_portable_mode() -> Option<PathBuf> {
+    // Portable mode is Windows-only concept
+    None
 }
 
 /// Get system global install directory
@@ -110,11 +168,19 @@ pub fn detect_install_location() -> InstallLocation {
 /// Get the user configuration directory.
 ///
 /// For GUI apps like Marco/Polo, settings must be writable for the *current user*.
-/// System-wide defaults can live under /usr/share/marco/, but persisted user changes
-/// should go under XDG config.
-///
-/// Default: $XDG_CONFIG_HOME/marco/ (usually ~/.config/marco/)
+/// 
+/// **Windows Portable Mode**: If exe directory is writable, uses `{exe_dir}\config\`
+/// **Windows Installed Mode**: Uses `%LOCALAPPDATA%\Marco\config\`
+/// **Linux**: Uses `~/.config/marco/`
 pub fn config_dir() -> PathBuf {
+    // Windows: Check for portable mode first
+    #[cfg(target_os = "windows")]
+    if let Some(portable_root) = detect_portable_mode() {
+        log::debug!("Using portable mode config directory");
+        return portable_root.join("config");
+    }
+    
+    // Normal installation paths
     dirs::config_dir()
         .map(|c| c.join("marco"))
         .or_else(|| {
@@ -137,9 +203,18 @@ pub fn config_dir() -> PathBuf {
 
 /// Get the user data directory (for storing user-specific data like recent files)
 ///
-/// - User: ~/.local/share/marco/
-/// - System: Falls back to /tmp/marco/
+/// **Windows Portable Mode**: If exe directory is writable, uses `{exe_dir}\data\`
+/// **Windows Installed Mode**: Uses `%LOCALAPPDATA%\Marco\data\`
+/// **Linux**: Uses `~/.local/share/marco/`
 pub fn user_data_dir() -> PathBuf {
+    // Windows: Check for portable mode first
+    #[cfg(target_os = "windows")]
+    if let Some(portable_root) = detect_portable_mode() {
+        log::debug!("Using portable mode data directory");
+        return portable_root.join("data");
+    }
+    
+    // Normal installation paths
     dirs::data_local_dir()
         .map(|d| d.join("marco"))
         .or_else(|| {

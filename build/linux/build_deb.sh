@@ -78,12 +78,9 @@ OPTIONS:
     --no-bump       Build using current versions (do not change version.json)
     --bump MODE     Bump version before building: patch|minor|major (default: patch)
     --set VERSION   Set Core/Marco/Polo versions to VERSION (X.Y.Z) before building
-    --alpha-artifact  Also create a CI-friendly alpha-named copy:
-                    marco-suite_alpha_VERSION_amd64.deb
 
 OUTPUT:
-    Creates: build/installer/linux/marco-suite_VERSION_amd64.deb
-    If --alpha-artifact is set, also creates: build/installer/linux/marco-suite_alpha_VERSION_amd64.deb
+    Creates: build/installer/marco-suite_alpha_VERSION_linux_amd64.deb
 EOF
 }
 
@@ -91,7 +88,6 @@ BUMP_MODE="patch"
 DO_BUMP="false"
 SET_VERSION=""
 CHECK_ONLY="false"
-CREATE_ALPHA_ARTIFACT="false"
 VERSION_ONLY="false"
 
 while [ $# -gt 0 ]; do
@@ -128,10 +124,6 @@ while [ $# -gt 0 ]; do
             SET_VERSION="$2"
             DO_BUMP="false"
             shift 2
-            ;;
-        --alpha-artifact)
-            CREATE_ALPHA_ARTIFACT="true"
-            shift
             ;;
         *)
             print_error "Unknown option: $1"
@@ -473,12 +465,12 @@ install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}"
 
 print_info "Building Marco and Polo binaries (release, workspace)..."
-cargo build --release --workspace
+cargo build --release --workspace --target x86_64-unknown-linux-gnu
 print_success "Build complete"
 
 print_info "Copying binaries..."
-install -m 0755 target/release/marco "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
-install -m 0755 target/release/polo "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
+install -m 0755 target/x86_64-unknown-linux-gnu/release/marco "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
+install -m 0755 target/x86_64-unknown-linux-gnu/release/polo "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
 
 # Strip binaries inside the package payload (avoid changing your local build artifacts)
 if command -v strip &>/dev/null; then
@@ -859,10 +851,10 @@ print_success "Maintainer scripts created"
 print_header "Creating .deb Package"
 
 # Ensure installer output directory exists
-INSTALLER_DIR="$ROOT_DIR/build/installer/linux"
+INSTALLER_DIR="$ROOT_DIR/build/installer"
 mkdir -p "$INSTALLER_DIR"
 
-PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_${MARCO_VERSION}_${ARCHITECTURE}.deb"
+PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_alpha_${MARCO_VERSION}_linux_${ARCHITECTURE}.deb"
 print_info "Building package: $PACKAGE_FILE"
 
 # Build under fakeroot so files in the package are owned by root:root
@@ -873,12 +865,6 @@ else
     dpkg-deb --build "$BUILD_DIR" "$PACKAGE_FILE"
 fi
 print_success "Package created: $PACKAGE_FILE"
-
-if [ "$CREATE_ALPHA_ARTIFACT" = "true" ]; then
-    ALPHA_PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_alpha_${MARCO_VERSION}_${ARCHITECTURE}.deb"
-    cp -f "$PACKAGE_FILE" "$ALPHA_PACKAGE_FILE"
-    print_success "Alpha artifact created: $ALPHA_PACKAGE_FILE"
-fi
 
 print_header "Build Complete"
 echo "Debian package created successfully!"
