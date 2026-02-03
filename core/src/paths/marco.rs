@@ -99,13 +99,13 @@ impl MarcoPaths {
     /// - Install mode: ~/.config/marco/
     pub fn config_dir(&self) -> PathBuf {
         if self.dev_mode {
-            if let Some(workspace) = super::dev::workspace_root() {
+            if let Some(workspace) = super::workspace_root() {
                 workspace.join("tests").join("settings")
             } else {
-                super::install::config_dir()
+                super::config_dir()
             }
         } else {
-            super::install::config_dir()
+            super::config_dir()
         }
     }
 
@@ -116,12 +116,12 @@ impl MarcoPaths {
 
     /// Get Marco's recent files list path
     pub fn recent_files(&self) -> PathBuf {
-        super::install::user_data_dir().join("recent_files.ron")
+        super::user_data_dir().join("recent_files.ron")
     }
 
     /// Get Marco's window state file path
     pub fn window_state(&self) -> PathBuf {
-        super::install::user_data_dir().join("window_state.ron")
+        super::user_data_dir().join("window_state.ron")
     }
 
     // ========================================================================
@@ -130,7 +130,7 @@ impl MarcoPaths {
 
     /// Get Marco's user data directory
     pub fn user_data_dir(&self) -> PathBuf {
-        super::install::user_data_dir()
+        super::user_data_dir()
     }
 
     /// Get Marco's cache directory

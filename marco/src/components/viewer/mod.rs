@@ -32,9 +32,9 @@ pub mod layout_controller; // Split controller + webview location tracking
 #[cfg(target_os = "linux")]
 pub mod renderer; // Markdown rendering coordinator (Linux: WebKit6)
 #[cfg(target_os = "linux")]
-pub mod webkit6_detached_window; // Separate preview window (Linux: WebKit6)
+pub mod reparenting;
 #[cfg(target_os = "linux")]
-pub mod reparenting; // WebView reparenting utilities (Linux: GTK4/WebKit6)
+pub mod webkit6_detached_window; // Separate preview window (Linux: WebKit6) // WebView reparenting utilities (Linux: GTK4/WebKit6)
 
 // Windows: wry-based detached preview and helpers
 #[cfg(target_os = "windows")]
@@ -61,7 +61,10 @@ pub type PreviewWindowType = crate::components::viewer::webkit6_detached_window:
 #[cfg(target_os = "windows")]
 pub type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
 
-pub fn open_preview_in_separate_window(parent_window: &gtk4::ApplicationWindow, webview_opt: Option<&crate::components::viewer::preview_types::PlatformWebView>) -> Option<PreviewWindowType> {
+pub fn open_preview_in_separate_window(
+    parent_window: &gtk4::ApplicationWindow,
+    webview_opt: Option<&crate::components::viewer::preview_types::PlatformWebView>,
+) -> Option<PreviewWindowType> {
     #[cfg(target_os = "linux")]
     {
         use crate::components::viewer::webkit6_detached_window::PreviewWindow;
@@ -96,7 +99,7 @@ pub fn open_preview_in_separate_window(parent_window: &gtk4::ApplicationWindow, 
     None
 }
 
-#[cfg(target_os = "linux")]
-pub mod webkit6; // WebKit6 WebView implementation (Linux-only)
+pub mod css_utils;
 pub mod javascript; // JavaScript utilities (cross-platform)
-pub mod css_utils; // CSS and HTML formatting utilities (cross-platform)
+#[cfg(target_os = "linux")]
+pub mod webkit6; // WebKit6 WebView implementation (Linux-only) // CSS and HTML formatting utilities (cross-platform)

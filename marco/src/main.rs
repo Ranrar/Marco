@@ -1,4 +1,7 @@
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
 
 #[cfg(target_os = "linux")]
 use webkit6::prelude::*;
@@ -12,14 +15,13 @@ mod theme;
 mod toolbar;
 pub mod ui;
 
-use gtk4::prelude::*;
 /*
 ╔═══════════════════════════════════════════════════════════════════════════╗
 ║    CRITICAL: This file (main.rs) serves ONLY as an APPLICATION GATEWAY    ║
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::editor::create_editor_with_preview_and_buffer;
+use crate::components::editor::ui::create_editor_with_preview_and_buffer;
 use crate::components::editor::footer::wire_footer_updates;
 use crate::components::viewer::preview_types::ViewMode;
 use crate::logic::menu_items::file::FileOperations;
@@ -62,7 +64,7 @@ fn main() -> glib::ExitCode {
     }));
 
     // path detection and environment setup
-    use core::paths::{MarcoPaths};
+    use core::paths::MarcoPaths;
     let marco_paths = match MarcoPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -393,10 +395,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         split_controller,
     ) = create_editor_with_preview_and_buffer(
         &window,
-        preview_theme_filename.as_str(),
-        preview_theme_dir_str.as_str(),
-        theme_manager.clone(),
-        Rc::clone(&theme_mode),
+        crate::components::editor::ui::EditorParams {
+            preview_theme_filename,
+            preview_theme_dir: preview_theme_dir_str,
+            theme_manager: theme_manager.clone(),
+            theme_mode: Rc::clone(&theme_mode),
+        },
         footer_labels_rc.clone(),
         settings_path.to_str().unwrap(),
         Some(document_buffer_ref),
@@ -427,11 +431,19 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
         log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode (Linux)");
-        (Some(preview_window_opt), Some(webview_location_tracker), Some(reparent_guard))
+        (
+            Some(preview_window_opt),
+            Some(webview_location_tracker),
+            Some(reparent_guard),
+        )
     };
 
     #[cfg(target_os = "windows")]
-    let (preview_window_opt, webview_location_tracker, reparent_guard) = (None::<Rc<RefCell<Option<()>>>>, None::<WebViewLocationTracker>, None::<()>);
+    let (preview_window_opt, webview_location_tracker, reparent_guard) = (
+        None::<Rc<RefCell<Option<()>>>>,
+        None::<WebViewLocationTracker>,
+        None::<()>,
+    );
 
     // Windows: initialize detached preview window state so the titlebar can open a
     // detached wry-based preview window.
@@ -442,7 +454,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = None::<()>;
         log::debug!("Initialized wry-based detached preview state for Windows");
-        (Some(preview_window_opt), Some(webview_location_tracker), reparent_guard)
+        (
+            Some(preview_window_opt),
+            Some(webview_location_tracker),
+            reparent_guard,
+        )
     };
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
@@ -451,9 +467,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             window: &window,
             webview_rc: Some(editor_webview.clone()),
             split: Some(split.clone()),
-            preview_window_opt: preview_window_opt,
-            webview_location_tracker: webview_location_tracker,
-            reparent_guard: reparent_guard,
+            preview_window_opt,
+            webview_location_tracker,
+            reparent_guard,
             split_controller: Some(split_controller.clone()),
             asset_root: &asset_root,
         });
@@ -935,13 +951,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &window,
         &editor_buffer,
         &title_label,
-        std::sync::Arc::new(|w, title| Box::pin(FileDialogs::show_open_dialog(w, title)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>),
-        std::sync::Arc::new(|w, doc_name, action| {
-            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::logic::menu_items::file::SaveChangesResult, Box<dyn std::error::Error>>> + '_>>
-        }),
-        std::sync::Arc::new(|w, title, suggested| {
-            Box::pin(FileDialogs::show_save_dialog(w, title, suggested)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>
-        }),
+        FileDialogs::open_dialog_callback(),
+        FileDialogs::save_changes_dialog_callback(),
+        FileDialogs::save_dialog_callback(),
     );
 
     // Wire dynamic recent-file actions using the recent_menu from the UI
@@ -952,12 +964,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &window,
         &editor_buffer,
         &title_label,
-        std::sync::Arc::new(|w, doc_name, action| {
-            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::logic::menu_items::file::SaveChangesResult, Box<dyn std::error::Error>>> + '_>>
-        }),
-        std::sync::Arc::new(|w, title, suggested| {
-            Box::pin(FileDialogs::show_save_dialog(w, title, suggested)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>
-        }),
+        FileDialogs::save_changes_dialog_callback(),
+        FileDialogs::save_dialog_callback(),
     );
 
     // Open initial file if provided via command line
@@ -968,10 +976,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             window.clone(),
             editor_buffer.clone(),
             title_label.clone(),
-            |w, doc_name, action| {
-                Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<crate::logic::menu_items::file::SaveChangesResult, Box<dyn std::error::Error>>> + '_>>
-            },
-            |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + '_>>,
+            crate::ui::menu_items::files::save_changes_dialog_cb,
+            crate::ui::menu_items::files::save_dialog_cb,
         );
     }
 

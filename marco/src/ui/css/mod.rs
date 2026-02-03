@@ -138,7 +138,10 @@ mod tests {
 
         // Verify all major components present
         assert!(css.contains(".titlebar"), "Should contain titlebar class");
-        assert!(css.contains(".window-control-btn"), "Should contain window-control-btn class");
+        assert!(
+            css.contains(".window-control-btn"),
+            "Should contain window-control-btn class"
+        );
 
         // Verify both themes present
         assert!(

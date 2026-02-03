@@ -55,7 +55,6 @@ impl SharedPaths {
         self.fonts_dir().join(font_name)
     }
 
-
     // ========================================================================
     // Icons
     // ========================================================================
@@ -236,7 +235,7 @@ impl SharedPaths {
     /// In install mode: $XDG_CONFIG_HOME/marco/settings.ron
     pub fn settings_file(&self) -> PathBuf {
         use super::core::is_dev_mode;
-        use super::dev::workspace_root;
+        use super::workspace_root;
 
         if is_dev_mode() {
             if let Some(workspace) = workspace_root() {
@@ -249,7 +248,7 @@ impl SharedPaths {
                 self.asset_root.join("settings.ron")
             }
         } else {
-            super::install::config_dir().join("settings.ron")
+            super::config_dir().join("settings.ron")
         }
     }
 }

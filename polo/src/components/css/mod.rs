@@ -116,10 +116,7 @@ pub fn load_css_from_path(asset_root: &std::path::Path) {
     let polo_css = generate_polo_css();
 
     // Combine Marco's menu.css with Polo-specific styles.
-    let combined_css = format!(
-        "{}\n\n/* Polo-specific styles */\n{}",
-        menu_css, polo_css
-    );
+    let combined_css = format!("{}\n\n/* Polo-specific styles */\n{}", menu_css, polo_css);
     css_provider.load_from_data(&combined_css);
 
     if let Some(display) = Display::default() {

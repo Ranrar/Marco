@@ -3,7 +3,9 @@
 //! Creates search, replace, options, and button widgets.
 
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Button, CheckButton, Entry, Label, Orientation, Overlay, Separator};
+use gtk4::{
+    Align, Box as GtkBox, Button, CheckButton, Entry, Label, Orientation, Overlay, Separator,
+};
 
 use super::state::CURRENT_MATCH_LABEL;
 
@@ -181,4 +183,3 @@ pub fn create_window_button_panel() -> (GtkBox, ButtonWidgets) {
 
     (button_box, widgets)
 }
-

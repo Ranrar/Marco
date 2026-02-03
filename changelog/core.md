@@ -22,6 +22,19 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.0] - 2026-02-03
+
+### Added
+- **Platform abstraction module** (`core::paths::platform`) for OS-specific path implementations.
+- **Windows portable mode detection** - automatically uses local config/data when exe directory is writable.
+- **Linux platform paths** - XDG-compliant user directories (`~/.local/share/marco`, `~/.config/marco`).
+- **Windows platform paths** - Standard Windows locations (`%LOCALAPPDATA%\Marco`) with portable fallback.
+- **Asset root validation** - verifies asset bundles contain required directories before accepting paths.
+
+### Changed
+- **Refactored path system** to use platform-specific modules with explicit `cfg` attributes.
+- **Install location detection** now properly distinguishes between system/user/portable installs.
+
 ## [0.16.0] - 2026-02-02
 
 ### Added

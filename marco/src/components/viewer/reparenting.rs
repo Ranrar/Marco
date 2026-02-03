@@ -6,7 +6,7 @@
 //!
 //! # Platform Support
 //!
-//! Currently Linux-only (uses WebKit6). Windows support will be added in the future.
+//! Currently Linux-only (uses WebKit6)
 //!
 //! # Reparenting Pattern
 //!
@@ -35,7 +35,6 @@
 //! move_webview_to_main_window(&webview, &paned, &preview_window, true)?;
 //! ```
 
-#![cfg(target_os = "linux")]
 #![allow(dead_code)]
 // Reparenting helpers (Linux/webkit6) — retained for planned EditorAndViewSeparate flow
 //

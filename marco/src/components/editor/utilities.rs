@@ -115,45 +115,46 @@ impl AsyncExtensionManager {
             let lightweight_callback = std::sync::Arc::clone(&shared_callback);
 
             glib::spawn_future_local(async move {
-                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>, String> {
-                    let mut pool_results = Vec::new();
+                let result =
+                    gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>, String> {
+                        let mut pool_results = Vec::new();
 
-                    for extension_name in &lightweight_extensions {
-                        let start_time = Instant::now();
-                        let (processed_content, success, error_message) =
-                            match extension_name.as_str() {
-                                "line_wrapping" => Self::process_line_wrapping(
-                                    &content_for_lightweight,
-                                    cursor_position,
-                                ),
-                                "tab_to_spaces" => Self::process_tab_to_spaces(
-                                    &content_for_lightweight,
-                                    cursor_position,
-                                ),
-                                "auto_pairing" => Self::process_auto_pairing(
-                                    &content_for_lightweight,
-                                    cursor_position,
-                                ),
-                                _ => (
-                                    content_for_lightweight.clone(),
-                                    false,
-                                    Some("Unknown lightweight extension".to_string()),
-                                ),
-                            };
+                        for extension_name in &lightweight_extensions {
+                            let start_time = Instant::now();
+                            let (processed_content, success, error_message) =
+                                match extension_name.as_str() {
+                                    "line_wrapping" => Self::process_line_wrapping(
+                                        &content_for_lightweight,
+                                        cursor_position,
+                                    ),
+                                    "tab_to_spaces" => Self::process_tab_to_spaces(
+                                        &content_for_lightweight,
+                                        cursor_position,
+                                    ),
+                                    "auto_pairing" => Self::process_auto_pairing(
+                                        &content_for_lightweight,
+                                        cursor_position,
+                                    ),
+                                    _ => (
+                                        content_for_lightweight.clone(),
+                                        false,
+                                        Some("Unknown lightweight extension".to_string()),
+                                    ),
+                                };
 
-                        pool_results.push(ExtensionResult {
-                            extension_name: extension_name.clone(),
-                            processed_content,
-                            cursor_position,
-                            processing_time_ms: start_time.elapsed().as_millis() as u64,
-                            success,
-                            error_message,
-                        });
-                    }
+                            pool_results.push(ExtensionResult {
+                                extension_name: extension_name.clone(),
+                                processed_content,
+                                cursor_position,
+                                processing_time_ms: start_time.elapsed().as_millis() as u64,
+                                success,
+                                error_message,
+                            });
+                        }
 
-                    Ok(pool_results)
-                })
-                .await;
+                        Ok(pool_results)
+                    })
+                    .await;
 
                 glib::idle_add_local_once(move || {
                     match result {
@@ -191,41 +192,42 @@ impl AsyncExtensionManager {
             let heavyweight_callback = std::sync::Arc::clone(&shared_callback);
 
             glib::spawn_future_local(async move {
-                let result = gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>, String> {
-                    let mut pool_results = Vec::new();
+                let result =
+                    gio::spawn_blocking(move || -> Result<Vec<ExtensionResult>, String> {
+                        let mut pool_results = Vec::new();
 
-                    for extension_name in &heavyweight_extensions {
-                        let start_time = Instant::now();
-                        let (processed_content, success, error_message) =
-                            match extension_name.as_str() {
-                                "marco_extensions" => Self::process_marco_extensions(
-                                    &content_for_heavyweight,
-                                    cursor_position,
-                                ),
-                                "markdown_linting" => Self::process_markdown_linting(
-                                    &content_for_heavyweight,
-                                    cursor_position,
-                                ),
-                                _ => (
-                                    content_for_heavyweight.clone(),
-                                    false,
-                                    Some("Unknown heavyweight extension".to_string()),
-                                ),
-                            };
+                        for extension_name in &heavyweight_extensions {
+                            let start_time = Instant::now();
+                            let (processed_content, success, error_message) =
+                                match extension_name.as_str() {
+                                    "marco_extensions" => Self::process_marco_extensions(
+                                        &content_for_heavyweight,
+                                        cursor_position,
+                                    ),
+                                    "markdown_linting" => Self::process_markdown_linting(
+                                        &content_for_heavyweight,
+                                        cursor_position,
+                                    ),
+                                    _ => (
+                                        content_for_heavyweight.clone(),
+                                        false,
+                                        Some("Unknown heavyweight extension".to_string()),
+                                    ),
+                                };
 
-                        pool_results.push(ExtensionResult {
-                            extension_name: extension_name.clone(),
-                            processed_content,
-                            cursor_position,
-                            processing_time_ms: start_time.elapsed().as_millis() as u64,
-                            success,
-                            error_message,
-                        });
-                    }
+                            pool_results.push(ExtensionResult {
+                                extension_name: extension_name.clone(),
+                                processed_content,
+                                cursor_position,
+                                processing_time_ms: start_time.elapsed().as_millis() as u64,
+                                success,
+                                error_message,
+                            });
+                        }
 
-                    Ok(pool_results)
-                })
-                .await;
+                        Ok(pool_results)
+                    })
+                    .await;
 
                 glib::idle_add_local_once(move || {
                     match result {

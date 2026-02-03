@@ -9,8 +9,6 @@ use std::sync::{Mutex, OnceLock};
 
 static LOGGER: OnceLock<&'static SimpleFileLogger> = OnceLock::new();
 
-
-
 pub struct SimpleFileLogger {
     inner: Mutex<Option<BufWriter<File>>>,
     file_path: PathBuf,
@@ -33,44 +31,64 @@ impl SimpleFileLogger {
         // **Windows Portable Mode**: {exe_dir}\logs\
         // **Windows Installed Mode**: %LOCALAPPDATA%\Marco\logs
         // **Linux**: ~/.cache/marco/logs
-        
-        #[cfg(target_os = "windows")]
-        let log_root = {
-            // Check for portable mode first
-            if let Some(portable_root) = crate::paths::install::detect_portable_mode() {
-                portable_root.join("logs")
-            } else if let Some(cache_dir) = dirs::cache_dir() {
-                cache_dir.join("marco").join("logs")
-            } else {
-                // Fallback: Try LOCALAPPDATA, then TEMP
-                std::env::var_os("LOCALAPPDATA")
-                    .map(|p| PathBuf::from(p).join("Marco").join("logs"))
-                    .or_else(|| std::env::var_os("TEMP").map(|p| PathBuf::from(p).join("marco").join("logs")))
-                    .unwrap_or_else(|| PathBuf::from("C:\\Temp\\marco\\log"))
+
+        let mut log_root: Option<PathBuf> = {
+            // Windows: portable mode + Windows-specific fallbacks.
+            #[cfg(target_os = "windows")]
+            {
+                let mut root = if let Some(portable_root) = crate::paths::detect_portable_mode() {
+                    Some(portable_root.join("logs"))
+                } else {
+                    None
+                };
+
+                if root.is_none() {
+                    root = std::env::var_os("LOCALAPPDATA")
+                        .map(|p| PathBuf::from(p).join("Marco").join("logs"));
+                }
+
+                if root.is_none() {
+                    root = std::env::var_os("TEMP")
+                        .map(|p| PathBuf::from(p).join("marco").join("logs"));
+                }
+
+                root
+            }
+
+            // Linux: prefer XDG cache location.
+            #[cfg(target_os = "linux")]
+            {
+                let mut root = std::env::var_os("XDG_CACHE_HOME")
+                    .map(|p| PathBuf::from(p).join("marco").join("logs"));
+
+                if root.is_none() {
+                    root = dirs::home_dir().map(|h| h.join(".cache").join("marco").join("logs"));
+                }
+
+                root
+            }
+
+            // Other OSes: start with no platform-specific preference.
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+            {
+                None
             }
         };
-        
-        #[cfg(target_os = "linux")]
-        let log_root = if let Some(cache_dir) = dirs::cache_dir() {
-            cache_dir.join("marco").join("logs")
-        } else {
-            // Try XDG_CACHE_HOME, then ~/.cache, then /tmp
-            std::env::var_os("XDG_CACHE_HOME")
-                .map(|p| PathBuf::from(p).join("marco").join("logs"))
-                .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("marco").join("logs")))
-                .unwrap_or_else(|| PathBuf::from("/tmp/marco/log"))
-        };
-        
-        #[cfg(not(any(target_os = "windows", target_os = "linux")))]
-        let log_root = dirs::cache_dir()
-            .map(|c| c.join("marco").join("logs"))
-            .unwrap_or_else(|| PathBuf::from("/tmp/marco/log"));
-        fs::create_dir_all(&log_root).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+
+        // Generic (no cfg): if the OS provides a cache dir via `dirs`, use it.
+        if log_root.is_none() {
+            log_root = dirs::cache_dir().map(|c| c.join("marco").join("logs"));
+        }
+
+        let log_root = log_root.unwrap_or_else(|| PathBuf::from("/tmp/marco/log"));
+        fs::create_dir_all(&log_root)
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
         // YYYYMM folder
         let month_folder = Local::now().format("%Y%m").to_string();
         let month_dir = log_root.join(month_folder);
-        fs::create_dir_all(&month_dir).map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
+        fs::create_dir_all(&month_dir)
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         // File name: YYMMDD.log
         let file_name = Local::now().format("%y%m%d.log").to_string();
         let file_path = month_dir.join(file_name);
@@ -115,10 +133,11 @@ impl SimpleFileLogger {
             Err(e) => {
                 // Another logger is already present (e.g., env_logger). Drop our leaked box to avoid leaking memory.
                 unsafe {
-                    let _ = Box::from_raw(leaked as *const SimpleFileLogger as *mut SimpleFileLogger);
+                    let _ =
+                        Box::from_raw(leaked as *const SimpleFileLogger as *mut SimpleFileLogger);
                 }
                 // Return an error to the caller so the application can decide how to surface it.
-                return Err(format!("Failed to set global logger: {}", e).into());
+                Err(format!("Failed to set global logger: {}", e).into())
             }
         }
     }
@@ -231,7 +250,10 @@ impl Log for SimpleFileLogger {
     }
 }
 
-pub fn init_file_logger(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_file_logger(
+    enabled: bool,
+    level: LevelFilter,
+) -> Result<(), Box<dyn std::error::Error>> {
     SimpleFileLogger::init(enabled, level).map_err(|e| format!("{}", e).into())
 }
 
@@ -342,7 +364,7 @@ pub fn delete_all_logs() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
-} 
+}
 
 impl SimpleFileLogger {
     /// Flush and close the inner file. After shutdown, the global LOGGER will be cleared.

@@ -2,14 +2,14 @@ use core::logic::layoutstate::{layout_state_label, LayoutState};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
+use gtk4::gdk;
 use gtk4::gio;
 use gtk4::{
-    self, prelude::*, Align, Box as GtkBox, Button, Label, Orientation, Paned, WindowHandle,
-    Picture,
+    self, prelude::*, Align, Box as GtkBox, Button, Label, Orientation, Paned, Picture,
+    WindowHandle,
 };
-use rsvg::{CairoRenderer, Loader};
-use gtk4::gdk;
 use log::trace;
+use rsvg::{CairoRenderer, Loader};
 
 // Type alias for the complex rebuild callback type
 type RebuildCallback = Box<dyn Fn()>;
@@ -22,12 +22,10 @@ type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 fn reparent_webview_to_main_window(
     webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
     split_opt: &Option<Paned>,
-    #[cfg(target_os = "linux")]
-    preview_window_opt: &Option<
+    #[cfg(target_os = "linux")] preview_window_opt: &Option<
         Rc<RefCell<Option<crate::components::viewer::webkit6_detached_window::PreviewWindow>>>,
     >,
-    #[cfg(target_os = "windows")]
-    preview_window_opt: &Option<
+    #[cfg(target_os = "windows")] preview_window_opt: &Option<
         Rc<RefCell<Option<crate::components::viewer::wry_detached_window::PreviewWindow>>>,
     >,
     tracker_opt: &Option<crate::components::viewer::layout_controller::WebViewLocationTracker>,
@@ -119,7 +117,9 @@ fn reparent_webview_to_main_window(
 // Non-Linux stub: try to ensure Stack shows the HTML preview and return false for reparenting
 #[cfg(target_os = "windows")]
 fn reparent_webview_to_main_window(
-    _webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
+    _webview_rc_opt: &Option<
+        Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>,
+    >,
     split_opt: &Option<Paned>,
     _preview_window_opt: &Option<Rc<RefCell<Option<PreviewWindowType>>>>,
     _tracker_opt: &Option<crate::components::viewer::layout_controller::WebViewLocationTracker>,
@@ -344,14 +344,16 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
 
     // Use SVG layout switcher icon
-    let layout_icon_color: std::borrow::Cow<'static, str> = if window.style_context().has_class("marco-theme-dark") {
-        std::borrow::Cow::from(DARK_PALETTE.control_icon)
-    } else {
-        std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
-    };
+    let layout_icon_color: std::borrow::Cow<'static, str> =
+        if window.style_context().has_class("marco-theme-dark") {
+            std::borrow::Cow::from(DARK_PALETTE.control_icon)
+        } else {
+            std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+        };
     let layout_pic = Picture::new();
     let layout_texture = {
-        let svg = layout_icon_svg(LayoutIcon::LayoutSwitcherButton).replace("currentColor", &layout_icon_color);
+        let svg = layout_icon_svg(LayoutIcon::LayoutSwitcherButton)
+            .replace("currentColor", &layout_icon_color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
         let handle = Loader::new()
@@ -364,14 +366,17 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             .unwrap_or(1.0);
         let render_scale = display_scale * 2.0;
         let render_size = (LAYOUT_ICON_SIZE_F * render_scale) as i32;
-        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-            .expect("create surface");
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
         {
             let cr = cairo::Context::new(&surface).expect("create context");
             cr.scale(render_scale, render_scale);
             let renderer = CairoRenderer::new(&handle);
             let viewport = cairo::Rectangle::new(0.0, 0.0, LAYOUT_ICON_SIZE_F, LAYOUT_ICON_SIZE_F);
-            renderer.render_document(&cr, &viewport).expect("render SVG");
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
         }
         let data = surface.data().expect("get surface data").to_vec();
         let bytes = glib::Bytes::from_owned(data);
@@ -392,8 +397,16 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     {
         let pic_hover = layout_pic.clone();
         let is_dark = window.style_context().has_class("marco-theme-dark");
-        let hover_color = if is_dark { DARK_PALETTE.control_icon_hover.to_string() } else { LIGHT_PALETTE.control_icon_hover.to_string() };
-        let active_color = if is_dark { DARK_PALETTE.control_icon_active.to_string() } else { LIGHT_PALETTE.control_icon_active.to_string() };
+        let hover_color = if is_dark {
+            DARK_PALETTE.control_icon_hover.to_string()
+        } else {
+            LIGHT_PALETTE.control_icon_hover.to_string()
+        };
+        let active_color = if is_dark {
+            DARK_PALETTE.control_icon_active.to_string()
+        } else {
+            LIGHT_PALETTE.control_icon_active.to_string()
+        };
         let normal_color = layout_icon_color.clone().to_string();
         let icon = LayoutIcon::LayoutSwitcherButton;
 
@@ -408,7 +421,8 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let normal_color_leave = normal_color.clone();
         let icon_for_leave = icon;
         motion_controller.connect_leave(move |_ctrl| {
-            let texture = render_layout_svg_icon(icon_for_leave, &normal_color_leave, LAYOUT_ICON_SIZE_F);
+            let texture =
+                render_layout_svg_icon(icon_for_leave, &normal_color_leave, LAYOUT_ICON_SIZE_F);
             pic_leave.set_paintable(Some(&texture));
         });
         layout_menu_btn.add_controller(motion_controller);
@@ -418,7 +432,8 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let active_color_pressed = active_color.clone();
         let icon_for_pressed = icon;
         gesture.connect_pressed(move |_gesture, _n, _x, _y| {
-            let texture = render_layout_svg_icon(icon_for_pressed, &active_color_pressed, LAYOUT_ICON_SIZE_F);
+            let texture =
+                render_layout_svg_icon(icon_for_pressed, &active_color_pressed, LAYOUT_ICON_SIZE_F);
             pic_pressed.set_paintable(Some(&texture));
         });
 
@@ -426,7 +441,11 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let hover_color_released = hover_color.clone();
         let icon_for_released = icon;
         gesture.connect_released(move |_gesture, _n, _x, _y| {
-            let texture = render_layout_svg_icon(icon_for_released, &hover_color_released, LAYOUT_ICON_SIZE_F);
+            let texture = render_layout_svg_icon(
+                icon_for_released,
+                &hover_color_released,
+                LAYOUT_ICON_SIZE_F,
+            );
             pic_released.set_paintable(Some(&texture));
         });
         layout_menu_btn.add_controller(gesture);
@@ -459,7 +478,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     };
 
     // Button 1: Close view (show only editor)
-    let btn1 = svg_layout_button(window, LayoutIcon::EditorOnly, "Close view (show only editor)", base_icon_color, LAYOUT_ICON_SIZE_F);
+    let btn1 = svg_layout_button(
+        window,
+        LayoutIcon::EditorOnly,
+        "Close view (show only editor)",
+        base_icon_color,
+        LAYOUT_ICON_SIZE_F,
+    );
     btn1.add_css_class("layout-btn");
     btn1.set_halign(Align::Start);
     {
@@ -494,7 +519,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     }
 
     // Button 2: Close editor (show only view)
-    let btn2 = svg_layout_button(window, LayoutIcon::ViewOnly, "Close editor (show only view)", base_icon_color, LAYOUT_ICON_SIZE_F);
+    let btn2 = svg_layout_button(
+        window,
+        LayoutIcon::ViewOnly,
+        "Close editor (show only view)",
+        base_icon_color,
+        LAYOUT_ICON_SIZE_F,
+    );
     btn2.add_css_class("layout-btn");
     btn2.set_halign(Align::Start);
     {
@@ -529,7 +560,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     }
 
     // Button 3: Open view in separate window
-    let btn3 = svg_layout_button(window, LayoutIcon::EditorAndViewSeparate, "Open view in separate window", base_icon_color, LAYOUT_ICON_SIZE_F);
+    let btn3 = svg_layout_button(
+        window,
+        LayoutIcon::EditorAndViewSeparate,
+        "Open view in separate window",
+        base_icon_color,
+        LAYOUT_ICON_SIZE_F,
+    );
     btn3.add_css_class("layout-btn");
     btn3.set_tooltip_text(Some("Open view in separate window"));
     btn3.set_halign(Align::Start);
@@ -727,57 +764,55 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                 }
                             }
                         }
-                    } else {
-                        if let Some(pw) = open_preview_in_separate_window(&window_clone, None) {
-                            // Keep the PreviewWindow alive by storing it in a holder so the
-                            // on-close callback remains valid even when this scope ends.
-                            let pw_holder: Rc<RefCell<Option<PreviewWindowType>>> = Rc::new(RefCell::new(Some(pw)));
+                    } else if let Some(pw) = open_preview_in_separate_window(&window_clone, None) {
+                        // Keep the PreviewWindow alive by storing it in a holder so the
+                        // on-close callback remains valid even when this scope ends.
+                        let pw_holder: Rc<RefCell<Option<PreviewWindowType>>> = Rc::new(RefCell::new(Some(pw)));
 
-                            // Borrow to get reference to inner PreviewWindow and register callback
-                            {
-                                let pw_ref = pw_holder.borrow();
-                                if let Some(ref pw_inner) = *pw_ref {
-                                    let webview_rc_cb = webview_rc_opt.clone();
-                                    let split_cb = split_opt.clone();
-                                    let preview_window_opt_cb = preview_window_opt_clone.clone();
-                                    let tracker_cb = webview_location_tracker_opt.clone();
-                                    let guard_cb = reparent_guard_opt.clone();
-                                    let weak_rebuild_cb = weak_rebuild_local.clone();
-                                    let holder_clone = pw_holder.clone();
+                        // Borrow to get reference to inner PreviewWindow and register callback
+                        {
+                            let pw_ref = pw_holder.borrow();
+                            if let Some(ref pw_inner) = *pw_ref {
+                                let webview_rc_cb = webview_rc_opt.clone();
+                                let split_cb = split_opt.clone();
+                                let preview_window_opt_cb = preview_window_opt_clone.clone();
+                                let tracker_cb = webview_location_tracker_opt.clone();
+                                let guard_cb = reparent_guard_opt.clone();
+                                let weak_rebuild_cb = weak_rebuild_local.clone();
+                                let holder_clone = pw_holder.clone();
 
-                                    pw_inner.set_on_close_callback(move || {
-                                        log::info!("Preview window closed by user - restoring preview to main window (ad-hoc)");
-                                        log::debug!("Ad-hoc restore callback state: split={}, tracker={}, webview_rc={}, preview_window_opt={}",
-                                            split_cb.is_some(),
-                                            tracker_cb.is_some(),
-                                            webview_rc_cb.is_some(),
-                                            preview_window_opt_cb.is_some(),
-                                        );
+                                pw_inner.set_on_close_callback(move || {
+                                    log::info!("Preview window closed by user - restoring preview to main window (ad-hoc)");
+                                    log::debug!("Ad-hoc restore callback state: split={}, tracker={}, webview_rc={}, preview_window_opt={}",
+                                        split_cb.is_some(),
+                                        tracker_cb.is_some(),
+                                        webview_rc_cb.is_some(),
+                                        preview_window_opt_cb.is_some(),
+                                    );
 
-                                        let result = reparent_webview_to_main_window(
-                                            &webview_rc_cb,
-                                            &split_cb,
-                                            &preview_window_opt_cb,
-                                            &tracker_cb,
-                                            &guard_cb,
-                                            "PreviewWindowCloseAdhoc",
-                                        );
-                                        log::info!("Ad-hoc reparent result: {}", result);
+                                    let result = reparent_webview_to_main_window(
+                                        &webview_rc_cb,
+                                        &split_cb,
+                                        &preview_window_opt_cb,
+                                        &tracker_cb,
+                                        &guard_cb,
+                                        "PreviewWindowCloseAdhoc",
+                                    );
+                                    log::info!("Ad-hoc reparent result: {}", result);
 
-                                        if let Some(tracker) = &tracker_cb {
-                                            tracker.set(WebViewLocation::MainWindow);
+                                    if let Some(tracker) = &tracker_cb {
+                                        tracker.set(WebViewLocation::MainWindow);
+                                    }
+
+                                    if let Some(rc) = weak_rebuild_cb.upgrade() {
+                                        if let Some(ref rebuild) = *rc.borrow() {
+                                            rebuild();
                                         }
+                                    }
 
-                                        if let Some(rc) = weak_rebuild_cb.upgrade() {
-                                            if let Some(ref rebuild) = *rc.borrow() {
-                                                rebuild();
-                                            }
-                                        }
-
-                                        // Drop the PreviewWindow inside the holder to allow cleanup
-                                        holder_clone.borrow_mut().take();
-                                    });
-                                }
+                                    // Drop the PreviewWindow inside the holder to allow cleanup
+                                    holder_clone.borrow_mut().take();
+                                });
                             }
                         }
                     }
@@ -798,7 +833,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     }
 
     // Button 4: Restore default split view (pre-created)
-    let btn4 = svg_layout_button(window, LayoutIcon::DualView, "Restore default split view", base_icon_color, LAYOUT_ICON_SIZE_F);
+    let btn4 = svg_layout_button(
+        window,
+        LayoutIcon::DualView,
+        "Restore default split view",
+        base_icon_color,
+        LAYOUT_ICON_SIZE_F,
+    );
     btn4.add_css_class("layout-btn");
     btn4.set_halign(Align::Start);
     {
@@ -859,7 +900,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             LayoutState::DualView | LayoutState::ViewOnly | LayoutState::EditorAndViewSeparate
         ) {
             // Use pre-created button
-            if let Some(_) = btn1.parent() { btn1.unparent(); }
+            if btn1.parent().is_some() {
+                btn1.unparent();
+            }
             popover_box.append(&btn1);
         }
 
@@ -869,20 +912,26 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
             LayoutState::DualView | LayoutState::EditorOnly | LayoutState::EditorAndViewSeparate
         ) {
             // Use pre-created button
-            if let Some(_) = btn2.parent() { btn2.unparent(); }
+            if btn2.parent().is_some() {
+                btn2.unparent();
+            }
             popover_box.append(&btn2);
         }
 
         // Button 3: Close view (open view in separate window)
         if matches!(state, LayoutState::DualView | LayoutState::ViewOnly) {
-            if let Some(_) = btn3.parent() { btn3.unparent(); }
+            if btn3.parent().is_some() {
+                btn3.unparent();
+            }
             popover_box.append(&btn3);
         }
 
         // Button 4: Restore default split view
         if !matches!(state, LayoutState::DualView) {
             // Use pre-created button
-            if let Some(_) = btn4.parent() { btn4.unparent(); }
+            if btn4.parent().is_some() {
+                btn4.unparent();
+            }
             popover_box.append(&btn4);
         }
 
@@ -913,7 +962,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     use gtk4::Label;
 
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon_svg, WindowIcon};
+    use core::logic::loaders::icon_loader::{
+        layout_icon_svg, window_icon_svg, LayoutIcon, WindowIcon,
+    };
     // Helper: render an SVG icon into a GDK memory texture at high DPI for crisp icons
     fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
         let svg = window_icon_svg(icon).replace("currentColor", color);
@@ -936,15 +987,18 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
         let render_scale = display_scale * 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
-        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-            .expect("create surface");
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
         {
             let cr = cairo::Context::new(&surface).expect("create context");
             cr.scale(render_scale, render_scale);
 
             let renderer = CairoRenderer::new(&handle);
             let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-            renderer.render_document(&cr, &viewport).expect("render SVG");
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
         }
 
         // Convert cairo surface to GDK texture
@@ -965,16 +1019,23 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
         let bytes = glib::Bytes::from_owned(svg.as_bytes().to_vec());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
-        let handle = match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
-            Ok(h) => h,
-            Err(e) => {
-                log::error!("load layout SVG handle: {}", e);
-                log::error!("SVG content was: {}", svg);
-                // Fallback tiny transparent texture so UI can continue
-                let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
-                return gdk::MemoryTexture::new(1, 1, gdk::MemoryFormat::B8g8r8a8Premultiplied, &bytes, 4);
-            }
-        };
+        let handle =
+            match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::error!("load layout SVG handle: {}", e);
+                    log::error!("SVG content was: {}", svg);
+                    // Fallback tiny transparent texture so UI can continue
+                    let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
+                    return gdk::MemoryTexture::new(
+                        1,
+                        1,
+                        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+                        &bytes,
+                        4,
+                    );
+                }
+            };
 
         let display_scale = gdk::Display::default()
             .and_then(|d| d.monitors().item(0))
@@ -985,15 +1046,18 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
         let render_scale = display_scale * 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
-        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-            .expect("create surface");
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
         {
             let cr = cairo::Context::new(&surface).expect("create context");
             cr.scale(render_scale, render_scale);
 
             let renderer = CairoRenderer::new(&handle);
             let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-            renderer.render_document(&cr, &viewport).expect("render SVG");
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
         }
 
         let data = surface.data().expect("get surface data").to_vec();
@@ -1008,7 +1072,13 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
     }
 
     // Helper to create a button with layout SVG icon and hover/active color changes
-    fn svg_layout_button(window: &gtk4::ApplicationWindow, icon: LayoutIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+    fn svg_layout_button(
+        window: &gtk4::ApplicationWindow,
+        icon: LayoutIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
         let pic = Picture::new();
         let texture = render_layout_svg_icon(icon, color, icon_size);
         pic.set_paintable(Some(&texture));
@@ -1061,7 +1131,8 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
             let icon_for_leave = icon;
             let normal_color_leave = normal_color.clone();
             motion_controller.connect_leave(move |_ctrl| {
-                let texture = render_layout_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                let texture =
+                    render_layout_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
                 pic_leave.set_paintable(Some(&texture));
             });
             btn.add_controller(motion_controller);
@@ -1072,7 +1143,8 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
             let icon_for_pressed = icon;
             let active_color_pressed = active_color.clone();
             gesture.connect_pressed(move |_gesture, _n, _x, _y| {
-                let texture = render_layout_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                let texture =
+                    render_layout_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
                 pic_pressed.set_paintable(Some(&texture));
             });
 
@@ -1089,7 +1161,13 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
     }
 
     // Helper to create a button with SVG icon and hover/active color changes
-    fn svg_icon_button(window: &gtk4::ApplicationWindow, icon: WindowIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+    fn svg_icon_button(
+        window: &gtk4::ApplicationWindow,
+        icon: WindowIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
         let pic = Picture::new();
         let texture = render_svg_icon(icon, color, icon_size);
         pic.set_paintable(Some(&texture));
@@ -1174,13 +1252,20 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
 
         // Use palette colors for window control icons (not hardcoded)
         // Use Polo-aligned palette control colors for the icon itself
-        let icon_color: std::borrow::Cow<'static, str> = if window.style_context().has_class("marco-theme-dark") {
-            std::borrow::Cow::from(DARK_PALETTE.control_icon)
-        } else {
-            std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
-        };
+        let icon_color: std::borrow::Cow<'static, str> =
+            if window.style_context().has_class("marco-theme-dark") {
+                std::borrow::Cow::from(DARK_PALETTE.control_icon)
+            } else {
+                std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+            };
 
-        let btn_min = svg_icon_button(window, WindowIcon::Minimize, "Minimize", &icon_color, ICON_SIZE);
+        let btn_min = svg_icon_button(
+            window,
+            WindowIcon::Minimize,
+            "Minimize",
+            &icon_color,
+            ICON_SIZE,
+        );
         let btn_close = svg_icon_button(window, WindowIcon::Close, "Close", &icon_color, ICON_SIZE);
 
         // Create maximize/restore toggle button with its own picture for dynamic icon switching
@@ -1194,7 +1279,11 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
         let update_max_icon = {
             let color = icon_color.clone();
             move |is_maximized: bool, pic: &Picture| {
-                let icon = if is_maximized { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if is_maximized {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let texture = render_svg_icon(icon, &color, ICON_SIZE);
                 pic.set_paintable(Some(&texture));
             }
@@ -1237,7 +1326,11 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
             let hover_color_enter = hover_color.clone();
             let window_hover_enter = window.clone();
             motion_controller.connect_enter(move |_ctrl, _x, _y| {
-                let icon = if window_hover_enter.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if window_hover_enter.is_maximized() {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let texture = render_svg_icon(icon, &hover_color_enter, ICON_SIZE);
                 pic_hover.set_paintable(Some(&texture));
             });
@@ -1246,7 +1339,11 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
             let normal_color_leave = normal_color.clone();
             let window_hover_leave = window.clone();
             motion_controller.connect_leave(move |_ctrl| {
-                let icon = if window_hover_leave.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if window_hover_leave.is_maximized() {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let texture = render_svg_icon(icon, &normal_color_leave, ICON_SIZE);
                 pic_leave.set_paintable(Some(&texture));
             });
@@ -1257,7 +1354,11 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
             let active_color_pressed = active_color.clone();
             let window_pressed = window.clone();
             gesture.connect_pressed(move |_gesture, _n, _x, _y| {
-                let icon = if window_pressed.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if window_pressed.is_maximized() {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let texture = render_svg_icon(icon, &active_color_pressed, ICON_SIZE);
                 pic_pressed.set_paintable(Some(&texture));
             });
@@ -1266,7 +1367,11 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
             let hover_color_released = hover_color.clone();
             let window_released = window.clone();
             gesture.connect_released(move |_gesture, _n, _x, _y| {
-                let icon = if window_released.is_maximized() { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if window_released.is_maximized() {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let texture = render_svg_icon(icon, &hover_color_released, ICON_SIZE);
                 pic_released.set_paintable(Some(&texture));
             });
@@ -1329,7 +1434,7 @@ use core::logic::loaders::icon_loader::{layout_icon_svg, LayoutIcon, window_icon
     headerbar.pack_end(&btn_close); // Rightmost
     headerbar.pack_end(&btn_max_toggle); // Middle
     headerbar.pack_end(&btn_min); // Left of window controls
-    // Then add layout button (it will be to the left of window controls)
+                                  // Then add layout button (it will be to the left of window controls)
     headerbar.pack_end(&layout_menu_btn); // Left of minimize button
 
     // Add the HeaderBar to the WindowHandle

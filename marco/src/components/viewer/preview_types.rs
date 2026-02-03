@@ -26,20 +26,19 @@ pub type PlatformWebView = webkit6::WebView;
 #[cfg(target_os = "windows")]
 pub type PlatformWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
-
 // Keep the original type but add overlay and split controller support
 // WebView is now wrapped in Rc<RefCell<>> for shared ownership during reparenting
 pub type EditorReturn = (
-    Paned,                         // 0: Keep as Paned for backwards compatibility
-    Rc<RefCell<PlatformWebView>>,  // 1: WebView wrapped for reparenting support
-    Rc<RefCell<String>>,           // 2: Content string
-    Box<dyn Fn()>,                 // 3: Refresh callback
-    Box<dyn Fn(&str)>,             // 4: Theme update callback
-    Box<dyn Fn(&str)>,             // 5: Content update callback
-    sourceview5::Buffer,           // 6: Editor buffer
-    sourceview5::View,             // 7: Editor view
-    Rc<RefCell<bool>>,             // 8: Insert mode state
-    Box<dyn Fn(ViewMode)>,         // 9: View mode switcher
-    Overlay,                       // 10: Overlay widget
-    SplitController,               // 11: Split position controller
+    Paned,                        // 0: Keep as Paned for backwards compatibility
+    Rc<RefCell<PlatformWebView>>, // 1: WebView wrapped for reparenting support
+    Rc<RefCell<String>>,          // 2: Content string
+    Box<dyn Fn()>,                // 3: Refresh callback
+    Box<dyn Fn(&str)>,            // 4: Theme update callback
+    Box<dyn Fn(&str)>,            // 5: Content update callback
+    sourceview5::Buffer,          // 6: Editor buffer
+    sourceview5::View,            // 7: Editor view
+    Rc<RefCell<bool>>,            // 8: Insert mode state
+    Box<dyn Fn(ViewMode)>,        // 9: View mode switcher
+    Overlay,                      // 10: Overlay widget
+    SplitController,              // 11: Split position controller
 );

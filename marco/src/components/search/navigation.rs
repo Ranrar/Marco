@@ -2,9 +2,9 @@
 //!
 //! Handles navigation through search results and preview synchronization.
 
+use super::state::*;
 use gtk4::prelude::*;
 use log::debug;
-use super::state::*;
 
 #[cfg(target_os = "linux")]
 use webkit6::prelude::WebViewExt;
@@ -18,7 +18,7 @@ pub(crate) fn find_position_from_cursor() -> Option<i32> {
                 if let Some(buffer) = buffer_ref.borrow().as_ref() {
                     let cursor_iter = buffer.iter_at_offset(buffer.cursor_position());
                     let match_count = search_state.search_context.occurrences_count();
-                    
+
                     if match_count <= 0 {
                         return None;
                     }
@@ -33,9 +33,9 @@ pub(crate) fn find_position_from_cursor() -> Option<i32> {
                     }
 
                     // Iterate through all matches to find the one at or after the cursor
-                    while let Some((match_start, match_end, has_wrapped)) = 
-                        search_state.search_context.forward(&search_iter) {
-                        
+                    while let Some((match_start, match_end, has_wrapped)) =
+                        search_state.search_context.forward(&search_iter)
+                    {
                         let match_offset = match_start.offset();
                         let cursor_offset = cursor_iter.offset();
 
@@ -51,10 +51,10 @@ pub(crate) fn find_position_from_cursor() -> Option<i32> {
                         }
 
                         position += 1;
-                        
+
                         // Move search position forward to find next match
                         search_iter = match_end;
-                        
+
                         // Prevent infinite loop
                         if position >= match_count {
                             break;
@@ -82,7 +82,7 @@ pub(crate) fn find_position_before_cursor() -> Option<i32> {
                 if let Some(buffer) = buffer_ref.borrow().as_ref() {
                     let cursor_iter = buffer.iter_at_offset(buffer.cursor_position());
                     let match_count = search_state.search_context.occurrences_count();
-                    
+
                     if match_count <= 0 {
                         return None;
                     }
@@ -93,9 +93,9 @@ pub(crate) fn find_position_before_cursor() -> Option<i32> {
                     let mut position = 0;
 
                     // Iterate through all matches to find the last one before the cursor
-                    while let Some((match_start, match_end, has_wrapped)) = 
-                        search_state.search_context.forward(&search_iter) {
-                        
+                    while let Some((match_start, match_end, has_wrapped)) =
+                        search_state.search_context.forward(&search_iter)
+                    {
                         let match_offset = match_start.offset();
                         let cursor_offset = cursor_iter.offset();
 
@@ -114,7 +114,7 @@ pub(crate) fn find_position_before_cursor() -> Option<i32> {
 
                         position += 1;
                         search_iter = match_end;
-                        
+
                         // Prevent infinite loop
                         if position >= match_count {
                             break;
@@ -122,18 +122,20 @@ pub(crate) fn find_position_before_cursor() -> Option<i32> {
                     }
 
                     // Return position + 1 to account for the decrement in navigate_previous
-                    last_valid_position.map(|pos| {
-                        if pos == match_count - 1 {
-                            // If the last match before cursor is the final match,
-                            // returning match_count will wrap to last match (match_count - 1)
-                            match_count
-                        } else {
-                            pos + 1
-                        }
-                    }).or_else(|| {
-                        // No match before cursor - wrap to last match
-                        Some(match_count)
-                    })
+                    last_valid_position
+                        .map(|pos| {
+                            if pos == match_count - 1 {
+                                // If the last match before cursor is the final match,
+                                // returning match_count will wrap to last match (match_count - 1)
+                                match_count
+                            } else {
+                                pos + 1
+                            }
+                        })
+                        .or({
+                            // No match before cursor - wrap to last match
+                            Some(match_count)
+                        })
                 } else {
                     None
                 }
@@ -155,12 +157,12 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
             }
 
             CURRENT_MATCH_POSITION.with(|pos_ref| {
-                let current_pos = pos_ref.borrow().clone();
-                
+                let current_pos = *pos_ref.borrow();
+
                 let new_pos = if let Some(pos) = current_pos {
                     // Increment or decrement based on direction
                     let next_pos = pos + direction;
-                    
+
                     // Handle wrapping
                     if next_pos < 0 {
                         match_count - 1 // Wrap to last match
@@ -174,10 +176,16 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                     if direction > 0 {
                         find_position_from_cursor().unwrap_or(0)
                     } else {
-                        find_position_before_cursor().map(|p| {
-                            let wrapped = p - 1;
-                            if wrapped < 0 { match_count - 1 } else { wrapped }
-                        }).unwrap_or(match_count - 1)
+                        find_position_before_cursor()
+                            .map(|p| {
+                                let wrapped = p - 1;
+                                if wrapped < 0 {
+                                    match_count - 1
+                                } else {
+                                    wrapped
+                                }
+                            })
+                            .unwrap_or(match_count - 1)
                     }
                 };
 
@@ -192,13 +200,18 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                                 // Find the match at the new position to get line number
                                 let mut search_iter = buffer.start_iter();
                                 let mut current_index = 0;
-                                
-                                while let Some((match_start, _match_end, _)) = 
-                                    search_state.search_context.forward(&search_iter) {
+
+                                while let Some((match_start, _match_end, _)) =
+                                    search_state.search_context.forward(&search_iter)
+                                {
                                     if current_index == new_pos {
                                         let line_number = match_start.line() + 1;
-                                        let display_text = format!("{} of {} matches (line {})", 
-                                            new_pos + 1, match_count, line_number);
+                                        let display_text = format!(
+                                            "{} of {} matches (line {})",
+                                            new_pos + 1,
+                                            match_count,
+                                            line_number
+                                        );
                                         label.set_text(&display_text);
                                         break;
                                     }
@@ -211,7 +224,11 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                     }
                 });
 
-                debug!("Position counter updated immediately: {} (direction: {})", new_pos + 1, direction);
+                debug!(
+                    "Position counter updated immediately: {} (direction: {})",
+                    new_pos + 1,
+                    direction
+                );
             });
 
             // Cancel any existing navigation timer
@@ -222,13 +239,16 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                 }
 
                 // Schedule a new debounced navigation
-                let new_timer = glib::timeout_add_local(std::time::Duration::from_millis(delay_ms as u64), move || {
-                    navigate_to_current_position();
-                    NAVIGATION_DEBOUNCE_TIMER.with(|timer_ref| {
-                        *timer_ref.borrow_mut() = None;
-                    });
-                    glib::ControlFlow::Break
-                });
+                let new_timer = glib::timeout_add_local(
+                    std::time::Duration::from_millis(delay_ms as u64),
+                    move || {
+                        navigate_to_current_position();
+                        NAVIGATION_DEBOUNCE_TIMER.with(|timer_ref| {
+                            *timer_ref.borrow_mut() = None;
+                        });
+                        glib::ControlFlow::Break
+                    },
+                );
 
                 *timer_ref.borrow_mut() = Some(new_timer);
                 debug!("Scheduled debounced navigation with {}ms delay", delay_ms);
@@ -252,8 +272,9 @@ pub fn navigate_to_current_position() {
                             let mut search_iter = buffer.start_iter();
                             let mut current_index = 0;
 
-                            while let Some((match_start, match_end, _)) = 
-                                search_state.search_context.forward(&search_iter) {
+                            while let Some((match_start, match_end, _)) =
+                                search_state.search_context.forward(&search_iter)
+                            {
                                 if current_index == target_position {
                                     // Found our target match
                                     buffer.select_range(&match_start, &match_end);
@@ -263,25 +284,34 @@ pub fn navigate_to_current_position() {
                                     super::engine::apply_enhanced_search_highlighting(
                                         &search_state.search_context,
                                         Some(&match_start),
-                                        Some(&match_end)
+                                        Some(&match_end),
                                     );
 
                                     // Scroll to show the match
                                     scroll_to_match(&match_start);
 
                                     let line_number = match_start.line() + 1;
-                                    let match_count = search_state.search_context.occurrences_count();
+                                    let match_count =
+                                        search_state.search_context.occurrences_count();
 
                                     // Update match label with current position
                                     CURRENT_MATCH_LABEL.with(|label_ref| {
                                         if let Some(label) = label_ref.borrow().as_ref() {
-                                            let display_text = format!("{} of {} matches (line {})", 
-                                                target_position + 1, match_count, line_number);
+                                            let display_text = format!(
+                                                "{} of {} matches (line {})",
+                                                target_position + 1,
+                                                match_count,
+                                                line_number
+                                            );
                                             label.set_text(&display_text);
                                         }
                                     });
 
-                                    debug!("Navigated to match {} at line {}", target_position + 1, line_number);
+                                    debug!(
+                                        "Navigated to match {} at line {}",
+                                        target_position + 1,
+                                        line_number
+                                    );
 
                                     // Clear navigation in progress flag after navigation completes
                                     set_navigation_in_progress(false);

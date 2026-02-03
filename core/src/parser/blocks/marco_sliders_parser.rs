@@ -66,7 +66,10 @@ mod tests {
     use super::*;
     use crate::grammar::shared::Span;
 
-    fn mock_parse_blocks(input: &str, _depth: usize) -> Result<Document, Box<dyn std::error::Error>> {
+    fn mock_parse_blocks(
+        input: &str,
+        _depth: usize,
+    ) -> Result<Document, Box<dyn std::error::Error>> {
         let mut doc = Document::new();
         if !input.trim().is_empty() {
             doc.children.push(Node {

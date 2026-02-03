@@ -38,10 +38,8 @@
 //! preview_window.hide();
 //! ```
 
-#![cfg(target_os = "linux")]
-
 use gtk4::prelude::*;
-use gtk4::{ApplicationWindow, ScrolledWindow, Picture};
+use gtk4::{ApplicationWindow, Picture, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use webkit6::WebView;
@@ -189,9 +187,9 @@ impl PreviewWindow {
         // Helper: render a window control SVG into a GDK texture
         use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
         use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
-        use rsvg::{Loader, CairoRenderer};
-        use gtk4::gdk;
         use gio;
+        use gtk4::gdk;
+        use rsvg::{CairoRenderer, Loader};
 
         fn render_window_svg(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
             let svg = window_icon_svg(icon).replace("currentColor", color);
@@ -209,14 +207,17 @@ impl PreviewWindow {
             let render_scale = display_scale * 2.0;
             let render_size = (icon_size * render_scale) as i32;
 
-            let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-                .expect("create surface");
+            let mut surface =
+                cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                    .expect("create surface");
             {
                 let cr = cairo::Context::new(&surface).expect("create context");
                 cr.scale(render_scale, render_scale);
                 let renderer = CairoRenderer::new(&handle);
                 let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-                renderer.render_document(&cr, &viewport).expect("render SVG");
+                renderer
+                    .render_document(&cr, &viewport)
+                    .expect("render SVG");
             }
 
             let data = surface.data().expect("get surface data").to_vec();
@@ -234,7 +235,11 @@ impl PreviewWindow {
         let svg_icon_button = |icon: WindowIcon, tooltip: &str| {
             let pic = Picture::new();
             let is_dark = window.has_css_class("marco-theme-dark");
-            let color = if is_dark { DARK_PALETTE.control_icon } else { LIGHT_PALETTE.control_icon };
+            let color = if is_dark {
+                DARK_PALETTE.control_icon
+            } else {
+                LIGHT_PALETTE.control_icon
+            };
             let texture = render_window_svg(icon, color, 8.0);
             pic.set_paintable(Some(&texture));
             pic.set_size_request(8, 8);
@@ -331,9 +336,17 @@ impl PreviewWindow {
 
         let update_max_icon = {
             let is_dark = window.has_css_class("marco-theme-dark");
-            let color = if is_dark { DARK_PALETTE.control_icon } else { LIGHT_PALETTE.control_icon };
+            let color = if is_dark {
+                DARK_PALETTE.control_icon
+            } else {
+                LIGHT_PALETTE.control_icon
+            };
             move |is_maximized: bool, pic: &Picture| {
-                let icon = if is_maximized { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if is_maximized {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let tex = render_window_svg(icon, color, 8.0);
                 pic.set_paintable(Some(&tex));
             }
@@ -384,7 +397,7 @@ impl PreviewWindow {
 
         // Maximize/restore toggle (update SVG picture)
         let pic_for_toggle = max_pic.clone();
-        let update_for_toggle = update_max_icon.clone();
+        let update_for_toggle = update_max_icon;
         let window_for_toggle = window.clone();
         btn_max_toggle.connect_clicked(move |_| {
             log::info!("Preview window maximize/restore button clicked - handler called");
@@ -401,7 +414,7 @@ impl PreviewWindow {
 
         // Keep maximize icon in sync if window is maximized/unmaximized externally
         let pic_for_notify = max_pic.clone();
-        let update_for_notify = update_max_icon.clone();
+        let update_for_notify = update_max_icon;
         window.connect_notify_local(Some("is-maximized"), move |w, _| {
             update_for_notify(w.is_maximized(), &pic_for_notify);
         });
@@ -577,8 +590,6 @@ impl PreviewWindow {
     pub fn has_webview(&self) -> bool {
         self.container.child().is_some()
     }
-
-
 }
 
 #[cfg(test)]

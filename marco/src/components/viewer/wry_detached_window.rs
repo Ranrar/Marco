@@ -1,10 +1,10 @@
 //! Detached preview window implementation that uses `wry` on Windows.
 #![cfg(target_os = "windows")]
 
+use gtk4::prelude::*;
+use gtk4::{ApplicationWindow, Box as GtkBox, Label, Orientation, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use gtk4::prelude::*;
-use gtk4::{ApplicationWindow, ScrolledWindow, Box as GtkBox, Orientation, Label};
 
 use crate::components::viewer::wry;
 use crate::components::viewer::wry_platform_webview::PlatformWebView;
@@ -124,9 +124,9 @@ impl PreviewWindow {
         // Helper: render a window control SVG into a GDK texture
         use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
         use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
-        use rsvg::{Loader, CairoRenderer};
-        use gtk4::gdk;
         use gio;
+        use gtk4::gdk;
+        use rsvg::{CairoRenderer, Loader};
 
         fn render_window_svg(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
             let svg = window_icon_svg(icon).replace("currentColor", color);
@@ -144,14 +144,17 @@ impl PreviewWindow {
             let render_scale = display_scale * 2.0;
             let render_size = (icon_size * render_scale) as i32;
 
-            let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-                .expect("create surface");
+            let mut surface =
+                cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                    .expect("create surface");
             {
                 let cr = cairo::Context::new(&surface).expect("create context");
                 cr.scale(render_scale, render_scale);
                 let renderer = CairoRenderer::new(&handle);
                 let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-                renderer.render_document(&cr, &viewport).expect("render SVG");
+                renderer
+                    .render_document(&cr, &viewport)
+                    .expect("render SVG");
             }
 
             let data = surface.data().expect("get surface data").to_vec();
@@ -170,7 +173,11 @@ impl PreviewWindow {
             use gtk4::Picture;
             let pic = Picture::new();
             let is_dark = window.has_css_class("marco-theme-dark");
-            let color = if is_dark { DARK_PALETTE.control_icon } else { LIGHT_PALETTE.control_icon };
+            let color = if is_dark {
+                DARK_PALETTE.control_icon
+            } else {
+                LIGHT_PALETTE.control_icon
+            };
             let texture = render_window_svg(icon, color, 8.0);
             pic.set_paintable(Some(&texture));
             pic.set_size_request(8, 8);
@@ -255,9 +262,17 @@ impl PreviewWindow {
 
         let update_max_icon = {
             let is_dark = window.has_css_class("marco-theme-dark");
-            let color = if is_dark { DARK_PALETTE.control_icon } else { LIGHT_PALETTE.control_icon };
+            let color = if is_dark {
+                DARK_PALETTE.control_icon
+            } else {
+                LIGHT_PALETTE.control_icon
+            };
             move |is_maximized: bool, pic: &gtk4::Picture| {
-                let icon = if is_maximized { WindowIcon::Restore } else { WindowIcon::Maximize };
+                let icon = if is_maximized {
+                    WindowIcon::Restore
+                } else {
+                    WindowIcon::Maximize
+                };
                 let tex = render_window_svg(icon, color, 8.0);
                 pic.set_paintable(Some(&tex));
             }
@@ -336,7 +351,10 @@ impl PreviewWindow {
     pub fn attach_webview(&self, _webview: Option<&gtk4::Widget>) {
         // If we already have a platform webview, refresh content
         if let Some(ref pv) = *self.platform_webview.borrow() {
-            if let Ok(guard) = wry::LATEST_PREVIEW_HTML.get_or_init(|| std::sync::Mutex::new(String::new())).lock() {
+            if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+                .get_or_init(|| std::sync::Mutex::new(String::new()))
+                .lock()
+            {
                 pv.load_html_with_base(&guard.clone(), None);
             }
             return;
@@ -346,7 +364,10 @@ impl PreviewWindow {
         let pv = PlatformWebView::new(&self.window);
         self.container.set_child(Some(&pv.widget()));
 
-        if let Ok(guard) = wry::LATEST_PREVIEW_HTML.get_or_init(|| std::sync::Mutex::new(String::new())).lock() {
+        if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+            .get_or_init(|| std::sync::Mutex::new(String::new()))
+            .lock()
+        {
             pv.load_html_with_base(&guard.clone(), None);
         }
 
@@ -359,7 +380,10 @@ impl PreviewWindow {
             if pv_ref.inner.borrow().is_none() {
                 log::warn!("Embedded wry WebView not available; falling back to system browser");
                 // Persist the HTML to a temp file and open it
-                if let Ok(guard) = wry::LATEST_PREVIEW_HTML.get_or_init(|| std::sync::Mutex::new(String::new())).lock() {
+                if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+                    .get_or_init(|| std::sync::Mutex::new(String::new()))
+                    .lock()
+                {
                     // Show the HTML source inside the preview window as a fallback, plus a button
                     // to open it in the system browser. This keeps the user inside the app
                     // while still providing a usable rendered experience via the browser.
@@ -369,7 +393,9 @@ impl PreviewWindow {
                     vbox.set_margin_start(8);
                     vbox.set_margin_end(8);
 
-                    let label = Label::new(Some("Embedded preview is not available (missing WebView2 runtime)."));
+                    let label = Label::new(Some(
+                        "Embedded preview is not available (missing WebView2 runtime).",
+                    ));
                     label.set_wrap(true);
                     vbox.append(&label);
 
@@ -385,13 +411,19 @@ impl PreviewWindow {
                     vbox.append(&sw);
 
                     // Add a button to open in system browser
-                    let ts = std::time::SystemTime::now().duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_millis();
+                    let ts = std::time::SystemTime::now()
+                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                        .unwrap()
+                        .as_millis();
                     let file_name = format!("marco_preview_{}.html", ts);
                     let mut file_path = std::env::temp_dir();
                     file_path.push(&file_name);
                     let file_url = if std::fs::write(&file_path, &*guard).is_ok() {
                         let s = format!("file://{}", file_path.to_string_lossy());
-                        log::info!("Persisted fallback preview HTML to: {}", file_path.display());
+                        log::info!(
+                            "Persisted fallback preview HTML to: {}",
+                            file_path.display()
+                        );
                         s
                     } else {
                         String::new()
@@ -401,8 +433,14 @@ impl PreviewWindow {
                     if !file_url.is_empty() {
                         let file_url_clone = file_url.clone();
                         open_btn.connect_clicked(move |_| {
-                            if let Err(e) = gio::AppInfo::launch_default_for_uri(&file_url_clone, None::<&gio::AppLaunchContext>) {
-                                log::error!("Failed to open fallback preview in system browser: {}", e);
+                            if let Err(e) = gio::AppInfo::launch_default_for_uri(
+                                &file_url_clone,
+                                None::<&gio::AppLaunchContext>,
+                            ) {
+                                log::error!(
+                                    "Failed to open fallback preview in system browser: {}",
+                                    e
+                                );
                             }
                         });
                     } else {

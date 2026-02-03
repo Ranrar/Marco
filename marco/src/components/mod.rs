@@ -1,3 +1,3 @@
 pub mod editor;
-pub mod viewer;
 pub mod search;
+pub mod viewer;

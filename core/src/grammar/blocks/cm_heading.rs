@@ -93,7 +93,7 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
         let char_len = char_at_pos.len_utf8();
         let after_pos = hash_pos + char_len;
         let after_content = &trimmed[after_pos..];
-        
+
         // If everything after is spaces and hashes, remove them
         if after_content.chars().all(|c| c == ' ' || c == '#') {
             // Keep everything up to and including the character at hash_pos
@@ -105,7 +105,7 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
         // Content is all hashes/spaces or empty
         ""
     };
-    
+
     // Trim any remaining trailing whitespace
     let final_content_str = final_content_str.trim_end();
 

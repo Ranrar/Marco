@@ -10,6 +10,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+# This script is intended to run on Windows.
+# Running it via `pwsh` on Linux will attempt a Linux→Windows cross-compilation,
+# which requires a full Windows GTK/GLib sysroot + cross pkg-config setup.
+if (-not $IsWindows) {
+    Write-Error "This script must be run on Windows. You appear to be running PowerShell on a non-Windows OS, which is not supported for building the Windows GTK binaries. Use a Windows machine/VM or the GitHub Actions windows-latest job (alpha-release workflow)."
+    exit 1
+}
+
 if ($Help) {
     Write-Host @"
 Marco Windows Portable Build Script

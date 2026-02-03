@@ -39,7 +39,10 @@ struct RenderContext<'a> {
 }
 
 // Render document to HTML
-pub fn render_html(document: &Document, options: &RenderOptions) -> Result<String, Box<dyn std::error::Error>> {
+pub fn render_html(
+    document: &Document,
+    options: &RenderOptions,
+) -> Result<String, Box<dyn std::error::Error>> {
     log::debug!("Rendering {} nodes to HTML", document.len());
 
     let mut html = String::new();

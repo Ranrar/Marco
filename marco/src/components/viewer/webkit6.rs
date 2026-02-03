@@ -2,15 +2,7 @@
 //!
 //! This module provides WebKit6 integration for rendering HTML previews on Linux.
 //! The viewer displays pre-rendered HTML from Marco's markdown engine.
-//!
-//! # Platform Support
-//!
-//! - **Linux**: Uses WebKit6 (GTK4-native WebKit)
-//! - **Windows**: Future support will use wry/WebView2 (not yet implemented)
-//!
-//! This module is Linux-only. For Windows support, a separate implementation
-//! using wry will be added in the future.
-//!
+//! 
 //! # Key Features
 //!
 //! - Deferred HTML loading to avoid GTK allocation warnings
@@ -23,8 +15,6 @@
 //!
 //! The HTML viewer receives already-rendered HTML from `core::render` and displays it.
 //! It does not perform Markdown-to-HTML conversion itself.
-
-#![cfg(target_os = "linux")]
 
 use gtk4::prelude::*;
 use std::cell::RefCell;
@@ -458,9 +448,7 @@ pub fn create_html_source_viewer_webview(
     scrollbar_thumb: Option<&str>,
     scrollbar_track: Option<&str>,
 ) -> Result<WebView, String> {
-    use crate::logic::syntax_highlighter::{
-        generate_css_with_global, global_syntax_highlighter,
-    };
+    use crate::logic::syntax_highlighter::{generate_css_with_global, global_syntax_highlighter};
 
     // Normalize theme mode to "light" or "dark"
     let normalized_theme = if theme_mode.contains("dark") {
@@ -654,9 +642,7 @@ pub fn update_code_view_smooth(
     scrollbar_thumb: Option<&str>,
     scrollbar_track: Option<&str>,
 ) -> Result<(), String> {
-    use crate::logic::syntax_highlighter::{
-        generate_css_with_global, global_syntax_highlighter,
-    };
+    use crate::logic::syntax_highlighter::{generate_css_with_global, global_syntax_highlighter};
 
     // If the WebView isn't currently mapped (visible), don't try to update it yet.
     // We'll apply the update once it becomes mapped.

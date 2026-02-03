@@ -158,7 +158,11 @@ pub fn parse_blocks(input: &str) -> Result<Document, Box<dyn std::error::Error>>
 }
 
 // Internal parser with recursion depth limit and state tracking
-fn parse_blocks_internal(input: &str, depth: usize, state: &mut ParserState) -> Result<Document, Box<dyn std::error::Error>> {
+fn parse_blocks_internal(
+    input: &str,
+    depth: usize,
+    state: &mut ParserState,
+) -> Result<Document, Box<dyn std::error::Error>> {
     // Prevent infinite recursion
     const MAX_DEPTH: usize = 100;
     if depth > MAX_DEPTH {

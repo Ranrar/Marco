@@ -1,6 +1,6 @@
 //! Debug settings tab
 use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, CheckButton, Orientation, Label};
+use gtk4::{Box as GtkBox, CheckButton, Label, Orientation};
 use log::trace;
 
 // Import unified helper
@@ -87,7 +87,10 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
 
     // Size label and buttons
     let size_bytes = core::logic::logger::total_log_size_bytes();
-    let size_text = format!("Total logs size: {:.2} MB", size_bytes as f64 / (1024.0 * 1024.0));
+    let size_text = format!(
+        "Total logs size: {:.2} MB",
+        size_bytes as f64 / (1024.0 * 1024.0)
+    );
     let size_label = Label::new(Some(&size_text));
     size_label.add_css_class("settings-note");
     size_label.set_margin_top(6);
@@ -114,9 +117,15 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
             }
         };
 
-        if let Err(e) = gio::AppInfo::launch_default_for_uri(&normalized_uri, None::<&gio::AppLaunchContext>) {
+        if let Err(e) =
+            gio::AppInfo::launch_default_for_uri(&normalized_uri, None::<&gio::AppLaunchContext>)
+        {
             // Fallback: try platform-specific open command if GIO fails
-            log::warn!("Failed to open logs folder {} via GIO: {}. Trying platform fallback...", normalized_uri, e);
+            log::warn!(
+                "Failed to open logs folder {} via GIO: {}. Trying platform fallback...",
+                normalized_uri,
+                e
+            );
 
             #[cfg(target_os = "windows")]
             {
@@ -199,8 +208,10 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
                                 "Could not enable file logging",
                             );
                             dlg.set_secondary_text(Some("Another logger is already initialized in this process. File logging cannot be enabled."));
-                            dlg.run_future();
-                            dlg.close();
+                            dlg.connect_response(|dlg, _resp| {
+                                dlg.close();
+                            });
+                            dlg.present();
                         } else {
                             log::error!("Failed to reinit logger after deletion: {}", e);
                         }
@@ -242,8 +253,10 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
                     "Could not enable file logging",
                 );
                 dlg.set_secondary_text(Some("Another logger is already initialized in this process. File logging cannot be enabled."));
-                dlg.run_future();
-                dlg.close();
+                dlg.connect_response(|dlg, _resp| {
+                    dlg.close();
+                });
+                dlg.present();
             } else {
                 log::warn!("Could not enable file logging: another logger is present");
             }
@@ -273,13 +286,15 @@ pub fn build_debug_tab(settings_path: &str, parent: &gtk4::Window) -> GtkBox {
     let delete_btn_for_refresh = delete_btn.clone();
     refresh_btn.connect_clicked(move |_| {
         let new_size = core::logic::logger::total_log_size_bytes();
-        size_label_for_refresh.set_text(&format!("Total logs size: {:.2} MB", new_size as f64 / (1024.0 * 1024.0)));
+        size_label_for_refresh.set_text(&format!(
+            "Total logs size: {:.2} MB",
+            new_size as f64 / (1024.0 * 1024.0)
+        ));
         delete_btn_for_refresh.set_sensitive(new_size > 0);
     });
     btn_box.append(&refresh_btn);
 
     container.append(&btn_box);
-
 
     container
 }

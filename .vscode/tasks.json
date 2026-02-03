@@ -1,0 +1,69 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cargo: fmt (workspace)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["fmt"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cargo: test (workspace)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["test", "--workspace"],
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cargo: clippy (workspace)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["clippy", "--workspace", "--all-targets"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cargo: check (workspace)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["check", "--workspace", "--all-targets"],
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Cargo: build (workspace)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["build", "--workspace"],
+      "windows": {
+        "args": [
+          "build",
+          "--workspace",
+          "--target",
+          "x86_64-pc-windows-msvc",
+          "--target-dir",
+          "target\\windows"
+        ]
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run: marco (debug)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["run", "-p", "marco"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Run: polo (debug)",
+      "type": "shell",
+      "command": "cargo",
+      "args": ["run", "-p", "polo"],
+      "problemMatcher": []
+    }
+  ]
+}

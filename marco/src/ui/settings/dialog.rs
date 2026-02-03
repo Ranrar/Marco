@@ -233,23 +233,30 @@ fn create_dialog_impl(
     // Create custom close button with SVG icon
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
-    use rsvg::{CairoRenderer, Loader};
     use gio;
     use gtk4::gdk;
+    use rsvg::{CairoRenderer, Loader};
 
     fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
         let svg = window_icon_svg(icon).replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
-        let handle = match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
-            Ok(h) => h,
-            Err(e) => {
-                log::error!("load SVG handle: {}", e);
-                let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
-                return gdk::MemoryTexture::new(1, 1, gdk::MemoryFormat::B8g8r8a8Premultiplied, &bytes, 4);
-            }
-        };
+        let handle =
+            match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::error!("load SVG handle: {}", e);
+                    let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
+                    return gdk::MemoryTexture::new(
+                        1,
+                        1,
+                        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+                        &bytes,
+                        4,
+                    );
+                }
+            };
 
         let display_scale = gdk::Display::default()
             .and_then(|d| d.monitors().item(0))
@@ -260,15 +267,18 @@ fn create_dialog_impl(
         let render_scale = display_scale * 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
-        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-            .expect("create surface");
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
         {
             let cr = cairo::Context::new(&surface).expect("create context");
             cr.scale(render_scale, render_scale);
 
             let renderer = CairoRenderer::new(&handle);
             let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-            renderer.render_document(&cr, &viewport).expect("render SVG");
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
         }
 
         let data = surface.data().expect("get surface data").to_vec();
@@ -282,7 +292,13 @@ fn create_dialog_impl(
         )
     }
 
-    fn svg_icon_button(window: &Window, icon: WindowIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+    fn svg_icon_button(
+        window: &Window,
+        icon: WindowIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
         let pic = gtk4::Picture::new();
         let texture = render_svg_icon(icon, color, icon_size);
         pic.set_paintable(Some(&texture));
@@ -310,8 +326,16 @@ fn create_dialog_impl(
             let pic_hover = pic.clone();
             let normal_color = color.to_string();
             let is_dark = window.has_css_class("marco-theme-dark");
-            let hover_color = if is_dark { DARK_PALETTE.control_icon_hover.to_string() } else { LIGHT_PALETTE.control_icon_hover.to_string() };
-            let active_color = if is_dark { DARK_PALETTE.control_icon_active.to_string() } else { LIGHT_PALETTE.control_icon_active.to_string() };
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
 
             let motion_controller = gtk4::EventControllerMotion::new();
             let icon_for_enter = icon;
@@ -462,7 +486,11 @@ fn create_dialog_impl(
         stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
         signal_managers.push(appearance_signals);
     }
-    stack.add_titled(&tabs::language::build_language_tab(), Some("language"), "Language");
+    stack.add_titled(
+        &tabs::language::build_language_tab(),
+        Some("language"),
+        "Language",
+    );
 
     // Add Markdown tab for markdown-specific settings
     let markdown_tab = tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap());
@@ -487,7 +515,7 @@ fn create_dialog_impl(
     // Layout: sidebar + stack + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
     content_box.add_css_class("marco-settings-content");
-    
+
     let main_box = GtkBox::new(Orientation::Horizontal, 0);
     main_box.add_css_class("marco-settings-main");
     main_box.append(&stack_sidebar);

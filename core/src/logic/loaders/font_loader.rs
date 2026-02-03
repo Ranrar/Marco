@@ -1,3 +1,4 @@
+#[cfg(target_os = "linux")]
 use fontconfig::Fontconfig;
 use log::{debug, error, warn};
 use std::collections::HashMap;
@@ -32,16 +33,28 @@ pub struct AvailableFonts {
 
 /// Font loader using fontconfig on Linux
 pub struct FontLoader {
+    #[cfg(target_os = "linux")]
     fc: Option<Fontconfig>,
 }
 
 impl FontLoader {
     /// Create a new font loader instance
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        debug!("Initializing font loader with fontconfig");
-        let fc =
-            Fontconfig::new().ok_or_else(|| -> Box<dyn std::error::Error> { "Failed to initialize fontconfig".into() })?;
-        Ok(Self { fc: Some(fc) })
+        #[cfg(target_os = "linux")]
+        {
+            debug!("Initializing font loader with fontconfig");
+            let fc = Fontconfig::new().ok_or_else(|| -> Box<dyn std::error::Error> {
+                "Failed to initialize fontconfig".into()
+            })?;
+            Ok(Self { fc: Some(fc) })
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            // Windows: do not depend on fontconfig. We provide a loader so callers can
+            // fetch a deterministic fallback list.
+            Ok(Self {})
+        }
     }
 
     /// Initialize monospace font cache at startup (fast)
@@ -195,52 +208,60 @@ impl FontLoader {
 
     /// Load only monospace fonts (optimized for startup)
     pub fn load_monospace_fonts_only(&self) -> Result<Vec<FontFamily>, Box<dyn std::error::Error>> {
-        let fc = self
-            .fc
-            .as_ref()
-            .ok_or_else(|| "Fontconfig not initialized")?;
+        #[cfg(target_os = "linux")]
+        {
+            let fc = self
+                .fc
+                .as_ref()
+                .ok_or("Fontconfig not initialized")?;
 
-        debug!("Loading only monospace fonts for fast startup");
+            debug!("Loading only monospace fonts for fast startup");
 
-        let mut monospace_fonts = Vec::new();
-        let mut font_map = HashMap::new();
+            let mut monospace_fonts = Vec::new();
+            let mut font_map = HashMap::new();
 
-        // Create pattern specifically for monospace fonts
-        let pattern = fontconfig::Pattern::new(fc);
-        // Note: We'll rely on name-based detection since fontconfig pattern API varies
+            // Create pattern specifically for monospace fonts
+            let pattern = fontconfig::Pattern::new(fc);
+            // Note: We'll rely on name-based detection since fontconfig pattern API varies
 
-        let fonts = fontconfig::list_fonts(&pattern, None);
+            let fonts = fontconfig::list_fonts(&pattern, None);
 
-        for font_pattern in fonts.iter() {
-            if let Some(name) = font_pattern.name() {
-                let font_name = name.to_string();
+            for font_pattern in fonts.iter() {
+                if let Some(name) = font_pattern.name() {
+                    let font_name = name.to_string();
 
-                // Skip empty names or duplicates
-                if font_name.is_empty() || font_map.contains_key(&font_name) {
-                    continue;
-                }
+                    // Skip empty names or duplicates
+                    if font_name.is_empty() || font_map.contains_key(&font_name) {
+                        continue;
+                    }
 
-                // Double-check it's actually monospace
-                if self.is_monospace_font(&font_name) {
-                    let font_family = FontFamily {
-                        name: font_name.clone(),
-                        is_monospace: true,
-                    };
+                    // Double-check it's actually monospace
+                    if self.is_monospace_font(&font_name) {
+                        let font_family = FontFamily {
+                            name: font_name.clone(),
+                            is_monospace: true,
+                        };
 
-                    font_map.insert(font_name, font_family.clone());
-                    monospace_fonts.push(font_family);
+                        font_map.insert(font_name, font_family.clone());
+                        monospace_fonts.push(font_family);
+                    }
                 }
             }
+
+            // Add common monospace fallbacks if not found
+            self.add_monospace_fallbacks(&mut monospace_fonts);
+
+            // Sort alphabetically
+            monospace_fonts.sort_by(|a, b| a.name.cmp(&b.name));
+
+            debug!("Loaded {} monospace fonts for cache", monospace_fonts.len());
+            Ok(monospace_fonts)
         }
 
-        // Add common monospace fallbacks if not found
-        self.add_monospace_fallbacks(&mut monospace_fonts);
-
-        // Sort alphabetically
-        monospace_fonts.sort_by(|a, b| a.name.cmp(&b.name));
-
-        debug!("Loaded {} monospace fonts for cache", monospace_fonts.len());
-        Ok(monospace_fonts)
+        #[cfg(target_os = "windows")]
+        {
+            Ok(Self::fallback_monospace_fonts())
+        }
     }
 
     /// Check if a font is monospace by its name or properties
@@ -264,9 +285,9 @@ impl FontLoader {
             "droid sans mono",
             "liberation mono",
             "dejavu sans mono",
-            "cascadia",  // Windows: Cascadia Code, Cascadia Mono
-            "consolas",  // Windows default monospace
-            "lucida console",  // Windows legacy monospace
+            "cascadia",       // Windows: Cascadia Code, Cascadia Mono
+            "consolas",       // Windows default monospace
+            "lucida console", // Windows legacy monospace
         ];
 
         let name_lower = font_name.to_lowercase();
@@ -308,6 +329,7 @@ impl FontLoader {
     }
 }
 
+#[cfg(target_os = "linux")]
 impl Default for FontLoader {
     fn default() -> Self {
         match Self::new() {
@@ -315,6 +337,19 @@ impl Default for FontLoader {
             Err(e) => {
                 error!("Failed to create font loader: {}", e);
                 Self { fc: None }
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Default for FontLoader {
+    fn default() -> Self {
+        match Self::new() {
+            Ok(loader) => loader,
+            Err(e) => {
+                error!("Failed to create font loader: {}", e);
+                Self {}
             }
         }
     }
@@ -410,15 +445,28 @@ mod tests {
 
         // Verify expected fallback fonts
         let font_names: Vec<&str> = fallback_fonts.iter().map(|f| f.name.as_str()).collect();
-        assert!(
-            font_names.contains(&"Monospace"),
-            "Should include Monospace"
-        );
-        assert!(
-            font_names.contains(&"Courier New"),
-            "Should include Courier New"
-        );
-        assert!(font_names.contains(&"Fixed"), "Should include Fixed");
+
+        #[cfg(target_os = "linux")]
+        {
+            assert!(
+                font_names.contains(&"Monospace"),
+                "Should include Monospace"
+            );
+            assert!(
+                font_names.contains(&"Courier New"),
+                "Should include Courier New"
+            );
+            assert!(font_names.contains(&"Fixed"), "Should include Fixed");
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            assert!(font_names.contains(&"Consolas"), "Should include Consolas");
+            assert!(
+                font_names.contains(&"Courier New"),
+                "Should include Courier New"
+            );
+        }
 
         println!("Fallback fonts test passed");
     }

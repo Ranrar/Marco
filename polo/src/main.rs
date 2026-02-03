@@ -41,8 +41,8 @@ mod components;
 use components::css::load_css_from_path;
 use components::menu::create_custom_titlebar;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
-use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use components::viewer::platform_webview::PlatformWebView;
+use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use core::paths::PoloPaths;
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
 use std::path::PathBuf;
@@ -75,7 +75,7 @@ fn main() -> glib::ExitCode {
     }
 
     // Setup font directory for IcoMoon icon font (MUST be done before GTK init)
-    use core::paths::{PoloPaths};
+    use core::paths::PoloPaths;
     let polo_paths = match PoloPaths::new() {
         Ok(paths) => paths,
         Err(e) => {

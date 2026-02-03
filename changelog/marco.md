@@ -24,6 +24,28 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.0] - 2026-02-03
+
+### Added
+- **Platform-specific workspace files** - separate VS Code configurations for Linux and Windows.
+- **Windows native file dialogs** using `rfd` crate (replaces GTK dialogs on Windows).
+- **Enhanced editor UI module** with platform-conditional WebView implementations.
+- **Bidirectional scroll synchronization** between editor and preview.
+- **Dynamic CSS theming** for scrollbars and paned separators based on editor theme colors.
+- **Smooth HTML updates** - reduced flickering during editing with debounced rendering.
+
+### Changed
+- **Refactored editor UI** into dedicated `components/editor/ui.rs` module (1527 lines).
+- **Debounced processing** - preview rendering (400ms), LSP highlighting (250ms), extension processing (400ms).
+- **All `cfg` attributes** now use explicit `target_os` conditions instead of negative conditions.
+- **WebView implementation** is now platform-specific: `webkit6` on Linux, `wry` on Windows.
+
+### Fixed
+- **Removed duplicated `cfg` attributes** in webkit6 modules.
+- **Eliminated unnecessary clone operations** on Copy types.
+- **Replaced lazy evaluation** with direct values where appropriate.
+- **Fixed useless format! macros** replaced with `.to_string()`.
+
 ## [0.16.0] - 2026-02-02
 
 ### Added

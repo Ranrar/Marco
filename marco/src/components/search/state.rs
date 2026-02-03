@@ -3,7 +3,7 @@
 //! Manages search state, options, and thread-local storage for the search component.
 
 use glib::SourceId;
-use gtk4::{Label, Window};
+use gtk4::{Entry, Label, Window};
 use sourceview5::{Buffer, SearchContext, View};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -30,40 +30,14 @@ pub struct SearchState {
 }
 
 /// Simple async search manager for better UI responsiveness
+#[derive(Default)]
 pub struct AsyncSearchManager {
     pub current_timer_id: Option<SourceId>,
 }
 
 impl AsyncSearchManager {
     pub fn new() -> Self {
-        Self {
-            current_timer_id: None,
-        }
-    }
-
-    /// Schedule a search operation with debouncing
-    pub fn schedule_search<F>(&mut self, delay_ms: u32, callback: F)
-    where
-        F: Fn() + 'static,
-    {
-        use crate::logic::signal_manager::safe_source_remove;
-        use glib::timeout_add_local;
-
-        // Cancel any existing timer safely
-        if let Some(timer_id) = self.current_timer_id.take() {
-            safe_source_remove(timer_id);
-        }
-
-        // Schedule new search
-        let timer_id = timeout_add_local(
-            std::time::Duration::from_millis(delay_ms as u64),
-            move || {
-                callback();
-                glib::ControlFlow::Break
-            },
-        );
-
-        self.current_timer_id = Some(timer_id);
+        Self::default()
     }
 }
 
@@ -75,6 +49,7 @@ thread_local! {
     pub static CURRENT_WEBVIEW: RefCell<Option<Rc<RefCell<WebView>>>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     pub static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };
+    pub static CURRENT_SEARCH_ENTRY: RefCell<Option<Entry>> = const { RefCell::new(None) };
     pub static NAVIGATION_IN_PROGRESS: RefCell<bool> = const { RefCell::new(false) };
     pub static CURRENT_MATCH_POSITION: RefCell<Option<i32>> = const { RefCell::new(None) };
     pub static SEARCH_DEBOUNCE_TIMER: RefCell<Option<SourceId>> = const { RefCell::new(None) };
@@ -83,11 +58,6 @@ thread_local! {
 }
 
 /// Check if navigation is in progress
-pub fn is_navigation_in_progress() -> bool {
-    NAVIGATION_IN_PROGRESS.with(|flag| *flag.borrow())
-}
-
-/// Set navigation in progress flag
 pub fn set_navigation_in_progress(in_progress: bool) {
     NAVIGATION_IN_PROGRESS.with(|flag| {
         *flag.borrow_mut() = in_progress;
@@ -99,6 +69,11 @@ pub fn clear_search_highlighting() {
     use log::trace;
 
     CURRENT_SEARCH_STATE.with(|state_ref| {
+        // IMPORTANT: disable highlighting on the active SearchContext before dropping it.
+        // Otherwise, SourceView can leave the old highlights applied in the buffer.
+        if let Some(search_state) = state_ref.borrow().as_ref() {
+            search_state.search_context.set_highlight(false);
+        }
         *state_ref.borrow_mut() = None;
     });
     CURRENT_MATCH_POSITION.with(|pos| {

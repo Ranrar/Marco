@@ -3,9 +3,6 @@
 //! This module handles rendering markdown content to HTML and displaying it in a WebView.
 //! It provides functions for refreshing preview content with optimal performance using caching.
 //!
-//! # Platform Support
-//!
-//! Currently Linux-only (uses WebKit6). Windows support will be added in the future.
 //!
 //! # Key Features
 //!
@@ -14,8 +11,6 @@
 //! - Theme-aware syntax highlighting
 //! - Smooth content updates without page reloads
 //! - Base URI support for relative file references
-
-#![cfg(target_os = "linux")]
 
 use core::global_parser_cache;
 use core::RenderOptions;
@@ -58,9 +53,7 @@ fn generate_test_html(wheel_js: &str) -> String {
 
 /// Generate CSS for syntax highlighting based on current theme mode
 fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
-    use crate::logic::syntax_highlighter::{
-        generate_css_with_global, global_syntax_highlighter,
-    };
+    use crate::logic::syntax_highlighter::{generate_css_with_global, global_syntax_highlighter};
 
     // Initialize global highlighter if needed
     if let Err(e) = global_syntax_highlighter() {

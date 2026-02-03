@@ -12,7 +12,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 #[cfg(target_os = "windows")]
-use raw_window_handle::{RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle};
+use raw_window_handle::{
+    RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
+};
 
 #[cfg(target_os = "windows")]
 use std::num::NonZeroIsize;
@@ -50,7 +52,9 @@ impl PlatformWebView {
             use gdk4_win32::Win32Surface;
             let win32_surface: &Win32Surface = surface.downcast_ref()?;
 
-            let hwnd_ptr = unsafe { gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _) };
+            let hwnd_ptr = unsafe {
+                gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _)
+            };
             let hwnd = NonZeroIsize::new(hwnd_ptr as isize)?;
 
             let win_handle = Win32WindowHandle::new(hwnd);
@@ -66,17 +70,27 @@ impl PlatformWebView {
             Some(ph) => {
                 log::info!("wry PlatformWebView: obtained Win32 parent handle");
                 ph
-            },
+            }
             None => {
                 log::warn!("wry PlatformWebView: failed to get Win32 parent handle - falling back to placeholder container");
                 // Add a placeholder label into the container so UI is usable
-                let label = gtk4::Label::new(Some("Preview not available inline on Windows (missing Win32 handle)"));
+                let label = gtk4::Label::new(Some(
+                    "Preview not available inline on Windows (missing Win32 handle)",
+                ));
                 label.set_wrap(true);
                 container.append(&label);
                 // Provide a dummy ParentWindowHandle so types work later if needed
                 let parent_handle = ParentWindowHandle {
-                    window: unsafe { raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(Win32WindowHandle::new(NonZeroIsize::new(1).unwrap()))) },
-                    display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::Windows(WindowsDisplayHandle::new())) },
+                    window: unsafe {
+                        raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(
+                            Win32WindowHandle::new(NonZeroIsize::new(1).unwrap()),
+                        ))
+                    },
+                    display: unsafe {
+                        raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::Windows(
+                            WindowsDisplayHandle::new(),
+                        ))
+                    },
                 };
                 std::rc::Rc::new(parent_handle)
             }
@@ -120,7 +134,13 @@ impl PlatformWebView {
             gtk4::glib::ControlFlow::Continue
         });
 
-        Self { inner: webview, container, parent_handle: parent_handle_rc, bg_color, gtk_window: window.clone() }
+        Self {
+            inner: webview,
+            container,
+            parent_handle: parent_handle_rc,
+            bg_color,
+            gtk_window: window.clone(),
+        }
     }
 
     pub fn widget(&self) -> gtk4::Widget {
@@ -143,7 +163,11 @@ impl PlatformWebView {
     }
 
     pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
-        let final_html = if let Some(base) = base_uri { inject_base_href(html, base) } else { html.to_string() };
+        let final_html = if let Some(base) = base_uri {
+            inject_base_href(html, base)
+        } else {
+            html.to_string()
+        };
 
         if let Some(view) = self.inner.borrow().as_ref() {
             if let Err(e) = view.load_html(&final_html) {
@@ -156,21 +180,32 @@ impl PlatformWebView {
         // store the HTML and load it after the widget is realized by forcing an
         // initial creation now with a minimal rect.
         let alloc = self.container.allocation();
-        let (offset_x, offset_y) = if self.gtk_window.is_maximized() { (0.0, 0.0) } else { (16.0, 14.0) };
+        let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
+            (0.0, 0.0)
+        } else {
+            (16.0, 14.0)
+        };
 
         // Translate container origin into window coordinate space so the initial
         // creation uses correct coordinates on Windows.
-        let origin_in_window = match self.container.translate_coordinates(&self.gtk_window, 0.0, 0.0) {
-            Some((x, y)) => (x, y),
-            None => (alloc.x() as f64, alloc.y() as f64),
-        };
+        let origin_in_window =
+            match self
+                .container
+                .translate_coordinates(&self.gtk_window, 0.0, 0.0)
+            {
+                Some((x, y)) => (x, y),
+                None => (alloc.x() as f64, alloc.y() as f64),
+            };
 
         let rect = wry::Rect {
             position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                 origin_in_window.0 + offset_x - 1.0,
-                origin_in_window.1 + offset_y
+                origin_in_window.1 + offset_y,
             )),
-            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(alloc.width().max(100) as f64 + 1.0, alloc.height().max(100) as f64)),
+            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                alloc.width().max(100) as f64 + 1.0,
+                alloc.height().max(100) as f64,
+            )),
         };
 
         log::debug!("[wry] initial_create origin_in_window=({}, {}), alloc=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
@@ -178,15 +213,15 @@ impl PlatformWebView {
             origin_in_window.0 + offset_x - 1.0, origin_in_window.1 + offset_y,
             alloc.width().max(100) + 1, alloc.height().max(100)
         );
-        
+
         // Configure WebView2 to use data directory (portable mode friendly)
         // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = core::paths::install::user_data_dir().join("webview");
+        let data_dir = core::paths::user_data_dir().join("webview");
         if let Err(e) = std::fs::create_dir_all(&data_dir) {
             log::warn!("Failed to create WebView2 data directory: {}", e);
         }
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
-        
+
         match wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
             .with_bounds(rect)
@@ -220,14 +255,18 @@ struct ParentWindowHandle {
 
 #[cfg(target_os = "windows")]
 impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
-    fn window_handle(&self) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+    fn window_handle(
+        &self,
+    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.window)
     }
 }
 
 #[cfg(target_os = "windows")]
 impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
-    fn display_handle(&self) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+    fn display_handle(
+        &self,
+    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.display)
     }
 }

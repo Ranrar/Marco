@@ -43,7 +43,7 @@ impl PoloPaths {
     /// - Install mode: ~/.config/polo/
     pub fn config_dir(&self) -> PathBuf {
         if self.dev_mode {
-            if let Some(workspace) = super::dev::workspace_root() {
+            if let Some(workspace) = super::workspace_root() {
                 workspace.join("tests").join("settings")
             } else {
                 dirs::config_dir()

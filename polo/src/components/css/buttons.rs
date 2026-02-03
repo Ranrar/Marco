@@ -368,8 +368,6 @@ mod tests {
         assert!(css.contains(".marco-theme-light .window-control-btn"));
         assert!(css.contains(".marco-theme-dark .window-control-btn"));
 
-
-
         // Verify hover and active states exist for window control buttons
         assert!(css.contains(".marco-theme-light .window-control-btn:hover"));
         assert!(css.contains(".marco-theme-dark .window-control-btn:active"));

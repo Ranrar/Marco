@@ -24,6 +24,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.0] - 2026-02-03
+
+### Added
+- **Platform-specific workspace files** - separate VS Code configurations for Linux and Windows.
+- **Enhanced platform support** via core library platform abstraction.
+
+### Changed
+- **Improved path resolution** using new core platform module for config/data directories.
+
 ## [0.16.0] - 2026-02-02
 
 ### Added

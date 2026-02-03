@@ -58,7 +58,8 @@ impl SyntaxHighlighter {
                 format!(
                     "Light theme '{}' not found and no fallbacks available",
                     LIGHT_THEME_NAME
-                ).into()
+                )
+                .into()
             })?
             .clone();
 
@@ -73,7 +74,8 @@ impl SyntaxHighlighter {
                 format!(
                     "Dark theme '{}' not found and no fallbacks available",
                     DARK_THEME_NAME
-                ).into()
+                )
+                .into()
             })?
             .clone();
 
@@ -221,7 +223,7 @@ pub fn generate_css_with_global(theme_mode: &str) -> Result<String, Box<dyn std:
         let mut h = highlighter.borrow_mut();
         let syntax_highlighter = h
             .as_mut()
-            .ok_or_else(|| "Syntax highlighter not initialized")?;
+            .ok_or("Syntax highlighter not initialized")?;
 
         Ok(syntax_highlighter.generate_css(theme_mode))
     })

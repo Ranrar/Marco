@@ -2,10 +2,10 @@
 //!
 //! Handles replace next and replace all functionality.
 
+use super::state::*;
 use gtk4::prelude::*;
 use gtk4::Entry;
 use log::debug;
-use super::state::*;
 
 /// Scroll the editor to show the match at the given position
 fn scroll_to_match(match_iter: &gtk4::TextIter) {
@@ -24,7 +24,10 @@ fn scroll_to_match(match_iter: &gtk4::TextIter) {
             // Scroll to the match position with some margin
             source_view.scroll_to_iter(&mut iter_copy, 0.1, true, 0.0, 0.3);
 
-            debug!("Scrolled editor to show match at line {}", match_iter.line() + 1);
+            debug!(
+                "Scrolled editor to show match at line {}",
+                match_iter.line() + 1
+            );
         } else {
             debug!("No source view available for scrolling");
         }

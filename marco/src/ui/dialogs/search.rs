@@ -18,18 +18,16 @@
 //! - `navigation` - Match navigation and scrolling
 //! - `replace` - Replace operations
 
+use core::logic::cache::SimpleFileCache;
 use gtk4::prelude::*;
-use gtk4::{Label, Window};
+use gtk4::{Window};
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
-use core::logic::cache::SimpleFileCache;
 
 // Re-export public API from the search component
 pub use crate::components::search::{
-    apply_enhanced_search_highlighting,
-    clear_enhanced_search_highlighting,
-    SearchOptions,
+    apply_enhanced_search_highlighting, clear_enhanced_search_highlighting, SearchOptions,
 };
 
 #[cfg(target_os = "linux")]
@@ -71,12 +69,14 @@ pub fn show_search_window_no_webview(
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
 ) {
-    use crate::components::search::state::{CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW};
+    use crate::components::search::state::{
+        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW,
+    };
     use crate::components::search::window::initialize_async_manager;
-    
+
     // Initialize async manager
     initialize_async_manager();
-    
+
     // Store buffer and source view in thread-local storage
     CURRENT_BUFFER.with(|buf| {
         *buf.borrow_mut() = Some(buffer);
@@ -84,7 +84,7 @@ pub fn show_search_window_no_webview(
     CURRENT_SOURCE_VIEW.with(|view| {
         *view.borrow_mut() = Some(source_view);
     });
-    
+
     // Check for cached window
     let window = CACHED_SEARCH_WINDOW.with(|cached| {
         if let Some(window) = cached.borrow().as_ref() {
@@ -92,14 +92,14 @@ pub fn show_search_window_no_webview(
                 return window.clone();
             }
         }
-        
+
         // Create new window
         let win = create_windows_search_window(parent);
         let win_rc = Rc::new(win);
         *cached.borrow_mut() = Some(win_rc.clone());
         win_rc
     });
-    
+
     window.present();
 }
 
@@ -107,8 +107,8 @@ pub fn show_search_window_no_webview(
 #[cfg(target_os = "windows")]
 fn create_windows_search_window(parent: &Window) -> Window {
     use crate::components::search::{ui::*, window::setup_window_behavior};
-    use gtk4::{Box as GtkBox, Orientation, Align};
-    
+    use gtk4::{Align, Box as GtkBox, Orientation};
+
     // Get current theme mode from parent window
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
     let theme_class = if parent_widget.has_css_class("marco-theme-dark") {
@@ -116,7 +116,7 @@ fn create_windows_search_window(parent: &Window) -> Window {
     } else {
         "marco-theme-light"
     };
-    
+
     let window = Window::builder()
         .transient_for(parent)
         .modal(false)
@@ -124,61 +124,61 @@ fn create_windows_search_window(parent: &Window) -> Window {
         .default_height(240)
         .resizable(true)
         .build();
-    
+
     // Apply CSS classes for theming
     window.add_css_class("marco-search-window");
     window.add_css_class(theme_class);
-    
+
     // Create custom titlebar matching marco's style
     let headerbar = gtk4::HeaderBar::new();
     headerbar.add_css_class("titlebar");
     headerbar.add_css_class("marco-titlebar");
     headerbar.set_show_title_buttons(false);
-    
+
     // Set title in headerbar
     let title_label = Label::new(Some("Search & Replace"));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
-    
+
     // Create close button with SVG icon
     let close_button = create_close_button(&theme_class);
     headerbar.pack_end(&close_button);
-    
+
     let window_weak = window.downgrade();
     close_button.connect_clicked(move |_| {
         if let Some(win) = window_weak.upgrade() {
             win.close();
         }
     });
-    
+
     window.set_titlebar(Some(&headerbar));
-    
+
     // Main container
     let main_box = GtkBox::new(Orientation::Vertical, 8);
     main_box.set_margin_top(8);
     main_box.set_margin_bottom(8);
     main_box.set_margin_start(8);
     main_box.set_margin_end(8);
-    
+
     // Search controls
     let (search_box, search_entry, match_count_label) = create_search_controls_section();
     main_box.append(&search_box);
-    
+
     // Replace controls
     let (replace_box, replace_entry) = create_replace_controls_section();
     main_box.append(&replace_box);
-    
+
     // Options panel
     let options_widgets = create_options_panel();
     main_box.append(&options_widgets.0);
-    
+
     // Button panel
     let button_widgets = create_window_button_panel();
     main_box.append(&button_widgets.0);
-    
+
     window.set_child(Some(&main_box));
-    
+
     // ESC key handler
     let key_controller = gtk4::EventControllerKey::new();
     let window_weak = window.downgrade();
@@ -193,7 +193,7 @@ fn create_windows_search_window(parent: &Window) -> Window {
         }
     });
     window.add_controller(key_controller);
-    
+
     // Setup window behavior
     setup_window_behavior(
         &window,
@@ -203,23 +203,22 @@ fn create_windows_search_window(parent: &Window) -> Window {
         &options_widgets,
         &button_widgets,
     );
-    
+
     // Handle window close
     window.connect_close_request(move |_| {
         use crate::components::search::{
-            engine::clear_enhanced_search_highlighting,
-            state::CACHED_SEARCH_WINDOW,
+            engine::clear_enhanced_search_highlighting, state::CACHED_SEARCH_WINDOW,
         };
-        
+
         clear_enhanced_search_highlighting();
-        
+
         CACHED_SEARCH_WINDOW.with(|cached| {
             *cached.borrow_mut() = None;
         });
-        
+
         glib::Propagation::Proceed
     });
-    
+
     window
 }
 
@@ -227,41 +226,45 @@ fn create_windows_search_window(parent: &Window) -> Window {
 #[cfg(target_os = "windows")]
 fn create_close_button(theme_class: &str) -> gtk4::Button {
     use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use gio;
     use gtk4::gdk;
     use rsvg::{CairoRenderer, Loader};
-    use gio;
-    
+
     let close_button = gtk4::Button::new();
     close_button.add_css_class("titlebar-button");
     close_button.set_tooltip_text(Some("Close"));
-    
+
     // Determine icon color based on theme
     let icon_color = if theme_class == "marco-theme-dark" {
         "#FFFFFF"
     } else {
         "#000000"
     };
-    
+
     // Load and render SVG icon
     let svg = window_icon_svg(WindowIcon::Close).replace("currentColor", icon_color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
-    
-    if let Ok(handle) = Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+
+    if let Ok(handle) =
+        Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
+    {
         let icon_size = 20.0;
         let display_scale = gdk::Display::default()
             .and_then(|d| d.monitors().item(0))
             .and_then(|m| m.downcast::<gdk::Monitor>().ok())
             .map(|m| m.scale_factor() as f64)
             .unwrap_or(1.0);
-        
+
         let render_scale = display_scale * 2.0;
         let render_size = (icon_size * render_scale) as i32;
-        
-        if let Ok(mut surface) = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size) {
+
+        if let Ok(mut surface) =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+        {
             if let Ok(cr) = cairo::Context::new(&surface) {
                 cr.scale(render_scale, render_scale);
-                
+
                 let renderer = CairoRenderer::new(&handle);
                 let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
                 if renderer.render_document(&cr, &viewport).is_ok() {
@@ -281,7 +284,7 @@ fn create_close_button(theme_class: &str) -> gtk4::Button {
             }
         }
     }
-    
+
     close_button
 }
 

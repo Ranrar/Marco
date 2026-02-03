@@ -38,26 +38,13 @@
 
 use crate::components::dialog::{show_open_file_dialog, show_open_in_editor_dialog};
 use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
-use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use crate::components::viewer::platform_webview::PlatformWebView;
+use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use core::logic::swanson::SettingsManager;
 use gtk4::{
-    gdk, gio,
-    prelude::*,
-    Align,
-    ApplicationWindow,
-    Button,
-    DropDown,
-    Expression,
-    HeaderBar,
-    Image,
-    Label,
-    Picture,
-    PropertyExpression,
-    StringList,
-    StringObject,
-    WindowHandle,
+    gdk, gio, prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar, Image,
+    Label, Picture, PropertyExpression, StringList, StringObject, WindowHandle,
 };
 use rsvg::{CairoRenderer, Loader};
 use std::borrow::Cow;
@@ -300,7 +287,11 @@ pub fn create_custom_titlebar(
 
         // Toggle CSS class on window for theme-specific styling
         // Extract simple theme name (dark/light) for CSS class
-        let theme_name = if new_mode.contains("dark") { "dark" } else { "light" };
+        let theme_name = if new_mode.contains("dark") {
+            "dark"
+        } else {
+            "light"
+        };
         let old_class = if theme_name == "dark" {
             "marco-theme-light"
         } else {
@@ -362,33 +353,35 @@ fn create_mode_icon_picture(icon: WindowIcon, color: &str, size: f64) -> Picture
     let svg = window_icon_svg(icon).replace("currentColor", color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
-    
+
     let handle = Loader::new()
         .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
         .expect("load SVG handle");
-    
+
     // Get scale factor for HiDPI displays
     let display_scale = gdk::Display::default()
         .and_then(|d| d.monitors().item(0))
         .and_then(|m| m.downcast::<gdk::Monitor>().ok())
         .map(|m| m.scale_factor() as f64)
         .unwrap_or(1.0);
-    
+
     // Render at 2x the display scale for extra sharpness
     let render_scale = display_scale * 2.0;
     let render_size = (size * render_scale) as i32;
-    
+
     let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
         .expect("create surface");
     {
         let cr = cairo::Context::new(&surface).expect("create context");
         cr.scale(render_scale, render_scale);
-        
+
         let renderer = CairoRenderer::new(&handle);
         let viewport = cairo::Rectangle::new(0.0, 0.0, size, size);
-        renderer.render_document(&cr, &viewport).expect("render SVG");
+        renderer
+            .render_document(&cr, &viewport)
+            .expect("render SVG");
     }
-    
+
     let data = surface.data().expect("get surface data").to_vec();
     let bytes = glib::Bytes::from_owned(data);
     let texture = gdk::MemoryTexture::new(
@@ -415,40 +408,43 @@ fn create_window_controls(
 ) -> (Button, Button, Button) {
     // Single control point for icon size - change this value to resize all window control icons
     const ICON_SIZE: f64 = 8.0;
-    
+
     // Shared SVG icon rendering function - renders at 2x resolution for crisp display
     fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
         let svg = window_icon_svg(icon).replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
-        
+
         // Use librsvg for native SVG rendering
         let handle = Loader::new()
             .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
             .expect("load SVG handle");
-        
+
         // Get scale factor for HiDPI displays
         let display_scale = gdk::Display::default()
             .and_then(|d| d.monitors().item(0))
             .and_then(|m| m.downcast::<gdk::Monitor>().ok())
             .map(|m| m.scale_factor() as f64)
             .unwrap_or(1.0);
-        
+
         // Render at 2x the display scale for extra sharpness (prevents pixelation)
         let render_scale = display_scale * 2.0;
         let render_size = (icon_size * render_scale) as i32;
-        
-        let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-            .expect("create surface");
+
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
         {
             let cr = cairo::Context::new(&surface).expect("create context");
             cr.scale(render_scale, render_scale);
-            
+
             let renderer = CairoRenderer::new(&handle);
             let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-            renderer.render_document(&cr, &viewport).expect("render SVG");
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
         } // Drop cr before accessing surface data
-        
+
         // Convert cairo surface to GDK texture
         let data = surface.data().expect("get surface data").to_vec();
         let bytes = glib::Bytes::from_owned(data);
@@ -460,9 +456,15 @@ fn create_window_controls(
             (render_size * 4) as usize,
         )
     }
-    
+
     // Helper to create a button with SVG icon and hover/active color changes
-    fn svg_icon_button(window: &ApplicationWindow, icon: WindowIcon, tooltip: &str, color: &str, icon_size: f64) -> Button {
+    fn svg_icon_button(
+        window: &ApplicationWindow,
+        icon: WindowIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
         let pic = Picture::new();
         let texture = render_svg_icon(icon, color, icon_size);
         pic.set_paintable(Some(&texture));
@@ -485,7 +487,7 @@ fn create_window_controls(
         btn.set_height_request((icon_size + 6.0) as i32);
         btn.add_css_class("topright-btn");
         btn.add_css_class("window-control-btn");
-        
+
         // Add hover state handling - regenerate icon with hover color
         {
             use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
@@ -502,7 +504,7 @@ fn create_window_controls(
             } else {
                 LIGHT_PALETTE.control_icon_active.to_string()
             };
-            
+
             let motion_controller = gtk4::EventControllerMotion::new();
             let icon_for_enter = icon;
             let hover_color_enter = hover_color.clone();
@@ -510,7 +512,7 @@ fn create_window_controls(
                 let texture = render_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
                 pic_hover.set_paintable(Some(&texture));
             });
-            
+
             let pic_leave = pic.clone();
             let icon_for_leave = icon;
             let normal_color_leave = normal_color.clone();
@@ -519,7 +521,7 @@ fn create_window_controls(
                 pic_leave.set_paintable(Some(&texture));
             });
             btn.add_controller(motion_controller);
-            
+
             // Add click state handling
             let gesture = gtk4::GestureClick::new();
             let pic_pressed = pic.clone();
@@ -529,7 +531,7 @@ fn create_window_controls(
                 let texture = render_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
                 pic_pressed.set_paintable(Some(&texture));
             });
-            
+
             let pic_released = pic.clone();
             let icon_for_released = icon;
             gesture.connect_released(move |_gesture, _n, _x, _y| {
@@ -538,7 +540,7 @@ fn create_window_controls(
             });
             btn.add_controller(gesture);
         }
-        
+
         btn
     }
 
@@ -552,7 +554,13 @@ fn create_window_controls(
         }
     };
 
-    let btn_min = svg_icon_button(window, WindowIcon::Minimize, "Minimize", &icon_color, ICON_SIZE);
+    let btn_min = svg_icon_button(
+        window,
+        WindowIcon::Minimize,
+        "Minimize",
+        &icon_color,
+        ICON_SIZE,
+    );
     let btn_close = svg_icon_button(window, WindowIcon::Close, "Close", &icon_color, ICON_SIZE);
 
     // Create maximize/restore toggle button with its own picture for dynamic icon switching
@@ -608,7 +616,7 @@ fn create_window_controls(
             LIGHT_PALETTE.control_icon_active.to_string()
         };
         let normal_color = icon_color.to_string();
-        
+
         let motion_controller = gtk4::EventControllerMotion::new();
         let pic_hover = max_pic.clone();
         let hover_color_enter = hover_color.clone();
@@ -622,7 +630,7 @@ fn create_window_controls(
             let texture = render_svg_icon(icon, &hover_color_enter, ICON_SIZE);
             pic_hover.set_paintable(Some(&texture));
         });
-        
+
         let pic_leave = max_pic.clone();
         let normal_color_leave = normal_color.clone();
         let window_hover_leave = window.clone();
@@ -636,7 +644,7 @@ fn create_window_controls(
             pic_leave.set_paintable(Some(&texture));
         });
         btn_max_toggle.add_controller(motion_controller);
-        
+
         let gesture = gtk4::GestureClick::new();
         let pic_pressed = max_pic.clone();
         let active_color_pressed = active_color.clone();
@@ -650,7 +658,7 @@ fn create_window_controls(
             let texture = render_svg_icon(icon, &active_color_pressed, ICON_SIZE);
             pic_pressed.set_paintable(Some(&texture));
         });
-        
+
         let pic_released = max_pic.clone();
         let hover_color_released = hover_color.clone();
         let window_released = window.clone();

@@ -85,7 +85,10 @@ impl EditorConfiguration {
     }
 
     /// Save editor settings to storage
-    pub fn save_editor_settings(&self, editor_settings: &EditorDisplaySettings) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_editor_settings(
+        &self,
+        editor_settings: &EditorDisplaySettings,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         debug!(
             "Saving editor settings: {} {}px line-height:{} wrap:{} show_invisibles:{} tabs_to_spaces:{}",
             editor_settings.font_family,

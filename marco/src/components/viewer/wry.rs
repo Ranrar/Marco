@@ -6,7 +6,7 @@
 #![cfg(target_os = "windows")]
 
 use gtk4::prelude::*;
-use gtk4::{Label, ScrolledWindow, TextView, Box as GtkBox, Orientation};
+use gtk4::{Box as GtkBox, Label, Orientation, ScrolledWindow, TextView};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Mutex, OnceLock};
@@ -108,7 +108,10 @@ pub fn load_html_when_ready(widget: &gtk4::Widget, html: String, _base_uri: Opti
             if let Ok(vbox) = child.downcast::<GtkBox>() {
                 if let Some(label) = vbox.first_child() {
                     if let Ok(label) = label.downcast::<Label>() {
-                        let preview_text = format!("Preview saved ({} bytes). Use detached preview to view.", html.len());
+                        let preview_text = format!(
+                            "Preview saved ({} bytes). Use detached preview to view.",
+                            html.len()
+                        );
                         label.set_text(&preview_text);
                     }
                 }

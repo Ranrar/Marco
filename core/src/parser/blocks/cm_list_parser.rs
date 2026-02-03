@@ -306,7 +306,11 @@ mod tests {
     struct MockState;
 
     // Mock parse function for testing
-    fn mock_parse_blocks(input: &str, _depth: usize, _state: &mut MockState) -> Result<Document, Box<dyn std::error::Error>> {
+    fn mock_parse_blocks(
+        input: &str,
+        _depth: usize,
+        _state: &mut MockState,
+    ) -> Result<Document, Box<dyn std::error::Error>> {
         let mut doc = Document::new();
         if !input.is_empty() {
             doc.children.push(Node {

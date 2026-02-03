@@ -10,6 +10,8 @@ use std::fmt;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+use super::platform;
+
 /// Error type for asset path operations
 #[derive(Debug, Clone)]
 pub enum AssetError {
@@ -81,7 +83,7 @@ pub fn is_dev_mode() -> bool {
 ///
 /// Search order:
 /// 1. Development mode: `target/{debug|release}/marco_assets/`
-/// 1b. Windows production: `executable_dir/assets/` (installer layout)
+///    1b. Windows production: `executable_dir/assets/` (installer layout)
 /// 2. User install: `~/.local/share/marco/` (Linux) or `%LOCALAPPDATA%\Marco` (Windows)
 /// 3. System local: `/usr/local/share/marco/` (Linux) or `%PROGRAMFILES%\Marco` (Windows)
 /// 4. System global: `/usr/share/marco/` (Linux) or `%PROGRAMDATA%\Marco` (Windows)
@@ -102,60 +104,21 @@ pub fn find_asset_root() -> Result<PathBuf, AssetError> {
             let dev_path = parent.join("marco_assets");
             candidate_paths.push(dev_path.clone());
 
-            // 1b. Production Windows install: assets folder next to executable
-            // (Installer puts assets in C:\Program Files\Marco-suite\assets\)
-            #[cfg(target_os = "windows")]
-            {
-                let exe_dir_assets = parent.join("assets");
-                candidate_paths.push(exe_dir_assets);
-            }
+            // 2..n. Platform-specific asset locations.
+            candidate_paths.extend(platform::asset_root_candidates(parent));
 
-            // 2. User local install (platform-specific)
-            #[cfg(target_os = "linux")]
-            {
-                if let Some(home) = dirs::home_dir() {
-                    candidate_paths.push(home.join(".local/share/marco"));
-                }
-            }
-            #[cfg(target_os = "windows")]
-            {
-                // Windows: %LOCALAPPDATA%\Marco
-                if let Some(local_app_data) = dirs::data_local_dir() {
-                    candidate_paths.push(local_app_data.join("Marco"));
-                }
-            }
-
-            // 3. System local install (platform-specific)
-            #[cfg(target_os = "linux")]
-            {
-                candidate_paths.push(PathBuf::from("/usr/local/share/marco"));
-            }
-            #[cfg(target_os = "windows")]
-            {
-                // Windows: %PROGRAMFILES%\Marco
-                if let Ok(program_files) = env::var("PROGRAMFILES") {
-                    candidate_paths.push(PathBuf::from(program_files).join("Marco"));
-                }
-            }
-
-            // 4. System global install (platform-specific)
-            #[cfg(target_os = "linux")]
-            {
-                candidate_paths.push(PathBuf::from("/usr/share/marco"));
-            }
-            #[cfg(target_os = "windows")]
-            {
-                // Windows: %PROGRAMDATA%\Marco (for system-wide shared data)
-                if let Ok(program_data) = env::var("PROGRAMDATA") {
-                    candidate_paths.push(PathBuf::from(program_data).join("Marco"));
-                }
-            }
-
-            // Find first existing directory
+            // Find first existing directory that actually contains an asset bundle.
             for path in &candidate_paths {
                 if path.exists() && path.is_dir() {
-                    log::debug!("Found asset root: {}", path.display());
-                    return Ok(path.clone());
+                    if platform::is_valid_asset_root(path) {
+                        log::debug!("Found asset root: {}", path.display());
+                        return Ok(path.clone());
+                    }
+
+                    log::debug!(
+                        "Asset root candidate exists but does not look like an asset bundle: {}",
+                        path.display()
+                    );
                 }
             }
 

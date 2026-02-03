@@ -187,7 +187,7 @@ impl ThemeManager {
                 settings_obj.set_gtk_application_prefer_dark_theme(prefer_dark);
             }
         }
-        
+
         // On Windows, we need to ensure CSS cascade updates happen
         // Force a style context invalidation to refresh all widgets
         #[cfg(target_os = "windows")]

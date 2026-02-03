@@ -74,17 +74,12 @@ impl PlatformWebView {
     /// Kept for API consistency with Windows implementation, not currently used on Linux
     #[allow(dead_code)]
     pub fn evaluate_script(&self, script: &str) {
-        self.inner.evaluate_javascript(
-            script,
-            None,
-            None,
-            None::<&gio::Cancellable>,
-            |result| {
+        self.inner
+            .evaluate_javascript(script, None, None, None::<&gio::Cancellable>, |result| {
                 if let Err(e) = result {
                     log::error!("JavaScript evaluation failed: {}", e);
                 }
-            },
-        );
+            });
     }
 }
 
@@ -92,30 +87,32 @@ impl PlatformWebView {
 impl PlatformWebView {
     pub fn new(window: &gtk4::ApplicationWindow) -> Result<Self, String> {
         use gtk4::prelude::WidgetExt;
-        use raw_window_handle::{RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle};
+        use raw_window_handle::{
+            RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
+        };
         use std::cell::RefCell;
-        use std::rc::Rc;
         use std::num::NonZeroIsize;
+        use std::rc::Rc;
 
         // Ensure the GTK window is realized so a surface/handle exists
         WidgetExt::realize(window);
-        
+
         // Get the GDK surface from the GTK window
         let surface = window
             .surface()
             .ok_or_else(|| "Failed to get GDK surface".to_string())?;
-        
+
         // Use gdk4-win32 to get the native Win32 HWND
         use gdk4_win32::Win32Surface;
         let win32_surface: &Win32Surface = surface
             .downcast_ref()
             .ok_or_else(|| "Failed to downcast to Win32Surface".to_string())?;
-        
+
         let hwnd_ptr = unsafe {
             gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _)
         };
-        let hwnd = NonZeroIsize::new(hwnd_ptr as isize)
-            .ok_or_else(|| "HWND is null".to_string())?;
+        let hwnd =
+            NonZeroIsize::new(hwnd_ptr as isize).ok_or_else(|| "HWND is null".to_string())?;
 
         let win_handle = Win32WindowHandle::new(hwnd);
 
@@ -141,7 +138,11 @@ impl PlatformWebView {
         let container_weak = container.downgrade();
         let window_weak = window.downgrade();
         container.add_tick_callback(move |_, _| {
-            if let (Some(container), Some(win), Some(view)) = (container_weak.upgrade(), window_weak.upgrade(), webview_for_tick.borrow().as_ref()) {
+            if let (Some(container), Some(win), Some(view)) = (
+                container_weak.upgrade(),
+                window_weak.upgrade(),
+                webview_for_tick.borrow().as_ref(),
+            ) {
                 let alloc = container.allocation();
                 let (offset_x, offset_y) = if win.is_maximized() {
                     (0.0, 0.0)
@@ -151,9 +152,12 @@ impl PlatformWebView {
                 let rect = wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                         alloc.x() as f64 + offset_x,
-                        alloc.y() as f64 + offset_y
+                        alloc.y() as f64 + offset_y,
                     )),
-                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(alloc.width().max(1) as f64, alloc.height().max(1) as f64)),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width().max(1) as f64,
+                        alloc.height().max(1) as f64,
+                    )),
                 };
                 if let Err(e) = view.set_bounds(rect) {
                     log::debug!("wry set_bounds failed: {}", e);
@@ -161,7 +165,6 @@ impl PlatformWebView {
             }
             gtk4::glib::ControlFlow::Continue
         });
-
 
         Ok(Self {
             inner: webview,
@@ -217,19 +220,22 @@ impl PlatformWebView {
         let rect = wry::Rect {
             position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                 alloc.x() as f64 + offset_x,
-                alloc.y() as f64 + offset_y
+                alloc.y() as f64 + offset_y,
             )),
-            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(alloc.width().max(100) as f64, alloc.height().max(100) as f64)),
+            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                alloc.width().max(100) as f64,
+                alloc.height().max(100) as f64,
+            )),
         };
-        
+
         // Configure WebView2 to use data directory (portable mode friendly)
         // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = core::paths::install::user_data_dir().join("webview");
+        let data_dir = core::paths::user_data_dir().join("webview");
         if let Err(e) = std::fs::create_dir_all(&data_dir) {
             log::warn!("Failed to create WebView2 data directory: {}", e);
         }
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
-        
+
         match wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
             .with_bounds(rect)

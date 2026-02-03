@@ -162,7 +162,10 @@ impl EditorManager {
     }
 
     /// Update line numbers setting and notify all registered callbacks
-    pub fn update_line_numbers(&self, show_line_numbers: bool) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn update_line_numbers(
+        &self,
+        show_line_numbers: bool,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         debug!("Updating line numbers setting: {}", show_line_numbers);
 
         // Notify all line numbers callbacks
@@ -201,7 +204,9 @@ thread_local! {
 }
 
 /// Initialize the global editor manager and apply startup settings
-pub fn init_editor_manager(settings_manager: Arc<SettingsManager>) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init_editor_manager(
+    settings_manager: Arc<SettingsManager>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let manager = EditorManager::new(settings_manager.clone())?;
 
     // Log the startup editor settings for debugging
@@ -273,7 +278,7 @@ pub fn apply_startup_editor_settings() -> Result<(), Box<dyn std::error::Error>>
 
         Ok(())
     } else {
-        Err(format!("Editor manager not initialized").into())
+        Err("Editor manager not initialized".to_string().into())
     }
 }
 
@@ -301,7 +306,7 @@ pub fn update_editor_settings_globally(
         let mut mgr = manager.borrow_mut();
         mgr.update_editor_settings(editor_settings)
     } else {
-        Err(format!("Editor manager not initialized").into())
+        Err("Editor manager not initialized".to_string().into())
     }
 }
 
@@ -338,12 +343,14 @@ where
 }
 
 /// Update line numbers setting globally and notify all callbacks
-pub fn update_line_numbers_globally(show_line_numbers: bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn update_line_numbers_globally(
+    show_line_numbers: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(manager) = get_editor_manager() {
         let mgr = manager.borrow();
         mgr.update_line_numbers(show_line_numbers)
     } else {
-        Err(format!("Editor manager not initialized").into())
+        Err("Editor manager not initialized".to_string().into())
     }
 }
 
@@ -354,7 +361,7 @@ pub fn set_scroll_sync_enabled_globally(enabled: bool) -> Result<(), Box<dyn std
         mgr.set_scroll_sync_enabled(enabled);
         Ok(())
     } else {
-        Err(format!("Editor manager not initialized").into())
+        Err("Editor manager not initialized".to_string().into())
     }
 }
 

@@ -2,20 +2,20 @@
 //!
 //! Performs searches, manages highlighting, and handles search operations.
 
-use gtk4::prelude::*;
-use sourceview5::prelude::*;
-use sourceview5::{SearchContext, SearchSettings};
-use gtk4::{Entry, Label};
-use log::debug;
 use super::state::*;
 use super::ui::OptionsWidgets;
+use gtk4::prelude::*;
+use gtk4::{Entry, Label};
+use log::debug;
+use sourceview5::prelude::*;
+use sourceview5::{SearchContext, SearchSettings};
 
 /// Apply enhanced dual-color search highlighting
-/// 
+///
 /// Uses two distinct colors:
 /// - Standard highlights for all matches (from search-match style)
 /// - Enhanced highlight for the current selected match (from search-match-selected style)
-/// 
+///
 /// # Theme Requirements
 /// The theme files should define both:
 /// - `search-match` style for regular matches
@@ -31,7 +31,7 @@ pub fn apply_enhanced_search_highlighting(
             let tag_table = buffer.tag_table();
             let start_iter = buffer.start_iter();
             let end_iter = buffer.end_iter();
-            
+
             // Remove all search-related tags that might exist
             if let Some(tag) = tag_table.lookup("search-match-selected-custom") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
@@ -42,7 +42,7 @@ pub fn apply_enhanced_search_highlighting(
             if let Some(tag) = tag_table.lookup("search-occurrence") {
                 buffer.remove_tag(&tag, &start_iter, &end_iter);
             }
-            
+
             // Get the style scheme to check for available styles
             if let Some(style_scheme) = buffer.style_scheme() {
                 // Check if we have the enhanced highlighting styles
@@ -126,26 +126,26 @@ pub fn clear_enhanced_search_highlighting() {
             let tag_table = buffer.tag_table();
             let start_iter = buffer.start_iter();
             let end_iter = buffer.end_iter();
-            
+
             // Remove custom selected match highlighting
             if let Some(selected_tag) = tag_table.lookup("search-match-selected-custom") {
                 buffer.remove_tag(&selected_tag, &start_iter, &end_iter);
                 debug!("Removed custom selected match tag");
             }
-            
+
             // IMPORTANT: Remove SourceView's built-in search highlighting tags
             // These persist even after set_highlight(false)
             if let Some(search_match_tag) = tag_table.lookup("search-match") {
                 buffer.remove_tag(&search_match_tag, &start_iter, &end_iter);
                 debug!("Removed search-match tag");
             }
-            
+
             // Also try common variants that might exist
             if let Some(search_occurrence_tag) = tag_table.lookup("search-occurrence") {
                 buffer.remove_tag(&search_occurrence_tag, &start_iter, &end_iter);
                 debug!("Removed search-occurrence tag");
             }
-            
+
             debug!("Cleared all search highlighting tags");
         }
     });
@@ -156,8 +156,8 @@ pub fn perform_search(search_entry: &Entry, match_count_label: &Label, options: 
     let query = search_entry.text().to_string();
     if query.is_empty() {
         // Clear any existing search highlighting when query is empty
-        clear_search_highlighting();
         clear_enhanced_search_highlighting();
+        clear_search_highlighting();
         match_count_label.set_text("0 matches");
         return;
     }
@@ -165,8 +165,8 @@ pub fn perform_search(search_entry: &Entry, match_count_label: &Label, options: 
     debug!("Performing search for: '{}'", query);
 
     // Clear any previous search highlighting before starting new search
-    clear_search_highlighting();
     clear_enhanced_search_highlighting();
+    clear_search_highlighting();
 
     // Get the current buffer from thread-local storage
     CURRENT_BUFFER.with(|buffer_ref| {
@@ -274,7 +274,12 @@ pub fn perform_search(search_entry: &Entry, match_count_label: &Label, options: 
 }
 
 /// Perform search operation asynchronously with debounce timer
-pub fn perform_search_async(search_entry: &Entry, match_count_label: &Label, options: &OptionsWidgets, delay_ms: u32) {
+pub fn perform_search_async(
+    search_entry: &Entry,
+    match_count_label: &Label,
+    options: &OptionsWidgets,
+    delay_ms: u32,
+) {
     // Cancel any existing async search timer
     ASYNC_MANAGER.with(|manager_ref| {
         use crate::logic::signal_manager::safe_source_remove;
@@ -291,15 +296,22 @@ pub fn perform_search_async(search_entry: &Entry, match_count_label: &Label, opt
     let options_clone = options.clone();
 
     // Schedule the async search
-    let timer = glib::timeout_add_local(std::time::Duration::from_millis(delay_ms as u64), move || {
-        perform_search(&search_entry_clone, &match_count_label_clone, &options_clone);
-        ASYNC_MANAGER.with(|manager_ref| {
-            if let Some(manager) = manager_ref.borrow_mut().as_mut() {
-                manager.current_timer_id = None;
-            }
-        });
-        glib::ControlFlow::Break
-    });
+    let timer = glib::timeout_add_local(
+        std::time::Duration::from_millis(delay_ms as u64),
+        move || {
+            perform_search(
+                &search_entry_clone,
+                &match_count_label_clone,
+                &options_clone,
+            );
+            ASYNC_MANAGER.with(|manager_ref| {
+                if let Some(manager) = manager_ref.borrow_mut().as_mut() {
+                    manager.current_timer_id = None;
+                }
+            });
+            glib::ControlFlow::Break
+        },
+    );
 
     // Store the timer or create a new manager
     ASYNC_MANAGER.with(|manager_ref| {

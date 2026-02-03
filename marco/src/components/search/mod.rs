@@ -16,19 +16,15 @@
 //! - **Linux**: Full WebView integration for preview synchronization
 //! - **Windows**: Editor-only search (no WebView support)
 
-pub mod state;
-pub mod window;
-pub mod ui;
 pub mod engine;
 pub mod navigation;
 pub mod replace;
+pub mod state;
+pub mod ui;
+pub mod window;
 
 // Re-export public API types
 pub use state::SearchOptions;
 
 // Re-export highlighting functions
 pub use engine::{apply_enhanced_search_highlighting, clear_enhanced_search_highlighting};
-
-// Re-export window functions (Linux only)
-#[cfg(target_os = "linux")]
-pub use window::get_or_create_search_window;

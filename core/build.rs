@@ -30,10 +30,12 @@ fn main() {
                     copy_dir_recursive(&path, &dest_path);
                 } else {
                     // Only copy if file doesn't exist or is newer
-                    let should_copy = !dest_path.exists() || 
-                        fs::metadata(&path).ok().and_then(|m| m.modified().ok()) >
-                        fs::metadata(&dest_path).ok().and_then(|m| m.modified().ok());
-                    
+                    let should_copy = !dest_path.exists()
+                        || fs::metadata(&path).ok().and_then(|m| m.modified().ok())
+                            > fs::metadata(&dest_path)
+                                .ok()
+                                .and_then(|m| m.modified().ok());
+
                     if should_copy {
                         fs::copy(&path, &dest_path).expect("Failed to copy file");
                     }
@@ -74,10 +76,14 @@ fn main() {
     let settings_src = asset_root.join("settings.ron");
     let settings_dst = marco_root.join("settings.ron");
     if settings_src.exists() {
-        let should_copy = !settings_dst.exists() ||
-            fs::metadata(&settings_src).ok().and_then(|m| m.modified().ok()) >
-            fs::metadata(&settings_dst).ok().and_then(|m| m.modified().ok());
-        
+        let should_copy = !settings_dst.exists()
+            || fs::metadata(&settings_src)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                > fs::metadata(&settings_dst)
+                    .ok()
+                    .and_then(|m| m.modified().ok());
+
         if should_copy {
             fs::copy(&settings_src, &settings_dst).expect("Failed to copy settings.ron");
         }

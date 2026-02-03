@@ -16,7 +16,11 @@ type OpenDialogCallback = Arc<
             &'b gtk4::Window,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         > + Send
         + Sync
         + 'static,
@@ -28,7 +32,11 @@ type SaveChangesDialogCallback = Arc<
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         > + Send
         + Sync
         + 'static,
@@ -40,7 +48,11 @@ type SaveDialogCallback = Arc<
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         > + Send
         + Sync
         + 'static,
@@ -228,14 +240,22 @@ impl FileOperations {
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         let path = path.as_ref();
@@ -327,7 +347,10 @@ impl FileOperations {
             Ok(())
         } else {
             // For untitled documents, we need to use the async save action with dialogs
-            Err("Cannot save untitled document synchronously - use async save action instead".into())
+            Err(
+                "Cannot save untitled document synchronously - use async save action instead"
+                    .into(),
+            )
         }
     }
 
@@ -376,21 +399,33 @@ impl FileOperations {
             &'b gtk4::Window,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         H: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         // Check for unsaved changes and prompt user
@@ -436,7 +471,8 @@ impl FileOperations {
             }
         }
 
-        let file_path: Option<std::path::PathBuf> = show_open_dialog(parent_window, "Open Markdown File").await?;
+        let file_path: Option<std::path::PathBuf> =
+            show_open_dialog(parent_window, "Open Markdown File").await?;
         if let Some(path) = file_path {
             self.load_file_into_editor(&path, editor_buffer)?;
             self.add_recent_file(&path);
@@ -460,14 +496,22 @@ impl FileOperations {
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         // Check for unsaved changes and prompt user
@@ -539,7 +583,11 @@ impl FileOperations {
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         let suggested_name = if self.get_document_title().contains("Untitled") {
@@ -577,14 +625,22 @@ impl FileOperations {
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         let is_modified = self.buffer.borrow().has_unsaved_changes();
@@ -694,14 +750,22 @@ impl FileOperations {
                 &'a str,
                 &'a str,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<SaveChangesResult, Box<dyn std::error::Error>>> + 'a>,
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                        > + 'a,
+                >,
             > + 'static,
         G: for<'a> Fn(
                 &'a gtk4::Window,
                 &'a str,
                 Option<&'a str>,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>> + 'a>,
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                        > + 'a,
+                >,
             > + 'static,
     {
         glib::MainContext::default().spawn_local(async move {

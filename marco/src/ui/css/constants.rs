@@ -285,7 +285,6 @@ pub const TOOLBAR_SEPARATOR_MARGIN: &str = "0 4px";
 /// Window control button padding (match Polo: comfortable click target)
 pub const WINDOW_CONTROL_PADDING: &str = "2px 6px";
 
-
 /// Layout state padding
 pub const LAYOUT_STATE_PADDING: &str = "0px";
 

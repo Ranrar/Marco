@@ -184,9 +184,7 @@ impl DocumentBuffer {
                 self.log_document_state("save_content");
                 Ok(())
             }
-            None => Err(
-                "Cannot save: no file path set. Use save_as_content() instead.".into()
-            ),
+            None => Err("Cannot save: no file path set. Use save_as_content() instead.".into()),
         }
     }
 
@@ -221,7 +219,11 @@ impl DocumentBuffer {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn save_as_content<P: AsRef<Path>>(&mut self, path: P, content: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn save_as_content<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        content: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut path = path.as_ref().to_path_buf();
 
         // Ensure the file has a .md extension

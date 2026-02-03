@@ -124,8 +124,7 @@ pub fn generate_css() -> String {
 
 /// Generate base icon font styling (theme-independent)
 fn generate_base_styles() -> String {
-    format!(
-        r#"
+    r#"
 /*
  * Styles for titlebar/menu icons and controls.
  *
@@ -134,8 +133,7 @@ fn generate_base_styles() -> String {
  * - Uses .marco-theme-light and .marco-theme-dark classes on window
  * - Classes toggled dynamically when theme changes without app restart
  */
-"#,
-    )
+"#.to_string()
 }
 
 /// Generate layout state icon CSS for a specific theme
@@ -623,23 +621,27 @@ fn generate_window_controls_css(theme_class: &str, palette: &ColorPalette) -> St
 
     // Add background hover/active colors per theme (use same RGBA values as Polo)
     if theme_class == "marco-theme-light" {
-        css.push_str(r#"
+        css.push_str(
+            r#"
 .marco-theme-light .window-control-btn:hover {
     background: rgba(37, 99, 235, 0.08);
 }
 .marco-theme-light .window-control-btn:active {
     background: rgba(30, 64, 175, 0.12);
 }
-"#);
+"#,
+        );
     } else if theme_class == "marco-theme-dark" {
-        css.push_str(r#"
+        css.push_str(
+            r#"
 .marco-theme-dark .window-control-btn:hover {
     background: rgba(37, 99, 235, 0.12);
 }
 .marco-theme-dark .window-control-btn:active {
     background: rgba(30, 64, 175, 0.16);
 }
-"#);
+"#,
+        );
     }
 
     css

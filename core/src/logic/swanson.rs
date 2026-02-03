@@ -152,7 +152,10 @@ impl Settings {
     }
 
     /// Update window settings
-    pub fn update_window_settings<F>(&mut self, updater: F) -> Result<(), Box<dyn std::error::Error>>
+    pub fn update_window_settings<F>(
+        &mut self,
+        updater: F,
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnOnce(&mut WindowSettings),
     {
