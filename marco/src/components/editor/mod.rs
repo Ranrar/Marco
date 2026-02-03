@@ -14,10 +14,10 @@
 
 pub mod debounce;
 pub mod display_config;
-pub mod ui;
 pub mod editor_manager;
 pub mod footer;
 pub mod lsp_integration;
 pub mod scroll_sync;
 pub mod sourceview;
+pub mod ui;
 pub mod utilities;

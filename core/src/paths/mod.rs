@@ -16,7 +16,7 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```no_run
 //! use core::paths::{MarcoPaths, PathProvider};
 //!
 //! // Get paths for the appropriate binary

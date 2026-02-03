@@ -24,6 +24,14 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.1] - 2026-02-04
+
+### Added
+- Platform-native file picker integration: Windows uses native OS file dialog (`rfd` crate), Linux uses GTK file chooser for consistent OS-appropriate user experience.
+
+### Changed
+- Enhanced cross-platform compilation with refined conditional import statements and explicit platform guards.
+
 ## [0.17.0] - 2026-02-03
 
 ### Added

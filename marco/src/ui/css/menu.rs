@@ -133,7 +133,8 @@ fn generate_base_styles() -> String {
  * - Uses .marco-theme-light and .marco-theme-dark classes on window
  * - Classes toggled dynamically when theme changes without app restart
  */
-"#.to_string()
+"#
+    .to_string()
 }
 
 /// Generate layout state icon CSS for a specific theme

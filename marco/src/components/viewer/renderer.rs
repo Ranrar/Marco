@@ -17,9 +17,11 @@ use core::RenderOptions;
 use gtk4::prelude::*;
 use std::cell::RefCell;
 
+use crate::components::viewer::backend;
+
 /// Parameters for preview refresh operations
 pub struct PreviewRefreshParams<'a> {
-    pub webview: &'a webkit6::WebView,
+    pub webview: &'a backend::PreviewWebView,
     pub css: &'a RefCell<String>,
     pub html_options: &'a RenderOptions,
     pub buffer: &'a sourceview5::Buffer,
@@ -30,7 +32,7 @@ pub struct PreviewRefreshParams<'a> {
 
 /// Simplified parameters for smooth content updates
 pub struct SmoothUpdateParams<'a> {
-    pub webview: &'a webkit6::WebView,
+    pub webview: &'a backend::PreviewWebView,
     pub html_options: &'a RenderOptions,
     pub buffer: &'a sourceview5::Buffer,
     pub wheel_js: &'a str,
@@ -112,7 +114,7 @@ fn parse_markdown_to_html(text: &str, html_options: &RenderOptions) -> String {
 /// Small helper to wrap markdown -> html and load into webview using the new rendering system.
 /// If document_path is provided, it will be used to generate a base URI for resolving relative paths.
 pub fn refresh_preview_into_webview(
-    webview: &webkit6::WebView,
+    webview: &backend::PreviewWebView,
     css: &RefCell<String>,
     html_options: &RenderOptions,
     buffer: &sourceview5::Buffer,
@@ -120,8 +122,7 @@ pub fn refresh_preview_into_webview(
     theme_mode: &RefCell<String>,
     document_path: Option<&std::path::Path>,
 ) {
-    let base_uri =
-        document_path.and_then(crate::components::viewer::webkit6::generate_base_uri_from_path);
+    let base_uri = document_path.and_then(backend::generate_base_uri_from_path);
     refresh_preview_into_webview_with_base_uri(
         webview,
         css,
@@ -136,7 +137,7 @@ pub fn refresh_preview_into_webview(
 /// Small helper to wrap markdown -> html and load into webview using the new rendering system.
 /// If base_uri is provided, it will be used directly as the base URI for resolving relative paths.
 pub fn refresh_preview_into_webview_with_base_uri(
-    webview: &webkit6::WebView,
+    webview: &backend::PreviewWebView,
     css: &RefCell<String>,
     html_options: &RenderOptions,
     buffer: &sourceview5::Buffer,
@@ -182,17 +183,13 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
             theme_css, syntax_css
         );
 
-        let html = crate::components::viewer::webkit6::wrap_html_document(
-            &html_body_with_js,
-            &combined_css,
-            &theme_mode,
-            None,
-        );
+        let html =
+            backend::wrap_html_document(&html_body_with_js, &combined_css, &theme_mode, None);
 
         let base_uri = params.base_uri.map(|s| s.to_string());
         let webview = params.webview.clone();
 
-        crate::components::viewer::webkit6::load_html_when_ready(&webview, html, base_uri);
+        backend::load_html_when_ready(&webview, html, base_uri);
 
         return;
     }
@@ -223,14 +220,14 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                     theme_css, syntax_css
                 );
 
-                let html = crate::components::viewer::webkit6::wrap_html_document(
+                let html = backend::wrap_html_document(
                     &html_body_with_js,
                     &combined_css,
                     &theme_mode,
                     None,
                 );
 
-                crate::components::viewer::webkit6::load_html_when_ready(&webview, html, base_uri);
+                backend::load_html_when_ready(&webview, html, base_uri);
             }
             Err(e) => {
                 log::error!("[viewer] Background render task panicked: {:?}", e);
@@ -254,10 +251,7 @@ pub fn refresh_preview_content_smooth_with_doc_buffer(params: SmoothUpdateParams
 
     if text.trim().is_empty() {
         let html_body_with_js = generate_test_html(params.wheel_js);
-        crate::components::viewer::webkit6::update_html_content_smooth(
-            params.webview,
-            &html_body_with_js,
-        );
+        backend::update_html_content_smooth(params.webview, &html_body_with_js);
         return;
     }
 
@@ -274,10 +268,7 @@ pub fn refresh_preview_content_smooth_with_doc_buffer(params: SmoothUpdateParams
                 let mut html_body_with_js = html_body;
                 html_body_with_js.push_str(&wheel_js);
 
-                crate::components::viewer::webkit6::update_html_content_smooth(
-                    &webview,
-                    &html_body_with_js,
-                );
+                backend::update_html_content_smooth(&webview, &html_body_with_js);
             }
             Err(e) => {
                 log::error!("[viewer] Background smooth render task panicked: {:?}", e);

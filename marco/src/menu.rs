@@ -283,6 +283,16 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         asset_root,
     } = config;
 
+    #[cfg(target_os = "linux")]
+    fn clone_reparent_guard(guard: &Option<ReparentGuardType>) -> Option<ReparentGuardType> {
+        guard.clone()
+    }
+
+    #[cfg(target_os = "windows")]
+    fn clone_reparent_guard(guard: &Option<ReparentGuardType>) -> Option<ReparentGuardType> {
+        *guard
+    }
+
     // Create WindowHandle wrapper for proper window dragging
     let handle = WindowHandle::new();
 
@@ -462,7 +472,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     let split_for_rebuild = split.clone();
     let preview_window_opt_for_rebuild = preview_window_opt.clone();
     let webview_location_tracker_for_rebuild = webview_location_tracker.clone();
-    let reparent_guard_for_rebuild = reparent_guard.clone();
+    let reparent_guard_for_rebuild = reparent_guard;
     let split_controller_for_rebuild = split_controller.clone();
 
     let rebuild_popover: RebuildPopover = Rc::new(RefCell::new(None));
@@ -494,7 +504,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let split_opt = split_for_rebuild.clone();
         let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
         let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let reparent_guard_opt = clone_reparent_guard(&reparent_guard_for_rebuild);
         let split_controller_opt = split_controller_for_rebuild.clone();
         btn1.connect_clicked(move |_| {
             let next = LayoutState::EditorOnly;
@@ -535,7 +545,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let split_opt = split_for_rebuild.clone();
         let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
         let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let reparent_guard_opt = clone_reparent_guard(&reparent_guard_for_rebuild);
         let split_controller_opt = split_controller_for_rebuild.clone();
         btn2.connect_clicked(move |_| {
             let next = LayoutState::ViewOnly;
@@ -577,12 +587,68 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let split_opt = split_for_rebuild.clone();
         let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
         let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let reparent_guard_opt = clone_reparent_guard(&reparent_guard_for_rebuild);
         let window_clone = window.clone();
         let split_controller_opt = split_controller_for_rebuild.clone();
         let previous_layout_state_for_btn3 = previous_layout_state.clone();
         let previous_split_position_for_btn3 = previous_split_position.clone();
         btn3.connect_clicked(move |_| {
+            // Toggle behavior: if we're already in separate-window mode and the
+            // preview window is visible, hide it and restore the previous layout.
+            {
+                let current_state = *layout_state.borrow();
+                if current_state == LayoutState::EditorAndViewSeparate {
+                    if let Some(preview_rc) = &preview_window_opt_clone {
+                        let should_hide = preview_rc
+                            .borrow()
+                            .as_ref()
+                            .map(|pw| pw.is_visible())
+                            .unwrap_or(false);
+
+                        if should_hide {
+                            log::info!("Toggling detached preview window off");
+
+                            // Hide first (this triggers the on-close callback which
+                            // re-parents back and rebuilds).
+                            if let Some(ref pw) = *preview_rc.borrow() {
+                                pw.hide();
+                            }
+
+                            // Restore previous layout mode.
+                            let prev = *previous_layout_state_for_btn3.borrow();
+                            *layout_state.borrow_mut() = prev;
+
+                            // Restore split position if we are returning to DualView.
+                            if prev == LayoutState::DualView {
+                                if let Some(ref split) = split_opt {
+                                    let pos = *previous_split_position_for_btn3.borrow();
+                                    if pos > 0 {
+                                        split.set_position(pos);
+                                        log::info!("Restored previous DualView split position: {}", pos);
+                                    }
+                                }
+                            }
+
+                            if let Some(controller) = &split_controller_opt {
+                                controller.set_mode(prev);
+                            }
+
+                            if let Some(tracker) = &webview_location_tracker_opt {
+                                tracker.set(crate::components::viewer::layout_controller::WebViewLocation::MainWindow);
+                            }
+
+                            if let Some(rc) = weak_rebuild_local.upgrade() {
+                                if let Some(ref rebuild) = *rc.borrow() {
+                                    rebuild();
+                                }
+                            }
+
+                            return;
+                        }
+                    }
+                }
+            }
+
             // Store the current layout state before switching to EditorAndViewSeparate
             let current_state = *layout_state.borrow();
             *previous_layout_state_for_btn3.borrow_mut() = current_state;
@@ -667,7 +733,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                             let split_cb = split_opt.clone();
                             let preview_window_opt_cb = preview_window_opt_clone.clone();
                             let tracker_cb = webview_location_tracker_opt.clone();
-                            let guard_cb = reparent_guard_opt.clone();
+                            let guard_cb = clone_reparent_guard(&reparent_guard_opt);
                             let weak_rebuild_cb = weak_rebuild_local.clone();
 
                             pw.set_on_close_callback(move || {
@@ -725,7 +791,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                     let split_cb = split_opt.clone();
                                     let preview_window_opt_cb = preview_window_opt_clone.clone();
                                     let tracker_cb = webview_location_tracker_opt.clone();
-                                    let guard_cb = reparent_guard_opt.clone();
+                                    let guard_cb = clone_reparent_guard(&reparent_guard_opt);
                                     let weak_rebuild_cb = weak_rebuild_local.clone();
                                     let holder_clone = pw_holder.clone();
 
@@ -777,7 +843,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
                                 let split_cb = split_opt.clone();
                                 let preview_window_opt_cb = preview_window_opt_clone.clone();
                                 let tracker_cb = webview_location_tracker_opt.clone();
-                                let guard_cb = reparent_guard_opt.clone();
+                                let guard_cb = clone_reparent_guard(&reparent_guard_opt);
                                 let weak_rebuild_cb = weak_rebuild_local.clone();
                                 let holder_clone = pw_holder.clone();
 
@@ -849,7 +915,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let split_opt = split_for_rebuild.clone();
         let preview_window_opt_clone = preview_window_opt_for_rebuild.clone();
         let webview_location_tracker_opt = webview_location_tracker_for_rebuild.clone();
-        let reparent_guard_opt = reparent_guard_for_rebuild.clone();
+        let reparent_guard_opt = clone_reparent_guard(&reparent_guard_for_rebuild);
         let split_controller_opt = split_controller_for_rebuild.clone();
         btn4.connect_clicked(move |_| {
             let next = LayoutState::DualView;

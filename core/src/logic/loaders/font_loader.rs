@@ -1,6 +1,7 @@
 #[cfg(target_os = "linux")]
 use fontconfig::Fontconfig;
 use log::{debug, error, warn};
+#[cfg(target_os = "linux")]
 use std::collections::HashMap;
 use std::sync::{OnceLock, RwLock};
 use std::time::{Duration, Instant};
@@ -210,10 +211,7 @@ impl FontLoader {
     pub fn load_monospace_fonts_only(&self) -> Result<Vec<FontFamily>, Box<dyn std::error::Error>> {
         #[cfg(target_os = "linux")]
         {
-            let fc = self
-                .fc
-                .as_ref()
-                .ok_or("Fontconfig not initialized")?;
+            let fc = self.fc.as_ref().ok_or("Fontconfig not initialized")?;
 
             debug!("Loading only monospace fonts for fast startup");
 
@@ -265,6 +263,7 @@ impl FontLoader {
     }
 
     /// Check if a font is monospace by its name or properties
+    #[cfg(target_os = "linux")]
     fn is_monospace_font(&self, font_name: &str) -> bool {
         let mono_keywords = [
             "mono",
@@ -297,8 +296,8 @@ impl FontLoader {
     }
 
     /// Add common monospace fallback fonts if they're not available
+    #[cfg(target_os = "linux")]
     fn add_monospace_fallbacks(&self, fonts: &mut Vec<FontFamily>) {
-        #[cfg(target_os = "linux")]
         let common_monospace = [
             "Monospace",
             "Fixed",
@@ -306,15 +305,6 @@ impl FontLoader {
             "Courier",
             "Liberation Mono",
             "DejaVu Sans Mono",
-        ];
-
-        #[cfg(target_os = "windows")]
-        let common_monospace = [
-            "Consolas",
-            "Cascadia Code",
-            "Cascadia Mono",
-            "Courier New",
-            "Lucida Console",
         ];
 
         for mono_font in &common_monospace {

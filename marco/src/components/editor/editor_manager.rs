@@ -26,7 +26,9 @@
 use crate::components::editor::display_config::{EditorConfiguration, EditorDisplaySettings};
 use crate::components::editor::scroll_sync::ScrollSynchronizer;
 use core::logic::swanson::SettingsManager;
+use gtk4::ScrolledWindow;
 use log::debug;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -201,6 +203,25 @@ impl EditorManager {
 // Global editor manager instance using thread-local storage
 thread_local! {
     static EDITOR_MANAGER: std::cell::RefCell<Option<Rc<std::cell::RefCell<EditorManager>>>> = const { std::cell::RefCell::new(None) };
+}
+
+// Primary editor ScrolledWindow handle (used for cross-window scroll sync).
+thread_local! {
+    static PRIMARY_EDITOR_SCROLLED_WINDOW: RefCell<Option<ScrolledWindow>> = const { RefCell::new(None) };
+}
+
+/// Store the primary editor ScrolledWindow so other components (like detached preview windows)
+/// can access it for wiring scroll synchronization.
+pub fn set_primary_editor_scrolled_window(sw: &ScrolledWindow) {
+    PRIMARY_EDITOR_SCROLLED_WINDOW.with(|cell| {
+        *cell.borrow_mut() = Some(sw.clone());
+    });
+}
+
+/// Get the primary editor ScrolledWindow if it has been registered.
+#[cfg(target_os = "windows")]
+pub fn get_primary_editor_scrolled_window() -> Option<ScrolledWindow> {
+    PRIMARY_EDITOR_SCROLLED_WINDOW.with(|cell| cell.borrow().clone())
 }
 
 /// Initialize the global editor manager and apply startup settings

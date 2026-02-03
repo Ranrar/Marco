@@ -30,6 +30,7 @@ use syntect::parsing::{SyntaxReference, SyntaxSet};
 
 /// Simple syntax highlighter with minimal themes and robust fallbacks
 pub struct SyntaxHighlighter {
+    #[allow(dead_code)]
     syntax_set: SyntaxSet,
     light_theme: Theme,
     dark_theme: Theme,
@@ -97,6 +98,7 @@ impl SyntaxHighlighter {
 
     /// Highlight code synchronously with CSS classes
     /// Returns highlighted HTML with CSS class spans
+    #[allow(dead_code)]
     pub fn highlight_to_html(
         &self,
         code: &str,
@@ -167,6 +169,7 @@ impl SyntaxHighlighter {
 
     /// Find syntax definition for a language, with fallbacks
     /// Returns a syntax reference, defaulting to plain text if not found
+    #[allow(dead_code)]
     fn find_syntax_for_language(&self, language: &str) -> &SyntaxReference {
         // Try direct lookup first
         if let Some(syntax) = self.syntax_set.find_syntax_by_token(language) {
@@ -221,9 +224,7 @@ pub fn generate_css_with_global(theme_mode: &str) -> Result<String, Box<dyn std:
 
     SYNTAX_HIGHLIGHTER.with(|highlighter| {
         let mut h = highlighter.borrow_mut();
-        let syntax_highlighter = h
-            .as_mut()
-            .ok_or("Syntax highlighter not initialized")?;
+        let syntax_highlighter = h.as_mut().ok_or("Syntax highlighter not initialized")?;
 
         Ok(syntax_highlighter.generate_css(theme_mode))
     })

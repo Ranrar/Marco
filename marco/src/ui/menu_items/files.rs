@@ -1,7 +1,6 @@
 use crate::logic::menu_items::file::SaveChangesResult;
 use gtk4::{
-    prelude::*, ButtonsType, DialogFlags, MessageDialog,
-    MessageType, ResponseType, Window,
+    prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
 };
 
 #[cfg(target_os = "linux")]
@@ -17,7 +16,10 @@ type FileDialogResult = Result<Option<PathBuf>, Box<dyn std::error::Error>>;
 type SaveChangesDialogResult = Result<SaveChangesResult, Box<dyn std::error::Error>>;
 
 type OpenDialogCallback = Arc<
-    dyn for<'b> Fn(&'b gtk4::Window, &'b str) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>>
+    dyn for<'b> Fn(
+            &'b gtk4::Window,
+            &'b str,
+        ) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>>
         + Send
         + Sync
         + 'static,
@@ -81,10 +83,9 @@ pub(crate) fn save_changes_dialog_cb<'b>(
     document_name: &'b str,
     action: &'b str,
 ) -> Pin<Box<dyn Future<Output = SaveChangesDialogResult> + 'b>> {
-    let fut: Box<dyn Future<Output = SaveChangesDialogResult> + 'b> =
-        Box::new(async move {
-            FileDialogs::show_save_changes_dialog(parent, document_name, action).await
-        });
+    let fut: Box<dyn Future<Output = SaveChangesDialogResult> + 'b> = Box::new(async move {
+        FileDialogs::show_save_changes_dialog(parent, document_name, action).await
+    });
     Pin::from(fut)
 }
 
@@ -125,10 +126,7 @@ impl FileDialogs {
     /// }
     /// ```
     #[cfg(target_os = "linux")]
-    pub async fn show_open_dialog<W: IsA<Window>>(
-        parent: &W,
-        title: &str,
-    ) -> FileDialogResult {
+    pub async fn show_open_dialog<W: IsA<Window>>(parent: &W, title: &str) -> FileDialogResult {
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
@@ -175,10 +173,7 @@ impl FileDialogs {
     ///
     /// Uses Windows native file explorer dialog for better platform integration.
     #[cfg(target_os = "windows")]
-    pub async fn show_open_dialog<W: IsA<Window>>(
-        _parent: &W,
-        _title: &str,
-    ) -> FileDialogResult {
+    pub async fn show_open_dialog<W: IsA<Window>>(_parent: &W, _title: &str) -> FileDialogResult {
         use rfd::AsyncFileDialog;
 
         let dialog = AsyncFileDialog::new()

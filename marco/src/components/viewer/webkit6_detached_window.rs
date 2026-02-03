@@ -564,6 +564,10 @@ impl PreviewWindow {
         }
     }
 
+    pub fn is_visible(&self) -> bool {
+        *self.is_visible.borrow()
+    }
+
     /// Set a callback to be called when the window is closed
     ///
     /// This callback will be invoked when the user closes the window manually

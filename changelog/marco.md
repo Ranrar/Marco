@@ -24,6 +24,22 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.1] - 2026-02-04
+
+### Added
+- Platform-agnostic scroll synchronization API ensuring consistent behavior across Windows (wry/WebView2) and Linux (webkit6).
+- Enhanced conditional compilation guards to eliminate cross-platform build warnings.
+
+### Changed
+- Optimized preview scroll event handling with reduced JavaScript overhead for improved performance on both platforms.
+- Refined cross-platform compilation with explicit `cfg(target_os)` attributes throughout the codebase.
+- Improved WRY WebView integration with proper API stub implementations for Windows-Linux feature parity.
+
+### Fixed
+- Resolved Windows preview mouse-wheel scrolling issue when cursor hovers over heading elements (H1-H6).
+- Corrected Windows portable build script OS detection logic to handle PowerShell version differences.
+- Eliminated unused import warnings on Linux builds through targeted conditional compilation.
+
 ## [0.17.0] - 2026-02-03
 
 ### Added

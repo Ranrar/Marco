@@ -20,10 +20,13 @@
 
 use core::logic::cache::SimpleFileCache;
 use gtk4::prelude::*;
-use gtk4::{Window};
+use gtk4::Window;
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
+
+#[cfg(target_os = "windows")]
+use gtk4::Label;
 
 // Re-export public API from the search component
 pub use crate::components::search::{
@@ -107,11 +110,12 @@ pub fn show_search_window_no_webview(
 #[cfg(target_os = "windows")]
 fn create_windows_search_window(parent: &Window) -> Window {
     use crate::components::search::{ui::*, window::setup_window_behavior};
-    use gtk4::{Align, Box as GtkBox, Orientation};
+    use gtk4::{Align, Box as GtkBox, Orientation, WindowHandle};
 
     // Get current theme mode from parent window
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
-    let theme_class = if parent_widget.has_css_class("marco-theme-dark") {
+    let is_dark = parent_widget.has_css_class("marco-theme-dark");
+    let theme_class = if is_dark {
         "marco-theme-dark"
     } else {
         "marco-theme-light"
@@ -130,6 +134,7 @@ fn create_windows_search_window(parent: &Window) -> Window {
     window.add_css_class(theme_class);
 
     // Create custom titlebar matching marco's style
+    let handle = WindowHandle::new();
     let headerbar = gtk4::HeaderBar::new();
     headerbar.add_css_class("titlebar");
     headerbar.add_css_class("marco-titlebar");
@@ -141,8 +146,8 @@ fn create_windows_search_window(parent: &Window) -> Window {
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
 
-    // Create close button with SVG icon
-    let close_button = create_close_button(&theme_class);
+    // Create close button with the same styling as the main app window controls
+    let (close_button, close_pic) = create_close_button(&window);
     headerbar.pack_end(&close_button);
 
     let window_weak = window.downgrade();
@@ -152,7 +157,37 @@ fn create_windows_search_window(parent: &Window) -> Window {
         }
     });
 
-    window.set_titlebar(Some(&headerbar));
+    // Set the headerbar in the WindowHandle for proper dragging
+    handle.set_child(Some(&headerbar));
+    window.set_titlebar(Some(&handle));
+
+    // Keep search window theme in sync with parent theme (Windows).
+    {
+        let window_weak = window.downgrade();
+        let close_pic = close_pic.clone();
+        parent_widget.connect_notify_local(Some("css-classes"), move |parent_widget, _| {
+            let Some(window) = window_weak.upgrade() else {
+                return;
+            };
+
+            let parent_is_dark = parent_widget.has_css_class("marco-theme-dark");
+            window.remove_css_class("marco-theme-dark");
+            window.remove_css_class("marco-theme-light");
+            window.add_css_class(if parent_is_dark {
+                "marco-theme-dark"
+            } else {
+                "marco-theme-light"
+            });
+
+            // Refresh the close icon in its normal state for the new theme
+            set_window_control_icon(
+                &close_pic,
+                core::logic::loaders::icon_loader::WindowIcon::Close,
+                parent_is_dark,
+                WindowControlState::Normal,
+            );
+        });
+    }
 
     // Main container
     let main_box = GtkBox::new(Orientation::Vertical, 8);
@@ -222,70 +257,200 @@ fn create_windows_search_window(parent: &Window) -> Window {
     window
 }
 
-/// Create close button with SVG icon for Windows search window
+/// Window-control icon states (normal/hover/active)
 #[cfg(target_os = "windows")]
-fn create_close_button(theme_class: &str) -> gtk4::Button {
-    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+#[derive(Clone, Copy, Debug)]
+enum WindowControlState {
+    Normal,
+    Hover,
+    Active,
+}
+
+/// Render and apply a window-control SVG icon into a Picture, using the same palette
+/// colors as the main application window controls.
+#[cfg(target_os = "windows")]
+fn set_window_control_icon(
+    pic: &gtk4::Picture,
+    icon: core::logic::loaders::icon_loader::WindowIcon,
+    is_dark: bool,
+    state: WindowControlState,
+) {
+    use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+    use core::logic::loaders::icon_loader::window_icon_svg;
     use gio;
     use gtk4::gdk;
     use rsvg::{CairoRenderer, Loader};
 
-    let close_button = gtk4::Button::new();
-    close_button.add_css_class("titlebar-button");
-    close_button.set_tooltip_text(Some("Close"));
-
-    // Determine icon color based on theme
-    let icon_color = if theme_class == "marco-theme-dark" {
-        "#FFFFFF"
-    } else {
-        "#000000"
+    let color = match (is_dark, state) {
+        (true, WindowControlState::Normal) => DARK_PALETTE.control_icon,
+        (true, WindowControlState::Hover) => DARK_PALETTE.control_icon_hover,
+        (true, WindowControlState::Active) => DARK_PALETTE.control_icon_active,
+        (false, WindowControlState::Normal) => LIGHT_PALETTE.control_icon,
+        (false, WindowControlState::Hover) => LIGHT_PALETTE.control_icon_hover,
+        (false, WindowControlState::Active) => LIGHT_PALETTE.control_icon_active,
     };
 
-    // Load and render SVG icon
-    let svg = window_icon_svg(WindowIcon::Close).replace("currentColor", icon_color);
+    let icon_size = 8.0;
+    let svg = window_icon_svg(icon).replace("currentColor", color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
-
-    if let Ok(handle) =
-        Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
-    {
-        let icon_size = 20.0;
-        let display_scale = gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-
-        let render_scale = display_scale * 2.0;
-        let render_size = (icon_size * render_scale) as i32;
-
-        if let Ok(mut surface) =
-            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
-        {
-            if let Ok(cr) = cairo::Context::new(&surface) {
-                cr.scale(render_scale, render_scale);
-
-                let renderer = CairoRenderer::new(&handle);
-                let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
-                if renderer.render_document(&cr, &viewport).is_ok() {
-                    if let Ok(data) = surface.data() {
-                        let bytes = glib::Bytes::from_owned(data.to_vec());
-                        let texture = gdk::MemoryTexture::new(
-                            render_size,
-                            render_size,
-                            gdk::MemoryFormat::B8g8r8a8Premultiplied,
-                            &bytes,
-                            (render_size * 4) as usize,
-                        );
-                        let image = gtk4::Image::from_paintable(Some(&texture));
-                        close_button.set_child(Some(&image));
-                    }
-                }
+    let handle =
+        match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+            Ok(h) => h,
+            Err(e) => {
+                log::error!("load SVG handle: {}", e);
+                return;
             }
+        };
+
+    let display_scale = gdk::Display::default()
+        .and_then(|d| d.monitors().item(0))
+        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+        .map(|m| m.scale_factor() as f64)
+        .unwrap_or(1.0);
+    let render_scale = display_scale * 2.0;
+    let render_size = (icon_size * render_scale) as i32;
+
+    let mut surface =
+        match cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("create surface: {}", e);
+                return;
+            }
+        };
+    {
+        let cr = match cairo::Context::new(&surface) {
+            Ok(c) => c,
+            Err(e) => {
+                log::error!("create cairo context: {}", e);
+                return;
+            }
+        };
+        cr.scale(render_scale, render_scale);
+        let renderer = CairoRenderer::new(&handle);
+        let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+        if let Err(e) = renderer.render_document(&cr, &viewport) {
+            log::error!("render SVG: {}", e);
+            return;
         }
     }
 
-    close_button
+    let data = match surface.data() {
+        Ok(d) => d.to_vec(),
+        Err(e) => {
+            log::error!("get surface data: {}", e);
+            return;
+        }
+    };
+    let bytes = glib::Bytes::from_owned(data);
+    let texture = gdk::MemoryTexture::new(
+        render_size,
+        render_size,
+        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+        &bytes,
+        (render_size * 4) as usize,
+    );
+    pic.set_paintable(Some(&texture));
+    pic.set_size_request(icon_size as i32, icon_size as i32);
+    pic.set_can_shrink(false);
+    pic.set_halign(gtk4::Align::Center);
+    pic.set_valign(gtk4::Align::Center);
+}
+
+/// Create a close button that matches the main app's window control styling.
+#[cfg(target_os = "windows")]
+fn create_close_button(window: &gtk4::Window) -> (gtk4::Button, gtk4::Picture) {
+    use core::logic::loaders::icon_loader::WindowIcon;
+    use gtk4::prelude::*;
+    use gtk4::{Button, Picture};
+
+    let pic = Picture::new();
+    let is_dark = window.has_css_class("marco-theme-dark");
+    set_window_control_icon(&pic, WindowIcon::Close, is_dark, WindowControlState::Normal);
+
+    let btn = Button::new();
+    btn.set_child(Some(&pic));
+    btn.set_tooltip_text(Some("Close"));
+    btn.set_valign(gtk4::Align::Center);
+    btn.set_margin_start(1);
+    btn.set_margin_end(1);
+    btn.set_focusable(false);
+    btn.set_can_focus(false);
+    btn.set_has_frame(false);
+    btn.add_css_class("topright-btn");
+    btn.add_css_class("window-control-btn");
+    btn.set_width_request((8.0 + 6.0) as i32);
+    btn.set_height_request((8.0 + 6.0) as i32);
+
+    // Hover/active behavior reads the current theme at event time.
+    {
+        let pic_hover = pic.clone();
+        let win_weak = window.downgrade();
+        let motion_controller = gtk4::EventControllerMotion::new();
+        motion_controller.connect_enter(move |_ctrl, _x, _y| {
+            let Some(win) = win_weak.upgrade() else {
+                return;
+            };
+            let is_dark = win.has_css_class("marco-theme-dark");
+            set_window_control_icon(
+                &pic_hover,
+                WindowIcon::Close,
+                is_dark,
+                WindowControlState::Hover,
+            );
+        });
+
+        let pic_leave = pic.clone();
+        let win_weak = window.downgrade();
+        motion_controller.connect_leave(move |_ctrl| {
+            let Some(win) = win_weak.upgrade() else {
+                return;
+            };
+            let is_dark = win.has_css_class("marco-theme-dark");
+            set_window_control_icon(
+                &pic_leave,
+                WindowIcon::Close,
+                is_dark,
+                WindowControlState::Normal,
+            );
+        });
+        btn.add_controller(motion_controller);
+
+        let gesture = gtk4::GestureClick::new();
+        let pic_pressed = pic.clone();
+        let win_weak = window.downgrade();
+        gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+            let Some(win) = win_weak.upgrade() else {
+                return;
+            };
+            let is_dark = win.has_css_class("marco-theme-dark");
+            set_window_control_icon(
+                &pic_pressed,
+                WindowIcon::Close,
+                is_dark,
+                WindowControlState::Active,
+            );
+        });
+
+        let pic_released = pic.clone();
+        let win_weak = window.downgrade();
+        gesture.connect_released(move |_gesture, _n, _x, _y| {
+            let Some(win) = win_weak.upgrade() else {
+                return;
+            };
+            let is_dark = win.has_css_class("marco-theme-dark");
+            set_window_control_icon(
+                &pic_released,
+                WindowIcon::Close,
+                is_dark,
+                WindowControlState::Hover,
+            );
+        });
+        btn.add_controller(gesture);
+    }
+
+    (btn, pic)
 }
 
 #[cfg(test)]

@@ -2,7 +2,7 @@
 //!
 //! This module provides WebKit6 integration for rendering HTML previews on Linux.
 //! The viewer displays pre-rendered HTML from Marco's markdown engine.
-//! 
+//!
 //! # Key Features
 //!
 //! - Deferred HTML loading to avoid GTK allocation warnings

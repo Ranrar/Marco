@@ -21,14 +21,18 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::ui::create_editor_with_preview_and_buffer;
 use crate::components::editor::footer::wire_footer_updates;
+use crate::components::editor::ui::create_editor_with_preview_and_buffer;
 use crate::components::viewer::preview_types::ViewMode;
 use crate::logic::menu_items::file::FileOperations;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
 use core::logic::{DocumentBuffer, RecentFiles};
 use core::paths::MarcoPaths;
+#[cfg(target_os = "windows")]
+use gio::prelude::*;
+#[cfg(target_os = "windows")]
+use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use log::trace;
 use std::cell::RefCell;
@@ -438,15 +442,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         )
     };
 
-    #[cfg(target_os = "windows")]
-    let (preview_window_opt, webview_location_tracker, reparent_guard) = (
-        None::<Rc<RefCell<Option<()>>>>,
-        None::<WebViewLocationTracker>,
-        None::<()>,
-    );
-
-    // Windows: initialize detached preview window state so the titlebar can open a
-    // detached wry-based preview window.
     #[cfg(target_os = "windows")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
         use crate::components::viewer::wry_detached_window::PreviewWindow;
@@ -913,6 +908,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let window = window.clone();
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
+        #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
         let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
         move |_, _| {

@@ -3,20 +3,32 @@
 //! This module provides minimal, safe Windows implementations that mirror the
 //! `webkit6` API surface so the rest of the codebase can call the same functions.
 //!
-#![cfg(target_os = "windows")]
+// Note: this module is conditionally compiled from `components::viewer::mod`.
 
 use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, Label, Orientation, ScrolledWindow, TextView};
-use std::cell::RefCell;
-use std::rc::Rc;
+use gtk4::{ScrolledWindow, TextView};
 use std::sync::{Mutex, OnceLock};
 
 // Thread-safe global to store the latest preview HTML so detached preview windows
 // can read it when they start.
 pub(crate) static LATEST_PREVIEW_HTML: OnceLock<Mutex<String>> = OnceLock::new();
 
-fn latest_html_mutex() -> &'static Mutex<String> {
-    LATEST_PREVIEW_HTML.get_or_init(|| Mutex::new(String::new()))
+// Thread-safe global to store the latest base URI (directory) for resolving
+// relative resources in detached preview windows.
+pub(crate) static LATEST_PREVIEW_BASE_URI: OnceLock<Mutex<Option<String>>> = OnceLock::new();
+
+fn latest_base_uri_mutex() -> &'static Mutex<Option<String>> {
+    LATEST_PREVIEW_BASE_URI.get_or_init(|| Mutex::new(None))
+}
+
+pub(crate) fn set_latest_preview_base_uri(base_uri: Option<String>) {
+    if let Ok(mut guard) = latest_base_uri_mutex().lock() {
+        *guard = base_uri;
+    }
+}
+
+pub(crate) fn get_latest_preview_base_uri() -> Option<String> {
+    latest_base_uri_mutex().lock().ok().and_then(|g| g.clone())
 }
 
 /// Wraps HTML body into a full document (delegates to core renderer);
@@ -33,51 +45,20 @@ pub fn wrap_html_document(
 /// Generate a file:// base URI from a document path for resolving relative paths.
 pub fn generate_base_uri_from_path<P: AsRef<std::path::Path>>(document_path: P) -> Option<String> {
     if let Some(parent_dir) = document_path.as_ref().parent() {
-        if let Ok(absolute_parent) = parent_dir.canonicalize() {
-            let path_str = absolute_parent.to_string_lossy();
-            return Some(format!("file://{}/", path_str));
-        } else {
-            let path_str = parent_dir.to_string_lossy();
-            return Some(format!("file://{}/", path_str));
+        let absolute_parent = parent_dir
+            .canonicalize()
+            .unwrap_or_else(|_| parent_dir.to_path_buf());
+
+        // Windows file URIs must start with file:/// and use forward slashes.
+        // Also ensure a trailing slash so relative URLs resolve under the directory.
+        let mut s = absolute_parent.to_string_lossy().replace('\\', "/");
+        if !s.ends_with('/') {
+            s.push('/');
         }
+
+        return Some(format!("file:///{}", s));
     }
     None
-}
-
-/// Create a simple placeholder widget for in-editor preview when running on Windows.
-/// The returned widget is a `ScrolledWindow` with a label and short message.
-pub fn create_html_viewer_with_base(
-    _html: &str,
-    _base_uri: Option<&str>,
-    _background_color: Option<&str>,
-) -> gtk4::Widget {
-    let sw = ScrolledWindow::new();
-    sw.set_hexpand(true);
-    sw.set_vexpand(true);
-
-    let vbox = GtkBox::new(Orientation::Vertical, 8);
-    vbox.set_margin_top(8);
-    vbox.set_margin_bottom(8);
-    vbox.set_margin_start(8);
-    vbox.set_margin_end(8);
-
-    let label = Label::new(Some(
-        "Preview not available inline on Windows. Click \"Open Preview Window\" in the titlebar to open a detached preview.",
-    ));
-    label.set_wrap(true);
-
-    vbox.append(&label);
-    sw.set_child(Some(&vbox));
-
-    // Store the provided HTML into the global preview store so detached windows
-    // can access the latest content.
-    if !_html.is_empty() {
-        if let Ok(mut guard) = latest_html_mutex().lock() {
-            *guard = _html.to_string();
-        }
-    }
-
-    sw.upcast::<gtk4::Widget>()
 }
 
 /// Generate test HTML content when the editor is empty
@@ -95,39 +76,10 @@ pub(crate) fn generate_test_html(wheel_js: &str) -> String {
     html_with_js
 }
 
-/// Load HTML into the placeholder widget. We store the HTML for detached preview
-/// windows and update the label to show a small preview message.
-pub fn load_html_when_ready(widget: &gtk4::Widget, html: String, _base_uri: Option<String>) {
-    if let Ok(mut guard) = latest_html_mutex().lock() {
-        *guard = html.clone();
-    }
-
-    // Update the in-editor placeholder if possible
-    if let Some(scrolled) = widget.clone().downcast::<ScrolledWindow>().ok() {
-        if let Some(child) = scrolled.child() {
-            if let Ok(vbox) = child.downcast::<GtkBox>() {
-                if let Some(label) = vbox.first_child() {
-                    if let Ok(label) = label.downcast::<Label>() {
-                        let preview_text = format!(
-                            "Preview saved ({} bytes). Use detached preview to view.",
-                            html.len()
-                        );
-                        label.set_text(&preview_text);
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// Update the placeholder and saved HTML for smooth content updates.
-pub fn update_html_content_smooth(_widget: &gtk4::Widget, content: &str) {
-    if let Ok(mut guard) = latest_html_mutex().lock() {
-        *guard = content.to_string();
-    }
-}
-
-/// Create a simple HTML source viewer using a `TextView` inside a `ScrolledWindow`.
+/// Create a simple HTML source viewer widget.
+///
+/// Note: on Windows we keep the code-preview as a `TextView` (not a WebView).
+/// The caller typically inserts this widget into a surrounding `ScrolledWindow`.
 pub fn create_html_source_viewer_webview(
     html_source: &str,
     _theme_mode: &str,
@@ -137,17 +89,12 @@ pub fn create_html_source_viewer_webview(
     _scrollbar_thumb: Option<&str>,
     _scrollbar_track: Option<&str>,
 ) -> Result<gtk4::Widget, String> {
-    let sw = ScrolledWindow::new();
-    sw.set_hexpand(true);
-    sw.set_vexpand(true);
-
     let tv = TextView::new();
     tv.set_editable(false);
     tv.set_monospace(true);
     tv.buffer().set_text(html_source);
 
-    sw.set_child(Some(&tv));
-    Ok(sw.upcast::<gtk4::Widget>())
+    Ok(tv.upcast::<gtk4::Widget>())
 }
 
 /// Smooth update for the source view - update text in TextView.
@@ -160,20 +107,31 @@ pub fn update_code_view_smooth(
     _scrollbar_thumb: Option<&str>,
     _scrollbar_track: Option<&str>,
 ) -> Result<(), String> {
-    if let Some(scrolled) = widget.clone().downcast::<ScrolledWindow>().ok() {
+    if let Ok(tv) = widget.clone().downcast::<TextView>() {
+        tv.buffer().set_text(html_source);
+        return Ok(());
+    }
+
+    if let Ok(scrolled) = widget.clone().downcast::<ScrolledWindow>() {
         if let Some(child) = scrolled.child() {
-            if let Ok(tv) = child.downcast::<TextView>() {
+            if let Ok(tv) = child.clone().downcast::<TextView>() {
                 tv.buffer().set_text(html_source);
                 return Ok(());
+            }
+
+            // GTK ScrolledWindow may wrap the child inside a Viewport.
+            if let Ok(viewport) = child.downcast::<gtk4::Viewport>() {
+                if let Some(inner) = viewport.child() {
+                    if let Ok(tv) = inner.downcast::<TextView>() {
+                        tv.buffer().set_text(html_source);
+                        return Ok(());
+                    }
+                }
             }
         }
     }
     Err("Failed to find TextView to update code view".to_string())
 }
-
-/// No-op slider controls on Windows (parity only)
-pub fn sliders_play_all(_widget: &gtk4::Widget) {}
-pub fn sliders_pause_all(_widget: &gtk4::Widget) {}
 
 /// Open external URI in system browser
 pub fn open_external_uri(uri: &str) -> Result<(), String> {

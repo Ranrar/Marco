@@ -11,9 +11,6 @@ use std::rc::Rc;
 #[cfg(target_os = "linux")]
 use webkit6::WebView;
 
-#[cfg(target_os = "windows")]
-type WebView = gtk4::Widget;
-
 /// Search options for controlling search behavior
 #[derive(Debug, Clone, Default)]
 pub struct SearchOptions {
@@ -46,6 +43,7 @@ thread_local! {
     pub static CACHED_SEARCH_WINDOW: RefCell<Option<Rc<Window>>> = const { RefCell::new(None) };
     pub static CURRENT_BUFFER: RefCell<Option<Rc<Buffer>>> = const { RefCell::new(None) };
     pub static CURRENT_SOURCE_VIEW: RefCell<Option<Rc<View>>> = const { RefCell::new(None) };
+    #[cfg(target_os = "linux")]
     pub static CURRENT_WEBVIEW: RefCell<Option<Rc<RefCell<WebView>>>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     pub static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };

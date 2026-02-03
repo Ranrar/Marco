@@ -3,17 +3,64 @@ pub fn wheel_js(scale: f64) -> String {
         r#"<script>
     (function(){{
         const scale = {scale};
-        function findScroll(el){{
-            while(el && el !== document){{
-                if (el.scrollHeight > el.clientHeight) return el;
+
+        function isElement(node){{
+            return node && node.nodeType === 1;
+        }}
+
+        function getOverflowStyle(el){{
+            try {{
+                return window.getComputedStyle(el);
+            }} catch (_) {{
+                return null;
+            }}
+        }}
+
+        function isScrollable(el){{
+            if (!el) return false;
+            const style = getOverflowStyle(el);
+            if (!style) return false;
+
+            const overflowY = (style.overflowY || '').toLowerCase();
+            const overflowX = (style.overflowX || '').toLowerCase();
+
+            const canScrollY = (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay')
+                && (el.scrollHeight - el.clientHeight) > 1;
+            const canScrollX = (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay')
+                && (el.scrollWidth - el.clientWidth) > 1;
+
+            return canScrollY || canScrollX;
+        }}
+
+        function findScroll(target){{
+            let el = target;
+
+            // Wheel targets can be text nodes; normalize to an element.
+            while (el && !isElement(el)) el = el.parentNode;
+
+            while (el && el !== document.body && el !== document.documentElement){{
+                // Only treat *explicitly scrollable* elements as scroll containers.
+                // This avoids false positives on headings where scrollHeight/clientHeight
+                // can differ slightly due to rounding.
+                if (isScrollable(el)) return el;
                 el = el.parentNode;
             }}
+
             return document.scrollingElement || document.documentElement || document.body;
         }}
+
         window.addEventListener('wheel', function(e){{
-            if (Math.abs(e.deltaY) < 0.0001) return;
+            if (Math.abs(e.deltaY) < 0.0001 && Math.abs(e.deltaX) < 0.0001) return;
+
             const sc = findScroll(e.target);
-            sc.scrollBy({{ top: e.deltaY * scale, left: e.deltaX * scale, behavior: 'auto' }});
+
+            // For the document scroller, prefer window.scrollBy().
+            if (sc === document.body || sc === document.documentElement || sc === document.scrollingElement) {{
+                window.scrollBy({{ top: e.deltaY * scale, left: e.deltaX * scale, behavior: 'auto' }});
+            }} else {{
+                sc.scrollBy({{ top: e.deltaY * scale, left: e.deltaX * scale, behavior: 'auto' }});
+            }}
+
             e.preventDefault();
         }}, {{ passive: false }});
     }})();
@@ -37,7 +84,18 @@ pub const SCROLL_REPORT_JS: &str = r#"<script>
             
             // Only report if position has changed significantly (avoid noise)
             if (Math.abs(frac - lastReportedPosition) > 0.0001) {
-                document.title = 'marco_scroll:' + frac.toFixed(6);
+                var msg = 'marco_scroll:' + frac.toFixed(6);
+
+                // Prefer IPC (wry/WebView2), fall back to title (WebKit).
+                try {
+                    if (window.ipc && typeof window.ipc.postMessage === 'function') {
+                        window.ipc.postMessage(msg);
+                    } else {
+                        document.title = msg;
+                    }
+                } catch (e) {
+                    document.title = msg;
+                }
                 lastReportedPosition = frac;
             }
         }catch(e){}

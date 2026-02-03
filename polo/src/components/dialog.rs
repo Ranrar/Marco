@@ -6,7 +6,9 @@
 //!
 //! ## File Operations
 //!
-//! - **`show_open_file_dialog`**: Native GTK file chooser for opening markdown files
+//! - **`show_open_file_dialog`**: Platform-appropriate file picker for opening markdown files
+//!   - Linux: GTK `FileChooserDialog`
+//!   - Windows: native file dialog (via `rfd`)
 //!   - Filters for .md and .markdown files
 //!   - Remembers last opened directory
 //!   - Updates window title and settings on file selection
@@ -44,12 +46,67 @@
 
 use crate::components::viewer::{load_and_render_markdown, platform_webview::PlatformWebView};
 use core::logic::swanson::SettingsManager;
-use gtk4::{
-    prelude::*, Align, ApplicationWindow, Box, Button, FileChooserAction, FileChooserDialog,
-    FileFilter, Label, Orientation, ResponseType, Window,
-};
+use gtk4::{prelude::*, Align, ApplicationWindow, Box, Button, Label, Orientation, Window};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
+
+#[cfg(target_os = "linux")]
+use gtk4::{FileChooserAction, FileChooserDialog, FileFilter, ResponseType};
+
+#[cfg(target_os = "windows")]
+use rfd::FileDialog;
+
+struct OpenFileContext<'a> {
+    window: &'a ApplicationWindow,
+    webview: &'a PlatformWebView,
+    settings_manager: &'a Arc<SettingsManager>,
+    current_file_path: &'a Arc<RwLock<Option<String>>>,
+    open_editor_btn: &'a Button,
+    title_label: &'a Label,
+    asset_root: &'a std::path::Path,
+}
+
+fn open_file_and_update_state(ctx: OpenFileContext<'_>, path: PathBuf) {
+    let path_str = path.to_string_lossy().to_string();
+    log::info!("Opening file: {}", path_str);
+
+    let settings = ctx.settings_manager.get_settings();
+    let theme = settings
+        .appearance
+        .and_then(|a| a.preview_theme)
+        .unwrap_or_else(|| "github.css".to_string());
+
+    load_and_render_markdown(
+        ctx.webview,
+        &path_str,
+        &theme,
+        ctx.settings_manager,
+        ctx.asset_root,
+    );
+
+    if let Ok(mut path_guard) = ctx.current_file_path.write() {
+        *path_guard = Some(path_str.clone());
+    }
+
+    ctx.open_editor_btn.set_sensitive(true);
+    ctx.open_editor_btn
+        .set_tooltip_text(Some("Open this file in Marco editor"));
+
+    if let Some(filename) = path.file_name() {
+        let title_text = format!("Polo - {}", filename.to_string_lossy());
+        ctx.window.set_title(Some(&title_text));
+        ctx.title_label.set_text(&title_text);
+    }
+
+    let _ = ctx.settings_manager.update_settings(|s| {
+        if s.polo.is_none() {
+            s.polo = Some(core::logic::swanson::PoloSettings::default());
+        }
+        if let Some(ref mut polo) = s.polo {
+            polo.last_opened_file = Some(PathBuf::from(path_str));
+        }
+    });
+}
 
 /// Show file chooser dialog to open a markdown file
 pub fn show_open_file_dialog(
@@ -61,107 +118,101 @@ pub fn show_open_file_dialog(
     title_label: &Label,
     asset_root: &std::path::Path,
 ) {
-    use gtk4::gio;
+    #[cfg(target_os = "linux")]
+    {
+        use gtk4::gio;
 
-    // Create file chooser dialog
-    let dialog = FileChooserDialog::new(
-        Some("Open Markdown File"),
-        Some(window),
-        FileChooserAction::Open,
-        &[
-            ("Cancel", ResponseType::Cancel),
-            ("Open", ResponseType::Accept),
-        ],
-    );
+        let dialog = FileChooserDialog::new(
+            Some("Open Markdown File"),
+            Some(window),
+            FileChooserAction::Open,
+            &[
+                ("Cancel", ResponseType::Cancel),
+                ("Open", ResponseType::Accept),
+            ],
+        );
 
-    // Add markdown file filter
-    let filter = FileFilter::new();
-    filter.set_name(Some("Markdown Files"));
-    filter.add_pattern("*.md");
-    filter.add_pattern("*.markdown");
-    dialog.add_filter(&filter);
+        let filter = FileFilter::new();
+        filter.set_name(Some("Markdown Files"));
+        filter.add_pattern("*.md");
+        filter.add_pattern("*.markdown");
+        dialog.add_filter(&filter);
 
-    // Add all files filter
-    let filter_all = FileFilter::new();
-    filter_all.set_name(Some("All Files"));
-    filter_all.add_pattern("*");
-    dialog.add_filter(&filter_all);
+        let filter_all = FileFilter::new();
+        filter_all.set_name(Some("All Files"));
+        filter_all.add_pattern("*");
+        dialog.add_filter(&filter_all);
 
-    // Set initial directory from settings
-    let settings = settings_manager.get_settings();
-    if let Some(polo) = &settings.polo {
-        if let Some(ref last_file) = polo.last_opened_file {
-            if let Some(parent) = std::path::Path::new(last_file).parent() {
-                let _ = dialog.set_current_folder(Some(&gio::File::for_path(parent)));
-            }
-        }
-    }
-
-    // Handle response
-    let window_weak = window.downgrade();
-    let open_editor_btn = open_editor_btn.clone();
-    let title_label = title_label.clone();
-    let asset_root_owned = asset_root.to_path_buf();
-    dialog.connect_response(move |dialog, response| {
-        if response == ResponseType::Accept {
-            if let Some(file) = dialog.file() {
-                if let Some(path) = file.path() {
-                    let path_str = path.to_string_lossy().to_string();
-                    log::info!("Opening file: {}", path_str);
-
-                    // Get current theme from settings
-                    let settings = settings_manager.get_settings();
-                    let theme = settings
-                        .appearance
-                        .and_then(|a| a.preview_theme)
-                        .unwrap_or_else(|| "github.css".to_string());
-
-                    // Load and render the file
-                    load_and_render_markdown(
-                        &webview,
-                        &path_str,
-                        &theme,
-                        &settings_manager,
-                        &asset_root_owned,
-                    );
-
-                    // Update current file path
-                    // RwLock poisoning is not expected in single-threaded GTK event loop.
-                    // If it occurs (extremely unlikely), we simply retain the old path (safe fallback).
-                    // This prevents the app from crashing on a non-critical state update.
-                    if let Ok(mut path_guard) = current_file_path.write() {
-                        *path_guard = Some(path_str.clone());
-                    }
-
-                    // Enable "Open in Editor" button now that we have a file
-                    open_editor_btn.set_sensitive(true);
-                    open_editor_btn.set_tooltip_text(Some("Open this file in Marco editor"));
-
-                    // Update window title and title label
-                    if let Some(window) = window_weak.upgrade() {
-                        if let Some(filename) = path.file_name() {
-                            let title_text = format!("Polo - {}", filename.to_string_lossy());
-                            window.set_title(Some(&title_text));
-                            title_label.set_text(&title_text);
-                        }
-                    }
-
-                    // Save to settings
-                    let _ = settings_manager.update_settings(|s| {
-                        if s.polo.is_none() {
-                            s.polo = Some(core::logic::swanson::PoloSettings::default());
-                        }
-                        if let Some(ref mut polo) = s.polo {
-                            polo.last_opened_file = Some(PathBuf::from(path_str.clone()));
-                        }
-                    });
+        let settings = settings_manager.get_settings();
+        if let Some(polo) = &settings.polo {
+            if let Some(ref last_file) = polo.last_opened_file {
+                if let Some(parent) = std::path::Path::new(last_file).parent() {
+                    let _ = dialog.set_current_folder(Some(&gio::File::for_path(parent)));
                 }
             }
         }
-        dialog.close();
-    });
 
-    dialog.present();
+        let window_weak = window.downgrade();
+        let open_editor_btn = open_editor_btn.clone();
+        let title_label = title_label.clone();
+        let asset_root_owned = asset_root.to_path_buf();
+        dialog.connect_response(move |dialog, response| {
+            if response == ResponseType::Accept {
+                if let Some(file) = dialog.file() {
+                    if let Some(path) = file.path() {
+                        if let Some(window) = window_weak.upgrade() {
+                            let ctx = OpenFileContext {
+                                window: &window,
+                                webview: &webview,
+                                settings_manager: &settings_manager,
+                                current_file_path: &current_file_path,
+                                open_editor_btn: &open_editor_btn,
+                                title_label: &title_label,
+                                asset_root: &asset_root_owned,
+                            };
+                            open_file_and_update_state(ctx, path);
+                        }
+                    }
+                }
+            }
+            dialog.close();
+        });
+
+        dialog.present();
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let settings = settings_manager.get_settings();
+        let initial_dir = settings
+            .polo
+            .as_ref()
+            .and_then(|p| p.last_opened_file.as_ref())
+            .and_then(|p| std::path::Path::new(p).parent())
+            .map(|p| p.to_path_buf());
+
+        let mut dialog = FileDialog::new()
+            .set_title("Open Markdown File")
+            .add_filter("Markdown", &["md", "markdown"])
+            .add_filter("All Files", &["*"]);
+
+        if let Some(dir) = initial_dir {
+            dialog = dialog.set_directory(dir);
+        }
+
+        if let Some(path) = dialog.pick_file() {
+            let ctx = OpenFileContext {
+                window,
+                webview: &webview,
+                settings_manager: &settings_manager,
+                current_file_path: &current_file_path,
+                open_editor_btn,
+                title_label,
+                asset_root,
+            };
+            open_file_and_update_state(ctx, path);
+        }
+    }
 }
 
 /// Show dialog asking how to open the file in Marco

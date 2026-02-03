@@ -3,6 +3,7 @@ thread_local! {}
 // Removed duplicate save_appearance_settings; use Swanson.rs only
 use core::logic::swanson::{AppearanceSettings, SettingsManager};
 use dark_light::Mode as SystemMode;
+#[cfg(target_os = "linux")]
 use gtk4::Settings as GtkSettings;
 use sourceview5::{StyleScheme, StyleSchemeManager};
 use std::fs;
@@ -192,8 +193,7 @@ impl ThemeManager {
         // Force a style context invalidation to refresh all widgets
         #[cfg(target_os = "windows")]
         {
-            use gtk4::prelude::*;
-            if let Some(display) = gtk4::gdk::Display::default() {
+            if let Some(_display) = gtk4::gdk::Display::default() {
                 // Trigger style context refresh for all windows on this display
                 // This ensures CSS class changes propagate immediately
                 log::debug!("Forcing style context refresh for theme change on Windows");

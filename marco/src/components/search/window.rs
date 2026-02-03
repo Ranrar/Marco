@@ -3,14 +3,24 @@
 //! Handles window creation, dialog management, and window behavior.
 
 use gtk4::prelude::*;
-use gtk4::{Align, Label, Window};
+use gtk4::{Label, Window};
+
+#[cfg(target_os = "linux")]
+use gtk4::Align;
+
+use super::state::{AsyncSearchManager, ASYNC_MANAGER};
+
+#[cfg(target_os = "linux")]
+use super::state::{CACHED_SEARCH_WINDOW, CURRENT_SEARCH_ENTRY};
+
+#[cfg(target_os = "linux")]
 use log::trace;
+
+#[cfg(target_os = "linux")]
 use std::rc::Rc;
 
-use super::state::{
-    AsyncSearchManager, ASYNC_MANAGER, CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SEARCH_ENTRY,
-    CURRENT_SOURCE_VIEW, CURRENT_WEBVIEW,
-};
+#[cfg(target_os = "linux")]
+use super::state::{CURRENT_BUFFER, CURRENT_SOURCE_VIEW, CURRENT_WEBVIEW};
 
 #[cfg(target_os = "linux")]
 use sourceview5::{Buffer, View};
@@ -64,6 +74,7 @@ pub fn get_or_create_search_window(
 }
 
 /// Create the actual search window implementation
+#[cfg(target_os = "linux")]
 pub fn create_search_window_impl(parent: &Window) -> Window {
     // Get current theme mode from parent window
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
@@ -294,10 +305,9 @@ pub fn create_search_window_impl(parent: &Window) -> Window {
     // Handle window close (cleanup cache + highlights)
     window.connect_close_request(move |_| {
         use super::engine::clear_enhanced_search_highlighting;
-        use super::state::{clear_search_highlighting, CACHED_SEARCH_WINDOW, CURRENT_SEARCH_ENTRY};
 
         clear_enhanced_search_highlighting();
-        clear_search_highlighting();
+        super::state::clear_search_highlighting();
 
         CURRENT_SEARCH_ENTRY.with(|entry_ref| {
             *entry_ref.borrow_mut() = None;
@@ -313,6 +323,7 @@ pub fn create_search_window_impl(parent: &Window) -> Window {
 }
 
 /// Focus the search entry when window opens
+#[cfg(target_os = "linux")]
 pub fn focus_search_entry_in_window(window: &Window) {
     // Ensure the window itself is focused first.
     let _ = window.grab_focus();

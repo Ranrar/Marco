@@ -13,7 +13,17 @@ $ErrorActionPreference = 'Stop'
 # This script is intended to run on Windows.
 # Running it via `pwsh` on Linux will attempt a Linux→Windows cross-compilation,
 # which requires a full Windows GTK/GLib sysroot + cross pkg-config setup.
-if (-not $IsWindows) {
+$runningOnWindows = $false
+if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
+    # PowerShell 6+ defines $IsWindows/$IsLinux/$IsMacOS automatic variables.
+    $runningOnWindows = [bool]$IsWindows
+} else {
+    # Windows PowerShell 5.1 does not define $IsWindows and only runs on Windows.
+    # Use a conservative fallback to avoid false failures.
+    $runningOnWindows = ($env:OS -eq 'Windows_NT') -or ($PSVersionTable.PSEdition -eq 'Desktop')
+}
+
+if (-not $runningOnWindows) {
     Write-Error "This script must be run on Windows. You appear to be running PowerShell on a non-Windows OS, which is not supported for building the Windows GTK binaries. Use a Windows machine/VM or the GitHub Actions windows-latest job (alpha-release workflow)."
     exit 1
 }

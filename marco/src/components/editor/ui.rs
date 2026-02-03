@@ -36,6 +36,7 @@ use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS};
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
+#[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
 use core::global_parser_cache; // New cache API
@@ -64,7 +65,7 @@ pub fn create_editor_with_preview_and_buffer(
     params: EditorParams,
     labels: Rc<FooterLabels>,
     _settings_path: &str,
-    document_buffer: Option<Rc<RefCell<core::logic::buffer::DocumentBuffer>>>,
+    _document_buffer: Option<Rc<RefCell<core::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     let preview_theme_filename = &params.preview_theme_filename;
     let preview_theme_dir = &params.preview_theme_dir;
@@ -111,6 +112,11 @@ pub fn create_editor_with_preview_and_buffer(
             font_size_pt,
             show_line_numbers,
         );
+
+    // Make the editor scroller discoverable for detached preview windows.
+    crate::components::editor::editor_manager::set_primary_editor_scrolled_window(
+        &editor_scrolled_window,
+    );
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
     paned.set_start_child(Some(&editor_widget));
@@ -189,6 +195,31 @@ pub fn create_editor_with_preview_and_buffer(
     // Add Marco indentation CSS to the theme CSS
     css.push('\n');
     css.push_str(&crate::components::viewer::css_utils::complete_indentation_css());
+
+    // Add syntect CSS for code block highlighting.
+    // On Linux this is also used in WebKit helpers; on Windows we include it here
+    // so preview code blocks are styled consistently.
+    {
+        let normalized_theme = if theme_mode.borrow().contains("dark") {
+            "dark"
+        } else {
+            "light"
+        };
+
+        match crate::logic::syntax_highlighter::generate_css_with_global(normalized_theme) {
+            Ok(syntect_css) => {
+                css.push('\n');
+                css.push_str(&syntect_css);
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to generate syntect CSS for theme '{}': {}",
+                    normalized_theme,
+                    e
+                );
+            }
+        }
+    }
 
     // wheel JS with scroll report for bidirectional sync
     let scroll_scale: f64 = std::env::var("MARCO_SCROLL_SCALE")
@@ -515,6 +546,33 @@ paned > separator {{
         Rc::new(sw)
     };
 
+    #[cfg(target_os = "windows")]
+    {
+        // On Windows we don't have WebKit scroll integration yet, but we can still
+        // synchronize the editor with the HTML code view (TextView) scroller.
+        if let Some(global_sync) =
+            crate::components::editor::editor_manager::get_global_scroll_synchronizer()
+        {
+            if global_sync.is_enabled() {
+                global_sync.connect_scrolled_windows_bidirectional(
+                    &editor_scrolled_window,
+                    precreated_code_sw.as_ref(),
+                );
+                log::debug!("Scroll synchronization initialized between editor and code view");
+            } else {
+                log::debug!("Scroll sync disabled; skipping editor/code sync wiring");
+            }
+        } else {
+            log::warn!(
+                "Failed to initialize scroll synchronization: global scroll synchronizer not available"
+            );
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    let code_view_widget_for_windows: Rc<RefCell<Option<gtk4::Widget>>> =
+        Rc::new(RefCell::new(None));
+
     // Shared stack and optional webview wrapper so both platforms can add children
     let stack = gtk4::Stack::new();
     let webview_rc_opt: Option<
@@ -527,6 +585,7 @@ paned > separator {{
             Err(e) => format!("Error rendering HTML: {}", e),
         };
 
+    #[cfg(target_os = "linux")]
     let pretty_initial = pretty_print_html(&initial_html_body);
 
     #[cfg(target_os = "linux")]
@@ -616,13 +675,37 @@ paned > separator {{
     {
         // Windows (and other) fallback: create PlatformWebView (wry) where possible
         // Use test HTML for empty document to mirror Linux behaviour (welcome message)
-        let mut initial_html_body_with_js = if initial_html_body.trim().is_empty() {
+        let initial_html_body_with_js = if initial_html_body.trim().is_empty() {
             crate::components::viewer::wry::generate_test_html(&wheel_js_rc)
         } else {
             let mut s = initial_html_body.clone();
             s.push_str(&wheel_js_rc);
             s
         };
+
+        // Wrap into a full HTML document, and compute a base URI for relative paths.
+        let combined_css = css_rc.borrow().clone();
+        let theme_mode_for_wrap = theme_mode_rc.borrow().clone();
+        let base_uri = _document_buffer
+            .as_ref()
+            .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()))
+            .and_then(crate::components::viewer::backend::generate_base_uri_from_path);
+        crate::components::viewer::wry::set_latest_preview_base_uri(base_uri.clone());
+
+        let full_html = crate::components::viewer::backend::wrap_html_document(
+            &initial_html_body_with_js,
+            &combined_css,
+            &theme_mode_for_wrap,
+            None,
+        );
+
+        if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
+            .get_or_init(|| std::sync::Mutex::new(String::new()))
+            .lock()
+        {
+            *guard = full_html.clone();
+        }
+
         let pretty_initial = pretty_print_html(&initial_html_body_with_js);
 
         // Try to create a native Windows embedded WebView (wry). PlatformWebView
@@ -630,19 +713,42 @@ paned > separator {{
         let platform_webview =
             crate::components::viewer::wry_platform_webview::PlatformWebView::new(_window);
 
+        // Initialize scroll synchronization between editor and the embedded wry preview.
+        if let Some(global_sync) =
+            crate::components::editor::editor_manager::get_global_scroll_synchronizer()
+        {
+            if global_sync.is_enabled() {
+                global_sync.connect_scrolled_window_and_platform_webview(
+                    &editor_scrolled_window,
+                    &platform_webview,
+                );
+                log::debug!("Scroll synchronization initialized between editor and wry preview");
+            }
+        }
+
         // Load initial HTML into the platform webview (safe no-op if inner not ready)
-        platform_webview.load_html_with_base(&initial_html_body_with_js, None);
+        crate::components::viewer::backend::load_html_when_ready(
+            &platform_webview,
+            full_html.clone(),
+            base_uri.clone(),
+        );
 
         let webview_widget: gtk4::Widget = platform_webview.widget();
         let webview_rc = Rc::new(RefCell::new(platform_webview));
 
-        // Create a simple (read-only) TextView for code preview
-        let code_view = gtk4::TextView::new();
-        code_view.set_editable(false);
-        let buf = code_view.buffer();
-        buf.set_text(&pretty_initial);
-
-        precreated_code_sw.set_child(Some(&code_view));
+        // Create a (read-only) code preview widget via the Windows parity helper.
+        let code_view_widget = crate::components::viewer::wry::create_html_source_viewer_webview(
+            &pretty_initial,
+            &theme_mode_for_wrap,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("Failed to create Windows code preview widget");
+        precreated_code_sw.set_child(Some(&code_view_widget));
+        *code_view_widget_for_windows.borrow_mut() = Some(code_view_widget);
 
         let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
             Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
@@ -658,11 +764,17 @@ paned > separator {{
 
     // refresh_preview closure
     let wheel_js_for_refresh = wheel_js_rc.clone();
+
+    #[cfg(target_os = "linux")]
     let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
+    #[cfg(target_os = "linux")]
     let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
+    #[cfg(target_os = "linux")]
     let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
-                                                                                // Clone document_buffer for use in refresh closure
-    let document_buffer_for_refresh = document_buffer.as_ref().map(Rc::clone);
+
+    // Clone document_buffer for use in refresh closure (Linux only)
+    #[cfg(target_os = "linux")]
+    let document_buffer_for_refresh = _document_buffer.as_ref().map(Rc::clone);
 
     #[cfg(target_os = "linux")]
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
@@ -748,23 +860,24 @@ paned > separator {{
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
-        let precreated_code_sw = precreated_code_sw.clone();
+        let code_view_widget_for_windows = Rc::clone(&code_view_widget_for_windows);
         let html_opts = std::rc::Rc::clone(&html_opts_rc);
         let wheel_js_local = wheel_js_for_refresh.clone();
-        let is_initial_load_clone = Rc::clone(&is_initial_load);
-        let last_css_hash_clone = Rc::clone(&last_css_hash);
-        let last_document_path_clone = Rc::clone(&last_document_path);
-        let document_buffer_capture = document_buffer_for_refresh.clone();
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
         // Capture the in-editor platform webview if present
         let webview_for_preview = webview_rc_opt.clone();
+        let document_buffer_capture = _document_buffer.as_ref().map(Rc::clone);
         std::rc::Rc::new(move || {
-            let is_first_load = *is_initial_load_clone.borrow();
-
             // Basic behaviour: re-render HTML into the code view (TextView) for preview
             let text = buffer
                 .text(&buffer.start_iter(), &buffer.end_iter(), false)
                 .to_string();
+
+            let base_uri = document_buffer_capture
+                .as_ref()
+                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()))
+                .and_then(crate::components::viewer::wry::generate_base_uri_from_path);
+            crate::components::viewer::wry::set_latest_preview_base_uri(base_uri.clone());
 
             let html_body =
                 match global_parser_cache().render_with_cache(&text, (*html_opts).clone()) {
@@ -794,7 +907,7 @@ paned > separator {{
                 // If we have an embedded in-editor webview, load the HTML into it
                 if let Some(ref wv_rc) = webview_for_preview {
                     if let Ok(wv) = wv_rc.try_borrow() {
-                        wv.load_html_with_base(&full_html, None);
+                        wv.load_html_with_base(&full_html, base_uri.as_deref());
                     } else {
                         log::debug!("In-editor webview borrow busy; skipping load");
                     }
@@ -807,23 +920,16 @@ paned > separator {{
 
                 // Update the code view if present with pretty-printed welcome HTML
                 let formatted = pretty_print_html(&html_body);
-                if let Some(sw_child) = precreated_code_sw.child() {
-                    match sw_child.downcast::<gtk4::Viewport>() {
-                        Ok(viewport) => {
-                            if let Some(child) = viewport.child() {
-                                if let Ok(text_view) = child.downcast::<gtk4::TextView>() {
-                                    let buf = text_view.buffer();
-                                    buf.set_text(&formatted);
-                                }
-                            }
-                        }
-                        Err(widget) => {
-                            if let Ok(text_view) = widget.downcast::<gtk4::TextView>() {
-                                let buf = text_view.buffer();
-                                buf.set_text(&formatted);
-                            }
-                        }
-                    }
+                if let Some(widget) = code_view_widget_for_windows.borrow().clone() {
+                    let _ = crate::components::viewer::wry::update_code_view_smooth(
+                        &widget,
+                        &formatted,
+                        &theme_mode_for_preview.borrow(),
+                        None,
+                        None,
+                        None,
+                        None,
+                    );
                 }
 
                 return;
@@ -855,30 +961,23 @@ paned > separator {{
             // If we have an embedded in-editor webview, load the HTML into it
             if let Some(ref wv_rc) = webview_for_preview {
                 if let Ok(wv) = wv_rc.try_borrow() {
-                    wv.load_html_with_base(&full_html, None);
+                    crate::components::viewer::backend::update_html_content_smooth(&wv, &full_html);
                 } else {
                     log::debug!("In-editor webview borrow busy; skipping load");
                 }
             }
 
             // Update the code view if present
-            if let Some(sw_child) = precreated_code_sw.child() {
-                match sw_child.downcast::<gtk4::Viewport>() {
-                    Ok(viewport) => {
-                        if let Some(child) = viewport.child() {
-                            if let Ok(text_view) = child.downcast::<gtk4::TextView>() {
-                                let buf = text_view.buffer();
-                                buf.set_text(&formatted);
-                            }
-                        }
-                    }
-                    Err(widget) => {
-                        if let Ok(text_view) = widget.downcast::<gtk4::TextView>() {
-                            let buf = text_view.buffer();
-                            buf.set_text(&formatted);
-                        }
-                    }
-                }
+            if let Some(widget) = code_view_widget_for_windows.borrow().clone() {
+                let _ = crate::components::viewer::wry::update_code_view_smooth(
+                    &widget,
+                    &formatted,
+                    &theme_mode_for_preview.borrow(),
+                    None,
+                    None,
+                    None,
+                    None,
+                );
             }
         })
     };
@@ -896,9 +995,17 @@ paned > separator {{
         let precreated_code_sw_for_code = precreated_code_sw.clone();
         let html_opts_for_code = Rc::clone(&html_opts_rc);
         let theme_mode_for_code = Rc::clone(&theme_mode_rc);
+
+        #[cfg(target_os = "windows")]
+        let code_view_widget_for_windows = Rc::clone(&code_view_widget_for_windows);
+
+        #[cfg(target_os = "linux")]
         let editor_bg_for_code = Rc::clone(&editor_bg_color);
+        #[cfg(target_os = "linux")]
         let editor_fg_for_code = Rc::clone(&editor_fg_color);
+        #[cfg(target_os = "linux")]
         let scrollbar_thumb_for_code = Rc::clone(&scrollbar_thumb_color);
+        #[cfg(target_os = "linux")]
         let scrollbar_track_for_code = Rc::clone(&scrollbar_track_color);
         let last_code_view_theme = Rc::new(RefCell::new(String::new()));
 
@@ -1020,15 +1127,18 @@ paned > separator {{
 
                     #[cfg(target_os = "windows")]
                     {
-                        // On non-Linux platforms we expect a TextView in the code view
-                        if let Ok(child) = widget.clone().downcast::<gtk4::TextView>() {
-                            let buf = child.buffer();
-                            buf.set_text(&formatted_html);
-                        } else {
-                            log::warn!(
-                                "[editor_ui] Code view widget is not a TextView: {:?}",
-                                widget_type
-                            );
+                        if let Some(w) = code_view_widget_for_windows.borrow().clone() {
+                            if let Err(e) = crate::components::viewer::wry::update_code_view_smooth(
+                                &w,
+                                &formatted_html,
+                                &current_theme,
+                                None,
+                                None,
+                                None,
+                                None,
+                            ) {
+                                log::warn!("[editor_ui] Failed to update Windows code view: {}", e);
+                            }
                         }
                     }
                 } else {
@@ -1234,7 +1344,7 @@ paned > separator {{
         let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
         let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
         let editor_sw_for_preview = editor_scrolled_window.clone(); // For checking scrollbar state
-        let document_buffer_for_preview = document_buffer.as_ref().map(Rc::clone);
+        let document_buffer_for_preview = _document_buffer.as_ref().map(Rc::clone);
         let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
         let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
         let update_html_code_view_for_preview = Rc::clone(&update_html_code_view_rc);
@@ -1469,7 +1579,42 @@ paned > separator {{
         }) as Box<dyn Fn(&str)>;
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(target_os = "windows")]
+    {
+        let theme_manager_for_preview = Rc::clone(&theme_manager);
+        let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+        let refresh_for_preview = std::rc::Rc::clone(&refresh_preview_impl);
+        let update_code_for_preview = Rc::clone(&update_html_code_view_rc);
+
+        let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> =
+            webview_rc_opt.as_ref().expect("webview_rc not set").clone();
+
+        update_preview_theme = Box::new(move |scheme_id: &str| {
+            let new_theme_mode = theme_manager_for_preview
+                .borrow()
+                .preview_theme_mode_from_scheme(scheme_id);
+
+            *theme_mode_for_preview.borrow_mut() = new_theme_mode.clone();
+
+            // Keep WebView2 background in sync to reduce white/flash artifacts.
+            let is_dark = new_theme_mode.eq_ignore_ascii_case("dark");
+            let rgba = if is_dark {
+                gtk4::gdk::RGBA::new(30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0)
+            } else {
+                gtk4::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+            };
+
+            if let Ok(wv) = webview_rc.try_borrow() {
+                wv.set_background_color_rgba(&rgba);
+            }
+
+            // Apply the new theme mode to the preview + source code view.
+            (refresh_for_preview)();
+            (update_code_for_preview)();
+        });
+    }
+
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
     {
         update_preview_theme = Box::new(|_s: &str| {});
     }

@@ -22,6 +22,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.1] - 2026-02-04
+
+### Changed
+- Improved cross-platform compilation with refined conditional compilation attributes for Linux and Windows builds.
+- Enhanced platform-specific code organization using explicit `cfg(target_os)` gates.
+
+### Fixed
+- Resolved Linux build compilation error in font loader module (missing `HashMap` import under platform-specific code path).
+
 ## [0.17.0] - 2026-02-03
 
 ### Added

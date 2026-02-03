@@ -5,7 +5,7 @@
 //! `wry::WebView` on Windows (using Win32 HWND obtained from GDK surface) and
 //! avoid spawning a separate tao EventLoop thread.
 
-#![cfg(target_os = "windows")]
+// Note: this module is conditionally compiled from `components::viewer::mod`.
 
 use gtk4::prelude::*;
 use std::cell::RefCell;
@@ -19,14 +19,18 @@ use raw_window_handle::{
 #[cfg(target_os = "windows")]
 use std::num::NonZeroIsize;
 
+type ScrollReportCallback = Rc<dyn Fn(f64)>;
+type ScrollReportCallbackCell = Rc<RefCell<Option<ScrollReportCallback>>>;
+
 /// Windows PlatformWebView wrapper
 #[derive(Clone)]
 pub struct PlatformWebView {
     pub inner: std::rc::Rc<std::cell::RefCell<Option<wry::WebView>>>,
     pub container: gtk4::Box,
-    pub parent_handle: std::rc::Rc<ParentWindowHandle>,
+    parent_handle: std::rc::Rc<ParentWindowHandle>,
     pub bg_color: std::rc::Rc<std::cell::Cell<(u8, u8, u8, u8)>>,
     pub gtk_window: gtk4::ApplicationWindow,
+    scroll_report_callback: ScrollReportCallbackCell,
 }
 
 impl PlatformWebView {
@@ -42,6 +46,7 @@ impl PlatformWebView {
         container.set_hexpand(true);
         let webview: Rc<RefCell<Option<wry::WebView>>> = Rc::new(RefCell::new(None));
         let bg_color = std::rc::Rc::new(std::cell::Cell::new((30u8, 30u8, 30u8, 255u8)));
+        let scroll_report_callback: ScrollReportCallbackCell = Rc::new(RefCell::new(None));
 
         // Attempt to obtain parent HWND and parent_handle; on failure, keep inner None
         let parent_handle_rc = match (|| {
@@ -140,7 +145,12 @@ impl PlatformWebView {
             parent_handle: parent_handle_rc,
             bg_color,
             gtk_window: window.clone(),
+            scroll_report_callback,
         }
+    }
+
+    pub fn set_scroll_report_callback<F: Fn(f64) + 'static>(&self, callback: F) {
+        *self.scroll_report_callback.borrow_mut() = Some(Rc::new(callback));
     }
 
     pub fn widget(&self) -> gtk4::Widget {
@@ -226,6 +236,32 @@ impl PlatformWebView {
             .with_background_color(self.bg_color.get())
             .with_bounds(rect)
             .with_html(&final_html)
+            .with_ipc_handler({
+                let callback = self.scroll_report_callback.clone();
+                move |req: wry::http::Request<String>| {
+                    let msg = req.body().as_str();
+                    if let Some(scroll_data) = msg.strip_prefix("marco_scroll:") {
+                        if let Ok(percentage) = scroll_data.parse::<f64>() {
+                            let cb_opt = callback.borrow().clone();
+                            if let Some(cb) = cb_opt {
+                                let percentage = percentage.clamp(0.0, 1.0);
+                                gtk4::glib::MainContext::default()
+                                    .invoke_local(move || cb(percentage));
+                            }
+                        }
+                    }
+                }
+            })
+            .with_navigation_handler(|uri: String| {
+                if should_open_externally(&uri) {
+                    log::debug!("[wry] intercept navigation to external URI: {}", uri);
+                    if let Err(e) = crate::components::viewer::wry::open_external_uri(&uri) {
+                        log::warn!("[wry] failed to open external URI '{}': {}", uri, e);
+                    }
+                    return false;
+                }
+                true
+            })
             .build_as_child(&*self.parent_handle)
         {
             Ok(view) => {
@@ -236,7 +272,6 @@ impl PlatformWebView {
         }
     }
 
-    #[allow(dead_code)]
     pub fn evaluate_script(&self, script: &str) {
         if let Some(view) = self.inner.borrow().as_ref() {
             if let Err(e) = view.evaluate_script(script) {
@@ -287,4 +322,30 @@ fn inject_base_href(html: &str, base: &str) -> String {
 
     // Fallback: prepend base tag
     format!("<base href=\"{}\">{}", base, html)
+}
+
+fn should_open_externally(uri: &str) -> bool {
+    let u = uri.trim();
+    if u.is_empty() {
+        return false;
+    }
+
+    let lower = u.to_ascii_lowercase();
+
+    // Allow in-document and local navigation.
+    if lower.starts_with('#')
+        || lower.starts_with("about:")
+        || lower.starts_with("data:")
+        || lower.starts_with("file:")
+    {
+        return false;
+    }
+
+    // Treat typical external schemes as external.
+    lower.starts_with("http://")
+        || lower.starts_with("https://")
+        || lower.starts_with("mailto:")
+        || lower.starts_with("tel:")
+        || lower.starts_with("ftp://")
+        || lower.starts_with("www.")
 }

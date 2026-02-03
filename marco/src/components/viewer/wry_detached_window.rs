@@ -1,8 +1,8 @@
 //! Detached preview window implementation that uses `wry` on Windows.
-#![cfg(target_os = "windows")]
+// Note: this module is conditionally compiled from `components::viewer::mod`.
 
 use gtk4::prelude::*;
-use gtk4::{ApplicationWindow, Box as GtkBox, Label, Orientation, ScrolledWindow};
+use gtk4::{ApplicationWindow, Label, Orientation, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -316,7 +316,7 @@ impl PreviewWindow {
 
         // Maximize/restore toggle (update SVG picture)
         let pic_for_toggle = max_pic.clone();
-        let update_for_toggle = update_max_icon.clone();
+        let update_for_toggle = update_max_icon;
         let window_for_toggle = window.clone();
         btn_max_toggle.connect_clicked(move |_| {
             log::info!("Preview window maximize/restore button clicked - handler called");
@@ -333,7 +333,7 @@ impl PreviewWindow {
 
         // Keep maximize icon in sync if window is maximized/unmaximized externally
         let pic_for_notify = max_pic.clone();
-        let update_for_notify = update_max_icon.clone();
+        let update_for_notify = update_max_icon;
         window.connect_notify_local(Some("is-maximized"), move |w, _| {
             update_for_notify(w.is_maximized(), &pic_for_notify);
         });
@@ -355,7 +355,8 @@ impl PreviewWindow {
                 .get_or_init(|| std::sync::Mutex::new(String::new()))
                 .lock()
             {
-                pv.load_html_with_base(&guard.clone(), None);
+                let base_uri = wry::get_latest_preview_base_uri();
+                pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
             }
             return;
         }
@@ -364,11 +365,32 @@ impl PreviewWindow {
         let pv = PlatformWebView::new(&self.window);
         self.container.set_child(Some(&pv.widget()));
 
+        // Wire scroll sync between the primary editor scroller and this detached preview.
+        if let Some(global_sync) =
+            crate::components::editor::editor_manager::get_global_scroll_synchronizer()
+        {
+            if global_sync.is_enabled() {
+                if let Some(editor_sw) =
+                    crate::components::editor::editor_manager::get_primary_editor_scrolled_window()
+                {
+                    global_sync.connect_scrolled_window_and_platform_webview(&editor_sw, &pv);
+                    log::debug!(
+                        "Scroll synchronization initialized between editor and detached wry preview"
+                    );
+                } else {
+                    log::warn!(
+                        "Detached preview scroll sync not wired: primary editor ScrolledWindow not registered"
+                    );
+                }
+            }
+        }
+
         if let Ok(guard) = wry::LATEST_PREVIEW_HTML
             .get_or_init(|| std::sync::Mutex::new(String::new()))
             .lock()
         {
-            pv.load_html_with_base(&guard.clone(), None);
+            let base_uri = wry::get_latest_preview_base_uri();
+            pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
         }
 
         *self.platform_webview.borrow_mut() = Some(pv);
@@ -406,7 +428,7 @@ impl PreviewWindow {
                     let tv = gtk4::TextView::new();
                     tv.set_editable(false);
                     tv.set_monospace(true);
-                    tv.buffer().set_text(&*guard);
+                    tv.buffer().set_text(&guard);
                     sw.set_child(Some(&tv));
                     vbox.append(&sw);
 
@@ -418,8 +440,9 @@ impl PreviewWindow {
                     let file_name = format!("marco_preview_{}.html", ts);
                     let mut file_path = std::env::temp_dir();
                     file_path.push(&file_name);
-                    let file_url = if std::fs::write(&file_path, &*guard).is_ok() {
-                        let s = format!("file://{}", file_path.to_string_lossy());
+                    let file_url = if std::fs::write(&file_path, guard.as_bytes()).is_ok() {
+                        let s =
+                            format!("file:///{}", file_path.to_string_lossy().replace('\\', "/"));
                         log::info!(
                             "Persisted fallback preview HTML to: {}",
                             file_path.display()
@@ -454,11 +477,6 @@ impl PreviewWindow {
                 log::info!("Embedded wry WebView available in preview window (rendering inline)");
             }
         }
-    }
-
-    /// Detach returns None on Windows - we duplicate the preview instead of moving it
-    pub fn detach_webview(&self) -> Option<gtk4::Widget> {
-        None
     }
 
     /// Show the preview window. If no embedded webview exists, create it and

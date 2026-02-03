@@ -151,6 +151,38 @@ let completions = get_completions(position, context); // Returns Vec<CompletionI
 > urlencoding
 > ```
 
+#### Conditional Imports
+
+When writing cross-platform Rust, apply conditional compilation to the **imports themselves** to avoid unused-import warnings on one OS and missing-import errors on the other.
+
+Use **only** these forms for OS gating in this repo:
+- `#[cfg(target_os = "windows")]`
+- `#[cfg(target_os = "linux")]`
+
+Do **not** use `cfg(any(...))` or `cfg(not(...))` for these platform import cases.
+
+Example:
+
+```rust
+#[cfg(target_os = "windows")]
+use gtk4::Window;
+
+#[cfg(target_os = "linux")]
+use gtk4::{Window, Label};
+```
+
+You can also alias imports to use a common name across platforms:
+
+```rust
+#[cfg(target_os = "windows")]
+use gtk4::Window as GtkWindow;
+
+#[cfg(target_os = "linux")]
+use gtk4::{Window as GtkWindow, Label};
+```
+
+This keeps cross-platform code clean and compiler-friendly.
+
 Build commands:
 ```bash
 cargo build -p core     # Core library only

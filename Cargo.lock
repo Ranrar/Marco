@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "core"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "chrono",
  "clap",
@@ -2298,7 +2298,7 @@ dependencies = [
 
 [[package]]
 name = "marco"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "cairo-rs 0.21.5",
  "core",
@@ -3113,7 +3113,7 @@ checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "polo"
-version = "0.16.0"
+version = "0.17.1"
 dependencies = [
  "cairo-rs 0.21.5",
  "core",
@@ -3125,6 +3125,7 @@ dependencies = [
  "librsvg",
  "log",
  "raw-window-handle",
+ "rfd",
  "tao",
  "webkit6",
  "winres",

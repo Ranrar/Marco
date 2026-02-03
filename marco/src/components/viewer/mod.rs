@@ -1,4 +1,5 @@
 // For ApplicationWindow::application()
+#[cfg(target_os = "linux")]
 use gtk4::prelude::GtkWindowExt;
 // For refresh_preview_into_webview
 // Viewer Component Module
@@ -28,6 +29,7 @@ use gtk4::prelude::GtkWindowExt;
 // instead of WebKit6. The interface will remain similar but with platform-specific
 // implementations using `#[cfg(target_os = "linux")]` and `#[cfg(target_os = "windows")]`.
 
+pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
 pub mod layout_controller; // Split controller + webview location tracking
 #[cfg(target_os = "linux")]
 pub mod renderer; // Markdown rendering coordinator (Linux: WebKit6)
