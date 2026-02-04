@@ -540,7 +540,7 @@ install_icon_set "polo" "$POLO_ICON_64" "$POLO_ICON_662"
 print_success "Icons installed"
 
 print_info "Copying shared assets..."
-cp -r assets/fonts "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
+# cp -r assets/fonts "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
 cp -r assets/icons "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
 cp -r assets/themes "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
 cp -r assets/language "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
