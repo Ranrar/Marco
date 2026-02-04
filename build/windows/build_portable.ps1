@@ -57,7 +57,6 @@ STRUCTURE:
     |-- marco.exe
     |-- polo.exe
     |-- assets/              # All application assets
-    |   |-- fonts/
     |   |-- icons/
     |   |-- language/
     |   |-- themes/
@@ -197,7 +196,7 @@ if (Test-Path $settingsOrg) {
     Remove-Item $settingsOrg -Force
 }
 
-Write-Host "    + assets/ (fonts, icons, themes, languages)" -ForegroundColor Green
+Write-Host "    + assets/ (icons, themes, languages)" -ForegroundColor Green
 
 # Create empty config and data directories (portable mode uses these)
 Write-Host "  Creating user directories..." -ForegroundColor Gray
@@ -234,7 +233,7 @@ Features:
 - Runs from any location (including USB drives)
 - Settings stored in .\config\
 - User data stored in .\data\
-- Includes all themes, fonts, and language files
+- Includes all themes, icons, and language files
 
 System Requirements:
 - Windows 10 or later (x64)
@@ -273,7 +272,7 @@ if (Test-Path $versionFile) {
         "Package Contents:",
         "  - marco.exe (Markdown editor)",
         "  - polo.exe (Markdown viewer)",
-        "  - assets/ (fonts, icons, themes, languages)",
+        "  - assets/ (icons, themes, languages)",
         "  - config/ (user settings, created on first run)",
         "  - data/ (user data, created on first run)",
         "",
