@@ -2,8 +2,11 @@
 ///
 /// This script uses embed-resource to properly embed the marco.ico icon
 /// into the Windows executable. It handles MSVC, MinGW, and cross-compilation.
+#[cfg(target_os = "windows")]
 use std::env;
+#[cfg(target_os = "windows")]
 use std::path::PathBuf;
+#[cfg(target_os = "windows")]
 use std::process::Command;
 
 fn main() {
@@ -38,7 +41,8 @@ fn main() {
                     .status()
             };
 
-            let status = try_windres("windres").or_else(|_| try_windres("x86_64-w64-mingw32-windres"));
+            let status =
+                try_windres("windres").or_else(|_| try_windres("x86_64-w64-mingw32-windres"));
 
             match status {
                 Ok(s) if s.success() => {

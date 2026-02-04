@@ -2,8 +2,11 @@
 ///
 /// This script only runs on Windows builds and uses winres to embed
 /// the polo.ico icon into the compiled executable.
+#[cfg(target_os = "windows")]
 use std::env;
+#[cfg(target_os = "windows")]
 use std::path::PathBuf;
+#[cfg(target_os = "windows")]
 use std::process::Command;
 
 fn main() {
@@ -47,7 +50,8 @@ fn main() {
                     .status()
             };
 
-            let status = try_windres("windres").or_else(|_| try_windres("x86_64-w64-mingw32-windres"));
+            let status =
+                try_windres("windres").or_else(|_| try_windres("x86_64-w64-mingw32-windres"));
 
             match status {
                 Ok(s) if s.success() => {
