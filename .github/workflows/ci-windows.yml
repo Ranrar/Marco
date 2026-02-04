@@ -53,9 +53,22 @@ jobs:
       - name: Build workspace (Windows target)
         shell: powershell
         run: |
+          # Add MSYS2 to PATH for this step
+          $env:PATH = "C:\msys64\ucrt64\bin;C:\msys64\usr\bin;$env:PATH"
+          $env:PKG_CONFIG_PATH = "C:\msys64\ucrt64\lib\pkgconfig"
+          
+          # Verify pkg-config is accessible
+          Write-Host "Testing pkg-config..."
+          & pkg-config --version
+          
+          # Build the workspace
           cargo build --workspace --locked --target x86_64-pc-windows-msvc --target-dir target/windows
 
       - name: Tests (core)
         shell: powershell
         run: |
+          # Add MSYS2 to PATH for this step
+          $env:PATH = "C:\msys64\ucrt64\bin;C:\msys64\usr\bin;$env:PATH"
+          $env:PKG_CONFIG_PATH = "C:\msys64\ucrt64\lib\pkgconfig"
+          
           cargo test -p core --lib --locked
