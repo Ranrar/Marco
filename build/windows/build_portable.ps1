@@ -124,8 +124,15 @@ function Assert-Msys2Ucrt64 {
     }
 
     $pkgConfigExe = Join-Path $Root "ucrt64\\bin\\pkg-config.exe"
-    if (-not (Test-Path $pkgConfigExe)) {
-        Write-Host "ERROR: MSYS2 UCRT64 pkg-config not found at: $pkgConfigExe" -ForegroundColor Red
+    $pkgConfExe = Join-Path $Root "ucrt64\\bin\\pkgconf.exe"
+    $usrPkgConfigExe = Join-Path $Root "usr\\bin\\pkg-config.exe"
+
+    if (-not (Test-Path $pkgConfigExe) -and -not (Test-Path $pkgConfExe) -and -not (Test-Path $usrPkgConfigExe)) {
+        Write-Host "ERROR: MSYS2 pkg-config (or pkgconf) not found under: $Root" -ForegroundColor Red
+        Write-Host "Tried:" -ForegroundColor Yellow
+        Write-Host "  $pkgConfigExe" -ForegroundColor Yellow
+        Write-Host "  $pkgConfExe" -ForegroundColor Yellow
+        Write-Host "  $usrPkgConfigExe" -ForegroundColor Yellow
         Write-Host "Install the required MSYS2 packages (see above) and re-run." -ForegroundColor Yellow
         throw "pkg-config missing"
     }
@@ -148,6 +155,18 @@ function Set-Msys2Ucrt64Env {
     $env:PKG_CONFIG_ALLOW_CROSS = "1"
     $env:PKG_CONFIG_PATH = (Join-Path $Root "ucrt64\\lib\\pkgconfig")
     $env:PATH = "$(Join-Path $Root 'ucrt64\\bin');$(Join-Path $Root 'usr\\bin');$env:PATH"
+
+    # Prefer an explicit PKG_CONFIG to avoid relying on shim names.
+    # In MSYS2 UCRT64, the implementation is often `pkgconf.exe`.
+    $candidatePkgConfig = @(
+        (Join-Path $Root "ucrt64\\bin\\pkg-config.exe"),
+        (Join-Path $Root "ucrt64\\bin\\pkgconf.exe"),
+        (Join-Path $Root "usr\\bin\\pkg-config.exe")
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if ($candidatePkgConfig) {
+        $env:PKG_CONFIG = $candidatePkgConfig
+    }
 }
 
 # Build binaries (or skip if requested)
