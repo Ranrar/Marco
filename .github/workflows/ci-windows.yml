@@ -18,46 +18,18 @@ jobs:
         id: toolchain
         uses: dtolnay/rust-toolchain@1.90.0
 
-      - name: Setup MSYS2
+      - name: Setup MSYS2 with GTK4
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           update: true
-          release: false
-
-      - name: Configure MSYS2 mirrors for better reliability
-        shell: msys2 {0}
-        run: |
-          echo "Configuring multiple mirrors for fallback..."
-          cat > /etc/pacman.d/mirrorlist.mingw << 'EOF'
-          Server = https://mirror.msys2.org/mingw/$arch/
-          Server = https://repo.msys2.org/mingw/$arch/
-          Server = https://sourceforge.net/projects/msys2/files/REPOS/MINGW/$arch/
-          Server = https://www2.futureware.at/~nickoe/msys2-mirror/mingw/$arch/
-          EOF
-          cat > /etc/pacman.d/mirrorlist.msys << 'EOF'
-          Server = https://mirror.msys2.org/msys/$arch/
-          Server = https://repo.msys2.org/msys/$arch/
-          Server = https://sourceforge.net/projects/msys2/files/REPOS/MSYS/$arch/
-          Server = https://www2.futureware.at/~nickoe/msys2-mirror/msys/$arch/
-          EOF
-          echo "Mirrors configured successfully"
-
-      - name: Install GTK4 and dependencies (with retry)
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_on: error
-          shell: msys2 {0}
-          command: |
-            pacman -S --noconfirm --needed \
-              mingw-w64-ucrt-x86_64-gtk4 \
-              mingw-w64-ucrt-x86_64-gtksourceview5 \
-              mingw-w64-ucrt-x86_64-librsvg \
-              mingw-w64-ucrt-x86_64-cairo \
-              mingw-w64-ucrt-x86_64-gdk-pixbuf2 \
-              mingw-w64-ucrt-x86_64-pkg-config
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-gtksourceview5
+            mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-cairo
+            mingw-w64-ucrt-x86_64-gdk-pixbuf2
+            mingw-w64-ucrt-x86_64-pkg-config
           
       - name: Cache cargo
         uses: actions/cache@v4
