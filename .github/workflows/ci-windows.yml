@@ -46,6 +46,9 @@ jobs:
           # Set PKG_CONFIG_PATH for GTK libraries
           echo "PKG_CONFIG_PATH=C:\msys64\ucrt64\lib\pkgconfig" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           
+          # Allow pkg-config to work with GNU target (not true cross-compilation)
+          echo "PKG_CONFIG_ALLOW_CROSS=1" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -60,9 +63,10 @@ jobs:
         run: |
           # Add Windows Cargo to PATH (installed by rust-toolchain action)
           export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
-          
-          # Allow pkg-config to work with GNU target (not true cross-compilation)
-          export PKG_CONFIG_ALLOW_CROSS=1
+ 
+          # Ensure windres is available for Windows-GNU resource compilation
+          echo "Testing windres..."
+          windres --version || x86_64-w64-mingw32-windres --version || true
           
           # Verify environment
           echo "Testing pkg-config..."

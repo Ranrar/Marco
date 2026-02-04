@@ -26,8 +26,18 @@
     "rust-analyzer.check.command": "check",
     "rust-analyzer.cargo.allTargets": true,
 
-    "rust-analyzer.cargo.target": "x86_64-pc-windows-msvc",
-    "rust-analyzer.checkOnSave.targets": ["x86_64-pc-windows-msvc"]
+    "rust-analyzer.cargo.target": "x86_64-pc-windows-gnu",
+    "rust-analyzer.checkOnSave.targets": ["x86_64-pc-windows-gnu"],
+
+    "rust-analyzer.cargo.extraEnv": {
+      "PKG_CONFIG_ALLOW_CROSS": "1",
+      "PKG_CONFIG_PATH": "C:\\msys64\\ucrt64\\lib\\pkgconfig"
+    },
+    "terminal.integrated.env.windows": {
+      "PKG_CONFIG_ALLOW_CROSS": "1",
+      "PKG_CONFIG_PATH": "C:\\msys64\\ucrt64\\lib\\pkgconfig",
+      "PATH": "C:\\msys64\\ucrt64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+    }
   },
   "extensions": {
     "recommendations": [

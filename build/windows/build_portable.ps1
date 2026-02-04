@@ -4,6 +4,7 @@
 param(
     [switch]$Release = $true,
     [switch]$SkipBuild,
+    [string]$Msys2Root = "C:\\msys64",
     [Alias('h')]
     [switch]$Help
 )
@@ -107,6 +108,48 @@ Write-Host "  Build type: $buildType" -ForegroundColor Gray
 Write-Host "  Target dir: $targetDir" -ForegroundColor Gray
 Write-Host ""
 
+function Assert-Msys2Ucrt64 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    if (-not (Test-Path $Root)) {
+        Write-Host "ERROR: MSYS2 is not installed at: $Root" -ForegroundColor Red
+        Write-Host "Please install MSYS2 from: https://www.msys2.org/" -ForegroundColor Yellow
+        Write-Host "Then (in an MSYS2 UCRT64 shell) run:" -ForegroundColor Yellow
+        Write-Host "  pacman -Syu" -ForegroundColor Yellow
+        Write-Host "  pacman -S --needed mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-gtksourceview5 mingw-w64-ucrt-x86_64-librsvg mingw-w64-ucrt-x86_64-cairo mingw-w64-ucrt-x86_64-gdk-pixbuf2 mingw-w64-ucrt-x86_64-pkg-config mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-binutils" -ForegroundColor Yellow
+        throw "MSYS2 not found"
+    }
+
+    $pkgConfigExe = Join-Path $Root "ucrt64\\bin\\pkg-config.exe"
+    if (-not (Test-Path $pkgConfigExe)) {
+        Write-Host "ERROR: MSYS2 UCRT64 pkg-config not found at: $pkgConfigExe" -ForegroundColor Red
+        Write-Host "Install the required MSYS2 packages (see above) and re-run." -ForegroundColor Yellow
+        throw "pkg-config missing"
+    }
+}
+
+function Ensure-GnuTargetInstalled {
+    $installedTargets = & rustup target list --installed
+    if ($installedTargets -notcontains "x86_64-pc-windows-gnu") {
+        Write-Host "Installing Rust target x86_64-pc-windows-gnu..." -ForegroundColor Yellow
+        & rustup target add x86_64-pc-windows-gnu
+    }
+}
+
+function Set-Msys2Ucrt64Env {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $env:PKG_CONFIG_ALLOW_CROSS = "1"
+    $env:PKG_CONFIG_PATH = (Join-Path $Root "ucrt64\\lib\\pkgconfig")
+    $env:PATH = "$(Join-Path $Root 'ucrt64\\bin');$(Join-Path $Root 'usr\\bin');$env:PATH"
+}
+
 # Build binaries (or skip if requested)
 Write-Host "[1/4] Building binaries..." -ForegroundColor Cyan
 
@@ -125,9 +168,15 @@ if ($SkipBuild) {
     }
 } else {
     Write-Host "  Building Marco and Polo (release, workspace)..." -ForegroundColor Gray
-    
-    # Allow pkg-config to work with GNU target (not true cross-compilation)
-    $env:PKG_CONFIG_ALLOW_CROSS = "1"
+
+    # This portable build uses the GNU target to interop with MSYS2-provided GTK/GLib.
+    # Ensure MSYS2 is available and set up the UCRT64 environment so pkg-config works.
+    Assert-Msys2Ucrt64 -Root $Msys2Root
+    Ensure-GnuTargetInstalled
+    Set-Msys2Ucrt64Env -Root $Msys2Root
+
+    Write-Host "  Using MSYS2 root: $Msys2Root" -ForegroundColor Gray
+    Write-Host "  PKG_CONFIG_PATH: $env:PKG_CONFIG_PATH" -ForegroundColor Gray
     
     $buildArgs = @('build', '--workspace', '--target', 'x86_64-pc-windows-gnu', '--target-dir', 'target/windows')
     if ($Release) {
