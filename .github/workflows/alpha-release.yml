@@ -107,6 +107,8 @@ jobs:
             mingw-w64-ucrt-x86_64-cairo
             mingw-w64-ucrt-x86_64-gdk-pixbuf2
             mingw-w64-ucrt-x86_64-pkg-config
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-binutils
 
       - name: Setup build environment
         shell: powershell
