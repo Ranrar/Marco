@@ -17,6 +17,8 @@ jobs:
       - name: Install Rust toolchain (pinned)
         id: toolchain
         uses: dtolnay/rust-toolchain@1.90.0
+        with:
+          targets: x86_64-pc-windows-gnu
 
       - name: Setup MSYS2 with GTK4
         uses: msys2/setup-msys2@v2
@@ -64,7 +66,7 @@ jobs:
           cargo --version
           
           # Build the workspace
-          cargo build --workspace --locked --target x86_64-pc-windows-msvc --target-dir target/windows
+          cargo build --workspace --locked --target x86_64-pc-windows-gnu --target-dir target/windows
 
       - name: Tests (core)
         shell: msys2 {0}

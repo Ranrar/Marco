@@ -98,7 +98,7 @@ if (Test-Path $versionFile) {
 
 # Setup paths
 $buildType = if ($Release) { "release" } else { "debug" }
-$targetDir = Join-Path $projectRoot "target\windows\x86_64-pc-windows-msvc\$buildType"
+$targetDir = Join-Path $projectRoot "target\windows\x86_64-pc-windows-gnu\$buildType"
 $marcoExe = Join-Path $targetDir "marco.exe"
 $poloExe = Join-Path $targetDir "polo.exe"
 
@@ -126,7 +126,7 @@ if ($SkipBuild) {
 } else {
     Write-Host "  Building Marco and Polo (release, workspace)..." -ForegroundColor Gray
     
-    $buildArgs = @('build', '--workspace', '--target', 'x86_64-pc-windows-msvc', '--target-dir', 'target/windows')
+    $buildArgs = @('build', '--workspace', '--target', 'x86_64-pc-windows-gnu', '--target-dir', 'target/windows')
     if ($Release) {
         $buildArgs += '--release'
     }
