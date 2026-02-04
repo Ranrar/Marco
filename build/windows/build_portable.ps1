@@ -126,6 +126,9 @@ if ($SkipBuild) {
 } else {
     Write-Host "  Building Marco and Polo (release, workspace)..." -ForegroundColor Gray
     
+    # Allow pkg-config to work with GNU target (not true cross-compilation)
+    $env:PKG_CONFIG_ALLOW_CROSS = "1"
+    
     $buildArgs = @('build', '--workspace', '--target', 'x86_64-pc-windows-gnu', '--target-dir', 'target/windows')
     if ($Release) {
         $buildArgs += '--release'

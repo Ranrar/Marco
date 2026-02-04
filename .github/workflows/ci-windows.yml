@@ -61,10 +61,14 @@ jobs:
           # Add Windows Cargo to PATH (installed by rust-toolchain action)
           export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
           
+          # Allow pkg-config to work with GNU target (not true cross-compilation)
+          export PKG_CONFIG_ALLOW_CROSS=1
+          
           # Verify environment
           echo "Testing pkg-config..."
           pkg-config --version
           echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          echo "PKG_CONFIG_ALLOW_CROSS: $PKG_CONFIG_ALLOW_CROSS"
           echo "Testing cargo..."
           cargo --version
           
