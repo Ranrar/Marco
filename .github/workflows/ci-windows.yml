@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-windows:
-    name: Build (Windows MSVC)
+    name: Build (Windows)
     runs-on: windows-latest
 
     steps:
@@ -17,8 +17,9 @@ jobs:
       - name: Install Rust toolchain (pinned)
         id: toolchain
         uses: dtolnay/rust-toolchain@1.90.0
-        with:
-          targets: x86_64-pc-windows-gnu
+
+      - name: Install GNU target
+        run: rustup target add x86_64-pc-windows-gnu
 
       - name: Setup MSYS2 with GTK4
         uses: msys2/setup-msys2@v2
