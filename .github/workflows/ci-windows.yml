@@ -26,7 +26,6 @@ jobs:
           install: >-
             mingw-w64-ucrt-x86_64-gtk4
             mingw-w64-ucrt-x86_64-gtksourceview5
-            mingw-w64-ucrt-x86_64-webkitgtk6
             mingw-w64-ucrt-x86_64-librsvg
             mingw-w64-ucrt-x86_64-cairo
             mingw-w64-ucrt-x86_64-gdk-pixbuf2
