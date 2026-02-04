@@ -1,13 +1,13 @@
 //! File operations module for handling document lifecycle
 #![allow(clippy::await_holding_refcell_ref)]
 
-use anyhow::Result;
 use core::logic::{DocumentBuffer, RecentFiles};
 use gtk4::{gio, glib, prelude::*};
 use log::trace;
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
+use std::result::Result;
 use std::sync::Arc;
 
 // Type aliases to simplify complex callback signatures
@@ -16,7 +16,11 @@ type OpenDialogCallback = Arc<
             &'b gtk4::Window,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         > + Send
         + Sync
         + 'static,
@@ -28,7 +32,11 @@ type SaveChangesDialogCallback = Arc<
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         > + Send
         + Sync
         + 'static,
@@ -40,7 +48,11 @@ type SaveDialogCallback = Arc<
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         > + Send
         + Sync
         + 'static,
@@ -219,7 +231,7 @@ impl FileOperations {
         editor_buffer: &'a gtk4::TextBuffer,
         show_save_changes_dialog: F,
         show_save_dialog: G,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         P: AsRef<Path>,
         W: IsA<gtk4::Window>,
@@ -228,14 +240,22 @@ impl FileOperations {
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         let path = path.as_ref();
@@ -277,9 +297,7 @@ impl FileOperations {
                             self.add_recent_file(&save_path);
                         } else {
                             // User cancelled Save As dialog, cancel the entire open operation
-                            return Err(anyhow::anyhow!(
-                                "Save As cancelled, open operation aborted"
-                            ));
+                            return Err("Save As cancelled, open operation aborted".into());
                         }
                     }
                 }
@@ -287,7 +305,7 @@ impl FileOperations {
                     // Continue with open operation
                 }
                 SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("Open file cancelled by user"));
+                    return Err("Open file cancelled by user".into());
                 }
             }
         }
@@ -314,7 +332,7 @@ impl FileOperations {
         &self,
         _parent_window: &W,
         editor_buffer: &gtk4::TextBuffer,
-    ) -> Result<()> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let buffer = self.buffer.borrow();
         if buffer.get_file_path().is_some() {
             drop(buffer); // Release borrow before calling save_content
@@ -329,9 +347,10 @@ impl FileOperations {
             Ok(())
         } else {
             // For untitled documents, we need to use the async save action with dialogs
-            Err(anyhow::anyhow!(
+            Err(
                 "Cannot save untitled document synchronously - use async save action instead"
-            ))
+                    .into(),
+            )
         }
     }
 
@@ -374,27 +393,39 @@ impl FileOperations {
         show_open_dialog: F,
         show_save_changes_dialog: G,
         show_save_dialog: H,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         H: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         // Check for unsaved changes and prompt user
@@ -427,9 +458,7 @@ impl FileOperations {
                             self.add_recent_file(&path);
                         } else {
                             // User cancelled Save As dialog, cancel the entire open operation
-                            return Err(anyhow::anyhow!(
-                                "Save As cancelled, open operation aborted"
-                            ));
+                            return Err("Save As cancelled, open operation aborted".into());
                         }
                     }
                 }
@@ -437,12 +466,13 @@ impl FileOperations {
                     // Continue with open operation
                 }
                 SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("Open file cancelled by user"));
+                    return Err("Open file cancelled by user".into());
                 }
             }
         }
 
-        let file_path = show_open_dialog(parent_window, "Open Markdown File").await?;
+        let file_path: Option<std::path::PathBuf> =
+            show_open_dialog(parent_window, "Open Markdown File").await?;
         if let Some(path) = file_path {
             self.load_file_into_editor(&path, editor_buffer)?;
             self.add_recent_file(&path);
@@ -459,21 +489,29 @@ impl FileOperations {
         editor_buffer: &'a gtk4::TextBuffer,
         show_save_changes_dialog: F,
         show_save_dialog: G,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         // Check for unsaved changes and prompt user
@@ -511,9 +549,7 @@ impl FileOperations {
                             self.add_recent_file(&path);
                         } else {
                             // User cancelled Save As dialog, cancel the new document operation
-                            return Err(anyhow::anyhow!(
-                                "Save As cancelled, new document operation aborted"
-                            ));
+                            return Err("Save As cancelled, new document operation aborted".into());
                         }
                     }
                 }
@@ -521,7 +557,7 @@ impl FileOperations {
                     // Continue with new document
                 }
                 SaveChangesResult::Cancel => {
-                    return Err(anyhow::anyhow!("New document cancelled by user"));
+                    return Err("New document cancelled by user".into());
                 }
             }
         }
@@ -540,14 +576,18 @@ impl FileOperations {
         parent_window: &'a gtk4::Window,
         editor_buffer: &'a gtk4::TextBuffer,
         show_save_dialog: F,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         let suggested_name = if self.get_document_title().contains("Untitled") {
@@ -555,7 +595,7 @@ impl FileOperations {
         } else {
             format!("{}.md", self.get_document_title().replace("*", "").trim())
         };
-        let file_path =
+        let file_path: Option<std::path::PathBuf> =
             show_save_dialog(parent_window, "Save Markdown File", Some(&suggested_name)).await?;
         if let Some(path) = file_path {
             let start_iter = editor_buffer.start_iter();
@@ -578,21 +618,29 @@ impl FileOperations {
         app: &'a gtk4::Application,
         show_save_changes_dialog: F,
         show_save_dialog: G,
-    ) -> Result<()>
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             &'b str,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
         G: for<'b> Fn(
             &'b gtk4::Window,
             &'b str,
             Option<&'b str>,
         ) -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'b>,
+            Box<
+                dyn std::future::Future<
+                        Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                    > + 'b,
+            >,
         >,
     {
         let is_modified = self.buffer.borrow().has_unsaved_changes();
@@ -648,7 +696,7 @@ impl FileOperations {
         &self,
         path: P,
         editor_buffer: &gtk4::TextBuffer,
-    ) -> Result<()> {
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let path = path.as_ref();
 
         // Create new buffer from file
@@ -702,14 +750,22 @@ impl FileOperations {
                 &'a str,
                 &'a str,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<SaveChangesResult>> + 'a>,
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
+                        > + 'a,
+                >,
             > + 'static,
         G: for<'a> Fn(
                 &'a gtk4::Window,
                 &'a str,
                 Option<&'a str>,
             ) -> std::pin::Pin<
-                Box<dyn std::future::Future<Output = Result<Option<std::path::PathBuf>>> + 'a>,
+                Box<
+                    dyn std::future::Future<
+                            Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
+                        > + 'a,
+                >,
             > + 'static,
     {
         glib::MainContext::default().spawn_local(async move {

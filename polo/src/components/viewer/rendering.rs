@@ -47,11 +47,11 @@
 
 use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
+use crate::components::viewer::platform_webview::PlatformWebView;
 use core::logic::swanson::SettingsManager;
 use core::{parse_to_html_cached, RenderOptions};
 use std::path::Path;
 use std::sync::Arc;
-use webkit6::prelude::WebViewExt;
 
 /// Light theme scrollbar colors (from assets/themes/editor/light.xml)
 const LIGHT_SCROLLBAR_THUMB: &str = "#D0D4D8";
@@ -94,7 +94,7 @@ fn html_escape(s: &str) -> String {
 
 /// Load a markdown file and render it to HTML in the WebView
 pub fn load_and_render_markdown(
-    webview: &webkit6::WebView,
+    webview: &PlatformWebView,
     file_path: &str,
     theme: &str,
     settings_manager: &Arc<SettingsManager>,
@@ -133,12 +133,7 @@ pub fn load_and_render_markdown(
 
             // Load HTML into WebView with base URI
             // Use idle_add_local to avoid GTK allocation warnings
-            let webview_clone = webview.clone();
-            let html_clone = html.clone();
-            let base_uri_clone = base_uri.clone();
-            gtk4::glib::idle_add_local_once(move || {
-                webview_clone.load_html(&html_clone, Some(&base_uri_clone));
-            });
+            webview.load_html_with_base(&html, Some(&base_uri));
         }
         Err(e) => {
             // Show error in WebView with properly escaped content to prevent XSS
@@ -183,10 +178,7 @@ pub fn load_and_render_markdown(
                 html_escape(file_path),
                 html_escape(&e.to_string())
             );
-            let webview_clone = webview.clone();
-            gtk4::glib::idle_add_local_once(move || {
-                webview_clone.load_html(&error_html, None);
-            });
+            webview.load_html_with_base(&error_html, None);
         }
     }
 }

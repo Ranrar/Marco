@@ -1,6 +1,6 @@
 [package]
 name = "core"
-version = "0.14.0"
+version = "0.17.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Core"
@@ -23,17 +23,18 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Utilities
-anyhow = { workspace = true }
 log = { workspace = true }
 chrono = { workspace = true }
 tempfile = { workspace = true }
-fontconfig = { workspace = true }
 dirs = { workspace = true }
 moka = { workspace = true }
 unicode-normalization  = { workspace = true }
 htmlescape = { workspace = true }
 syntect = { workspace = true }
 emojis = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fontconfig = { workspace = true }
 
 [build-dependencies]
 serde_json = { workspace = true }

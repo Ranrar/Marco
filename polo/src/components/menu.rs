@@ -26,13 +26,9 @@
 //! - Updates GTK global theme preference
 //! - Reloads WebView content with new theme
 //!
-//! ## Icon Font
+//! ## Icons
 //!
-//! Window control buttons use IcoMoon icon font:
-//! - `\u{34}` - Minimize
-//! - `\u{36}` - Maximize
-//! - `\u{35}` - Restore
-//! - `\u{39}` - Close
+//! Window control buttons use inline SVG icons rendered at high DPI.
 //!
 //! ## Functions
 //!
@@ -42,14 +38,17 @@
 
 use crate::components::dialog::{show_open_file_dialog, show_open_in_editor_dialog};
 use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
+use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
+use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use core::logic::swanson::SettingsManager;
 use gtk4::{
-    prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar, Image, Label,
-    PropertyExpression, StringList, StringObject, WindowHandle,
+    gdk, gio, prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar, Image,
+    Label, Picture, PropertyExpression, StringList, StringObject, WindowHandle,
 };
+use rsvg::{CairoRenderer, Loader};
+use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
-use webkit6::WebView;
 
 /// Create custom titlebar with icon, filename, theme dropdown, and "Open in Editor" button
 ///
@@ -62,7 +61,7 @@ pub fn create_custom_titlebar(
     filename: &str,
     initial_theme: &str,
     settings_manager: Arc<SettingsManager>,
-    webview: WebView,
+    webview: PlatformWebView,
     current_file_path: Arc<RwLock<Option<String>>>,
     asset_root: &std::path::Path,
 ) -> (WindowHandle, Button, Label) {
@@ -186,25 +185,38 @@ pub fn create_custom_titlebar(
     dark_mode_btn.set_has_frame(true);
     dark_mode_btn.add_css_class("polo-mode-toggle-btn");
 
-    // Determine current mode from settings
+    // Determine current mode from settings (check for "dark" in editor_mode)
     let current_mode = {
         let settings = settings_manager.get_settings();
-        settings
+        let editor_mode = settings
             .appearance
             .as_ref()
             .and_then(|a| a.editor_mode.as_ref())
-            .map(|m| m.to_string())
-            .unwrap_or_else(|| "light".to_string())
+            .map(|m| m.as_str())
+            .unwrap_or("marco-light");
+        // Extract simple dark/light from marco-dark/marco-light or just dark/light
+        if editor_mode.contains("dark") {
+            "dark"
+        } else {
+            "light"
+        }
     };
 
-    // Set initial icon (☀️ for light mode, 🌙 for dark mode)
-    let mode_label = Label::new(Some(if current_mode == "dark" {
-        "☀️"
+    // Determine icon color based on current theme
+    let mode_icon_color = if current_mode == "dark" {
+        "#f0f5f1" // Light color for dark mode
     } else {
-        "🌙"
-    }));
-    mode_label.set_valign(Align::Center);
-    dark_mode_btn.set_child(Some(&mode_label));
+        "#2c3e50" // Dark color for light mode
+    };
+
+    // Create SVG icon for mode toggle (sun for dark mode, moon for light mode)
+    let mode_icon = if current_mode == "dark" {
+        WindowIcon::Sun
+    } else {
+        WindowIcon::Moon
+    };
+    let mode_pic = create_mode_icon_picture(mode_icon, mode_icon_color, 8.0);
+    dark_mode_btn.set_child(Some(&mode_pic));
     dark_mode_btn.set_tooltip_text(Some(if current_mode == "dark" {
         "Switch to Light Mode"
     } else {
@@ -215,7 +227,6 @@ pub fn create_custom_titlebar(
     let settings_manager_for_mode = settings_manager.clone();
     let webview_for_mode = webview.clone();
     let current_file_path_for_mode = current_file_path.clone();
-    let mode_label_clone = mode_label.clone();
     let dark_mode_btn_clone = dark_mode_btn.clone();
     let window_for_theme = window.clone();
     let asset_root_for_mode = asset_root.to_path_buf();
@@ -228,11 +239,12 @@ pub fn create_custom_titlebar(
                 .as_ref()
                 .and_then(|a| a.editor_mode.as_ref())
                 .map(|m| m.as_str())
-                .unwrap_or("light");
-            if current == "dark" {
-                "light".to_string()
+                .unwrap_or("marco-light");
+            // Use marco-dark/marco-light format to match Marco's settings format
+            if current.contains("dark") {
+                "marco-light".to_string()
             } else {
-                "dark".to_string()
+                "marco-dark".to_string()
             }
         };
 
@@ -250,9 +262,21 @@ pub fn create_custom_titlebar(
             }
         });
 
-        // Update button icon and tooltip
-        mode_label_clone.set_text(if new_mode == "dark" { "☀️" } else { "🌙" });
-        dark_mode_btn_clone.set_tooltip_text(Some(if new_mode == "dark" {
+        // Update button icon and tooltip (check for "dark" in mode string)
+        let is_dark_mode = new_mode.contains("dark");
+        let new_icon_color = if is_dark_mode {
+            "#f0f5f1" // Light color for dark mode
+        } else {
+            "#2c3e50" // Dark color for light mode
+        };
+        let new_icon = if is_dark_mode {
+            WindowIcon::Sun
+        } else {
+            WindowIcon::Moon
+        };
+        let new_mode_pic = create_mode_icon_picture(new_icon, new_icon_color, 8.0);
+        dark_mode_btn_clone.set_child(Some(&new_mode_pic));
+        dark_mode_btn_clone.set_tooltip_text(Some(if is_dark_mode {
             "Switch to Light Mode"
         } else {
             "Switch to Dark Mode"
@@ -262,12 +286,18 @@ pub fn create_custom_titlebar(
         apply_gtk_theme_preference(&settings_manager_for_mode);
 
         // Toggle CSS class on window for theme-specific styling
-        let old_class = if new_mode == "dark" {
+        // Extract simple theme name (dark/light) for CSS class
+        let theme_name = if new_mode.contains("dark") {
+            "dark"
+        } else {
+            "light"
+        };
+        let old_class = if theme_name == "dark" {
             "marco-theme-light"
         } else {
             "marco-theme-dark"
         };
-        let new_class = format!("marco-theme-{}", new_mode);
+        let new_class = format!("marco-theme-{}", theme_name);
         window_for_theme.remove_css_class(old_class);
         window_for_theme.add_css_class(&new_class);
         log::debug!("Switched CSS class from {} to {}", old_class, new_class);
@@ -318,20 +348,133 @@ pub fn create_custom_titlebar(
     (handle, open_editor_btn, title_label)
 }
 
+/// Helper function to create a Picture widget with an SVG icon for mode toggle
+fn create_mode_icon_picture(icon: WindowIcon, color: &str, size: f64) -> Picture {
+    let svg = window_icon_svg(icon).replace("currentColor", color);
+    let bytes = glib::Bytes::from_owned(svg.into_bytes());
+    let stream = gio::MemoryInputStream::from_bytes(&bytes);
+
+    let handle = Loader::new()
+        .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
+        .expect("load SVG handle");
+
+    // Get scale factor for HiDPI displays
+    let display_scale = gdk::Display::default()
+        .and_then(|d| d.monitors().item(0))
+        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+        .map(|m| m.scale_factor() as f64)
+        .unwrap_or(1.0);
+
+    // Render at 2x the display scale for extra sharpness
+    let render_scale = display_scale * 2.0;
+    let render_size = (size * render_scale) as i32;
+
+    let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+        .expect("create surface");
+    {
+        let cr = cairo::Context::new(&surface).expect("create context");
+        cr.scale(render_scale, render_scale);
+
+        let renderer = CairoRenderer::new(&handle);
+        let viewport = cairo::Rectangle::new(0.0, 0.0, size, size);
+        renderer
+            .render_document(&cr, &viewport)
+            .expect("render SVG");
+    }
+
+    let data = surface.data().expect("get surface data").to_vec();
+    let bytes = glib::Bytes::from_owned(data);
+    let texture = gdk::MemoryTexture::new(
+        render_size,
+        render_size,
+        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+        &bytes,
+        (render_size * 4) as usize,
+    );
+
+    let pic = Picture::new();
+    pic.set_paintable(Some(&texture));
+    pic.set_size_request(size as i32, size as i32);
+    pic.set_can_shrink(false);
+    pic.set_halign(Align::Center);
+    pic.set_valign(Align::Center);
+    pic
+}
+
 /// Create window control buttons (minimize, maximize/restore, close)
 fn create_window_controls(
     window: &ApplicationWindow,
     _settings_manager: &Arc<SettingsManager>,
 ) -> (Button, Button, Button) {
-    // Helper to create a button with icon font (matching Marco's pattern)
-    fn icon_button(label_text: &str, tooltip: &str) -> Button {
-        let markup = format!("<span font_family='icomoon'>{}</span>", label_text);
-        let label = Label::new(None);
-        label.set_markup(&markup);
-        label.set_valign(Align::Center);
-        label.add_css_class("icon-font");
+    // Single control point for icon size - change this value to resize all window control icons
+    const ICON_SIZE: f64 = 8.0;
+
+    // Shared SVG icon rendering function - renders at 2x resolution for crisp display
+    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = window_icon_svg(icon).replace("currentColor", color);
+        let bytes = glib::Bytes::from_owned(svg.into_bytes());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
+
+        // Use librsvg for native SVG rendering
+        let handle = Loader::new()
+            .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
+            .expect("load SVG handle");
+
+        // Get scale factor for HiDPI displays
+        let display_scale = gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+
+        // Render at 2x the display scale for extra sharpness (prevents pixelation)
+        let render_scale = display_scale * 2.0;
+        let render_size = (icon_size * render_scale) as i32;
+
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
+        } // Drop cr before accessing surface data
+
+        // Convert cairo surface to GDK texture
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    }
+
+    // Helper to create a button with SVG icon and hover/active color changes
+    fn svg_icon_button(
+        window: &ApplicationWindow,
+        icon: WindowIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
+        let pic = Picture::new();
+        let texture = render_svg_icon(icon, color, icon_size);
+        pic.set_paintable(Some(&texture));
+        pic.set_size_request(icon_size as i32, icon_size as i32);
+        pic.set_can_shrink(false);
+        pic.set_halign(Align::Center);
+        pic.set_valign(Align::Center);
+
         let btn = Button::new();
-        btn.set_child(Some(&label));
+        btn.set_child(Some(&pic));
         btn.set_tooltip_text(Some(tooltip));
         btn.set_valign(Align::Center);
         btn.set_margin_start(1);
@@ -339,50 +482,197 @@ fn create_window_controls(
         btn.set_focusable(false);
         btn.set_can_focus(false);
         btn.set_has_frame(false);
+        // Auto-calculate button size: icon + padding for comfortable click target
+        btn.set_width_request((icon_size + 6.0) as i32);
+        btn.set_height_request((icon_size + 6.0) as i32);
         btn.add_css_class("topright-btn");
         btn.add_css_class("window-control-btn");
+
+        // Add hover state handling - regenerate icon with hover color
+        {
+            use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+            let pic_hover = pic.clone();
+            let normal_color = color.to_string();
+            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
+
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let icon_for_enter = icon;
+            let hover_color_enter = hover_color.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let texture = render_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
+                pic_hover.set_paintable(Some(&texture));
+            });
+
+            let pic_leave = pic.clone();
+            let icon_for_leave = icon;
+            let normal_color_leave = normal_color.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let texture = render_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn.add_controller(motion_controller);
+
+            // Add click state handling
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = pic.clone();
+            let icon_for_pressed = icon;
+            let active_color_pressed = active_color.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+
+            let pic_released = pic.clone();
+            let icon_for_released = icon;
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_released, &hover_color, icon_size);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn.add_controller(gesture);
+        }
+
         btn
     }
 
-    // IcoMoon Unicode glyphs for window controls
-    // These unicode characters reference glyphs in the IcoMoon icon font (ui_menu.ttf)
-    // loaded from assets/fonts/. The font must be loaded via core::logic::loaders::icon_loader
-    // before GTK initialization for these characters to display correctly.
-    //
-    // | Unicode | Icon Name             | Description   |
-    // |---------|-----------------------|--------------|
-    // | \u{34}  | marco-minimize        | Minimize      |
-    // | \u{36}  | marco-fullscreen      | Maximize      |
-    // | \u{35}  | marco-fullscreen_exit | Exit maximize |
-    // | \u{39}  | marco-close           | Close         |
-
-    let btn_min = icon_button("\u{34}", "Minimize");
-    let btn_close = icon_button("\u{39}", "Close");
-
-    // Create a single toggle button for maximize/restore and keep its label so we can update it
-    let max_label = Label::new(None);
-    let initial_glyph = if window.is_maximized() {
-        "\u{35}"
-    } else {
-        "\u{36}"
+    // Use palette colors for window control icons (not hardcoded)
+    let icon_color: Cow<'static, str> = {
+        use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+        if window.style_context().has_class("marco-theme-dark") {
+            Cow::from(DARK_PALETTE.control_icon)
+        } else {
+            Cow::from(LIGHT_PALETTE.control_icon)
+        }
     };
-    max_label.set_markup(&format!(
-        "<span font_family='icomoon'>{}</span>",
-        initial_glyph
-    ));
-    max_label.set_valign(Align::Center);
-    max_label.add_css_class("icon-font");
+
+    let btn_min = svg_icon_button(
+        window,
+        WindowIcon::Minimize,
+        "Minimize",
+        &icon_color,
+        ICON_SIZE,
+    );
+    let btn_close = svg_icon_button(window, WindowIcon::Close, "Close", &icon_color, ICON_SIZE);
+
+    // Create maximize/restore toggle button with its own picture for dynamic icon switching
+    let max_pic = Picture::new();
+    max_pic.set_size_request(ICON_SIZE as i32, ICON_SIZE as i32);
+    max_pic.set_can_shrink(false);
+    max_pic.set_halign(Align::Center);
+    max_pic.set_valign(Align::Center);
+
+    // Helper closure to update maximize button icon based on window state
+    let update_max_icon = {
+        let color = icon_color.clone();
+        move |is_maximized: bool, pic: &Picture| {
+            let icon = if is_maximized {
+                WindowIcon::Restore
+            } else {
+                WindowIcon::Maximize
+            };
+            let texture = render_svg_icon(icon, &color, ICON_SIZE);
+            pic.set_paintable(Some(&texture));
+        }
+    };
+
+    update_max_icon(window.is_maximized(), &max_pic);
+
     let btn_max_toggle = Button::new();
-    btn_max_toggle.set_child(Some(&max_label));
+    btn_max_toggle.set_child(Some(&max_pic));
     btn_max_toggle.set_tooltip_text(Some("Maximize / Restore"));
     btn_max_toggle.set_valign(Align::Center);
     btn_max_toggle.set_margin_start(1);
     btn_max_toggle.set_margin_end(1);
     btn_max_toggle.set_focusable(false);
+    // Auto-calculate button size: icon + padding for comfortable click target
+    btn_max_toggle.set_width_request((ICON_SIZE + 6.0) as i32);
+    btn_max_toggle.set_height_request((ICON_SIZE + 6.0) as i32);
     btn_max_toggle.set_can_focus(false);
     btn_max_toggle.set_has_frame(false);
     btn_max_toggle.add_css_class("topright-btn");
     btn_max_toggle.add_css_class("window-control-btn");
+
+    // Add hover/active color changes for maximize button
+    {
+        use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+        let is_dark = window.style_context().has_class("marco-theme-dark");
+        let hover_color = if is_dark {
+            DARK_PALETTE.control_icon_hover.to_string()
+        } else {
+            LIGHT_PALETTE.control_icon_hover.to_string()
+        };
+        let active_color = if is_dark {
+            DARK_PALETTE.control_icon_active.to_string()
+        } else {
+            LIGHT_PALETTE.control_icon_active.to_string()
+        };
+        let normal_color = icon_color.to_string();
+
+        let motion_controller = gtk4::EventControllerMotion::new();
+        let pic_hover = max_pic.clone();
+        let hover_color_enter = hover_color.clone();
+        let window_hover_enter = window.clone();
+        motion_controller.connect_enter(move |_ctrl, _x, _y| {
+            let icon = if window_hover_enter.is_maximized() {
+                WindowIcon::Restore
+            } else {
+                WindowIcon::Maximize
+            };
+            let texture = render_svg_icon(icon, &hover_color_enter, ICON_SIZE);
+            pic_hover.set_paintable(Some(&texture));
+        });
+
+        let pic_leave = max_pic.clone();
+        let normal_color_leave = normal_color.clone();
+        let window_hover_leave = window.clone();
+        motion_controller.connect_leave(move |_ctrl| {
+            let icon = if window_hover_leave.is_maximized() {
+                WindowIcon::Restore
+            } else {
+                WindowIcon::Maximize
+            };
+            let texture = render_svg_icon(icon, &normal_color_leave, ICON_SIZE);
+            pic_leave.set_paintable(Some(&texture));
+        });
+        btn_max_toggle.add_controller(motion_controller);
+
+        let gesture = gtk4::GestureClick::new();
+        let pic_pressed = max_pic.clone();
+        let active_color_pressed = active_color.clone();
+        let window_pressed = window.clone();
+        gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+            let icon = if window_pressed.is_maximized() {
+                WindowIcon::Restore
+            } else {
+                WindowIcon::Maximize
+            };
+            let texture = render_svg_icon(icon, &active_color_pressed, ICON_SIZE);
+            pic_pressed.set_paintable(Some(&texture));
+        });
+
+        let pic_released = max_pic.clone();
+        let hover_color_released = hover_color.clone();
+        let window_released = window.clone();
+        gesture.connect_released(move |_gesture, _n, _x, _y| {
+            let icon = if window_released.is_maximized() {
+                WindowIcon::Restore
+            } else {
+                WindowIcon::Maximize
+            };
+            let texture = render_svg_icon(icon, &hover_color_released, ICON_SIZE);
+            pic_released.set_paintable(Some(&texture));
+        });
+        btn_max_toggle.add_controller(gesture);
+    }
 
     // Wire up window controls
     let window_for_min = window.clone();
@@ -391,30 +681,24 @@ fn create_window_controls(
     });
 
     // Click toggles window state and updates glyph immediately
-    let label_for_toggle = max_label.clone();
+    let pic_for_toggle = max_pic.clone();
     let window_for_toggle = window.clone();
+    let update_for_toggle = update_max_icon.clone();
     btn_max_toggle.connect_clicked(move |_| {
         if window_for_toggle.is_maximized() {
             window_for_toggle.unmaximize();
-            label_for_toggle
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
+            update_for_toggle(false, &pic_for_toggle);
         } else {
             window_for_toggle.maximize();
-            label_for_toggle
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
+            update_for_toggle(true, &pic_for_toggle);
         }
     });
 
-    // Keep glyph in sync if window is maximized/unmaximized externally
-    let label_for_notify = max_label.clone();
+    // Keep icon in sync if window is maximized/unmaximized externally
+    let pic_for_notify = max_pic.clone();
+    let update_for_notify = update_max_icon.clone();
     window.connect_notify_local(Some("is-maximized"), move |w, _| {
-        if w.is_maximized() {
-            label_for_notify
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{35}"));
-        } else {
-            label_for_notify
-                .set_markup(&format!("<span font_family='icomoon'>{}</span>", "\u{36}"));
-        }
+        update_for_notify(w.is_maximized(), &pic_for_notify);
     });
 
     let window_for_close = window.clone();
@@ -429,7 +713,7 @@ fn create_window_controls(
 fn create_theme_dropdown(
     initial_theme: &str,
     settings_manager: Arc<SettingsManager>,
-    webview: WebView,
+    webview: PlatformWebView,
     current_file_path: Arc<RwLock<Option<String>>>,
     asset_root: &std::path::Path,
 ) -> DropDown {

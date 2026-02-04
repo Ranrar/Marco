@@ -46,39 +46,41 @@ pub fn generate_window_control_css() -> String {
     css.push_str(
         r#"
 /* Window control button base */
-.window-control-btn { background: transparent; border: none; padding: 2px 6px; border-radius: 6px; }
-.window-control-btn .icon-font,
-.topright-btn .icon-font {
-    transition: color 0.15s ease;
+.window-control-btn {
+    background: transparent;
+    border: none;
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: background 0.15s ease;
 }
 "#,
     );
 
-    // Light theme (use foreground for normal, hover_accent for hover, active_text for active)
-    css.push_str(&format!(
+    // Light theme - background on hover/active (icon colors handled by event handlers in menu.rs)
+    css.push_str(
         r#"
 /* Window controls - Light Mode */
-.marco-theme-light .window-control-btn .icon-font {{ color: {color}; }}
-.marco-theme-light .window-control-btn:hover .icon-font {{ color: {color_hover}; }}
-.marco-theme-light .window-control-btn:active .icon-font {{ color: {color_active}; }}
+.marco-theme-light .window-control-btn:hover {
+    background: rgba(37, 99, 235, 0.08);
+}
+.marco-theme-light .window-control-btn:active {
+    background: rgba(30, 64, 175, 0.12);
+}
 "#,
-        color = LIGHT_PALETTE.foreground,
-        color_hover = LIGHT_PALETTE.hover_accent,
-        color_active = LIGHT_PALETTE.active_text,
-    ));
+    );
 
-    // Dark theme (use foreground for normal, hover_accent for hover, active_text for active)
-    css.push_str(&format!(
+    // Dark theme - background on hover/active (icon colors handled by event handlers in menu.rs)
+    css.push_str(
         r#"
 /* Window controls - Dark Mode */
-.marco-theme-dark .window-control-btn .icon-font {{ color: {color}; }}
-.marco-theme-dark .window-control-btn:hover .icon-font {{ color: {color_hover}; }}
-.marco-theme-dark .window-control-btn:active .icon-font {{ color: {color_active}; }}
+.marco-theme-dark .window-control-btn:hover {
+    background: rgba(37, 99, 235, 0.12);
+}
+.marco-theme-dark .window-control-btn:active {
+    background: rgba(30, 64, 175, 0.16);
+}
 "#,
-        color = DARK_PALETTE.foreground,
-        color_hover = DARK_PALETTE.hover_accent,
-        color_active = DARK_PALETTE.active_text,
-    ));
+    );
 
     css
 }
@@ -160,21 +162,22 @@ pub fn generate_mode_toggle_button_css() -> String {
         opacity: 0.5;
     }}
     
-    /* Make emoji dark for light mode */
-    .marco-theme-light .polo-mode-toggle-btn label {{
-        filter: grayscale(100%) brightness(0.3);
+    /* SVG icon filters for light mode */
+    .marco-theme-light .polo-mode-toggle-btn picture {{
+        transition: filter 0.15s ease;
     }}
     
-    .marco-theme-light .polo-mode-toggle-btn:hover label {{
-        filter: grayscale(100%) brightness(0.2);
+    .marco-theme-light .polo-mode-toggle-btn:hover picture {{
+        filter: brightness(0.6) sepia(1) saturate(5) hue-rotate(180deg);
     }}
     
-    .marco-theme-light .polo-mode-toggle-btn:active label {{
-        filter: grayscale(100%) brightness(0);
+    .marco-theme-light .polo-mode-toggle-btn:active picture {{
+        filter: brightness(0.4) sepia(1) saturate(5) hue-rotate(200deg);
     }}
     
-    .marco-theme-light .polo-mode-toggle-btn:disabled label {{
+    .marco-theme-light .polo-mode-toggle-btn:disabled picture {{
         filter: grayscale(100%) brightness(0.5);
+        opacity: 0.5;
     }}
 "#,
         min_width = BUTTON_MIN_WIDTH,
@@ -228,21 +231,22 @@ pub fn generate_mode_toggle_button_css() -> String {
         opacity: 0.5;
     }}
     
-    /* Make emoji bright for dark mode */
-    .marco-theme-dark .polo-mode-toggle-btn label {{
-        filter: grayscale(100%) brightness(2);
+    /* SVG icon filters for dark mode */
+    .marco-theme-dark .polo-mode-toggle-btn picture {{
+        transition: filter 0.15s ease;
     }}
     
-    .marco-theme-dark .polo-mode-toggle-btn:hover label {{
-        filter: grayscale(100%) brightness(2.5);
+    .marco-theme-dark .polo-mode-toggle-btn:hover picture {{
+        filter: brightness(1.3);
     }}
     
-    .marco-theme-dark .polo-mode-toggle-btn:active label {{
-        filter: grayscale(100%) brightness(3);
+    .marco-theme-dark .polo-mode-toggle-btn:active picture {{
+        filter: brightness(0.8);
     }}
     
-    .marco-theme-dark .polo-mode-toggle-btn:disabled label {{
-        filter: grayscale(100%) brightness(1.5);
+    .marco-theme-dark .polo-mode-toggle-btn:disabled picture {{
+        filter: grayscale(100%) brightness(0.5);
+        opacity: 0.5;
     }}
 "#,
         min_width = BUTTON_MIN_WIDTH,
@@ -364,15 +368,9 @@ mod tests {
         assert!(css.contains(".marco-theme-light .window-control-btn"));
         assert!(css.contains(".marco-theme-dark .window-control-btn"));
 
-        // Verify icon font color styling for light mode
-        assert!(css.contains(".marco-theme-light .window-control-btn .icon-font { color: #2c3e50"));
-
-        // Verify icon font color styling for dark mode
-        assert!(css.contains(".marco-theme-dark .window-control-btn .icon-font { color: #f0f5f1"));
-
-        // Verify hover and active states
-        assert!(css.contains(":hover .icon-font"));
-        assert!(css.contains(":active .icon-font"));
+        // Verify hover and active states exist for window control buttons
+        assert!(css.contains(".marco-theme-light .window-control-btn:hover"));
+        assert!(css.contains(".marco-theme-dark .window-control-btn:active"));
     }
 
     #[test]
@@ -395,12 +393,12 @@ mod tests {
 
         // Verify emoji filter rules present
         assert!(css.contains("filter: grayscale(100%)"));
-        assert!(css.contains("brightness(0.3)")); // Light mode darken
-        assert!(css.contains("brightness(2)")); // Dark mode brighten
+        assert!(css.contains("brightness(0.6)")); // Light mode darken (hover)
+        assert!(css.contains("brightness(1.3)")); // Dark mode brighten (hover)
 
         // Verify hover and active filters
-        assert!(css.contains(":hover label"));
-        assert!(css.contains(":active label"));
+        assert!(css.contains(":hover picture"));
+        assert!(css.contains(":active picture"));
     }
 
     #[test]

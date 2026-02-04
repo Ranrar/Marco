@@ -15,10 +15,8 @@ pub use blocks::parse_blocks;
 pub use inlines::parse_inlines;
 pub use position::*;
 
-use anyhow::Result;
-
 /// Parse Markdown text into Document AST
-pub fn parse(input: &str) -> Result<Document> {
+pub fn parse(input: &str) -> Result<Document, Box<dyn std::error::Error>> {
     log::info!("Starting parse: {} bytes", input.len());
 
     let mut document = parse_blocks(input)?;

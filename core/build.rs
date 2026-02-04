@@ -29,12 +29,23 @@ fn main() {
                 if path.is_dir() {
                     copy_dir_recursive(&path, &dest_path);
                 } else {
-                    fs::copy(&path, &dest_path).expect("Failed to copy file");
-                    println!("cargo:rerun-if-changed={}", path.display());
+                    // Only copy if file doesn't exist or is newer
+                    let should_copy = !dest_path.exists()
+                        || fs::metadata(&path).ok().and_then(|m| m.modified().ok())
+                            > fs::metadata(&dest_path)
+                                .ok()
+                                .and_then(|m| m.modified().ok());
+
+                    if should_copy {
+                        fs::copy(&path, &dest_path).expect("Failed to copy file");
+                    }
                 }
             }
         }
     }
+
+    // Tell cargo to rerun only if asset directories change
+    println!("cargo:rerun-if-changed=../assets");
 
     // Copy fonts
     let fonts_src = asset_root.join("fonts");
@@ -65,7 +76,16 @@ fn main() {
     let settings_src = asset_root.join("settings.ron");
     let settings_dst = marco_root.join("settings.ron");
     if settings_src.exists() {
-        fs::copy(&settings_src, &settings_dst).expect("Failed to copy settings.ron");
-        println!("cargo:rerun-if-changed={}", settings_src.display());
+        let should_copy = !settings_dst.exists()
+            || fs::metadata(&settings_src)
+                .ok()
+                .and_then(|m| m.modified().ok())
+                > fs::metadata(&settings_dst)
+                    .ok()
+                    .and_then(|m| m.modified().ok());
+
+        if should_copy {
+            fs::copy(&settings_src, &settings_dst).expect("Failed to copy settings.ron");
+        }
     }
 }

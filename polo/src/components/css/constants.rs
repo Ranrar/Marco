@@ -67,9 +67,17 @@ pub struct ColorPalette {
     pub disabled_fg: &'static str,
     /// Disabled button border color (matches Marco)
     pub disabled_border: &'static str,
+
+    // Window control icon colors (for SVG icons)
+    /// Window control icon default color (subtle, low contrast)
+    pub control_icon: &'static str,
+    /// Window control icon hover color (medium contrast)
+    pub control_icon_hover: &'static str,
+    /// Window control icon active/pressed color (high contrast)
+    pub control_icon_active: &'static str,
 }
 
-/// Light theme color palette (matches Marco exactly)
+/// Light theme color palette (matches Marco with enhanced window controls)
 pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     window_bg: "#ffffff",
     titlebar_bg: "#e8ecef",    // Marco's titlebar_bg
@@ -86,9 +94,14 @@ pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     disabled_bg: "#ddd",       // Marco's disabled button background
     disabled_fg: "#999",       // Marco's disabled button text
     disabled_border: "#ccc",   // Marco's disabled button border
+
+    // Window control SVG icon colors (subtle on titlebar #e8ecef)
+    control_icon: "#4a5568", // Subtle gray-blue (medium contrast on #e8ecef)
+    control_icon_hover: "#2563eb", // Blue on hover (clear interaction)
+    control_icon_active: "#1e40af", // Darker blue on click (confirmed action)
 };
 
-/// Dark theme color palette (matches Marco exactly)
+/// Dark theme color palette (matches Marco with enhanced window controls)
 pub const DARK_PALETTE: ColorPalette = ColorPalette {
     window_bg: "#252526",     // Marco's toolbar_bg (was #1a1a1a)
     titlebar_bg: "#23272e",   // Marco's titlebar_bg
@@ -105,6 +118,11 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
     disabled_bg: "#555",      // Marco's disabled button background
     disabled_fg: "#aaa",      // Marco's disabled button text
     disabled_border: "#555",  // Marco's disabled button border
+
+    // Window control SVG icon colors (subtle on titlebar #23272e)
+    control_icon: "#9ca3af",        // Light gray (medium contrast on #23272e)
+    control_icon_hover: "#2563eb",  // Blue on hover (same as light mode)
+    control_icon_active: "#1e40af", // Darker blue on click (same as light mode)
 };
 
 /// Standard titlebar height in pixels

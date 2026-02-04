@@ -188,141 +188,140 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     format!(
         r#"
     /* {theme} - Dialog styles */
-    .{theme} .marco-dialog {{
+    .{theme} .marco-dialog,
+    .{theme}.marco-dialog {{
         background: {dialog_bg};
         border: 1px solid {border};
     }}
     
     /* Dialog titlebar border color */
-    .{theme} .marco-dialog .marco-titlebar {{
+    .{theme} .marco-dialog .marco-titlebar,
+    .{theme}.marco-dialog .marco-titlebar {{
         border-bottom-color: {border};
     }}
     
-    .{theme} .marco-dialog-content {{
+    .{theme} .marco-dialog-content,
+    .{theme}.marco-dialog .marco-dialog-content {{
         background: {dialog_bg};
     }}
     
-    .{theme} .marco-dialog-title {{
+    .{theme} .marco-dialog-title,
+    .{theme}.marco-dialog .marco-dialog-title {{
         color: {titlebar_foreground};
     }}
     
-    .{theme} .marco-dialog-message {{
+    .{theme} .marco-dialog-message,
+    .{theme}.marco-dialog .marco-dialog-message {{
         color: {titlebar_foreground};
         opacity: 0.9;
     }}
     
-    .{theme} .marco-dialog-button {{
+    .{theme} .marco-dialog-button,
+    .{theme}.marco-dialog .marco-dialog-button {{
         background: transparent;
         color: {titlebar_foreground};
         border: 1px solid {toolbar_border};
     }}
     
-    .{theme} .marco-dialog-button:hover {{
+    .{theme} .marco-dialog-button:hover,
+    .{theme}.marco-dialog .marco-dialog-button:hover {{
         background: {toolbar_popover_bg};
         border-color: {toolbar_button_hover_border};
         color: {toolbar_button_hover};
     }}
     
-    .{theme} .marco-dialog-button:active {{
+    .{theme} .marco-dialog-button:active,
+    .{theme}.marco-dialog .marco-dialog-button:active {{
         background: {toolbar_popover_bg};
         color: {toolbar_button_active};
     }}
     
     /* Destructive action button (Close without Saving) */
-    .{theme} .marco-dialog-button.destructive-action {{
+    .{theme} .marco-dialog-button.destructive-action,
+    .{theme}.marco-dialog .marco-dialog-button.destructive-action {{
         background: #d9534f;
         color: #ffffff;
         border-color: #d9534f;
     }}
     
-    .{theme} .marco-dialog-button.destructive-action:hover {{
+    .{theme} .marco-dialog-button.destructive-action:hover,
+    .{theme}.marco-dialog .marco-dialog-button.destructive-action:hover {{
         background: #c9302c;
         border-color: #c9302c;
         color: #ffffff;
     }}
     
-    .{theme} .marco-dialog-button.destructive-action:active {{
+    .{theme} .marco-dialog-button.destructive-action:active,
+    .{theme}.marco-dialog .marco-dialog-button.destructive-action:active {{
         background: #ac2925;
         border-color: #ac2925;
         color: #ffffff;
     }}
     
     /* Warning action button (Cancel) */
-    .{theme} .marco-dialog-button.warning-action {{
+    .{theme} .marco-dialog-button.warning-action,
+    .{theme}.marco-dialog .marco-dialog-button.warning-action {{
         background: #f0ad4e;
         color: #ffffff;
         border-color: #f0ad4e;
     }}
     
-    .{theme} .marco-dialog-button.warning-action:hover {{
+    .{theme} .marco-dialog-button.warning-action:hover,
+    .{theme}.marco-dialog .marco-dialog-button.warning-action:hover {{
         background: #ec971f;
         border-color: #ec971f;
         color: #ffffff;
     }}
     
-    .{theme} .marco-dialog-button.warning-action:active {{
+    .{theme} .marco-dialog-button.warning-action:active,
+    .{theme}.marco-dialog .marco-dialog-button.warning-action:active {{
         background: #d58512;
         border-color: #d58512;
         color: #ffffff;
     }}
     
     /* Suggested action button (Save As...) */
-    .{theme} .marco-dialog-button.suggested-action {{
+    .{theme} .marco-dialog-button.suggested-action,
+    .{theme}.marco-dialog .marco-dialog-button.suggested-action {{
         background: {toolbar_button_hover_border};
         color: #ffffff;
         border-color: {toolbar_button_hover_border};
     }}
     
-    .{theme} .marco-dialog-button.suggested-action:hover {{
+    .{theme} .marco-dialog-button.suggested-action:hover,
+    .{theme}.marco-dialog .marco-dialog-button.suggested-action:hover {{
         background: {toolbar_button_hover};
         border-color: {toolbar_button_hover};
         color: #ffffff;
     }}
     
-    .{theme} .marco-dialog-button.suggested-action:active {{
+    .{theme} .marco-dialog-button.suggested-action:active,
+    .{theme}.marco-dialog .marco-dialog-button.suggested-action:active {{
         background: {toolbar_button_active};
         border-color: {toolbar_button_active};
         color: #ffffff;
     }}
     
     /* Search window theme styles */
-    .{theme} .marco-search-window {{
+    .{theme} .marco-search-window,
+    .{theme}.marco-search-window {{
         background: {dialog_bg};
         border: 1px solid {border};
     }}
     
     /* Search window titlebar border color */
-    .{theme} .marco-search-window .marco-titlebar {{
+    .{theme} .marco-search-window .marco-titlebar,
+    .{theme}.marco-search-window .marco-titlebar {{
         border-bottom-color: {border};
     }}
     
-    .{theme} .marco-search-content {{
+    .{theme} .marco-search-content,
+    .{theme}.marco-search-window .marco-search-content {{
         background: {dialog_bg};
     }}
     
-    .{theme} .marco-search-entry {{
-        background: {dialog_bg};
-        color: {titlebar_foreground};
-        border: 1px solid {toolbar_border};
-        border-radius: 4px;
-        outline: none;
-        caret-color: {titlebar_foreground};
-        box-shadow: none;
-    }}
-    
-    .{theme} .marco-search-entry:hover {{
-        border-color: {toolbar_button_hover_border};
-    }}
-    
-    .{theme} .marco-search-entry:focus {{
-        background: {dialog_bg};
-        border-color: {toolbar_button_hover_border};
-        outline: none;
-        caret-color: {titlebar_foreground};
-        box-shadow: none;
-    }}
-    
-    .{theme} entry.marco-search-entry {{
+    .{theme} .marco-search-entry,
+    .{theme}.marco-search-window .marco-search-entry {{
         background: {dialog_bg};
         color: {titlebar_foreground};
         border: 1px solid {toolbar_border};
@@ -332,11 +331,13 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         box-shadow: none;
     }}
     
-    .{theme} entry.marco-search-entry:hover {{
+    .{theme} .marco-search-entry:hover,
+    .{theme}.marco-search-window .marco-search-entry:hover {{
         border-color: {toolbar_button_hover_border};
     }}
     
-    .{theme} entry.marco-search-entry:focus {{
+    .{theme} .marco-search-entry:focus,
+    .{theme}.marco-search-window .marco-search-entry:focus {{
         background: {dialog_bg};
         border-color: {toolbar_button_hover_border};
         outline: none;
@@ -344,64 +345,101 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         box-shadow: none;
     }}
     
-    .{theme} .marco-search-button {{
+    .{theme} entry.marco-search-entry,
+    .{theme}.marco-search-window entry.marco-search-entry {{
+        background: {dialog_bg};
+        color: {titlebar_foreground};
+        border: 1px solid {toolbar_border};
+        border-radius: 4px;
+        outline: none;
+        caret-color: {titlebar_foreground};
+        box-shadow: none;
+    }}
+    
+    .{theme} entry.marco-search-entry:hover,
+    .{theme}.marco-search-window entry.marco-search-entry:hover {{
+        border-color: {toolbar_button_hover_border};
+    }}
+    
+    .{theme} entry.marco-search-entry:focus,
+    .{theme}.marco-search-window entry.marco-search-entry:focus {{
+        background: {dialog_bg};
+        border-color: {toolbar_button_hover_border};
+        outline: none;
+        caret-color: {titlebar_foreground};
+        box-shadow: none;
+    }}
+    
+    .{theme} .marco-search-button,
+    .{theme}.marco-search-window .marco-search-button {{
         background: {toolbar_button_hover_border};
         color: #ffffff;
         border: 1px solid {toolbar_button_hover_border};
     }}
     
-    .{theme} .marco-search-button:hover {{
+    .{theme} .marco-search-button:hover,
+    .{theme}.marco-search-window .marco-search-button:hover {{
         background: {toolbar_button_hover};
         border-color: {toolbar_button_hover};
         color: #ffffff;
     }}
     
-    .{theme} .marco-search-button:active {{
+    .{theme} .marco-search-button:active,
+    .{theme}.marco-search-window .marco-search-button:active {{
         background: {toolbar_button_active};
         border-color: {toolbar_button_active};
         color: #ffffff;
     }}
     
-    .{theme} .marco-search-button:disabled {{
+    .{theme} .marco-search-button:disabled,
+    .{theme}.marco-search-window .marco-search-button:disabled {{
         background: {toolbar_border};
         border-color: {toolbar_border};
         color: {titlebar_foreground};
         opacity: 0.5;
     }}
     
-    .{theme} .marco-search-checkbox {{
+    .{theme} .marco-search-checkbox,
+    .{theme}.marco-search-window .marco-search-checkbox {{
         color: {titlebar_foreground};
     }}
     
-    .{theme} .marco-search-checkbox:hover {{
+    .{theme} .marco-search-checkbox:hover,
+    .{theme}.marco-search-window .marco-search-checkbox:hover {{
         color: {toolbar_button_hover};
     }}
     
-    .{theme} .marco-search-checkbox check {{
+    .{theme} .marco-search-checkbox check,
+    .{theme}.marco-search-window .marco-search-checkbox check {{
         background: {toolbar_popover_bg};
         border: 1px solid {toolbar_border};
         border-radius: 3px;
     }}
     
-    .{theme} .marco-search-checkbox check:checked {{
+    .{theme} .marco-search-checkbox check:checked,
+    .{theme}.marco-search-window .marco-search-checkbox check:checked {{
         background: {toolbar_button_hover_border};
         border-color: {toolbar_button_hover_border};
         color: #ffffff;
     }}
     
-    .{theme} .marco-search-checkbox check:hover {{
+    .{theme} .marco-search-checkbox check:hover,
+    .{theme}.marco-search-window .marco-search-checkbox check:hover {{
         border-color: {toolbar_button_hover_border};
     }}
     
-    .{theme} .marco-search-label {{
+    .{theme} .marco-search-label,
+    .{theme}.marco-search-window .marco-search-label {{
         color: {titlebar_foreground};
     }}
     
-    .{theme} .marco-search-separator {{
+    .{theme} .marco-search-separator,
+    .{theme}.marco-search-window .marco-search-separator {{
         background: {toolbar_border};
     }}
     
-    .{theme} .marco-search-match-label {{
+    .{theme} .marco-search-match-label,
+    .{theme}.marco-search-window .marco-search-match-label {{
         color: {titlebar_foreground};
         opacity: 0.7;
     }}

@@ -2,7 +2,7 @@
 // This ensures user preferences are not lost when changing schema or other options.
 // Settings structure
 use gtk4::prelude::*;
-use gtk4::{Align, Box as GtkBox, Button, Label, Notebook, Orientation, Window};
+use gtk4::{Align, Box as GtkBox, Button, Label, Orientation, Window};
 
 use crate::logic::signal_manager::SignalManager;
 use crate::ui::settings::tabs;
@@ -230,38 +230,181 @@ fn create_dialog_impl(
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
 
-    // Create custom close button with icon font
-    let close_label = Label::new(None);
-    close_label.set_markup("<span font_family='icomoon'>\u{39}</span>"); // \u{39} = marco-close icon
-    close_label.set_valign(Align::Center);
-    close_label.add_css_class("icon-font");
+    // Create custom close button with SVG icon
+    use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use gio;
+    use gtk4::gdk;
+    use rsvg::{CairoRenderer, Loader};
 
-    let btn_close_titlebar = Button::new();
-    btn_close_titlebar.set_child(Some(&close_label));
-    btn_close_titlebar.set_tooltip_text(Some("Close"));
-    btn_close_titlebar.set_valign(Align::Center);
-    btn_close_titlebar.set_margin_start(1);
-    btn_close_titlebar.set_margin_end(1);
-    btn_close_titlebar.set_focusable(false);
-    btn_close_titlebar.set_can_focus(false);
-    btn_close_titlebar.set_has_frame(false);
-    btn_close_titlebar.add_css_class("topright-btn");
-    btn_close_titlebar.add_css_class("window-control-btn");
+    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = window_icon_svg(icon).replace("currentColor", color);
+        let bytes = glib::Bytes::from_owned(svg.into_bytes());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
+
+        let handle =
+            match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::error!("load SVG handle: {}", e);
+                    let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
+                    return gdk::MemoryTexture::new(
+                        1,
+                        1,
+                        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+                        &bytes,
+                        4,
+                    );
+                }
+            };
+
+        let display_scale = gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+
+        let render_scale = display_scale * 2.0;
+        let render_size = (icon_size * render_scale) as i32;
+
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
+        }
+
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    }
+
+    fn svg_icon_button(
+        window: &Window,
+        icon: WindowIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
+        let pic = gtk4::Picture::new();
+        let texture = render_svg_icon(icon, color, icon_size);
+        pic.set_paintable(Some(&texture));
+        pic.set_size_request(icon_size as i32, icon_size as i32);
+        pic.set_can_shrink(false);
+        pic.set_halign(gtk4::Align::Center);
+        pic.set_valign(gtk4::Align::Center);
+
+        let btn = Button::new();
+        btn.set_child(Some(&pic));
+        btn.set_tooltip_text(Some(tooltip));
+        btn.set_valign(gtk4::Align::Center);
+        btn.set_margin_start(1);
+        btn.set_margin_end(1);
+        btn.set_focusable(false);
+        btn.set_can_focus(false);
+        btn.set_has_frame(false);
+        btn.add_css_class("topright-btn");
+        btn.add_css_class("window-control-btn");
+        btn.set_width_request((icon_size + 6.0) as i32);
+        btn.set_height_request((icon_size + 6.0) as i32);
+
+        // Hover and click interactions
+        {
+            let pic_hover = pic.clone();
+            let normal_color = color.to_string();
+            let is_dark = window.has_css_class("marco-theme-dark");
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
+
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let icon_for_enter = icon;
+            let hover_color_enter = hover_color.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let texture = render_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
+                pic_hover.set_paintable(Some(&texture));
+            });
+
+            let pic_leave = pic.clone();
+            let icon_for_leave = icon;
+            let normal_color_leave = normal_color.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let texture = render_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn.add_controller(motion_controller);
+
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = pic.clone();
+            let icon_for_pressed = icon;
+            let active_color_pressed = active_color.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+
+            let pic_released = pic.clone();
+            let icon_for_released = icon;
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_released, &hover_color, icon_size);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn.add_controller(gesture);
+        }
+
+        btn
+    }
+
+    let icon_color: std::borrow::Cow<'static, str> = if window.has_css_class("marco-theme-dark") {
+        std::borrow::Cow::from(DARK_PALETTE.control_icon)
+    } else {
+        std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+    };
+
+    let btn_close_titlebar = svg_icon_button(&window, WindowIcon::Close, "Close", &icon_color, 8.0);
 
     // Add close button to right side of headerbar
     headerbar.pack_end(&btn_close_titlebar);
 
     window.set_titlebar(Some(&headerbar));
 
-    let notebook = Notebook::new();
-    notebook.set_tab_pos(gtk4::PositionType::Top);
-    notebook.add_css_class("marco-settings-notebook");
+    // Create Stack and StackSidebar for left-side navigation
+    let stack = gtk4::Stack::new();
+    stack.add_css_class("marco-settings-stack");
+    stack.set_hexpand(true);
+    stack.set_vexpand(true);
 
-    // Add each tab
-    notebook.append_page(
-        &tabs::editor::build_editor_tab(settings_path.to_str().unwrap()),
-        Some(&Label::new(Some("Editor"))),
-    );
+    let stack_sidebar = gtk4::StackSidebar::new();
+    stack_sidebar.add_css_class("marco-settings-sidebar");
+    stack_sidebar.set_stack(&stack);
+    // Fixed sidebar width to provide consistent layout
+    stack_sidebar.set_size_request(180, -1);
+    stack_sidebar.set_margin_end(8);
+
+    // Add each tab to the stack using stable names so the sidebar shows titles
+    let editor_tab = tabs::editor::build_editor_tab(settings_path.to_str().unwrap());
+    stack.add_titled(&editor_tab, Some("editor"), "Editor");
+
     // Build layout tab and provide a callback that will persist the setting and
     // forward the value to any external on_view_mode_changed handler supplied by
     // the caller via the `callbacks` struct.
@@ -303,17 +446,15 @@ fn create_dialog_impl(
         }
     }) as std::boxed::Box<dyn Fn(String) + 'static>;
 
-    notebook.append_page(
-        &tabs::layout::build_layout_tab(
-            saved_view_mode,
-            Some(layout_cb),
-            settings_path.to_str(),
-            callbacks.on_split_ratio_changed,
-            callbacks.on_sync_scrolling_changed,
-            callbacks.on_line_numbers_changed,
-        ),
-        Some(&Label::new(Some("Layout"))),
+    let layout_tab = tabs::layout::build_layout_tab(
+        saved_view_mode,
+        Some(layout_cb),
+        settings_path.to_str(),
+        callbacks.on_split_ratio_changed,
+        callbacks.on_sync_scrolling_changed,
+        callbacks.on_line_numbers_changed,
     );
+    stack.add_titled(&layout_tab, Some("layout"), "Layout");
 
     // Collect signal managers for cleanup on dialog close
     let mut signal_managers: Vec<Rc<RefCell<SignalManager>>> = Vec::new();
@@ -331,7 +472,7 @@ fn create_dialog_impl(
             refresh_preview_cb,
             callbacks.on_editor_theme_changed,
         );
-        notebook.append_page(&appearance_tab, Some(&Label::new(Some("Appearance"))));
+        stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
         signal_managers.push(appearance_signals);
     } else {
         let (appearance_tab, appearance_signals) = tabs::appearance::build_appearance_tab(
@@ -342,19 +483,18 @@ fn create_dialog_impl(
             Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
             callbacks.on_editor_theme_changed,
         );
-        notebook.append_page(&appearance_tab, Some(&Label::new(Some("Appearance"))));
+        stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
         signal_managers.push(appearance_signals);
     }
-    notebook.append_page(
+    stack.add_titled(
         &tabs::language::build_language_tab(),
-        Some(&Label::new(Some("Language"))),
+        Some("language"),
+        "Language",
     );
 
     // Add Markdown tab for markdown-specific settings
-    notebook.append_page(
-        &tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap()),
-        Some(&Label::new(Some("Markdown"))),
-    );
+    let markdown_tab = tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap());
+    stack.add_titled(&markdown_tab, Some("markdown"), "Markdown");
 
     // Optionally show Debug tab when `debug` is enabled in settings.ron
     {
@@ -364,20 +504,24 @@ fn create_dialog_impl(
             if app_settings.debug.unwrap_or(false) {
                 // Pass settings path as string to debug tab builder so it can save changes
                 let settings_path_str = settings_path.to_string_lossy().to_string();
-                notebook.append_page(
-                    &tabs::debug::build_debug_tab(&settings_path_str),
-                    Some(&Label::new(Some("Debug"))),
-                );
+                let debug_tab = tabs::debug::build_debug_tab(&settings_path_str, &window);
+                stack.add_titled(&debug_tab, Some("debug"), "Debug");
             }
         } else {
             eprintln!("Failed to initialize settings manager for debug tab visibility check");
         }
     }
 
-    // Layout: notebook + close button at bottom right
+    // Layout: sidebar + stack + close button at bottom right
     let content_box = GtkBox::new(Orientation::Vertical, 0);
     content_box.add_css_class("marco-settings-content");
-    content_box.append(&notebook);
+
+    let main_box = GtkBox::new(Orientation::Horizontal, 0);
+    main_box.add_css_class("marco-settings-main");
+    main_box.append(&stack_sidebar);
+    main_box.append(&stack);
+
+    content_box.append(&main_box);
 
     // Create close button wrapped in a table-like frame for alignment
     let close_button = Button::with_label("Close");

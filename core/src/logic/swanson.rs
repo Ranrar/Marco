@@ -37,14 +37,14 @@ pub struct Settings {
 
 impl Settings {
     /// Load settings from a RON file
-    pub fn load_from_file<P: AsRef<Path>>(path: P) -> anyhow::Result<Self> {
+    pub fn load_from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let content = fs::read_to_string(&path)?;
         let settings: Self = ron::de::from_str(&content)?;
         Ok(settings)
     }
 
     /// Save settings to a RON file
-    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> anyhow::Result<()> {
+    pub fn save_to_file<P: AsRef<Path>>(&self, path: P) -> Result<(), Box<dyn std::error::Error>> {
         // Use a pretty RON serializer to make the settings file human-readable.
         let pretty = ron::ser::PrettyConfig::new();
         let ron = ron::ser::to_string_pretty(self, pretty)?;
@@ -152,7 +152,10 @@ impl Settings {
     }
 
     /// Update window settings
-    pub fn update_window_settings<F>(&mut self, updater: F) -> anyhow::Result<()>
+    pub fn update_window_settings<F>(
+        &mut self,
+        updater: F,
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnOnce(&mut WindowSettings),
     {
@@ -212,7 +215,7 @@ impl Settings {
             // Common settings (shared between Marco and Polo)
             appearance: Some(AppearanceSettings {
                 editor_mode: Some("marco-light".to_string()),
-                preview_theme: Some("github".to_string()),
+                preview_theme: Some("marco".to_string()),
                 ui_font_size: Some(11),
                 ..Default::default()
             }),

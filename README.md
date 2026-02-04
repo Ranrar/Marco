@@ -3,46 +3,45 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Platform-Linux%20|%20Windows-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Cross-Platform: Linux & Windows" />
   <img src="https://img.shields.io/badge/CommonMark-100%25-brightgreen?style=for-the-badge&logo=markdown&logoColor=white" alt="100% CommonMark Compliant" />
   <img src="https://img.shields.io/badge/International-Characters-blue?style=for-the-badge&logo=translate&logoColor=white" alt="International Characters Support" />
+  <br/>
+  <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
+  <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
+  <img src="https://img.shields.io/github/v/release/Ranrar/Marco?include_prereleases&style=for-the-badge&label=Alpha" alt="Latest Alpha Release" />
+</p>
 
-**Marco** is a fast Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
+**Marco** is a fast, cross-platform Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
 
 **Polo**, its companion viewer, lets you open and read Markdown documents with identical rendering and minimal resource use.  
 
-Both are built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
+Both run natively on **Linux and Windows**, built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
 
 <p align="center">
-  <img src="documentation/Screenshot/Screenshot from 2025-09-17 22-21-06.png" />
+  <img src="documentation/Screenshot/marco.png" alt="Marco Editor" />
+  <br/>
+  <em>Marco - Full-featured Markdown editor with live preview</em>
 </p>
+
+<p align="center">
+  <img src="documentation/Screenshot/polo.png" alt="Polo Viewer" />
+  <br/>
+  <em>Polo - Lightweight Markdown viewer</em>
+</p>
+
 <a href="documentation/Screenshot">View more screenshots</a>
 
 ## Quickstart
 
 Ready to try Marco? Installation is simple and takes less than a minute:
 
-## Linux
-
-### Alpha (latest dev build)
-
-Download the latest Alpha `.deb` from the **Alpha** release:
-
-- https://github.com/Ranrar/Marco/releases/tag/alpha
-
-The asset is currently published as:
-
-- `marco-suite_alpha_amd64.deb`
-
-Install it (Debian/Ubuntu):
-
-1. Download the `*.deb` asset for your architecture (typically `amd64`).
-2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted.
-
-## Windows
-
-No option yet.
-
-
+| Linux | Windows |
+|-------|---------|
+| **Alpha (latest dev build)** | **Alpha (latest dev build)** |
+| Download the latest Alpha `.deb` from the **Alpha** release:<br>https://github.com/Ranrar/Marco/releases/tag/alpha | Download the latest Alpha `.zip` from the **Alpha** release:<br>https://github.com/Ranrar/Marco/releases/tag/alpha |
+| **Asset:** `marco-suite_alpha_amd64.deb` | **Asset:** `marco-suite_alpha_windows_amd64.zip` |
+| **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
 ## Why Marco?
 
@@ -116,8 +115,8 @@ This project is developed with occasional help from AI tools (for example, Copil
 Marco uses a **Cargo workspace** with three crates:
 
 - **`core/`** — Pure Rust library with hand-crafted parser, AST builder, HTML renderer, LSP features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies.
-- **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and WebKit6 preview. Depends on `core`.
-- **`polo/`** — Lightweight viewer binary with GTK4 UI and WebKit6 preview only (no SourceView5). Depends on `core`.
+- **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). Depends on `core`.
+- **`polo/`** — Lightweight viewer binary with GTK4 UI and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). No SourceView5. Depends on `core`.
 - **`assets/`** — Centralized workspace assets: themes, fonts, icons, settings.
 
 **Key technologies:**
@@ -126,7 +125,7 @@ Marco uses a **Cargo workspace** with three crates:
 
 - **SourceView5** (`sourceview5`) - Advanced text editor component with syntax highlighting and code editing features. Provides the main markdown editing area with features like line numbers, search/replace, and text formatting.
 
-- **WebKit6** (`webkit6`) - Modern web engine for HTML rendering and preview. Displays the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
+- **WebKit6 / WebView2** - Platform-specific web engines for HTML rendering and preview. Linux uses `webkit6` (GTK4-native WebKit), Windows uses `wry` (WebView2/Chromium wrapper). Both display the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
 
 - **nom** (`nom`) - Parser combinator library for building the custom markdown grammar. nom uses **recursive descent parsing** where you write Rust functions that parse pieces of input and compose them together. This approach provides total control, incremental parsing capability, and native Rust performance. The parser lives in `core/src/grammar/` and generates an AST for fine-grained control over rendering and extensibility.
 
@@ -177,8 +176,10 @@ Marco uses a **Cargo workspace** with three crates:
 - [ ] Language plugin system (add support for new languages via plugins)
 
 ### Distribution & Platform
-- [ ] Packaging: Snap, .deb and (.MSI or.exe)
-- [ ] Cross-platform support: Linux and Windows builds
+- [x] Cross-platform support: Linux and Windows builds
+- [x] Linux packaging: .deb packages
+- [x] Windows packaging: Portable .zip packages
+- [ ] Additional packaging: Snap, .MSI installer
 
 ## Contributing
 

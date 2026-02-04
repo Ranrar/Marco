@@ -17,13 +17,13 @@
 //! with markdown rendering.
 
 use crate::components::utils::get_theme_mode;
+use crate::components::viewer::platform_webview::PlatformWebView;
 use core::logic::swanson::SettingsManager;
 use std::sync::Arc;
-use webkit6::prelude::WebViewExt;
 
 /// Show empty state when no file is opened - theme-aware version matching markdown rendering
 pub fn show_empty_state_with_theme(
-    webview: &webkit6::WebView,
+    webview: &PlatformWebView,
     settings_manager: &Arc<SettingsManager>,
 ) {
     // Determine theme_mode from settings (same logic as markdown rendering)
@@ -103,9 +103,5 @@ pub fn show_empty_state_with_theme(
         theme_class
     );
 
-    let webview_clone = webview.clone();
-    let html_string = html.to_string();
-    gtk4::glib::idle_add_local_once(move || {
-        webview_clone.load_html(&html_string, None);
-    });
+    webview.load_html_with_base(&html, None);
 }

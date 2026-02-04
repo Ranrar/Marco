@@ -1,6 +1,6 @@
 [package]
 name = "polo"
-version = "0.14.0"
+version = "0.17.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
@@ -11,9 +11,26 @@ rust-version = "1.92.0"
 # Core library
 core = { path = "../core" }
 
-# UI dependencies
+# Utilities
+log = { workspace = true }
+
+# UI dependencies (common)
 gtk4 = { workspace = true }
 glib = { workspace = true }
 gio = { workspace = true }
+librsvg = { workspace = true }
+cairo-rs = { workspace = true }
+gdk-pixbuf = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
-log = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wry = { workspace = true }
+tao = { workspace = true }
+gdk4-win32 = { workspace = true }
+raw-window-handle = { workspace = true }
+rfd = "0.15"
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+winres = "0.1"

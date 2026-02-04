@@ -10,9 +10,8 @@ nom_locate = "5.0.0"                 # Position tracking for nom parsers
 ron = "0.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-anyhow = "1.0.100"
 log = "0.4.29"
-chrono = { version = "0.4.42", features = ["serde"] }
+chrono = { version = "0.4.43", features = ["serde"] }
 tempfile = "3.24.0"
 emojis = "0.8.0"
 fontconfig = "0.10.0"
@@ -24,11 +23,23 @@ syntect = "5.3.0"                    # Syntax highlighting
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.3"
-glib = "0.21.3"
-gio = "0.21.2"
+glib = "0.21.5"
+gio = "0.21.5"
 sourceview5 = "0.10.0"
-webkit6 = "0.5.0"
 dark-light = "2.0.0"
+librsvg = "2.60"
+cairo-rs = "0.21.5"
+gdk-pixbuf = "0.21.5"
+
+# Platform-specific WebView dependencies
+# Linux: webkit6 (GTK4-native WebKit)
+webkit6 = "0.5.0"
+# Windows: wry (cross-platform WebView wrapper)
+wry = { version = "0.54.1", default-features = false, features = ["os-webview", "protocol"] }
+tao = "0.34.5"
+gdk4-win32 = "0.10.3"
+raw-window-handle = "0.6.2"
+urlencoding = "2.1"
 
 # Test dependencies
 clap = { version = "4.5.54", features = ["derive"] }
@@ -40,17 +51,19 @@ serial_test = "3.3.1"
 
 # Profile optimizations
 [profile.dev]
-opt-level = 0
-debug = true
-incremental = true
-overflow-checks = true
-split-debuginfo = 'unpacked'
+opt-level = 0           # No optimization for fastest compilation
+debug = true            # Full debug info
+incremental = true      # Enable incremental compilation
+overflow-checks = true  # Safety checks in dev
+split-debuginfo = 'unpacked'  # Faster linking on Windows/macOS
 
 [profile.release]
-opt-level = 3
-debug = false
-lto = true
-codegen-units = 1
+opt-level = 3           # Maximum optimization
+debug = false           # No debug symbols
+lto = "thin"            # Thin LTO - faster than "fat" LTO with good optimization
+codegen-units = 16      # Parallel codegen - much faster than 1
+strip = true            # Strip symbols to reduce binary size
+panic = 'abort'         # Smaller binaries, no unwinding
 
 # CI on Ubuntu 24.04 can fail to compile `ashpd 0.10.x` (pulled in by
 # `dark-light 2.0.0`) due to stricter trait bounds in newer `zbus`/`zvariant`.

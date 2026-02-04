@@ -98,7 +98,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 let settings = settings_manager_clone.get_settings();
                 let editor = settings.editor.unwrap_or_default();
                 let editor_settings =
-                    crate::components::editor::font_config::EditorDisplaySettings {
+                    crate::components::editor::display_config::EditorDisplaySettings {
                         font_family: selected_font,
                         font_size: editor.font_size.unwrap_or(14),
                         line_height: editor.line_height.unwrap_or(1.4),
@@ -174,20 +174,21 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: new_size,
-                line_height: editor.line_height.unwrap_or(1.4),
-                line_wrapping: editor.line_wrapping.unwrap_or(false),
-                show_invisibles: editor.show_invisibles.unwrap_or(false),
-                tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
+            let editor_settings =
+                crate::components::editor::display_config::EditorDisplaySettings {
+                    font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
+                    font_size: new_size,
+                    line_height: editor.line_height.unwrap_or(1.4),
+                    line_wrapping: editor.line_wrapping.unwrap_or(false),
+                    show_invisibles: editor.show_invisibles.unwrap_or(false),
+                    tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
+                    syntax_colors: editor.syntax_colors.unwrap_or(true),
+                    show_line_numbers: settings
+                        .layout
+                        .as_ref()
+                        .and_then(|l| l.show_line_numbers)
+                        .unwrap_or(true),
+                };
 
             if let Err(e) =
                 crate::components::editor::editor_manager::update_editor_settings_globally(
@@ -248,20 +249,21 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: editor.font_size.unwrap_or(14),
-                line_height: new_line_height,
-                line_wrapping: editor.line_wrapping.unwrap_or(false),
-                show_invisibles: editor.show_invisibles.unwrap_or(false),
-                tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
+            let editor_settings =
+                crate::components::editor::display_config::EditorDisplaySettings {
+                    font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
+                    font_size: editor.font_size.unwrap_or(14),
+                    line_height: new_line_height,
+                    line_wrapping: editor.line_wrapping.unwrap_or(false),
+                    show_invisibles: editor.show_invisibles.unwrap_or(false),
+                    tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
+                    syntax_colors: editor.syntax_colors.unwrap_or(true),
+                    show_line_numbers: settings
+                        .layout
+                        .as_ref()
+                        .and_then(|l| l.show_line_numbers)
+                        .unwrap_or(true),
+                };
 
             if let Err(e) =
                 crate::components::editor::editor_manager::update_editor_settings_globally(
@@ -325,20 +327,21 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: editor.font_size.unwrap_or(14),
-                line_height: editor.line_height.unwrap_or(1.4),
-                line_wrapping: enabled,
-                show_invisibles: editor.show_invisibles.unwrap_or(false),
-                tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
+            let editor_settings =
+                crate::components::editor::display_config::EditorDisplaySettings {
+                    font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
+                    font_size: editor.font_size.unwrap_or(14),
+                    line_height: editor.line_height.unwrap_or(1.4),
+                    line_wrapping: enabled,
+                    show_invisibles: editor.show_invisibles.unwrap_or(false),
+                    tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
+                    syntax_colors: editor.syntax_colors.unwrap_or(true),
+                    show_line_numbers: settings
+                        .layout
+                        .as_ref()
+                        .and_then(|l| l.show_line_numbers)
+                        .unwrap_or(true),
+                };
 
             if let Err(e) =
                 crate::components::editor::editor_manager::update_editor_settings_globally(
@@ -417,20 +420,21 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: editor.font_size.unwrap_or(14),
-                line_height: editor.line_height.unwrap_or(1.4),
-                line_wrapping: editor.line_wrapping.unwrap_or(false),
-                show_invisibles: enabled,
-                tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
+            let editor_settings =
+                crate::components::editor::display_config::EditorDisplaySettings {
+                    font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
+                    font_size: editor.font_size.unwrap_or(14),
+                    line_height: editor.line_height.unwrap_or(1.4),
+                    line_wrapping: editor.line_wrapping.unwrap_or(false),
+                    show_invisibles: enabled,
+                    tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
+                    syntax_colors: editor.syntax_colors.unwrap_or(true),
+                    show_line_numbers: settings
+                        .layout
+                        .as_ref()
+                        .and_then(|l| l.show_line_numbers)
+                        .unwrap_or(true),
+                };
 
             if let Err(e) =
                 crate::components::editor::editor_manager::update_editor_settings_globally(
@@ -496,20 +500,21 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: editor.font_size.unwrap_or(14),
-                line_height: editor.line_height.unwrap_or(1.4),
-                line_wrapping: editor.line_wrapping.unwrap_or(false),
-                show_invisibles: editor.show_invisibles.unwrap_or(false),
-                tabs_to_spaces: enabled,
-                syntax_colors: editor.syntax_colors.unwrap_or(true),
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
+            let editor_settings =
+                crate::components::editor::display_config::EditorDisplaySettings {
+                    font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
+                    font_size: editor.font_size.unwrap_or(14),
+                    line_height: editor.line_height.unwrap_or(1.4),
+                    line_wrapping: editor.line_wrapping.unwrap_or(false),
+                    show_invisibles: editor.show_invisibles.unwrap_or(false),
+                    tabs_to_spaces: enabled,
+                    syntax_colors: editor.syntax_colors.unwrap_or(true),
+                    show_line_numbers: settings
+                        .layout
+                        .as_ref()
+                        .and_then(|l| l.show_line_numbers)
+                        .unwrap_or(true),
+                };
 
             if let Err(e) =
                 crate::components::editor::editor_manager::update_editor_settings_globally(
@@ -575,20 +580,21 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
             // Get updated settings for runtime update
             let settings = settings_manager_clone.get_settings();
             let editor = settings.editor.unwrap_or_default();
-            let editor_settings = crate::components::editor::font_config::EditorDisplaySettings {
-                font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
-                font_size: editor.font_size.unwrap_or(14),
-                line_height: editor.line_height.unwrap_or(1.4),
-                line_wrapping: editor.line_wrapping.unwrap_or(false),
-                show_invisibles: editor.show_invisibles.unwrap_or(false),
-                tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
-                syntax_colors: enabled,
-                show_line_numbers: settings
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.show_line_numbers)
-                    .unwrap_or(true),
-            };
+            let editor_settings =
+                crate::components::editor::display_config::EditorDisplaySettings {
+                    font_family: editor.font.unwrap_or_else(|| "Monospace".to_string()),
+                    font_size: editor.font_size.unwrap_or(14),
+                    line_height: editor.line_height.unwrap_or(1.4),
+                    line_wrapping: editor.line_wrapping.unwrap_or(false),
+                    show_invisibles: editor.show_invisibles.unwrap_or(false),
+                    tabs_to_spaces: editor.tabs_to_spaces.unwrap_or(false),
+                    syntax_colors: enabled,
+                    show_line_numbers: settings
+                        .layout
+                        .as_ref()
+                        .and_then(|l| l.show_line_numbers)
+                        .unwrap_or(true),
+                };
 
             if let Err(e) =
                 crate::components::editor::editor_manager::update_editor_settings_globally(

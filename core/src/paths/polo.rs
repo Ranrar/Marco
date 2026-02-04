@@ -43,19 +43,31 @@ impl PoloPaths {
     /// - Install mode: ~/.config/polo/
     pub fn config_dir(&self) -> PathBuf {
         if self.dev_mode {
-            if let Some(workspace) = super::dev::workspace_root() {
+            if let Some(workspace) = super::workspace_root() {
                 workspace.join("tests").join("settings")
             } else {
                 dirs::config_dir()
                     .map(|c| c.join("polo"))
-                    .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
-                    .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
+                    .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("polo")))
+                    .unwrap_or_else(|| {
+                        if cfg!(target_os = "windows") {
+                            PathBuf::from("C:\\Temp\\polo\\config")
+                        } else {
+                            PathBuf::from("/tmp/polo/config")
+                        }
+                    })
             }
         } else {
             dirs::config_dir()
                 .map(|c| c.join("polo"))
-                .or_else(|| dirs::home_dir().map(|h| h.join(".config/polo")))
-                .unwrap_or_else(|| PathBuf::from("/tmp/polo/config"))
+                .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("polo")))
+                .unwrap_or_else(|| {
+                    if cfg!(target_os = "windows") {
+                        PathBuf::from("C:\\Temp\\polo\\config")
+                    } else {
+                        PathBuf::from("/tmp/polo/config")
+                    }
+                })
         }
     }
 
@@ -82,16 +94,28 @@ impl PoloPaths {
     pub fn user_data_dir(&self) -> PathBuf {
         dirs::data_local_dir()
             .map(|d| d.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".local/share/polo")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/polo/data"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share").join("polo")))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    PathBuf::from("C:\\Temp\\polo\\data")
+                } else {
+                    PathBuf::from("/tmp/polo/data")
+                }
+            })
     }
 
     /// Get Polo's cache directory
     pub fn cache_dir(&self) -> PathBuf {
         dirs::cache_dir()
             .map(|c| c.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache/polo")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/polo/cache"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("polo")))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    PathBuf::from("C:\\Temp\\polo\\cache")
+                } else {
+                    PathBuf::from("/tmp/polo/cache")
+                }
+            })
     }
 }
 
@@ -162,10 +186,10 @@ mod tests {
         if let Ok(polo) = PoloPaths::new() {
             // Polo should have access to shared assets
             let preview_themes = polo.shared().preview_themes_dir();
-            let icon_font = polo.shared().icon_font();
+            let fonts_dir = polo.shared().fonts_dir();
 
             println!("Preview themes (via shared): {}", preview_themes.display());
-            println!("Icon font (via shared): {}", icon_font.display());
+            println!("Fonts dir (via shared): {}", fonts_dir.display());
         }
     }
 

@@ -5,9 +5,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
-static mut LOGGER: Option<&'static SimpleFileLogger> = None;
+static LOGGER: OnceLock<&'static SimpleFileLogger> = OnceLock::new();
 
 pub struct SimpleFileLogger {
     inner: Mutex<Option<BufWriter<File>>>,
@@ -21,20 +21,74 @@ pub struct SimpleFileLogger {
 const MAX_LOG_BYTES: u64 = 10 * 1024 * 1024; // 10 MiB
 
 impl SimpleFileLogger {
-    pub fn init(enabled: bool, level: LevelFilter) -> Result<(), String> {
+    pub fn init(enabled: bool, level: LevelFilter) -> Result<(), Box<dyn std::error::Error>> {
         if !enabled {
             log::set_max_level(LevelFilter::Off);
             return Ok(());
         }
 
-        let cwd = std::env::current_dir().map_err(|e| e.to_string())?;
-        let log_root = cwd.join("log"); // Dont change
-        fs::create_dir_all(&log_root).map_err(|e| e.to_string())?;
+        // Use platform-appropriate cache directory for logs
+        // **Windows Portable Mode**: {exe_dir}\logs\
+        // **Windows Installed Mode**: %LOCALAPPDATA%\Marco\logs
+        // **Linux**: ~/.cache/marco/logs
+
+        let mut log_root: Option<PathBuf> = {
+            // Windows: portable mode + Windows-specific fallbacks.
+            #[cfg(target_os = "windows")]
+            {
+                let mut root = if let Some(portable_root) = crate::paths::detect_portable_mode() {
+                    Some(portable_root.join("logs"))
+                } else {
+                    None
+                };
+
+                if root.is_none() {
+                    root = std::env::var_os("LOCALAPPDATA")
+                        .map(|p| PathBuf::from(p).join("Marco").join("logs"));
+                }
+
+                if root.is_none() {
+                    root = std::env::var_os("TEMP")
+                        .map(|p| PathBuf::from(p).join("marco").join("logs"));
+                }
+
+                root
+            }
+
+            // Linux: prefer XDG cache location.
+            #[cfg(target_os = "linux")]
+            {
+                let mut root = std::env::var_os("XDG_CACHE_HOME")
+                    .map(|p| PathBuf::from(p).join("marco").join("logs"));
+
+                if root.is_none() {
+                    root = dirs::home_dir().map(|h| h.join(".cache").join("marco").join("logs"));
+                }
+
+                root
+            }
+
+            // Other OSes: start with no platform-specific preference.
+            #[cfg(not(any(target_os = "windows", target_os = "linux")))]
+            {
+                None
+            }
+        };
+
+        // Generic (no cfg): if the OS provides a cache dir via `dirs`, use it.
+        if log_root.is_none() {
+            log_root = dirs::cache_dir().map(|c| c.join("marco").join("logs"));
+        }
+
+        let log_root = log_root.unwrap_or_else(|| PathBuf::from("/tmp/marco/log"));
+        fs::create_dir_all(&log_root)
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
         // YYYYMM folder
         let month_folder = Local::now().format("%Y%m").to_string();
         let month_dir = log_root.join(month_folder);
-        fs::create_dir_all(&month_dir).map_err(|e| e.to_string())?;
+        fs::create_dir_all(&month_dir)
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
         // File name: YYMMDD.log
         let file_name = Local::now().format("%y%m%d.log").to_string();
         let file_path = month_dir.join(file_name);
@@ -43,7 +97,7 @@ impl SimpleFileLogger {
             .create(true)
             .append(true)
             .open(&file_path)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| -> Box<dyn std::error::Error> { e.to_string().into() })?;
 
         let initial_size = file.metadata().map(|m| m.len()).unwrap_or(0);
 
@@ -55,15 +109,37 @@ impl SimpleFileLogger {
             level,
             bytes_written: AtomicU64::new(initial_size),
         });
-        let leaked: &'static SimpleFileLogger = Box::leak(boxed);
-        unsafe {
-            LOGGER = Some(leaked);
+
+        // If we already initialized our logger earlier in this process, behave idempotently
+        if LOGGER.get().is_some() {
+            // Update global max level and return success
+            log::set_max_level(level);
+            return Ok(());
         }
 
-        log::set_max_level(level);
-        // Safe to unwrap because we just set LOGGER
-        log::set_logger(unsafe { LOGGER.unwrap() }).map_err(|e| e.to_string())?;
-        Ok(())
+        // Leak the box temporarily to obtain a &'static reference required by log::set_logger.
+        // If another logger is already registered, gracefully abort and drop our boxed logger.
+        let leaked: &'static SimpleFileLogger = Box::leak(boxed);
+
+        // Attempt to register; if it fails, drop the leaked box and return Ok with a warning.
+        match log::set_logger(leaked) {
+            Ok(()) => {
+                // Successfully set our logger; record the static reference and apply level.
+                // OnceLock::set returns Err if already set, but we checked above, so this should always succeed
+                let _ = LOGGER.set(leaked);
+                log::set_max_level(level);
+                Ok(())
+            }
+            Err(e) => {
+                // Another logger is already present (e.g., env_logger). Drop our leaked box to avoid leaking memory.
+                unsafe {
+                    let _ =
+                        Box::from_raw(leaked as *const SimpleFileLogger as *mut SimpleFileLogger);
+                }
+                // Return an error to the caller so the application can decide how to surface it.
+                Err(format!("Failed to set global logger: {}", e).into())
+            }
+        }
     }
 
     fn rotate_if_needed_locked(&self, guard: &mut Option<BufWriter<File>>) {
@@ -174,8 +250,120 @@ impl Log for SimpleFileLogger {
     }
 }
 
-pub fn init_file_logger(enabled: bool, level: LevelFilter) -> anyhow::Result<()> {
-    SimpleFileLogger::init(enabled, level).map_err(|e| anyhow::anyhow!(e))
+pub fn init_file_logger(
+    enabled: bool,
+    level: LevelFilter,
+) -> Result<(), Box<dyn std::error::Error>> {
+    SimpleFileLogger::init(enabled, level).map_err(|e| format!("{}", e).into())
+}
+
+/// Returns true if the file logger was successfully initialized by this library.
+pub fn is_file_logger_initialized() -> bool {
+    LOGGER.get().is_some()
+}
+
+/// Return the resolved root logs directory (no month folder). This is a
+/// non-negotiable platform-specific location using the system cache dir and
+/// the folder name `logs` per project policy.
+pub fn current_log_root_dir() -> std::path::PathBuf {
+    // Prefer OS cache dir when available, else fall back to a platform temp path
+    if let Some(cache_dir) = dirs::cache_dir() {
+        return cache_dir.join("marco").join("logs");
+    }
+
+    // Platform fallback (should be rare)
+    #[cfg(target_os = "windows")]
+    {
+        std::path::PathBuf::from("C:\\Temp\\marco\\logs")
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::path::PathBuf::from("/tmp/marco/logs")
+    }
+}
+
+/// Return the resolved log directory for the current month (YYYYMM folder).
+pub fn current_log_dir() -> std::path::PathBuf {
+    use chrono::Local;
+    let mut root = current_log_root_dir();
+    let month_folder = Local::now().format("%Y%m").to_string();
+    root.push(month_folder);
+    root
+}
+
+/// Convenience: return the current log file path for today (YYMMDD.log) inside
+/// the resolved log directory.
+pub fn current_log_file_for_today() -> std::path::PathBuf {
+    use chrono::Local;
+    let dir = current_log_dir();
+    let file_name = Local::now().format("%y%m%d.log").to_string();
+    dir.join(file_name)
+}
+
+/// Compute total size in bytes of all log files under the root logs directory.
+pub fn total_log_size_bytes() -> u64 {
+    use std::fs;
+    let root = current_log_root_dir();
+    let mut total: u64 = 0;
+    if root.exists() {
+        // Walk month folders and files
+        if let Ok(entries) = fs::read_dir(&root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Ok(md) = entry.metadata() {
+                        total += md.len();
+                    }
+                } else if path.is_dir() {
+                    if let Ok(subs) = fs::read_dir(&path) {
+                        for s in subs.flatten() {
+                            if let Ok(md) = s.metadata() {
+                                if md.is_file() {
+                                    total += md.len();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    total
+}
+
+/// Delete all logs under the root logs directory.
+/// Best-effort: removes files and month folders, returns error on I/O failures.
+pub fn delete_all_logs() -> Result<(), Box<dyn std::error::Error>> {
+    use std::fs;
+    let root = current_log_root_dir();
+    if !root.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(&root)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            let _ = fs::remove_file(&path);
+        } else if path.is_dir() {
+            for sub in fs::read_dir(&path)? {
+                let sub = sub?;
+                let subpath = sub.path();
+                if subpath.is_file() {
+                    let _ = fs::remove_file(&subpath);
+                }
+            }
+            // Try to remove the month folder if empty
+            let _ = fs::remove_dir(&path);
+        }
+    }
+
+    // Remove root if empty
+    if root.read_dir()?.next().is_none() {
+        let _ = fs::remove_dir(&root);
+    }
+
+    Ok(())
 }
 
 impl SimpleFileLogger {
@@ -193,14 +381,11 @@ impl SimpleFileLogger {
 
 /// Public shutdown hook to safely flush and drop the global logger.
 pub fn shutdown_file_logger() {
-    unsafe {
-        if let Some(logger) = LOGGER {
-            logger.shutdown();
-            // Clear the static reference; we leaked a Box originally, but dropping the file
-            // and clearing the pointer is acceptable for program shutdown. We set to None
-            // to avoid double-use.
-            LOGGER = None;
-        }
+    if let Some(logger) = LOGGER.get() {
+        logger.shutdown();
+        // Note: OnceLock doesn't support clearing after initialization.
+        // The logger remains set but is shut down (file handle closed).
+        // This is acceptable for program shutdown.
     }
 }
 

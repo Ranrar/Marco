@@ -2,6 +2,8 @@
 
 Thank you for your interest in contributing to Marco. This document explains how the project is organized, how it works at a high level, and where to find the main integration points you might work with when adding features or fixing bugs.
 
+Marco is developed cross-platform, but the day-to-day workflow is **native per OS** (Linux builds on Linux, Windows builds on Windows).
+
 ## Intro & contributing
 
 We welcome contributions of all sizes. Typical contributions include bug fixes, new editor features, additional themes, documentation improvements, and core parser enhancements.
@@ -15,9 +17,21 @@ We welcome contributions of all sizes. Typical contributions include bug fixes, 
 5. Run `cargo build` and `cargo test` locally.
 6. Open a pull request describing the change and link the related issue.
 
-Code style and expectations
+### Dev workspaces (VS Code)
 
-- Keep UI code in `src/components/` and `src/ui/` and business logic in `src/logic/`.
+This repo includes two VS Code workspace files. Use the one that matches your **native OS**:
+
+- **Linux**: `marco-linux.code-workspace`
+  - Uses Rust Analyzer + `clippy` on save.
+- **Windows (MSVC)**: `marco-windows.code-workspace`
+  - Configures Rust Analyzer to use the `x86_64-pc-windows-msvc` target.
+
+> Note: We intentionally avoid a "Windows GNU cross-compile from Linux" workspace because GTK/Glib dependencies require a full cross sysroot + `pkg-config` setup. If you point Rust Analyzer at `x86_64-pc-windows-gnu` on Linux you will likely see `glib-sys` / `pkg-config` cross-compilation errors and cascading "can't find crate ..." diagnostics.
+
+## Code style and expectations
+
+- Keep UI code in `marco/src/components/` and `marco/src/ui/`.
+- Keep pure business logic in `core/src/logic/` (no GTK dependencies).
 - Follow Rust idioms and project patterns (use `Result<T, E>`, avoid panics in library code, document public APIs).
 - Add unit tests under the appropriate module and integration tests under `tests/`.
 
@@ -30,6 +44,26 @@ Marco uses a Cargo workspace with three crates:
 - **polo** — Lightweight viewer-only binary with WebKit6 preview but no text editing (no SourceView5). Depends on core. Located in `polo/`.
 
 Assets (themes, fonts, icons, settings) are centralized at the workspace root in `assets/`.
+
+### Polo (viewer) notes
+
+`polo/` is the viewer-focused sibling of Marco. It is intended to be a smaller GTK app that:
+
+- Renders Markdown via `core` (parser + HTML renderer)
+- Displays the result in a WebKit-based preview
+- Does **not** include a full editor surface (no SourceView)
+
+Key files:
+
+- Entry point: `polo/src/main.rs`
+- UI components: `polo/src/components/`
+
+Good contribution areas for Polo:
+
+- Preview performance improvements (incremental refresh, caching)
+- Theme parity with Marco (HTML preview themes)
+- File opening / reload behavior
+- Cross-platform windowing and webview integration (keeping UI code isolated in `polo/` and core logic in `core/`)
 
 ### Core Library Structure
 
@@ -45,9 +79,11 @@ The `core/` crate is organized into several key modules:
 
 Marco uses a three-layer design:
 
-- **main** — application entry and glue (in `marco/src/main.rs`), responsible for initializing GTK, ThemeManager, and wiring UI to logic.
+- **main** — application entry and glue (in `marco/src/main.rs`), responsible for initializing GTK, the theme manager, and wiring UI to logic.
 - **components** — GTK widgets, layout, and event wiring (in `marco/src/components/`). The primary editor component is created via `create_editor_with_preview_and_buffer`.
-- **logic** — document buffer management, file operations, and settings. Core logic lives in `core/src/logic/` (pure Rust, no GTK). UI-specific logic lives in `marco/src/logic/` (GTK-dependent signal management and menu handlers).
+- **logic** — document buffer management, file operations, and settings.
+  - Core logic lives in `core/src/logic/` (pure Rust, no GTK).
+  - UI-specific logic lives in `marco/src/logic/` (GTK-dependent signal management and menu handlers).
 
 The core library handles markdown parsing and HTML rendering using a nom-based parser. The editor is a split-pane composed of a SourceView-based text buffer and a WebKit6-based HTML preview. Changes in the buffer trigger live re-rendering using core's parser for Markdown-to-HTML conversion with proper image path resolution. The parser uses nom combinators in `core/src/grammar/` to build an AST which is then rendered to HTML by `core/src/render/`.
 
@@ -73,7 +109,10 @@ If you add public utilities, document small examples for how to call them from `
 File locations used during development:
 
 - **Themes and assets**: `assets/themes/` at workspace root.
-- **Settings file**: `assets/settings.ron` (with defaults in `settings_default.ron`).
+- **Settings template (packaging / reference)**: `assets/settings_org.ron`.
+- **Settings used at runtime**: resolved via `core::paths`.
+  - Dev mode uses `tests/settings/settings.ron`.
+  - Installed builds use the per-OS config directory (for example `~/.config/marco/settings.ron` on Linux; on Windows this may be `%APPDATA%\marco\settings.ron` or a portable `config\settings.ron` next to the executable).
 - **Languages**: `assets/language/` for localization files.
 - **Core library**: `core/src/` contains the nom-based markdown parser (`grammar/`, `parser/`), HTML renderer (`render/`), and LSP features (`lsp/`).
 
@@ -136,6 +175,10 @@ cargo test -p core -- --nocapture
 - **Core parsing issues**: The app uses a custom nom-based parser in `core/src/grammar/` and `core/src/parser/` — check the grammar modules and AST builder if markdown isn't rendering correctly. Run `cargo test -p core` to validate parser behavior.
 - **Local images not displaying**: Ensure WebKit6 security settings are enabled and DocumentBuffer is providing correct base URIs for file:// protocol access.
 - **Import errors**: Use `core::` for core functionality (parser, buffer, logic), `crate::` for local modules within marco or polo binaries.
+- **Rust Analyzer shows lots of "can't find crate ..."**: Make sure you opened the correct VS Code workspace for your OS.
+  - On Linux use `marco-linux.code-workspace`.
+  - On Windows use `marco-windows.code-workspace`.
+  - If you set a Windows GNU target on Linux, you may hit `glib-sys` / `pkg-config` cross-compilation failures which cascade into many unrelated diagnostics.
 
 If you hit a problem you can't resolve, open an issue with a short description, steps to reproduce, and the output of running the app in a terminal.
 
@@ -146,7 +189,7 @@ These are areas where an implemented contribution will have big impact. If you p
 ### Collaborative editing (Yjs / CRDT)
 - **Goal**: Add a shared-document component that syncs buffer state across peers using a CRDT backend (Yjs, automerge, or similar).
 - **Integration points**:
-  - Create a new `src/components/collab/` module that implements a `CollabBackend` trait (connect, disconnect, apply_remote_ops, get_local_patch).
+  - Create a new `marco/src/components/collab/` module that implements a `CollabBackend` trait (connect, disconnect, apply_remote_ops, get_local_patch).
   - Wire the component into the editor buffer event loop: when the local buffer changes, the component should produce and broadcast a patch; when remote patches arrive, they should be applied to the `DocumentBuffer` using documented public update methods.
   - Respect existing undo/redo and cursor/selection synchronization: treat remote changes as first-class edits and emit events the UI can use to update cursors.
 - **Testing notes**: add unit tests for concurrent patches, and an integration test using two in-process backends that exchange patches.
@@ -154,7 +197,7 @@ These are areas where an implemented contribution will have big impact. If you p
 ### AI-assisted tools
 - **Goal**: Provide a component API and example component that offers in-editor assistance (summaries, rewrite suggestions, universal spell checking, autocorrect).
 - **Integration points**:
-  - Define a `src/components/ai/` interface that accepts a text range and returns suggested edits or annotations. Keep the component optional and behind a feature flag or runtime toggle.
+  - Define a `marco/src/components/ai/` interface that accepts a text range and returns suggested edits or annotations. Keep the component optional and behind a feature flag or runtime toggle.
   - Provide a small example implementation that uses an HTTP-based LLM adapter (local or remote) and demonstrates non-blocking requests using async tasks; always run requests off the UI thread and apply edits on the main loop.
   - Offer a CLI or developer test harness under `tests/ai/` to run the component against sample documents.
 - **Security & privacy notes**: document privacy expectations clearly. Components that call external APIs must expose where data is sent and provide opt-in configuration.

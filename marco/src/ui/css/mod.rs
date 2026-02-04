@@ -15,7 +15,7 @@
 //! ## Submodules
 //!
 //! - **`constants`**: Centralized color palettes, spacing, and sizing constants
-//! - **`menu`**: Titlebar, window controls, icon fonts, and layout buttons
+//! - **`menu`**: Titlebar, window controls, and layout buttons
 //! - **`toolbar`**: Toolbar buttons, icons, and styling
 //! - **`footer`**: Footer elements, status indicators, and styling
 //! - **`dialog`**: Dialog windows and modal styling
@@ -60,10 +60,6 @@ use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 /// This ensures basic functionality even if CSS generation has issues
 const FALLBACK_CSS: &str = r#"
     /* Critical styles for basic functionality */
-    .icon-font {
-        font-family: 'icomoon';
-        font-size: 16px;
-    }
     .window-control-btn {
         background: transparent;
         border: none;
@@ -141,8 +137,11 @@ mod tests {
         assert!(!css.is_empty(), "Generated CSS should not be empty");
 
         // Verify all major components present
-        assert!(css.contains(".icon-font"), "Should contain icon-font class");
         assert!(css.contains(".titlebar"), "Should contain titlebar class");
+        assert!(
+            css.contains(".window-control-btn"),
+            "Should contain window-control-btn class"
+        );
 
         // Verify both themes present
         assert!(
@@ -209,7 +208,6 @@ mod tests {
     #[test]
     fn smoke_test_fallback_css() {
         // Verify fallback CSS has critical styles
-        assert!(FALLBACK_CSS.contains(".icon-font"));
         assert!(FALLBACK_CSS.contains(".window-control-btn"));
         assert!(FALLBACK_CSS.contains(".titlebar"));
     }

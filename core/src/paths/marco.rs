@@ -99,13 +99,13 @@ impl MarcoPaths {
     /// - Install mode: ~/.config/marco/
     pub fn config_dir(&self) -> PathBuf {
         if self.dev_mode {
-            if let Some(workspace) = super::dev::workspace_root() {
+            if let Some(workspace) = super::workspace_root() {
                 workspace.join("tests").join("settings")
             } else {
-                super::install::config_dir()
+                super::config_dir()
             }
         } else {
-            super::install::config_dir()
+            super::config_dir()
         }
     }
 
@@ -116,12 +116,12 @@ impl MarcoPaths {
 
     /// Get Marco's recent files list path
     pub fn recent_files(&self) -> PathBuf {
-        super::install::user_data_dir().join("recent_files.ron")
+        super::user_data_dir().join("recent_files.ron")
     }
 
     /// Get Marco's window state file path
     pub fn window_state(&self) -> PathBuf {
-        super::install::user_data_dir().join("window_state.ron")
+        super::user_data_dir().join("window_state.ron")
     }
 
     // ========================================================================
@@ -130,15 +130,21 @@ impl MarcoPaths {
 
     /// Get Marco's user data directory
     pub fn user_data_dir(&self) -> PathBuf {
-        super::install::user_data_dir()
+        super::user_data_dir()
     }
 
     /// Get Marco's cache directory
     pub fn cache_dir(&self) -> PathBuf {
         dirs::cache_dir()
             .map(|c| c.join("marco"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache/marco")))
-            .unwrap_or_else(|| PathBuf::from("/tmp/marco/cache"))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("marco")))
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    PathBuf::from("C:\\Temp\\marco\\cache")
+                } else {
+                    PathBuf::from("/tmp/marco/cache")
+                }
+            })
     }
 }
 
@@ -200,8 +206,8 @@ mod tests {
     #[test]
     fn test_shared_access() {
         if let Ok(marco) = MarcoPaths::new() {
-            let icon_font = marco.shared().icon_font();
-            println!("Icon font (via shared): {}", icon_font.display());
+            let fonts_dir = marco.shared().fonts_dir();
+            println!("Fonts dir (via shared): {}", fonts_dir.display());
         }
     }
 }

@@ -1,10 +1,51 @@
 use crate::logic::menu_items::file::SaveChangesResult;
-use anyhow::Result;
 use gtk4::{
-    prelude::*, ButtonsType, DialogFlags, FileChooserAction, FileChooserNative, MessageDialog,
-    MessageType, ResponseType, Window,
+    prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
 };
+
+#[cfg(target_os = "linux")]
+use gtk4::{FileChooserAction, FileChooserNative};
+
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
+
+// Type aliases to satisfy clippy::type_complexity
+type FileDialogResult = Result<Option<PathBuf>, Box<dyn std::error::Error>>;
+type SaveChangesDialogResult = Result<SaveChangesResult, Box<dyn std::error::Error>>;
+
+type OpenDialogCallback = Arc<
+    dyn for<'b> Fn(
+            &'b gtk4::Window,
+            &'b str,
+        ) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
+type SaveDialogCallback = Arc<
+    dyn for<'b> Fn(
+            &'b gtk4::Window,
+            &'b str,
+            Option<&'b str>,
+        ) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
+type SaveChangesCallback = Arc<
+    dyn for<'b> Fn(
+            &'b gtk4::Window,
+            &'b str,
+            &'b str,
+        ) -> Pin<Box<dyn Future<Output = SaveChangesDialogResult> + 'b>>
+        + Send
+        + Sync
+        + 'static,
+>;
 
 /// UI dialogs for file operations
 ///
@@ -18,7 +59,54 @@ use std::path::{Path, PathBuf};
 /// to ensure correct behavior on all platforms.
 pub struct FileDialogs;
 
+pub(crate) fn open_dialog_cb<'b>(
+    parent: &'b gtk4::Window,
+    title: &'b str,
+) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>> {
+    let fut: Box<dyn Future<Output = FileDialogResult> + 'b> =
+        Box::new(async move { FileDialogs::show_open_dialog(parent, title).await });
+    Pin::from(fut)
+}
+
+pub(crate) fn save_dialog_cb<'b>(
+    parent: &'b gtk4::Window,
+    title: &'b str,
+    suggested_name: Option<&'b str>,
+) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>> {
+    let fut: Box<dyn Future<Output = FileDialogResult> + 'b> =
+        Box::new(async move { FileDialogs::show_save_dialog(parent, title, suggested_name).await });
+    Pin::from(fut)
+}
+
+pub(crate) fn save_changes_dialog_cb<'b>(
+    parent: &'b gtk4::Window,
+    document_name: &'b str,
+    action: &'b str,
+) -> Pin<Box<dyn Future<Output = SaveChangesDialogResult> + 'b>> {
+    let fut: Box<dyn Future<Output = SaveChangesDialogResult> + 'b> = Box::new(async move {
+        FileDialogs::show_save_changes_dialog(parent, document_name, action).await
+    });
+    Pin::from(fut)
+}
+
 impl FileDialogs {
+    /// Adapter for `logic::menu_items::file` callback types.
+    ///
+    /// The `FileOperations` code expects HRTB callbacks returning `Pin<Box<dyn Future + 'b>>`.
+    /// Directly returning `Box::pin(async_fn(..))` doesn't reliably coerce to a trait object,
+    /// so we box to `Box<dyn Future>` first and then pin it.
+    pub fn open_dialog_callback() -> OpenDialogCallback {
+        Arc::new(open_dialog_cb)
+    }
+
+    pub fn save_dialog_callback() -> SaveDialogCallback {
+        Arc::new(save_dialog_cb)
+    }
+
+    pub fn save_changes_dialog_callback() -> SaveChangesCallback {
+        Arc::new(save_changes_dialog_cb)
+    }
+
     /// Shows a native file open dialog
     ///
     /// # Arguments
@@ -28,7 +116,7 @@ impl FileDialogs {
     /// # Returns
     /// * `Ok(Some(PathBuf))` - User selected a file
     /// * `Ok(None)` - User cancelled the dialog
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -37,10 +125,8 @@ impl FileDialogs {
     ///     println!("Selected file: {}", file_path.display());
     /// }
     /// ```
-    pub async fn show_open_dialog<W: IsA<Window>>(
-        parent: &W,
-        title: &str,
-    ) -> Result<Option<PathBuf>> {
+    #[cfg(target_os = "linux")]
+    pub async fn show_open_dialog<W: IsA<Window>>(parent: &W, title: &str) -> FileDialogResult {
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
@@ -74,9 +160,33 @@ impl FileDialogs {
                         return Ok(Some(path));
                     }
                 }
-                Err(anyhow::anyhow!("No file selected"))
+                Err("No file selected".into())
             }
             _ => {
+                log::debug!("[FileDialogs] Open dialog cancelled");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Shows a native Windows file open dialog
+    ///
+    /// Uses Windows native file explorer dialog for better platform integration.
+    #[cfg(target_os = "windows")]
+    pub async fn show_open_dialog<W: IsA<Window>>(_parent: &W, _title: &str) -> FileDialogResult {
+        use rfd::AsyncFileDialog;
+
+        let dialog = AsyncFileDialog::new()
+            .add_filter("Markdown Files", &["md", "markdown", "mdown", "mkd"])
+            .add_filter("All Files", &["*"]);
+
+        match dialog.pick_file().await {
+            Some(file) => {
+                let path = file.path().to_path_buf();
+                log::info!("[FileDialogs] User selected file: {}", path.display());
+                Ok(Some(path))
+            }
+            None => {
                 log::debug!("[FileDialogs] Open dialog cancelled");
                 Ok(None)
             }
@@ -93,7 +203,7 @@ impl FileDialogs {
     /// # Returns
     /// * `Ok(Some(PathBuf))` - User selected a save location
     /// * `Ok(None)` - User cancelled the dialog
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -102,11 +212,12 @@ impl FileDialogs {
     ///     println!("Save to: {}", file_path.display());
     /// }
     /// ```
+    #[cfg(target_os = "linux")]
     pub async fn show_save_dialog<W: IsA<Window>>(
         parent: &W,
         title: &str,
         suggested_name: Option<&str>,
-    ) -> Result<Option<PathBuf>> {
+    ) -> FileDialogResult {
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
@@ -143,9 +254,41 @@ impl FileDialogs {
                         return Ok(Some(path));
                     }
                 }
-                Err(anyhow::anyhow!("No save location selected"))
+                Err("No save location selected".into())
             }
             _ => {
+                log::debug!("[FileDialogs] Save dialog cancelled");
+                Ok(None)
+            }
+        }
+    }
+
+    /// Shows a native Windows file save dialog
+    ///
+    /// Uses Windows native file explorer dialog for better platform integration.
+    #[cfg(target_os = "windows")]
+    pub async fn show_save_dialog<W: IsA<Window>>(
+        _parent: &W,
+        _title: &str,
+        suggested_name: Option<&str>,
+    ) -> FileDialogResult {
+        use rfd::AsyncFileDialog;
+
+        let mut dialog = AsyncFileDialog::new()
+            .add_filter("Markdown Files", &["md", "markdown"])
+            .add_filter("All Files", &["*"]);
+
+        if let Some(name) = suggested_name {
+            dialog = dialog.set_file_name(name);
+        }
+
+        match dialog.save_file().await {
+            Some(file) => {
+                let path = file.path().to_path_buf();
+                log::info!("[FileDialogs] User chose save location: {}", path.display());
+                Ok(Some(path))
+            }
+            None => {
                 log::debug!("[FileDialogs] Save dialog cancelled");
                 Ok(None)
             }
@@ -163,7 +306,7 @@ impl FileDialogs {
     /// * `Ok(SaveChangesResult::Save)` - User wants to save
     /// * `Ok(SaveChangesResult::Discard)` - User wants to discard changes
     /// * `Ok(SaveChangesResult::Cancel)` - User cancelled the operation
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -177,7 +320,7 @@ impl FileDialogs {
         parent: &W,
         document_name: &str,
         action: &str,
-    ) -> Result<SaveChangesResult> {
+    ) -> SaveChangesDialogResult {
         // Delegate to the dedicated save dialog module
         crate::ui::dialogs::save::show_save_changes_dialog(parent, document_name, action).await
     }
@@ -191,7 +334,7 @@ impl FileDialogs {
     /// # Returns
     /// * `Ok(true)` - User confirmed overwrite
     /// * `Ok(false)` - User cancelled overwrite
-    /// * `Err(anyhow::Error)` - Dialog failed to show
+    /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
     /// ```
@@ -204,7 +347,7 @@ impl FileDialogs {
     pub async fn show_overwrite_dialog<W: IsA<Window>>(
         parent: &W,
         file_path: &Path,
-    ) -> Result<bool> {
+    ) -> Result<bool, Box<dyn std::error::Error>> {
         let filename = file_path
             .file_name()
             .and_then(|name| name.to_str())
@@ -356,11 +499,11 @@ impl FileDialogs {
     pub async fn handle_file_error<W: IsA<Window>>(
         parent: &W,
         operation: &str,
-        error: &anyhow::Error,
+        error: &dyn std::error::Error,
     ) {
         let title = format!("Error {}", operation);
         let message = format!("An error occurred while {}.", operation);
-        let detail = format!("{}", error);
+        let detail = error.to_string();
 
         Self::show_error_dialog(parent, &title, &message, Some(&detail)).await;
     }

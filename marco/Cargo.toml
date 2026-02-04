@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.14.0"
+version = "0.17.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
@@ -24,18 +24,37 @@ path = "src/main.rs"
 # Core library
 core = { path = "../core" }
 
-# UI dependencies
+# Utilities
+log = { workspace = true }
+syntect = { workspace = true }
+
+# UI dependencies (common)
 gtk4 = { workspace = true }
 glib = { workspace = true }
 gio = { workspace = true }
 sourceview5 = { workspace = true }
-webkit6 = { workspace = true }
 dark-light = { workspace = true }
+# SVG rendering and Cairo required for high-quality window control icons
+librsvg = { workspace = true }
+cairo-rs = { workspace = true }
+# Temp files for detached preview handling
+tempfile = { workspace = true }
 
-# Utilities (also in core but needed here)
-anyhow = { workspace = true }
-log = { workspace = true }
-syntect = { workspace = true }
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit6 = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+wry = { workspace = true }
+tao = { workspace = true }
+gdk4-win32 = { workspace = true }
+raw-window-handle = { workspace = true }
+# Ctrl-C handler for graceful shutdown on Windows
+ctrlc = { version = "3.5.1", default-features = false, features = ["termination"] }
+# Native Windows file dialogs
+rfd = "0.15"
+
+[target.'cfg(target_os = "windows")'.build-dependencies]
+embed-resource = "3.0"
 
 [dev-dependencies]
 serial_test = { workspace = true }

@@ -179,6 +179,42 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         background: {window_bg};
     }}
     
+    /* Stack sidebar (tab navigation) - {theme} */
+    .{theme} .marco-settings-sidebar {{
+        background: {sidebar_bg};
+        color: {foreground};
+        border-right: 1px solid {border};
+    }}
+    
+    .{theme} .marco-settings-sidebar list {{
+        background: {sidebar_bg};
+        color: {foreground};
+        border: none;
+    }}
+    
+    .{theme} .marco-settings-sidebar list row {{
+        background: {sidebar_bg};
+        color: {foreground};
+        border: none;
+    }}
+    
+    .{theme} .marco-settings-sidebar list row:hover {{
+        background: {tab_hover};
+    }}
+    
+    .{theme} .marco-settings-sidebar list row:selected {{
+        background: {accent};
+        color: #ffffff;
+    }}
+    
+    .{theme} .marco-settings-main {{
+        background: {window_bg};
+    }}
+    
+    .{theme} .marco-settings-stack {{
+        background: {window_bg};
+    }}
+    
     /* Notebook tabs - {theme} */
     .{theme} .marco-settings-notebook {{
         background: {window_bg};
@@ -315,6 +351,11 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
             "#FAFAFA"
         } else {
             "#1E1E1E"
+        },
+        sidebar_bg = if theme_class.contains("light") {
+            "#EEEEEE"
+        } else {
+            "#2A2A2A"
         },
         titlebar_bg = palette.titlebar_bg,
         footer_bg = palette.footer_bg,

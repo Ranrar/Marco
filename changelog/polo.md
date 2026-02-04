@@ -24,6 +24,93 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.1] - 2026-02-04
+
+### Added
+- Platform-native file picker integration: Windows uses native OS file dialog (`rfd` crate), Linux uses GTK file chooser for consistent OS-appropriate user experience.
+
+### Changed
+- Enhanced cross-platform compilation with refined conditional import statements and explicit platform guards.
+
+## [0.17.0] - 2026-02-03
+
+### Added
+- **Platform-specific workspace files** - separate VS Code configurations for Linux and Windows.
+- **Enhanced platform support** via core library platform abstraction.
+
+### Changed
+- **Improved path resolution** using new core platform module for config/data directories.
+
+## [0.16.0] - 2026-02-02
+
+### Added
+- **Full cross-platform support** for Windows and Linux.
+- Windows builds now use `wry` (WebView2) for HTML rendering.
+- Linux builds use `webkit6` for HTML rendering.
+- Windows icon embedding using `embed-resource` crate with `polo.rc` resource script.
+- Platform-specific conditional compilation for webview backends.
+
+### Changed
+- Build system now supports both x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu targets.
+- Updated dependencies to match core 0.16.0 and marco 0.16.0.
+
+## [0.15.2] - 2026-01-30
+
+### Added
+- Replaced legacy IcoMoon icon-font glyphs with **inline SVG icons** in dialog controls and menu elements.
+- Introduced SVG-based window control icons with hover/active states and HiDPI supersampling.
+
+### Changed
+- CSS and button factories updated to rely on SVG rendering helpers; colors and hover/pressed behavior aligned with Marco's palette.
+
+### Fixed
+- Resolved pixelation and hover/press color glitches by using 2x rasterization and consistent event-driven texture swaps.
+
+### Removed
+- Legacy icon-font usage removed; packaging updated to remove `ui_menu.ttf` from packaged assets.
+
+### Security
+- Nothing yet.
+
+## [0.15.1] - 2026-01-26
+
+**Uses:** Core 0.15.1
+
+### Added
+- SVG icon support for window controls (minimize, maximize/restore, close)
+  - Crisp 2x rendering for HiDPI displays
+  - Event-based hover and active color states (#2563eb blue hover, #1e40af active)
+  - Centralized ICON_SIZE constant for easy maintenance
+
+### Changed
+- Consolidated duplicate SVG rendering code into shared `render_svg_icon()` function
+- Improved code organization in menu.rs (reduced from ~850 to ~776 lines)
+- Window control buttons now use Material Design 3 inspired color palette
+  - Light mode: subtle gray-blue (#4a5568) to blue hover
+  - Dark mode: light gray (#9ca3af) to blue hover
+- Enhanced color palette in CSS constants with window control states
+
+### Fixed
+- Window control icon colors no longer conflict between CSS filters and event handlers
+- Arc<ParentWindowHandle> clippy warning (changed to Rc for single-threaded Windows UI)
+- SVG icon pixelation issue resolved with 2x supersampling
+
+## [0.15.0] - 2026-01-25
+
+**Uses:** Core 0.15.0
+
+### Added
+- Cross-platform path support for asset discovery and file operations
+
+### Changed
+- File operations now fully compatible with Windows file paths
+
+### Fixed
+- Nothing yet.
+
+### Removed
+- `anyhow` dependency removed
+
 ## [0.14.0] - 2026-01-18
 
 **Uses:** Core 0.14.0

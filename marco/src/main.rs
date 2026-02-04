@@ -1,4 +1,11 @@
+#![cfg_attr(
+    all(target_os = "windows", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
+#[cfg(target_os = "linux")]
 use webkit6::prelude::*;
+
 mod components;
 mod footer;
 mod logic;
@@ -14,14 +21,18 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::editor_ui::create_editor_with_preview_and_buffer;
-use crate::components::editor::footer_updates::wire_footer_updates;
-use crate::components::viewer::viewmode::ViewMode;
+use crate::components::editor::footer::wire_footer_updates;
+use crate::components::editor::ui::create_editor_with_preview_and_buffer;
+use crate::components::viewer::preview_types::ViewMode;
 use crate::logic::menu_items::file::FileOperations;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
 use core::logic::{DocumentBuffer, RecentFiles};
 use core::paths::MarcoPaths;
+#[cfg(target_os = "windows")]
+use gio::prelude::*;
+#[cfg(target_os = "windows")]
+use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use log::trace;
 use std::cell::RefCell;
@@ -57,7 +68,7 @@ fn main() -> glib::ExitCode {
     }));
 
     // path detection and environment setup
-    use core::paths::{MarcoPaths, PathProvider};
+    use core::paths::MarcoPaths;
     let marco_paths = match MarcoPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -66,21 +77,7 @@ fn main() -> glib::ExitCode {
         }
     };
 
-    // Set local font dir for Fontconfig/Pango
-    // Note: set_local_font_dir expects the parent of fonts/, not fonts/ itself
-    // It sets XDG_DATA_HOME, and Fontconfig looks in $XDG_DATA_HOME/fonts/
-    let asset_root_for_fonts = marco_paths.asset_root();
-    core::logic::loaders::icon_loader::set_local_font_dir(
-        asset_root_for_fonts
-            .to_str()
-            .expect("Invalid asset root path"),
-    );
-
-    // Verify critical paths exist (optional, for debugging)
-    let ui_menu_font = marco_paths.shared().font("ui_menu.ttf");
-    if !ui_menu_font.exists() {
-        eprintln!("Warning: UI menu font not found at {:?}", ui_menu_font);
-    }
+    // Icon font support removed - icon fonts (IcoMoon) are no longer used. Use SVGs instead.
 
     let settings_path = marco_paths.settings_file();
     if !settings_path.exists() {
@@ -94,7 +91,7 @@ fn main() -> glib::ExitCode {
 
     // Ensure we shut down cleanly on SIGINT/SIGTERM so buffered log writes are flushed.
     // This is especially important now that the file logger uses a `BufWriter`.
-    #[cfg(unix)]
+    #[cfg(target_os = "linux")]
     {
         use glib::source::unix_signal_add_local;
         use glib::ControlFlow;
@@ -118,6 +115,31 @@ fn main() -> glib::ExitCode {
             core::logic::logger::shutdown_file_logger();
             app_for_sigterm.quit();
             ControlFlow::Break
+        });
+    }
+
+    // Windows: use ctrlc handler for graceful shutdown. Use an AtomicBool + polling timeout so handler is Send and we stay on the main thread.
+    #[cfg(target_os = "windows")]
+    {
+        let app_for_ctrlc = app.clone();
+        let ctrlc_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let ctrlc_flag_handler = std::sync::Arc::clone(&ctrlc_flag);
+        ctrlc::set_handler(move || {
+            ctrlc_flag_handler.store(true, std::sync::atomic::Ordering::SeqCst);
+        })
+        .expect("Failed to set Ctrl-C handler");
+
+        // Poll the flag on the main loop and perform shutdown when set
+        let app_for_poll = app_for_ctrlc.clone();
+        glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
+            if ctrlc_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                log::warn!("Received Ctrl-C, requesting graceful shutdown...");
+                core::logic::logger::shutdown_file_logger();
+                app_for_poll.quit();
+                glib::ControlFlow::Break
+            } else {
+                glib::ControlFlow::Continue
+            }
         });
     }
 
@@ -233,21 +255,50 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         if let Err(e) = core::logic::logger::init_file_logger(enabled, level) {
             eprintln!("Failed to initialize file logger: {}", e);
         } else if enabled {
+            // Show the resolved log folder to avoid confusion about "./log" vs system cache
+            let resolved = core::logic::logger::current_log_dir();
             log::info!(
-                "Logger initialized with level: {:?}, RUST_LOG set: {}",
+                "Logger initialized with level: {:?}, RUST_LOG set: {}, log_dir: {}",
                 level,
-                rust_log_set
+                rust_log_set,
+                resolved.display()
             );
             log::debug!("Debug logging is working");
             log::trace!("Trace logging is working");
-        }
 
-        if rust_log_set || enabled {
             println!(
-                "Logging enabled (level: {:?}), check log files in ./log/ directory",
-                level
+                "Logging enabled (level: {:?}), log files stored under: {}",
+                level,
+                resolved.display()
+            );
+        } else if rust_log_set {
+            // RUST_LOG was set but settings did not explicitly enable file logging — still show intended path
+            let resolved = core::logic::logger::current_log_dir();
+            println!(
+                "Logging enabled via RUST_LOG (level: {:?}), log files stored under: {}",
+                level,
+                resolved.display()
             );
         }
+
+        // Register listener to toggle file logger at runtime when settings change.
+        // Use the explicit settings flag `log_to_file` or the alternate env var `MARCO_LOG`.
+        let settings_manager_for_logger = settings_manager.clone();
+        let level_for_logger = level;
+        settings_manager_for_logger.register_change_listener("logger".to_string(), move |s| {
+            let enabled_now = s.log_to_file.unwrap_or(false) || std::env::var("MARCO_LOG").is_ok();
+            if enabled_now {
+                if let Err(e) = core::logic::logger::init_file_logger(true, level_for_logger) {
+                    log::warn!("Failed to init file logger from settings listener: {}", e);
+                } else {
+                    log::info!("File logger enabled via settings listener");
+                }
+            } else {
+                // Shutdown file logger immediately
+                core::logic::logger::shutdown_file_logger();
+                log::info!("File logger disabled via settings listener");
+            }
+        });
     }
 
     // Initialize monospace font cache for fast settings loading
@@ -347,10 +398,13 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         split_overlay,
         split_controller,
     ) = create_editor_with_preview_and_buffer(
-        preview_theme_filename.as_str(),
-        preview_theme_dir_str.as_str(),
-        theme_manager.clone(),
-        Rc::clone(&theme_mode),
+        &window,
+        crate::components::editor::ui::EditorParams {
+            preview_theme_filename,
+            preview_theme_dir: preview_theme_dir_str,
+            theme_manager: theme_manager.clone(),
+            theme_mode: Rc::clone(&theme_mode),
+        },
         footer_labels_rc.clone(),
         settings_path.to_str().unwrap(),
         Some(document_buffer_ref),
@@ -370,14 +424,37 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     split_overlay.add_css_class("split-view"); // Apply CSS to overlay
 
     // --- WebView Reparenting State for EditorAndViewSeparate Mode ---
-    use crate::components::viewer::controller::WebViewLocationTracker;
-    use crate::components::viewer::previewwindow::PreviewWindow;
+    use crate::components::viewer::layout_controller::WebViewLocationTracker;
 
-    let webview_location_tracker = WebViewLocationTracker::new();
-    let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
-    let reparent_guard = crate::components::viewer::switcher::ReparentGuard::new();
+    // Platform-specific reparenting state initialization. On Linux we create the actual
+    // objects; on non-Linux we pass `None` so titlebar/menu code uses safe fallbacks.
+    #[cfg(target_os = "linux")]
+    let (preview_window_opt, webview_location_tracker, reparent_guard) = {
+        use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+        let webview_location_tracker = WebViewLocationTracker::new();
+        let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
+        let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
+        log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode (Linux)");
+        (
+            Some(preview_window_opt),
+            Some(webview_location_tracker),
+            Some(reparent_guard),
+        )
+    };
 
-    log::debug!("Initialized WebView reparenting state for EditorAndViewSeparate mode");
+    #[cfg(target_os = "windows")]
+    let (preview_window_opt, webview_location_tracker, reparent_guard) = {
+        use crate::components::viewer::wry_detached_window::PreviewWindow;
+        let webview_location_tracker = WebViewLocationTracker::new();
+        let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
+        let reparent_guard = None::<()>;
+        log::debug!("Initialized wry-based detached preview state for Windows");
+        (
+            Some(preview_window_opt),
+            Some(webview_location_tracker),
+            reparent_guard,
+        )
+    };
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
     let (titlebar_handle, title_label, recent_menu) =
@@ -385,9 +462,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             window: &window,
             webview_rc: Some(editor_webview.clone()),
             split: Some(split.clone()),
-            preview_window_opt: Some(preview_window_opt.clone()),
-            webview_location_tracker: Some(webview_location_tracker.clone()),
-            reparent_guard: Some(reparent_guard.clone()),
+            preview_window_opt,
+            webview_location_tracker,
+            reparent_guard,
             split_controller: Some(split_controller.clone()),
             asset_root: &asset_root,
         });
@@ -831,17 +908,31 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let window = window.clone();
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
+        #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
         let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
-            use crate::ui::dialogs::search::show_search_window;
-            show_search_window(
-                window.upcast_ref(),
-                cache.clone(),
-                Rc::clone(&buffer),
-                Rc::clone(&source_view),
-                webview.clone(),
-            );
+            #[cfg(target_os = "linux")]
+            {
+                use crate::ui::dialogs::search::show_search_window;
+                show_search_window(
+                    window.upcast_ref(),
+                    cache.clone(),
+                    Rc::clone(&buffer),
+                    Rc::clone(&source_view),
+                    webview.clone(),
+                );
+            }
+            #[cfg(target_os = "windows")]
+            {
+                use crate::ui::dialogs::search::show_search_window_no_webview;
+                show_search_window_no_webview(
+                    window.upcast_ref(),
+                    cache.clone(),
+                    Rc::clone(&buffer),
+                    Rc::clone(&source_view),
+                );
+            }
         }
     });
     app.add_action(&search_action);
@@ -856,13 +947,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &window,
         &editor_buffer,
         &title_label,
-        std::sync::Arc::new(|w, title| Box::pin(FileDialogs::show_open_dialog(w, title))),
-        std::sync::Arc::new(|w, doc_name, action| {
-            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))
-        }),
-        std::sync::Arc::new(|w, title, suggested| {
-            Box::pin(FileDialogs::show_save_dialog(w, title, suggested))
-        }),
+        FileDialogs::open_dialog_callback(),
+        FileDialogs::save_changes_dialog_callback(),
+        FileDialogs::save_dialog_callback(),
     );
 
     // Wire dynamic recent-file actions using the recent_menu from the UI
@@ -873,12 +960,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &window,
         &editor_buffer,
         &title_label,
-        std::sync::Arc::new(|w, doc_name, action| {
-            Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))
-        }),
-        std::sync::Arc::new(|w, title, suggested| {
-            Box::pin(FileDialogs::show_save_dialog(w, title, suggested))
-        }),
+        FileDialogs::save_changes_dialog_callback(),
+        FileDialogs::save_dialog_callback(),
     );
 
     // Open initial file if provided via command line
@@ -889,10 +972,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             window.clone(),
             editor_buffer.clone(),
             title_label.clone(),
-            |w, doc_name, action| {
-                Box::pin(FileDialogs::show_save_changes_dialog(w, doc_name, action))
-            },
-            |w, title, suggested| Box::pin(FileDialogs::show_save_dialog(w, title, suggested)),
+            crate::ui::menu_items::files::save_changes_dialog_cb,
+            crate::ui::menu_items::files::save_dialog_cb,
         );
     }
 

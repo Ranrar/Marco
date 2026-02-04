@@ -1,0 +1,39 @@
+{
+  "folders": [
+    {
+      "path": ".",
+      "name": "Marco (Windows)"
+    }
+  ],
+  "settings": {
+    "logViewer.watch": [
+      "/log/**/*.log"
+    ],
+    "editor.tabSize": 4,
+    "editor.insertSpaces": true,
+    "editor.formatOnSave": false,
+    "files.exclude": {
+      "**/target": false,
+      "**/.git": true
+    },
+    "files.readonlyInclude": {
+      "**/.cargo/registry/src/**/*.rs": true,
+      "**/.cargo/git/checkouts/**/*.rs": true,
+      "**/lib/rustlib/src/rust/library/**/*.rs": true
+    },
+
+    "rust-analyzer.checkOnSave": true,
+    "rust-analyzer.check.command": "check",
+    "rust-analyzer.cargo.allTargets": true,
+
+    "rust-analyzer.cargo.target": "x86_64-pc-windows-msvc",
+    "rust-analyzer.checkOnSave.targets": ["x86_64-pc-windows-msvc"]
+  },
+  "extensions": {
+    "recommendations": [
+      "rust-lang.rust-analyzer",
+      "made-by.ron"
+    ],
+    "unwantedRecommendations": []
+  }
+}

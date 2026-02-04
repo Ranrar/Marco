@@ -59,10 +59,6 @@ use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 /// Note: This should rarely be used - menu.css is the canonical source
 const FALLBACK_MENU_CSS: &str = r#"
     /* Critical styles for basic functionality */
-    .icon-font {
-        font-family: 'icomoon';
-        font-size: 16px;
-    }
     .window-control-btn {
         background: transparent;
         border: none;
@@ -119,7 +115,7 @@ pub fn load_css_from_path(asset_root: &std::path::Path) {
     // Generate Polo-specific styles from modular components
     let polo_css = generate_polo_css();
 
-    // Combine Marco's menu.css with Polo-specific styles
+    // Combine Marco's menu.css with Polo-specific styles.
     let combined_css = format!("{}\n\n/* Polo-specific styles */\n{}", menu_css, polo_css);
     css_provider.load_from_data(&combined_css);
 

@@ -41,7 +41,7 @@ pub enum LayoutState {
 /// Converts a LayoutState to a human-readable string label.
 pub fn layout_state_label(state: LayoutState) -> &'static str {
     match state {
-        LayoutState::DualView => "standard dual view",
+        LayoutState::DualView => "Change layout",
         LayoutState::EditorOnly => "editor view only",
         LayoutState::ViewOnly => "preview view only",
         LayoutState::EditorAndViewSeparate => "editor + view in separate window",

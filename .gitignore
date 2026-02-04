@@ -2,11 +2,9 @@
 target
 
 # internal dev code
-*.code-workspace
 /.github/chatmodes
 /.github/instructions
 /.VSCodeCounter
-/.vscode
 /.dev
 
 # Program specefik

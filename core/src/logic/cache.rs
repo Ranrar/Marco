@@ -19,7 +19,6 @@
 
 use crate::parser::{parse, Document};
 use crate::render::{render, RenderOptions};
-use anyhow::{Context, Result};
 use moka::sync::Cache;
 use std::collections::HashMap;
 use std::fs;
@@ -82,14 +81,20 @@ impl SimpleFileCache {
     }
 
     /// Load file fast using cache-first strategy (as per spec)
-    pub fn load_file_fast<P: AsRef<Path>>(&self, path: P) -> Result<String> {
+    pub fn load_file_fast<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         // Use the shared version and convert to String for backwards compatibility
         let shared_content = self.load_file_fast_shared(path)?;
         Ok((*shared_content).clone())
     }
 
     /// Load file fast with shared ownership - avoids cloning for better memory efficiency
-    pub fn load_file_fast_shared<P: AsRef<Path>>(&self, path: P) -> Result<Arc<String>> {
+    pub fn load_file_fast_shared<P: AsRef<Path>>(
+        &self,
+        path: P,
+    ) -> Result<Arc<String>, Box<dyn std::error::Error>> {
         let path = path.as_ref().to_path_buf();
 
         // Check cache first
@@ -109,10 +114,13 @@ impl SimpleFileCache {
     }
 
     /// Load file from disk and add to cache with shared ownership - avoids unnecessary cloning
-    fn load_and_cache_file_shared(&self, path: PathBuf) -> Result<Arc<String>> {
+    fn load_and_cache_file_shared(
+        &self,
+        path: PathBuf,
+    ) -> Result<Arc<String>, Box<dyn std::error::Error>> {
         // Read raw bytes and sanitize UTF-8 (prevents crashes from invalid UTF-8)
-        let raw_bytes =
-            fs::read(&path).with_context(|| format!("Failed to read file: {}", path.display()))?;
+        let raw_bytes = fs::read(&path)
+            .map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
 
         let (content, stats) = crate::logic::utf8::sanitize_input_with_stats(
             &raw_bytes,
@@ -129,13 +137,13 @@ impl SimpleFileCache {
         }
 
         let metadata = fs::metadata(&path)
-            .with_context(|| format!("Failed to get metadata for: {}", path.display()))?;
+            .map_err(|e| format!("Failed to get metadata for {}: {}", path.display(), e))?;
 
         let modification_time = metadata
             .modified()
-            .map_err(|e| anyhow::anyhow!("Failed to get modification time: {}", e))?
+            .map_err(|e| format!("Failed to get modification time: {}", e))?
             .duration_since(UNIX_EPOCH)
-            .map_err(|e| anyhow::anyhow!("Invalid system time: {}", e))?
+            .map_err(|e| format!("Invalid system time: {}", e))?
             .as_secs();
 
         // Create Arc<String> directly - no clone needed!
@@ -206,7 +214,7 @@ impl ParserCache {
     }
 
     /// Parse markdown content with AST caching
-    pub fn parse_with_cache(&self, content: &str) -> Result<Document> {
+    pub fn parse_with_cache(&self, content: &str) -> Result<Document, Box<dyn std::error::Error>> {
         let content_hash = hash_content(content);
 
         // Try to get from cache
@@ -221,7 +229,11 @@ impl ParserCache {
     }
 
     /// Render markdown to HTML with full caching (AST + HTML)
-    pub fn render_with_cache(&self, content: &str, options: RenderOptions) -> Result<String> {
+    pub fn render_with_cache(
+        &self,
+        content: &str,
+        options: RenderOptions,
+    ) -> Result<String, Box<dyn std::error::Error>> {
         let content_hash = hash_content(content);
         let options_hash = hash_options(&options);
         let cache_key = (content_hash, options_hash);
@@ -314,13 +326,19 @@ fn hash_options(options: &RenderOptions) -> u64 {
 // === Convenience Functions ===
 
 /// Parse markdown to HTML (uncached, for one-off conversions)
-pub fn parse_to_html(content: &str, options: RenderOptions) -> Result<String> {
+pub fn parse_to_html(
+    content: &str,
+    options: RenderOptions,
+) -> Result<String, Box<dyn std::error::Error>> {
     let doc = parse(content)?;
     render(&doc, &options)
 }
 
 /// Parse markdown to HTML using global cache (recommended for UI)
-pub fn parse_to_html_cached(content: &str, options: RenderOptions) -> Result<String> {
+pub fn parse_to_html_cached(
+    content: &str,
+    options: RenderOptions,
+) -> Result<String, Box<dyn std::error::Error>> {
     global_parser_cache().render_with_cache(content, options)
 }
 
@@ -512,7 +530,7 @@ pub fn shutdown_global_cache() {
 pub mod cached {
     use super::*;
 
-    pub fn read_to_string<P: AsRef<Path>>(path: P) -> Result<String> {
+    pub fn read_to_string<P: AsRef<Path>>(path: P) -> Result<String, Box<dyn std::error::Error>> {
         global_cache().load_file_fast(path)
     }
 }

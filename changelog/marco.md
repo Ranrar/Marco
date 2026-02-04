@@ -24,6 +24,113 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.1] - 2026-02-04
+
+### Added
+- Platform-agnostic scroll synchronization API ensuring consistent behavior across Windows (wry/WebView2) and Linux (webkit6).
+- Enhanced conditional compilation guards to eliminate cross-platform build warnings.
+
+### Changed
+- Optimized preview scroll event handling with reduced JavaScript overhead for improved performance on both platforms.
+- Refined cross-platform compilation with explicit `cfg(target_os)` attributes throughout the codebase.
+- Improved WRY WebView integration with proper API stub implementations for Windows-Linux feature parity.
+
+### Fixed
+- Resolved Windows preview mouse-wheel scrolling issue when cursor hovers over heading elements (H1-H6).
+- Corrected Windows portable build script OS detection logic to handle PowerShell version differences.
+- Eliminated unused import warnings on Linux builds through targeted conditional compilation.
+
+## [0.17.0] - 2026-02-03
+
+### Added
+- **Platform-specific workspace files** - separate VS Code configurations for Linux and Windows.
+- **Windows native file dialogs** using `rfd` crate (replaces GTK dialogs on Windows).
+- **Enhanced editor UI module** with platform-conditional WebView implementations.
+- **Bidirectional scroll synchronization** between editor and preview.
+- **Dynamic CSS theming** for scrollbars and paned separators based on editor theme colors.
+- **Smooth HTML updates** - reduced flickering during editing with debounced rendering.
+
+### Changed
+- **Refactored editor UI** into dedicated `components/editor/ui.rs` module (1527 lines).
+- **Debounced processing** - preview rendering (400ms), LSP highlighting (250ms), extension processing (400ms).
+- **All `cfg` attributes** now use explicit `target_os` conditions instead of negative conditions.
+- **WebView implementation** is now platform-specific: `webkit6` on Linux, `wry` on Windows.
+
+### Fixed
+- **Removed duplicated `cfg` attributes** in webkit6 modules.
+- **Eliminated unnecessary clone operations** on Copy types.
+- **Replaced lazy evaluation** with direct values where appropriate.
+- **Fixed useless format! macros** replaced with `.to_string()`.
+
+## [0.16.0] - 2026-02-02
+
+### Added
+- **Full cross-platform support** for Windows and Linux.
+- Windows builds now use `wry` (WebView2) for HTML preview rendering.
+- Linux builds use `webkit6` for HTML preview rendering.
+- Windows icon embedding using `embed-resource` crate with `marco.rc` resource script.
+- Platform-specific conditional compilation for webview backends.
+
+### Changed
+- Migrated to webkit6 0.5.0 async API for Linux builds (`evaluate_javascript_future`).
+- Updated JavaScript evaluation to use async/await pattern with `glib::spawn_future_local`.
+- Build system now supports both x86_64-pc-windows-msvc and x86_64-unknown-linux-gnu targets.
+
+### Fixed
+- Fixed Windows icon embedding - marco.exe now displays icon correctly.
+- Fixed Linux build compatibility with webkit6 0.5.0 (removed callback-based API).
+- Fixed borrow lifetime issues in webkit6 async JavaScript execution.
+- Removed unused imports from search navigation and replace modules.
+
+## [0.15.1] - 2026-01-31
+
+### Added
+- Added Windows preview helpers using `wry` for embedded previews on Windows:
+  - `wry.rs` — HTML document wrapping, base URI generation, and HTML viewer creation using `wry`/WebView2 when available
+  - `wry_detached_window.rs` — Detached preview window implementation that can host a `wry` WebView and integrate with the GTK application lifecycle
+  - `wry_platform_webview.rs` — Platform-specific WebView wrapper for Windows that manages background color, HTML loading, and safe fallbacks when WebView2 is unavailable
+  - Included runtime-friendly fallbacks and defensive checks for missing WebView2 runtimes; the feature is gated per-platform and integrates with the existing preview reparenting and menu logic
+
+## [0.15.1] - 2026-01-30
+
+### Added
+- Replaced legacy IcoMoon icon-font glyphs with **inline SVG icons** across the UI (titlebar window controls, layout popover, dialogs, detached preview). These use `gtk::Picture` textures for crisp rendering and HiDPI supersampling.
+- Added helper functions to render inline SVGs to `gtk::Picture` with consistent theme-driven color states.
+- Added `DualView` layout SVG to the shared Core icon loader (see Core changelog).
+
+### Changed
+- Window control and layout buttons now use Picture-backed SVGs with hover and press color states aligned to Polo's visual behavior.
+- CSS generation updated to remove `.icon-font`/IcoMoon selectors; theme constants adjusted for SVG-driven icon states.
+- Popover logic improved: pre-created popover buttons and unparent them before re-append to avoid GTK parent assertion warnings.
+
+### Fixed
+- Added robust error handling for SVG parse/rasterization failures; a transparent 1x1 fallback texture avoids runtime panics on malformed SVG input.
+- Fixed GTK parent assertion warnings by unparenting widgets before reuse in popovers.
+
+### Removed
+- Dropped legacy icon-font support and removed references to `ui_menu.ttf` in the UI code and tests.
+- Removed the old `icon_font()` usage patterns (core paths helper moved/removed).
+- Packaging scripts were updated to defensively remove deprecated `ui_menu.ttf` from installer/package outputs.
+
+## [0.15.0] - 2026-01-25
+
+**Uses:** Core 0.15.0
+
+### Added
+- Cross-platform path support for asset discovery and file operations
+
+### Changed
+- File operations now fully compatible with Windows file paths
+- Error handling updated to use standard Rust error types instead of `anyhow`
+
+### Fixed
+- Fixed Result type annotations in file dialogs, menu handlers, and editor components
+- Fixed error type conversions for GTK threading safety (`Send` trait compatibility)
+- Editor settings save operations now properly handle errors
+
+### Removed
+- `anyhow` dependency removed
+
 ## [0.14.0] - 2026-01-18
 
 **Uses:** Core 0.14.0

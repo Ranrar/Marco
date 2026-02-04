@@ -21,7 +21,7 @@ When facing an issue or problem:
 ## Development Workflow
 
 ### Rust Toolchain
-Marco uses **Rust 1.90.0** (stable, released September 2025) with the following components:
+Marco uses **Rust 1.92.0** (stable) with the following components:
 - **rustfmt** - Code formatting (`cargo fmt`)
 - **clippy** - Linting and code quality (`cargo clippy`)
 - **rust-src** - Source code for standard library (required for rust-analyzer)
@@ -34,13 +34,22 @@ Marco uses **Rust 1.90.0** (stable, released September 2025) with the following 
 ```bash
 cargo fmt                    # Format code
 cargo clippy                 # Run linter
-cargo test --workspace       # Run all tests (546 total)
+cargo test --workspace       # Run all workspace tests
 cargo doc --workspace --open # Generate & view project docs
 cargo llvm-cov --html --open # Generate code coverage report
 rustup doc                   # View Rust standard library docs
 ```
 
-**Code coverage**: Use `cargo llvm-cov` to analyze test coverage. Current coverage: **51.75% line coverage** (grammar/parser/LSP well-covered, UI code at 0% which is normal for GTK apps).
+**Code coverage**: Use `cargo llvm-cov` to analyze test coverage. UI coverage is typically low/0% for GTK apps; focus coverage on `core/`.
+
+### VS Code workspaces (native OS)
+
+This repo intentionally supports **native per-OS development**. Use the workspace file that matches the OS you are on:
+
+- **Linux**: `marco-linux.code-workspace`
+- **Windows (MSVC)**: `marco-windows.code-workspace`
+
+Avoid configuring Rust Analyzer to use `x86_64-pc-windows-gnu` on Linux for this project: GTK/Glib sys crates (e.g. `glib-sys`) rely on `pkg-config` and require a full Windows/MinGW sysroot for cross compilation, which will produce noisy diagnostics that are not actionable for most contributions.
 
 ### Using Logs for Testing
 Marco uses file-based logging as part of the development workflow:
@@ -77,7 +86,7 @@ Marco uses a **Cargo workspace** with three crates:
 - **`ui/css/`** - Programmatic CSS generation system
 
 #### polo Binary (`polo/src/`)
-- Viewer-only application (implementation pending)
+- Viewer-focused application (read-only viewer companion)
 
 ### Parser Architecture (nom-based)
 The core parser uses **nom combinators** for Markdown parsing:
@@ -123,7 +132,56 @@ let completions = get_completions(position, context); // Returns Vec<CompletionI
 - **Workspace root**: `Cargo.toml` defines workspace members and shared dependencies
 - **Core build**: `core/build.rs` copies assets from workspace `assets/` to `target/*/marco_assets/`
 - Font loading uses absolute paths via `logic::paths` helpers
-- Cross-platform support handled in `logic::crossplatforms`
+- Cross-platform support is primarily handled via `core::paths::platform` (OS-specific path resolution) and platform-gated UI/webview code.
+
+**Cross-platform cfg annotations**: When adding platform-specific code or dependencies, annotate modules or items with `#[cfg(target_os = "linux")]` or `#[cfg(target_os = "windows")]` to make behavior explicit and to keep builds clean. Prefer conditional dependencies in `Cargo.toml` for platform-only crates:
+
+> **Info:** Platform-specific conditional dependencies for `Cargo.toml`
+>
+> ```txt
+> [target.'cfg(target_os = "linux")'.dependencies]
+> # Linux: webkit6 (GTK4-native WebKit)
+> webkit6
+> [target.'cfg(target_os = "windows")'.dependencies]
+> # Windows: wry (Chromium-based native Windows webview, e.g., Edge)
+> wry
+> tao
+> gdk4-win32
+> raw-window-handle
+> urlencoding
+> ```
+
+#### Conditional Imports
+
+When writing cross-platform Rust, apply conditional compilation to the **imports themselves** to avoid unused-import warnings on one OS and missing-import errors on the other.
+
+Use **only** these forms for OS gating in this repo:
+- `#[cfg(target_os = "windows")]`
+- `#[cfg(target_os = "linux")]`
+
+Do **not** use `cfg(any(...))` or `cfg(not(...))` for these platform import cases.
+
+Example:
+
+```rust
+#[cfg(target_os = "windows")]
+use gtk4::Window;
+
+#[cfg(target_os = "linux")]
+use gtk4::{Window, Label};
+```
+
+You can also alias imports to use a common name across platforms:
+
+```rust
+#[cfg(target_os = "windows")]
+use gtk4::Window as GtkWindow;
+
+#[cfg(target_os = "linux")]
+use gtk4::{Window as GtkWindow, Label};
+```
+
+This keeps cross-platform code clean and compiler-friendly.
 
 Build commands:
 ```bash
@@ -137,23 +195,23 @@ cargo build --workspace # All crates
 
 #### Version tracking (single source of truth)
 - **Do not** hand-edit crate versions in multiple places.
-- Use `install/version.json` as the single version source for the workspace crates (`core`, `marco`, `polo`).
-- `install/build_deb.sh` is responsible for (optionally) bumping versions and syncing them into:
+- Use `build/version.json` as the single version source for the workspace crates (`core`, `marco`, `polo`).
+- `build/linux/build_deb.sh` is responsible for (optionally) bumping versions and syncing them into:
     - `core/Cargo.toml`
     - `marco/Cargo.toml`
     - `polo/Cargo.toml`
 
 #### Automated version bump (recommended)
-- Prefer using `install/build_deb.sh` to bump versions and sync the three `Cargo.toml` files.
+- Prefer using `build/linux/build_deb.sh` to bump versions and sync the three `Cargo.toml` files.
 - For version changes without building a `.deb`, use:
-    - `bash install/build_deb.sh --version-only` (defaults to patch bump)
-    - `bash install/build_deb.sh --version-only --bump minor|major`
-    - `bash install/build_deb.sh --version-only --set X.Y.Z`
+    - `bash build/linux/build_deb.sh --version-only` (defaults to patch bump)
+    - `bash build/linux/build_deb.sh --version-only --bump minor|major`
+    - `bash build/linux/build_deb.sh --version-only --set X.Y.Z`
 
 #### Release workflow (repo practice)
 For a real release commit:
 1. Update the three changelogs (`changelog/core.md`, `changelog/marco.md`, `changelog/polo.md`).
-2. Bump versions via `install/build_deb.sh` (recommended: `--version-only`), which updates `install/version.json` + all `Cargo.toml` versions.
+2. Bump versions via `build/linux/build_deb.sh` (recommended: `--version-only`), which updates `build/version.json` + all `Cargo.toml` versions.
 3. Run tests (`cargo test --workspace --locked`).
 4. Commit the changelog + version changes.
 5. Tag the release (for example `vX.Y.Z`) and push.
@@ -187,9 +245,9 @@ version = "2.0.0+build.123"
 - If details are ambiguous, prefer neutral wording and avoid guessing.
 
 #### Debian packaging (Linux)
-- Debian packaging assets and scripts live in `install/`.
-- Primary entry point: `install/build_deb.sh`
-    - Builds the workspace and produces a `.deb` (marco-suite package) using the versions from `install/version.json`.
+Debian packaging assets and scripts live in `build/linux/`.
+Primary entry point: `build/linux/build_deb.sh`
+    - Builds the workspace and produces a `.deb` (marco-suite package) using the versions from `build/version.json`.
     - Supports flags to control version bumping (for example, CI uses a no-bump mode so builds don't mutate versions).
 
 **Package naming policy:** the repo uses a fixed `amd64` suffix for produced package filenames.
@@ -197,11 +255,23 @@ version = "2.0.0+build.123"
 **Alpha artifact naming:** use `--alpha-artifact` to create an additional copy named:
 - `marco-suite_alpha_<version>_amd64.deb`
 
+#### Windows portable packaging
+Windows packaging assets and scripts live in `build/windows/`.
+Primary entry point: `build/windows/build_portable.ps1`
+    - Builds the workspace with `--target x86_64-pc-windows-msvc` and produces a portable `.zip` using the version from `build/version.json`.
+    - Must be run on Windows (not cross-compiled from Linux).
+    - Creates a self-contained directory structure with `marco.exe`, `polo.exe`, `assets/`, and empty `config/` + `data/` folders for portable mode.
+
+**Package naming:** 
+- `marco-suite_alpha_<version>_windows_amd64.zip`
+
+**Portable mode detection:** The Windows build automatically detects it's running in portable mode (writable directory next to the executable) and stores config/data locally instead of `%LOCALAPPDATA%`.
+
 ### GitHub Actions / CI workflows
 - Workflows live in `.github/workflows/`.
 - The Debian release workflow builds the `.deb` and publishes it as a release asset.
 - CI should build deterministically:
-    - Avoid changing `install/version.json` or `Cargo.toml` during CI runs.
+    - Avoid changing `build/version.json` or `Cargo.toml` during CI runs.
     - Ensure required build tools are installed (notably `python3` is used by the packaging/version script).
 
 **Alpha release behavior:** the `alpha` GitHub Release is a moving target; CI overwrites the existing alpha asset on each run.
@@ -209,7 +279,7 @@ version = "2.0.0+build.123"
 ### Error Handling & Logging
 - Panic hook installed early in `marco/src/main.rs` with logger flush on crash
 - File-based logging via `core::logic::logger::SimpleFileLogger`
-- Parser errors return `Result<T, anyhow::Error>`
+- Parser errors return `Result<T, Box<dyn std::error::Error>>`
 
 ### Code Organization Rules
 1. **No logic in `marco/src/main.rs`** - only application setup and UI creation

@@ -1,6 +1,5 @@
 use crate::logic::cache::{cached, global_cache};
 use crate::logic::swanson::SettingsManager;
-use anyhow::{Context, Result};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -56,24 +55,24 @@ impl DocumentBuffer {
     ///
     /// # Returns
     /// * `Ok(DocumentBuffer)` - Buffer initialized with the file path
-    /// * `Err(anyhow::Error)` - If the path is invalid or the file doesn't exist
+    /// * `Err(Box<dyn std::error::Error>)` - If the path is invalid or the file doesn't exist
     ///
     /// # Example
     /// ```no_run
     /// use std::path::Path;
     /// use core::logic::buffer::DocumentBuffer;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("document.md"))?;
     /// assert!(buffer.file_path.is_some());
     /// assert_eq!(buffer.display_name, "document.md");
     /// # Ok(())
     /// # }
     /// ```
-    pub fn new_from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn new_from_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let path = path.as_ref();
         if !path.exists() {
-            return Err(anyhow::anyhow!("File does not exist: {}", path.display()));
+            return Err(format!("File does not exist: {}", path.display()).into());
         }
 
         let display_name = path
@@ -102,25 +101,25 @@ impl DocumentBuffer {
     ///
     /// # Returns
     /// * `Ok(String)` - Content of the file
-    /// * `Err(anyhow::Error)` - If no file is associated or read fails
+    /// * `Err(Box<dyn std::error::Error>)` - If no file is associated or read fails
     ///
     /// # Example
     /// ```no_run
     /// use core::logic::buffer::DocumentBuffer;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let buffer = DocumentBuffer::new_untitled();
     /// let content = buffer.read_content()?;
     /// println!("File content: {}", content);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn read_content(&self) -> Result<String> {
+    pub fn read_content(&self) -> Result<String, Box<dyn std::error::Error>> {
         match &self.file_path {
             Some(path) => {
                 // Use cached file operations for better performance
                 cached::read_to_string(path)
-                    .with_context(|| format!("Failed to read file: {}", path.display()))
+                    .map_err(|e| format!("Failed to read file {}: {}", path.display(), e).into())
             }
             None => Ok(String::new()), // Empty content for untitled documents
         }
@@ -135,7 +134,7 @@ impl DocumentBuffer {
     ///
     /// # Returns
     /// * `Ok(())` - Save operation succeeded
-    /// * `Err(anyhow::Error)` - If no file is associated or write fails
+    /// * `Err(Box<dyn std::error::Error>)` - If no file is associated or write fails
     ///
     /// # Side Effects
     /// - Sets `is_modified` to `false` on successful save
@@ -145,29 +144,30 @@ impl DocumentBuffer {
     /// ```no_run
     /// use core::logic::buffer::DocumentBuffer;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.save_content("# My Document\n\nHello world!")?;
     /// assert!(!buffer.is_modified);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn save_content(&mut self, content: &str) -> Result<()> {
+    pub fn save_content(&mut self, content: &str) -> Result<(), Box<dyn std::error::Error>> {
         match &self.file_path {
             Some(path) => {
                 // Create parent directories if they don't exist
                 if let Some(parent) = path.parent() {
-                    std::fs::create_dir_all(parent).with_context(|| {
+                    std::fs::create_dir_all(parent).map_err(|e| {
                         format!(
-                            "Failed to create parent directories for: {}",
-                            path.display()
+                            "Failed to create parent directories for {}: {}",
+                            path.display(),
+                            e
                         )
                     })?;
                 }
 
                 // Write content directly
                 std::fs::write(path, content)
-                    .with_context(|| format!("Failed to write file: {}", path.display()))?;
+                    .map_err(|e| format!("Failed to write file {}: {}", path.display(), e))?;
 
                 // Invalidate cache after write
                 global_cache().invalidate_file(path);
@@ -184,9 +184,7 @@ impl DocumentBuffer {
                 self.log_document_state("save_content");
                 Ok(())
             }
-            None => Err(anyhow::anyhow!(
-                "Cannot save: no file path set. Use save_as_content() instead."
-            )),
+            None => Err("Cannot save: no file path set. Use save_as_content() instead.".into()),
         }
     }
 
@@ -200,7 +198,7 @@ impl DocumentBuffer {
     ///
     /// # Returns
     /// * `Ok(())` - Save operation succeeded
-    /// * `Err(anyhow::Error)` - If write fails
+    /// * `Err(Box<dyn std::error::Error>)` - If write fails
     ///
     /// # Side Effects
     /// - Updates `file_path` to the new path
@@ -214,14 +212,18 @@ impl DocumentBuffer {
     /// use std::path::Path;
     /// use core::logic::buffer::DocumentBuffer;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut buffer = DocumentBuffer::new_untitled();
     /// buffer.save_as_content(Path::new("new_document"), "# Content")?;
     /// assert_eq!(buffer.file_path.unwrap().extension().unwrap(), "md");
     /// # Ok(())
     /// # }
     /// ```
-    pub fn save_as_content<P: AsRef<Path>>(&mut self, path: P, content: &str) -> Result<()> {
+    pub fn save_as_content<P: AsRef<Path>>(
+        &mut self,
+        path: P,
+        content: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let mut path = path.as_ref().to_path_buf();
 
         // Ensure the file has a .md extension
@@ -231,17 +233,18 @@ impl DocumentBuffer {
 
         // Create parent directories if they don't exist
         if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
+            std::fs::create_dir_all(parent).map_err(|e| {
                 format!(
-                    "Failed to create parent directories for: {}",
-                    path.display()
+                    "Failed to create parent directories for {}: {}",
+                    path.display(),
+                    e
                 )
             })?;
         }
 
         // Write content directly
         std::fs::write(&path, content)
-            .with_context(|| format!("Failed to write file: {}", path.display()))?;
+            .map_err(|e| format!("Failed to write file {}: {}", path.display(), e))?;
 
         // Invalidate cache after write
         global_cache().invalidate_file(&path);
@@ -276,7 +279,7 @@ impl DocumentBuffer {
     ///
     /// # Returns
     /// * `Ok(String)` - The loaded content
-    /// * `Err(anyhow::Error)` - If no file is associated or read fails
+    /// * `Err(Box<dyn std::error::Error>)` - If no file is associated or read fails
     ///
     /// # Side Effects
     /// - Sets `baseline_content` to the loaded content
@@ -287,14 +290,14 @@ impl DocumentBuffer {
     /// use core::logic::buffer::DocumentBuffer;
     /// use std::path::Path;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut buffer = DocumentBuffer::new_from_file(Path::new("document.md"))?;
     /// let content = buffer.load_and_set_baseline()?;
     /// assert!(!buffer.is_modified);
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load_and_set_baseline(&mut self) -> Result<String> {
+    pub fn load_and_set_baseline(&mut self) -> Result<String, Box<dyn std::error::Error>> {
         let content = self.read_content()?;
         let content_size = content.len();
 
@@ -405,7 +408,7 @@ impl DocumentBuffer {
     /// use std::path::Path;
     /// use core::logic::buffer::DocumentBuffer;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("/home/user/docs/readme.md"))?;
     /// let dir = buffer.get_directory_path();
     /// assert_eq!(dir.unwrap(), Path::new("/home/user/docs"));
@@ -431,7 +434,7 @@ impl DocumentBuffer {
     /// use std::path::Path;
     /// use core::logic::buffer::DocumentBuffer;
     ///
-    /// # fn main() -> anyhow::Result<()> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let buffer = DocumentBuffer::new_from_file(Path::new("/home/user/docs/readme.md"))?;
     /// let base_uri = buffer.get_base_uri_for_webview();
     /// assert!(base_uri.unwrap().starts_with("file://"));

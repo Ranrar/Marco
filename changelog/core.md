@@ -22,6 +22,87 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.17.1] - 2026-02-04
+
+### Changed
+- Improved cross-platform compilation with refined conditional compilation attributes for Linux and Windows builds.
+- Enhanced platform-specific code organization using explicit `cfg(target_os)` gates.
+
+### Fixed
+- Resolved Linux build compilation error in font loader module (missing `HashMap` import under platform-specific code path).
+
+## [0.17.0] - 2026-02-03
+
+### Added
+- **Platform abstraction module** (`core::paths::platform`) for OS-specific path implementations.
+- **Windows portable mode detection** - automatically uses local config/data when exe directory is writable.
+- **Linux platform paths** - XDG-compliant user directories (`~/.local/share/marco`, `~/.config/marco`).
+- **Windows platform paths** - Standard Windows locations (`%LOCALAPPDATA%\Marco`) with portable fallback.
+- **Asset root validation** - verifies asset bundles contain required directories before accepting paths.
+
+### Changed
+- **Refactored path system** to use platform-specific modules with explicit `cfg` attributes.
+- **Install location detection** now properly distinguishes between system/user/portable installs.
+
+## [0.16.0] - 2026-02-02
+
+### Added
+- **Full cross-platform support** for Windows and Linux.
+- Platform-agnostic core library works identically on both platforms.
+
+### Changed
+- Migrated logger from `static mut` to `OnceLock<T>` for Rust 2024 compatibility.
+- Removed all unsafe blocks for logger access in favor of safe initialization pattern.
+
+### Fixed
+- Fixed `static_mut_refs` warnings to comply with Rust 2024 edition.
+
+## [0.15.2] - 2026-01-30
+
+### Added
+- Added `DualView` layout **inline SVG** to the Core icon loader.
+- Icon loader documentation updated to describe inline SVG usage and HiDPI rasterization expectations.
+
+### Changed
+- Icon loader and related docs updated to formally deprecate icon-font usage across the workspace and to prefer inline SVG assets.
+
+### Fixed
+- N/A
+
+### Removed
+- Removed the legacy `icon_font()` helper from `core::paths::SharedPaths` (icon-font helper was no longer used).
+
+### Security
+- Nothing yet.
+
+## [0.15.1] - 2026-01-26
+
+### Changed
+- Icon loader now supports inline SVG rendering for window controls
+  - Added window icon SVG generation (minimize, maximize, restore, close)
+  - Integrated with rsvg/librsvg for high-quality SVG rasterization
+
+## [0.15.0] - 2026-01-25
+
+### Added
+- Cross-platform file path support for Windows and Linux
+  - Asset root discovery now supports Windows paths (`%LOCALAPPDATA%`, `%PROGRAMFILES%`, `%PROGRAMDATA%`)
+  - Install location detection works for both Linux (`/usr/share`, `~/.local/share`) and Windows (Program Files, AppData)
+  - Platform-appropriate log directories (Linux: `~/.cache/marco/logs`, Windows: `%LOCALAPPDATA%\Marco\logs`)
+  - Config and data directories use platform-specific locations via `dirs` crate
+
+### Changed
+- Logger now uses platform-appropriate cache directory instead of hardcoded `cwd/log`
+- Path detection uses conditional compilation for Linux and Windows specific logic
+
+### Fixed
+- Removed `anyhow` dependency, replaced with standard `Result<T, Box<dyn std::error::Error>>`
+- Fixed all Result type annotations throughout parser and logic modules
+- Fixed thread safety issues for error types used with GTK's `gio::spawn_blocking`
+
+### Removed
+- `anyhow` dependency removed from core library
+
 ## [0.14.0] - 2026-01-18
 
 ### Added

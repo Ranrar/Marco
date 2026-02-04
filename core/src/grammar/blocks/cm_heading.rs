@@ -87,11 +87,17 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
 
     // Remove trailing hashes if they're preceded by a space
     let final_content_str = if let Some(hash_pos) = trimmed.rfind(|c: char| c != '#' && c != ' ') {
-        let after_content = &trimmed[hash_pos + 1..];
+        // hash_pos is a byte index of the last character that is not # or space.
+        // We need to find the end of that character to get the substring after it.
+        let char_at_pos = trimmed[hash_pos..].chars().next().unwrap();
+        let char_len = char_at_pos.len_utf8();
+        let after_pos = hash_pos + char_len;
+        let after_content = &trimmed[after_pos..];
+
         // If everything after is spaces and hashes, remove them
         if after_content.chars().all(|c| c == ' ' || c == '#') {
-            let before_trailing = &trimmed[..=hash_pos];
-            before_trailing.trim_end()
+            // Keep everything up to and including the character at hash_pos
+            &trimmed[..after_pos]
         } else {
             trimmed
         }
@@ -99,6 +105,9 @@ pub fn heading(input: Span) -> IResult<Span, (u8, Span)> {
         // Content is all hashes/spaces or empty
         ""
     };
+
+    // Trim any remaining trailing whitespace
+    let final_content_str = final_content_str.trim_end();
 
     // Slice the original content span to maintain position information
     // CRITICAL: Do NOT use LocatedSpan::new() as it resets position to 0:0
