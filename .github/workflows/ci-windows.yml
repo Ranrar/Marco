@@ -18,6 +18,20 @@ jobs:
         id: toolchain
         uses: dtolnay/rust-toolchain@1.90.0
 
+      - name: Setup MSYS2 with GTK4
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-gtksourceview5
+            mingw-w64-ucrt-x86_64-webkitgtk6
+            mingw-w64-ucrt-x86_64-librsvg
+            mingw-w64-ucrt-x86_64-cairo
+            mingw-w64-ucrt-x86_64-gdk-pixbuf2
+            mingw-w64-ucrt-x86_64-pkg-config
+          
       - name: Cache cargo
         uses: actions/cache@v4
         with:

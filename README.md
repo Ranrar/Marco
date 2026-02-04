@@ -3,61 +3,45 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/badge/Platform-Linux%20|%20Windows-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Cross-Platform: Linux & Windows" />
   <img src="https://img.shields.io/badge/CommonMark-100%25-brightgreen?style=for-the-badge&logo=markdown&logoColor=white" alt="100% CommonMark Compliant" />
   <img src="https://img.shields.io/badge/International-Characters-blue?style=for-the-badge&logo=translate&logoColor=white" alt="International Characters Support" />
+  <br/>
+  <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
+  <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
+  <img src="https://img.shields.io/github/v/release/Ranrar/Marco?include_prereleases&style=for-the-badge&label=Alpha" alt="Latest Alpha Release" />
+</p>
 
-**Marco** is a fast Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
+**Marco** is a fast, cross-platform Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
 
 **Polo**, its companion viewer, lets you open and read Markdown documents with identical rendering and minimal resource use.  
 
-Both are built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
+Both run natively on **Linux and Windows**, built with **GTK4 and Rust**, designed for speed, clarity, and modern technical writing — with features like **executable code blocks**, **document navigation**, and **structured formatting**.
 
 <p align="center">
-  <img src="documentation/Screenshot/Screenshot from 2025-09-17 22-21-06.png" />
+  <img src="documentation/Screenshot/marco.png" alt="Marco Editor" />
+  <br/>
+  <em>Marco - Full-featured Markdown editor with live preview</em>
 </p>
+
+<p align="center">
+  <img src="documentation/Screenshot/polo.png" alt="Polo Viewer" />
+  <br/>
+  <em>Polo - Lightweight Markdown viewer</em>
+</p>
+
 <a href="documentation/Screenshot">View more screenshots</a>
 
 ## Quickstart
 
 Ready to try Marco? Installation is simple and takes less than a minute:
 
-## Linux
-
-### Alpha (latest dev build)
-
-Download the latest Alpha `.deb` from the **Alpha** release:
-
-- https://github.com/Ranrar/Marco/releases/tag/alpha
-
-The asset is currently published as:
-
-- `marco-suite_alpha_amd64.deb`
-
-Install it (Debian/Ubuntu):
-
-1. Download the `*.deb` asset for your architecture (typically `amd64`).
-2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted.
-
-## Windows
-
-**Windows support is now available!** Marco and Polo run natively on Windows with full cross-platform compatibility:
-
-### Alpha (latest dev build)
-
-Download the latest Alpha `.zip` from the **Alpha** release:
-
-- https://github.com/Ranrar/Marco/releases/tag/alpha
-
-The asset is currently published as:
-
-- `marco-suite_alpha_windows_amd64.zip`
-
-Install it:
-
-1. Download the `.zip` asset
-2. Extract to any location (e.g., `C:\Program Files\Marco`)
-3. Run `marco.exe` or `polo.exe`
-4. Settings are stored in the extracted folder (portable mode)
+| Linux | Windows |
+|-------|---------|
+| **Alpha (latest dev build)** | **Alpha (latest dev build)** |
+| Download the latest Alpha `.deb` from the **Alpha** release:<br>https://github.com/Ranrar/Marco/releases/tag/alpha | Download the latest Alpha `.zip` from the **Alpha** release:<br>https://github.com/Ranrar/Marco/releases/tag/alpha |
+| **Asset:** `marco-suite_alpha_amd64.deb` | **Asset:** `marco-suite_alpha_windows_amd64.zip` |
+| **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
 ## Why Marco?
 
