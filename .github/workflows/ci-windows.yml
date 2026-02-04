@@ -51,24 +51,17 @@ jobs:
           key: cargo-windows-ci-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build workspace (Windows target)
-        shell: powershell
+        shell: msys2 {0}
         run: |
-          # Add MSYS2 to PATH for this step
-          $env:PATH = "C:\msys64\ucrt64\bin;C:\msys64\usr\bin;$env:PATH"
-          $env:PKG_CONFIG_PATH = "C:\msys64\ucrt64\lib\pkgconfig"
-          
-          # Verify pkg-config is accessible
-          Write-Host "Testing pkg-config..."
-          & pkg-config --version
+          # Verify environment
+          echo "Testing pkg-config..."
+          pkg-config --version
+          echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
           
           # Build the workspace
           cargo build --workspace --locked --target x86_64-pc-windows-msvc --target-dir target/windows
 
       - name: Tests (core)
-        shell: powershell
+        shell: msys2 {0}
         run: |
-          # Add MSYS2 to PATH for this step
-          $env:PATH = "C:\msys64\ucrt64\bin;C:\msys64\usr\bin;$env:PATH"
-          $env:PKG_CONFIG_PATH = "C:\msys64\ucrt64\lib\pkgconfig"
-          
           cargo test -p core --lib --locked
