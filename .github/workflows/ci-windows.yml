@@ -53,10 +53,15 @@ jobs:
       - name: Build workspace (Windows target)
         shell: msys2 {0}
         run: |
+          # Add Windows Cargo to PATH (installed by rust-toolchain action)
+          export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
+          
           # Verify environment
           echo "Testing pkg-config..."
           pkg-config --version
           echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
+          echo "Testing cargo..."
+          cargo --version
           
           # Build the workspace
           cargo build --workspace --locked --target x86_64-pc-windows-msvc --target-dir target/windows
@@ -64,4 +69,7 @@ jobs:
       - name: Tests (core)
         shell: msys2 {0}
         run: |
+          # Add Windows Cargo to PATH
+          export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
+          
           cargo test -p core --lib --locked
