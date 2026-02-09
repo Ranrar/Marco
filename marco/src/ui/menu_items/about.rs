@@ -293,17 +293,17 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     links_box2.set_margin_bottom(16);
 
     // Website link
-//    let website_link = create_link_button(
-//        &dialog,
-//        AboutIcon::Link,
-//        &translations.about_link_website,
-//        "https://www.skovrasmussen.com",
-//        is_dark,
-//        "dialog_about_link_website",
-//    );
-//    links_box2.append(&website_link);
-//
-//    content_box.append(&links_box2);
+    //    let website_link = create_link_button(
+    //        &dialog,
+    //        AboutIcon::Link,
+    //        &translations.about_link_website,
+    //        "https://www.skovrasmussen.com",
+    //        is_dark,
+    //        "dialog_about_link_website",
+    //    );
+    //    links_box2.append(&website_link);
+    //
+    //    content_box.append(&links_box2);
 
     // License text (paragraph-style for proper reflow and selection)
     let license_text = Label::new(Some(&translations.about_license_text));
