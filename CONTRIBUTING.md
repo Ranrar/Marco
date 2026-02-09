@@ -116,6 +116,13 @@ File locations used during development:
 - **Languages**: `assets/language/` for localization files.
 - **Core library**: `core/src/` contains the nom-based markdown parser (`grammar/`, `parser/`), HTML renderer (`render/`), and LSP features (`lsp/`).
 
+### Translations (UI localization)
+
+- Locale files live in `assets/language/{code}.toml` where `{code}` is ISO 639-1 (two lowercase letters, e.g. `en`, `de`).
+- Use `assets/language/en.toml` as the template; translate values but keep keys unchanged.
+- Update the implementation matrix: `assets/language/language_matrix.md`.
+- The loader and typed `Translations` structs live in `marco/src/components/language/`.
+
 ## Theme manager notes
 
 - The application uses a `ThemeManager` to map editor schemes to preview theme modes. Changing themes from the settings dialog calls back into functions returned by `create_editor_with_preview_and_buffer`.
@@ -208,7 +215,7 @@ Reference README and asset locations for contributors working on components and 
 
 - [marco/src/components/ai/README.md](marco/src/components/ai/README.md) — AI component guidance and interface notes
 - [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
-- [marco/src/components/language/README.md](marco/src/components/language/README.md) — Localization provider contract and workflow
-- [assets/language/language matrix.md](assets/language/language%20matrix.md) — language implementation matrix (coverage & contributors)
+- `marco/src/components/language/mod.rs` — Localization provider contract and loader implementation
+- [assets/language/language_matrix.md](assets/language/language_matrix.md) — language implementation matrix (coverage & contributors)
 
 If you add new component folders, please include a short `README.md` in the folder that explains the contract, tests, and how to run the component's dev harness.

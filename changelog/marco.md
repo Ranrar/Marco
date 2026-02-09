@@ -24,6 +24,27 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.18.0] - 2026-02-09
+
+**Uses:** Core 0.18.0
+
+### Added
+- UI localization system backed by `assets/language/*.toml`, with per-key fallback to built-in English defaults.
+- German (de) UI translation.
+- Localization documentation for translators/contributors (language guide + language matrix).
+- First-run Welcome screen with language selection and telemetry information.
+- New Settings tabs (Editor, Layout, Appearance, Language, Markdown, Advanced, Debug) with live UI language switching.
+- Reusable custom titlebar component for dialogs/aux windows, with SVG window controls.
+
+### Changed
+- Settings dialog now updates labels/tooltips in-place when the UI language changes (avoids rebuilding the widget tree).
+- Search & Replace window was refactored and restyled (match count overlay, translated UI; Windows uses a no-WebView version).
+- Save changes confirmation dialog was redesigned and now uses the shared custom titlebar + translated text/tooltips.
+- Windows portable packaging script now ships `config/` + `data/` folders alongside the executable for portable mode.
+
+### Fixed
+- Reduced instability when switching UI language at runtime by avoiding widget-tree rebuilds in settings-related UI.
+
 ## [0.17.1] - 2026-02-04
 
 ### Added

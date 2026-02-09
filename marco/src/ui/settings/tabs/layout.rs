@@ -2,24 +2,33 @@ use core::logic::swanson::WindowSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::debug;
+use std::rc::Rc;
 
 // Import unified helper
-use super::helpers::add_setting_row;
+use super::helpers::{add_setting_row_i18n, SettingsI18nRegistry};
+use crate::components::language::SettingsLayoutTranslations;
+use crate::components::language::Translations;
+
+#[derive(Default)]
+pub struct LayoutTabCallbacks {
+    pub on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+    pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
+    pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+}
 
 // Build the layout tab. `initial_view_mode` optionally sets which entry is
 // active when the tab is first shown (e.g. Some("Source Code") to select
 // the code preview). The optional callback will be called when the View Mode
 // dropdown changes and receives the selected value as a String.
 // `settings_path` is used to load/save window settings including split ratio.
-// `on_split_ratio_changed` is called when the split ratio slider changes to update the UI in real-time.
-// `on_sync_scrolling_changed` is called when the sync scrolling toggle changes.
+// `callbacks` can optionally receive events when the user changes settings.
 pub fn build_layout_tab(
     initial_view_mode: Option<String>,
-    on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
+    callbacks: LayoutTabCallbacks,
     settings_path: Option<&str>,
-    on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
-    on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
-    on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    translations: &SettingsLayoutTranslations,
+    i18n: &SettingsI18nRegistry,
 ) -> Box {
     use gtk4::{
         Adjustment, Box as GtkBox, DropDown, Expression, Orientation, PropertyExpression,
@@ -28,6 +37,13 @@ pub fn build_layout_tab(
 
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("marco-settings-tab");
+
+    let LayoutTabCallbacks {
+        on_view_mode_changed,
+        on_split_ratio_changed,
+        on_sync_scrolling_changed,
+        on_line_numbers_changed,
+    } = callbacks;
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(settings_path) = settings_path {
@@ -45,10 +61,26 @@ pub fn build_layout_tab(
     };
 
     // View Mode (Dropdown)
-    let view_mode_options = StringList::new(&["HTML Preview", "Source Code"]);
+    let view_mode_labels = [
+        translations.view_mode_html.as_str(),
+        translations.view_mode_source.as_str(),
+    ];
+    let view_mode_values = ["HTML Preview", "Source Code"];
+    let view_mode_options = StringList::new(&view_mode_labels);
+    i18n.bind_string_list_item(
+        &view_mode_options,
+        0,
+        Rc::new(|t: &Translations| t.settings.layout.view_mode_html.clone()),
+    );
+    i18n.bind_string_list_item(
+        &view_mode_options,
+        1,
+        Rc::new(|t: &Translations| t.settings.layout.view_mode_source.clone()),
+    );
     let view_mode_expression =
         PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
-    let view_mode_combo = DropDown::new(Some(view_mode_options), Some(view_mode_expression));
+    let view_mode_combo =
+        DropDown::new(Some(view_mode_options.clone()), Some(view_mode_expression));
     view_mode_combo.add_css_class("marco-dropdown");
 
     // Set active index based on saved setting if provided.
@@ -64,22 +96,26 @@ pub fn build_layout_tab(
     // Connect change handler to notify owner if provided. Convert selected index
     // to String when invoking the provided callback so callers receive a
     // straightforward String value.
-    if let Some(cb) = on_view_mode_changed {
+    {
         view_mode_combo.connect_selected_notify(move |dropdown| {
             let selected_index = dropdown.selected() as usize;
-            let mode_text = match selected_index {
-                0 => "HTML Preview",
-                1 => "Source Code",
-                _ => "HTML Preview", // Default fallback
-            };
-            cb(mode_text.to_string());
+            let mode_value = view_mode_values
+                .get(selected_index)
+                .copied()
+                .unwrap_or("HTML Preview");
+            if let Some(ref cb) = on_view_mode_changed {
+                cb(mode_value.to_string());
+            }
         });
     }
 
     // Create view mode row using unified helper (first row)
-    let view_mode_row = add_setting_row(
-        "View Mode",
-        "Choose the default mode for previewing Markdown content.",
+    let view_mode_row = add_setting_row_i18n(
+        i18n,
+        &translations.view_mode_label,
+        &translations.view_mode_description,
+        Rc::new(|t: &Translations| t.settings.layout.view_mode_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.view_mode_description.clone()),
         &view_mode_combo,
         true, // First row - no top margin
     );
@@ -140,9 +176,12 @@ pub fn build_layout_tab(
     }
 
     // Create sync scrolling row using unified helper
-    let sync_scroll_row = add_setting_row(
-        "Sync Scrolling",
-        "Synchronize scrolling between the editor and the preview pane.",
+    let sync_scroll_row = add_setting_row_i18n(
+        i18n,
+        &translations.sync_scrolling_label,
+        &translations.sync_scrolling_description,
+        Rc::new(|t: &Translations| t.settings.layout.sync_scrolling_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.sync_scrolling_description.clone()),
         &sync_scroll_switch,
         false, // Not first row
     );
@@ -202,9 +241,12 @@ pub fn build_layout_tab(
     }
 
     // Create split ratio row using unified helper
-    let split_row = add_setting_row(
-        "Editor/View Split",
-        "Adjust how much horizontal space the editor takes.",
+    let split_row = add_setting_row_i18n(
+        i18n,
+        &translations.split_label,
+        &translations.split_description,
+        Rc::new(|t: &Translations| t.settings.layout.split_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.split_description.clone()),
         &split_spin,
         false, // Not first row
     );
@@ -265,26 +307,81 @@ pub fn build_layout_tab(
     }
 
     // Create line numbers row using unified helper
-    let line_numbers_row = add_setting_row(
-        "Show Line Numbers",
-        "Display line numbers in the editor gutter.",
+    let line_numbers_row = add_setting_row_i18n(
+        i18n,
+        &translations.line_numbers_label,
+        &translations.line_numbers_description,
+        Rc::new(|t: &Translations| t.settings.layout.line_numbers_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.line_numbers_description.clone()),
         &line_numbers_switch,
         false, // Not first row
     );
     container.append(&line_numbers_row);
 
     // Text Direction (Dropdown)
-    let text_dir_options = StringList::new(&["Left-to-Right (LTR)", "Right-to-Left (RTL)"]);
+    let text_dir_labels = [
+        translations.text_direction_ltr.as_str(),
+        translations.text_direction_rtl.as_str(),
+    ];
+    let text_dir_values = ["ltr", "rtl"];
+    let text_dir_options = StringList::new(&text_dir_labels);
+    i18n.bind_string_list_item(
+        &text_dir_options,
+        0,
+        Rc::new(|t: &Translations| t.settings.layout.text_direction_ltr.clone()),
+    );
+    i18n.bind_string_list_item(
+        &text_dir_options,
+        1,
+        Rc::new(|t: &Translations| t.settings.layout.text_direction_rtl.clone()),
+    );
     let text_dir_expression =
         PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
-    let text_dir_combo = DropDown::new(Some(text_dir_options), Some(text_dir_expression));
+    let text_dir_combo = DropDown::new(Some(text_dir_options.clone()), Some(text_dir_expression));
     text_dir_combo.add_css_class("marco-dropdown");
-    text_dir_combo.set_selected(0);
+    let current_text_direction = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings_snapshot = settings_manager.get_settings();
+        settings_snapshot
+            .layout
+            .as_ref()
+            .and_then(|l| l.text_direction.clone())
+            .unwrap_or_else(|| "ltr".to_string())
+    } else {
+        "ltr".to_string()
+    };
+    let text_dir_index = text_dir_values
+        .iter()
+        .position(|value| *value == current_text_direction.as_str())
+        .unwrap_or(0);
+    text_dir_combo.set_selected(text_dir_index as u32);
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        text_dir_combo.connect_selected_notify(move |combo| {
+            let selected_index = combo.selected() as usize;
+            let direction = text_dir_values
+                .get(selected_index)
+                .copied()
+                .unwrap_or("ltr");
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.layout.is_none() {
+                    settings.layout = Some(core::logic::swanson::LayoutSettings::default());
+                }
+                if let Some(ref mut layout) = settings.layout {
+                    layout.text_direction = Some(direction.to_string());
+                }
+            }) {
+                debug!("Failed to save text direction setting: {}", e);
+            }
+        });
+    }
 
     // Create text direction row using unified helper
-    let text_dir_row = add_setting_row(
-        "Text Direction",
-        "Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout.",
+    let text_dir_row = add_setting_row_i18n(
+        i18n,
+        &translations.text_direction_label,
+        &translations.text_direction_description,
+        Rc::new(|t: &Translations| t.settings.layout.text_direction_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.text_direction_description.clone()),
         &text_dir_combo,
         false, // Not first row
     );

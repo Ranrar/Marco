@@ -220,6 +220,22 @@ jobs:
         run: |
           echo "Downloaded artifacts:"
           ls -lah artifacts/
+          echo "---"
+          echo "Files to upload:"
+          find artifacts/ -type f -exec ls -lh {} \;
+
+      - name: Verify artifacts exist
+        run: |
+          set -euo pipefail
+          if [ ! -f artifacts/*.deb ]; then
+            echo "ERROR: No .deb file found in artifacts/" >&2
+            exit 1
+          fi
+          if [ ! -f artifacts/*.zip ]; then
+            echo "ERROR: No .zip file found in artifacts/" >&2
+            exit 1
+          fi
+          echo "✓ All required artifacts present"
 
       - name: Update Alpha release (overwrite assets)
         uses: ncipollo/release-action@v1
@@ -233,4 +249,15 @@ jobs:
           replacesArtifacts: true
           artifactErrorsFailBuild: true
           commit: ${{ github.sha }}
-          artifacts: artifacts/*
+          artifacts: "artifacts/*.deb,artifacts/*.zip"
+          body: |
+            **Alpha Build** - Automatic build from latest commit
+            
+            This is an unstable development release, updated automatically on each CI run.
+            
+            **Downloads:**
+            - **Linux**: `marco-suite_alpha_*_linux_amd64.deb`
+            - **Windows**: `marco-suite_alpha_*_windows_amd64.zip`
+            
+            Commit: ${{ github.sha }}
+            Built: ${{ github.run_id }}

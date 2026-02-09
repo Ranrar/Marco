@@ -2,6 +2,7 @@
 //!
 //! Creates search, replace, options, and button widgets.
 
+use crate::components::language::SearchTranslations;
 use gtk4::prelude::*;
 use gtk4::{
     Align, Box as GtkBox, Button, CheckButton, Entry, Label, Orientation, Overlay, Separator,
@@ -27,12 +28,12 @@ pub struct ButtonWidgets {
 }
 
 /// Create the search controls section
-pub fn create_search_controls_section() -> (GtkBox, Entry, Label) {
+pub fn create_search_controls_section(translations: &SearchTranslations) -> (GtkBox, Entry, Label) {
     let search_box = GtkBox::new(Orientation::Vertical, 4);
 
     let search_row = GtkBox::new(Orientation::Horizontal, 8);
 
-    let search_label = Label::new(Some("Find:"));
+    let search_label = Label::new(Some(&translations.find_label));
     search_label.set_width_request(60);
     search_label.set_halign(Align::Start);
     search_label.add_css_class("marco-search-label");
@@ -43,7 +44,7 @@ pub fn create_search_controls_section() -> (GtkBox, Entry, Label) {
 
     let search_entry = Entry::new();
     search_entry.set_hexpand(true);
-    search_entry.set_placeholder_text(Some("Enter search text..."));
+    search_entry.set_placeholder_text(Some(&translations.search_placeholder));
     search_entry.add_css_class("marco-search-entry");
 
     // Match count label positioned as overlay inside the search field
@@ -74,20 +75,20 @@ pub fn create_search_controls_section() -> (GtkBox, Entry, Label) {
 }
 
 /// Create the replace controls section
-pub fn create_replace_controls_section() -> (GtkBox, Entry) {
+pub fn create_replace_controls_section(translations: &SearchTranslations) -> (GtkBox, Entry) {
     let replace_box = GtkBox::new(Orientation::Vertical, 4);
     // Always visible in the simplified UI
 
     let replace_row = GtkBox::new(Orientation::Horizontal, 8);
 
-    let replace_label = Label::new(Some("Replace:"));
+    let replace_label = Label::new(Some(&translations.replace_label));
     replace_label.set_width_request(60);
     replace_label.set_halign(Align::Start);
     replace_label.add_css_class("marco-search-label");
 
     let replace_entry = Entry::new();
     replace_entry.set_hexpand(true);
-    replace_entry.set_placeholder_text(Some("Enter replacement text..."));
+    replace_entry.set_placeholder_text(Some(&translations.replace_placeholder));
     replace_entry.add_css_class("marco-search-entry");
 
     replace_row.append(&replace_label);
@@ -99,7 +100,7 @@ pub fn create_replace_controls_section() -> (GtkBox, Entry) {
 }
 
 /// Create the options panel with checkboxes
-pub fn create_options_panel() -> (GtkBox, OptionsWidgets) {
+pub fn create_options_panel(translations: &SearchTranslations) -> (GtkBox, OptionsWidgets) {
     let options_box = GtkBox::new(Orientation::Vertical, 6);
 
     // Separator
@@ -114,9 +115,9 @@ pub fn create_options_panel() -> (GtkBox, OptionsWidgets) {
     let row1 = GtkBox::new(Orientation::Horizontal, 16);
     row1.set_homogeneous(true);
 
-    let match_case_cb = CheckButton::with_label("Match Case");
+    let match_case_cb = CheckButton::with_label(&translations.match_case);
     match_case_cb.add_css_class("marco-search-checkbox");
-    let match_markdown_cb = CheckButton::with_label("Match only Markdown syntax");
+    let match_markdown_cb = CheckButton::with_label(&translations.match_markdown);
     match_markdown_cb.add_css_class("marco-search-checkbox");
 
     row1.append(&match_case_cb);
@@ -126,9 +127,9 @@ pub fn create_options_panel() -> (GtkBox, OptionsWidgets) {
     let row2 = GtkBox::new(Orientation::Horizontal, 16);
     row2.set_homogeneous(true);
 
-    let match_whole_word_cb = CheckButton::with_label("Match Whole Word");
+    let match_whole_word_cb = CheckButton::with_label(&translations.match_whole_word);
     match_whole_word_cb.add_css_class("marco-search-checkbox");
-    let use_regex_cb = CheckButton::with_label("Regular Expressions");
+    let use_regex_cb = CheckButton::with_label(&translations.use_regex);
     use_regex_cb.add_css_class("marco-search-checkbox");
 
     row2.append(&match_whole_word_cb);
@@ -149,24 +150,32 @@ pub fn create_options_panel() -> (GtkBox, OptionsWidgets) {
 }
 
 /// Create the button panel for search window (no close button needed)
-pub fn create_window_button_panel() -> (GtkBox, ButtonWidgets) {
+pub fn create_window_button_panel(translations: &SearchTranslations) -> (GtkBox, ButtonWidgets) {
     let button_box = GtkBox::new(Orientation::Horizontal, 6);
     button_box.set_halign(Align::End);
     button_box.set_margin_top(8);
 
     // Bottom buttons: [Previous] [Next] [Replace] [Replace All]
     // No close button needed since the window has its own close controls
-    let prev_button = Button::with_label("Previous");
+    let prev_button = Button::with_label(&translations.previous_button);
     prev_button.add_css_class("marco-search-button");
-    let next_button = Button::with_label("Next");
+    prev_button.add_css_class("marco-btn");
+    prev_button.add_css_class("marco-btn-blue");
+    let next_button = Button::with_label(&translations.next_button);
     next_button.add_css_class("marco-search-button");
+    next_button.add_css_class("marco-btn");
+    next_button.add_css_class("marco-btn-blue");
 
-    let replace_button = Button::with_label("Replace");
+    let replace_button = Button::with_label(&translations.replace_button);
     replace_button.add_css_class("marco-search-button");
+    replace_button.add_css_class("marco-btn");
+    replace_button.add_css_class("marco-btn-blue");
     replace_button.set_sensitive(false); // Initially disabled when Replace input is empty
 
-    let replace_all_button = Button::with_label("Replace All");
+    let replace_all_button = Button::with_label(&translations.replace_all_button);
     replace_all_button.add_css_class("marco-search-button");
+    replace_all_button.add_css_class("marco-btn");
+    replace_all_button.add_css_class("marco-btn-blue");
     replace_all_button.set_sensitive(false); // Initially disabled when Replace input is empty
 
     button_box.append(&prev_button);

@@ -113,6 +113,7 @@ while [ $# -gt 0 ]; do
                 print_error "--bump requires a value: patch|minor|major"
                 exit 1
             fi
+            DO_BUMP="true"
             BUMP_MODE="$2"
             shift 2
             ;;
@@ -548,11 +549,9 @@ cp -r assets/language "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
 # Normalize permissions on copied trees (cp -r preserves working tree perms)
 find "$BUILD_DIR${INSTALL_PREFIX}/share/marco" -type d -exec chmod 0755 {} +
 find "$BUILD_DIR${INSTALL_PREFIX}/share/marco" -type f -exec chmod 0644 {} +
-if [ -f "assets/settings_org.ron" ]; then
-    install -m 0644 assets/settings_org.ron "$BUILD_DIR${INSTALL_PREFIX}/share/marco/settings.ron"
-elif [ -f "assets/settings.ron" ]; then
-    install -m 0644 assets/settings.ron "$BUILD_DIR${INSTALL_PREFIX}/share/marco/settings.ron"
-fi
+# Do not bundle a pre-made settings.ron in the package.
+# Settings are generated on first run by core::logic::swanson::SettingsManager
+# (Settings::create_default_for_system) into the user's config directory.
 print_success "Assets copied"
 
 print_info "Creating man pages..."

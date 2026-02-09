@@ -21,8 +21,9 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
-use crate::components::editor::footer::wire_footer_updates;
+use crate::components::editor::footer::{refresh_footer_snapshot, wire_footer_updates};
 use crate::components::editor::ui::create_editor_with_preview_and_buffer;
+use crate::components::language::{LocalizationProvider, SimpleLocalizationManager};
 use crate::components::viewer::preview_types::ViewMode;
 use crate::logic::menu_items::file::FileOperations;
 use crate::theme::ThemeManager;
@@ -222,6 +223,37 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         }
     };
 
+    let localization_manager =
+        SimpleLocalizationManager::new().expect("Failed to initialize localization manager");
+    let locale_code = settings_manager
+        .get_settings()
+        .language
+        .and_then(|l| l.language)
+        // "System Default" in settings means: detect OS language.
+        .or_else(core::paths::detect_system_locale_iso639_1)
+        .unwrap_or_else(|| "en".to_string());
+    if let Err(e) = localization_manager.load_locale(&locale_code) {
+        log::warn!(
+            "Failed to load locale '{}': {}. Falling back to English.",
+            locale_code,
+            e
+        );
+
+        if locale_code != "en" {
+            if let Err(e) = localization_manager.load_locale("en") {
+                log::error!("Failed to load fallback locale 'en': {}", e);
+            }
+        }
+    }
+    let translations = localization_manager.translations();
+    let translations_rc = Rc::new(RefCell::new(translations.clone()));
+    let menu_translations_rc = Rc::new(RefCell::new(translations.menu.clone()));
+    let dialog_translations_rc = Rc::new(RefCell::new(translations.dialog.clone()));
+
+    // Discover available locales from `assets/language/*.toml` at startup.
+    // This list is used to populate the Settings → Language dropdown.
+    let available_locale_infos_rc = Rc::new(localization_manager.available_locale_infos());
+
     // Initialize file logger according to settings (runtime)
     {
         let app_settings = settings_manager.get_settings();
@@ -346,10 +378,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     main_box.add_css_class("main-container");
 
     // Create basic UI components (structure only)
-    let toolbar = toolbar::create_toolbar_structure();
+    let toolbar = toolbar::create_toolbar_structure(&translations);
     toolbar.add_css_class("toolbar");
     toolbar::set_toolbar_height(&toolbar, 0); // Minimum height, matches footer
-                                              // --- Determine correct HTML preview theme based on settings and app theme ---
+    let toolbar_ref = Rc::new(RefCell::new(toolbar));
+    // --- Determine correct HTML preview theme based on settings and app theme ---
     use core::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
@@ -370,7 +403,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             .preview_theme_mode_from_scheme(&current_scheme)
     };
     let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
-    let (footer, footer_labels_rc) = footer::create_footer();
+    let (footer, footer_labels_rc) = footer::create_footer(&translations.footer);
 
     // Create file operations handler early so we can pass DocumentBuffer to editor
     let file_operations = FileOperations::new(
@@ -457,7 +490,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     };
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
-    let (titlebar_handle, title_label, recent_menu) =
+    let (titlebar_handle, title_label, menu_state) =
         menu::create_custom_titlebar(menu::TitlebarConfig {
             window: &window,
             webview_rc: Some(editor_webview.clone()),
@@ -467,7 +500,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             reparent_guard,
             split_controller: Some(split_controller.clone()),
             asset_root: &asset_root,
+            translations: &translations,
         });
+    let menu_state = Rc::new(menu_state);
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- Settings Thread Pool for Proper Resource Management ---
@@ -656,7 +691,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     };
 
     // Add components to main layout (menu bar is now in titlebar)
-    main_box.append(&toolbar);
+    main_box.append(&*toolbar_ref.borrow());
     main_box.append(&split_overlay); // Use overlay instead of split
     main_box.append(&footer);
 
@@ -708,17 +743,127 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         })
     };
 
+    // Clone asset_root for use in multiple closures
+    let asset_root_for_settings = asset_root.clone();
+
+    // Reusable runtime locale switcher (used by both Settings → Language and the welcome screen).
+    // NOTE: `None` means "System Default".
+    let language_changed_handler: Rc<dyn Fn(Option<String>) + 'static> = {
+        let translations_rc = translations_rc.clone();
+        let menu_translations_rc = menu_translations_rc.clone();
+        let dialog_translations_rc = dialog_translations_rc.clone();
+        let menu_state = menu_state.clone();
+        let toolbar_ref = toolbar_ref.clone();
+        let footer_labels_rc = footer_labels_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        let insert_mode_state = insert_mode_state.clone();
+        let file_operations_rc = file_operations_rc.clone();
+        let title_label = title_label.clone();
+
+        Rc::new(move |selected_code: Option<String>| {
+            let locale_code = selected_code
+                .or_else(core::paths::detect_system_locale_iso639_1)
+                .unwrap_or_else(|| "en".to_string());
+
+            let translations_rc = translations_rc.clone();
+            let menu_translations_rc = menu_translations_rc.clone();
+            let dialog_translations_rc = dialog_translations_rc.clone();
+            let menu_state = menu_state.clone();
+            let toolbar_ref = toolbar_ref.clone();
+            let footer_labels_rc = footer_labels_rc.clone();
+            let editor_buffer = editor_buffer.clone();
+            let insert_mode_state = insert_mode_state.clone();
+            let file_operations_rc = file_operations_rc.clone();
+            let title_label = title_label.clone();
+
+            glib::idle_add_local(move || {
+                let localization_manager = match SimpleLocalizationManager::new() {
+                    Ok(manager) => manager,
+                    Err(e) => {
+                        log::warn!("Failed to initialize localization manager: {}", e);
+                        return glib::ControlFlow::Break;
+                    }
+                };
+
+                if let Err(e) = localization_manager.load_locale(&locale_code) {
+                    log::warn!(
+                        "Failed to load locale '{}': {}. Falling back to English.",
+                        locale_code,
+                        e
+                    );
+                    if locale_code != "en" {
+                        if let Err(e) = localization_manager.load_locale("en") {
+                            log::error!("Failed to load fallback locale 'en': {}", e);
+                        }
+                    }
+                }
+
+                let new_translations = localization_manager.translations();
+                *translations_rc.borrow_mut() = new_translations.clone();
+                *menu_translations_rc.borrow_mut() = new_translations.menu.clone();
+                *dialog_translations_rc.borrow_mut() = new_translations.dialog.clone();
+
+                menu::update_menu_translations(menu_state.as_ref(), &new_translations);
+
+                let recent_files = file_operations_rc.borrow().get_recent_files();
+                crate::logic::menu_items::file::update_recent_files_menu(
+                    &menu_state.recent_menu,
+                    &recent_files,
+                    &new_translations.menu,
+                );
+
+                // Update toolbar tooltips in place instead of rebuilding
+                toolbar::update_toolbar_translations(&toolbar_ref.borrow(), &new_translations);
+
+                if let Ok(mut buffer) = file_operations_rc.borrow().buffer.try_borrow_mut() {
+                    if buffer.get_file_path().is_none() {
+                        buffer.display_name = new_translations.messages.untitled_document.clone();
+                    }
+                }
+
+                let is_insert = *insert_mode_state.borrow();
+                crate::footer::update_footer_translations(
+                    footer_labels_rc.as_ref(),
+                    &new_translations.footer,
+                    is_insert,
+                );
+                refresh_footer_snapshot(
+                    &editor_buffer,
+                    footer_labels_rc.clone(),
+                    insert_mode_state.clone(),
+                );
+
+                if file_operations_rc
+                    .borrow()
+                    .buffer
+                    .borrow()
+                    .get_file_path()
+                    .is_none()
+                {
+                    let title = file_operations_rc.borrow().get_document_title();
+                    title_label.set_text(&title);
+                }
+
+                // Settings dialog now updates itself via polling, no need to clear cache
+                glib::ControlFlow::Break
+            });
+        })
+    };
+
     settings_action.connect_activate({
         // Clone directly from original sources to avoid intermediate reference chains
         let window = window.clone();
         let theme_manager = theme_manager.clone();
         let settings_path = settings_path.clone();
+        let translations_rc = translations_rc.clone();
+        let available_locale_infos_rc = available_locale_infos_rc.clone();
         let preview_css_rc = preview_css_rc.clone();
         let refresh_preview_rc = refresh_preview_rc.clone();
         let update_editor_theme_rc = update_editor_theme_rc.clone();
         let update_preview_theme_rc = update_preview_theme_rc.clone();
         let set_view_mode_rc = set_view_mode_rc.clone();
         let save_view_mode = save_view_mode.clone();
+        let language_changed_handler = language_changed_handler.clone();
         move |_, _| {
             use crate::ui::settings::dialog::show_settings_dialog;
 
@@ -864,18 +1009,38 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         log::debug!("Line numbers toggled: {}", enabled);
                     }
                 }) as Box<dyn Fn(bool) + 'static>),
+                on_language_changed: Some(Box::new({
+                    let handler = language_changed_handler.clone();
+                    move |selected_code: Option<String>| {
+                        (handler)(selected_code);
+                    }
+                }) as Box<dyn Fn(Option<String>) + 'static>),
             };
 
             show_settings_dialog(
                 window.upcast_ref(),
                 theme_manager.clone(),
                 settings_path.clone(),
-                &asset_root,
+                &asset_root_for_settings,
+                translations_rc.clone(),
+                available_locale_infos_rc.clone(),
                 callbacks,
             );
         }
     });
     app.add_action(&settings_action);
+
+    // Register about action
+    let about_action = gtk4::gio::SimpleAction::new("about", None);
+    about_action.connect_activate({
+        let window = window.clone();
+        let translations_rc = translations_rc.clone();
+        move |_, _| {
+            let dialog_translations = translations_rc.borrow().dialog.clone();
+            crate::ui::menu_items::about::show_about_dialog(&window, &dialog_translations);
+        }
+    });
+    app.add_action(&about_action);
 
     // Register view mode actions to switch preview and persist setting
     let view_html_action = gtk4::gio::SimpleAction::new("view_html", None);
@@ -908,10 +1073,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let window = window.clone();
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
+        let translations_rc = translations_rc.clone();
         #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
         let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
+            let search_translations = translations_rc.borrow().search.clone();
             #[cfg(target_os = "linux")]
             {
                 use crate::ui::dialogs::search::show_search_window;
@@ -921,6 +1088,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     Rc::clone(&buffer),
                     Rc::clone(&source_view),
                     webview.clone(),
+                    &search_translations,
                 );
             }
             #[cfg(target_os = "windows")]
@@ -931,6 +1099,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     cache.clone(),
                     Rc::clone(&buffer),
                     Rc::clone(&source_view),
+                    &search_translations,
                 );
             }
         }
@@ -939,41 +1108,49 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     app.set_accels_for_action("app.search", &["<Control>f"]);
 
     // Populate the Recent Files submenu from FileOperations' recent list
-    // If empty, leave the submenu with its placeholder (no entries) so it appears inactive.
-    // Register remaining file actions (open, save_as, quit, recent-file handling)
     crate::logic::menu_items::file::register_file_actions_async(
         app.clone(),
         file_operations_rc.clone(),
         &window,
         &editor_buffer,
         &title_label,
-        FileDialogs::open_dialog_callback(),
-        FileDialogs::save_changes_dialog_callback(),
-        FileDialogs::save_dialog_callback(),
+        &dialog_translations_rc.borrow(),
+        FileDialogs::open_dialog_callback(dialog_translations_rc.borrow().clone()),
+        FileDialogs::save_changes_dialog_callback(dialog_translations_rc.borrow().clone()),
+        FileDialogs::save_dialog_callback(dialog_translations_rc.borrow().clone()),
     );
 
     // Wire dynamic recent-file actions using the recent_menu from the UI
     crate::logic::menu_items::file::setup_recent_actions(
         app,
         file_operations_rc.clone(),
-        &recent_menu,
+        &menu_state.recent_menu,
         &window,
         &editor_buffer,
         &title_label,
-        FileDialogs::save_changes_dialog_callback(),
-        FileDialogs::save_dialog_callback(),
+        menu_translations_rc.clone(),
+        dialog_translations_rc.clone(),
+        FileDialogs::save_changes_dialog_callback(dialog_translations_rc.borrow().clone()),
+        FileDialogs::save_dialog_callback(dialog_translations_rc.borrow().clone()),
     );
 
     // Open initial file if provided via command line
     if let Some(file_path) = initial_file {
+        let dialog_translations = dialog_translations_rc.borrow().clone();
+        let load_context = crate::logic::menu_items::file::InitialFileLoadContext {
+            file_path,
+            window: window.clone(),
+            editor_buffer: editor_buffer.clone(),
+            title_label: title_label.clone(),
+            dialog_translations: dialog_translations.clone(),
+            show_save_changes_dialog: FileDialogs::save_changes_dialog_callback(
+                dialog_translations.clone(),
+            ),
+            show_save_dialog: FileDialogs::save_dialog_callback(dialog_translations),
+        };
         crate::logic::menu_items::file::FileOperations::load_initial_file_async(
             file_operations_rc.clone(),
-            file_path,
-            window.clone(),
-            editor_buffer.clone(),
-            title_label.clone(),
-            crate::ui::menu_items::files::save_changes_dialog_cb,
-            crate::ui::menu_items::files::save_dialog_cb,
+            load_context,
         );
     }
 
@@ -1112,6 +1289,23 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         }
     });
 
-    // Present the window
+    // Present the window first
     window.present();
+
+    // Show welcome screen on first run (Week 4)
+    // This is non-blocking - appears on top of the main window
+    log::info!("main: Checking if welcome screen should be shown");
+    if crate::ui::dialogs::welcome_screen::should_show_welcome_screen(&settings_manager) {
+        log::info!("main: Showing welcome screen");
+        crate::ui::dialogs::welcome_screen::show_welcome_screen(
+            &settings_manager,
+            Some(window.upcast_ref::<gtk4::Window>()),
+            Some(Box::new({
+                let handler = language_changed_handler.clone();
+                move |selected_code: Option<String>| {
+                    (handler)(selected_code);
+                }
+            })),
+        );
+    }
 }

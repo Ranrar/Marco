@@ -68,7 +68,7 @@ pub(crate) fn generate_test_html(wheel_js: &str) -> String {
   margin-top:20%; 
   opacity:0.7; 
   font-family:sans-serif;\">
-  <h1>Welcome to Marco</h1>
+        <h1>Welcome to marco</h1>
   <p>Start typing or open a file to begin your writing journey ✍️</p>
 </div>"#;
     let mut html_with_js = welcome_html.to_string();

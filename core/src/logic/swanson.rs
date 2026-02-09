@@ -12,7 +12,7 @@ use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
 /// Type alias for settings change listener callbacks
-type SettingsListener = Box<dyn Fn(&Settings) + Send + Sync>;
+type SettingsListener = Arc<dyn Fn(&Settings) + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -30,6 +30,7 @@ pub struct Settings {
     // Common settings (shared between Marco and Polo)
     pub appearance: Option<AppearanceSettings>,
     pub language: Option<LanguageSettings>,
+    pub telemetry: Option<TelemetrySettings>,
     pub debug: Option<bool>,
     pub log_to_file: Option<bool>,
     pub engine: Option<EngineSettings>,
@@ -219,7 +220,13 @@ impl Settings {
                 ui_font_size: Some(11),
                 ..Default::default()
             }),
-            language: None,
+            language: Some(LanguageSettings {
+                language: Some("en".to_string()),
+            }),
+            telemetry: Some(TelemetrySettings {
+                enabled: Some(false),
+                first_run_dialog_shown: Some(false),
+            }),
             debug: Some(false),
             log_to_file: Some(false),
             engine: None,
@@ -324,7 +331,7 @@ impl SettingsManager {
         F: Fn(&Settings) + Send + Sync + 'static,
     {
         let mut listeners = self.change_listeners.write().unwrap();
-        listeners.insert(id, Box::new(callback));
+        listeners.insert(id, Arc::new(callback));
     }
 
     /// Remove a change listener
@@ -539,12 +546,18 @@ impl SettingsManager {
     /// Notify all registered listeners of settings changes
     fn notify_listeners(&self) {
         let settings = self.get_settings();
-        let listeners = self.change_listeners.read().unwrap();
+        let listeners_to_notify: Vec<(String, SettingsListener)> = {
+            let listeners = self.change_listeners.read().unwrap();
+            listeners
+                .iter()
+                .map(|(id, listener)| (id.clone(), Arc::clone(listener)))
+                .collect()
+        };
 
-        for (id, listener) in listeners.iter() {
+        for (id, listener) in listeners_to_notify {
             // Use trace level to avoid spamming logs
             trace!("Notifying settings listener: {}", id);
-            listener(&settings);
+            (listener)(&settings);
         }
     }
 
@@ -587,6 +600,12 @@ pub struct LayoutSettings {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct LanguageSettings {
     pub language: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TelemetrySettings {
+    pub enabled: Option<bool>,
+    pub first_run_dialog_shown: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -2,10 +2,10 @@
 
 A concise overview of ISO 639-1 languages, showing implementation status and contributors.  
 
-**Legend**  
-- ✔ = Implemented  
-- ✖ = Not yet implemented  
-- Author/Contributor = Name (with optional link)  
+**Legend**
+- ✔ = Implemented (TOML exists)
+- (blank) = Not yet implemented
+- Author/Contributor = Name (with optional link)
 
 Example:  
 `✔ | English | [John Doe](https://github.com/johndoe)`  
@@ -14,6 +14,7 @@ Example:
 | Code | Language | Implemented | Author/Contributor |
 |------|-----------|-------------|--------------------|
 | en   | English | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
+| de   | German | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
 
 ## Not yet translated
 | Code | Language | Implemented | Author/Contributor |
@@ -50,7 +51,6 @@ Example:
 | cv   | Chuvash |   |   |
 | cy   | Welsh |   |   |
 | da   | Danish |   |   |
-| de   | German |   |   |
 | dv   | Divehi |   |   |
 | dz   | Dzongkha |   |   |
 | ee   | Ewe |   |   |

@@ -18,6 +18,7 @@
 //! - `navigation` - Match navigation and scrolling
 //! - `replace` - Replace operations
 
+use crate::components::language::SearchTranslations;
 use core::logic::cache::SimpleFileCache;
 use gtk4::prelude::*;
 use gtk4::Window;
@@ -47,6 +48,7 @@ pub fn show_search_window(
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
     webview: Rc<RefCell<WebView>>,
+    translations: &SearchTranslations,
 ) {
     // Initialize async manager for debouncing
     crate::components::search::window::initialize_async_manager();
@@ -57,6 +59,7 @@ pub fn show_search_window(
         buffer,
         source_view,
         webview,
+        translations,
     );
 
     // Present the window and focus the search entry
@@ -71,6 +74,7 @@ pub fn show_search_window_no_webview(
     _file_cache: Rc<RefCell<SimpleFileCache>>,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
+    translations: &SearchTranslations,
 ) {
     use crate::components::search::state::{
         CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW,
@@ -97,7 +101,7 @@ pub fn show_search_window_no_webview(
         }
 
         // Create new window
-        let win = create_windows_search_window(parent);
+        let win = create_windows_search_window(parent, translations);
         let win_rc = Rc::new(win);
         *cached.borrow_mut() = Some(win_rc.clone());
         win_rc
@@ -108,7 +112,7 @@ pub fn show_search_window_no_webview(
 
 /// Create search window for Windows (without WebView)
 #[cfg(target_os = "windows")]
-fn create_windows_search_window(parent: &Window) -> Window {
+fn create_windows_search_window(parent: &Window, translations: &SearchTranslations) -> Window {
     use crate::components::search::{ui::*, window::setup_window_behavior};
     use gtk4::{Align, Box as GtkBox, Orientation, WindowHandle};
 
@@ -141,13 +145,13 @@ fn create_windows_search_window(parent: &Window) -> Window {
     headerbar.set_show_title_buttons(false);
 
     // Set title in headerbar
-    let title_label = Label::new(Some("Search & Replace"));
+    let title_label = Label::new(Some(&translations.title));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
 
     // Create close button with the same styling as the main app window controls
-    let (close_button, close_pic) = create_close_button(&window);
+    let (close_button, close_pic) = create_close_button(&window, &translations.close_tooltip);
     headerbar.pack_end(&close_button);
 
     let window_weak = window.downgrade();
@@ -197,19 +201,20 @@ fn create_windows_search_window(parent: &Window) -> Window {
     main_box.set_margin_end(8);
 
     // Search controls
-    let (search_box, search_entry, match_count_label) = create_search_controls_section();
+    let (search_box, search_entry, match_count_label) =
+        create_search_controls_section(translations);
     main_box.append(&search_box);
 
     // Replace controls
-    let (replace_box, replace_entry) = create_replace_controls_section();
+    let (replace_box, replace_entry) = create_replace_controls_section(translations);
     main_box.append(&replace_box);
 
     // Options panel
-    let options_widgets = create_options_panel();
+    let options_widgets = create_options_panel(translations);
     main_box.append(&options_widgets.0);
 
     // Button panel
-    let button_widgets = create_window_button_panel();
+    let button_widgets = create_window_button_panel(translations);
     main_box.append(&button_widgets.0);
 
     window.set_child(Some(&main_box));
@@ -360,7 +365,7 @@ fn set_window_control_icon(
 
 /// Create a close button that matches the main app's window control styling.
 #[cfg(target_os = "windows")]
-fn create_close_button(window: &gtk4::Window) -> (gtk4::Button, gtk4::Picture) {
+fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
     use core::logic::loaders::icon_loader::WindowIcon;
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
@@ -371,7 +376,7 @@ fn create_close_button(window: &gtk4::Window) -> (gtk4::Button, gtk4::Picture) {
 
     let btn = Button::new();
     btn.set_child(Some(&pic));
-    btn.set_tooltip_text(Some("Close"));
+    btn.set_tooltip_text(Some(tooltip));
     btn.set_valign(gtk4::Align::Center);
     btn.set_margin_start(1);
     btn.set_margin_end(1);

@@ -1,3 +1,4 @@
+use crate::components::language::DialogTranslations;
 use crate::logic::menu_items::file::SaveChangesResult;
 use gtk4::{
     prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
@@ -59,52 +60,47 @@ type SaveChangesCallback = Arc<
 /// to ensure correct behavior on all platforms.
 pub struct FileDialogs;
 
-pub(crate) fn open_dialog_cb<'b>(
-    parent: &'b gtk4::Window,
-    title: &'b str,
-) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>> {
-    let fut: Box<dyn Future<Output = FileDialogResult> + 'b> =
-        Box::new(async move { FileDialogs::show_open_dialog(parent, title).await });
-    Pin::from(fut)
-}
-
-pub(crate) fn save_dialog_cb<'b>(
-    parent: &'b gtk4::Window,
-    title: &'b str,
-    suggested_name: Option<&'b str>,
-) -> Pin<Box<dyn Future<Output = FileDialogResult> + 'b>> {
-    let fut: Box<dyn Future<Output = FileDialogResult> + 'b> =
-        Box::new(async move { FileDialogs::show_save_dialog(parent, title, suggested_name).await });
-    Pin::from(fut)
-}
-
-pub(crate) fn save_changes_dialog_cb<'b>(
-    parent: &'b gtk4::Window,
-    document_name: &'b str,
-    action: &'b str,
-) -> Pin<Box<dyn Future<Output = SaveChangesDialogResult> + 'b>> {
-    let fut: Box<dyn Future<Output = SaveChangesDialogResult> + 'b> = Box::new(async move {
-        FileDialogs::show_save_changes_dialog(parent, document_name, action).await
-    });
-    Pin::from(fut)
-}
-
 impl FileDialogs {
     /// Adapter for `logic::menu_items::file` callback types.
     ///
     /// The `FileOperations` code expects HRTB callbacks returning `Pin<Box<dyn Future + 'b>>`.
     /// Directly returning `Box::pin(async_fn(..))` doesn't reliably coerce to a trait object,
     /// so we box to `Box<dyn Future>` first and then pin it.
-    pub fn open_dialog_callback() -> OpenDialogCallback {
-        Arc::new(open_dialog_cb)
+    pub fn open_dialog_callback(translations: DialogTranslations) -> OpenDialogCallback {
+        Arc::new(move |parent, title| {
+            let translations = translations.clone();
+            let fut: Box<dyn Future<Output = FileDialogResult> + '_> = Box::new(async move {
+                FileDialogs::show_open_dialog(parent, title, &translations).await
+            });
+            Pin::from(fut)
+        })
     }
 
-    pub fn save_dialog_callback() -> SaveDialogCallback {
-        Arc::new(save_dialog_cb)
+    pub fn save_dialog_callback(translations: DialogTranslations) -> SaveDialogCallback {
+        Arc::new(move |parent, title, suggested_name| {
+            let translations = translations.clone();
+            let fut: Box<dyn Future<Output = FileDialogResult> + '_> = Box::new(async move {
+                FileDialogs::show_save_dialog(parent, title, suggested_name, &translations).await
+            });
+            Pin::from(fut)
+        })
     }
 
-    pub fn save_changes_dialog_callback() -> SaveChangesCallback {
-        Arc::new(save_changes_dialog_cb)
+    pub fn save_changes_dialog_callback(translations: DialogTranslations) -> SaveChangesCallback {
+        Arc::new(move |parent, document_name, action| {
+            let translations = translations.clone();
+            let fut: Box<dyn Future<Output = SaveChangesDialogResult> + '_> =
+                Box::new(async move {
+                    FileDialogs::show_save_changes_dialog(
+                        parent,
+                        document_name,
+                        action,
+                        &translations,
+                    )
+                    .await
+                });
+            Pin::from(fut)
+        })
     }
 
     /// Shows a native file open dialog
@@ -119,25 +115,38 @@ impl FileDialogs {
     /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
-    /// ```
-    /// let path = FileDialogs::show_open_dialog(&window, "Open Markdown File").await?;
+    /// ```no_run
+    /// let translations = crate::components::language::SimpleLocalizationManager::new()?
+    ///     .translations();
+    /// let path = FileDialogs::show_open_dialog(
+    ///     &window,
+    ///     &translations.dialog.open_markdown_title,
+    ///     &translations.dialog,
+    ///     None,
+    /// ).await?;
     /// if let Some(file_path) = path {
     ///     println!("Selected file: {}", file_path.display());
     /// }
-    /// ```
+    /// ```no_run
     #[cfg(target_os = "linux")]
-    pub async fn show_open_dialog<W: IsA<Window>>(parent: &W, title: &str) -> FileDialogResult {
+    pub async fn show_open_dialog<W: IsA<Window>>(
+        parent: &W,
+        title: &str,
+        translations: &DialogTranslations,
+    ) -> FileDialogResult {
+        let open_label = format!("_{}", translations.open_button);
+        let cancel_label = format!("_{}", translations.cancel_button);
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
             FileChooserAction::Open,
-            Some("_Open"),
-            Some("_Cancel"),
+            Some(&open_label),
+            Some(&cancel_label),
         );
 
         // Set up file filters for markdown files
         let filter = gtk4::FileFilter::new();
-        filter.set_name(Some("Markdown Files"));
+        filter.set_name(Some(&translations.filter_markdown));
         filter.add_pattern("*.md");
         filter.add_pattern("*.markdown");
         filter.add_pattern("*.mdown");
@@ -145,7 +154,7 @@ impl FileDialogs {
         dialog.add_filter(&filter);
 
         let filter_all = gtk4::FileFilter::new();
-        filter_all.set_name(Some("All Files"));
+        filter_all.set_name(Some(&translations.filter_all));
         filter_all.add_pattern("*");
         dialog.add_filter(&filter_all);
 
@@ -173,12 +182,19 @@ impl FileDialogs {
     ///
     /// Uses Windows native file explorer dialog for better platform integration.
     #[cfg(target_os = "windows")]
-    pub async fn show_open_dialog<W: IsA<Window>>(_parent: &W, _title: &str) -> FileDialogResult {
+    pub async fn show_open_dialog<W: IsA<Window>>(
+        _parent: &W,
+        _title: &str,
+        translations: &DialogTranslations,
+    ) -> FileDialogResult {
         use rfd::AsyncFileDialog;
 
         let dialog = AsyncFileDialog::new()
-            .add_filter("Markdown Files", &["md", "markdown", "mdown", "mkd"])
-            .add_filter("All Files", &["*"]);
+            .add_filter(
+                &translations.filter_markdown,
+                &["md", "markdown", "mdown", "mkd"],
+            )
+            .add_filter(&translations.filter_all, &["*"]);
 
         match dialog.pick_file().await {
             Some(file) => {
@@ -206,35 +222,46 @@ impl FileDialogs {
     /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
-    /// ```
-    /// let path = FileDialogs::show_save_dialog(&window, "Save As", Some("Untitled.md")).await?;
+    /// ```no_run
+    /// let translations = crate::components::language::SimpleLocalizationManager::new()?
+    ///     .translations();
+    /// let path = FileDialogs::show_save_dialog(
+    ///     &window,
+    ///     &translations.dialog.save_markdown_title,
+    ///     Some("Untitled.md"),
+    ///     &translations.dialog,
+    ///     None,
+    /// ).await?;
     /// if let Some(file_path) = path {
     ///     println!("Save to: {}", file_path.display());
     /// }
-    /// ```
+    /// ```no_run
     #[cfg(target_os = "linux")]
     pub async fn show_save_dialog<W: IsA<Window>>(
         parent: &W,
         title: &str,
         suggested_name: Option<&str>,
+        translations: &DialogTranslations,
     ) -> FileDialogResult {
+        let save_label = format!("_{}", translations.save_button);
+        let cancel_label = format!("_{}", translations.cancel_button);
         let dialog = FileChooserNative::new(
             Some(title),
             Some(parent),
             FileChooserAction::Save,
-            Some("_Save"),
-            Some("_Cancel"),
+            Some(&save_label),
+            Some(&cancel_label),
         );
 
         // Set up file filters
         let filter = gtk4::FileFilter::new();
-        filter.set_name(Some("Markdown Files"));
+        filter.set_name(Some(&translations.filter_markdown));
         filter.add_pattern("*.md");
         filter.add_pattern("*.markdown");
         dialog.add_filter(&filter);
 
         let filter_all = gtk4::FileFilter::new();
-        filter_all.set_name(Some("All Files"));
+        filter_all.set_name(Some(&translations.filter_all));
         filter_all.add_pattern("*");
         dialog.add_filter(&filter_all);
 
@@ -271,12 +298,13 @@ impl FileDialogs {
         _parent: &W,
         _title: &str,
         suggested_name: Option<&str>,
+        translations: &DialogTranslations,
     ) -> FileDialogResult {
         use rfd::AsyncFileDialog;
 
         let mut dialog = AsyncFileDialog::new()
-            .add_filter("Markdown Files", &["md", "markdown"])
-            .add_filter("All Files", &["*"]);
+            .add_filter(&translations.filter_markdown, &["md", "markdown"])
+            .add_filter(&translations.filter_all, &["*"]);
 
         if let Some(name) = suggested_name {
             dialog = dialog.set_file_name(name);
@@ -295,7 +323,7 @@ impl FileDialogs {
         }
     }
 
-    /// Shows a "Save Changes?" confirmation dialog
+    /// Shows a "Save changes?" confirmation dialog
     ///
     /// # Arguments
     /// * `parent` - Parent window for the dialog
@@ -309,7 +337,7 @@ impl FileDialogs {
     /// * `Err(Box<dyn std::error::Error>)` - Dialog failed to show
     ///
     /// # Example
-    /// ```
+    /// ```no_run
     /// match FileDialogs::show_save_changes_dialog(&window, "Untitled.md", "closing").await? {
     ///     SaveChangesResult::Save => save_document(),
     ///     SaveChangesResult::Discard => close_without_saving(),
@@ -320,9 +348,16 @@ impl FileDialogs {
         parent: &W,
         document_name: &str,
         action: &str,
+        translations: &DialogTranslations,
     ) -> SaveChangesDialogResult {
         // Delegate to the dedicated save dialog module
-        crate::ui::dialogs::save::show_save_changes_dialog(parent, document_name, action).await
+        crate::ui::dialogs::save::show_save_changes_dialog(
+            parent,
+            document_name,
+            action,
+            translations,
+        )
+        .await
     }
 
     /// Shows a file overwrite confirmation dialog
@@ -338,7 +373,9 @@ impl FileDialogs {
     ///
     /// # Example
     /// ```
-    /// if FileDialogs::show_overwrite_dialog(&window, &path).await? {
+    /// let translations = crate::components::language::SimpleLocalizationManager::new()?
+    ///     .translations();
+    /// if FileDialogs::show_overwrite_dialog(&window, &path, &translations.dialog, None).await? {
     ///     // Proceed with save
     /// } else {
     ///     // Show save dialog again
@@ -347,25 +384,28 @@ impl FileDialogs {
     pub async fn show_overwrite_dialog<W: IsA<Window>>(
         parent: &W,
         file_path: &Path,
+        translations: &DialogTranslations,
     ) -> Result<bool, Box<dyn std::error::Error>> {
         let filename = file_path
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("the file");
 
+        let primary_text = translations.overwrite_title.replace("{filename}", filename);
+
         let dialog = MessageDialog::new(
             Some(parent),
             DialogFlags::MODAL | DialogFlags::DESTROY_WITH_PARENT,
             MessageType::Question,
             ButtonsType::None,
-            format!("A file named \"{}\" already exists.", filename),
+            primary_text,
         );
 
-        dialog.set_secondary_text(Some("Do you want to replace it?"));
+        dialog.set_secondary_text(Some(&translations.overwrite_secondary));
 
         // Add custom buttons
-        dialog.add_button("Replace", ResponseType::Yes);
-        dialog.add_button("Cancel", ResponseType::Cancel);
+        dialog.add_button(&translations.overwrite_replace, ResponseType::Yes);
+        dialog.add_button(&translations.overwrite_cancel, ResponseType::Cancel);
 
         // Set default response
         dialog.set_default_response(ResponseType::Cancel);
@@ -394,7 +434,8 @@ impl FileDialogs {
     ///     &window,
     ///     "Failed to Open File",
     ///     "Could not read the selected file.",
-    ///     Some("Permission denied: /path/to/file.md")
+    ///     Some("Permission denied: /path/to/file.md"),
+    ///     None,
     /// ).await;
     /// ```
     pub async fn show_error_dialog<W: IsA<Window>>(
@@ -437,7 +478,8 @@ impl FileDialogs {
     /// FileDialogs::show_info_dialog(
     ///     &window,
     ///     "File Saved",
-    ///     "Your document has been saved successfully."
+    ///     "Your document has been saved successfully.",
+    ///     None,
     /// ).await;
     /// ```
     pub async fn show_info_dialog<W: IsA<Window>>(parent: &W, title: &str, message: &str) {
@@ -464,8 +506,12 @@ impl FileDialogs {
     /// Shows an open dialog and returns the selected file path
     ///
     /// This is a simplified wrapper that handles the common case.
-    pub async fn open_markdown_file<W: IsA<Window>>(parent: &W) -> Option<PathBuf> {
-        match Self::show_open_dialog(parent, "Open Markdown File").await {
+    pub async fn open_markdown_file<W: IsA<Window>>(
+        parent: &W,
+        translations: &DialogTranslations,
+    ) -> Option<PathBuf> {
+        match Self::show_open_dialog(parent, &translations.open_markdown_title, translations).await
+        {
             Ok(path) => path,
             Err(err) => {
                 log::error!("[FileDialogs] Error showing open dialog: {}", err);
@@ -480,8 +526,16 @@ impl FileDialogs {
     pub async fn save_markdown_file<W: IsA<Window>>(
         parent: &W,
         suggested_name: Option<&str>,
+        translations: &DialogTranslations,
     ) -> Option<PathBuf> {
-        match Self::show_save_dialog(parent, "Save Markdown File", suggested_name).await {
+        match Self::show_save_dialog(
+            parent,
+            &translations.save_markdown_title,
+            suggested_name,
+            translations,
+        )
+        .await
+        {
             Ok(path) => path,
             Err(err) => {
                 eprintln!("[FileDialogs] Error showing save dialog: {}", err);
@@ -500,9 +554,10 @@ impl FileDialogs {
         parent: &W,
         operation: &str,
         error: &dyn std::error::Error,
+        translations: &DialogTranslations,
     ) {
-        let title = format!("Error {}", operation);
-        let message = format!("An error occurred while {}.", operation);
+        let title = format!("{} {}", translations.error_title_prefix, operation);
+        let message = format!("{} {}.", translations.error_message_prefix, operation);
         let detail = error.to_string();
 
         Self::show_error_dialog(parent, &title, &message, Some(&detail)).await;

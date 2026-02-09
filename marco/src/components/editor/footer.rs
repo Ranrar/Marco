@@ -41,29 +41,11 @@ pub fn wire_footer_updates(
 
     let update_footer = {
         let buffer = buffer.clone();
+        let labels = labels.clone();
         let insert_mode_state = Rc::clone(&insert_mode_state);
         move || {
             crate::footer_dbg!("[wire_footer_updates] update_footer closure called");
-            let offset = buffer.cursor_position();
-            let iter = buffer.iter_at_offset(offset);
-            let row = (iter.line() + 1) as usize;
-            let col = (iter.line_offset() + 1) as usize;
-            let text = buffer
-                .text(&buffer.start_iter(), &buffer.end_iter(), false)
-                .to_string();
-            let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
-            let char_count = text.chars().count();
-
-            let is_insert = *insert_mode_state.borrow();
-            let msg = FooterUpdate::Snapshot {
-                row,
-                col,
-                words: word_count,
-                chars: char_count,
-                encoding: "UTF-8".to_string(),
-                is_insert,
-            };
-            crate::footer::apply_footer_update(&labels, msg);
+            refresh_footer_snapshot(&buffer, labels.clone(), insert_mode_state.clone());
         }
     };
 
@@ -105,4 +87,33 @@ pub fn wire_footer_updates(
 
     // Initial update
     update_footer();
+}
+
+/// Recompute and apply footer values using the current buffer state.
+pub fn refresh_footer_snapshot(
+    buffer: &sourceview5::Buffer,
+    labels: Rc<FooterLabels>,
+    insert_mode_state: Rc<RefCell<bool>>,
+) {
+    let offset = buffer.cursor_position();
+    let iter = buffer.iter_at_offset(offset);
+    let row = (iter.line() + 1) as usize;
+    let col = (iter.line_offset() + 1) as usize;
+    let text = buffer
+        .text(&buffer.start_iter(), &buffer.end_iter(), false)
+        .to_string();
+    let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
+    let char_count = text.chars().count();
+    let encoding = labels.encoding_label.borrow().clone();
+    let is_insert = *insert_mode_state.borrow();
+
+    let msg = FooterUpdate::Snapshot {
+        row,
+        col,
+        words: word_count,
+        chars: char_count,
+        encoding,
+        is_insert,
+    };
+    crate::footer::apply_footer_update(&labels, msg);
 }

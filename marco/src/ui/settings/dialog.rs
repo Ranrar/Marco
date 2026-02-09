@@ -4,8 +4,10 @@
 use gtk4::prelude::*;
 use gtk4::{Align, Box as GtkBox, Button, Label, Orientation, Window};
 
+use crate::components::language::{LocaleInfo, Translations};
 use crate::logic::signal_manager::SignalManager;
 use crate::ui::settings::tabs;
+
 use log::trace;
 
 pub struct Settings {
@@ -48,6 +50,8 @@ fn get_or_create_cached_dialog(
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: PathBuf,
     asset_dir: &std::path::Path,
+    translations_rc: Rc<RefCell<Translations>>,
+    available_locales: Rc<Vec<LocaleInfo>>,
     callbacks: SettingsDialogCallbacks,
 ) -> Rc<Window> {
     CACHED_DIALOG.with(|cached| {
@@ -73,6 +77,8 @@ fn get_or_create_cached_dialog(
             theme_manager,
             settings_path,
             asset_dir,
+            translations_rc,
+            available_locales,
             callbacks,
         ));
 
@@ -100,6 +106,7 @@ pub struct SettingsDialogCallbacks {
     pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
     pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    pub on_language_changed: Option<std::boxed::Box<dyn Fn(Option<String>) + 'static>>,
 }
 
 pub fn show_settings_dialog(
@@ -107,18 +114,36 @@ pub fn show_settings_dialog(
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: PathBuf,
     asset_dir: &std::path::Path,
+    translations_rc: Rc<RefCell<Translations>>,
+    available_locales: Rc<Vec<LocaleInfo>>,
     callbacks: SettingsDialogCallbacks,
 ) {
     // Use cached dialog to avoid recreation overhead
-    let dialog =
-        get_or_create_cached_dialog(parent, theme_manager, settings_path, asset_dir, callbacks);
+    let dialog = get_or_create_cached_dialog(
+        parent,
+        theme_manager,
+        settings_path,
+        asset_dir,
+        translations_rc,
+        available_locales,
+        callbacks,
+    );
     dialog.present();
 }
 
 /// Clear the cached dialog (useful for cleanup or testing)
+/// Also closes the dialog if it's currently open
 #[allow(dead_code)]
 pub fn clear_cached_dialog() {
     CACHED_DIALOG.with(|cached| {
+        // Close the dialog if it's still open
+        if let Some((weak_dialog, _)) = cached.borrow().as_ref() {
+            if let Some(dialog) = weak_dialog.upgrade() {
+                dialog.close();
+                trace!("audit: closed open settings dialog before clearing cache");
+            }
+        }
+
         *cached.borrow_mut() = None;
     });
     trace!("audit: cleared cached settings dialog");
@@ -131,8 +156,18 @@ fn create_dialog_impl(
     theme_manager: Rc<RefCell<ThemeManager>>,
     settings_path: PathBuf,
     asset_dir: &std::path::Path,
+    translations_rc: Rc<RefCell<Translations>>,
+    available_locales: Rc<Vec<LocaleInfo>>,
     callbacks: SettingsDialogCallbacks,
 ) -> Window {
+    // Snapshot translations for initial creation
+    let translations = translations_rc.borrow().clone();
+
+    // Registry for in-place settings-tab translation updates.
+    // Tabs register the specific labels/models they create so we can update them
+    // safely without rebuilding widget trees.
+    let settings_i18n = tabs::helpers::SettingsI18nRegistry::new();
+
     // Detect parent window theme
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
     let theme_class = if parent_widget.has_css_class("marco-theme-dark") {
@@ -218,6 +253,10 @@ fn create_dialog_impl(
         });
     }
 
+    // Store current language hash to detect changes
+    // We use menu.file as a simple hash since it changes with language
+    let current_lang_hash = Rc::new(RefCell::new(translations.menu.file.clone()));
+
     // Create custom HeaderBar matching marco's style
     let headerbar = gtk4::HeaderBar::new();
     headerbar.add_css_class("titlebar");
@@ -225,7 +264,7 @@ fn create_dialog_impl(
     headerbar.set_show_title_buttons(false);
 
     // Set title in headerbar
-    let title_label = Label::new(Some("Settings"));
+    let title_label = Label::new(Some(&translations.settings.title));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
@@ -381,7 +420,13 @@ fn create_dialog_impl(
         std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
     };
 
-    let btn_close_titlebar = svg_icon_button(&window, WindowIcon::Close, "Close", &icon_color, 8.0);
+    let btn_close_titlebar = svg_icon_button(
+        &window,
+        WindowIcon::Close,
+        &translations.settings.close,
+        &icon_color,
+        8.0,
+    );
 
     // Add close button to right side of headerbar
     headerbar.pack_end(&btn_close_titlebar);
@@ -402,8 +447,16 @@ fn create_dialog_impl(
     stack_sidebar.set_margin_end(8);
 
     // Add each tab to the stack using stable names so the sidebar shows titles
-    let editor_tab = tabs::editor::build_editor_tab(settings_path.to_str().unwrap());
-    stack.add_titled(&editor_tab, Some("editor"), "Editor");
+    let editor_tab = tabs::editor::build_editor_tab(
+        settings_path.to_str().unwrap(),
+        &translations.settings.editor,
+        &settings_i18n,
+    );
+    stack.add_titled(
+        &editor_tab,
+        Some("editor"),
+        &translations.settings.tabs.editor,
+    );
 
     // Build layout tab and provide a callback that will persist the setting and
     // forward the value to any external on_view_mode_changed handler supplied by
@@ -446,15 +499,25 @@ fn create_dialog_impl(
         }
     }) as std::boxed::Box<dyn Fn(String) + 'static>;
 
+    let layout_callbacks = tabs::layout::LayoutTabCallbacks {
+        on_view_mode_changed: Some(layout_cb),
+        on_split_ratio_changed: callbacks.on_split_ratio_changed,
+        on_sync_scrolling_changed: callbacks.on_sync_scrolling_changed,
+        on_line_numbers_changed: callbacks.on_line_numbers_changed,
+    };
+
     let layout_tab = tabs::layout::build_layout_tab(
         saved_view_mode,
-        Some(layout_cb),
+        layout_callbacks,
         settings_path.to_str(),
-        callbacks.on_split_ratio_changed,
-        callbacks.on_sync_scrolling_changed,
-        callbacks.on_line_numbers_changed,
+        &translations.settings.layout,
+        &settings_i18n,
     );
-    stack.add_titled(&layout_tab, Some("layout"), "Layout");
+    stack.add_titled(
+        &layout_tab,
+        Some("layout"),
+        &translations.settings.tabs.layout,
+    );
 
     // Collect signal managers for cleanup on dialog close
     let mut signal_managers: Vec<Rc<RefCell<SignalManager>>> = Vec::new();
@@ -464,37 +527,81 @@ fn create_dialog_impl(
         callbacks.on_preview_theme_changed,
         callbacks.refresh_preview.clone(),
     ) {
+        let appearance_callbacks = tabs::appearance::AppearanceTabCallbacks {
+            on_preview_theme_changed: cb,
+            refresh_preview: refresh_preview_cb,
+            on_editor_theme_changed: callbacks.on_editor_theme_changed,
+        };
         let (appearance_tab, appearance_signals) = tabs::appearance::build_appearance_tab(
             theme_manager.clone(),
             settings_path.clone(),
             asset_dir,
-            cb,
-            refresh_preview_cb,
-            callbacks.on_editor_theme_changed,
+            appearance_callbacks,
+            &translations.settings.appearance,
+            &settings_i18n,
         );
-        stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
+        stack.add_titled(
+            &appearance_tab,
+            Some("appearance"),
+            &translations.settings.tabs.appearance,
+        );
         signal_managers.push(appearance_signals);
     } else {
+        let appearance_callbacks = tabs::appearance::AppearanceTabCallbacks {
+            on_preview_theme_changed: Box::new(|_| {}),
+            refresh_preview: Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
+            on_editor_theme_changed: callbacks.on_editor_theme_changed,
+        };
         let (appearance_tab, appearance_signals) = tabs::appearance::build_appearance_tab(
             theme_manager.clone(),
             settings_path.clone(),
             asset_dir,
-            Box::new(|_| {}),
-            Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
-            callbacks.on_editor_theme_changed,
+            appearance_callbacks,
+            &translations.settings.appearance,
+            &settings_i18n,
         );
-        stack.add_titled(&appearance_tab, Some("appearance"), "Appearance");
+        stack.add_titled(
+            &appearance_tab,
+            Some("appearance"),
+            &translations.settings.tabs.appearance,
+        );
         signal_managers.push(appearance_signals);
     }
     stack.add_titled(
-        &tabs::language::build_language_tab(),
+        &tabs::language::build_language_tab(
+            settings_path.to_str().unwrap(),
+            &translations.settings.language,
+            available_locales.as_ref(),
+            &settings_i18n,
+            callbacks.on_language_changed,
+        ),
         Some("language"),
-        "Language",
+        &translations.settings.tabs.language,
     );
 
     // Add Markdown tab for markdown-specific settings
-    let markdown_tab = tabs::markdown::build_markdown_tab(settings_path.to_str().unwrap());
-    stack.add_titled(&markdown_tab, Some("markdown"), "Markdown");
+    let markdown_tab = tabs::markdown::build_markdown_tab(
+        settings_path.to_str().unwrap(),
+        &translations.settings.markdown,
+        &settings_i18n,
+    );
+    stack.add_titled(
+        &markdown_tab,
+        Some("markdown"),
+        &translations.settings.tabs.markdown,
+    );
+
+    // Add Advanced tab for advanced settings
+    let advanced_tab = tabs::advanced::build_advanced_tab(
+        settings_path.to_str().unwrap(),
+        &translations.settings.advanced,
+        &settings_i18n,
+    );
+    stack.add_titled(
+        &advanced_tab,
+        Some("advanced"),
+        &translations.settings.tabs.advanced,
+    );
 
     // Optionally show Debug tab when `debug` is enabled in settings.ron
     {
@@ -504,8 +611,13 @@ fn create_dialog_impl(
             if app_settings.debug.unwrap_or(false) {
                 // Pass settings path as string to debug tab builder so it can save changes
                 let settings_path_str = settings_path.to_string_lossy().to_string();
-                let debug_tab = tabs::debug::build_debug_tab(&settings_path_str, &window);
-                stack.add_titled(&debug_tab, Some("debug"), "Debug");
+                let debug_tab = tabs::debug::build_debug_tab(
+                    &settings_path_str,
+                    &window,
+                    &translations.settings.debug,
+                    &settings_i18n,
+                );
+                stack.add_titled(&debug_tab, Some("debug"), &translations.settings.tabs.debug);
             }
         } else {
             eprintln!("Failed to initialize settings manager for debug tab visibility check");
@@ -524,7 +636,7 @@ fn create_dialog_impl(
     content_box.append(&main_box);
 
     // Create close button wrapped in a table-like frame for alignment
-    let close_button = Button::with_label("Close");
+    let close_button = Button::with_label(&translations.settings.close);
     close_button.add_css_class("marco-settings-close-button");
     close_button.set_halign(Align::End);
     close_button.set_valign(Align::Center);
@@ -600,6 +712,111 @@ fn create_dialog_impl(
             glib::Propagation::Proceed
         }
     });
+
+    // Set up runtime language synchronization
+    // Monitor for translation changes and update dialog text labels
+    {
+        let window_weak = window.downgrade();
+        let translations_rc = translations_rc.clone();
+        let current_lang_hash = current_lang_hash.clone();
+        let stack_weak = stack.downgrade();
+        let settings_i18n = settings_i18n.clone();
+
+        let poll_interval = std::time::Duration::from_millis(200);
+        glib::timeout_add_local(poll_interval, move || {
+            if let Some(settings_win) = window_weak.upgrade() {
+                let new_hash = translations_rc.borrow().menu.file.clone();
+
+                // If language changed, update visible text
+                if *current_lang_hash.borrow() != new_hash {
+                    trace!("Settings dialog detected language change, updating labels...");
+                    *current_lang_hash.borrow_mut() = new_hash;
+
+                    let new_translations = translations_rc.borrow().clone();
+
+                    // Update headerbar title
+                    if let Some(titlebar) = settings_win.titlebar() {
+                        if let Ok(headerbar) = titlebar.downcast::<gtk4::HeaderBar>() {
+                            if let Some(title_widget) = headerbar.title_widget() {
+                                if let Ok(label) = title_widget.downcast::<Label>() {
+                                    label.set_text(&new_translations.settings.title);
+                                }
+                            }
+                        }
+                    }
+
+                    // Update stack page titles
+                    if let Some(stack) = stack_weak.upgrade() {
+                        // Update tab titles without rebuilding content
+                        if let Some(editor_page) = stack.child_by_name("editor") {
+                            stack
+                                .page(&editor_page)
+                                .set_title(&new_translations.settings.tabs.editor);
+                        }
+                        if let Some(layout_page) = stack.child_by_name("layout") {
+                            stack
+                                .page(&layout_page)
+                                .set_title(&new_translations.settings.tabs.layout);
+                        }
+                        if let Some(appearance_page) = stack.child_by_name("appearance") {
+                            stack
+                                .page(&appearance_page)
+                                .set_title(&new_translations.settings.tabs.appearance);
+                        }
+                        if let Some(language_page) = stack.child_by_name("language") {
+                            stack
+                                .page(&language_page)
+                                .set_title(&new_translations.settings.tabs.language);
+                        }
+                        if let Some(markdown_page) = stack.child_by_name("markdown") {
+                            stack
+                                .page(&markdown_page)
+                                .set_title(&new_translations.settings.tabs.markdown);
+                        }
+                    }
+
+                    // Update close button label
+                    if let Some(content_child) = settings_win.child() {
+                        if let Ok(content_box) = content_child.downcast::<GtkBox>() {
+                            if let Some(close_frame_widget) = content_box.last_child() {
+                                if let Ok(close_frame) =
+                                    close_frame_widget.downcast::<gtk4::Frame>()
+                                {
+                                    if let Some(close_inner) = close_frame.child() {
+                                        if let Ok(close_box) = close_inner.downcast::<GtkBox>() {
+                                            if let Some(button_widget) = close_box.last_child() {
+                                                if let Ok(button) =
+                                                    button_widget.downcast::<Button>()
+                                                {
+                                                    button.set_label(
+                                                        &new_translations.settings.close,
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Update all settings-tab content that was registered for i18n.
+                    settings_i18n.apply(&new_translations);
+
+                    trace!("Settings dialog labels updated with new translations");
+                }
+
+                // Continue polling if settings window is visible
+                if settings_win.is_visible() {
+                    glib::ControlFlow::Continue
+                } else {
+                    glib::ControlFlow::Break
+                }
+            } else {
+                glib::ControlFlow::Break
+            }
+        });
+    }
 
     window.set_child(Some(&content_box));
 

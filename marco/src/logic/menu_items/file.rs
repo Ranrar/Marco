@@ -1,6 +1,7 @@
 //! File operations module for handling document lifecycle
 #![allow(clippy::await_holding_refcell_ref)]
 
+use crate::components::language::{DialogTranslations, MenuTranslations};
 use core::logic::{DocumentBuffer, RecentFiles};
 use gtk4::{gio, glib, prelude::*};
 use log::trace;
@@ -57,6 +58,17 @@ type SaveDialogCallback = Arc<
         + Sync
         + 'static,
 >;
+
+/// Bundle parameters for loading the initial file during startup.
+pub struct InitialFileLoadContext {
+    pub file_path: String,
+    pub window: gtk4::ApplicationWindow,
+    pub editor_buffer: sourceview5::Buffer,
+    pub title_label: gtk4::Label,
+    pub dialog_translations: DialogTranslations,
+    pub show_save_changes_dialog: SaveChangesDialogCallback,
+    pub show_save_dialog: SaveDialogCallback,
+}
 
 // Allow RefCell borrows across await points in this module since we're in single-threaded GTK context
 
@@ -229,6 +241,7 @@ impl FileOperations {
         path: P,
         parent_window: &'a W,
         editor_buffer: &'a gtk4::TextBuffer,
+        dialog_translations: &DialogTranslations,
         show_save_changes_dialog: F,
         show_save_dialog: G,
     ) -> Result<(), Box<dyn std::error::Error>>
@@ -266,7 +279,7 @@ impl FileOperations {
             match show_save_changes_dialog(
                 parent_window.upcast_ref(),
                 &document_title,
-                "opening a file",
+                &dialog_translations.save_changes_action_opening,
             )
             .await?
             {
@@ -284,7 +297,7 @@ impl FileOperations {
 
                         let file_path = show_save_dialog(
                             parent_window.upcast_ref(),
-                            "Save Markdown File",
+                            &dialog_translations.save_markdown_title,
                             Some(suggested_name),
                         )
                         .await?;
@@ -390,6 +403,7 @@ impl FileOperations {
         &self,
         parent_window: &'a gtk4::Window,
         editor_buffer: &'a gtk4::TextBuffer,
+        dialog_translations: &DialogTranslations,
         show_open_dialog: F,
         show_save_changes_dialog: G,
         show_save_dialog: H,
@@ -431,12 +445,16 @@ impl FileOperations {
         // Check for unsaved changes and prompt user
         if self.buffer.borrow().has_unsaved_changes() {
             let document_title = self.get_document_title();
-            match show_save_changes_dialog(parent_window, &document_title, "opening a file").await?
+            match show_save_changes_dialog(
+                parent_window,
+                &document_title,
+                &dialog_translations.save_changes_action_opening,
+            )
+            .await?
             {
                 SaveChangesResult::Save => {
                     // If the document already has a file path, do a normal save
                     if self.buffer.borrow().get_file_path().is_some() {
-                        self.save_document(parent_window, editor_buffer)?;
                     } else {
                         // Show Save As dialog for new/untitled files
                         let suggested_name = if self.get_document_title().contains("Untitled") {
@@ -447,7 +465,7 @@ impl FileOperations {
 
                         let file_path = show_save_dialog(
                             parent_window,
-                            "Save Markdown File",
+                            &dialog_translations.save_markdown_title,
                             Some(suggested_name),
                         )
                         .await?;
@@ -472,7 +490,7 @@ impl FileOperations {
         }
 
         let file_path: Option<std::path::PathBuf> =
-            show_open_dialog(parent_window, "Open Markdown File").await?;
+            show_open_dialog(parent_window, &dialog_translations.open_markdown_title).await?;
         if let Some(path) = file_path {
             self.load_file_into_editor(&path, editor_buffer)?;
             self.add_recent_file(&path);
@@ -487,6 +505,7 @@ impl FileOperations {
         &self,
         parent_window: &'a gtk4::Window,
         editor_buffer: &'a gtk4::TextBuffer,
+        dialog_translations: &DialogTranslations,
         show_save_changes_dialog: F,
         show_save_dialog: G,
     ) -> Result<(), Box<dyn std::error::Error>>
@@ -520,14 +539,13 @@ impl FileOperations {
             match show_save_changes_dialog(
                 parent_window,
                 &document_title,
-                "starting a new document",
+                &dialog_translations.save_changes_action_new_document,
             )
             .await?
             {
                 SaveChangesResult::Save => {
                     // If the document already has a file path, do a normal save
                     if self.buffer.borrow().get_file_path().is_some() {
-                        self.save_document(parent_window, editor_buffer)?;
                     } else {
                         // Show Save As dialog for new/untitled files
                         let suggested_name = if self.get_document_title().contains("Untitled") {
@@ -538,7 +556,7 @@ impl FileOperations {
 
                         let file_path = show_save_dialog(
                             parent_window,
-                            "Save Markdown File",
+                            &dialog_translations.save_markdown_title,
                             Some(suggested_name),
                         )
                         .await?;
@@ -575,6 +593,7 @@ impl FileOperations {
         &self,
         parent_window: &'a gtk4::Window,
         editor_buffer: &'a gtk4::TextBuffer,
+        dialog_translations: &DialogTranslations,
         show_save_dialog: F,
     ) -> Result<(), Box<dyn std::error::Error>>
     where
@@ -595,8 +614,12 @@ impl FileOperations {
         } else {
             format!("{}.md", self.get_document_title().replace("*", "").trim())
         };
-        let file_path: Option<std::path::PathBuf> =
-            show_save_dialog(parent_window, "Save Markdown File", Some(&suggested_name)).await?;
+        let file_path: Option<std::path::PathBuf> = show_save_dialog(
+            parent_window,
+            &dialog_translations.save_markdown_title,
+            Some(&suggested_name),
+        )
+        .await?;
         if let Some(path) = file_path {
             let start_iter = editor_buffer.start_iter();
             let end_iter = editor_buffer.end_iter();
@@ -604,6 +627,7 @@ impl FileOperations {
                 .text(&start_iter, &end_iter, false)
                 .to_string();
             self.buffer.borrow_mut().save_as_content(&path, &content)?;
+            self.buffer.borrow_mut().set_baseline(&content);
             self.add_recent_file(&path);
             eprintln!("[FileOps] Saved file: {}", path.display());
         }
@@ -616,6 +640,7 @@ impl FileOperations {
         parent_window: &'a gtk4::Window,
         editor_buffer: &'a gtk4::TextBuffer,
         app: &'a gtk4::Application,
+        dialog_translations: &DialogTranslations,
         show_save_changes_dialog: F,
         show_save_dialog: G,
     ) -> Result<(), Box<dyn std::error::Error>>
@@ -646,7 +671,13 @@ impl FileOperations {
         let is_modified = self.buffer.borrow().has_unsaved_changes();
         let document_title = self.get_document_title();
         if is_modified {
-            match show_save_changes_dialog(parent_window, &document_title, "quitting").await? {
+            match show_save_changes_dialog(
+                parent_window,
+                &document_title,
+                &dialog_translations.save_changes_action_quitting,
+            )
+            .await?
+            {
                 SaveChangesResult::Save => {
                     let has_file_path = self.buffer.borrow().get_file_path().is_some();
                     if !has_file_path {
@@ -657,7 +688,7 @@ impl FileOperations {
                         };
                         let file_path = show_save_dialog(
                             parent_window,
-                            "Save Markdown File",
+                            &dialog_translations.save_markdown_title,
                             Some(&suggested_name),
                         )
                         .await?;
@@ -736,43 +767,27 @@ impl FileOperations {
     /// * `title_label` - Label to update with document title
     /// * `show_save_changes_dialog` - Callback for save changes dialog
     /// * `show_save_dialog` - Callback for save as dialog
-    pub fn load_initial_file_async<F, G>(
+    pub fn load_initial_file_async(
         file_operations: Rc<RefCell<Self>>,
-        file_path: String,
-        window: gtk4::ApplicationWindow,
-        editor_buffer: sourceview5::Buffer,
-        title_label: gtk4::Label,
-        show_save_changes_dialog: F,
-        show_save_dialog: G,
-    ) where
-        F: for<'a> Fn(
-                &'a gtk4::Window,
-                &'a str,
-                &'a str,
-            ) -> std::pin::Pin<
-                Box<
-                    dyn std::future::Future<
-                            Output = Result<SaveChangesResult, Box<dyn std::error::Error>>,
-                        > + 'a,
-                >,
-            > + 'static,
-        G: for<'a> Fn(
-                &'a gtk4::Window,
-                &'a str,
-                Option<&'a str>,
-            ) -> std::pin::Pin<
-                Box<
-                    dyn std::future::Future<
-                            Output = Result<Option<std::path::PathBuf>, Box<dyn std::error::Error>>,
-                        > + 'a,
-                >,
-            > + 'static,
-    {
+        context: InitialFileLoadContext,
+    ) {
+        let InitialFileLoadContext {
+            file_path,
+            window,
+            editor_buffer,
+            title_label,
+            dialog_translations,
+            show_save_changes_dialog,
+            show_save_dialog,
+        } = context;
+
         glib::MainContext::default().spawn_local(async move {
             #[allow(clippy::await_holding_refcell_ref)]
             let file_ops = file_operations.borrow();
             let gtk_window: &gtk4::Window = window.upcast_ref();
             let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+            let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
+            let show_save_dialog = Arc::clone(&show_save_dialog);
 
             // Try to open the specified file
             let result = file_ops
@@ -780,8 +795,9 @@ impl FileOperations {
                     &file_path,
                     gtk_window,
                     text_buffer,
-                    show_save_changes_dialog,
-                    show_save_dialog,
+                    &dialog_translations,
+                    |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
+                    |w, title, suggested| (show_save_dialog)(w, title, suggested),
                 )
                 .await;
 
@@ -800,7 +816,7 @@ impl FileOperations {
     }
 }
 
-/// Result of the "Save Changes?" prompt
+/// Result of the "Save changes?" prompt
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaveChangesResult {
     /// User chose to save the document
@@ -816,14 +832,18 @@ pub enum SaveChangesResult {
 /// # Arguments
 /// * `file_menu` - The file menu to update
 /// * `recent_files` - List of recent file paths
-pub fn update_recent_files_menu(recent_menu: &gio::Menu, recent_files: &[std::path::PathBuf]) {
+pub fn update_recent_files_menu(
+    recent_menu: &gio::Menu,
+    recent_files: &[std::path::PathBuf],
+    menu_translations: &MenuTranslations,
+) {
     // Clear existing items
     while recent_menu.n_items() > 0 {
         recent_menu.remove(0);
     }
 
     if recent_files.is_empty() {
-        recent_menu.append(Some("No recent files"), None);
+        recent_menu.append(Some(&menu_translations.no_recent), None);
     } else {
         for (i, path) in recent_files.iter().enumerate() {
             if i >= 5 {
@@ -847,7 +867,10 @@ pub fn update_recent_files_menu(recent_menu: &gio::Menu, recent_files: &[std::pa
 
         // Add a visible separator section before the clear option
         let separator_section = gio::Menu::new();
-        separator_section.append(Some("Clear Recent Files"), Some("app.clear_recent"));
+        separator_section.append(
+            Some(&menu_translations.clear_recent),
+            Some("app.clear_recent"),
+        );
         recent_menu.append_section(None, &separator_section);
     }
 
@@ -912,10 +935,12 @@ pub fn register_file_actions_async(
     window: &gtk4::ApplicationWindow,
     editor_buffer: &sourceview5::Buffer,
     title_label: &gtk4::Label,
+    dialog_translations: &DialogTranslations,
     show_open_dialog: OpenDialogCallback,
     show_save_changes_dialog: SaveChangesDialogCallback,
     show_save_dialog: SaveDialogCallback,
 ) {
+    let dialog_translations = dialog_translations.clone();
     // Create modification tracking flag
     let modification_tracking_enabled = Rc::new(RefCell::new(true));
 
@@ -933,6 +958,7 @@ pub fn register_file_actions_async(
         let window = window.clone();
         let editor_buffer = editor_buffer.clone();
         let title_label = title_label.clone();
+        let dialog_translations = dialog_translations.clone();
         let show_open_dialog = Arc::clone(&show_open_dialog);
         let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
         let show_save_dialog = Arc::clone(&show_save_dialog);
@@ -941,6 +967,7 @@ pub fn register_file_actions_async(
             let window = window.clone();
             let editor_buffer = editor_buffer.clone();
             let title_label = title_label.clone();
+            let dialog_translations = dialog_translations.clone();
             let show_open_dialog = Arc::clone(&show_open_dialog);
             let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
             let show_save_dialog = Arc::clone(&show_save_dialog);
@@ -953,6 +980,7 @@ pub fn register_file_actions_async(
                     .open_file_async(
                         gtk_window,
                         text_buffer,
+                        &dialog_translations,
                         |w, title| (show_open_dialog)(w, title),
                         |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
                         |w, title, suggested| (show_save_dialog)(w, title, suggested),
@@ -973,6 +1001,7 @@ pub fn register_file_actions_async(
         let editor_buffer = editor_buffer.clone();
         let title_label = title_label.clone();
         let tracking_enabled = modification_tracking_enabled.clone();
+        let dialog_translations = dialog_translations.clone();
         let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
         let show_save_dialog = Arc::clone(&show_save_dialog);
         move |_, _| {
@@ -981,6 +1010,7 @@ pub fn register_file_actions_async(
             let editor_buffer = editor_buffer.clone();
             let title_label = title_label.clone();
             let tracking_enabled = tracking_enabled.clone();
+            let dialog_translations = dialog_translations.clone();
             let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
             let show_save_dialog = Arc::clone(&show_save_dialog);
             glib::MainContext::default().spawn_local(async move {
@@ -994,6 +1024,7 @@ pub fn register_file_actions_async(
                     .new_document_async(
                         gtk_window,
                         text_buffer,
+                        &dialog_translations,
                         |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
                         |w, title, suggested| (show_save_dialog)(w, title, suggested),
                     )
@@ -1013,12 +1044,14 @@ pub fn register_file_actions_async(
         let window = window.clone();
         let editor_buffer = editor_buffer.clone();
         let title_label = title_label.clone();
+        let dialog_translations = dialog_translations.clone();
         let show_save_dialog = Arc::clone(&show_save_dialog);
         move |_, _| {
             let file_ops = file_ops.clone();
             let window = window.clone();
             let editor_buffer = editor_buffer.clone();
             let title_label = title_label.clone();
+            let dialog_translations = dialog_translations.clone();
             let show_save_dialog = Arc::clone(&show_save_dialog);
             glib::MainContext::default().spawn_local(async move {
                 #[allow(clippy::await_holding_refcell_ref)]
@@ -1026,9 +1059,12 @@ pub fn register_file_actions_async(
                 let gtk_window: &gtk4::Window = window.upcast_ref();
                 let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
                 let _ = file_ops_ref
-                    .save_as_async(gtk_window, text_buffer, |w, title, suggested| {
-                        (show_save_dialog)(w, title, suggested)
-                    })
+                    .save_as_async(
+                        gtk_window,
+                        text_buffer,
+                        &dialog_translations,
+                        |w, title, suggested| (show_save_dialog)(w, title, suggested),
+                    )
                     .await;
                 // Update title label after Save As completes
                 let title = file_ops.borrow().get_document_title();
@@ -1044,6 +1080,7 @@ pub fn register_file_actions_async(
         let window = window.clone();
         let editor_buffer = editor_buffer.clone();
         let app = app.clone();
+        let dialog_translations = dialog_translations.clone();
         let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
         let show_save_dialog = Arc::clone(&show_save_dialog);
         move |_, _| {
@@ -1051,6 +1088,7 @@ pub fn register_file_actions_async(
             let window = window.clone();
             let editor_buffer = editor_buffer.clone();
             let app = app.clone();
+            let dialog_translations = dialog_translations.clone();
             let show_save_changes_dialog = Arc::clone(&show_save_changes_dialog);
             let show_save_dialog = Arc::clone(&show_save_dialog);
             glib::MainContext::default().spawn_local(async move {
@@ -1063,6 +1101,7 @@ pub fn register_file_actions_async(
                         gtk_window,
                         text_buffer,
                         &app,
+                        &dialog_translations,
                         |w, title, action| (show_save_changes_dialog)(w, title, action),
                         |w, title, suggested| (show_save_dialog)(w, title, suggested),
                     )
@@ -1078,12 +1117,14 @@ pub fn register_file_actions_async(
         let window = window.clone();
         let editor_buffer = editor_buffer.clone();
         let title_label = title_label.clone();
+        let dialog_translations = dialog_translations.clone();
         let show_save_dialog = Arc::clone(&show_save_dialog);
         move |_, _| {
             let file_ops = file_ops.clone();
             let window = window.clone();
             let editor_buffer = editor_buffer.clone();
             let title_label = title_label.clone();
+            let dialog_translations = dialog_translations.clone();
             let show_save_dialog = Arc::clone(&show_save_dialog);
             glib::MainContext::default().spawn_local(async move {
                 #[allow(clippy::await_holding_refcell_ref)]
@@ -1104,9 +1145,12 @@ pub fn register_file_actions_async(
                 } else {
                     // Use async save as for new files (shows proper dialog)
                     let result = file_ops_ref
-                        .save_as_async(gtk_window, text_buffer, |w, title, suggested| {
-                            (show_save_dialog)(w, title, suggested)
-                        })
+                        .save_as_async(
+                            gtk_window,
+                            text_buffer,
+                            &dialog_translations,
+                            |w, title, suggested| (show_save_dialog)(w, title, suggested),
+                        )
                         .await;
 
                     match result {
@@ -1188,12 +1232,14 @@ fn update_recent_file_actions(
     window: &gtk4::ApplicationWindow,
     editor_buffer: &sourceview5::Buffer,
     title_label: &gtk4::Label,
+    menu_translations: &MenuTranslations,
+    dialog_translations: &DialogTranslations,
     show_save_changes_dialog: &SaveChangesDialogCallback,
     show_save_dialog: &SaveDialogCallback,
     recent_action: &gio::SimpleAction,
 ) {
     let list = file_operations.borrow().get_recent_files();
-    crate::logic::menu_items::file::update_recent_files_menu(recent_menu, &list);
+    crate::logic::menu_items::file::update_recent_files_menu(recent_menu, &list, menu_translations);
     recent_action.set_enabled(!list.is_empty());
 
     // Remove old actions
@@ -1216,6 +1262,7 @@ fn update_recent_file_actions(
         let window_for_action = window.clone();
         let editor_for_action = editor_buffer.clone();
         let title_label_for_action = title_label.clone();
+        let dialog_translations = dialog_translations.clone();
         let show_save_changes_for_action = Arc::clone(show_save_changes_dialog);
         let show_save_for_action = Arc::clone(show_save_dialog);
         let path_clone = path.clone();
@@ -1224,6 +1271,7 @@ fn update_recent_file_actions(
             let win = window_for_action.clone();
             let editor = editor_for_action.clone();
             let title_label_async = title_label_for_action.clone();
+            let dialog_translations = dialog_translations.clone();
             let show_save_changes_dialog = Arc::clone(&show_save_changes_for_action);
             let show_save_dialog = Arc::clone(&show_save_for_action);
             let path_to_open = path_clone.clone();
@@ -1237,6 +1285,7 @@ fn update_recent_file_actions(
                         &path_to_open,
                         gtk_window,
                         text_buffer,
+                        &dialog_translations,
                         |w, doc_name, action| (show_save_changes_dialog)(w, doc_name, action),
                         |w, title, suggested| (show_save_dialog)(w, title, suggested),
                     )
@@ -1277,6 +1326,8 @@ pub fn setup_recent_actions(
     window: &gtk4::ApplicationWindow,
     editor_buffer: &sourceview5::Buffer,
     title_label: &gtk4::Label,
+    menu_translations: Rc<RefCell<MenuTranslations>>,
+    dialog_translations: Rc<RefCell<DialogTranslations>>,
     show_save_changes_dialog: SaveChangesDialogCallback,
     show_save_dialog: SaveDialogCallback,
 ) {
@@ -1285,6 +1336,8 @@ pub fn setup_recent_actions(
     app.add_action(&recent_action);
 
     // Initialize menu and actions using the helper function
+    let menu_translations_snapshot = menu_translations.borrow().clone();
+    let dialog_translations_snapshot = dialog_translations.borrow().clone();
     update_recent_file_actions(
         app,
         &file_operations,
@@ -1292,6 +1345,8 @@ pub fn setup_recent_actions(
         window,
         editor_buffer,
         title_label,
+        &menu_translations_snapshot,
+        &dialog_translations_snapshot,
         &show_save_changes_dialog,
         &show_save_dialog,
         &recent_action,
@@ -1305,12 +1360,16 @@ pub fn setup_recent_actions(
     let recent_menu_owned = recent_menu.clone();
     let recent_action_owned = recent_action.clone();
     let file_ops_owned = file_operations.clone();
+    let menu_translations = menu_translations.clone();
+    let dialog_translations = dialog_translations.clone();
     let show_save_changes_owned = Arc::clone(&show_save_changes_dialog);
     let show_save_owned = Arc::clone(&show_save_dialog);
 
     file_operations
         .borrow()
         .register_recent_changed_callback(move || {
+            let menu_translations_snapshot = menu_translations.borrow().clone();
+            let dialog_translations_snapshot = dialog_translations.borrow().clone();
             update_recent_file_actions(
                 &app_owned,
                 &file_ops_owned,
@@ -1318,6 +1377,8 @@ pub fn setup_recent_actions(
                 &window_owned,
                 &editor_buffer_owned,
                 &title_label_owned,
+                &menu_translations_snapshot,
+                &dialog_translations_snapshot,
                 &show_save_changes_owned,
                 &show_save_owned,
                 &recent_action_owned,

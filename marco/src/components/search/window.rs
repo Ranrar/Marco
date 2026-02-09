@@ -2,6 +2,8 @@
 //!
 //! Handles window creation, dialog management, and window behavior.
 
+#[cfg(target_os = "linux")]
+use crate::components::language::SearchTranslations;
 use gtk4::prelude::*;
 use gtk4::{Label, Window};
 
@@ -36,6 +38,7 @@ pub fn get_or_create_search_window(
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
     webview: Rc<RefCell<WebView>>,
+    translations: &SearchTranslations,
 ) -> Rc<Window> {
     // Store the current buffer, source view, and webview
     CURRENT_BUFFER.with(|buf| {
@@ -64,7 +67,7 @@ pub fn get_or_create_search_window(
 
         // Create new window if none cached or previous was destroyed
         trace!("audit: creating new search window");
-        let window = Rc::new(create_search_window_impl(parent));
+        let window = Rc::new(create_search_window_impl(parent, translations));
 
         // Cache the window
         *cached.borrow_mut() = Some(window.clone());
@@ -75,7 +78,7 @@ pub fn get_or_create_search_window(
 
 /// Create the actual search window implementation
 #[cfg(target_os = "linux")]
-pub fn create_search_window_impl(parent: &Window) -> Window {
+pub fn create_search_window_impl(parent: &Window, translations: &SearchTranslations) -> Window {
     // Get current theme mode from parent window
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
     let theme_class = if parent_widget.has_css_class("marco-theme-dark") {
@@ -103,7 +106,7 @@ pub fn create_search_window_impl(parent: &Window) -> Window {
     headerbar.set_show_title_buttons(false);
 
     // Set title in headerbar
-    let title_label = Label::new(Some("Search & Replace"));
+    let title_label = Label::new(Some(&translations.title));
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     headerbar.set_title_widget(Some(&title_label));
@@ -192,7 +195,7 @@ pub fn create_search_window_impl(parent: &Window) -> Window {
 
     let close_button = Button::new();
     close_button.set_child(Some(&close_pic));
-    close_button.set_tooltip_text(Some("Close"));
+    close_button.set_tooltip_text(Some(&translations.close_tooltip));
     close_button.set_valign(Align::Center);
     close_button.set_margin_start(1);
     close_button.set_margin_end(1);
@@ -257,16 +260,17 @@ pub fn create_search_window_impl(parent: &Window) -> Window {
     main_box.set_margin_start(8);
     main_box.set_margin_end(8);
 
-    let (search_box, search_entry, match_count_label) = create_search_controls_section();
+    let (search_box, search_entry, match_count_label) =
+        create_search_controls_section(translations);
     main_box.append(&search_box);
 
-    let (replace_box, replace_entry) = create_replace_controls_section();
+    let (replace_box, replace_entry) = create_replace_controls_section(translations);
     main_box.append(&replace_box);
 
-    let options_widgets = create_options_panel();
+    let options_widgets = create_options_panel(translations);
     main_box.append(&options_widgets.0);
 
-    let button_widgets = create_window_button_panel();
+    let button_widgets = create_window_button_panel(translations);
     main_box.append(&button_widgets.0);
 
     // Store the search entry so we can focus it after presenting the window.
@@ -490,11 +494,13 @@ pub fn setup_window_behavior(
         &options_widgets.1.match_whole_word_cb,
         &options_widgets.1.match_markdown_cb,
         &options_widgets.1.use_regex_cb,
-    ] {
+    ]
+    .iter()
+    {
         let search_entry_clone = search_entry_option.clone();
         let match_count_clone = match_count_option.clone();
         let options_clone = options_for_options.clone();
-        checkbox.connect_toggled(move |_| {
+        checkbox.connect_toggled(move |_cb| {
             let query = search_entry_clone.text().to_string();
             if !query.is_empty() {
                 perform_search(&search_entry_clone, &match_count_clone, &options_clone);

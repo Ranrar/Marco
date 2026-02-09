@@ -45,6 +45,7 @@
 //! load_css();  // Loads and applies all CSS styling
 //! ```
 
+pub mod buttons;
 pub mod constants;
 pub mod controls;
 pub mod dialog;
@@ -75,6 +76,9 @@ pub fn generate_marco_css() -> String {
 
     // Menu/titlebar styling
     css.push_str(&menu::generate_css());
+
+    // Shared button styling (dialogs and other UI actions)
+    css.push_str(&buttons::generate_css());
 
     // Toolbar styling
     css.push_str(&toolbar::generate_css());

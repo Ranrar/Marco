@@ -43,6 +43,14 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 | **Asset:** `marco-suite_alpha_amd64.deb` | **Asset:** `marco-suite_alpha_windows_amd64.zip` |
 | **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
+## Welcome screen (first run)
+
+On first launch, Marco shows a short **welcome assistant** (non-blocking) to help you get started:
+
+- A quick overview of key features
+- **Language selection** (saved to your settings)
+- A telemetry page (currently a placeholder; telemetry stays disabled)
+
 ## Why Marco?
 
 I started building Marco because I couldn't find a simple, reliable Markdown editor for Linux.  
@@ -171,15 +179,30 @@ Marco uses a **Cargo workspace** with three crates:
 - [ ] Diagram support: Mermaid for flowcharts and visualizations
 
 ### Advanced Features
+- [x] Language plugin system via. `assets/language/xx*.toml` files
 - [ ] Local AI-assisted tools: writing suggestions, grammar checking, content improvement
 - [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
-- [ ] Language plugin system (add support for new languages via plugins)
 
 ### Distribution & Platform
 - [x] Cross-platform support: Linux and Windows builds
 - [x] Linux packaging: .deb packages
 - [x] Windows packaging: Portable .zip packages
 - [ ] Additional packaging: Snap, .MSI installer
+
+### Opt-in Telemetry
+- [ ] Privacy-first telemetry (opt-in, disabled by default)
+  - **Privacy guarantees**: No personal data, no file content, no tracking cookies
+  - **User control**: First-run dialog, settings toggle, can be disabled anytime
+  - **Data collected** (anonymous, minimal):
+    - App launch events (to understand active user count)
+    - OS type (Linux/Windows) and app version
+    - Anonymous session ID (random UUID per session, not tied to user)
+    - Feature usage patterns (which menu items, view modes, export formats)
+    - Error/crash reports (stack traces only, no user content)
+    - Timestamp and timezone offset
+  - **Purpose**: Prioritize development on most-used features, fix critical bugs faster
+  - **Transmission**: Lightweight HTTPS endpoint, 3-second timeout, non-blocking
+
 
 ## Contributing
 
@@ -210,5 +233,5 @@ Reference locations for contributors working on components and translations:
 
 - [marco/src/components/ai/README.md](marco/src/components/ai/README.md) — AI component guidance and interface notes
 - [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
-- [marco/src/components/language/README.md](marco/src/components/language/README.md) — Localization provider contract and workflow
-- [assets/language/language matrix.md](assets/language/language%20matrix.md) — language implementation matrix
+- [documentation/language.md](documentation/language.md) — Localization provider contract and workflow
+- [assets/language/language_matrix.md](assets/language/language_matrix.md) — language implementation matrix

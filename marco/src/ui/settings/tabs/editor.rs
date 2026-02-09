@@ -2,11 +2,18 @@ use core::logic::swanson::EditorSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::{debug, error};
+use std::rc::Rc;
 
 // Import unified helper
-use super::helpers::add_setting_row;
+use super::helpers::{add_setting_row_i18n, SettingsI18nRegistry};
+use crate::components::language::SettingsEditorTranslations;
+use crate::components::language::Translations;
 
-pub fn build_editor_tab(settings_path: &str) -> Box {
+pub fn build_editor_tab(
+    settings_path: &str,
+    translations: &SettingsEditorTranslations,
+    i18n: &SettingsI18nRegistry,
+) -> Box {
     use gtk4::{
         Adjustment, Align, Box as GtkBox, DropDown, Expression, Orientation, PropertyExpression,
         SpinButton, StringList, StringObject, Switch,
@@ -99,7 +106,7 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
                 let editor = settings.editor.unwrap_or_default();
                 let editor_settings =
                     crate::components::editor::display_config::EditorDisplaySettings {
-                        font_family: selected_font,
+                        font_family: selected_font.clone(),
                         font_size: editor.font_size.unwrap_or(14),
                         line_height: editor.line_height.unwrap_or(1.4),
                         line_wrapping: editor.line_wrapping.unwrap_or(false),
@@ -127,9 +134,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create font row using unified helper (first row)
-    let font_row = add_setting_row(
-        "Font",
-        "Select the font used in the editor.",
+    let font_row = add_setting_row_i18n(
+        i18n,
+        &translations.font_label,
+        &translations.font_description,
+        Rc::new(|t: &Translations| t.settings.editor.font_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.font_description.clone()),
         &font_combo,
         true, // First row - no top margin
     );
@@ -203,9 +213,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create font size row using unified helper
-    let font_size_row = add_setting_row(
-        "Font Size",
-        "Set the font size for the editor text (10-24 px).",
+    let font_size_row = add_setting_row_i18n(
+        i18n,
+        &translations.font_size_label,
+        &translations.font_size_description,
+        Rc::new(|t: &Translations| t.settings.editor.font_size_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.font_size_description.clone()),
         &font_size_spin,
         false, // Not first row
     );
@@ -278,9 +291,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create line height row using unified helper
-    let line_height_row = add_setting_row(
-        "Line Height",
-        "Adjust the vertical spacing between lines.",
+    let line_height_row = add_setting_row_i18n(
+        i18n,
+        &translations.line_height_label,
+        &translations.line_height_description,
+        Rc::new(|t: &Translations| t.settings.editor.line_height_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.line_height_description.clone()),
         &line_height_spin,
         false, // Not first row
     );
@@ -358,9 +374,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create line wrapping row using unified helper
-    let line_wrap_row = add_setting_row(
-        "Line Wrapping",
-        "Wrap long lines to fit within the editor window.",
+    let line_wrap_row = add_setting_row_i18n(
+        i18n,
+        &translations.line_wrapping_label,
+        &translations.line_wrapping_description,
+        Rc::new(|t: &Translations| t.settings.editor.line_wrapping_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.line_wrapping_description.clone()),
         &line_wrap_switch,
         false, // Not first row
     );
@@ -371,9 +390,40 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     auto_pair_switch.add_css_class("marco-switch");
 
     // Create auto pairing row using unified helper
-    let auto_pair_row = add_setting_row(
-        "Auto Pairing",
-        "Automatically insert closing characters for **, [], (), and backticks.",
+    let current_auto_pairing = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor.and_then(|e| e.auto_pairing).unwrap_or(true)
+    } else {
+        true
+    };
+    auto_pair_switch.set_active(current_auto_pairing);
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        auto_pair_switch.connect_state_set(move |_switch, state| {
+            let enabled = state;
+            debug!("Auto pairing changed to: {}", enabled);
+
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
+                if let Some(ref mut editor) = settings.editor {
+                    editor.auto_pairing = Some(enabled);
+                }
+            }) {
+                error!("Failed to save auto pairing setting: {}", e);
+                return glib::Propagation::Proceed;
+            }
+            glib::Propagation::Proceed
+        });
+    }
+
+    let auto_pair_row = add_setting_row_i18n(
+        i18n,
+        &translations.auto_pairing_label,
+        &translations.auto_pairing_description,
+        Rc::new(|t: &Translations| t.settings.editor.auto_pairing_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.auto_pairing_description.clone()),
         &auto_pair_switch,
         false, // Not first row
     );
@@ -451,9 +501,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create show invisibles row using unified helper
-    let show_invis_row = add_setting_row(
-        "Show Invisible Characters",
-        "Display tabs, spaces, and newlines visually in the editor.",
+    let show_invis_row = add_setting_row_i18n(
+        i18n,
+        &translations.show_invisibles_label,
+        &translations.show_invisibles_description,
+        Rc::new(|t: &Translations| t.settings.editor.show_invisibles_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.show_invisibles_description.clone()),
         &show_invis_switch,
         false, // Not first row
     );
@@ -531,9 +584,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create tabs to spaces row using unified helper
-    let tabs_to_spaces_row = add_setting_row(
-        "Convert Tabs to Spaces",
-        "Replace tab characters with spaces.",
+    let tabs_to_spaces_row = add_setting_row_i18n(
+        i18n,
+        &translations.tabs_to_spaces_label,
+        &translations.tabs_to_spaces_description,
+        Rc::new(|t: &Translations| t.settings.editor.tabs_to_spaces_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.tabs_to_spaces_description.clone()),
         &tabs_to_spaces_switch,
         false, // Not first row
     );
@@ -611,9 +667,12 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     }
 
     // Create syntax colors row using unified helper
-    let syntax_colors_row = add_setting_row(
-        "Syntax Colors",
-        "Enable or disable syntax-based color highlighting for Markdown.",
+    let syntax_colors_row = add_setting_row_i18n(
+        i18n,
+        &translations.syntax_colors_label,
+        &translations.syntax_colors_description,
+        Rc::new(|t: &Translations| t.settings.editor.syntax_colors_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.syntax_colors_description.clone()),
         &syntax_colors_switch,
         false, // Not first row
     );
@@ -623,10 +682,40 @@ pub fn build_editor_tab(settings_path: &str) -> Box {
     let linting_switch = Switch::new();
     linting_switch.add_css_class("marco-switch");
 
-    // Create linting row using unified helper
-    let linting_row = add_setting_row(
-        "Enable Markdown Linting",
-        "Check for Markdown syntax issues and style problems.",
+    let current_linting = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings.editor.and_then(|e| e.linting).unwrap_or(true)
+    } else {
+        true
+    };
+    linting_switch.set_active(current_linting);
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        linting_switch.connect_state_set(move |_switch, state| {
+            let enabled = state;
+            debug!("Markdown linting changed to: {}", enabled);
+
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
+                if let Some(ref mut editor) = settings.editor {
+                    editor.linting = Some(enabled);
+                }
+            }) {
+                error!("Failed to save linting setting: {}", e);
+                return glib::Propagation::Proceed;
+            }
+            glib::Propagation::Proceed
+        });
+    }
+
+    let linting_row = add_setting_row_i18n(
+        i18n,
+        &translations.linting_label,
+        &translations.linting_description,
+        Rc::new(|t: &Translations| t.settings.editor.linting_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.linting_description.clone()),
         &linting_switch,
         false, // Not first row
     );

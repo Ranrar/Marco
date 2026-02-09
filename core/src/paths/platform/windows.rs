@@ -52,6 +52,22 @@ pub(crate) fn detect_portable_mode() -> Option<PathBuf> {
     let exe_path = env::current_exe().ok()?;
     let exe_dir = exe_path.parent()?;
 
+    // Prefer the explicit portable layout created by our packaging scripts:
+    //   <exe_dir>\config\
+    //   <exe_dir>\data\
+    // Some environments (for example, tightened ACLs on the exe directory) can
+    // make the parent directory non-writable even though the `config/` folder
+    // itself is writable. Checking the config directory first makes portable
+    // detection more reliable.
+    let portable_config = exe_dir.join("config");
+    if is_directory_writable(&portable_config) {
+        log::debug!(
+            "Portable mode detected: config directory is writable at {}",
+            portable_config.display()
+        );
+        return Some(exe_dir.to_path_buf());
+    }
+
     if is_directory_writable(exe_dir) {
         log::debug!(
             "Portable mode detected: exe directory is writable at {}",
@@ -118,4 +134,34 @@ pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> Inst
     }
 
     InstallLocation::UserLocal
+}
+
+pub(crate) fn detect_locale_from_platform() -> Option<String> {
+    // LOCALE_NAME_MAX_LENGTH is 85.
+    const LOCALE_NAME_MAX_LENGTH: usize = 85;
+
+    // SAFETY: Windows API writes into our provided UTF-16 buffer.
+    unsafe {
+        let mut buf: [u16; LOCALE_NAME_MAX_LENGTH] = [0; LOCALE_NAME_MAX_LENGTH];
+        let len = GetUserDefaultLocaleName(buf.as_mut_ptr(), LOCALE_NAME_MAX_LENGTH as i32);
+        if len <= 0 {
+            return None;
+        }
+
+        // `len` includes the terminating NUL.
+        let len = len as usize;
+        let slice = if len > 0 && buf[len.saturating_sub(1)] == 0 {
+            &buf[..len - 1]
+        } else {
+            &buf[..len]
+        };
+
+        let locale = String::from_utf16_lossy(slice);
+        super::normalize_to_iso639_1(&locale)
+    }
+}
+
+#[link(name = "Kernel32")]
+extern "system" {
+    fn GetUserDefaultLocaleName(lpLocaleName: *mut u16, cchLocaleName: i32) -> i32;
 }

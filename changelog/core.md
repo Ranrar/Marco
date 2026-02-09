@@ -22,6 +22,21 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.18.0] - 2026-02-09
+
+### Added
+- System locale detection helper (`detect_system_locale_iso639_1`) with ISO 639-1 normalization.
+- Telemetry settings support (persisted settings fields for enabling telemetry + tracking whether the first-run dialog has been shown).
+- Inline SVG icons for About dialog link buttons (GitHub, Link, Bug, Help).
+
+### Changed
+- Portable mode detection on Linux and Windows now prefers a writable `config/` directory next to the executable (more reliable portable installs).
+- Asset root validation now requires `language/` alongside `icons/` and `themes/`.
+- Settings change listeners are now stored as `Arc` and notified outside the listener lock (reduces lock contention and avoids re-entrancy hazards).
+
+### Fixed
+- Reduced false-positive portable-mode detection in development environments by tightening Linux portable heuristics.
+
 ## [0.17.1] - 2026-02-04
 
 ### Changed

@@ -232,7 +232,7 @@ impl SharedPaths {
     /// Get path to settings file
     ///
     /// In dev mode: workspace_root/tests/settings/settings.ron
-    /// In install mode: $XDG_CONFIG_HOME/marco/settings.ron
+    /// In install mode: $XDG_CONFIG_HOME/marco/settings.ron (or portable: ./config/settings.ron)
     pub fn settings_file(&self) -> PathBuf {
         use super::core::is_dev_mode;
         use super::workspace_root;

@@ -61,7 +61,6 @@ STRUCTURE:
     |   |-- icons/
     |   |-- language/
     |   |-- themes/
-    |   +-- settings_org.ron
     |-- config/              # User config (empty, created on first run)
     |-- data/                # User data (empty, created on first run)
     |-- LICENSE
@@ -136,6 +135,179 @@ function Assert-Msys2Ucrt64 {
         Write-Host "Install the required MSYS2 packages (see above) and re-run." -ForegroundColor Yellow
         throw "pkg-config missing"
     }
+}
+
+function Copy-Msys2GtkRuntime {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$EntryBinaries
+    )
+
+    $ucrtBin = Join-Path $Root "ucrt64\\bin"
+    $usrBin = Join-Path $Root "usr\\bin"
+
+    $objdumpExe = Join-Path $ucrtBin "objdump.exe"
+    if (-not (Test-Path $objdumpExe)) {
+        throw "MSYS2 binutils not found (expected $objdumpExe). Install mingw-w64-ucrt-x86_64-binutils."
+    }
+
+    $ignoreDlls = @(
+        # Windows system DLLs
+        "KERNEL32.DLL", "USER32.DLL", "GDI32.DLL", "ADVAPI32.DLL", "SHELL32.DLL", "OLE32.DLL",
+        "OLEAUT32.DLL", "COMDLG32.DLL", "COMCTL32.DLL", "WS2_32.DLL", "IPHLPAPI.DLL",
+        "CRYPT32.DLL", "SETUPAPI.DLL", "SHLWAPI.DLL", "VERSION.DLL", "WINMM.DLL",
+        "IMM32.DLL", "UXTHEME.DLL", "DWMAPI.DLL", "UCRTBASE.DLL", "MSVCRT.DLL",
+        "VCRUNTIME140.DLL", "VCRUNTIME140_1.DLL", "MSVCP140.DLL",
+        "D3D11.DLL", "DXGI.DLL", "DWRITE.DLL", "D2D1.DLL", "WINHTTP.DLL", "BCRYPT.DLL",
+        "NTDLL.DLL"
+    ) | ForEach-Object { $_.ToUpperInvariant() }
+
+    function Get-DllImports {
+        param([Parameter(Mandatory = $true)][string]$File)
+
+        $out = & $objdumpExe -p $File 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "objdump failed for: $File"
+        }
+
+        $dlls = @()
+        foreach ($line in $out) {
+            if ($line -match 'DLL Name:\s*(.+)$') {
+                $name = $Matches[1].Trim()
+                if ($name) {
+                    $dlls += $name
+                }
+            }
+        }
+        return $dlls | Sort-Object -Unique
+    }
+
+    function Resolve-Dll {
+        param([Parameter(Mandatory = $true)][string]$DllName)
+
+        $candidate1 = Join-Path $ucrtBin $DllName
+        if (Test-Path $candidate1) { return $candidate1 }
+
+        $candidate2 = Join-Path $usrBin $DllName
+        if (Test-Path $candidate2) { return $candidate2 }
+
+        return $null
+    }
+
+    $queue = [System.Collections.Generic.Queue[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new()
+    $copySet = [System.Collections.Generic.Dictionary[string, string]]::new()
+
+    foreach ($bin in $EntryBinaries) {
+        if ($bin -and (Test-Path $bin)) {
+            $queue.Enqueue($bin)
+        }
+    }
+
+    while ($queue.Count -gt 0) {
+        $current = $queue.Dequeue()
+        if (-not $visited.Add($current)) {
+            continue
+        }
+
+        $imports = Get-DllImports -File $current
+        foreach ($dll in $imports) {
+            $upper = $dll.ToUpperInvariant()
+            if ($ignoreDlls -contains $upper) {
+                continue
+            }
+
+            $resolved = Resolve-Dll -DllName $dll
+            if (-not $resolved) {
+                continue
+            }
+
+            if (-not $copySet.ContainsKey($upper)) {
+                $copySet[$upper] = $resolved
+                $queue.Enqueue($resolved)
+            }
+        }
+    }
+
+    if ($copySet.Count -eq 0) {
+        Write-Warning "No MSYS2 runtime DLLs were discovered to copy. The binaries may still rely on MSYS2 being on PATH."
+        return
+    }
+
+    Write-Host "  Copying MSYS2 runtime DLLs..." -ForegroundColor Gray
+    foreach ($src in ($copySet.Values | Sort-Object -Unique)) {
+        $dest = Join-Path $StagingRoot ([System.IO.Path]::GetFileName($src))
+        Copy-Item -Path $src -Destination $dest -Force
+    }
+    Write-Host "    + Runtime DLLs: $($copySet.Count)" -ForegroundColor Green
+
+    # GLib schemas (required for many GTK/GSettings lookups)
+    $schemaSrcDir = Join-Path $Root "ucrt64\\share\\glib-2.0\\schemas"
+    $schemaFile = Join-Path $schemaSrcDir "gschemas.compiled"
+    if (Test-Path $schemaFile) {
+        $schemaDestDir = Join-Path $StagingRoot "share\\glib-2.0\\schemas"
+        New-Item -ItemType Directory -Path $schemaDestDir -Force | Out-Null
+        Copy-Item -Path $schemaFile -Destination (Join-Path $schemaDestDir "gschemas.compiled") -Force
+        Write-Host "    + GLib schemas (gschemas.compiled)" -ForegroundColor Green
+    } else {
+        Write-Warning "GLib schemas not found at: $schemaFile"
+    }
+
+    # GDK Pixbuf loaders (needed for images/SVGs depending on usage)
+    $pixbufLoaderSrcDir = Join-Path $Root "ucrt64\\lib\\gdk-pixbuf-2.0\\2.10.0\\loaders"
+    $pixbufCacheSrc = Join-Path $Root "ucrt64\\lib\\gdk-pixbuf-2.0\\2.10.0\\loaders.cache"
+    if (Test-Path $pixbufLoaderSrcDir) {
+        $pixbufLoaderDestDir = Join-Path $StagingRoot "lib\\gdk-pixbuf-2.0\\2.10.0\\loaders"
+        New-Item -ItemType Directory -Path $pixbufLoaderDestDir -Force | Out-Null
+        Copy-Item -Path (Join-Path $pixbufLoaderSrcDir "*.dll") -Destination $pixbufLoaderDestDir -Force -ErrorAction SilentlyContinue
+        if (Test-Path $pixbufCacheSrc) {
+            $pixbufCacheDestDir = Join-Path $StagingRoot "lib\\gdk-pixbuf-2.0\\2.10.0"
+            New-Item -ItemType Directory -Path $pixbufCacheDestDir -Force | Out-Null
+            Copy-Item -Path $pixbufCacheSrc -Destination (Join-Path $pixbufCacheDestDir "loaders.cache") -Force
+        }
+        Write-Host "    + GDK Pixbuf loaders" -ForegroundColor Green
+    }
+}
+
+function Copy-WebView2Loader {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$BuildType,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot
+    )
+
+    # wry/WebView2 needs WebView2Loader.dll next to the executable.
+    # The webview2-com-sys crate provides redistributable loader DLLs in its build output.
+    $buildOutRoot = Join-Path $ProjectRoot "target\\windows\\x86_64-pc-windows-gnu\\$BuildType\\build"
+    if (-not (Test-Path $buildOutRoot)) {
+        Write-Warning "WebView2 build output directory not found: $buildOutRoot"
+        return
+    }
+
+    $candidates = Get-ChildItem -Path $buildOutRoot -Recurse -Filter "WebView2Loader.dll" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '\\out\\x64\\WebView2Loader\.dll$' } |
+        Sort-Object LastWriteTime -Descending
+
+    if (-not $candidates -or $candidates.Count -eq 0) {
+        Write-Warning "WebView2Loader.dll (x64) not found under: $buildOutRoot"
+        return
+    }
+
+    $src = $candidates[0].FullName
+    $dest = Join-Path $StagingRoot "WebView2Loader.dll"
+    Copy-Item -Path $src -Destination $dest -Force
+    Write-Host "    + WebView2Loader.dll" -ForegroundColor Green
 }
 
 function Ensure-GnuTargetInstalled {
@@ -268,6 +440,24 @@ if (Test-Path $settingsOrg) {
 }
 
 Write-Host "    + assets/ (icons, themes, languages)" -ForegroundColor Green
+
+# Bundle WebView2Loader.dll (required by wry/WebView2 on Windows)
+Write-Host "  Bundling WebView2 loader..." -ForegroundColor Gray
+Copy-WebView2Loader -ProjectRoot $projectRoot -BuildType $buildType -StagingRoot $stagingRoot
+
+# Bundle MSYS2 GTK runtime so the portable zip runs on machines without MSYS2.
+# Without this, users will see missing DLL errors like libgio-2.0-0.dll.
+Write-Host "  Bundling GTK/GLib runtime (MSYS2 UCRT64)..." -ForegroundColor Gray
+try {
+    Assert-Msys2Ucrt64 -Root $Msys2Root
+    Copy-Msys2GtkRuntime -Root $Msys2Root -StagingRoot $stagingRoot -EntryBinaries @(
+        (Join-Path $stagingRoot "marco.exe"),
+        (Join-Path $stagingRoot "polo.exe")
+    )
+} catch {
+    Write-Warning "Could not bundle MSYS2 runtime: $($_.Exception.Message)"
+    Write-Warning "The portable package may require MSYS2 UCRT64 bin on PATH (e.g. C:\\msys64\\ucrt64\\bin)."
+}
 
 # Create empty config and data directories (portable mode uses these)
 Write-Host "  Creating user directories..." -ForegroundColor Gray

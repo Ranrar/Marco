@@ -24,6 +24,13 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.18.0] - 2026-02-09
+
+**Uses:** Core 0.18.0
+
+### Changed
+- Updated to Core 0.18.0 (more reliable portable-mode detection and improved system-locale detection used for default configuration behavior).
+
 ## [0.17.1] - 2026-02-04
 
 ### Added

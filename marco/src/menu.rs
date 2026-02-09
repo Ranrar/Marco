@@ -11,10 +11,34 @@ use gtk4::{
 use log::trace;
 use rsvg::{CairoRenderer, Loader};
 
+use crate::components::language::Translations;
+
 // Type alias for the complex rebuild callback type
 type RebuildCallback = Box<dyn Fn()>;
 type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
+
+#[derive(Clone, Default)]
+struct HoverMenuSwitchState {
+    /// Whether any top-level menu popover is currently open.
+    menu_open: Rc<std::cell::Cell<bool>>,
+    /// The currently open popover, if any.
+    current_popover: Rc<RefCell<Option<gtk4::PopoverMenu>>>,
+}
+
+impl HoverMenuSwitchState {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn set_current(&self, popover: Option<gtk4::PopoverMenu>) {
+        *self.current_popover.borrow_mut() = popover;
+    }
+
+    fn current(&self) -> Option<gtk4::PopoverMenu> {
+        self.current_popover.borrow().clone()
+    }
+}
 
 #[cfg(target_os = "linux")]
 /// Helper function to reparent WebView back to main window from preview window (Linux)
@@ -139,8 +163,12 @@ fn reparent_webview_to_main_window(
     false
 }
 
-/// Helper function to create a menu button with a popover
-fn create_menu_button(label: &str, menu: &gio::Menu) -> Button {
+/// Helper function to create a menu button with a popover.
+///
+/// Behavior:
+/// - First click opens its popover.
+/// - While any menu popover is open, hovering other menu buttons switches to them.
+fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwitchState) -> Button {
     let button = Button::with_label(label);
     button.add_css_class("menu-button");
     button.set_has_frame(false);
@@ -149,86 +177,276 @@ fn create_menu_button(label: &str, menu: &gio::Menu) -> Button {
     let popover = gtk4::PopoverMenu::from_model(Some(menu));
     popover.set_parent(&button);
 
+    // Track open/close state so hover switching only activates after first open.
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_closed = popover.clone();
+        popover.connect_closed(move |_| {
+            // Only clear state if THIS popover is still the active one.
+            if switch_state
+                .current()
+                .is_some_and(|cur| cur == popover_for_closed)
+            {
+                switch_state.menu_open.set(false);
+                switch_state.set_current(None);
+            }
+        });
+    }
+
+    // Hovering another menu button while a menu is open should switch menus.
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_hover = popover.clone();
+        let motion = gtk4::EventControllerMotion::new();
+        motion.connect_enter(move |_ctrl, _x, _y| {
+            if !switch_state.menu_open.get() {
+                return;
+            }
+
+            if switch_state
+                .current()
+                .is_some_and(|cur| cur == popover_for_hover)
+            {
+                return;
+            }
+
+            let previous = switch_state.current();
+
+            // Set current BEFORE closing previous, so the previous popover's `closed`
+            // signal doesn't clear our open state while switching.
+            switch_state.menu_open.set(true);
+            switch_state.set_current(Some(popover_for_hover.clone()));
+
+            if let Some(prev) = previous {
+                prev.popdown();
+            }
+            popover_for_hover.popup();
+        });
+        button.add_controller(motion);
+    }
+
     // Connect button click to show popover
-    let popover_clone = popover.clone();
-    button.connect_clicked(move |_| {
-        popover_clone.popup();
-    });
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_click = popover.clone();
+        button.connect_clicked(move |_| {
+            // Toggle if this menu is already open.
+            if switch_state
+                .current()
+                .is_some_and(|cur| cur == popover_for_click)
+                && switch_state.menu_open.get()
+            {
+                popover_for_click.popdown();
+                // `closed` handler will clear state.
+                return;
+            }
+
+            let previous = switch_state.current();
+
+            // Mark open and switch current before closing previous.
+            switch_state.menu_open.set(true);
+            switch_state.set_current(Some(popover_for_click.clone()));
+
+            if let Some(prev) = previous {
+                prev.popdown();
+            }
+
+            popover_for_click.popup();
+        });
+    }
 
     button
 }
 
-pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
+pub struct MenuBarState {
+    pub menu_bar: GtkBox,
+    pub recent_menu: gio::Menu,
+    file_menu: gio::Menu,
+    edit_menu: gio::Menu,
+    document_menu: gio::Menu,
+    bookmarks_menu: gio::Menu,
+    format_menu: gio::Menu,
+    view_menu: gio::Menu,
+    help_menu: gio::Menu,
+    file_btn: Button,
+    edit_btn: Button,
+    document_btn: Button,
+    bookmarks_btn: Button,
+    format_btn: Button,
+    view_btn: Button,
+    help_btn: Button,
+    recent_menu_item: gio::MenuItem,
+}
+
+fn clear_menu(menu: &gio::Menu) {
+    while menu.n_items() > 0 {
+        menu.remove(0);
+    }
+}
+
+pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Translations) {
+    menu_state.file_btn.set_label(&translations.menu.file);
+    menu_state.edit_btn.set_label(&translations.menu.edit);
+    menu_state
+        .document_btn
+        .set_label(&translations.menu.document);
+    menu_state
+        .bookmarks_btn
+        .set_label(&translations.menu.bookmarks);
+    menu_state.format_btn.set_label(&translations.menu.format);
+    menu_state.view_btn.set_label(&translations.menu.view);
+    menu_state.help_btn.set_label(&translations.menu.help);
+
+    clear_menu(&menu_state.file_menu);
+    menu_state
+        .recent_menu_item
+        .set_label(Some(&translations.menu.recent));
+    menu_state
+        .recent_menu_item
+        .set_submenu(Some(&menu_state.recent_menu));
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.new), Some("app.new"));
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.open), Some("app.open"));
+    menu_state
+        .file_menu
+        .append_item(&menu_state.recent_menu_item);
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.save), Some("app.save"));
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.save_as), Some("app.save_as"));
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.export), Some("app.export"));
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.settings), Some("app.settings"));
+    menu_state
+        .file_menu
+        .append(Some(&translations.menu.quit), Some("app.quit"));
+
+    clear_menu(&menu_state.edit_menu);
+    menu_state
+        .edit_menu
+        .append(Some(&translations.menu.undo), Some("app.undo"));
+    menu_state
+        .edit_menu
+        .append(Some(&translations.menu.redo), Some("app.redo"));
+    menu_state
+        .edit_menu
+        .append(Some(&translations.menu.cut), Some("app.cut"));
+    menu_state
+        .edit_menu
+        .append(Some(&translations.menu.copy), Some("app.copy"));
+    menu_state
+        .edit_menu
+        .append(Some(&translations.menu.paste), Some("app.paste"));
+    menu_state
+        .edit_menu
+        .append(Some(&translations.menu.search_replace), Some("app.search"));
+
+    clear_menu(&menu_state.document_menu);
+    menu_state.document_menu.append(
+        Some(&translations.menu.document_builder),
+        Some("app.document_builder"),
+    );
+    menu_state.document_menu.append(
+        Some(&translations.menu.document_splitter),
+        Some("app.document_splitter"),
+    );
+
+    clear_menu(&menu_state.bookmarks_menu);
+    menu_state
+        .bookmarks_menu
+        .append(Some(&translations.menu.no_bookmarks), None);
+
+    clear_menu(&menu_state.format_menu);
+    menu_state
+        .format_menu
+        .append(Some(&translations.menu.bold), Some("app.bold"));
+    menu_state
+        .format_menu
+        .append(Some(&translations.menu.italic), Some("app.italic"));
+    menu_state
+        .format_menu
+        .append(Some(&translations.menu.code), Some("app.code"));
+
+    clear_menu(&menu_state.view_menu);
+    menu_state
+        .view_menu
+        .append(Some(&translations.menu.html_preview), Some("app.view_html"));
+    menu_state
+        .view_menu
+        .append(Some(&translations.menu.code_view), Some("app.view_code"));
+
+    clear_menu(&menu_state.help_menu);
+    menu_state
+        .help_menu
+        .append(Some(&translations.menu.about), Some("app.about"));
+}
+
+pub fn main_menu_structure(translations: &Translations) -> MenuBarState {
     // File menu with document operations and application settings
     let file_menu = gio::Menu::new();
-    file_menu.append(Some("New"), Some("app.new"));
-    file_menu.append(Some("Open"), Some("app.open"));
 
     // Recent Files submenu: the application can populate this at runtime.
     // Create the submenu model that will be mutated at runtime.
     let recent_menu = gio::Menu::new();
-    // Placeholder disabled entry shown when there are no recent files
-    let placeholder = gio::MenuItem::new(Some("(No recent files)"), None::<&str>);
-    recent_menu.append_item(&placeholder);
     // Create a MenuItem that references the application action "app.recent"
     // so enabling/disabling that action will also affect the top-level menu item.
-    let recent_menu_item = gio::MenuItem::new(Some("Recent Files"), Some("app.recent"));
+    let recent_menu_item = gio::MenuItem::new(Some(&translations.menu.recent), Some("app.recent"));
     // Attach the submenu to the menu item
     recent_menu_item.set_submenu(Some(&recent_menu));
-    // Append the menu item to the File menu
-    file_menu.append_item(&recent_menu_item);
-    file_menu.append(Some("Save"), Some("app.save"));
-    file_menu.append(Some("Save As"), Some("app.save_as"));
-    file_menu.append(Some("Export"), Some("app.export"));
-    file_menu.append(Some("Settings"), Some("app.settings"));
-    file_menu.append(Some("Quit"), Some("app.quit"));
 
     // Edit menu with text editing and search operations
     let edit_menu = gio::Menu::new();
-    edit_menu.append(Some("Undo"), Some("app.undo"));
-    edit_menu.append(Some("Redo"), Some("app.redo"));
-    edit_menu.append(Some("Cut"), Some("app.cut"));
-    edit_menu.append(Some("Copy"), Some("app.copy"));
-    edit_menu.append(Some("Paste"), Some("app.paste"));
-    edit_menu.append(Some("Search & Replace"), Some("app.search"));
 
     // Document menu with builder and splitter tools
     let document_menu = gio::Menu::new();
-    document_menu.append(Some("Document Builder"), Some("app.document_builder"));
-    document_menu.append(Some("Document Splitter"), Some("app.document_splitter"));
 
     // Bookmarks menu (empty for now)
     let bookmarks_menu = gio::Menu::new();
-    let placeholder_bookmark = gio::MenuItem::new(Some("(No bookmarks)"), None::<&str>);
-    bookmarks_menu.append_item(&placeholder_bookmark);
 
     // Format menu with text styling options
     let format_menu = gio::Menu::new();
-    format_menu.append(Some("Bold"), Some("app.bold"));
-    format_menu.append(Some("Italic"), Some("app.italic"));
-    format_menu.append(Some("Code"), Some("app.code"));
 
     // View menu with display and layout options
     let view_menu = gio::Menu::new();
-    view_menu.append(Some("HTML Preview"), Some("app.view_html"));
-    view_menu.append(Some("Code View"), Some("app.view_code"));
 
     // Help menu with application information
     let help_menu = gio::Menu::new();
-    help_menu.append(Some("About"), Some("app.about"));
 
     // Create horizontal box for menu buttons
     let menu_box = GtkBox::new(Orientation::Horizontal, 0);
     menu_box.add_css_class("menubar");
 
+    // Shared state for hover-based menu switching.
+    let switch_state = HoverMenuSwitchState::new();
+
     // Create menu buttons
-    let file_btn = create_menu_button("File", &file_menu);
-    let edit_btn = create_menu_button("Edit", &edit_menu);
-    let document_btn = create_menu_button("Document", &document_menu);
-    let bookmarks_btn = create_menu_button("Bookmarks", &bookmarks_menu);
-    let format_btn = create_menu_button("Format", &format_menu);
-    let view_btn = create_menu_button("View", &view_menu);
-    let help_btn = create_menu_button("Help", &help_menu);
+    let file_btn = create_menu_button(&translations.menu.file, &file_menu, switch_state.clone());
+    let edit_btn = create_menu_button(&translations.menu.edit, &edit_menu, switch_state.clone());
+    let document_btn = create_menu_button(
+        &translations.menu.document,
+        &document_menu,
+        switch_state.clone(),
+    );
+    let bookmarks_btn = create_menu_button(
+        &translations.menu.bookmarks,
+        &bookmarks_menu,
+        switch_state.clone(),
+    );
+    let format_btn = create_menu_button(
+        &translations.menu.format,
+        &format_menu,
+        switch_state.clone(),
+    );
+    let view_btn = create_menu_button(&translations.menu.view, &view_menu, switch_state.clone());
+    let help_btn = create_menu_button(&translations.menu.help, &help_menu, switch_state);
 
     // Add buttons to the box
     menu_box.append(&file_btn);
@@ -239,7 +457,28 @@ pub fn main_menu_structure() -> (GtkBox, gio::Menu) {
     menu_box.append(&view_btn);
     menu_box.append(&help_btn);
 
-    (menu_box, recent_menu)
+    let menu_state = MenuBarState {
+        menu_bar: menu_box,
+        recent_menu,
+        file_menu,
+        edit_menu,
+        document_menu,
+        bookmarks_menu,
+        format_menu,
+        view_menu,
+        help_menu,
+        file_btn,
+        edit_btn,
+        document_btn,
+        bookmarks_btn,
+        format_btn,
+        view_btn,
+        help_btn,
+        recent_menu_item,
+    };
+
+    update_menu_translations(&menu_state, translations);
+    menu_state
 }
 
 use crate::components::viewer::layout_controller::{SplitController, WebViewLocationTracker};
@@ -265,12 +504,13 @@ pub struct TitlebarConfig<'a> {
     pub reparent_guard: Option<ReparentGuardType>,
     pub split_controller: Option<SplitController>,
     pub asset_root: &'a std::path::Path,
+    pub translations: &'a Translations,
 }
 
 /// Returns a WindowHandle containing the custom menu bar and all controls.
 /// Returns a WindowHandle and the central title `Label` so callers can update the
 /// document title (and modification marker) dynamically.
-pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, gio::Menu) {
+pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, MenuBarState) {
     // Destructure config for easier access
     let TitlebarConfig {
         window,
@@ -281,6 +521,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         reparent_guard,
         split_controller,
         asset_root,
+        translations,
     } = config;
 
     #[cfg(target_os = "linux")]
@@ -309,11 +550,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     icon.set_margin_start(5);
     icon.set_margin_end(5);
     icon.set_valign(Align::Center);
-    icon.set_tooltip_text(Some("Marco a markdown composer"));
+    icon.set_tooltip_text(Some(&translations.titlebar.app_tooltip));
     headerbar.pack_start(&icon);
 
     // --- Menu bar (next to icon) ---
-    let (menu_bar, recent_menu) = main_menu_structure();
+    let menu_state = main_menu_structure(translations);
+    let menu_bar = menu_state.menu_bar.clone();
     menu_bar.set_valign(Align::Center);
     menu_bar.add_css_class("menubar");
     headerbar.pack_start(&menu_bar);
@@ -323,7 +565,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     // Start with placeholder
-    title_label.set_text("Untitled.md");
+    title_label.set_text(&translations.messages.untitled_document);
     // Set as title widget - HeaderBar will automatically center it
     headerbar.set_title_widget(Some(&title_label));
 
@@ -491,7 +733,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     let btn1 = svg_layout_button(
         window,
         LayoutIcon::EditorOnly,
-        "Close view (show only editor)",
+        &translations.titlebar.layout_editor_only,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
     );
@@ -532,7 +774,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     let btn2 = svg_layout_button(
         window,
         LayoutIcon::ViewOnly,
-        "Close editor (show only view)",
+        &translations.titlebar.layout_view_only,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
     );
@@ -573,12 +815,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     let btn3 = svg_layout_button(
         window,
         LayoutIcon::EditorAndViewSeparate,
-        "Open view in separate window",
+        &translations.titlebar.layout_detach_view,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
     );
     btn3.add_css_class("layout-btn");
-    btn3.set_tooltip_text(Some("Open view in separate window"));
+    btn3.set_tooltip_text(Some(&translations.titlebar.layout_detach_view));
     btn3.set_halign(Align::Start);
     {
         let layout_state = layout_state.clone();
@@ -902,7 +1144,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     let btn4 = svg_layout_button(
         window,
         LayoutIcon::DualView,
-        "Restore default split view",
+        &translations.titlebar.layout_restore_split,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
     );
@@ -1313,7 +1555,10 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     }
 
     // Create window control buttons (minimize, maximize/restore, close)
-    fn create_window_controls(window: &gtk4::ApplicationWindow) -> (Button, Button, Button) {
+    fn create_window_controls(
+        window: &gtk4::ApplicationWindow,
+        translations: &Translations,
+    ) -> (Button, Button, Button) {
         const ICON_SIZE: f64 = 8.0;
 
         // Use palette colors for window control icons (not hardcoded)
@@ -1328,11 +1573,17 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
         let btn_min = svg_icon_button(
             window,
             WindowIcon::Minimize,
-            "Minimize",
+            &translations.titlebar.window_minimize,
             &icon_color,
             ICON_SIZE,
         );
-        let btn_close = svg_icon_button(window, WindowIcon::Close, "Close", &icon_color, ICON_SIZE);
+        let btn_close = svg_icon_button(
+            window,
+            WindowIcon::Close,
+            &translations.titlebar.window_close,
+            &icon_color,
+            ICON_SIZE,
+        );
 
         // Create maximize/restore toggle button with its own picture for dynamic icon switching
         let max_pic = Picture::new();
@@ -1359,7 +1610,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
 
         let btn_max_toggle = Button::new();
         btn_max_toggle.set_child(Some(&max_pic));
-        btn_max_toggle.set_tooltip_text(Some("Maximize / Restore"));
+        btn_max_toggle.set_tooltip_text(Some(&translations.titlebar.window_maximize_restore));
         btn_max_toggle.set_valign(Align::Center);
         btn_max_toggle.set_margin_start(1);
         btn_max_toggle.set_margin_end(1);
@@ -1494,7 +1745,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
     }
 
     // Create window controls (SVG-based) and add them to the headerbar
-    let (btn_min, btn_max_toggle, btn_close) = create_window_controls(window);
+    let (btn_min, btn_max_toggle, btn_close) = create_window_controls(window, translations);
 
     // Add controls to headerbar from right to left (pack_end order)
     headerbar.pack_end(&btn_close); // Rightmost
@@ -1505,5 +1756,5 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, g
 
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));
-    (handle, title_label, recent_menu)
+    (handle, title_label, menu_state)
 }

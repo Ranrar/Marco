@@ -23,6 +23,9 @@
 //! 3. Add theme class: `.add_css_class("marco-theme-light")` or `"marco-theme-dark"`
 //! 4. Use `.transient_for(parent)` for modal behavior
 //! 5. Use `.set_modal(true)` for modal dialogs
+//! 6. Use `crate::ui::titlebar::create_custom_titlebar()` for consistent headerbar styling
+//!
+//! See [`crate::ui::titlebar`] for reusable titlebar component with close button.
 
 use super::constants::*;
 
@@ -51,14 +54,18 @@ fn generate_base_dialog_css() -> String {
         r#"
     /* Base dialog window styling */
     .marco-dialog {{
-        border-radius: {border_radius};
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        /* IMPORTANT:
+         * Do not override window corner curvature here.
+         * GTK's CSD/theme/compositor already applies the correct radius.
+         * Adding border-radius on a custom window class causes dialogs to
+         * diverge from Settings/main window curvature (see screenshot).
+         */
     }}
     
     /* Dialog titlebar/headerbar styling */
     .marco-dialog .marco-titlebar {{
-        border-bottom-width: 1px;
-        border-bottom-style: solid;
+        border-bottom-width: 0;
+        border-bottom-style: none;
     }}
     
     .marco-dialog-content {{
@@ -102,9 +109,9 @@ fn generate_base_dialog_css() -> String {
         margin-right: 0;
     }}
 "#,
-        border_radius = TOOLBAR_BORDER_RADIUS,
         button_height = DIALOG_BUTTON_MIN_HEIGHT,
         button_padding = DIALOG_BUTTON_PADDING,
+        border_radius = TOOLBAR_BORDER_RADIUS,
         transition = STANDARD_TRANSITION,
     )
 }
@@ -117,14 +124,15 @@ fn generate_base_search_css() -> String {
     .marco-search-window {{
         min-width: 420px;
         min-height: 260px;
-        border-radius: {border_radius};
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        /* Same rationale as .marco-dialog: keep curvature consistent with
+         * Settings/main windows by not overriding border-radius/box-shadow.
+         */
     }}
     
     /* Search window titlebar/headerbar styling */
     .marco-search-window .marco-titlebar {{
-        border-bottom-width: 1px;
-        border-bottom-style: solid;
+        border-bottom-width: 0;
+        border-bottom-style: none;
     }}
     
     .marco-search-content {{
@@ -176,9 +184,9 @@ fn generate_base_search_css() -> String {
         margin-right: 6px;
     }}
 "#,
-        border_radius = TOOLBAR_BORDER_RADIUS,
         search_entry_height = SEARCH_ENTRY_MIN_HEIGHT,
         search_button_height = SEARCH_BUTTON_MIN_HEIGHT,
+        border_radius = TOOLBAR_BORDER_RADIUS,
         transition = STANDARD_TRANSITION,
     )
 }
@@ -191,13 +199,15 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     .{theme} .marco-dialog,
     .{theme}.marco-dialog {{
         background: {dialog_bg};
-        border: 1px solid {border};
+        /* Do not override the CSD border color; Settings relies on GTK theme
+         * to render the correct border/shadow around the window.
+         */
     }}
     
-    /* Dialog titlebar border color */
+    /* Dialog titlebar (no divider; dialog border handles separation) */
     .{theme} .marco-dialog .marco-titlebar,
     .{theme}.marco-dialog .marco-titlebar {{
-        border-bottom-color: {border};
+        border-bottom-color: transparent;
     }}
     
     .{theme} .marco-dialog-content,
@@ -301,18 +311,59 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         border-color: {toolbar_button_active};
         color: #ffffff;
     }}
+
+    /* Dialog scrollbars - match editor/webview styling */
+    .{theme} .marco-dialog scrolledwindow scrollbar,
+    .{theme}.marco-dialog scrolledwindow scrollbar {{
+        -gtk-icon-transform: none;
+        min-width: 12px;
+        min-height: 12px;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        padding: 0;
+        margin: 0;
+    }}
+
+    .{theme} .marco-dialog scrolledwindow scrollbar trough,
+    .{theme}.marco-dialog scrolledwindow scrollbar trough {{
+        background-color: {scrollbar_track};
+        border: none;
+        box-shadow: none;
+        min-width: 12px;
+        min-height: 12px;
+        padding: 0;
+        margin: 0;
+    }}
+
+    .{theme} .marco-dialog scrolledwindow scrollbar slider,
+    .{theme}.marco-dialog scrolledwindow scrollbar slider {{
+        background-color: {scrollbar_thumb};
+        border-radius: 0px;
+        border: none;
+        box-shadow: none;
+        min-width: 12px;
+        min-height: 12px;
+        margin: 0;
+        padding: 0;
+    }}
+
+    .{theme} .marco-dialog scrolledwindow scrollbar slider:hover,
+    .{theme}.marco-dialog scrolledwindow scrollbar slider:hover {{
+        background-color: {scrollbar_thumb_hover};
+    }}
     
     /* Search window theme styles */
     .{theme} .marco-search-window,
     .{theme}.marco-search-window {{
         background: {dialog_bg};
-        border: 1px solid {border};
+        /* Same as dialogs: don't override CSD border color. */
     }}
     
-    /* Search window titlebar border color */
+    /* Search window titlebar (no divider) */
     .{theme} .marco-search-window .marco-titlebar,
     .{theme}.marco-search-window .marco-titlebar {{
-        border-bottom-color: {border};
+        border-bottom-color: transparent;
     }}
     
     .{theme} .marco-search-content,
@@ -451,11 +502,25 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
             "#1E1E1E"
         },
         titlebar_foreground = palette.titlebar_foreground,
-        border = palette.titlebar_border,
         toolbar_border = palette.toolbar_border,
         toolbar_popover_bg = palette.toolbar_popover_bg,
         toolbar_button_hover_border = palette.toolbar_button_hover_border,
         toolbar_button_hover = palette.toolbar_button_hover,
         toolbar_button_active = palette.toolbar_button_active,
+        scrollbar_thumb = if theme_class.contains("light") {
+            "#D0D4D8"
+        } else {
+            "#3A3F44"
+        },
+        scrollbar_thumb_hover = if theme_class.contains("light") {
+            "#C2C7CC"
+        } else {
+            "#4A4F55"
+        },
+        scrollbar_track = if theme_class.contains("light") {
+            "#F0F0F0"
+        } else {
+            "#252526"
+        },
     )
 }

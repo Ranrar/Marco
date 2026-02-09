@@ -1,12 +1,19 @@
 //! Markdown-specific settings tab
 use gtk4::prelude::*;
 use gtk4::{Box as GtkBox, Orientation, Switch};
+use std::rc::Rc;
 
 // Import unified helper and section header helper
-use super::helpers::add_setting_row;
+use super::helpers::{add_setting_row_i18n, SettingsI18nRegistry};
+use crate::components::language::SettingsMarkdownTranslations;
+use crate::components::language::Translations;
 
 /// Builds the Markdown tab UI for markdown-specific engine settings
-pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
+pub fn build_markdown_tab(
+    settings_path: &str,
+    translations: &SettingsMarkdownTranslations,
+    i18n: &SettingsI18nRegistry,
+) -> GtkBox {
     // Initialize SettingsManager for this tab
     let settings_manager = match core::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path),
@@ -62,9 +69,12 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     }
 
     // Create TOC row using unified helper (first row after section header)
-    let toc_row = add_setting_row(
-        "Generate Table of Contents",
-        "Automatically create a navigation table of contents from document headings.",
+    let toc_row = add_setting_row_i18n(
+        i18n,
+        &translations.toc_label,
+        &translations.toc_description,
+        Rc::new(|t: &Translations| t.settings.markdown.toc_label.clone()),
+        Rc::new(|t: &Translations| t.settings.markdown.toc_description.clone()),
         &toc_switch,
         true, // First row after section header - no additional top margin
     );
@@ -108,11 +118,14 @@ pub fn build_markdown_tab(settings_path: &str) -> GtkBox {
     }
 
     // Create metadata row using unified helper
-    let metadata_row = add_setting_row(
-        "Include HTML Metadata",
-        "Add document metadata (title, author, description) to HTML head section for better SEO and document identification.",
+    let metadata_row = add_setting_row_i18n(
+        i18n,
+        &translations.metadata_label,
+        &translations.metadata_description,
+        Rc::new(|t: &Translations| t.settings.markdown.metadata_label.clone()),
+        Rc::new(|t: &Translations| t.settings.markdown.metadata_description.clone()),
         &metadata_switch,
-        false  // Not first row
+        false, // Not first row
     );
     container.append(&metadata_row);
 

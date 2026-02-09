@@ -19,8 +19,11 @@
 
 use gtk4::prelude::*;
 use gtk4::{Box, Label, Orientation};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::components::language::FooterTranslations;
 
 static UPDATE_VIS_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -56,18 +59,25 @@ pub struct FooterLabels {
     pub insert_mode: Label,
     pub word_count: Label,
     pub char_count: Label,
+    pub row_label: RefCell<String>,
+    pub column_label: RefCell<String>,
+    pub words_label: RefCell<String>,
+    pub characters_label: RefCell<String>,
+    pub ins_label: RefCell<String>,
+    pub ovr_label: RefCell<String>,
+    pub encoding_label: RefCell<String>,
 }
 
 /// Update the row label independently
 pub fn update_cursor_row(labels: &FooterLabels, row: usize) {
-    let text = format!("Row: {}", row);
+    let text = format!("{}: {}", labels.row_label.borrow(), row);
     footer_dbg!("[footer] update_cursor_row called: {}", text);
     set_label_text(&labels.cursor_row, text);
 }
 
 /// Update the column label independently
 pub fn update_cursor_col(labels: &FooterLabels, col: usize) {
-    let text = format!("Column: {}", col);
+    let text = format!("{}: {}", labels.column_label.borrow(), col);
     footer_dbg!("[footer] update_cursor_col called: {}", text);
     set_label_text(&labels.cursor_col, text);
 }
@@ -83,23 +93,45 @@ pub fn update_encoding(labels: &FooterLabels, encoding: &str) {
 
 /// Updates the insert/overwrite mode label
 pub fn update_insert_mode(labels: &FooterLabels, is_insert: bool) {
-    let text = if is_insert { "INS" } else { "OVR" };
+    let text = if is_insert {
+        labels.ins_label.borrow()
+    } else {
+        labels.ovr_label.borrow()
+    };
     footer_dbg!("[footer] update_insert_mode called: {}", text);
     set_label_text(&labels.insert_mode, text.to_string());
 }
 
 /// Updates the word count label
 pub fn update_word_count(labels: &FooterLabels, words: usize) {
-    let text = format!("Words: {}", words);
+    let text = format!("{}: {}", labels.words_label.borrow(), words);
     footer_dbg!("[footer] update_word_count called: {}", text);
     set_label_text(&labels.word_count, text);
 }
 
 /// Updates the character count label
 pub fn update_char_count(labels: &FooterLabels, chars: usize) {
-    let text = format!("Characters: {}", chars);
+    let text = format!("{}: {}", labels.characters_label.borrow(), chars);
     footer_dbg!("[footer] update_char_count called: {}", text);
     set_label_text(&labels.char_count, text);
+}
+
+/// Update translation labels used by the footer and refresh static text.
+pub fn update_footer_translations(
+    labels: &FooterLabels,
+    translations: &FooterTranslations,
+    is_insert: bool,
+) {
+    *labels.row_label.borrow_mut() = translations.row.clone();
+    *labels.column_label.borrow_mut() = translations.column.clone();
+    *labels.words_label.borrow_mut() = translations.words.clone();
+    *labels.characters_label.borrow_mut() = translations.characters.clone();
+    *labels.ins_label.borrow_mut() = translations.ins.clone();
+    *labels.ovr_label.borrow_mut() = translations.ovr.clone();
+    *labels.encoding_label.borrow_mut() = translations.encoding_utf8.clone();
+
+    update_encoding(labels, &translations.encoding_utf8);
+    update_insert_mode(labels, is_insert);
 }
 
 /// Apply a FooterUpdate snapshot to the labels. Must be called on main context.
@@ -178,7 +210,7 @@ fn update_label_immediate(label: &Label, text: &str, use_markup: bool) {
     }
 }
 
-pub fn create_footer() -> (Box, Rc<FooterLabels>) {
+pub fn create_footer(translations: &FooterTranslations) -> (Box, Rc<FooterLabels>) {
     let footer_box = Box::new(Orientation::Horizontal, 10);
     footer_box.set_margin_top(0);
     footer_box.set_margin_bottom(0);
@@ -202,27 +234,27 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
     footer_box.append(&spacer);
 
     // Info labels (right side)
-    let word_count_label = Label::new(Some("Words: 0"));
+    let word_count_label = Label::new(Some(&format!("{}: 0", translations.words)));
     word_count_label.set_visible(true);
     footer_box.append(&word_count_label);
 
-    let char_count_label = Label::new(Some("Characters: 0"));
+    let char_count_label = Label::new(Some(&format!("{}: 0", translations.characters)));
     char_count_label.set_visible(true);
     footer_box.append(&char_count_label);
 
-    let cursor_row_label = Label::new(Some("Row 1"));
+    let cursor_row_label = Label::new(Some(&format!("{}: 1", translations.row)));
     cursor_row_label.set_visible(true);
     footer_box.append(&cursor_row_label);
 
-    let cursor_col_label = Label::new(Some("Column 1"));
+    let cursor_col_label = Label::new(Some(&format!("{}: 1", translations.column)));
     cursor_col_label.set_visible(true);
     footer_box.append(&cursor_col_label);
 
-    let encoding_label = Label::new(Some("UTF-8"));
+    let encoding_label = Label::new(Some(&translations.encoding_utf8));
     encoding_label.set_visible(true);
     footer_box.append(&encoding_label);
 
-    let insert_mode_label = Label::new(Some("INS"));
+    let insert_mode_label = Label::new(Some(&translations.ins));
     insert_mode_label.set_visible(true);
     footer_box.append(&insert_mode_label);
 
@@ -233,6 +265,13 @@ pub fn create_footer() -> (Box, Rc<FooterLabels>) {
         insert_mode: insert_mode_label,
         word_count: word_count_label,
         char_count: char_count_label,
+        row_label: RefCell::new(translations.row.clone()),
+        column_label: RefCell::new(translations.column.clone()),
+        words_label: RefCell::new(translations.words.clone()),
+        characters_label: RefCell::new(translations.characters.clone()),
+        ins_label: RefCell::new(translations.ins.clone()),
+        ovr_label: RefCell::new(translations.ovr.clone()),
+        encoding_label: RefCell::new(translations.encoding_utf8.clone()),
     };
 
     (footer_box, Rc::new(labels))

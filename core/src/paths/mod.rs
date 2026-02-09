@@ -53,7 +53,7 @@ pub enum InstallLocation {
     SystemGlobal,
     /// Development mode (not installed)
     Development,
-    /// Portable mode (Windows): running from writable directory
+    /// Portable mode: running from a user-writable directory next to the executable
     Portable,
 }
 
@@ -71,11 +71,29 @@ pub fn user_data_dir() -> PathBuf {
     platform::user_data_dir()
 }
 
-/// Detect Windows portable mode (returns the portable root directory if detected).
+/// Return the user telemetry directory.
 ///
-/// On non-Windows targets this always returns `None`.
+/// This is a cross-platform, user-writable location where queued telemetry
+/// events can be stored locally (e.g. `queue.jsonl`).
+pub fn telemetry_dir() -> PathBuf {
+    user_data_dir().join("telemetry")
+}
+
+/// Detect portable mode (returns the portable root directory if detected).
+///
+/// Portable mode is detected when the application is running from a writable directory
+/// (or from a layout that has a writable `config/` directory next to the executable).
 pub fn detect_portable_mode() -> Option<PathBuf> {
     platform::detect_portable_mode()
+}
+
+/// Detect the system locale and return an ISO 639-1 (two-letter) language code.
+///
+/// Marco translation files are stored as `assets/language/{code}.toml`.
+///
+/// Returns `None` if no useful locale can be detected.
+pub fn detect_system_locale_iso639_1() -> Option<String> {
+    platform::detect_system_locale_iso639_1()
 }
 
 /// Detect the current installation location for the *asset bundle*.
