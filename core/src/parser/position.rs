@@ -68,7 +68,10 @@ pub struct Position {
 /// For multi-line content like code blocks, for example a fenced Rust code block,
 /// the inner code might look like:
 ///
-///     fn main() {}
+/// ```text
+/// fn main() {
+/// }
+/// ```
 ///
 /// - `start.line`: Line of opening backticks
 /// - `end.line`: Line after closing backticks

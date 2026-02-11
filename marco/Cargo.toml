@@ -6,7 +6,7 @@ authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
 license = "MIT"
 default-run = "marco"
-rust-version = "1.92.0"
+rust-version = "1.93.0"
 
 [lib]
 # The `marco` crate is GTK/UI heavy; most docs contain illustrative snippets that
@@ -54,7 +54,7 @@ raw-window-handle = { workspace = true }
 # Ctrl-C handler for graceful shutdown on Windows
 ctrlc = { version = "3.5.1", default-features = false, features = ["termination"] }
 # Native Windows file dialogs
-rfd = "0.15"
+rfd = "0.17.2"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 embed-resource = "3.0"

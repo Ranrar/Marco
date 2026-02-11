@@ -10,14 +10,14 @@ nom_locate = "5.0.0"                 # Position tracking for nom parsers
 ron = "0.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-toml = "0.8.19"
+toml = "0.9.8"
 log = "0.4.29"
 chrono = { version = "0.4.43", features = ["serde"] }
-tempfile = "3.24.0"
+tempfile = "3.25.0"
 emojis = "0.8.0"
 fontconfig = "0.10.0"
 dirs = "6.0.0"
-moka = { version = "0.12.12", features = ["sync"] }  # High-performance caching
+moka = { version = "0.12.13", features = ["sync"] }  # High-performance caching
 unicode-normalization = "0.1.25"                  # Unicode NFC normalization for consistent parsing
 htmlescape = "0.3.1"                              # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting
@@ -43,11 +43,11 @@ raw-window-handle = "0.6.2"
 urlencoding = "2.1"
 
 # Test dependencies
-clap = { version = "4.5.54", features = ["derive"] }
+clap = { version = "4.5.58", features = ["derive"] }
 similar = { version = "2.7", features = ["inline", "unicode"] }
 colored = "3.0.0"
 criterion = "0.8.1"
-rand = "0.9.2"
+rand = "0.10.0"
 serial_test = "3.3.1"
 
 # Profile optimizations

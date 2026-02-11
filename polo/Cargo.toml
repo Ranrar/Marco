@@ -5,7 +5,7 @@ edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
 license = "MIT"
-rust-version = "1.92.0"
+rust-version = "1.93.0"
 
 [dependencies]
 # Core library
@@ -30,7 +30,7 @@ wry = { workspace = true }
 tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
-rfd = "0.15"
+rfd = "0.17.2"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"
