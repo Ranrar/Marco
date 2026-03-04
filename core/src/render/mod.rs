@@ -1,14 +1,16 @@
 // HTML renderer: AST → HTML for WebKit6 preview
 
 pub mod code_languages;
-pub mod html;
+pub mod diagram;
+pub mod markdown;
+pub mod math;
 pub mod options;
 pub mod plarform_mentions;
 pub mod preview_document;
 pub mod syntect_highlighter;
 
 pub use code_languages::*;
-pub use html::*;
+pub use markdown::*;
 pub use options::*;
 pub use preview_document::*;
 pub use syntect_highlighter::*;

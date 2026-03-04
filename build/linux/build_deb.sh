@@ -80,7 +80,7 @@ OPTIONS:
     --set VERSION   Set Core/Marco/Polo versions to VERSION (X.Y.Z) before building
 
 OUTPUT:
-    Creates: build/installer/marco-suite_alpha_VERSION_linux_amd64.deb
+    Creates: build/installer/marco-suite_VERSION_linux_amd64.deb
 EOF
 }
 
@@ -853,7 +853,7 @@ print_header "Creating .deb Package"
 INSTALLER_DIR="$ROOT_DIR/build/installer"
 mkdir -p "$INSTALLER_DIR"
 
-PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_alpha_${MARCO_VERSION}_linux_${ARCHITECTURE}.deb"
+PACKAGE_FILE="$INSTALLER_DIR/${PACKAGE_NAME}_${MARCO_VERSION}_linux_${ARCHITECTURE}.deb"
 print_info "Building package: $PACKAGE_FILE"
 
 # Build under fakeroot so files in the package are owned by root:root

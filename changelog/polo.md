@@ -24,6 +24,17 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.20.0] - 2026-03-04
+
+**Uses:** Core 0.20.0
+
+### Added
+- Platform webview abstraction (`components/viewer/platform_webview.rs`) — unified interface over the underlying webview backend for cross-platform viewer support.
+- Empty state UI (`components/viewer/empty_state.rs`) — visual placeholder shown when no document is loaded.
+
+### Changed
+- Updated to Core 0.20.0 (centralized settings manager, pure-Rust Mermaid and KaTeX rendering, unified HTML preview document builder).
+
 ## [0.18.0] - 2026-02-09
 
 **Uses:** Core 0.18.0

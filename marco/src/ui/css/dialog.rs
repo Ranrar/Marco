@@ -78,6 +78,137 @@ fn generate_base_dialog_css() -> String {
         font-weight: 600;
         margin-bottom: 10px;
     }}
+
+    .marco-dialog-option-title {{
+        font-size: 14px;
+        font-weight: 500;
+        margin: 0;
+        padding: 0;
+    }}
+
+    .marco-dialog-section-label {{
+        font-size: 13px;
+        font-weight: 600;
+        margin-top: 8px;
+        margin-bottom: 6px;
+    }}
+
+    /* Strong section label (used for top-most section headings) */
+    .marco-dialog-section-label-strong {{
+        font-weight: 700;
+    }}
+
+    /* Description text for option rows (e.g., under radio options) */
+    .marco-dialog-option-desc {{
+        font-size: 12px;
+        line-height: 1.3;
+        margin-top: 0px;
+        margin-bottom: 4px;
+        opacity: 0.8;
+    }}
+
+    .marco-mention-grid {{
+        margin-top: 1px;
+        margin-bottom: 1px;
+    }}
+
+    .marco-mention-platform-btn {{
+        border: none;
+        background: transparent;
+        border-radius: 6px;
+        min-height: 28px;
+        min-width: 116px;
+        padding: 2px 6px;
+    }}
+
+    .marco-mention-platform-btn > box {{
+        margin-left: 2px;
+        margin-right: 2px;
+    }}
+
+    .marco-mention-platform-label {{
+        font-size: 11px;
+        font-weight: 500;
+    }}
+
+    .marco-mention-field-label {{
+        font-size: 11px;
+        font-weight: 600;
+        opacity: 0.9;
+        margin-bottom: 1px;
+    }}
+
+    .marco-mention-helper {{
+        font-size: 12px;
+        margin-top: 4px;
+        margin-bottom: 4px;
+        opacity: 0.92;
+        line-height: 1.35;
+    }}
+
+    .marco-mention-validation-note {{
+        font-size: 12px;
+        margin-top: 3px;
+        margin-bottom: 8px;
+        opacity: 0.95;
+        line-height: 1.35;
+    }}
+
+    .marco-mention-validation-note-error {{
+        color: #d9534f;
+        opacity: 1.0;
+    }}
+
+    .marco-mention-valid-title {{
+        font-size: 12px;
+        font-weight: 600;
+        margin-right: 2px;
+    }}
+
+    .marco-mention-valid-chip {{
+        border-radius: 10px;
+        min-width: 28px;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        opacity: 0.72;
+    }}
+
+    .marco-mention-valid-chip.is-active {{
+        opacity: 1.0;
+    }}
+
+    /* Compact dialogs (opt-in) */
+    .marco-dialog-compact .marco-dialog-content {{
+        padding: 12px 12px 8px 12px;
+        min-width: 260px;
+    }}
+
+    .marco-dialog-compact .marco-dialog-section-label {{
+        margin-top: 6px;
+        margin-bottom: 4px;
+    }}
+
+    .marco-dialog-compact .marco-dialog-option-desc {{
+        font-size: 11px;
+        margin-top: 0px;
+        margin-bottom: 3px;
+    }}
+
+    .marco-dialog-compact .marco-dialog-bottom-frame {{
+        min-height: 48px;
+    }}
+
+    /* Bottom action frame (matches Settings close-frame look) */
+    .marco-dialog-bottom-frame {{
+        min-height: 56px;
+        border-width: 0;
+        border-top-width: 1px;
+        border-style: solid;
+        border-radius: 0px;
+        padding: 0;
+        margin: 0;
+    }}
     
     .marco-dialog-message {{
         font-size: 13px;
@@ -219,11 +350,228 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     .{theme}.marco-dialog .marco-dialog-title {{
         color: {titlebar_foreground};
     }}
+
+    .{theme} .marco-dialog-option-title,
+    .{theme}.marco-dialog .marco-dialog-option-title {{
+        color: {titlebar_foreground};
+        opacity: 0.95;
+    }}
+
+    .{theme} .marco-dialog-section-label,
+    .{theme}.marco-dialog .marco-dialog-section-label {{
+        color: {titlebar_foreground};
+        opacity: 0.85;
+    }}
+
+    .{theme} .marco-dialog-section-label-strong,
+    .{theme}.marco-dialog .marco-dialog-section-label-strong {{
+        color: {titlebar_foreground};
+        opacity: 1.0;
+    }}
+
+    .{theme} .marco-dialog-option-desc,
+    .{theme}.marco-dialog .marco-dialog-option-desc {{
+        color: {titlebar_foreground};
+        opacity: 0.75;
+    }}
+
+    .{theme} .marco-mention-platform-btn,
+    .{theme}.marco-dialog .marco-mention-platform-btn {{
+        color: {titlebar_foreground};
+        border: none;
+        background: transparent;
+    }}
+
+    .{theme} .marco-mention-platform-btn:hover,
+    .{theme}.marco-dialog .marco-mention-platform-btn:hover {{
+        background: {toolbar_popover_bg};
+    }}
+
+    .{theme} .marco-mention-platform-btn.selected,
+    .{theme}.marco-dialog .marco-mention-platform-btn.selected {{
+        background: {mention_selected_bg};
+        border: none;
+    }}
+
+    .{theme} .marco-mention-platform-label,
+    .{theme}.marco-dialog .marco-mention-platform-label,
+    .{theme} .marco-mention-field-label,
+    .{theme}.marco-dialog .marco-mention-field-label,
+    .{theme} .marco-mention-helper,
+    .{theme}.marco-dialog .marco-mention-helper,
+    .{theme} .marco-mention-validation-note,
+    .{theme}.marco-dialog .marco-mention-validation-note,
+    .{theme} .marco-mention-valid-title,
+    .{theme}.marco-dialog .marco-mention-valid-title {{
+        color: {titlebar_foreground};
+    }}
+
+    .{theme} .marco-mention-validation-note-error,
+    .{theme}.marco-dialog .marco-mention-validation-note-error {{
+        color: #d9534f;
+        opacity: 1.0;
+    }}
+
+    .{theme} .marco-mention-valid-chip,
+    .{theme}.marco-dialog .marco-mention-valid-chip {{
+        color: {titlebar_foreground};
+        background: {mention_chip_bg};
+    }}
+
+    .{theme} .marco-mention-valid-chip.is-active,
+    .{theme}.marco-dialog .marco-mention-valid-chip.is-active {{
+        color: {mention_chip_fg_active};
+        background: {mention_chip_bg_active};
+    }}
+
+    /* Bottom frame - use footer background + border, same as Settings */
+    .{theme} .marco-dialog-bottom-frame,
+    .{theme}.marco-dialog .marco-dialog-bottom-frame {{
+        background: {footer_bg};
+        border-color: {border};
+    }}
+
+    .{theme} .marco-dialog-bottom-frame:hover,
+    .{theme}.marco-dialog .marco-dialog-bottom-frame:hover {{
+        background: {footer_bg};
+        border-color: {border};
+    }}
     
     .{theme} .marco-dialog-message,
     .{theme}.marco-dialog .marco-dialog-message {{
         color: {titlebar_foreground};
         opacity: 0.9;
+    }}
+
+    /* Welcome assistant left sidebar (matches Settings tab sidebar palette) */
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar,
+    .{theme} .marco-welcome-assistant .sidebar,
+    .{theme}.marco-welcome-assistant .sidebar {{
+        background: {welcome_sidebar_bg};
+        color: {titlebar_foreground};
+        border-right: 1px solid {border};
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar list,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar list,
+    .{theme} .marco-welcome-assistant .sidebar list,
+    .{theme}.marco-welcome-assistant .sidebar list {{
+        background: {welcome_sidebar_bg};
+        color: {titlebar_foreground};
+        border: none;
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar list row,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar list row,
+    .{theme} .marco-welcome-assistant .sidebar list row,
+    .{theme}.marco-welcome-assistant .sidebar list row {{
+        background: {welcome_sidebar_bg};
+        color: {titlebar_foreground};
+        border: none;
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar list row:hover,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar list row:hover,
+    .{theme} .marco-welcome-assistant .sidebar list row:hover,
+    .{theme}.marco-welcome-assistant .sidebar list row:hover {{
+        background: {welcome_sidebar_hover};
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar list row:selected,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar list row:selected,
+    .{theme} .marco-welcome-assistant .sidebar list row:selected,
+    .{theme}.marco-welcome-assistant .sidebar list row:selected {{
+        background: {toolbar_button_hover_border};
+        color: #ffffff;
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar list row label,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar list row label,
+    .{theme} .marco-welcome-assistant .sidebar list row label,
+    .{theme}.marco-welcome-assistant .sidebar list row label {{
+        color: inherit;
+    }}
+
+    /* GTK Assistant may render sidebar items as buttons/modelbuttons instead of rows. */
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar button,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar button,
+    .{theme} .marco-welcome-assistant .sidebar button,
+    .{theme}.marco-welcome-assistant .sidebar button,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar modelbutton,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar modelbutton,
+    .{theme} .marco-welcome-assistant .sidebar modelbutton,
+    .{theme}.marco-welcome-assistant .sidebar modelbutton {{
+        background: transparent;
+        color: {titlebar_foreground};
+        border: 1px solid transparent;
+        border-radius: 6px;
+        padding: 6px 10px;
+        margin: 3px 6px;
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar button:hover,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar button:hover,
+    .{theme} .marco-welcome-assistant .sidebar button:hover,
+    .{theme}.marco-welcome-assistant .sidebar button:hover,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar modelbutton:hover,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar modelbutton:hover,
+    .{theme} .marco-welcome-assistant .sidebar modelbutton:hover,
+    .{theme}.marco-welcome-assistant .sidebar modelbutton:hover {{
+        background: {welcome_sidebar_hover};
+        border-color: {border};
+    }}
+
+    /* Blue button style for active/selected/current assistant page */
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar button:checked,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar button:checked,
+    .{theme} .marco-welcome-assistant .sidebar button:checked,
+    .{theme}.marco-welcome-assistant .sidebar button:checked,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar button:selected,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar button:selected,
+    .{theme} .marco-welcome-assistant .sidebar button:selected,
+    .{theme}.marco-welcome-assistant .sidebar button:selected,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar modelbutton:checked,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar modelbutton:checked,
+    .{theme} .marco-welcome-assistant .sidebar modelbutton:checked,
+    .{theme}.marco-welcome-assistant .sidebar modelbutton:checked,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar modelbutton:selected,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar modelbutton:selected,
+    .{theme} .marco-welcome-assistant .sidebar modelbutton:selected,
+    .{theme}.marco-welcome-assistant .sidebar modelbutton:selected,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar .highlight,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar .highlight,
+    .{theme} .marco-welcome-assistant .sidebar .highlight,
+    .{theme}.marco-welcome-assistant .sidebar .highlight {{
+        background: {toolbar_button_hover_border};
+        color: #ffffff;
+        border-color: {toolbar_button_hover_border};
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar button:checked:hover,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar button:checked:hover,
+    .{theme} .marco-welcome-assistant .sidebar button:checked:hover,
+    .{theme}.marco-welcome-assistant .sidebar button:checked:hover,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar modelbutton:checked:hover,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar modelbutton:checked:hover,
+    .{theme} .marco-welcome-assistant .sidebar modelbutton:checked:hover,
+    .{theme}.marco-welcome-assistant .sidebar modelbutton:checked:hover {{
+        background: {toolbar_button_hover_border};
+        border-color: {toolbar_button_hover_border};
+        opacity: 0.9;
+    }}
+
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar button:checked:active,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar button:checked:active,
+    .{theme} .marco-welcome-assistant .sidebar button:checked:active,
+    .{theme}.marco-welcome-assistant .sidebar button:checked:active,
+    .{theme} .marco-welcome-assistant .marco-welcome-sidebar modelbutton:checked:active,
+    .{theme}.marco-welcome-assistant .marco-welcome-sidebar modelbutton:checked:active,
+    .{theme} .marco-welcome-assistant .sidebar modelbutton:checked:active,
+    .{theme}.marco-welcome-assistant .sidebar modelbutton:checked:active {{
+        background: {toolbar_button_hover_border};
+        border-color: {toolbar_button_hover_border};
+        opacity: 0.8;
     }}
     
     .{theme} .marco-dialog-button,
@@ -395,6 +743,26 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         caret-color: {titlebar_foreground};
         box-shadow: none;
     }}
+
+    .{theme} scrolledwindow.marco-search-entry:focus-within,
+    .{theme}.marco-search-window scrolledwindow.marco-search-entry:focus-within {{
+        background: {dialog_bg};
+        border-color: {toolbar_button_hover_border};
+        outline: none;
+        box-shadow: none;
+    }}
+
+    .{theme} scrolledwindow.marco-search-entry textview,
+    .{theme}.marco-search-window scrolledwindow.marco-search-entry textview,
+    .{theme} scrolledwindow.marco-search-entry textview text,
+    .{theme}.marco-search-window scrolledwindow.marco-search-entry textview text {{
+        background: {dialog_bg};
+        color: {titlebar_foreground};
+        border: none;
+        outline: none;
+        caret-color: {titlebar_foreground};
+        box-shadow: none;
+    }}
     
     .{theme} entry.marco-search-entry,
     .{theme}.marco-search-window entry.marco-search-entry {{
@@ -502,11 +870,29 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
             "#1E1E1E"
         },
         titlebar_foreground = palette.titlebar_foreground,
+        footer_bg = palette.footer_bg,
         toolbar_border = palette.toolbar_border,
+        border = palette.toolbar_border,
         toolbar_popover_bg = palette.toolbar_popover_bg,
         toolbar_button_hover_border = palette.toolbar_button_hover_border,
         toolbar_button_hover = palette.toolbar_button_hover,
         toolbar_button_active = palette.toolbar_button_active,
+        mention_selected_bg = if theme_class.contains("light") {
+            "#E6F0FF"
+        } else {
+            "#1E3A5F"
+        },
+        mention_chip_bg = if theme_class.contains("light") {
+            "#EDF0F3"
+        } else {
+            "#2D3138"
+        },
+        mention_chip_bg_active = if theme_class.contains("light") {
+            "#2F6FEB"
+        } else {
+            "#3B82F6"
+        },
+        mention_chip_fg_active = "#ffffff",
         scrollbar_thumb = if theme_class.contains("light") {
             "#D0D4D8"
         } else {
@@ -521,6 +907,16 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
             "#F0F0F0"
         } else {
             "#252526"
+        },
+        welcome_sidebar_bg = if theme_class.contains("light") {
+            "#EEEEEE"
+        } else {
+            "#2A2A2A"
+        },
+        welcome_sidebar_hover = if theme_class.contains("light") {
+            "#f5f5f5"
+        } else {
+            "#2a2a2a"
         },
     )
 }

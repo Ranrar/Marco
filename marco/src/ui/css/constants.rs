@@ -131,7 +131,7 @@ pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     toolbar_button_disabled_bg: "#ddd",
     toolbar_button_disabled: "#999",
     toolbar_button_disabled_border: "#ccc",
-    toolbar_separator: "#ccc",
+    toolbar_separator: "#b3b8bf",
     toolbar_popover_bg: "#f5f5f5",
     toolbar_popover_border: "#ccc",
 
@@ -173,7 +173,7 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
     toolbar_button_disabled_bg: "#555",
     toolbar_button_disabled: "#aaa",
     toolbar_button_disabled_border: "#555",
-    toolbar_separator: "#444",
+    toolbar_separator: "#6b7280",
     toolbar_popover_bg: "#23272e",
     toolbar_popover_border: "#444",
 
@@ -191,7 +191,7 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
 pub const TITLEBAR_HEIGHT: &str = "32px";
 
 /// Toolbar button padding (matches dialog button padding)
-pub const TOOLBAR_BUTTON_PADDING: &str = "2px 8px";
+pub const TOOLBAR_BUTTON_PADDING: &str = "1px 2px";
 
 /// Menu item padding (0 vertical, 12px horizontal)
 pub const MENU_ITEM_PADDING: &str = "0 12px";
@@ -209,7 +209,7 @@ pub const TOOLBAR_BORDER_RADIUS: &str = "6px";
 pub const MENU_BORDER_RADIUS: &str = "4px";
 
 /// Toolbar button margins
-pub const TOOLBAR_BUTTON_MARGIN: &str = "2px";
+pub const TOOLBAR_BUTTON_MARGIN: &str = "0px";
 
 // ============================================================================
 // Popover Menu Constants (Marco Standard)
@@ -277,10 +277,10 @@ pub const SWITCH_SLIDER_SIZE: &str = "16px";
 pub const TOOLBAR_POPOVER_PADDING: &str = "6px";
 
 /// Toolbar separator width
-pub const TOOLBAR_SEPARATOR_WIDTH: &str = "2px";
+pub const TOOLBAR_SEPARATOR_WIDTH: &str = "1px";
 
 /// Toolbar separator margin
-pub const TOOLBAR_SEPARATOR_MARGIN: &str = "0 4px";
+pub const TOOLBAR_SEPARATOR_MARGIN: &str = "0 5px";
 
 /// Window control button padding (match Polo: comfortable click target)
 pub const WINDOW_CONTROL_PADDING: &str = "2px 6px";
@@ -351,10 +351,10 @@ pub const ICON_TRANSITION: &str = "color 0.12s, transform 0.08s";
 // ============================================================================
 
 /// Minimum width for toolbar buttons
-pub const TOOLBAR_BUTTON_MIN_WIDTH: &str = "24px";
+pub const TOOLBAR_BUTTON_MIN_WIDTH: &str = "18px";
 
 /// Minimum height for toolbar buttons (matches dialog buttons)
-pub const TOOLBAR_BUTTON_MIN_HEIGHT: &str = "24px";
+pub const TOOLBAR_BUTTON_MIN_HEIGHT: &str = "18px";
 
 /// Toolbar icon min dimensions
 pub const TOOLBAR_ICON_SIZE: &str = "16px";

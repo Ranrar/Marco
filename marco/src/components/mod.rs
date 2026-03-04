@@ -1,3 +1,4 @@
+pub mod bookmarks;
 pub mod editor;
 pub mod language;
 pub mod search;

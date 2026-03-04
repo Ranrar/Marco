@@ -132,6 +132,14 @@ pub fn create_editor_with_preview_and_buffer(
     let labels_clone = Rc::clone(&labels);
     let source_view_clone = source_view.clone();
     event_controller.connect_key_pressed(move |_controller, keyval, _keycode, state| {
+        if crate::components::editor::table_edit::handle_table_navigation_key(
+            &source_view_clone,
+            keyval,
+            state,
+        ) {
+            return Propagation::Stop;
+        }
+
         if keyval == Key::Insert {
             let mut mode = insert_mode_state_clone.borrow_mut();
             *mode = !*mode;
@@ -848,6 +856,7 @@ paned > separator {{
                     html_options: html_opts.as_ref(),
                     buffer: buffer.as_ref(),
                     wheel_js: &wheel_js_local,
+                    theme_mode: &theme_mode,
                 };
                 crate::components::viewer::renderer::refresh_preview_content_smooth_with_doc_buffer(
                     params,

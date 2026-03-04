@@ -293,6 +293,68 @@ pre code {
     border: none;
 }
 
+/* Marco: code block copy button */
+.marco-code-block-wrapper {
+    position: relative;
+    margin: 1rem 0;
+}
+
+.marco-code-copy-btn {
+    position: absolute;
+    top: 2.5rem;
+    right: 0.50rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--primary-accent);
+    opacity: 1;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    z-index: 10;
+}
+
+.marco-code-copy-btn svg {
+    width: 1.1em;
+    height: 1.1em;
+    display: block;
+    stroke: currentColor;
+}
+
+.marco-code-copy-btn:hover {
+    background: rgba(168, 85, 247, 0.1);
+    color: #9333ea;
+}
+
+.marco-code-copy-btn:active {
+    background: rgba(168, 85, 247, 0.2);
+}
+
+.marco-code-copy-btn.copied {
+    background: rgba(168, 85, 247, 0.15);
+    color: var(--info-green);
+}
+
+/* Dark theme copy button */
+@media (prefers-color-scheme: dark) {
+    .marco-code-copy-btn:hover {
+        background: rgba(168, 85, 247, 0.15);
+        color: #c084fc;
+    }
+    
+    .marco-code-copy-btn:active {
+        background: rgba(168, 85, 247, 0.25);
+    }
+    
+    .marco-code-copy-btn.copied {
+        background: rgba(168, 85, 247, 0.2);
+        color: var(--info-green);
+    }
+}
+
 /* Nested Code Blocks (Marco Extension) - Simple like neutral */
 .nested-code-block {
     border: 1px solid var(--border-color);

@@ -1,3 +1,11 @@
+pub mod admonition;
+pub mod lists;
+pub mod math;
+pub mod mention;
+pub mod mermaid;
 pub mod save;
 pub mod search;
+pub mod sliderdeck;
+pub mod tables;
+pub mod tabs;
 pub mod welcome_screen;

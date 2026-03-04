@@ -318,7 +318,27 @@ fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> Strin
     transition: background 0.15s, color 0.15s;
 }}
 
+/* Editor context menu rows (custom buttons inside popover) */
+.{theme} popover.menu button.editor-context-menu-btn {{
+    background: transparent;
+    color: {color};
+    padding: {item_padding};
+    border-radius: {popover_radius};
+    min-height: {item_min_height};
+    font-size: {font_size};
+    font-weight: {font_weight};
+    margin: {item_margin};
+    border: none;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s;
+}}
+
 .{theme} popover.menu modelbutton:hover {{
+    background: {item_hover_bg};
+    color: {color};
+}}
+
+.{theme} popover.menu button.editor-context-menu-btn:hover {{
     background: {item_hover_bg};
     color: {color};
 }}
@@ -328,7 +348,17 @@ fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> Strin
     color: {color};
 }}
 
+.{theme} popover.menu button.editor-context-menu-btn:active {{
+    background: {item_hover_bg};
+    color: {color};
+}}
+
 .{theme} popover.menu modelbutton:disabled {{
+    color: {disabled};
+    opacity: 0.5;
+}}
+
+.{theme} popover.menu button.editor-context-menu-btn:disabled {{
     color: {disabled};
     opacity: 0.5;
 }}
@@ -337,6 +367,32 @@ fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> Strin
 .{theme} popover.menu modelbutton label {{
     color: inherit;
     font-weight: inherit;
+}}
+
+.{theme} popover.menu button.editor-context-menu-btn label {{
+    color: inherit;
+    font-weight: inherit;
+}}
+
+.{theme} popover.menu button.editor-context-menu-btn label.editor-context-menu-accel {{
+    color: {disabled};
+    font-size: 11px;
+    font-weight: 400;
+}}
+
+/* Tools popover custom rows */
+.{theme} popover.menu.tools-menu-popover button.tools-popover-row label.tools-popover-shortcut {{
+    color: {disabled};
+    font-size: 11px;
+    font-weight: 400;
+}}
+
+.{theme} popover.menu.tools-menu-popover button.tools-popover-row label.tools-popover-check {{
+    opacity: 0;
+}}
+
+.{theme} popover.menu.tools-menu-popover button.tools-popover-row label.tools-popover-check.is-visible {{
+    opacity: 1;
 }}
 
 .{theme} popover.menu separator {{

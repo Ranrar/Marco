@@ -93,7 +93,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_reference_overwrite() {
+    fn smoke_test_reference_first_definition_wins() {
         let mut doc = Document::new();
         parse_link_reference(&mut doc, "foo", "https://old.com".to_string(), None);
         parse_link_reference(&mut doc, "foo", "https://new.com".to_string(), None);
@@ -101,7 +101,7 @@ mod tests {
         let resolved = doc.references.get("foo");
         let (url, _) = resolved.unwrap();
 
-        // Last definition wins (HashMap insert behavior)
-        assert_eq!(url, "https://new.com");
+        // CommonMark: first definition wins.
+        assert_eq!(url, "https://old.com");
     }
 }

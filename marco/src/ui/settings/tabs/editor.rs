@@ -397,6 +397,9 @@ pub fn build_editor_tab(
         true
     };
     auto_pair_switch.set_active(current_auto_pairing);
+    auto_pair_switch.set_sensitive(false);
+    auto_pair_switch.add_css_class("marco-control-unavailable");
+    auto_pair_switch.set_tooltip_text(Some("Not available yet"));
 
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         auto_pair_switch.connect_state_set(move |_switch, state| {
@@ -427,6 +430,8 @@ pub fn build_editor_tab(
         &auto_pair_switch,
         false, // Not first row
     );
+    auto_pair_row.add_css_class("marco-settings-row-unavailable");
+    auto_pair_row.set_tooltip_text(Some("Not available yet"));
     container.append(&auto_pair_row);
 
     // Show Invisible Characters (Toggle)
@@ -689,6 +694,9 @@ pub fn build_editor_tab(
         true
     };
     linting_switch.set_active(current_linting);
+    linting_switch.set_sensitive(false);
+    linting_switch.add_css_class("marco-control-unavailable");
+    linting_switch.set_tooltip_text(Some("Not available yet"));
 
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         linting_switch.connect_state_set(move |_switch, state| {
@@ -719,6 +727,8 @@ pub fn build_editor_tab(
         &linting_switch,
         false, // Not first row
     );
+    linting_row.add_css_class("marco-settings-row-unavailable");
+    linting_row.set_tooltip_text(Some("Not available yet"));
     container.append(&linting_row);
 
     container

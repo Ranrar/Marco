@@ -21,13 +21,14 @@ pub mod ui;
 ╚═══════════════════════════════════════════════════════════════════════════╝
 */
 
+use crate::components::bookmarks::BookmarkManager;
 use crate::components::editor::footer::{refresh_footer_snapshot, wire_footer_updates};
 use crate::components::editor::ui::create_editor_with_preview_and_buffer;
 use crate::components::language::{LocalizationProvider, SimpleLocalizationManager};
 use crate::components::viewer::preview_types::ViewMode;
-use crate::logic::menu_items::file::FileOperations;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
+use crate::ui::menu_items::FileOperations;
 use core::logic::{DocumentBuffer, RecentFiles};
 use core::paths::MarcoPaths;
 #[cfg(target_os = "windows")]
@@ -36,37 +37,19 @@ use gio::prelude::*;
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use log::trace;
-use std::cell::RefCell;
+use sourceview5::prelude::*;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 const APP_ID: &str = "io.github.ranrar.Marco";
+const BOOKMARK_MARK_CATEGORY: &str = "marco-bookmark";
 
 fn main() -> glib::ExitCode {
     // Very early audit: record entering main (before initialization)
     log::trace!("audit: main() entry - very early");
 
     // Install panic hook to ensure panics are logged and logger is flushed
-    let default_panic = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |info| {
-        // Attempt to log panic info (may be no logger yet)
-        let panic_msg = match info.payload().downcast_ref::<&str>() {
-            Some(s) => *s,
-            _ => match info.payload().downcast_ref::<String>() {
-                Some(s) => s.as_str(),
-                _ => "Unknown panic payload",
-            },
-        };
-        let location = if let Some(location) = info.location() {
-            format!("{}:{}", location.file(), location.line())
-        } else {
-            "unknown:0".to_string()
-        };
-        log::error!("PANIC at {}: {}", location, panic_msg);
-        // Try to flush and shutdown the file logger cleanly
-        core::logic::logger::shutdown_file_logger();
-        // Call the default hook so we preserve existing behavior (printing to stderr)
-        default_panic(info);
-    }));
+    crate::logic::panic_hook::install_panic_hook();
 
     // path detection and environment setup
     use core::paths::MarcoPaths;
@@ -90,59 +73,8 @@ fn main() -> glib::ExitCode {
         .flags(gtk4::gio::ApplicationFlags::HANDLES_OPEN)
         .build();
 
-    // Ensure we shut down cleanly on SIGINT/SIGTERM so buffered log writes are flushed.
-    // This is especially important now that the file logger uses a `BufWriter`.
-    #[cfg(target_os = "linux")]
-    {
-        use glib::source::unix_signal_add_local;
-        use glib::ControlFlow;
-        use gtk4::gio::prelude::ApplicationExt;
-
-        // POSIX signal numbers (stable across Unix platforms).
-        const SIGINT: i32 = 2;
-        const SIGTERM: i32 = 15;
-
-        let app_for_sigint = app.clone();
-        unix_signal_add_local(SIGINT, move || {
-            log::warn!("Received SIGINT, requesting graceful shutdown...");
-            core::logic::logger::shutdown_file_logger();
-            app_for_sigint.quit();
-            ControlFlow::Break
-        });
-
-        let app_for_sigterm = app.clone();
-        unix_signal_add_local(SIGTERM, move || {
-            log::warn!("Received SIGTERM, requesting graceful shutdown...");
-            core::logic::logger::shutdown_file_logger();
-            app_for_sigterm.quit();
-            ControlFlow::Break
-        });
-    }
-
-    // Windows: use ctrlc handler for graceful shutdown. Use an AtomicBool + polling timeout so handler is Send and we stay on the main thread.
-    #[cfg(target_os = "windows")]
-    {
-        let app_for_ctrlc = app.clone();
-        let ctrlc_flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let ctrlc_flag_handler = std::sync::Arc::clone(&ctrlc_flag);
-        ctrlc::set_handler(move || {
-            ctrlc_flag_handler.store(true, std::sync::atomic::Ordering::SeqCst);
-        })
-        .expect("Failed to set Ctrl-C handler");
-
-        // Poll the flag on the main loop and perform shutdown when set
-        let app_for_poll = app_for_ctrlc.clone();
-        glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
-            if ctrlc_flag.load(std::sync::atomic::Ordering::SeqCst) {
-                log::warn!("Received Ctrl-C, requesting graceful shutdown...");
-                core::logic::logger::shutdown_file_logger();
-                app_for_poll.quit();
-                glib::ControlFlow::Break
-            } else {
-                glib::ControlFlow::Continue
-            }
-        });
-    }
+    // Register OS-level signal handlers for graceful shutdown
+    crate::logic::signal_handlers::setup_signal_handlers(&app);
 
     // Clone marco_paths for closures
     let marco_paths_for_open = std::rc::Rc::new(marco_paths);
@@ -255,83 +187,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     let available_locale_infos_rc = Rc::new(localization_manager.available_locale_infos());
 
     // Initialize file logger according to settings (runtime)
-    {
-        let app_settings = settings_manager.get_settings();
-
-        // Enable logging if RUST_LOG environment variable is set or if configured in settings
-        let rust_log_set = std::env::var("RUST_LOG").is_ok();
-        let enabled = app_settings.log_to_file.unwrap_or(false) || rust_log_set;
-
-        // Choose a sane default to avoid huge log files and UI stalls.
-        // Trace should be opt-in.
-        let level = match std::env::var("RUST_LOG") {
-            Ok(v) => {
-                let v = v.to_ascii_lowercase();
-                if v.contains("trace") {
-                    log::LevelFilter::Trace
-                } else if v.contains("debug") {
-                    log::LevelFilter::Debug
-                } else if v.contains("info") {
-                    log::LevelFilter::Info
-                } else if v.contains("warn") {
-                    log::LevelFilter::Warn
-                } else if v.contains("error") {
-                    log::LevelFilter::Error
-                } else {
-                    log::LevelFilter::Info
-                }
-            }
-            Err(_) => log::LevelFilter::Info,
-        };
-
-        if let Err(e) = core::logic::logger::init_file_logger(enabled, level) {
-            eprintln!("Failed to initialize file logger: {}", e);
-        } else if enabled {
-            // Show the resolved log folder to avoid confusion about "./log" vs system cache
-            let resolved = core::logic::logger::current_log_dir();
-            log::info!(
-                "Logger initialized with level: {:?}, RUST_LOG set: {}, log_dir: {}",
-                level,
-                rust_log_set,
-                resolved.display()
-            );
-            log::debug!("Debug logging is working");
-            log::trace!("Trace logging is working");
-
-            println!(
-                "Logging enabled (level: {:?}), log files stored under: {}",
-                level,
-                resolved.display()
-            );
-        } else if rust_log_set {
-            // RUST_LOG was set but settings did not explicitly enable file logging — still show intended path
-            let resolved = core::logic::logger::current_log_dir();
-            println!(
-                "Logging enabled via RUST_LOG (level: {:?}), log files stored under: {}",
-                level,
-                resolved.display()
-            );
-        }
-
-        // Register listener to toggle file logger at runtime when settings change.
-        // Use the explicit settings flag `log_to_file` or the alternate env var `MARCO_LOG`.
-        let settings_manager_for_logger = settings_manager.clone();
-        let level_for_logger = level;
-        settings_manager_for_logger.register_change_listener("logger".to_string(), move |s| {
-            let enabled_now = s.log_to_file.unwrap_or(false) || std::env::var("MARCO_LOG").is_ok();
-            if enabled_now {
-                if let Err(e) = core::logic::logger::init_file_logger(true, level_for_logger) {
-                    log::warn!("Failed to init file logger from settings listener: {}", e);
-                } else {
-                    log::info!("File logger enabled via settings listener");
-                }
-            } else {
-                // Shutdown file logger immediately
-                core::logic::logger::shutdown_file_logger();
-                log::info!("File logger disabled via settings listener");
-            }
-        });
-    }
+    crate::logic::logger_init::init_logging(&settings_manager);
 
     // Initialize monospace font cache for fast settings loading
     if let Err(e) = core::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
@@ -382,6 +238,10 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     toolbar.add_css_class("toolbar");
     toolbar::set_toolbar_height(&toolbar, 0); // Minimum height, matches footer
     let toolbar_ref = Rc::new(RefCell::new(toolbar));
+
+    // Wire toolbar gutter on/off buttons (binary toggle for line numbers)
+    toolbar::wire_gutter_toggle(&toolbar_ref.borrow(), &settings_manager);
+
     // --- Determine correct HTML preview theme based on settings and app theme ---
     use core::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
@@ -411,6 +271,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         Rc::new(RefCell::new(RecentFiles::new(settings_manager.clone()))),
     );
     let file_operations_rc = Rc::new(RefCell::new(file_operations));
+    let bookmark_manager = Rc::new(BookmarkManager::new(settings_manager.clone()));
     let document_buffer_ref = Rc::clone(&file_operations_rc.borrow().buffer);
 
     // Active markdown schema support removed; footer uses AST parser directly.
@@ -442,6 +303,302 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         settings_path.to_str().unwrap(),
         Some(document_buffer_ref),
     );
+
+    // Shared root popover tree state for menu + toolbar interaction.
+    let root_popover_state = crate::ui::popover_state::RootPopoverState::new();
+    crate::ui::popover_state::set_global_root_popover_state(root_popover_state.clone());
+
+    crate::ui::toolbar::connect_simple_markdown_toolbar_actions(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_bold_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_italic_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_strikethrough_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_highlight_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_code_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_superscript_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_subscript_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_inline_math_toolbar_action(
+        &toolbar_ref.borrow(),
+        window.upcast_ref::<gtk4::Window>(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_inline_checkbox_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+
+    let current_file_provider_for_links: Rc<dyn Fn() -> Option<std::path::PathBuf>> = {
+        let file_operations_rc = file_operations_rc.clone();
+        Rc::new(move || {
+            file_operations_rc
+                .borrow()
+                .buffer
+                .borrow()
+                .get_file_path()
+                .map(|path| path.to_path_buf())
+        })
+    };
+
+    crate::ui::toolbar::connect_link_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        window.upcast_ref::<gtk4::Window>(),
+        current_file_provider_for_links.clone(),
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_reference_link_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        window.upcast_ref::<gtk4::Window>(),
+        current_file_provider_for_links.clone(),
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_image_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        window.upcast_ref::<gtk4::Window>(),
+        current_file_provider_for_links.clone(),
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_inline_footnote_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_block_footnote_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_emoji_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        window.upcast_ref::<gtk4::Window>(),
+        settings_manager.clone(),
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_hr_toolbar_action(
+        &toolbar_ref.borrow(),
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_list_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_table_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_tab_block_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_slider_deck_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_mermaid_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_admonition_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+    crate::ui::toolbar::connect_mention_toolbar_action(
+        &toolbar_ref.borrow(),
+        &window,
+        &editor_buffer,
+        &editor_source_view,
+        root_popover_state.clone(),
+    );
+
+    // Configure bookmark gutter marks and context action.
+    {
+        let mark_attributes = sourceview5::MarkAttributes::new();
+        mark_attributes.set_icon_name("bookmark-new-symbolic");
+        // Place bookmark marks in the line-mark gutter with a compact renderer.
+        // Lower priority keeps it visually close to line numbers.
+        editor_source_view.set_mark_attributes(BOOKMARK_MARK_CATEGORY, &mark_attributes, 1);
+        // Keep gutter at normal width unless the current document actually has bookmarks.
+        editor_source_view.set_show_line_marks(false);
+    }
+
+    crate::components::editor::contextmenu::setup_editor_context_menu(
+        app,
+        &editor_source_view,
+        &editor_buffer,
+        bookmark_manager.clone(),
+        file_operations_rc.clone(),
+    );
+
+    // Keep bookmarks in sync with live line edits in the current document.
+    // We treat SourceView marks as source-of-truth because they track edits robustly.
+    let user_edit_depth = Rc::new(Cell::new(0u32));
+    let sync_bookmarks_from_marks: Rc<dyn Fn()> = {
+        let bookmark_manager = bookmark_manager.clone();
+        let file_operations_rc = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        Rc::new(move || {
+            let current_path = file_operations_rc
+                .borrow()
+                .buffer
+                .borrow()
+                .get_file_path()
+                .map(|path| path.to_path_buf());
+
+            let Some(path) = current_path else {
+                return;
+            };
+
+            let line_count = editor_buffer.line_count().max(0) as u32;
+            let mut lines = Vec::new();
+            for line in 0..line_count {
+                let marks =
+                    editor_buffer.source_marks_at_line(line as i32, Some(BOOKMARK_MARK_CATEGORY));
+                if !marks.is_empty() {
+                    lines.push(line);
+                }
+            }
+
+            bookmark_manager.replace_for_file(path, &lines);
+        })
+    };
+
+    {
+        let user_edit_depth = user_edit_depth.clone();
+        editor_buffer.connect_begin_user_action(move |_| {
+            let depth = user_edit_depth.get();
+            user_edit_depth.set(depth.saturating_add(1));
+        });
+    }
+
+    {
+        let user_edit_depth = user_edit_depth.clone();
+        let sync_bookmarks_from_marks = sync_bookmarks_from_marks.clone();
+        editor_buffer.connect_end_user_action(move |_| {
+            let depth = user_edit_depth.get();
+            let new_depth = depth.saturating_sub(1);
+            user_edit_depth.set(new_depth);
+
+            if new_depth == 0 {
+                sync_bookmarks_from_marks();
+            }
+        });
+    }
+
+    // Rebuild source marks whenever bookmarks or current document changes.
+    let refresh_bookmark_marks: Rc<dyn Fn()> = {
+        let bookmark_manager = bookmark_manager.clone();
+        let file_operations_rc = file_operations_rc.clone();
+        let editor_buffer = editor_buffer.clone();
+        let editor_source_view = editor_source_view.clone();
+        Rc::new(move || {
+            let start = editor_buffer.start_iter();
+            let end = editor_buffer.end_iter();
+            editor_buffer.remove_source_marks(&start, &end, Some(BOOKMARK_MARK_CATEGORY));
+
+            let current_path = file_operations_rc
+                .borrow()
+                .buffer
+                .borrow()
+                .get_file_path()
+                .map(|path| path.to_path_buf());
+
+            let mut has_marks = false;
+
+            if let Some(path) = current_path {
+                for line in bookmark_manager.get_for_file(&path) {
+                    if let Some(iter) = editor_buffer.iter_at_line(line as i32) {
+                        editor_buffer.create_source_mark(None, BOOKMARK_MARK_CATEGORY, &iter);
+                        has_marks = true;
+                    }
+                }
+            }
+
+            // Only reserve gutter mark column when needed.
+            editor_source_view.set_show_line_marks(has_marks);
+        })
+    };
+    refresh_bookmark_marks();
+
+    // Ensure bookmark marks are refreshed when the editor widget is mapped.
+    // This helps keep gutter rendering stable after startup/layout changes.
+    {
+        let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+        editor_source_view.connect_map(move |_| {
+            refresh_bookmark_marks();
+        });
+    }
 
     // Wrap setter into Rc so it can be cloned into action callbacks
     let set_view_mode_rc: Rc<Box<dyn Fn(ViewMode)>> = Rc::new(set_view_mode);
@@ -501,151 +658,21 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             split_controller: Some(split_controller.clone()),
             asset_root: &asset_root,
             translations: &translations,
+            root_popover_state,
         });
     let menu_state = Rc::new(menu_state);
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- Settings Thread Pool for Proper Resource Management ---
-    // Create early so it's available for split ratio saving
-    let (settings_tx, settings_rx) = std::sync::mpsc::channel::<Box<dyn FnOnce() + Send>>();
-    let settings_thread_handle = std::thread::spawn(move || {
-        // Single background thread that processes all settings operations sequentially
-        // This prevents race conditions and ensures proper resource cleanup
-        while let Ok(task) = settings_rx.recv() {
-            task();
-        }
-        log::debug!("Settings thread pool shutting down");
-    });
-
-    // Store the thread handle and sender for cleanup
-    let settings_thread_data = std::rc::Rc::new(std::cell::RefCell::new((
-        Some(settings_thread_handle),
-        settings_tx.clone(),
-    )));
+    let settings_pool = crate::logic::settings_thread::SettingsThreadPool::new();
+    let settings_tx = settings_pool.tx.clone();
+    let settings_pool_rc = std::rc::Rc::new(std::cell::RefCell::new(settings_pool));
 
     // Apply saved split ratio after paned widget is mapped and sized
-    // Use map signal with multiple retry attempts via timeout
-    {
-        let settings_manager_clone = settings_manager.clone();
-        let split_for_init = split.clone();
-        let applied = Rc::new(RefCell::new(false));
-
-        split_for_init.connect_map(move |paned| {
-            let paned_clone = paned.clone();
-            let settings_manager = settings_manager_clone.clone();
-            let applied_clone = applied.clone();
-            let attempt_counter = Rc::new(RefCell::new(0));
-
-            // Retry with timeout until widget has allocated width
-            glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
-                if *applied_clone.borrow() {
-                    return glib::ControlFlow::Break;
-                }
-
-                let paned_width = paned_clone.allocated_width();
-
-                if paned_width > 0 {
-                    // Successfully got width, apply saved ratio
-                    *applied_clone.borrow_mut() = true;
-
-                    let settings = settings_manager.get_settings();
-                    if let Some(window_settings) = settings.window {
-                        let split_ratio = window_settings.get_split_ratio();
-                        let position = (paned_width as f64 * split_ratio as f64 / 100.0) as i32;
-
-                        log::info!(
-                            "[SPLIT INIT] Applying saved ratio: {}% -> {}px (width: {}px)",
-                            split_ratio,
-                            position,
-                            paned_width
-                        );
-                        paned_clone.set_position(position);
-                    }
-                    return glib::ControlFlow::Break;
-                }
-
-                let mut attempt = attempt_counter.borrow_mut();
-                *attempt += 1;
-                if *attempt >= 20 {
-                    // Give up after 1 second (20 * 50ms)
-                    log::warn!(
-                        "[SPLIT INIT] Failed to get paned width after {} attempts, giving up",
-                        *attempt
-                    );
-                    *applied_clone.borrow_mut() = true;
-                    return glib::ControlFlow::Break;
-                }
-
-                glib::ControlFlow::Continue
-            });
-        });
-    }
+    crate::logic::split_state::apply_saved_split_ratio(&split, &settings_manager);
 
     // Save split ratio when user finishes manually dragging the divider
-    // Track position changes and save after drag completes (no changes for 200ms)
-    {
-        let settings_manager_clone = settings_manager.clone();
-        let split_for_save = split.clone();
-        let settings_tx_clone = settings_tx.clone();
-        let last_position = Rc::new(RefCell::new(-1i32));
-        let save_timeout: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
-
-        split_for_save.connect_notify_local(Some("position"), move |paned, _| {
-            let paned_width = paned.allocated_width();
-            if paned_width <= 0 {
-                return;
-            }
-
-            let position = paned.position();
-
-            // Check if position actually changed
-            if *last_position.borrow() == position {
-                return;
-            }
-            *last_position.borrow_mut() = position;
-
-            // Cancel any pending save
-            if let Some(id) = save_timeout.borrow_mut().take() {
-                id.remove();
-            }
-
-            // Schedule save after 200ms of no changes (drag completed)
-            let settings_manager = settings_manager_clone.clone();
-            let settings_tx = settings_tx_clone.clone();
-            let save_timeout_clone = save_timeout.clone();
-
-            let timeout_id =
-                glib::timeout_add_local_once(std::time::Duration::from_millis(200), move || {
-                    *save_timeout_clone.borrow_mut() = None;
-
-                    let ratio = ((position as f64 / paned_width as f64) * 100.0).round() as i32;
-                    let ratio = ratio.clamp(10, 90);
-
-                    let task = Box::new(move || {
-                        if let Err(e) = settings_manager.update_settings(|s| {
-                            let _ = s.update_window_settings(|ws| {
-                                ws.split_ratio = Some(ratio);
-                            });
-                        }) {
-                            log::error!("Failed to save split ratio: {}", e);
-                        } else {
-                            log::info!(
-                                "[SPLIT SAVE] Drag complete: {}% ({}px / {}px)",
-                                ratio,
-                                position,
-                                paned_width
-                            );
-                        }
-                    });
-
-                    if let Err(e) = settings_tx.send(task) {
-                        log::error!("Failed to queue split ratio save task: {}", e);
-                    }
-                });
-
-            *save_timeout.borrow_mut() = Some(timeout_id);
-        });
-    }
+    crate::logic::split_state::connect_split_ratio_save(&split, &settings_manager, &settings_tx);
 
     // Apply saved view mode from settings at startup (if present)
     {
@@ -745,6 +772,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     // Clone asset_root for use in multiple closures
     let asset_root_for_settings = asset_root.clone();
+    let window_for_language_handler = window.clone();
 
     // Reusable runtime locale switcher (used by both Settings → Language and the welcome screen).
     // NOTE: `None` means "System Default".
@@ -753,28 +781,38 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let menu_translations_rc = menu_translations_rc.clone();
         let dialog_translations_rc = dialog_translations_rc.clone();
         let menu_state = menu_state.clone();
+        let app_for_locale = app.clone();
         let toolbar_ref = toolbar_ref.clone();
         let footer_labels_rc = footer_labels_rc.clone();
         let editor_buffer = editor_buffer.clone();
+        let editor_source_view_for_locale = editor_source_view.clone();
         let insert_mode_state = insert_mode_state.clone();
         let file_operations_rc = file_operations_rc.clone();
+        let bookmark_manager = bookmark_manager.clone();
         let title_label = title_label.clone();
+        let refresh_bookmark_marks_for_language = refresh_bookmark_marks.clone();
 
         Rc::new(move |selected_code: Option<String>| {
             let locale_code = selected_code
                 .or_else(core::paths::detect_system_locale_iso639_1)
                 .unwrap_or_else(|| "en".to_string());
 
+            let window_for_locale = window_for_language_handler.clone();
+
             let translations_rc = translations_rc.clone();
             let menu_translations_rc = menu_translations_rc.clone();
             let dialog_translations_rc = dialog_translations_rc.clone();
             let menu_state = menu_state.clone();
+            let app_for_locale = app_for_locale.clone();
             let toolbar_ref = toolbar_ref.clone();
             let footer_labels_rc = footer_labels_rc.clone();
             let editor_buffer = editor_buffer.clone();
+            let editor_source_view_for_locale = editor_source_view_for_locale.clone();
             let insert_mode_state = insert_mode_state.clone();
             let file_operations_rc = file_operations_rc.clone();
+            let bookmark_manager = bookmark_manager.clone();
             let title_label = title_label.clone();
+            let refresh_bookmark_marks_for_language = refresh_bookmark_marks_for_language.clone();
 
             glib::idle_add_local(move || {
                 let localization_manager = match SimpleLocalizationManager::new() {
@@ -806,9 +844,184 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 menu::update_menu_translations(menu_state.as_ref(), &new_translations);
 
                 let recent_files = file_operations_rc.borrow().get_recent_files();
-                crate::logic::menu_items::file::update_recent_files_menu(
+                crate::ui::menu_items::update_recent_files_menu(
                     &menu_state.recent_menu,
                     &recent_files,
+                    &new_translations.menu,
+                );
+
+                let current_file_provider: Rc<dyn Fn() -> Option<std::path::PathBuf>> = {
+                    let file_operations_rc = file_operations_rc.clone();
+                    Rc::new(move || {
+                        file_operations_rc
+                            .borrow()
+                            .buffer
+                            .borrow()
+                            .get_file_path()
+                            .map(|path| path.to_path_buf())
+                    })
+                };
+                let jump_to_bookmark: Rc<dyn Fn(std::path::PathBuf, u32)> = {
+                    let file_operations_rc = file_operations_rc.clone();
+                    let window = window_for_locale.clone();
+                    let editor_buffer = editor_buffer.clone();
+                    let source_view = editor_source_view_for_locale.clone();
+                    let title_label = title_label.clone();
+                    let dialog_translations_rc = dialog_translations_rc.clone();
+                    let refresh_bookmark_marks = refresh_bookmark_marks_for_language.clone();
+                    Rc::new(move |target_path: std::path::PathBuf, line: u32| {
+                        let current_path = file_operations_rc
+                            .borrow()
+                            .buffer
+                            .borrow()
+                            .get_file_path()
+                            .map(|path| path.to_path_buf());
+
+                        let jump_in_current = || {
+                            let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                            let mut iter = editor_buffer
+                                .iter_at_line(line as i32)
+                                .unwrap_or_else(|| editor_buffer.end_iter());
+                            editor_buffer.place_cursor(&iter);
+                            source_view.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                            refresh_bookmark_marks();
+                            window.present();
+                            gtk4::prelude::GtkWindowExt::set_focus(
+                                &window,
+                                Some(source_view.upcast_ref::<gtk4::Widget>()),
+                            );
+                            source_view.grab_focus();
+
+                            let editor_buffer_retry = editor_buffer.clone();
+                            let source_view_retry = source_view.clone();
+                            let window_retry = window.clone();
+                            let refresh_bookmark_marks_retry = refresh_bookmark_marks.clone();
+                            glib::timeout_add_local_once(
+                                std::time::Duration::from_millis(220),
+                                move || {
+                                    refresh_bookmark_marks_retry();
+                                    let mut iter = editor_buffer_retry
+                                        .iter_at_line(line as i32)
+                                        .unwrap_or_else(|| editor_buffer_retry.end_iter());
+                                    editor_buffer_retry.place_cursor(&iter);
+                                    source_view_retry
+                                        .scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                                    window_retry.present();
+                                    gtk4::prelude::GtkWindowExt::set_focus(
+                                        &window_retry,
+                                        Some(source_view_retry.upcast_ref::<gtk4::Widget>()),
+                                    );
+                                    source_view_retry.grab_focus();
+                                    let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                                },
+                            );
+                        };
+
+                        if current_path.as_ref().is_some_and(|p| p == &target_path) {
+                            jump_in_current();
+                            return;
+                        }
+
+                        let file_ops = file_operations_rc.clone();
+                        let window = window.clone();
+                        let editor_buffer = editor_buffer.clone();
+                        let source_view_async = source_view.clone();
+                        let title_label = title_label.clone();
+                        let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+                        let dialog_translations = dialog_translations_rc.borrow().clone();
+                        glib::MainContext::default().spawn_local(async move {
+                            let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                            let gtk_window: &gtk4::Window = window.upcast_ref();
+                            let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                            let result = FileOperations::open_file_by_path_from_rc_async(
+                                &file_ops,
+                                &target_path,
+                                gtk_window,
+                                text_buffer,
+                                &dialog_translations,
+                                |w, doc_name, action| {
+                                    FileDialogs::save_changes_dialog_callback(
+                                        dialog_translations.clone(),
+                                    )(w, doc_name, action)
+                                },
+                                |w, title, suggested| {
+                                    FileDialogs::save_dialog_callback(dialog_translations.clone())(
+                                        w, title, suggested,
+                                    )
+                                },
+                            )
+                            .await;
+
+                            if let Err(e) = result {
+                                let err_msg = e.to_string();
+                                if err_msg.contains("cancelled by user") {
+                                    log::debug!(
+                                        "Bookmark switch cancelled by user (save/discard/stay): {}:{}",
+                                        target_path.display(),
+                                        line + 1
+                                    );
+                                } else {
+                                    log::warn!(
+                                        "Failed to open bookmark target {}:{} -> {}",
+                                        target_path.display(),
+                                        line + 1,
+                                        err_msg
+                                    );
+                                }
+                                let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                                return;
+                            }
+
+                            title_label.set_text(&file_ops.borrow().get_document_title());
+                            refresh_bookmark_marks();
+
+                            let window_for_focus = window.clone();
+                            let refresh_bookmark_marks_idle = refresh_bookmark_marks.clone();
+                            glib::idle_add_local_once(move || {
+                                refresh_bookmark_marks_idle();
+                                let mut iter = editor_buffer
+                                    .iter_at_line(line as i32)
+                                    .unwrap_or_else(|| editor_buffer.end_iter());
+                                editor_buffer.place_cursor(&iter);
+                                source_view_async.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                                window_for_focus.present();
+                                gtk4::prelude::GtkWindowExt::set_focus(
+                                    &window_for_focus,
+                                    Some(source_view_async.upcast_ref::<gtk4::Widget>()),
+                                );
+                                source_view_async.grab_focus();
+
+                                let window_retry = window_for_focus.clone();
+                                let source_view_retry = source_view_async.clone();
+                                let editor_buffer_retry = editor_buffer.clone();
+                                let refresh_bookmark_marks_retry = refresh_bookmark_marks_idle.clone();
+                                glib::timeout_add_local_once(
+                                    std::time::Duration::from_millis(220),
+                                    move || {
+                                        refresh_bookmark_marks_retry();
+                                        let mut iter = editor_buffer_retry
+                                            .iter_at_line(line as i32)
+                                            .unwrap_or_else(|| editor_buffer_retry.end_iter());
+                                        editor_buffer_retry.place_cursor(&iter);
+                                        source_view_retry.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                                        window_retry.present();
+                                        gtk4::prelude::GtkWindowExt::set_focus(&window_retry, Some(
+                                            source_view_retry.upcast_ref::<gtk4::Widget>(),
+                                        ));
+                                        source_view_retry.grab_focus();
+                                        let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                                    },
+                                );
+                            });
+                        });
+                    })
+                };
+                crate::ui::menu_items::refresh_bookmark_menu(
+                    &app_for_locale,
+                    &menu_state.bookmarks_menu,
+                    &bookmark_manager,
+                    &current_file_provider,
+                    &jump_to_bookmark,
                     &new_translations.menu,
                 );
 
@@ -1042,30 +1255,36 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     });
     app.add_action(&about_action);
 
-    // Register view mode actions to switch preview and persist setting
-    let view_html_action = gtk4::gio::SimpleAction::new("view_html", None);
-    view_html_action.connect_activate({
-        let set_view_mode_rc = set_view_mode_rc.clone();
-        let save_view_mode = save_view_mode.clone();
-        move |_, _| {
-            (set_view_mode_rc)(ViewMode::HtmlPreview);
-            // Persist setting using the thread pool to avoid race conditions
-            (save_view_mode)("HTML Preview");
-        }
-    });
-    app.add_action(&view_html_action);
+    crate::ui::menu_items::edit::setup_edit_actions(app, &editor_buffer, &editor_source_view);
 
-    let view_code_action = gtk4::gio::SimpleAction::new("view_code", None);
-    view_code_action.connect_activate({
-        let set_view_mode_rc = set_view_mode_rc.clone();
-        let save_view_mode = save_view_mode.clone();
-        move |_, _| {
-            (set_view_mode_rc)(ViewMode::CodePreview);
-            // Persist setting using the thread pool to avoid race conditions
-            (save_view_mode)("Source Code");
-        }
-    });
-    app.add_action(&view_code_action);
+    let current_file_provider_for_menu: std::rc::Rc<dyn Fn() -> Option<std::path::PathBuf>> = {
+        let file_operations_rc = file_operations_rc.clone();
+        std::rc::Rc::new(move || {
+            file_operations_rc
+                .borrow()
+                .buffer
+                .borrow()
+                .get_file_path()
+                .map(|path| path.to_path_buf())
+        })
+    };
+
+    crate::ui::menu_items::setup_inline_blocks_modules_actions(
+        app,
+        &editor_buffer,
+        &editor_source_view,
+        &window,
+        settings_manager.clone(),
+        current_file_provider_for_menu,
+    );
+    crate::ui::menu_items::tools::setup_tools_actions(
+        app,
+        &menu_state.tools_menu,
+        translations_rc.clone(),
+        settings_manager.clone(),
+        &editor_source_view,
+        set_view_mode_rc.clone(),
+    );
 
     // Register search & replace action
     let search_action = gtk4::gio::SimpleAction::new("search", None);
@@ -1108,7 +1327,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     app.set_accels_for_action("app.search", &["<Control>f"]);
 
     // Populate the Recent Files submenu from FileOperations' recent list
-    crate::logic::menu_items::file::register_file_actions_async(
+    crate::ui::menu_items::register_file_actions_async(
         app.clone(),
         file_operations_rc.clone(),
         &window,
@@ -1121,7 +1340,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     );
 
     // Wire dynamic recent-file actions using the recent_menu from the UI
-    crate::logic::menu_items::file::setup_recent_actions(
+    crate::ui::menu_items::setup_recent_actions(
         app,
         file_operations_rc.clone(),
         &menu_state.recent_menu,
@@ -1134,10 +1353,221 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         FileDialogs::save_dialog_callback(dialog_translations_rc.borrow().clone()),
     );
 
+    // Wire bookmarks menu actions and dynamic updates.
+    {
+        let current_file_provider: Rc<dyn Fn() -> Option<std::path::PathBuf>> = {
+            let file_operations_rc = file_operations_rc.clone();
+            Rc::new(move || {
+                file_operations_rc
+                    .borrow()
+                    .buffer
+                    .borrow()
+                    .get_file_path()
+                    .map(|path| path.to_path_buf())
+            })
+        };
+
+        let jump_to_bookmark: Rc<dyn Fn(std::path::PathBuf, u32)> = {
+            let file_operations_rc = file_operations_rc.clone();
+            let window = window.clone();
+            let editor_buffer = editor_buffer.clone();
+            let source_view = editor_source_view.clone();
+            let title_label = title_label.clone();
+            let dialog_translations_rc = dialog_translations_rc.clone();
+            let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+            Rc::new(move |target_path: std::path::PathBuf, line: u32| {
+                let current_path = file_operations_rc
+                    .borrow()
+                    .buffer
+                    .borrow()
+                    .get_file_path()
+                    .map(|path| path.to_path_buf());
+
+                let jump_in_current = || {
+                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                    let mut iter = editor_buffer
+                        .iter_at_line(line as i32)
+                        .unwrap_or_else(|| editor_buffer.end_iter());
+                    editor_buffer.place_cursor(&iter);
+                    source_view.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                    refresh_bookmark_marks();
+                    window.present();
+                    gtk4::prelude::GtkWindowExt::set_focus(
+                        &window,
+                        Some(source_view.upcast_ref::<gtk4::Widget>()),
+                    );
+                    source_view.grab_focus();
+
+                    let editor_buffer_retry = editor_buffer.clone();
+                    let source_view_retry = source_view.clone();
+                    let window_retry = window.clone();
+                    let refresh_bookmark_marks_retry = refresh_bookmark_marks.clone();
+                    glib::timeout_add_local_once(
+                        std::time::Duration::from_millis(220),
+                        move || {
+                            refresh_bookmark_marks_retry();
+                            let mut iter = editor_buffer_retry
+                                .iter_at_line(line as i32)
+                                .unwrap_or_else(|| editor_buffer_retry.end_iter());
+                            editor_buffer_retry.place_cursor(&iter);
+                            source_view_retry.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                            window_retry.present();
+                            gtk4::prelude::GtkWindowExt::set_focus(
+                                &window_retry,
+                                Some(source_view_retry.upcast_ref::<gtk4::Widget>()),
+                            );
+                            source_view_retry.grab_focus();
+                            let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                        },
+                    );
+                };
+
+                if current_path.as_ref().is_some_and(|p| p == &target_path) {
+                    jump_in_current();
+                    return;
+                }
+
+                let file_ops = file_operations_rc.clone();
+                let window = window.clone();
+                let editor_buffer = editor_buffer.clone();
+                let source_view_async = source_view.clone();
+                let title_label = title_label.clone();
+                let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+                let dialog_translations = dialog_translations_rc.borrow().clone();
+                glib::MainContext::default().spawn_local(async move {
+                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                    let gtk_window: &gtk4::Window = window.upcast_ref();
+                    let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                    let result = FileOperations::open_file_by_path_from_rc_async(
+                        &file_ops,
+                        &target_path,
+                        gtk_window,
+                        text_buffer,
+                        &dialog_translations,
+                        |w, doc_name, action| {
+                            FileDialogs::save_changes_dialog_callback(
+                                dialog_translations.clone(),
+                            )(w, doc_name, action)
+                        },
+                        |w, title, suggested| {
+                            FileDialogs::save_dialog_callback(dialog_translations.clone())(
+                                w, title, suggested,
+                            )
+                        },
+                    )
+                    .await;
+
+                    if let Err(e) = result {
+                        let err_msg = e.to_string();
+                        if err_msg.contains("cancelled by user") {
+                            log::debug!(
+                                "Bookmark switch cancelled by user (save/discard/stay): {}:{}",
+                                target_path.display(),
+                                line + 1
+                            );
+                        } else {
+                            log::warn!(
+                                "Failed to open bookmark target {}:{} -> {}",
+                                target_path.display(),
+                                line + 1,
+                                err_msg
+                            );
+                        }
+                        let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                        return;
+                    }
+
+                    title_label.set_text(&file_ops.borrow().get_document_title());
+                    refresh_bookmark_marks();
+
+                    let window_for_focus = window.clone();
+                    let refresh_bookmark_marks_idle = refresh_bookmark_marks.clone();
+                    glib::idle_add_local_once(move || {
+                        refresh_bookmark_marks_idle();
+                        let mut iter = editor_buffer
+                            .iter_at_line(line as i32)
+                            .unwrap_or_else(|| editor_buffer.end_iter());
+                        editor_buffer.place_cursor(&iter);
+                        source_view_async.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                        window_for_focus.present();
+                        gtk4::prelude::GtkWindowExt::set_focus(
+                            &window_for_focus,
+                            Some(source_view_async.upcast_ref::<gtk4::Widget>()),
+                        );
+                        source_view_async.grab_focus();
+
+                        let window_retry = window_for_focus.clone();
+                        let source_view_retry = source_view_async.clone();
+                        let editor_buffer_retry = editor_buffer.clone();
+                        let refresh_bookmark_marks_retry = refresh_bookmark_marks_idle.clone();
+                        glib::timeout_add_local_once(
+                            std::time::Duration::from_millis(220),
+                            move || {
+                                refresh_bookmark_marks_retry();
+                                let mut iter = editor_buffer_retry
+                                    .iter_at_line(line as i32)
+                                    .unwrap_or_else(|| editor_buffer_retry.end_iter());
+                                editor_buffer_retry.place_cursor(&iter);
+                                source_view_retry.scroll_to_iter(&mut iter, 0.15, true, 0.0, 0.35);
+                                window_retry.present();
+                                gtk4::prelude::GtkWindowExt::set_focus(
+                                    &window_retry,
+                                    Some(source_view_retry.upcast_ref::<gtk4::Widget>()),
+                                );
+                                source_view_retry.grab_focus();
+                                let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                            },
+                        );
+                    });
+                });
+            })
+        };
+
+        crate::ui::menu_items::setup_bookmark_actions(
+            app,
+            &menu_state.bookmarks_menu,
+            bookmark_manager.clone(),
+            current_file_provider.clone(),
+            jump_to_bookmark.clone(),
+            menu_translations_rc.clone(),
+        );
+
+        // Refresh bookmarks menu whenever recent-file callbacks indicate file changes.
+        {
+            let app_owned = app.clone();
+            let bookmarks_menu = menu_state.bookmarks_menu.clone();
+            let bookmark_manager = bookmark_manager.clone();
+            let current_file_provider = current_file_provider.clone();
+            let jump_to_bookmark = jump_to_bookmark.clone();
+            let menu_translations_rc = menu_translations_rc.clone();
+            let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+            file_operations_rc
+                .borrow()
+                .register_recent_changed_callback(move || {
+                    crate::ui::menu_items::refresh_bookmark_menu(
+                        &app_owned,
+                        &bookmarks_menu,
+                        &bookmark_manager,
+                        &current_file_provider,
+                        &jump_to_bookmark,
+                        &menu_translations_rc.borrow(),
+                    );
+                    refresh_bookmark_marks();
+                });
+        }
+
+        {
+            let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+            bookmark_manager.register_changed_callback(move || {
+                refresh_bookmark_marks();
+            });
+        }
+    }
+
     // Open initial file if provided via command line
     if let Some(file_path) = initial_file {
         let dialog_translations = dialog_translations_rc.borrow().clone();
-        let load_context = crate::logic::menu_items::file::InitialFileLoadContext {
+        let load_context = crate::ui::menu_items::InitialFileLoadContext {
             file_path,
             window: window.clone(),
             editor_buffer: editor_buffer.clone(),
@@ -1148,10 +1578,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             ),
             show_save_dialog: FileDialogs::save_dialog_callback(dialog_translations),
         };
-        crate::logic::menu_items::file::FileOperations::load_initial_file_async(
-            file_operations_rc.clone(),
-            load_context,
-        );
+        FileOperations::load_initial_file_async(file_operations_rc.clone(), load_context);
     }
 
     // Apply startup editor settings to ensure editor uses settings.ron values
@@ -1160,127 +1587,22 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     }
 
     // Load and apply saved window state
-    {
-        let settings = settings_manager.get_settings();
-        if let Some(window_settings) = settings.window {
-            // Apply window size
-            let (width, height) = window_settings.get_window_size();
-            window.set_default_size(width as i32, height as i32);
-
-            // Apply window position if saved
-            if let Some((x, y)) = window_settings.get_window_position() {
-                // Note: GTK4 doesn't support programmatic window positioning directly
-                // This would need platform-specific implementation if required
-                log::debug!(
-                    "Would restore window position to ({}, {}) if supported",
-                    x,
-                    y
-                );
-            }
-
-            // Apply maximized state
-            if window_settings.is_maximized() {
-                window.maximize();
-            }
-        }
-    }
+    crate::logic::window_state::apply_saved_window_state(&window, &settings_manager);
 
     // Connect window state change handlers to persist settings
-    {
-        let settings_manager_resize = settings_manager.clone();
-        let settings_tx_resize = settings_tx.clone();
-        window.connect_default_width_notify(move |w| {
-            let settings_manager = settings_manager_resize.clone();
-            let width = w.default_width();
-            let height = w.default_height();
-            let settings_tx = settings_tx_resize.clone();
-
-            let task = Box::new(move || {
-                if let Err(e) = settings_manager.update_settings(|s| {
-                    let _ = s.update_window_settings(|ws| {
-                        ws.width = Some(width as u32);
-                        ws.height = Some(height as u32);
-                    });
-                }) {
-                    log::error!("Failed to save window size: {}", e);
-                } else {
-                    log::debug!("Window size saved: {}x{}", width, height);
-                }
-            });
-            if let Err(e) = settings_tx.send(task) {
-                log::error!("Failed to queue window size save task: {}", e);
-            }
-        });
-
-        let settings_manager_resize2 = settings_manager.clone();
-        let settings_tx_resize2 = settings_tx.clone();
-        window.connect_default_height_notify(move |w| {
-            let settings_manager = settings_manager_resize2.clone();
-            let width = w.default_width();
-            let height = w.default_height();
-            let settings_tx = settings_tx_resize2.clone();
-
-            let task = Box::new(move || {
-                if let Err(e) = settings_manager.update_settings(|s| {
-                    let _ = s.update_window_settings(|ws| {
-                        ws.width = Some(width as u32);
-                        ws.height = Some(height as u32);
-                    });
-                }) {
-                    log::error!("Failed to save window size: {}", e);
-                } else {
-                    log::debug!("Window size saved: {}x{}", width, height);
-                }
-            });
-            if let Err(e) = settings_tx.send(task) {
-                log::error!("Failed to queue window size save task: {}", e);
-            }
-        });
-
-        let settings_manager_maximize = settings_manager.clone();
-        let settings_tx_maximize = settings_tx.clone();
-        window.connect_maximized_notify(move |w| {
-            let settings_manager = settings_manager_maximize.clone();
-            let is_maximized = w.is_maximized();
-            let settings_tx = settings_tx_maximize.clone();
-
-            let task = Box::new(move || {
-                if let Err(e) = settings_manager.update_settings(|s| {
-                    let _ = s.update_window_settings(|ws| {
-                        ws.maximized = Some(is_maximized);
-                    });
-                }) {
-                    log::error!("Failed to save window maximized state: {}", e);
-                } else {
-                    log::debug!("Window maximized state saved: {}", is_maximized);
-                }
-            });
-            if let Err(e) = settings_tx.send(task) {
-                log::error!("Failed to queue window maximized save task: {}", e);
-            }
-        });
-    }
+    crate::logic::window_state::connect_window_state_persistence(
+        &window,
+        &settings_manager,
+        &settings_tx,
+        &refresh_bookmark_marks,
+    );
 
     // Connect to window destroy signal to clean up settings thread
     window.connect_destroy({
-        let settings_thread_data = settings_thread_data.clone();
+        let settings_pool_rc = settings_pool_rc.clone();
         move |_| {
             log::debug!("Window destroyed, cleaning up settings thread");
-            let mut thread_data = settings_thread_data.borrow_mut();
-            if let Some(handle) = thread_data.0.take() {
-                // Drop all senders to signal the thread to exit
-                // We need to drop the channel to close it and signal the thread to shutdown
-                std::mem::drop(std::mem::replace(&mut thread_data.1, {
-                    let (dummy_tx, _) = std::sync::mpsc::channel();
-                    dummy_tx
-                }));
-                // Wait for the thread to finish (with timeout for safety)
-                if let Err(e) = handle.join() {
-                    log::error!("Failed to join settings thread: {:?}", e);
-                } else {
-                    log::debug!("Settings thread cleaned up successfully");
-                }
-            }
+            settings_pool_rc.borrow_mut().shutdown();
 
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
@@ -1291,6 +1613,22 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     // Present the window first
     window.present();
+
+    // Run a post-present refresh so bookmarks loaded from settings are redrawn
+    // against the final startup geometry.
+    {
+        let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+        glib::idle_add_local_once(move || {
+            refresh_bookmark_marks();
+        });
+    }
+
+    {
+        let refresh_bookmark_marks = refresh_bookmark_marks.clone();
+        glib::timeout_add_local_once(std::time::Duration::from_millis(120), move || {
+            refresh_bookmark_marks();
+        });
+    }
 
     // Show welcome screen on first run (Week 4)
     // This is non-blocking - appears on top of the main window

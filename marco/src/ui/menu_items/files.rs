@@ -1,7 +1,8 @@
 use crate::components::language::DialogTranslations;
-use crate::logic::menu_items::file::SaveChangesResult;
+use crate::components::language::Translations;
+use crate::ui::menu_items::file_operations::SaveChangesResult;
 use gtk4::{
-    prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
+    gio, prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
 };
 
 #[cfg(target_os = "linux")]
@@ -60,8 +61,38 @@ type SaveChangesCallback = Arc<
 /// to ensure correct behavior on all platforms.
 pub struct FileDialogs;
 
+/// Populate the File menu in grouped sections:
+/// document creation/opening, persistence/export, and app-level items.
+pub fn populate_file_menu(
+    file_menu: &gio::Menu,
+    recent_menu_item: &gio::MenuItem,
+    recent_menu: &gio::Menu,
+    translations: &Translations,
+) {
+    file_menu.remove_all();
+
+    recent_menu_item.set_label(Some(&translations.menu.recent));
+    recent_menu_item.set_submenu(Some(recent_menu));
+
+    let document = gio::Menu::new();
+    document.append(Some(&translations.menu.new), Some("app.new"));
+    document.append(Some(&translations.menu.open), Some("app.open"));
+    document.append_item(recent_menu_item);
+    file_menu.append_section(None, &document);
+
+    let persistence = gio::Menu::new();
+    persistence.append(Some(&translations.menu.save), Some("app.save"));
+    persistence.append(Some(&translations.menu.save_as), Some("app.save_as"));
+    persistence.append(Some(&translations.menu.export), Some("app.export"));
+    file_menu.append_section(None, &persistence);
+
+    let app_exit = gio::Menu::new();
+    app_exit.append(Some(&translations.menu.quit), Some("app.quit"));
+    file_menu.append_section(None, &app_exit);
+}
+
 impl FileDialogs {
-    /// Adapter for `logic::menu_items::file` callback types.
+    /// Adapter for `ui::menu_items::file_operations` callback types.
     ///
     /// The `FileOperations` code expects HRTB callbacks returning `Pin<Box<dyn Future + 'b>>`.
     /// Directly returning `Box::pin(async_fn(..))` doesn't reliably coerce to a trait object,

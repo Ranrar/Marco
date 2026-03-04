@@ -36,6 +36,7 @@ pub struct SmoothUpdateParams<'a> {
     pub html_options: &'a RenderOptions,
     pub buffer: &'a sourceview5::Buffer,
     pub wheel_js: &'a str,
+    pub theme_mode: &'a RefCell<String>,
 }
 
 /// Generate test HTML content when the editor is empty
@@ -106,9 +107,8 @@ fn parse_markdown_to_html_with_theme(
 }
 
 /// Parse markdown text into HTML using the Marco engine with full HTML caching
-fn parse_markdown_to_html(text: &str, html_options: &RenderOptions) -> String {
-    // Fallback for backwards compatibility - use light theme if no theme specified
-    parse_markdown_to_html_with_theme(text, html_options, "light")
+fn parse_markdown_to_html(text: &str, html_options: &RenderOptions, theme_mode: &str) -> String {
+    parse_markdown_to_html_with_theme(text, html_options, theme_mode)
 }
 
 /// Small helper to wrap markdown -> html and load into webview using the new rendering system.
@@ -256,12 +256,14 @@ pub fn refresh_preview_content_smooth_with_doc_buffer(params: SmoothUpdateParams
     }
 
     let html_options = params.html_options.clone();
+    let theme_mode = params.theme_mode.borrow().clone();
     let wheel_js = params.wheel_js.to_string();
     let webview = params.webview.clone();
 
     glib::spawn_future_local(async move {
         let rendered =
-            gio::spawn_blocking(move || parse_markdown_to_html(&text, &html_options)).await;
+            gio::spawn_blocking(move || parse_markdown_to_html(&text, &html_options, &theme_mode))
+                .await;
 
         glib::idle_add_local_once(move || match rendered {
             Ok(html_body) => {

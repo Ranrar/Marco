@@ -1,0 +1,120 @@
+(
+  editor: Some((
+    font: Some("Ubuntu Mono Regular"),
+    font_size: Some(14),
+    line_height: Some(1.1),
+    line_wrapping: Some(true),
+    auto_pairing: Some(false),
+    show_invisibles: Some(false),
+    tabs_to_spaces: Some(false),
+    syntax_colors: Some(true),
+    linting: Some(false),
+  )),
+  layout: Some((
+    view_mode: Some("HTML Preview"),
+    sync_scrolling: Some(true),
+    editor_view_split: Some(60),
+    show_line_numbers: Some(true),
+    text_direction: Some("rtl"),
+  )),
+  window: Some((
+    width: Some(1823),
+    height: Some(1019),
+    x: None,
+    y: None,
+    maximized: Some(false),
+    split_ratio: Some(41),
+  )),
+  files: Some((
+    recent_files: Some([
+      /*[0]*/ "/home/ranrar/Code/projects/marco/documentation/showcase/13_real_world_example.md",
+      /*[1]*/ "/home/ranrar/Code/projects/marco/documentation/showcase/12_links_and_heading_ids.md",
+      /*[2]*/ "/home/ranrar/Code/projects/marco/documentation/showcase/11_emoji_and_mentions.md",
+      /*[3]*/ "/home/ranrar/Code/projects/marco/documentation/showcase/10_definition_lists.md",
+      /*[4]*/ "/home/ranrar/Code/projects/marco/documentation/showcase/09_footnotes.md",
+    ]),
+    max_recent_files: Some(5),
+    bookmarks: Some([
+      /*[0]*/ (
+        file_path: "/home/ranrar/Code/projects/marco/tests/test_suite/showcase/02_marco_extensions.md",
+        line: 215,
+      ),
+      /*[1]*/ (
+        file_path: "/tmp/test_mermaid.md",
+        line: 7,
+      ),
+    ]),
+    emoji_usage_history: Some([
+      /*[0]*/ (
+        value: ":information_source:",
+        count: 1,
+      ),
+      /*[1]*/ (
+        value: ":singer:",
+        count: 1,
+      ),
+      /*[2]*/ (
+        value: ":face_in_clouds:",
+        count: 1,
+      ),
+      /*[3]*/ (
+        value: ":gear:",
+        count: 1,
+      ),
+      /*[4]*/ (
+        value: ":gb:",
+        count: 1,
+      ),
+      /*[5]*/ (
+        value: ":peach:",
+        count: 1,
+      ),
+      /*[6]*/ (
+        value: ":salt:",
+        count: 1,
+      ),
+      /*[7]*/ (
+        value: ":dancer:",
+        count: 1,
+      ),
+      /*[8]*/ (
+        value: ":garlic:",
+        count: 1,
+      ),
+      /*[9]*/ (
+        value: ":safety_pin:",
+        count: 1,
+      ),
+    ]),
+  )),
+  active_schema: None,
+  schema_disabled: None,
+  polo: Some((
+    window: Some((
+      width: Some(1354),
+      height: Some(990),
+      x: None,
+      y: None,
+      maximized: Some(false),
+    )),
+    last_opened_file: Some("/home/ranrar/Code/projects/marco/documentation/user_guide/math_cheatsheet.md"),
+    auto_refresh: Some(false),
+    refresh_interval_ms: Some(1000),
+  )),
+  appearance: Some((
+    editor_mode: Some("marco-dark"),
+    preview_theme: Some("marco.css"),
+    toolbar_svg_button_text: Some(false),
+    ui_font: None,
+    ui_font_size: Some(11),
+  )),
+  language: Some((
+    language: Some("en"),
+  )),
+  telemetry: Some((
+    enabled: Some(false),
+    first_run_dialog_shown: Some(true),
+  )),
+  debug: Some(true),
+  log_to_file: Some(true),
+)

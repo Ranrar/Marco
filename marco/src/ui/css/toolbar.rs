@@ -11,8 +11,6 @@
 //! - `.toolbar-headings-popover-btn`: Buttons inside headings popover
 //! - `.toolbar-btn-bold`, `.toolbar-btn-italic`, etc.: Specific toolbar buttons
 //! - `.toolbar-separator`: Visual separator between button groups
-//! - `.toolbar-popover`: Popover container styling
-//! - `.toolbar-btn .icon`: Icon styling inside buttons
 //!
 //! ## Theme Support
 //!
@@ -86,9 +84,6 @@ pub fn generate_css() -> String {
         &DARK_PALETTE,
     ));
 
-    // Icon styling (theme-independent)
-    css.push_str(&generate_toolbar_icon_css());
-
     // Separator styling (light theme)
     css.push_str(&generate_toolbar_separator_css(
         "marco-theme-light",
@@ -101,14 +96,26 @@ pub fn generate_css() -> String {
         &DARK_PALETTE,
     ));
 
-    // Popover styling (light theme)
-    css.push_str(&generate_toolbar_popover_css(
+    // Table picker styling (light theme)
+    css.push_str(&generate_table_picker_css(
         "marco-theme-light",
         &LIGHT_PALETTE,
     ));
 
-    // Popover styling (dark theme)
-    css.push_str(&generate_toolbar_popover_css(
+    // Table picker styling (dark theme)
+    css.push_str(&generate_table_picker_css(
+        "marco-theme-dark",
+        &DARK_PALETTE,
+    ));
+
+    // Toolbar popover entry styling (menu-like) - light theme
+    css.push_str(&generate_toolbar_popover_entry_css(
+        "marco-theme-light",
+        &LIGHT_PALETTE,
+    ));
+
+    // Toolbar popover entry styling (menu-like) - dark theme
+    css.push_str(&generate_toolbar_popover_entry_css(
         "marco-theme-dark",
         &DARK_PALETTE,
     ));
@@ -143,9 +150,43 @@ const TOOLBAR_BUTTON_CLASSES: &[&str] = &[
     "toolbar-btn-bold",
     "toolbar-btn-italic",
     "toolbar-btn-code",
+    "toolbar-btn-text-inline",
+    "toolbar-btn-lists",
+    "toolbar-btn-inline-items",
+    "toolbar-btn-block-items",
+    "toolbar-btn-container-items",
     "toolbar-btn-strikethrough",
     "toolbar-btn-bullet",
     "toolbar-btn-number",
+    "toolbar-btn-link",
+    "toolbar-btn-link-reference",
+    "toolbar-btn-blockquote",
+    "toolbar-btn-tasklist",
+    "toolbar-btn-definition-list",
+    "toolbar-btn-image",
+    "toolbar-btn-table",
+    "toolbar-btn-hr",
+    "toolbar-btn-fenced-code-block",
+    "toolbar-btn-undo",
+    "toolbar-btn-redo",
+    "toolbar-btn-functions",
+    "toolbar-functions-popover-btn",
+    "toolbar-btn-gutter-on",
+    "toolbar-btn-gutter-off",
+    "toolbar-btn-heading-id",
+    "toolbar-btn-admonition",
+    "toolbar-btn-footnote",
+    "toolbar-btn-inline-footnote",
+    "toolbar-btn-inline-math",
+    "toolbar-btn-inline-checkbox",
+    "toolbar-btn-superscript",
+    "toolbar-btn-subscript",
+    "toolbar-btn-emoji",
+    "toolbar-btn-mention",
+    "toolbar-btn-tab-block",
+    "toolbar-btn-slideshow",
+    "toolbar-btn-math",
+    "toolbar-btn-mermaid",
 ];
 
 /// Generate unified base styles for all toolbar buttons
@@ -166,7 +207,7 @@ fn generate_toolbar_buttons_base_css(theme_class: &str, palette: &ColorPalette) 
     margin: {margin};
     border-radius: {radius};
     background: transparent;
-    border: {border_width} {border_color};
+    border: none;
     color: {color};
     font-size: {font_size};
     font-family: {font_family};
@@ -182,8 +223,6 @@ fn generate_toolbar_buttons_base_css(theme_class: &str, palette: &ColorPalette) 
         padding = TOOLBAR_BUTTON_PADDING,
         margin = TOOLBAR_BUTTON_MARGIN,
         radius = TOOLBAR_BORDER_RADIUS,
-        border_width = TOOLBAR_BUTTON_BORDER_WIDTH,
-        border_color = palette.toolbar_border,
         color = palette.toolbar_button,
         font_size = TOOLBAR_BUTTON_FONT_SIZE,
         font_family = UI_FONT_FAMILY_ALT,
@@ -206,14 +245,12 @@ fn generate_toolbar_buttons_hover_css(theme_class: &str, palette: &ColorPalette)
 {selectors} {{
     background: transparent;
     color: {color_hover};
-    border-color: {border_hover};
     opacity: {opacity};
 }}
 "#,
         theme = theme_class,
         selectors = selectors,
         color_hover = palette.toolbar_button_hover,
-        border_hover = palette.toolbar_button_hover_border,
         opacity = NORMAL_OPACITY,
     )
 }
@@ -232,14 +269,12 @@ fn generate_toolbar_buttons_active_css(theme_class: &str, palette: &ColorPalette
 {selectors} {{
     background: transparent;
     color: {color_active};
-    border-color: {border_active};
     opacity: {opacity};
 }}
 "#,
         theme = theme_class,
         selectors = selectors,
         color_active = palette.toolbar_button_active,
-        border_active = palette.toolbar_button_hover_border,
         opacity = NORMAL_OPACITY,
     )
 }
@@ -258,7 +293,7 @@ fn generate_toolbar_buttons_disabled_css(theme_class: &str, palette: &ColorPalet
 {selectors} {{
     background: {bg_disabled};
     color: {color_disabled};
-    border-color: {border_disabled};
+    border: none;
     opacity: {opacity};
 }}
 "#,
@@ -266,27 +301,7 @@ fn generate_toolbar_buttons_disabled_css(theme_class: &str, palette: &ColorPalet
         selectors = selectors,
         bg_disabled = palette.toolbar_button_disabled_bg,
         color_disabled = palette.toolbar_button_disabled,
-        border_disabled = palette.toolbar_button_disabled_border,
         opacity = DISABLED_OPACITY,
-    )
-}
-
-/// Generate icon styling inside toolbar buttons (theme-independent)
-fn generate_toolbar_icon_css() -> String {
-    format!(
-        r#"
-/* Icon styling for buttons (if using icons) */
-.toolbar-btn .icon,
-.toolbar-headings-btn .icon,
-.toolbar-headings-popover-btn .icon {{
-    margin-right: {margin};
-    /* prefer min-size for GTK compatibility */
-    min-width: {size};
-    min-height: {size};
-}}
-"#,
-        margin = TOOLBAR_ICON_MARGIN,
-        size = TOOLBAR_ICON_SIZE,
     )
 }
 
@@ -298,6 +313,7 @@ fn generate_toolbar_separator_css(theme_class: &str, palette: &ColorPalette) -> 
 .{theme} .toolbar-separator {{
     min-width: {width};
     background: {bg};
+    opacity: 0.65;
     margin: {margin};
 }}
 "#,
@@ -308,24 +324,94 @@ fn generate_toolbar_separator_css(theme_class: &str, palette: &ColorPalette) -> 
     )
 }
 
-/// Generate toolbar popover CSS for a specific theme
-fn generate_toolbar_popover_css(theme_class: &str, palette: &ColorPalette) -> String {
+/// Generate table picker cell styling for a specific theme
+fn generate_table_picker_css(theme_class: &str, palette: &ColorPalette) -> String {
     format!(
         r#"
-/* Popover styling - {theme} */
-.{theme} .toolbar-popover {{
-    background: {bg};
-    border: {border_width} {border_color};
-    border-radius: {radius};
-    padding: {padding};
+/* Table picker styling - {theme} */
+.{theme} .toolbar-table-picker-cell {{
+    min-width: 12px;
+    min-height: 12px;
+    padding: 0;
+    margin: 0;
+    border-radius: 2px;
+    border: 1px solid {border};
+    background: transparent;
+}}
+
+.{theme} .toolbar-table-picker-cell:hover,
+.{theme} .toolbar-table-picker-cell-active {{
+    border: 1px solid {active};
+    background: {active_bg};
+}}
+
+.{theme} .toolbar-dropdown-btn {{
+    padding-right: 2px;
 }}
 "#,
         theme = theme_class,
-        bg = palette.toolbar_popover_bg,
-        border_width = TOOLBAR_POPOVER_BORDER_WIDTH,
-        border_color = palette.toolbar_popover_border,
-        radius = TOOLBAR_BORDER_RADIUS,
-        padding = TOOLBAR_POPOVER_PADDING,
+        border = palette.toolbar_separator,
+        active = palette.toolbar_button_hover,
+        active_bg = palette.toolbar_button_disabled_bg,
+    )
+}
+
+/// Generate menu-like styling for toolbar popover entry buttons.
+///
+/// This aligns toolbar popover entries with menubar popover items:
+/// same text style, row height, padding, colors, and hover/active backgrounds.
+fn generate_toolbar_popover_entry_css(theme_class: &str, palette: &ColorPalette) -> String {
+    let item_hover_bg = if theme_class.contains("light") {
+        "#e8e8e8"
+    } else {
+        "#3d3d3d"
+    };
+
+    format!(
+        r#"
+/* Toolbar popover entries (menu-style) - {theme} */
+.{theme} popover .toolbar-headings-popover-btn,
+.{theme} popover .toolbar-functions-popover-btn {{
+    background: transparent;
+    color: {color};
+    padding: {item_padding};
+    border-radius: {radius};
+    min-height: {item_min_height};
+    margin: {item_margin};
+    font-size: {font_size};
+    font-weight: {font_weight};
+    border: none;
+    box-shadow: none;
+    transition: background 0.15s, color 0.15s;
+}}
+
+.{theme} popover .toolbar-headings-popover-btn:hover,
+.{theme} popover .toolbar-functions-popover-btn:hover {{
+    background: {hover_bg};
+    color: {color};
+}}
+
+.{theme} popover .toolbar-headings-popover-btn:active,
+.{theme} popover .toolbar-functions-popover-btn:active {{
+    background: {hover_bg};
+    color: {color};
+}}
+
+.{theme} popover .toolbar-headings-popover-btn label,
+.{theme} popover .toolbar-functions-popover-btn label {{
+    color: inherit;
+    font-weight: inherit;
+}}
+"#,
+        theme = theme_class,
+        color = palette.titlebar_foreground,
+        item_padding = POPOVER_ITEM_PADDING,
+        radius = POPOVER_BORDER_RADIUS,
+        item_min_height = POPOVER_ITEM_MIN_HEIGHT,
+        item_margin = POPOVER_ITEM_MARGIN,
+        font_size = MENU_FONT_SIZE,
+        font_weight = MENU_ITEM_FONT_WEIGHT,
+        hover_bg = item_hover_bg,
     )
 }
 
@@ -349,10 +435,6 @@ mod tests {
         assert!(
             css.contains(".toolbar-separator"),
             "Should contain toolbar-separator class"
-        );
-        assert!(
-            css.contains(".toolbar-popover"),
-            "Should contain toolbar-popover class"
         );
 
         // Verify both themes present
@@ -413,10 +495,11 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_toolbar_popover_generation() {
-        let css = generate_toolbar_popover_css("marco-theme-light", &LIGHT_PALETTE);
-        assert!(css.contains(".toolbar-popover"));
-        assert!(css.contains("background"));
-        assert!(css.contains("border"));
+    fn smoke_test_toolbar_popover_entry_generation() {
+        let css = generate_toolbar_popover_entry_css("marco-theme-light", &LIGHT_PALETTE);
+        assert!(css.contains(".toolbar-headings-popover-btn"));
+        assert!(css.contains(".toolbar-functions-popover-btn"));
+        assert!(css.contains(POPOVER_ITEM_PADDING));
+        assert!(css.contains(POPOVER_ITEM_MIN_HEIGHT));
     }
 }

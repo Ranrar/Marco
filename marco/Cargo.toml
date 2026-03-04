@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.18.0"
+version = "0.20.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
@@ -30,6 +30,9 @@ syntect = { workspace = true }
 toml = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+reqwest = { workspace = true }
+katex-rs = { workspace = true }
+htmlescape = { workspace = true }
 
 # UI dependencies (common)
 gtk4 = { workspace = true }

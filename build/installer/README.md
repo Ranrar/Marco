@@ -8,8 +8,8 @@ All packages are output directly to this directory:
 
 ```
 installer/
-├── marco-suite_alpha_VERSION_linux_amd64.deb     # Linux package
-└── marco-suite_alpha_VERSION_windows_amd64.zip   # Windows portable package
+├── marco-suite_VERSION_linux_amd64.deb     # Linux package
+└── marco-suite_VERSION_windows_amd64.zip   # Windows portable package
 ```
 
 ## Creating Installers
@@ -17,7 +17,7 @@ installer/
 ### Linux (.deb)
 ```bash
 bash build/linux/build_deb.sh --no-bump
-# Output: build/installer/marco-suite_alpha_VERSION_linux_amd64.deb
+# Output: build/installer/marco-suite_VERSION_linux_amd64.deb
 ```
 
 ### Windows (.zip)
@@ -28,14 +28,14 @@ bash build/linux/build_deb.sh --no-bump
 # Skip build (use existing binaries):
 .\build\windows\build_portable.ps1 -SkipBuild
 
-# Output: build/installer/marco-suite_alpha_VERSION_windows_amd64.zip
+# Output: build/installer/marco-suite_VERSION_windows_amd64.zip
 ```
 
 ## Installation
 
 ### Linux
 ```bash
-sudo dpkg -i build/installer/marco-suite_alpha_VERSION_linux_amd64.deb
+sudo dpkg -i build/installer/marco-suite_VERSION_linux_amd64.deb
 # If dependencies are missing:
 sudo apt -f install
 ```
@@ -49,20 +49,19 @@ sudo apt -f install
 
 The `.github/workflows/` directory contains automated build workflows:
 
-- **alpha-deb-release.yml**: Builds Linux package and updates Alpha release
-- **alpha-win-release.yml**: Builds Windows package and updates Alpha release
+- **alpha-release.yml**: Builds Linux/Windows packages and updates the `release` GitHub release
 
 Both workflows:
 - Build binaries with explicit targets (x86_64-unknown-linux-gnu / x86_64-pc-windows-msvc)
 - Create installer packages
-- Upload to GitHub Releases (Alpha tag)
+- Upload to GitHub Releases (`release` tag, beta channel)
 - Don't bump versions (use existing versions from `build/version.json`)
 
 ## Naming Convention
 
-All packages follow this alpha-naming pattern:
-- Linux: `marco-suite_alpha_<version>_linux_amd64.deb`
-- Windows: `marco-suite_alpha_<version>_windows_amd64.zip`
+All packages follow this release naming pattern:
+- Linux: `marco-suite_<version>_linux_amd64.deb`
+- Windows: `marco-suite_<version>_windows_amd64.zip`
 
 Where `<version>` comes from `build/version.json` (platform-specific: `linux.marco` or `windows.marco`).
 
@@ -78,17 +77,22 @@ Versions are tracked in `build/version.json` with separate versions for Linux an
 ```json
 {
   "linux": {
-    "core": "0.16.0",
-    "marco": "0.16.0",
-    "polo": "0.16.0"
+    "core": "0.20.0",
+    "marco": "0.20.0",
+    "polo": "0.20.0"
   },
   "windows": {
-    "core": "0.16.0",
-    "marco": "0.16.0",
-    "polo": "0.16.0"
+    "core": "0.20.0",
+    "marco": "0.20.0",
+    "polo": "0.20.0"
   }
 }
 ```
+
+## Release Channel
+
+- These are normal release artifacts (no alpha suffix in filenames).
+- Current channel status: **Beta**.
 
 By default, builds use existing versions. To bump versions:
 

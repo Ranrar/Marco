@@ -25,7 +25,7 @@ if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
 }
 
 if (-not $runningOnWindows) {
-    Write-Error "This script must be run on Windows. You appear to be running PowerShell on a non-Windows OS, which is not supported for building the Windows GTK binaries. Use a Windows machine/VM or the GitHub Actions windows-latest job (alpha-release workflow)."
+    Write-Error "This script must be run on Windows. You appear to be running PowerShell on a non-Windows OS, which is not supported for building the Windows GTK binaries. Use a Windows machine/VM or the GitHub Actions windows-latest release workflow."
     exit 1
 }
 
@@ -51,7 +51,7 @@ EXAMPLES:
     .\build\windows\build_portable.ps1 -SkipBuild
 
 OUTPUT:
-    build\installer\marco-suite_alpha_<version>_windows_amd64.zip
+    build\installer\marco-suite_<version>_windows_amd64.zip
 
 STRUCTURE:
     MarcoPortable/
@@ -400,7 +400,7 @@ if (-not (Test-Path $poloExe)) {
 }
 
 # Create staging directory
-$stagingName = "marco-suite_alpha_${version}_windows_amd64"
+$stagingName = "marco-suite_${version}_windows_amd64"
 $stagingRoot = Join-Path $projectRoot "build\windows\temp\$stagingName"
 
 if (Test-Path $stagingRoot) {

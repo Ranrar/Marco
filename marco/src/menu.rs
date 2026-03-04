@@ -1,42 +1,105 @@
 use core::logic::layoutstate::{layout_state_label, LayoutState};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
+use std::time::Duration;
 
 use gtk4::gdk;
 use gtk4::gio;
 use gtk4::{
-    self, prelude::*, Align, Box as GtkBox, Button, Label, Orientation, Paned, Picture,
+    self, prelude::*, Align, Box as GtkBox, Button, Label, Orientation, Paned, Picture, Separator,
     WindowHandle,
 };
 use log::trace;
 use rsvg::{CairoRenderer, Loader};
 
 use crate::components::language::Translations;
+use crate::ui::popover_state::RootPopoverState;
 
 // Type alias for the complex rebuild callback type
 type RebuildCallback = Box<dyn Fn()>;
 type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 
-#[derive(Clone, Default)]
+const HOVER_SWITCH_DELAY_MS: u64 = 140;
+
+#[derive(Clone)]
 struct HoverMenuSwitchState {
-    /// Whether any top-level menu popover is currently open.
-    menu_open: Rc<std::cell::Cell<bool>>,
-    /// The currently open popover, if any.
-    current_popover: Rc<RefCell<Option<gtk4::PopoverMenu>>>,
+    root_state: RootPopoverState,
+    pending_hover_switch: Rc<RefCell<Option<gtk4::glib::SourceId>>>,
 }
 
 impl HoverMenuSwitchState {
-    fn new() -> Self {
-        Self::default()
+    /// Creates a new state that shares an existing root popover state.
+    fn from_root_state(root_state: RootPopoverState) -> Self {
+        Self {
+            root_state,
+            pending_hover_switch: Rc::new(RefCell::new(None)),
+        }
     }
 
-    fn set_current(&self, popover: Option<gtk4::PopoverMenu>) {
-        *self.current_popover.borrow_mut() = popover;
+    fn set_current(&self, popover: Option<gtk4::Popover>) {
+        self.root_state.set_current(popover);
     }
 
-    fn current(&self) -> Option<gtk4::PopoverMenu> {
-        self.current_popover.borrow().clone()
+    fn current(&self) -> Option<gtk4::Popover> {
+        self.root_state.current()
+    }
+
+    fn menu_open(&self) -> bool {
+        self.root_state.is_root_open()
+    }
+
+    fn set_menu_open(&self, open: bool) {
+        self.root_state.set_open(open);
+    }
+
+    fn cancel_pending_hover_switch(&self) {
+        if let Some(source_id) = self.pending_hover_switch.borrow_mut().take() {
+            source_id.remove();
+        }
+    }
+
+    fn schedule_hover_switch(&self, target: gtk4::Popover, before_open: Option<Rc<dyn Fn()>>) {
+        self.cancel_pending_hover_switch();
+
+        let switch_state = self.clone();
+        let source_id = gtk4::glib::timeout_add_local(
+            Duration::from_millis(HOVER_SWITCH_DELAY_MS),
+            move || {
+                if !switch_state.menu_open() {
+                    return gtk4::glib::ControlFlow::Break;
+                }
+
+                if switch_state.current().is_some_and(|cur| cur == target) {
+                    return gtk4::glib::ControlFlow::Break;
+                }
+
+                switch_state.switch_to(target.clone(), before_open.clone());
+                gtk4::glib::ControlFlow::Break
+            },
+        );
+
+        *self.pending_hover_switch.borrow_mut() = Some(source_id);
+    }
+
+    fn switch_to(&self, popover: gtk4::Popover, before_open: Option<Rc<dyn Fn()>>) {
+        let previous = self.current();
+
+        self.set_menu_open(true);
+        self.set_current(Some(popover.clone()));
+
+        if let Some(prev) = previous {
+            if prev != popover {
+                prev.popdown();
+            }
+        }
+
+        if let Some(callback) = before_open {
+            callback();
+        }
+
+        popover.popup();
+        popover.grab_focus();
     }
 }
 
@@ -175,20 +238,40 @@ fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwit
 
     // Create popover with the menu model
     let popover = gtk4::PopoverMenu::from_model(Some(menu));
+    let popover_base: gtk4::Popover = popover.clone().upcast();
     popover.set_parent(&button);
+    crate::ui::popover_state::enforce_dismiss_behavior(&popover_base);
+    popover.set_cascade_popdown(true);
+    popover.set_position(gtk4::PositionType::Bottom);
 
     // Track open/close state so hover switching only activates after first open.
     {
         let switch_state = switch_state.clone();
-        let popover_for_closed = popover.clone();
+        let popover_for_closed = popover_base.clone();
         popover.connect_closed(move |_| {
             // Only clear state if THIS popover is still the active one.
             if switch_state
                 .current()
                 .is_some_and(|cur| cur == popover_for_closed)
             {
-                switch_state.menu_open.set(false);
+                switch_state.set_menu_open(false);
                 switch_state.set_current(None);
+            }
+        });
+    }
+
+    // Defensive close-on-focus-leave: if focus moves outside this button+popover,
+    // pop down to mimic native dropdown menu behavior.
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_focus_out = popover_base.clone();
+        popover.connect_notify_local(Some("has-focus"), move |pop, _| {
+            if !pop.has_focus()
+                && switch_state
+                    .current()
+                    .is_some_and(|cur| cur == popover_for_focus_out)
+            {
+                popover_for_focus_out.popdown();
             }
         });
     }
@@ -196,31 +279,26 @@ fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwit
     // Hovering another menu button while a menu is open should switch menus.
     {
         let switch_state = switch_state.clone();
-        let popover_for_hover = popover.clone();
+        let popover_for_hover = popover_base.clone();
         let motion = gtk4::EventControllerMotion::new();
+        let switch_state_for_enter = switch_state.clone();
         motion.connect_enter(move |_ctrl, _x, _y| {
-            if !switch_state.menu_open.get() {
+            if !switch_state_for_enter.menu_open() {
                 return;
             }
 
-            if switch_state
+            if switch_state_for_enter
                 .current()
                 .is_some_and(|cur| cur == popover_for_hover)
             {
                 return;
             }
 
-            let previous = switch_state.current();
-
-            // Set current BEFORE closing previous, so the previous popover's `closed`
-            // signal doesn't clear our open state while switching.
-            switch_state.menu_open.set(true);
-            switch_state.set_current(Some(popover_for_hover.clone()));
-
-            if let Some(prev) = previous {
-                prev.popdown();
-            }
-            popover_for_hover.popup();
+            switch_state_for_enter.schedule_hover_switch(popover_for_hover.clone(), None);
+        });
+        let switch_state_for_leave = switch_state.clone();
+        motion.connect_leave(move |_ctrl| {
+            switch_state_for_leave.cancel_pending_hover_switch();
         });
         button.add_controller(motion);
     }
@@ -228,52 +306,315 @@ fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwit
     // Connect button click to show popover
     {
         let switch_state = switch_state.clone();
-        let popover_for_click = popover.clone();
+        let popover_for_click = popover_base.clone();
         button.connect_clicked(move |_| {
+            switch_state.cancel_pending_hover_switch();
+
             // Toggle if this menu is already open.
             if switch_state
                 .current()
                 .is_some_and(|cur| cur == popover_for_click)
-                && switch_state.menu_open.get()
+                && switch_state.menu_open()
             {
                 popover_for_click.popdown();
                 // `closed` handler will clear state.
                 return;
             }
 
-            let previous = switch_state.current();
-
-            // Mark open and switch current before closing previous.
-            switch_state.menu_open.set(true);
-            switch_state.set_current(Some(popover_for_click.clone()));
-
-            if let Some(prev) = previous {
-                prev.popdown();
-            }
-
-            popover_for_click.popup();
+            switch_state.switch_to(popover_for_click.clone(), None);
         });
     }
 
     button
 }
 
+fn action_name_from_detailed(detailed_action: &str) -> Option<&str> {
+    detailed_action
+        .strip_prefix("app.")
+        .or_else(|| detailed_action.strip_prefix("win."))
+}
+
+fn action_shortcut_text(_action_name: &str) -> &'static str {
+    ""
+}
+
+fn action_check_state(app: Option<&gtk4::Application>, action_name: &str) -> (bool, bool, bool) {
+    let Some(app) = app else {
+        return (false, false, false);
+    };
+
+    let enabled = app
+        .lookup_action(action_name)
+        .map(|a| a.is_enabled())
+        .unwrap_or(false);
+
+    if !action_name.starts_with("tools_toggle_") {
+        return (enabled, false, false);
+    }
+
+    let checked = app
+        .lookup_action(action_name)
+        .and_then(|a| a.downcast::<gio::SimpleAction>().ok())
+        .and_then(|a| a.state())
+        .and_then(|state| state.get::<bool>())
+        .unwrap_or(false);
+
+    (enabled, true, checked)
+}
+
+fn create_tools_menu_row(
+    label: &str,
+    detailed_action: Option<&str>,
+    popover: &gtk4::Popover,
+    app: Option<&gtk4::Application>,
+) -> Button {
+    let button = Button::new();
+    button.set_halign(Align::Fill);
+    button.set_hexpand(true);
+    button.set_has_frame(false);
+    button.add_css_class("editor-context-menu-btn");
+    button.add_css_class("tools-popover-row");
+
+    let row = GtkBox::new(Orientation::Horizontal, 12);
+    row.set_hexpand(true);
+
+    let title = Label::new(Some(label));
+    title.set_halign(Align::Start);
+    title.set_hexpand(true);
+    title.set_xalign(0.0);
+    title.add_css_class("tools-popover-label");
+    row.append(&title);
+
+    let right = GtkBox::new(Orientation::Horizontal, 8);
+    right.set_halign(Align::End);
+    right.set_hexpand(false);
+    right.add_css_class("tools-popover-right");
+
+    let (enabled, can_show_check, is_checked, shortcut_text) =
+        if let Some(detailed) = detailed_action {
+            if let Some(action_name) = action_name_from_detailed(detailed) {
+                let (enabled, can_show_check, is_checked) = action_check_state(app, action_name);
+                (
+                    enabled,
+                    can_show_check,
+                    is_checked,
+                    action_shortcut_text(action_name),
+                )
+            } else {
+                (false, false, false, "")
+            }
+        } else {
+            (false, false, false, "")
+        };
+
+    let shortcut = Label::new(Some(shortcut_text));
+    shortcut.set_halign(Align::End);
+    shortcut.set_hexpand(false);
+    shortcut.set_xalign(1.0);
+    shortcut.set_width_chars(8);
+    shortcut.add_css_class("tools-popover-shortcut");
+    right.append(&shortcut);
+
+    let check = Label::new(Some("✓"));
+    check.set_halign(Align::End);
+    check.set_hexpand(false);
+    check.set_xalign(1.0);
+    check.set_width_chars(2);
+    check.add_css_class("tools-popover-check");
+    if can_show_check && is_checked {
+        check.add_css_class("is-visible");
+    }
+    right.append(&check);
+
+    row.append(&right);
+    button.set_child(Some(&row));
+    button.set_sensitive(enabled);
+
+    if let Some(detailed) = detailed_action.map(str::to_string) {
+        let popover = popover.clone();
+        button.connect_clicked(move |btn| {
+            let Some(action_name) = action_name_from_detailed(&detailed).map(str::to_string) else {
+                popover.popdown();
+                return;
+            };
+
+            let app = btn
+                .root()
+                .and_then(|r| r.downcast::<gtk4::ApplicationWindow>().ok())
+                .and_then(|w| w.application());
+
+            if let Some(app) = app {
+                app.activate_action(&action_name, None::<&gtk4::glib::Variant>);
+            }
+            popover.popdown();
+        });
+    }
+
+    button
+}
+
+fn create_tools_menu_button(
+    label: &str,
+    tools_menu: &gio::Menu,
+    switch_state: HoverMenuSwitchState,
+) -> Button {
+    let button = Button::with_label(label);
+    button.add_css_class("menu-button");
+    button.set_has_frame(false);
+
+    let popover = gtk4::Popover::new();
+    popover.set_parent(&button);
+    crate::ui::popover_state::enforce_dismiss_behavior(&popover);
+    popover.set_cascade_popdown(true);
+    popover.set_position(gtk4::PositionType::Bottom);
+    popover.add_css_class("menu");
+    popover.add_css_class("tools-menu-popover");
+
+    let tools_menu = tools_menu.clone();
+    let popover_for_rebuild = popover.clone();
+    let button_for_rebuild = button.clone();
+    let rebuild: Rc<dyn Fn()> = Rc::new(move || {
+        let container = GtkBox::new(Orientation::Vertical, 0);
+        let app = button_for_rebuild
+            .root()
+            .and_then(|r| r.downcast::<gtk4::ApplicationWindow>().ok())
+            .and_then(|w| w.application());
+
+        let mut any_section_rendered = false;
+        for section_idx in 0..tools_menu.n_items() {
+            let Some(section_model) = tools_menu.item_link(section_idx, "section") else {
+                continue;
+            };
+
+            if section_model.n_items() <= 0 {
+                continue;
+            }
+
+            if any_section_rendered {
+                container.append(&Separator::new(Orientation::Horizontal));
+            }
+            any_section_rendered = true;
+
+            for item_idx in 0..section_model.n_items() {
+                let label_text = section_model
+                    .item_attribute_value(item_idx, "label", None)
+                    .and_then(|v| v.str().map(str::to_string))
+                    .unwrap_or_default();
+
+                let detailed_action = section_model
+                    .item_attribute_value(item_idx, "action", None)
+                    .and_then(|v| v.str().map(str::to_string));
+
+                let row = create_tools_menu_row(
+                    &label_text,
+                    detailed_action.as_deref(),
+                    &popover_for_rebuild,
+                    app.as_ref(),
+                );
+                container.append(&row);
+            }
+        }
+
+        popover_for_rebuild.set_child(Some(&container));
+    });
+
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_closed = popover.clone();
+        popover.connect_closed(move |_| {
+            if switch_state
+                .current()
+                .is_some_and(|cur| cur == popover_for_closed)
+            {
+                switch_state.set_menu_open(false);
+                switch_state.set_current(None);
+            }
+        });
+    }
+
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_focus_out = popover.clone();
+        popover.connect_notify_local(Some("has-focus"), move |pop, _| {
+            if !pop.has_focus()
+                && switch_state
+                    .current()
+                    .is_some_and(|cur| cur == popover_for_focus_out)
+            {
+                popover_for_focus_out.popdown();
+            }
+        });
+    }
+
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_hover = popover.clone();
+        let rebuild_for_hover = rebuild.clone();
+        let motion = gtk4::EventControllerMotion::new();
+        let switch_state_for_enter = switch_state.clone();
+        motion.connect_enter(move |_ctrl, _x, _y| {
+            if !switch_state_for_enter.menu_open() {
+                return;
+            }
+
+            if switch_state_for_enter
+                .current()
+                .is_some_and(|cur| cur == popover_for_hover)
+            {
+                return;
+            }
+
+            switch_state_for_enter
+                .schedule_hover_switch(popover_for_hover.clone(), Some(rebuild_for_hover.clone()));
+        });
+        let switch_state_for_leave = switch_state.clone();
+        motion.connect_leave(move |_ctrl| {
+            switch_state_for_leave.cancel_pending_hover_switch();
+        });
+        button.add_controller(motion);
+    }
+
+    {
+        let switch_state = switch_state.clone();
+        let popover_for_click = popover.clone();
+        let rebuild = rebuild.clone();
+        button.connect_clicked(move |_| {
+            switch_state.cancel_pending_hover_switch();
+
+            if switch_state
+                .current()
+                .is_some_and(|cur| cur == popover_for_click)
+                && switch_state.menu_open()
+            {
+                popover_for_click.popdown();
+                return;
+            }
+
+            switch_state.switch_to(popover_for_click.clone(), Some(rebuild.clone()));
+        });
+    }
+
+    rebuild();
+    button
+}
+
 pub struct MenuBarState {
     pub menu_bar: GtkBox,
     pub recent_menu: gio::Menu,
+    pub bookmarks_menu: gio::Menu,
     file_menu: gio::Menu,
     edit_menu: gio::Menu,
-    document_menu: gio::Menu,
-    bookmarks_menu: gio::Menu,
-    format_menu: gio::Menu,
-    view_menu: gio::Menu,
+    inline_menu: gio::Menu,
+    blocks_menu: gio::Menu,
+    modules_menu: gio::Menu,
+    pub tools_menu: gio::Menu,
     help_menu: gio::Menu,
     file_btn: Button,
     edit_btn: Button,
-    document_btn: Button,
-    bookmarks_btn: Button,
-    format_btn: Button,
-    view_btn: Button,
+    inline_btn: Button,
+    blocks_btn: Button,
+    modules_btn: Button,
+    tools_btn: Button,
     help_btn: Button,
     recent_menu_item: gio::MenuItem,
 }
@@ -287,109 +628,71 @@ fn clear_menu(menu: &gio::Menu) {
 pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Translations) {
     menu_state.file_btn.set_label(&translations.menu.file);
     menu_state.edit_btn.set_label(&translations.menu.edit);
-    menu_state
-        .document_btn
-        .set_label(&translations.menu.document);
-    menu_state
-        .bookmarks_btn
-        .set_label(&translations.menu.bookmarks);
-    menu_state.format_btn.set_label(&translations.menu.format);
-    menu_state.view_btn.set_label(&translations.menu.view);
+    menu_state.inline_btn.set_label(&translations.menu.inline);
+    menu_state.blocks_btn.set_label(&translations.menu.blocks);
+    menu_state.modules_btn.set_label(&translations.menu.modules);
+    menu_state.tools_btn.set_label(&translations.menu.tools);
     menu_state.help_btn.set_label(&translations.menu.help);
 
     clear_menu(&menu_state.file_menu);
-    menu_state
-        .recent_menu_item
-        .set_label(Some(&translations.menu.recent));
-    menu_state
-        .recent_menu_item
-        .set_submenu(Some(&menu_state.recent_menu));
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.new), Some("app.new"));
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.open), Some("app.open"));
-    menu_state
-        .file_menu
-        .append_item(&menu_state.recent_menu_item);
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.save), Some("app.save"));
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.save_as), Some("app.save_as"));
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.export), Some("app.export"));
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.settings), Some("app.settings"));
-    menu_state
-        .file_menu
-        .append(Some(&translations.menu.quit), Some("app.quit"));
+    crate::ui::menu_items::files::populate_file_menu(
+        &menu_state.file_menu,
+        &menu_state.recent_menu_item,
+        &menu_state.recent_menu,
+        translations,
+    );
 
     clear_menu(&menu_state.edit_menu);
-    menu_state
-        .edit_menu
-        .append(Some(&translations.menu.undo), Some("app.undo"));
-    menu_state
-        .edit_menu
-        .append(Some(&translations.menu.redo), Some("app.redo"));
-    menu_state
-        .edit_menu
-        .append(Some(&translations.menu.cut), Some("app.cut"));
-    menu_state
-        .edit_menu
-        .append(Some(&translations.menu.copy), Some("app.copy"));
-    menu_state
-        .edit_menu
-        .append(Some(&translations.menu.paste), Some("app.paste"));
-    menu_state
-        .edit_menu
-        .append(Some(&translations.menu.search_replace), Some("app.search"));
+    crate::ui::menu_items::edit::populate_edit_menu(&menu_state.edit_menu, translations);
 
-    clear_menu(&menu_state.document_menu);
-    menu_state.document_menu.append(
-        Some(&translations.menu.document_builder),
-        Some("app.document_builder"),
+    clear_menu(&menu_state.inline_menu);
+    crate::ui::menu_items::inline::populate_inline_menu(&menu_state.inline_menu, translations);
+
+    clear_menu(&menu_state.blocks_menu);
+    crate::ui::menu_items::blocks::populate_blocks_menu(&menu_state.blocks_menu, translations);
+
+    clear_menu(&menu_state.modules_menu);
+    crate::ui::menu_items::modules::populate_modules_menu(&menu_state.modules_menu, translations);
+
+    clear_menu(&menu_state.tools_menu);
+    crate::ui::menu_items::tools::populate_tools_menu(
+        &menu_state.tools_menu,
+        translations,
+        &crate::ui::menu_items::tools::ToolsMenuState {
+            show_raw_html: true,
+            wrap_enabled: false,
+            line_numbers_enabled: true,
+            sync_scrolling_enabled: true,
+            auto_pairing_enabled: true,
+            tabs_to_spaces_enabled: true,
+            syntax_colors_enabled: true,
+            markdown_linting_enabled: true,
+            rtl_text_direction_enabled: false,
+        },
     );
-    menu_state.document_menu.append(
-        Some(&translations.menu.document_splitter),
-        Some("app.document_splitter"),
-    );
-
-    clear_menu(&menu_state.bookmarks_menu);
-    menu_state
-        .bookmarks_menu
-        .append(Some(&translations.menu.no_bookmarks), None);
-
-    clear_menu(&menu_state.format_menu);
-    menu_state
-        .format_menu
-        .append(Some(&translations.menu.bold), Some("app.bold"));
-    menu_state
-        .format_menu
-        .append(Some(&translations.menu.italic), Some("app.italic"));
-    menu_state
-        .format_menu
-        .append(Some(&translations.menu.code), Some("app.code"));
-
-    clear_menu(&menu_state.view_menu);
-    menu_state
-        .view_menu
-        .append(Some(&translations.menu.html_preview), Some("app.view_html"));
-    menu_state
-        .view_menu
-        .append(Some(&translations.menu.code_view), Some("app.view_code"));
 
     clear_menu(&menu_state.help_menu);
+    menu_state.help_menu.append(
+        Some(&translations.menu.markdown_reference),
+        Some("app.markdown_reference"),
+    );
+    menu_state.help_menu.append(
+        Some(&translations.menu.walkthrough),
+        Some("app.walkthrough"),
+    );
+    menu_state.help_menu.append(
+        Some(&translations.menu.keyboard_shortcuts),
+        Some("app.keyboard_shortcuts"),
+    );
     menu_state
         .help_menu
         .append(Some(&translations.menu.about), Some("app.about"));
 }
 
-pub fn main_menu_structure(translations: &Translations) -> MenuBarState {
+pub fn main_menu_structure(
+    translations: &Translations,
+    root_popover_state: RootPopoverState,
+) -> MenuBarState {
     // File menu with document operations and application settings
     let file_menu = gio::Menu::new();
 
@@ -405,17 +708,17 @@ pub fn main_menu_structure(translations: &Translations) -> MenuBarState {
     // Edit menu with text editing and search operations
     let edit_menu = gio::Menu::new();
 
-    // Document menu with builder and splitter tools
-    let document_menu = gio::Menu::new();
+    // Inline menu with inline markdown options
+    let inline_menu = gio::Menu::new();
 
-    // Bookmarks menu (empty for now)
-    let bookmarks_menu = gio::Menu::new();
+    // Blocks menu with block markdown options
+    let blocks_menu = gio::Menu::new();
 
-    // Format menu with text styling options
-    let format_menu = gio::Menu::new();
+    // Modules menu with container/composite markdown options
+    let modules_menu = gio::Menu::new();
 
-    // View menu with display and layout options
-    let view_menu = gio::Menu::new();
+    // Tools menu with quick toggles and render-mode control
+    let tools_menu = gio::Menu::new();
 
     // Help menu with application information
     let help_menu = gio::Menu::new();
@@ -425,36 +728,47 @@ pub fn main_menu_structure(translations: &Translations) -> MenuBarState {
     menu_box.add_css_class("menubar");
 
     // Shared state for hover-based menu switching.
-    let switch_state = HoverMenuSwitchState::new();
+    // Uses the caller-provided state so toolbar buttons can close the same root tree.
+    let switch_state = HoverMenuSwitchState::from_root_state(root_popover_state.clone());
+
+    // Bookmarks menu for internal state
+    let bookmarks_menu = gio::Menu::new();
 
     // Create menu buttons
     let file_btn = create_menu_button(&translations.menu.file, &file_menu, switch_state.clone());
     let edit_btn = create_menu_button(&translations.menu.edit, &edit_menu, switch_state.clone());
-    let document_btn = create_menu_button(
-        &translations.menu.document,
-        &document_menu,
+    let inline_btn = create_menu_button(
+        &translations.menu.inline,
+        &inline_menu,
         switch_state.clone(),
     );
+    let blocks_btn = create_menu_button(
+        &translations.menu.blocks,
+        &blocks_menu,
+        switch_state.clone(),
+    );
+    let modules_btn = create_menu_button(
+        &translations.menu.modules,
+        &modules_menu,
+        switch_state.clone(),
+    );
+    let tools_btn =
+        create_tools_menu_button(&translations.menu.tools, &tools_menu, switch_state.clone());
     let bookmarks_btn = create_menu_button(
         &translations.menu.bookmarks,
         &bookmarks_menu,
         switch_state.clone(),
     );
-    let format_btn = create_menu_button(
-        &translations.menu.format,
-        &format_menu,
-        switch_state.clone(),
-    );
-    let view_btn = create_menu_button(&translations.menu.view, &view_menu, switch_state.clone());
     let help_btn = create_menu_button(&translations.menu.help, &help_menu, switch_state);
 
     // Add buttons to the box
     menu_box.append(&file_btn);
     menu_box.append(&edit_btn);
-    menu_box.append(&document_btn);
+    menu_box.append(&inline_btn);
+    menu_box.append(&blocks_btn);
+    menu_box.append(&modules_btn);
+    menu_box.append(&tools_btn);
     menu_box.append(&bookmarks_btn);
-    menu_box.append(&format_btn);
-    menu_box.append(&view_btn);
     menu_box.append(&help_btn);
 
     let menu_state = MenuBarState {
@@ -462,17 +776,18 @@ pub fn main_menu_structure(translations: &Translations) -> MenuBarState {
         recent_menu,
         file_menu,
         edit_menu,
-        document_menu,
         bookmarks_menu,
-        format_menu,
-        view_menu,
+        inline_menu,
+        blocks_menu,
+        modules_menu,
+        tools_menu,
         help_menu,
         file_btn,
         edit_btn,
-        document_btn,
-        bookmarks_btn,
-        format_btn,
-        view_btn,
+        inline_btn,
+        blocks_btn,
+        modules_btn,
+        tools_btn,
         help_btn,
         recent_menu_item,
     };
@@ -505,6 +820,8 @@ pub struct TitlebarConfig<'a> {
     pub split_controller: Option<SplitController>,
     pub asset_root: &'a std::path::Path,
     pub translations: &'a Translations,
+    /// Shared root popover tree state used by menu and toolbar interactions.
+    pub root_popover_state: RootPopoverState,
 }
 
 /// Returns a WindowHandle containing the custom menu bar and all controls.
@@ -522,6 +839,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         split_controller,
         asset_root,
         translations,
+        root_popover_state,
     } = config;
 
     #[cfg(target_os = "linux")]
@@ -554,7 +872,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     headerbar.pack_start(&icon);
 
     // --- Menu bar (next to icon) ---
-    let menu_state = main_menu_structure(translations);
+    let menu_state = main_menu_structure(translations, root_popover_state);
     let menu_bar = menu_state.menu_bar.clone();
     menu_bar.set_valign(Align::Center);
     menu_bar.add_css_class("menubar");

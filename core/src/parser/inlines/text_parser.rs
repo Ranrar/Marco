@@ -60,7 +60,7 @@ pub fn parse_text(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let next_special = text_fragment
         .char_indices()
         .find_map(|(idx, ch)| match ch {
-            '*' | '_' | '`' | '[' | '<' | '!' | '&' | '\n' | '\\' => Some(idx),
+            '*' | '_' | '`' | '[' | '<' | '!' | '&' | '\n' | '\\' | '$' => Some(idx),
             '^' | '~' | '˅' => Some(idx),
             '=' => {
                 if text_fragment[idx..].starts_with("==") {

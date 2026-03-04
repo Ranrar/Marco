@@ -13,16 +13,42 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 - Nothing yet.
 
 ### Changed
-- Nothing yet.
+- Disabled unfinished controls so users can clearly see they are not available yet: Auto Pairing, Enable Markdown Linting, Text Direction, UI Font, UI Font Size, Send Anonymous User Data, and File → Export.
 
 ### Fixed
 - Nothing yet.
 
 ### Removed
-- Nothing yet.
+- Removed the "Custom CSS for Preview" button from the Appearance settings tab.
 
 ### Security
 - Nothing yet.
+
+## [0.20.0] - 2026-03-04
+
+**Uses:** Core 0.20.0
+
+### Added
+- Bookmark system (`components/bookmarks/BookmarkManager`) — full CRUD operations backed by `SettingsManager`; automatic line-position shifting after text insertions; bookmarks grouped by current and other files for menu display.
+- Interactive Markdown table editing (`components/editor/table_edit.rs`) — parse, navigate, and modify tables inline with full row/column insert, delete, move, and alignment operations; `TableActionAvailability` struct drives context-sensitive menu state.
+- Rich editor right-click context menu (`components/editor/contextmenu.rs`) — `GtkPopoverMenu` with clipboard actions (cut, copy, paste, delete, select all), undo/redo, indentation, nested table sub-menu, and bookmark toggle.
+- Mermaid diagram insert dialog (`ui/dialogs/mermaid.rs`) — 6 diagram type templates with live pure-Rust preview, 350 ms debounced updates, and inline error display.
+- Table insert dialog (`ui/dialogs/tables.rs`) — configurable column and row count, optional header row, per-column alignment selection, and Markdown output.
+- Slider deck insert dialog (`ui/dialogs/sliderdeck.rs`) — GTK `ListView`-based slide manager supporting up to 20 slides, optional auto-advance timer, and Markdown output.
+- Platform mention insert dialog (`ui/dialogs/mention.rs`) — platform-aware input validation for GitHub, GitLab, Reddit, and Mastodon; renders platform profile links in the preview.
+- Welcome screen wizard (`ui/dialogs/welcome_screen.rs`) — GTK `Assistant`-based first-run flow with language selection and telemetry opt-in.
+- Expanded settings dialog with dedicated tabs: Appearance, Editor, Layout, Language, Markdown, Debug, and Advanced.
+- Editor font and display configuration manager (`components/editor/display_config.rs`) — `EditorConfiguration` wrapping `EditorDisplaySettings` with cached monospace font loading.
+- Chunked LSP syntax highlighting (`components/editor/lsp_integration.rs`) — highlights applied in batches of 400 via GLib idle callbacks to prevent main-thread frame stutter.
+- Window size and position persistence — window state is saved and restored via `SettingsManager` on startup (`logic/window_state.rs`).
+- Split pane ratio persistence — saved split ratio is restored with retry logic on startup (`logic/split_state.rs`).
+- Mermaid diagram CSS module (`ui/css/mermaid.rs`) — theme-aware stylesheet for rendered diagrams.
+- AI component scaffold (`components/ai/`) — reserved module with an `AiAssistant` trait specification for future in-editor AI assistance.
+- Collaboration component scaffold (`components/collab/`) — reserved module with a `CollabBackend` trait specification for future real-time collaboration.
+
+### Changed
+- CSS system expanded from 5 to 14 modules: added `buttons`, `controls`, `dialog`, `list`, `mermaid`, `radio`, `settings`, `syntax`, and `textfield` modules.
+- Preview code syntax highlighting now uses Syntect (Solarized Light / Monokai Dark themes) via `logic/syntax_highlighter.rs`.
 
 ## [0.18.0] - 2026-02-09
 

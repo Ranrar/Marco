@@ -12,6 +12,7 @@
 //! - `sourceview` - SourceView5 rendering and configuration
 //! - `utilities` - Async extension processing (line wrapping, tab conversion, etc.)
 
+pub mod contextmenu;
 pub mod debounce;
 pub mod display_config;
 pub mod editor_manager;
@@ -19,5 +20,6 @@ pub mod footer;
 pub mod lsp_integration;
 pub mod scroll_sync;
 pub mod sourceview;
+pub mod table_edit;
 pub mod ui;
 pub mod utilities;

@@ -59,7 +59,7 @@
 - `target\windows\x86_64-pc-windows-msvc\release\marco.exe`
 
 ### Portable Package
-- `build\installer\marco-suite_alpha_<version>_windows_amd64.zip`
+- `build\installer\marco-suite_<version>_windows_amd64.zip`
 
 ### Installer
 - `build\installer\marco-suite_installer_<version>_amd64.exe`
@@ -152,3 +152,8 @@ cd /c/code/Marco
 - **Output**: EXE installer
 
 See [README.md](README.md) for detailed documentation.
+
+## Release Channel
+
+- Portable artifacts now use standard release naming (`marco-suite_<version>_windows_amd64.zip`) instead of alpha-tagged filenames.
+- Current channel status: **Beta**.

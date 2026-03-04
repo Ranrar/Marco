@@ -21,6 +21,8 @@ moka = { version = "0.12.13", features = ["sync"] }  # High-performance caching
 unicode-normalization = "0.1.25"                  # Unicode NFC normalization for consistent parsing
 htmlescape = "0.3.1"                              # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting
+katex-rs = "0.2.3"                   # Pure Rust KaTeX math rendering
+mermaid-rs-renderer = { git = "https://github.com/1jehuang/mermaid-rs-renderer", tag = "v0.2.0", default-features = false }  # Pure Rust Mermaid diagram rendering (no CLI)
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.10.3"
@@ -41,6 +43,7 @@ tao = "0.34.5"
 gdk4-win32 = "0.10.3"
 raw-window-handle = "0.6.2"
 urlencoding = "2.1"
+reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
 
 # Test dependencies
 clap = { version = "4.5.58", features = ["derive"] }

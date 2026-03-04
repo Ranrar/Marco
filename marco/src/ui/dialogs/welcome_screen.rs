@@ -30,6 +30,61 @@ fn escape_markup(s: &str) -> String {
     gtk4::glib::markup_escape_text(s).as_str().to_string()
 }
 
+fn find_first_stack_sidebar(root: &gtk4::Widget) -> Option<gtk4::StackSidebar> {
+    if let Ok(sidebar) = root.clone().downcast::<gtk4::StackSidebar>() {
+        return Some(sidebar);
+    }
+
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(found) = find_first_stack_sidebar(&widget) {
+            return Some(found);
+        }
+        child = widget.next_sibling();
+    }
+
+    None
+}
+
+fn tag_native_assistant_sidebars(root: &gtk4::Widget) {
+    if root.has_css_class("sidebar") {
+        root.add_css_class("marco-settings-sidebar");
+        root.add_css_class("marco-welcome-sidebar");
+    }
+
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        tag_native_assistant_sidebars(&widget);
+        child = widget.next_sibling();
+    }
+}
+
+fn apply_welcome_sidebar_classes(assistant: &gtk4::Assistant) {
+    tag_native_assistant_sidebars(assistant.upcast_ref::<gtk4::Widget>());
+
+    if let Some(stack_sidebar) = find_first_stack_sidebar(assistant.upcast_ref::<gtk4::Widget>()) {
+        stack_sidebar.add_css_class("marco-settings-sidebar");
+        stack_sidebar.add_css_class("marco-welcome-sidebar");
+    }
+}
+
+fn infer_theme_class_from_settings(
+    settings_manager: &Arc<core::logic::swanson::SettingsManager>,
+) -> &'static str {
+    let settings = settings_manager.get_settings();
+    let scheme = settings
+        .appearance
+        .as_ref()
+        .and_then(|a| a.editor_mode.as_deref())
+        .unwrap_or("marco-light");
+
+    if scheme.to_ascii_lowercase().contains("dark") {
+        "marco-theme-dark"
+    } else {
+        "marco-theme-light"
+    }
+}
+
 /// Show the welcome screen for first-time users.
 ///
 /// This is non-blocking - it will show the window and immediately return.
@@ -44,10 +99,16 @@ pub fn show_welcome_screen(
 ) -> bool {
     log::info!("show_welcome_screen: Creating welcome assistant");
 
-    // Determine theme from parent window
-    let is_dark_theme = parent
-        .map(|p| p.has_css_class("marco-theme-dark"))
-        .unwrap_or(false);
+    // Determine initial theme from parent (preferred), fallback to settings.
+    let initial_theme_class = parent
+        .map(|p| {
+            if p.has_css_class("marco-theme-dark") {
+                "marco-theme-dark"
+            } else {
+                "marco-theme-light"
+            }
+        })
+        .unwrap_or_else(|| infer_theme_class_from_settings(settings_manager));
 
     // Read initial settings.
     let (initial_language_setting, initial_telemetry_enabled) = {
@@ -118,11 +179,8 @@ pub fn show_welcome_screen(
 
     // Apply dialog and theme CSS classes (reuses dialog.rs palette + typography)
     assistant.add_css_class("marco-dialog");
-    if is_dark_theme {
-        assistant.add_css_class("marco-theme-dark");
-    } else {
-        assistant.add_css_class("marco-theme-light");
-    }
+    assistant.add_css_class("marco-welcome-assistant");
+    assistant.add_css_class(initial_theme_class);
 
     // If parent window is provided, set as transient to stay on top
     if let Some(parent_window) = parent {
@@ -148,12 +206,16 @@ pub fn show_welcome_screen(
     intro_scrolled.set_child(Some(&intro_box));
 
     let title_label = Label::builder().use_markup(true).xalign(0.0).build();
+    title_label.add_css_class("marco-dialog-title");
     intro_box.append(&title_label);
 
     let subtitle_label = Label::builder().use_markup(true).xalign(0.0).build();
+    subtitle_label.add_css_class("marco-dialog-message");
     intro_box.append(&subtitle_label);
 
     let features_header_label = Label::builder().use_markup(true).xalign(0.0).build();
+    features_header_label.add_css_class("marco-dialog-section-label");
+    features_header_label.add_css_class("marco-dialog-section-label-strong");
     intro_box.append(&features_header_label);
 
     let feature_strings = [
@@ -203,9 +265,11 @@ pub fn show_welcome_screen(
         let text_box = GtkBox::new(Orientation::Vertical, 4);
 
         let title_label = Label::builder().use_markup(true).xalign(0.0).build();
+        title_label.add_css_class("marco-dialog-option-title");
         text_box.append(&title_label);
 
         let desc_label = Label::builder().xalign(0.0).wrap(true).build();
+        desc_label.add_css_class("marco-dialog-option-desc");
         text_box.append(&desc_label);
 
         feature_title_labels.push(title_label.clone());
@@ -242,9 +306,12 @@ pub fn show_welcome_screen(
     language_scrolled.set_child(Some(&language_box));
 
     let language_header_label = Label::builder().use_markup(true).xalign(0.0).build();
+    language_header_label.add_css_class("marco-dialog-section-label");
+    language_header_label.add_css_class("marco-dialog-section-label-strong");
     language_box.append(&language_header_label);
 
     let language_description_label = Label::builder().wrap(true).xalign(0.0).build();
+    language_description_label.add_css_class("marco-dialog-message");
     language_box.append(&language_description_label);
 
     // Build dropdown: "System Default" + discovered locales.
@@ -271,6 +338,7 @@ pub fn show_welcome_screen(
         Some(language_expression),
     );
     lang_dropdown.add_css_class("marco-dropdown");
+    lang_dropdown.add_css_class(initial_theme_class);
 
     let language_codes = Rc::new(language_codes);
 
@@ -309,6 +377,8 @@ pub fn show_welcome_screen(
     telemetry_scrolled.set_child(Some(&telemetry_box));
 
     let telemetry_header_label = Label::builder().use_markup(true).xalign(0.0).build();
+    telemetry_header_label.add_css_class("marco-dialog-section-label");
+    telemetry_header_label.add_css_class("marco-dialog-section-label-strong");
     telemetry_box.append(&telemetry_header_label);
 
     let telemetry_not_implemented_label = Label::new(None);
@@ -324,10 +394,12 @@ pub fn show_welcome_screen(
     let telemetry_intro_label = Label::new(None);
     telemetry_intro_label.set_wrap(true);
     telemetry_intro_label.set_xalign(0.0);
+    telemetry_intro_label.add_css_class("marco-dialog-message");
     telemetry_disabled_box.append(&telemetry_intro_label);
 
     let telemetry_checkbox = CheckButton::new();
     telemetry_checkbox.add_css_class("marco-checkbutton");
+    telemetry_checkbox.add_css_class(initial_theme_class);
     telemetry_checkbox.set_active(initial_telemetry_enabled);
     telemetry_disabled_box.append(&telemetry_checkbox);
 
@@ -336,6 +408,7 @@ pub fn show_welcome_screen(
     privacy_details_label.set_wrap(true);
     privacy_details_label.set_xalign(0.0);
     privacy_details_label.set_margin_start(12);
+    privacy_details_label.add_css_class("marco-dialog-option-desc");
     telemetry_disabled_box.append(&privacy_details_label);
 
     telemetry_box.append(&telemetry_disabled_box);
@@ -348,6 +421,10 @@ pub fn show_welcome_screen(
     // ---------------------------------------------------------------------
     // Action buttons (custom, no Cancel)
     // ---------------------------------------------------------------------
+    // Theme the assistant's built-in left sidebar like Settings.
+    // Internal assistant children can be created lazily, so we apply now and again after present.
+    apply_welcome_sidebar_classes(&assistant);
+
     let back_button = Button::with_label(&translations.welcome.back_button);
     back_button.add_css_class("marco-btn");
     back_button.add_css_class("marco-btn-yellow");
@@ -566,6 +643,43 @@ pub fn show_welcome_screen(
     // ---------------------------------------------------------------------
     // Signal handlers (navigation / escape / close-request / prepare)
     // ---------------------------------------------------------------------
+    // Keep welcome assistant theme in sync with parent while open.
+    if let Some(parent_window) = parent {
+        let parent_widget = parent_window.upcast_ref::<gtk4::Widget>().clone();
+        let assistant_for_theme = assistant.clone();
+        let lang_dropdown_for_theme = lang_dropdown.clone();
+        let telemetry_checkbox_for_theme = telemetry_checkbox.clone();
+        let theme_class_state = Rc::new(RefCell::new(initial_theme_class.to_string()));
+
+        parent_widget.connect_notify_local(Some("css-classes"), move |widget, _| {
+            let next_theme = if widget.has_css_class("marco-theme-dark") {
+                "marco-theme-dark"
+            } else {
+                "marco-theme-light"
+            };
+
+            {
+                let mut state = theme_class_state.borrow_mut();
+                if state.as_str() == next_theme {
+                    return;
+                }
+                *state = next_theme.to_string();
+            }
+
+            assistant_for_theme.remove_css_class("marco-theme-dark");
+            assistant_for_theme.remove_css_class("marco-theme-light");
+            assistant_for_theme.add_css_class(next_theme);
+
+            lang_dropdown_for_theme.remove_css_class("marco-theme-dark");
+            lang_dropdown_for_theme.remove_css_class("marco-theme-light");
+            lang_dropdown_for_theme.add_css_class(next_theme);
+
+            telemetry_checkbox_for_theme.remove_css_class("marco-theme-dark");
+            telemetry_checkbox_for_theme.remove_css_class("marco-theme-light");
+            telemetry_checkbox_for_theme.add_css_class(next_theme);
+        });
+    }
+
     // Titlebar close button should behave like window-manager close (X)
     {
         let assistant = assistant.clone();
@@ -637,6 +751,8 @@ pub fn show_welcome_screen(
         let next_button = next_button.clone();
         let finish_button = finish_button.clone();
         move |assistant, _page| {
+            apply_welcome_sidebar_classes(assistant);
+
             let current_page = assistant.current_page();
             let n_pages = assistant.n_pages();
 
@@ -748,6 +864,13 @@ pub fn show_welcome_screen(
     log::info!("show_welcome_screen: Presenting welcome assistant");
     assistant.present();
     assistant.present_with_time((gtk4::glib::monotonic_time() / 1000) as u32);
+
+    {
+        let assistant = assistant.clone();
+        gtk4::glib::idle_add_local_once(move || {
+            apply_welcome_sidebar_classes(&assistant);
+        });
+    }
 
     initial_telemetry_enabled
 }

@@ -54,6 +54,9 @@ pub fn build_advanced_tab(
         false
     };
     telemetry_switch.set_active(current_telemetry_enabled);
+    telemetry_switch.set_sensitive(false);
+    telemetry_switch.add_css_class("marco-control-unavailable");
+    telemetry_switch.set_tooltip_text(Some("Not available yet"));
 
     // Connect telemetry toggle to save settings (numbed - no actual telemetry provider interaction)
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
@@ -94,6 +97,8 @@ pub fn build_advanced_tab(
         &telemetry_switch,
         true, // First row
     );
+    telemetry_row.add_css_class("marco-settings-row-unavailable");
+    telemetry_row.set_tooltip_text(Some("Not available yet"));
     container.append(&telemetry_row);
 
     // Note: telemetry is disabled

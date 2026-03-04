@@ -6,7 +6,7 @@ use std::collections::HashMap;
 // Link reference map: stores [label]: url definitions for later resolution
 #[derive(Debug, Clone, Default)]
 pub struct ReferenceMap {
-    // Key: normalized label (lowercase, whitespace collapsed), Value: (url, optional title)
+    // Key: normalized label (case-folded, whitespace collapsed), Value: (url, optional title)
     defs: HashMap<String, (String, Option<String>)>,
 }
 
@@ -18,7 +18,9 @@ impl ReferenceMap {
     /// Add a link reference definition
     pub fn insert(&mut self, label: &str, url: String, title: Option<String>) {
         let normalized = normalize_label(label);
-        self.defs.insert(normalized, (url, title));
+        // CommonMark: when multiple definitions normalize to the same label,
+        // the first definition takes precedence.
+        self.defs.entry(normalized).or_insert((url, title));
     }
 
     /// Lookup a link reference by label
@@ -35,15 +37,29 @@ impl ReferenceMap {
 }
 
 /// Normalize label according to CommonMark spec:
-/// - Convert to lowercase
+/// - Apply Unicode case-folding semantics (best-effort)
 /// - Collapse consecutive whitespace to single space
 /// - Trim leading/trailing whitespace
 fn normalize_label(label: &str) -> String {
-    label
-        .to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    let collapsed = label.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    // NOTE:
+    // Rust doesn't provide full Unicode case-folding in std. We apply
+    // to_lowercase() plus the critical sharp-s expansion so labels like
+    // "ẞ" and "SS" normalize identically, matching CommonMark examples.
+    let mut out = String::with_capacity(collapsed.len());
+    for ch in collapsed.chars() {
+        for lower in ch.to_lowercase() {
+            if lower == 'ß' {
+                out.push('s');
+                out.push('s');
+            } else {
+                out.push(lower);
+            }
+        }
+    }
+
+    out
 }
 
 // Root document node
@@ -322,6 +338,35 @@ pub enum NodeKind {
         platform: String,
         display: Option<String>,
     },
+    /// Inline math (LaTeX), e.g. `$E = mc^2$`.
+    ///
+    /// Rendering policy:
+    /// - Rendered using KaTeX in inline mode.
+    /// - Content is raw LaTeX source code.
+    InlineMath {
+        content: String,
+    },
+
+    /// Display math (LaTeX), e.g. `$$\int_0^\infty e^{-x^2} dx$$`.
+    ///
+    /// Rendering policy:
+    /// - Rendered using KaTeX in display mode.
+    /// - Content is raw LaTeX source code.
+    DisplayMath {
+        content: String,
+    },
+
+    /// Mermaid diagram (code block with language="mermaid").
+    ///
+    /// Rendering policy:
+    /// - Rendered using mermaid-rs-renderer to SVG.
+    /// - Content is raw Mermaid diagram source code.
+    ///
+    /// This is created during parsing when a fenced code block has
+    /// info string "mermaid".
+    MermaidDiagram {
+        content: String,
+    },
 }
 
 impl Document {
@@ -335,5 +380,39 @@ impl Document {
 
     pub fn is_empty(&self) -> bool {
         self.children.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ReferenceMap;
+
+    #[test]
+    fn smoke_test_reference_map_first_definition_wins() {
+        let mut refs = ReferenceMap::new();
+        refs.insert("foo", "https://first.example".to_string(), None);
+        refs.insert("foo", "https://second.example".to_string(), None);
+
+        let (url, title) = refs.get("foo").expect("reference not found");
+        assert_eq!(url, "https://first.example");
+        assert_eq!(title, &None);
+    }
+
+    #[test]
+    fn smoke_test_reference_map_casefold_sharp_s() {
+        let mut refs = ReferenceMap::new();
+        refs.insert("SS", "/url".to_string(), None);
+
+        let (url, _) = refs.get("ẞ").expect("reference not found");
+        assert_eq!(url, "/url");
+    }
+
+    #[test]
+    fn smoke_test_reference_map_whitespace_collapse() {
+        let mut refs = ReferenceMap::new();
+        refs.insert("Foo\n\t  bar", "/url".to_string(), None);
+
+        assert!(refs.contains("foo bar"));
+        assert!(refs.contains("  FOO   BAR  "));
     }
 }

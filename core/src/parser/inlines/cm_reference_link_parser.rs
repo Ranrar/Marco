@@ -8,6 +8,91 @@ use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
 use nom::Input;
 
+fn find_matching_closing_bracket(
+    s: &str,
+    open_bracket_idx: usize,
+    allow_nested_brackets: bool,
+) -> Option<usize> {
+    if s.as_bytes().get(open_bracket_idx) != Some(&b'[') {
+        return None;
+    }
+
+    let mut depth = 1usize;
+    let mut escaped = false;
+    let mut i = open_bracket_idx + 1;
+
+    while i < s.len() {
+        let ch = s[i..].chars().next()?;
+        let ch_len = ch.len_utf8();
+
+        if escaped {
+            escaped = false;
+            i += ch_len;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+            i += ch_len;
+            continue;
+        }
+
+        if ch == '[' {
+            if allow_nested_brackets {
+                depth += 1;
+                i += ch_len;
+                continue;
+            }
+
+            // Link labels (not link text) cannot contain unescaped '['.
+            return None;
+        }
+
+        if ch == ']' {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                return Some(i);
+            }
+        }
+
+        i += ch_len;
+    }
+
+    None
+}
+
+fn is_valid_reference_label_content(label: &str) -> bool {
+    // CommonMark: max 999 characters in label content.
+    if label.chars().count() > 999 {
+        return false;
+    }
+
+    // Must contain at least one non-whitespace character.
+    if label.trim().is_empty() {
+        return false;
+    }
+
+    // Labels cannot contain unescaped '[' or ']'.
+    let mut escaped = false;
+    for ch in label.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+
+        if ch == '\\' {
+            escaped = true;
+            continue;
+        }
+
+        if ch == '[' || ch == ']' {
+            return false;
+        }
+    }
+
+    true
+}
+
 pub fn parse_reference_link(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let start_input = input;
     let content_str = input.fragment();
@@ -19,21 +104,23 @@ pub fn parse_reference_link(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         )));
     }
 
-    // Find closing bracket for first label.
-    let bracket_pos = content_str[1..].find(']').ok_or_else(|| {
-        nom::Err::Error(nom::error::Error::new(
-            input,
-            nom::error::ErrorKind::TakeUntil,
-        ))
-    })?;
-    if bracket_pos == 0 {
+    // Find closing bracket for first link text, allowing nested brackets and
+    // treating escaped brackets as literal text.
+    let absolute_bracket_pos =
+        find_matching_closing_bracket(content_str, 0, true).ok_or_else(|| {
+            nom::Err::Error(nom::error::Error::new(
+                input,
+                nom::error::ErrorKind::TakeUntil,
+            ))
+        })?;
+
+    if absolute_bracket_pos == 1 {
         return Err(nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::TakeUntil,
         )));
     }
 
-    let absolute_bracket_pos = 1 + bracket_pos;
     let link_text_str = &content_str[1..absolute_bracket_pos];
 
     // Mirror the inline-link parser behavior: avoid treating unmatched backticks
@@ -84,24 +171,44 @@ pub fn parse_reference_link(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
         if after_first_bracket + 1 < content_str.len()
             && content_str.as_bytes()[after_first_bracket + 1] == b']'
         {
+            if !is_valid_reference_label_content(&label) {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Verify,
+                )));
+            }
+
             // Label is the same as the first bracketed text.
             suffix = "[]".to_string();
             consumed_len = after_first_bracket + 2;
         } else {
             // Full reference link: `[label]`
-            let rest = &content_str[(after_first_bracket + 1)..];
-            let close2_rel = rest.find(']').ok_or_else(|| {
-                nom::Err::Error(nom::error::Error::new(
-                    input,
-                    nom::error::ErrorKind::TakeUntil,
-                ))
-            })?;
+            let close2_abs = find_matching_closing_bracket(content_str, after_first_bracket, false)
+                .ok_or_else(|| {
+                    nom::Err::Error(nom::error::Error::new(
+                        input,
+                        nom::error::ErrorKind::TakeUntil,
+                    ))
+                })?;
 
-            let label_str = &rest[..close2_rel];
+            let label_str = &content_str[(after_first_bracket + 1)..close2_abs];
+            if !is_valid_reference_label_content(label_str) {
+                return Err(nom::Err::Error(nom::error::Error::new(
+                    input,
+                    nom::error::ErrorKind::Verify,
+                )));
+            }
+
             label = label_str.to_string();
-            suffix = format!("[{label_str}]");
-            consumed_len = after_first_bracket + 1 + close2_rel + 1;
+            suffix = content_str[after_first_bracket..=close2_abs].to_string();
+            consumed_len = close2_abs + 1;
         }
+    } else if !is_valid_reference_label_content(&label) {
+        // Shortcut label validation.
+        return Err(nom::Err::Error(nom::error::Error::new(
+            input,
+            nom::error::ErrorKind::Verify,
+        )));
     }
 
     let span = to_parser_span(link_text);
@@ -159,6 +266,41 @@ mod tests {
     #[test]
     fn smoke_test_reference_link_does_not_match_inline_link() {
         let input = GrammarSpan::new("[foo](url)");
+        assert!(parse_reference_link(input).is_err());
+    }
+
+    #[test]
+    fn smoke_test_parse_reference_link_full_with_escaped_right_bracket_in_label() {
+        let input = GrammarSpan::new("[foo][ref\\[]");
+        let (rest, node) = parse_reference_link(input).expect("parse failed");
+        assert_eq!(rest.fragment(), &"");
+
+        match node.kind {
+            NodeKind::LinkReference { label, suffix } => {
+                assert_eq!(label, "ref\\[");
+                assert_eq!(suffix, "[ref\\[]");
+            }
+            other => panic!("unexpected node kind: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn smoke_test_parse_reference_link_allows_nested_brackets_in_link_text() {
+        let input = GrammarSpan::new("[link [nested]][ref]");
+        let (rest, node) = parse_reference_link(input).expect("parse failed");
+        assert_eq!(rest.fragment(), &"");
+        assert!(matches!(node.kind, NodeKind::LinkReference { .. }));
+    }
+
+    #[test]
+    fn smoke_test_parse_reference_link_rejects_unescaped_bracket_in_label() {
+        let input = GrammarSpan::new("[foo][ref[bar]]");
+        assert!(parse_reference_link(input).is_err());
+    }
+
+    #[test]
+    fn smoke_test_parse_reference_link_rejects_blank_label_shortcut() {
+        let input = GrammarSpan::new("[  ]");
         assert!(parse_reference_link(input).is_err());
     }
 }

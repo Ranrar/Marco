@@ -21,4 +21,8 @@ pub use logic::cache::{
     ParserCache,
 };
 pub use logic::logger::safe_preview;
+pub use logic::text_completion::{
+    emoji_completion_items, emoji_shortcode_matches_query, emoji_shortcodes_for_completion,
+    normalize_completion_query,
+};
 pub use logic::utf8::{sanitize_input, sanitize_input_with_stats, InputSource, SanitizeStats};

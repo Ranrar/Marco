@@ -304,6 +304,30 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         background: transparent;
         border-width: 0px;
     }}
+
+    /* Unavailable settings rows - {theme} */
+    .{theme} .marco-settings-row-unavailable .marco-settings-row-frame {{
+        border-width: 1px;
+        border-style: dashed;
+        border-color: {border};
+        background: {unavailable_bg};
+    }}
+
+    .{theme} .marco-settings-row-unavailable .marco-settings-row-frame:hover {{
+        border-width: 1px;
+        border-style: dashed;
+        border-color: {border};
+        background: {unavailable_bg};
+    }}
+
+    .{theme} .marco-settings-row-unavailable .marco-settings-header {{
+        color: {unavailable_header};
+    }}
+
+    .{theme} .marco-settings-row-unavailable .marco-settings-description {{
+        color: {unavailable_description};
+        opacity: 1;
+    }}
     
     .{theme} .marco-settings-header {{
         color: {foreground};
@@ -365,6 +389,21 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
             "#f5f5f5"
         } else {
             "#2a2a2a"
+        },
+        unavailable_bg = if theme_class.contains("light") {
+            "rgba(255, 193, 7, 0.08)"
+        } else {
+            "rgba(255, 193, 7, 0.12)"
+        },
+        unavailable_header = if theme_class.contains("light") {
+            "#7a5a00"
+        } else {
+            "#f0c96a"
+        },
+        unavailable_description = if theme_class.contains("light") {
+            "#8a6a00"
+        } else {
+            "#d9b35f"
         },
         hover = palette.toolbar_button_hover,
         active = palette.toolbar_button_active,

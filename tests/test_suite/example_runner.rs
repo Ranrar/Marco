@@ -192,6 +192,15 @@ fn format_node_tree(
         NodeKind::Superscript => "Superscript".to_string(),
         NodeKind::Subscript => "Subscript".to_string(),
         NodeKind::CodeSpan(code) => format!("CodeSpan \"{}\"", truncate(code, 40)),
+        NodeKind::InlineMath { content } => {
+            format!("InlineMath \"{}\"", truncate(content, 40))
+        }
+        NodeKind::DisplayMath { content } => {
+            format!("DisplayMath {} bytes", content.len())
+        }
+        NodeKind::MermaidDiagram { content } => {
+            format!("MermaidDiagram {} bytes", content.len())
+        }
         NodeKind::Link { url, title } => {
             format!("Link(url=\"{}\", title={:?})", truncate(url, 30), title)
         }

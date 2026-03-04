@@ -27,7 +27,7 @@ pub fn build_appearance_tab(
     i18n: &SettingsI18nRegistry,
 ) -> (gtk4::Box, Rc<RefCell<SignalManager>>) {
     use gtk4::{
-        Adjustment, Box as GtkBox, Button, DropDown, Expression, Orientation, PropertyExpression,
+        Adjustment, Box as GtkBox, DropDown, Expression, Orientation, PropertyExpression,
         SpinButton, StringList, StringObject,
     };
 
@@ -200,26 +200,7 @@ pub fn build_appearance_tab(
     );
     container.append(&color_mode_row);
 
-    // === ROW 3: Custom CSS for Preview ===
-    let custom_css_button = Button::with_label(&translations.custom_css_button);
-    custom_css_button.add_css_class("marco-btn");
-    custom_css_button.add_css_class("marco-btn-blue");
-    i18n.bind_button_label(
-        &custom_css_button,
-        Rc::new(|t: &Translations| t.settings.appearance.custom_css_button.clone()),
-    );
-    let custom_css_row = add_setting_row_i18n(
-        i18n,
-        &translations.custom_css_label,
-        &translations.custom_css_description,
-        Rc::new(|t: &Translations| t.settings.appearance.custom_css_label.clone()),
-        Rc::new(|t: &Translations| t.settings.appearance.custom_css_description.clone()),
-        &custom_css_button,
-        false, // Not first row
-    );
-    container.append(&custom_css_row);
-
-    // === ROW 4: UI Font ===
+    // === ROW 3: UI Font ===
     let ui_font_options = [
         translations.ui_font_system_default.as_str(),
         translations.ui_font_sans.as_str(),
@@ -263,6 +244,9 @@ pub fn build_appearance_tab(
         .position(|value| *value == current_ui_font)
         .unwrap_or(0);
     ui_font_combo.set_selected(ui_font_index as u32);
+    ui_font_combo.set_sensitive(false);
+    ui_font_combo.add_css_class("marco-control-unavailable");
+    ui_font_combo.set_tooltip_text(Some("Not available yet"));
 
     if let Ok(settings_manager) =
         core::logic::swanson::SettingsManager::initialize(settings_path.clone())
@@ -292,9 +276,11 @@ pub fn build_appearance_tab(
         &ui_font_combo,
         false, // Not first row
     );
+    ui_font_row.add_css_class("marco-settings-row-unavailable");
+    ui_font_row.set_tooltip_text(Some("Not available yet"));
     container.append(&ui_font_row);
 
-    // === ROW 5: UI Font Size ===
+    // === ROW 4: UI Font Size ===
     let settings_snapshot = theme_manager.borrow().get_settings();
     let current_ui_font_size = settings_snapshot
         .appearance
@@ -304,6 +290,9 @@ pub fn build_appearance_tab(
     let ui_font_size_adj = Adjustment::new(current_ui_font_size, 10.0, 24.0, 1.0, 0.0, 0.0);
     let ui_font_size_spin = SpinButton::new(Some(&ui_font_size_adj), 1.0, 0);
     ui_font_size_spin.add_css_class("marco-spinbutton");
+    ui_font_size_spin.set_sensitive(false);
+    ui_font_size_spin.add_css_class("marco-control-unavailable");
+    ui_font_size_spin.set_tooltip_text(Some("Not available yet"));
 
     if let Ok(settings_manager) =
         core::logic::swanson::SettingsManager::initialize(settings_path.clone())
@@ -332,6 +321,8 @@ pub fn build_appearance_tab(
         &ui_font_size_spin,
         false, // Not first row
     );
+    ui_font_size_row.add_css_class("marco-settings-row-unavailable");
+    ui_font_size_row.set_tooltip_text(Some("Not available yet"));
     container.append(&ui_font_size_row);
 
     (container, signal_manager)

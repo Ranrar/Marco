@@ -36,6 +36,30 @@ fn resolve_reference_links(document: &mut Document) {
     resolve_reference_links_in_nodes(&mut document.children, &document.references);
 }
 
+fn unescape_commonmark_backslash_escapes(input: &str) -> String {
+    // CommonMark escapable punctuation set.
+    const ESCAPABLE: &str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
+
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(&next) = chars.peek() {
+                if ESCAPABLE.contains(next) {
+                    out.push(next);
+                    chars.next();
+                    continue;
+                }
+            }
+        }
+
+        out.push(ch);
+    }
+
+    out
+}
+
 fn resolve_reference_links_in_nodes(nodes: &mut Vec<Node>, references: &ReferenceMap) {
     let mut i = 0;
     while i < nodes.len() {
@@ -83,7 +107,7 @@ fn resolve_reference_links_in_nodes(nodes: &mut Vec<Node>, references: &Referenc
         });
         if !suffix.is_empty() {
             replacement.push(Node {
-                kind: NodeKind::Text(suffix),
+                kind: NodeKind::Text(unescape_commonmark_backslash_escapes(&suffix)),
                 span: None,
                 children: Vec::new(),
             });

@@ -9,7 +9,8 @@
   <br/>
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/github/v/release/Ranrar/Marco?include_prereleases&style=for-the-badge&label=Alpha" alt="Latest Alpha Release" />
+  <img src="https://img.shields.io/badge/Version-0.20.0-blue?style=for-the-badge" alt="Version 0.20.0" />
+  <img src="https://img.shields.io/badge/Channel-Beta-orange?style=for-the-badge" alt="Beta Channel" />
 </p>
 
 **Marco** is a fast, cross-platform Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
@@ -38,9 +39,9 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 
 | Linux | Windows |
 |-------|---------|
-| **Alpha (latest dev build)** | **Alpha (latest dev build)** |
-| Download the latest Alpha `.deb` from the **Alpha** release:<br>https://github.com/Ranrar/Marco/releases/tag/alpha | Download the latest Alpha `.zip` from the **Alpha** release:<br>https://github.com/Ranrar/Marco/releases/tag/alpha |
-| **Asset:** `marco-suite_alpha_amd64.deb` | **Asset:** `marco-suite_alpha_windows_amd64.zip` |
+| **Beta (current release channel)** | **Beta (current release channel)** |
+| Download the latest Beta `.deb` from the **Release (Beta)** page:<br>https://github.com/Ranrar/Marco/releases/tag/release | Download the latest Beta `.zip` from the **Release (Beta)** page:<br>https://github.com/Ranrar/Marco/releases/tag/release |
+| **Asset:** `marco-suite_<version>_linux_amd64.deb` | **Asset:** `marco-suite_<version>_windows_amd64.zip` |
 | **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
 ## Welcome screen (first run)
@@ -86,25 +87,25 @@ Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests pass
 | Task lists (`- [ ]` / `- [x]`) | ✅ Supported | Rendered with themed checkbox icons. Also supports checklist-style paragraph markers (`[ ]` / `[x]` / `[X]`) and mid-paragraph markers like `Do this [ ] today`. |
 | Tables (GFM pipe tables) | ✅ Supported | Header/body separation + per-column alignment. |
 | Headerless pipe tables (delimiter-first, no header row) | ✅ Supported | Marco extension: the first line is the delimiter row, followed by 1+ body rows; renders as a normal table with `<tbody>` only. |
-| Strikethrough (`~~text~~`) | ✅ Supported | GFM extension. |
+| Strikethrough (`~~text~~` / `--text--`) | ✅ Supported | GFM extension (`~~text~~`). Also supports Marco's dash-style alternative (`--text--`); both render as `<s>…</s>`. |
 | Admonitions / callouts | ✅ Supported | GitHub-style alerts (e.g. Note/Tip/Important/Warning/Caution) plus an extended custom-header form: `> [:joy: Happy Header]` (quote-styled with a custom emoji/icon + title). |
 | Footnotes (`[^a]` + `[^a]: …`) | ✅ Supported | Rendered as an end-of-document footnotes section. |
 | Inline footnotes (`^[...]`) | ✅ Supported | Marco extension: inline footnote content is defined at the reference point and rendered into the same footnotes section. |
 | Highlight/mark (`==text==`) | ✅ Supported | Rendered as `<mark>…</mark>`. |
-| Superscript / subscript | ✅ Supported | Rendered as `<sup>…</sup>` / `<sub>…</sub>`. |
+| Superscript (`^text^`) / subscript (`~text~`) | ✅ Supported | Marco extensions. Rendered as `<sup>…</sup>` / `<sub>…</sub>`. Subscript also accepts the arrow-style delimiter `˅text˅` (U+02C5) as an alternative. |
 | Emoji shortcodes (`:joy:`) | ✅ Supported | Only recognized shortcodes convert; unknown ones stay literal text. |
 | User mentions (`@name[platform]`) | ✅ Supported | Marco extension: renders as a profile link when `(platform, username)` maps to a stable public profile URL; otherwise renders as non-link text. |
 | Inline checkboxes mid-paragraph (`... [x] ...`) | ✅ Supported | Marco extension: `[ ]` / `[x]` / `[X]` markers are recognized inside normal text (with conservative parsing to avoid breaking link syntax). |
 | Tab blocks (`:::tab` + `@tab`) | ✅ Supported | Marco extension: `:::tab` container with `@tab <title>` headers; renders as a no-JS tab UI in the HTML preview (radio+label panels). Nested tab blocks are intentionally not supported. |
 | Slideshow decks (`@slidestart` / `@slideend`) | ✅ Supported | Marco extension: author slide decks inside Markdown using `@slidestart[:tN]` … `@slideend`. Use `---` for horizontal slide breaks and `--` for vertical breaks (stored as metadata). Renders as an interactive slideshow in the preview (controls + dots); adds autoplay when a timer is provided. |
 | YouTube embeds | Not implemented yet | Planned (URLs render as links today; embed would be opt-in). |
-| Math (KaTeX / LaTeX) | Not implemented yet | Planned. |
-| Diagrams (Mermaid) | Not implemented yet | Planned. |
+| Math (KaTeX / LaTeX) | ✅ Supported | Inline (`$...$`) and display (`$$...$$`) math rendering via KaTeX. Supports standard LaTeX math syntax. |
+| Diagrams (Mermaid) | ✅ Supported | Flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, pie charts, Gantt charts, and more. Uses `mermaid-rs-renderer` (pure Rust, 100-1400x faster than mermaid-cli). |
 
 ## Future functions in pipeline
 
 - **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
-- **Document navigation** — automatic TOC, bookmarks, and cross-file links  
+- **Document navigation** — TOC and cross-file links  
 - **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons
 - **Structured formatting** — semantic elements for headings, notes, and exports  
 - **Export to PDF** - Export into PDF in A4 or US Letter
@@ -139,6 +140,10 @@ Marco uses a **Cargo workspace** with three crates:
 
 - **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
 
+- **KaTeX** (`katex-rs`) - Rust re-implementation of the KaTeX rendering engine for mathematical expressions. Provides fast, native math rendering without JavaScript dependencies.
+
+- **Mermaid** (`mermaid-rs-renderer` / `mmdr`) - Pure Rust implementation by [Jeremy Huang](https://github.com/1jehuang/mermaid-rs-renderer). Renders diagrams 100-1400x faster than mermaid-cli by eliminating browser overhead. Supports 23 diagram types including flowcharts, sequence diagrams, class diagrams, and more.
+
 **Current development focus:**
 - Maintaining **100% CommonMark compliance** while adding extensions
 - Fine-tuning the **parser grammar** for comprehensive markdown support
@@ -159,7 +164,7 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Multiple layout modes: editor+preview, editor only, preview only, detachable preview
 - [x] Scroll sync between editor and preview
 - [x] Intelligent search
-- [ ] Context menus & toolbar: Quick access to formatting and actions
+- [x] Context menus & toolbar: Quick access to formatting and actions
 - [ ] Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
 - [ ] Multi-cursor editing support
 - [ ] Syntax highlighting in editor (via LSP)
@@ -171,12 +176,13 @@ Marco uses a **Cargo workspace** with three crates:
 
 ### Document Features
 - [x] Smart code blocks with programming languages syntax
+- [x] Math rendering: KaTeX support for equations and formulas (inline `$...$` and display `$$...$$`)
+- [x] Diagram support: Mermaid for flowcharts, sequence diagrams, class diagrams, and 20+ other diagram types
 - [ ] Export to PDF
 - [ ] Page size presets for export (A4, US Letter, etc.)
-- [ ] Document navigation: TOC sidebar, bookmarks, cross-file links
-- [ ] Template system for common document types
-- [ ] Math rendering: KaTeX support for equations and formulas
-- [ ] Diagram support: Mermaid for flowcharts and visualizations
+- [ ] Document navigation: TOC sidebar
+- [X] Document navigation: bookmarks
+- [ ] Document navigation: cross-file links
 
 ### Advanced Features
 - [x] Language plugin system via. `assets/language/xx*.toml` files

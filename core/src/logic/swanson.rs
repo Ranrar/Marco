@@ -33,7 +33,6 @@ pub struct Settings {
     pub telemetry: Option<TelemetrySettings>,
     pub debug: Option<bool>,
     pub log_to_file: Option<bool>,
-    pub engine: Option<EngineSettings>,
 }
 
 impl Settings {
@@ -139,6 +138,90 @@ impl Settings {
         }
         false
     }
+
+    /// Get bookmark entries, filtering out entries whose files no longer exist.
+    pub fn get_bookmarks(&self) -> Vec<BookmarkEntry> {
+        if let Some(files_settings) = &self.files {
+            if let Some(bookmarks) = &files_settings.bookmarks {
+                return bookmarks
+                    .iter()
+                    .filter(|entry| entry.file_path.exists())
+                    .cloned()
+                    .collect();
+            }
+        }
+        Vec::new()
+    }
+
+    /// Replace bookmarks with a normalized list.
+    pub fn set_bookmarks(&mut self, mut bookmarks: Vec<BookmarkEntry>) {
+        bookmarks.sort_by(|a, b| {
+            a.file_path
+                .cmp(&b.file_path)
+                .then_with(|| a.line.cmp(&b.line))
+        });
+        bookmarks.dedup_by(|a, b| a.file_path == b.file_path && a.line == b.line);
+
+        if self.files.is_none() {
+            self.files = Some(FileSettings::default());
+        }
+        if let Some(files_settings) = &mut self.files {
+            files_settings.bookmarks = Some(bookmarks);
+        }
+    }
+
+    /// Get latest-used emoji values (most recent first, includes repeats).
+    pub fn get_top_emoji_usage(&self, limit: usize) -> Vec<EmojiUsageEntry> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let mut usage = self
+            .files
+            .as_ref()
+            .and_then(|files| files.emoji_usage_history.as_ref())
+            .cloned()
+            .unwrap_or_default();
+
+        usage.retain(|entry| !entry.value.trim().is_empty() && entry.count > 0);
+        usage.truncate(limit);
+        usage
+    }
+
+    /// Record usage as a latest-event entry and keep only the latest `max_items` entries.
+    pub fn record_emoji_usage(&mut self, emoji_value: &str, max_items: usize) {
+        let value = emoji_value.trim();
+        if value.is_empty() || max_items == 0 {
+            return;
+        }
+
+        if self.files.is_none() {
+            self.files = Some(FileSettings::default());
+        }
+
+        let files_settings = self.files.as_mut().expect("files settings initialized");
+        if files_settings.emoji_usage_history.is_none() {
+            files_settings.emoji_usage_history = Some(Vec::new());
+        }
+
+        let usage = files_settings
+            .emoji_usage_history
+            .as_mut()
+            .expect("emoji history initialized");
+
+        usage.insert(
+            0,
+            EmojiUsageEntry {
+                value: value.to_string(),
+                count: 1,
+            },
+        );
+
+        usage.retain(|entry| !entry.value.trim().is_empty() && entry.count > 0);
+        if usage.len() > max_items {
+            usage.truncate(max_items);
+        }
+    }
     /// Get window settings, creating default if none exist
     pub fn get_window_settings(&self) -> WindowSettings {
         self.window.clone().unwrap_or_default()
@@ -196,6 +279,8 @@ impl Settings {
             files: Some(FileSettings {
                 recent_files: Some(Vec::new()),
                 max_recent_files: Some(5),
+                bookmarks: Some(Vec::new()),
+                emoji_usage_history: Some(Vec::new()),
             }),
             active_schema: None,
             schema_disabled: None,
@@ -216,7 +301,8 @@ impl Settings {
             // Common settings (shared between Marco and Polo)
             appearance: Some(AppearanceSettings {
                 editor_mode: Some("marco-light".to_string()),
-                preview_theme: Some("marco".to_string()),
+                preview_theme: Some("marco.css".to_string()),
+                toolbar_svg_button_text: Some(false),
                 ui_font_size: Some(11),
                 ..Default::default()
             }),
@@ -227,9 +313,8 @@ impl Settings {
                 enabled: Some(false),
                 first_run_dialog_shown: Some(false),
             }),
-            debug: Some(false),
-            log_to_file: Some(false),
-            engine: None,
+            debug: Some(true),
+            log_to_file: Some(true),
         }
     }
 }
@@ -540,6 +625,15 @@ impl SettingsManager {
             if let Some(recent_files) = &mut files.recent_files {
                 recent_files.retain(|path| path.exists());
             }
+            if let Some(bookmarks) = &mut files.bookmarks {
+                bookmarks.retain(|entry| entry.file_path.exists());
+            }
+            if let Some(emoji_history) = &mut files.emoji_usage_history {
+                emoji_history.retain(|entry| !entry.value.trim().is_empty() && entry.count > 0);
+                if emoji_history.len() > 10 {
+                    emoji_history.truncate(10);
+                }
+            }
         }
     }
 
@@ -584,6 +678,8 @@ pub struct EditorSettings {
 pub struct AppearanceSettings {
     pub editor_mode: Option<String>,
     pub preview_theme: Option<String>,
+    /// Show text inside composite SVG toolbar buttons (false=icon-only, true=icon+text)
+    pub toolbar_svg_button_text: Option<bool>,
     pub ui_font: Option<String>,
     pub ui_font_size: Option<u8>,
 }
@@ -653,6 +749,20 @@ impl WindowSettings {
 pub struct FileSettings {
     pub recent_files: Option<Vec<PathBuf>>,
     pub max_recent_files: Option<u8>,
+    pub bookmarks: Option<Vec<BookmarkEntry>>,
+    pub emoji_usage_history: Option<Vec<EmojiUsageEntry>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct EmojiUsageEntry {
+    pub value: String,
+    pub count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct BookmarkEntry {
+    pub file_path: PathBuf,
+    pub line: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -693,32 +803,52 @@ impl PoloWindowSettings {
     }
 }
 
-/// Marco Engine specific settings integrated with main application settings
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct EngineSettings {
-    /// Rendering configuration
-    pub render: Option<EngineRenderSettings>,
-}
-
-/// Rendering-specific engine settings
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct EngineRenderSettings {
-    /// HTML rendering options
-    pub html: Option<EngineHtmlSettings>,
-}
-
-/// HTML rendering specific settings
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct EngineHtmlSettings {
-    /// Generate table of contents (UI setting - not consumed by current Marco engine)
-    pub generate_toc: Option<bool>,
-    /// Include metadata in HTML head (UI setting - not consumed by current Marco engine)
-    pub include_metadata: Option<bool>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn smoke_test_record_emoji_usage_tracks_recency_and_cap() {
+        let mut settings = Settings::default();
+
+        settings.record_emoji_usage(":smile:", 10);
+        settings.record_emoji_usage(":rocket:", 10);
+        settings.record_emoji_usage(":smile:", 10);
+
+        let top = settings.get_top_emoji_usage(10);
+        assert_eq!(top.len(), 3);
+        assert_eq!(top[0].value, ":smile:");
+        assert_eq!(top[0].count, 1);
+        assert_eq!(top[1].value, ":rocket:");
+        assert_eq!(top[1].count, 1);
+        assert_eq!(top[2].value, ":smile:");
+
+        settings.record_emoji_usage(":zap:", 10);
+        let top_after_new = settings.get_top_emoji_usage(10);
+        assert_eq!(top_after_new[0].value, ":zap:");
+        assert_eq!(top_after_new.len(), 4);
+
+        for i in 0..20 {
+            settings.record_emoji_usage(&format!(":e{}:", i), 10);
+        }
+
+        let top_capped = settings.get_top_emoji_usage(10);
+        assert_eq!(top_capped.len(), 10);
+    }
+
+    #[test]
+    fn smoke_test_first_run_defaults_match_expected_values() {
+        let settings = Settings::create_default_for_system();
+
+        let appearance = settings
+            .appearance
+            .expect("appearance defaults should be present");
+        assert_eq!(appearance.editor_mode.as_deref(), Some("marco-light"));
+        assert_eq!(appearance.preview_theme.as_deref(), Some("marco.css"));
+
+        assert_eq!(settings.debug, Some(true));
+        assert_eq!(settings.log_to_file, Some(true));
+    }
 
     #[test]
     fn smoke_test_ron_0_11_compatibility() {

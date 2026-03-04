@@ -29,19 +29,19 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
     },
     CodeLanguage {
         canonical: "JavaScript",
-        aliases: &["js", "javascript", "node"],
+        aliases: &["js", "javascript", "jsx", "mjs", "cjs", "node"],
     },
     CodeLanguage {
         canonical: "TypeScript",
-        aliases: &["ts", "typescript"],
+        aliases: &["ts", "tsx", "mts", "cts", "typescript"],
     },
     CodeLanguage {
         canonical: "Python",
-        aliases: &["py", "python", "python3"],
+        aliases: &["py", "python", "python3", "pycon"],
     },
     CodeLanguage {
         canonical: "Bash",
-        aliases: &["sh", "bash", "shell"],
+        aliases: &["sh", "bash", "zsh", "shell"],
     },
     CodeLanguage {
         canonical: "HTML",
@@ -53,7 +53,7 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
     },
     CodeLanguage {
         canonical: "JSON",
-        aliases: &["json"],
+        aliases: &["json", "jsonc", "json5"],
     },
     CodeLanguage {
         canonical: "YAML",
@@ -69,7 +69,11 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
     },
     CodeLanguage {
         canonical: "Markdown",
-        aliases: &["md", "markdown"],
+        aliases: &["md", "markdown", "mkd", "mkdown"],
+    },
+    CodeLanguage {
+        canonical: "Mermaid",
+        aliases: &["mermaid", "mmd"],
     },
     CodeLanguage {
         canonical: "SQL",
@@ -77,11 +81,11 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
     },
     CodeLanguage {
         canonical: "C",
-        aliases: &["c"],
+        aliases: &["c", "h"],
     },
     CodeLanguage {
         canonical: "C++",
-        aliases: &["cpp", "c++", "cxx", "cc"],
+        aliases: &["cpp", "c++", "cxx", "cc", "hpp", "hh", "h++", "hxx"],
     },
     CodeLanguage {
         canonical: "C#",
@@ -92,16 +96,52 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
         aliases: &["java"],
     },
     CodeLanguage {
+        canonical: "Dart",
+        aliases: &["dart"],
+    },
+    CodeLanguage {
         canonical: "Go",
         aliases: &["go", "golang"],
+    },
+    CodeLanguage {
+        canonical: "Scala",
+        aliases: &["scala"],
+    },
+    CodeLanguage {
+        canonical: "Groovy",
+        aliases: &["groovy", "gradle"],
+    },
+    CodeLanguage {
+        canonical: "Clojure",
+        aliases: &["clojure", "clj", "edn"],
     },
     CodeLanguage {
         canonical: "Ruby",
         aliases: &["rb", "ruby"],
     },
     CodeLanguage {
+        canonical: "Perl",
+        aliases: &["perl", "pl", "pm"],
+    },
+    CodeLanguage {
         canonical: "PHP",
         aliases: &["php"],
+    },
+    CodeLanguage {
+        canonical: "Haskell",
+        aliases: &["haskell", "hs"],
+    },
+    CodeLanguage {
+        canonical: "Elixir",
+        aliases: &["elixir", "ex", "exs"],
+    },
+    CodeLanguage {
+        canonical: "Erlang",
+        aliases: &["erlang", "erl"],
+    },
+    CodeLanguage {
+        canonical: "F#",
+        aliases: &["fsharp", "fs", "fsx", "fsi", "fsscript"],
     },
     CodeLanguage {
         canonical: "Kotlin",
@@ -112,12 +152,64 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
         aliases: &["swift"],
     },
     CodeLanguage {
+        canonical: "Objective-C",
+        aliases: &["objectivec", "objc", "obj-c", "mm"],
+    },
+    CodeLanguage {
+        canonical: "OCaml",
+        aliases: &["ocaml", "ml"],
+    },
+    CodeLanguage {
         canonical: "Lua",
         aliases: &["lua"],
     },
     CodeLanguage {
+        canonical: "Nim",
+        aliases: &["nim", "nimrod"],
+    },
+    CodeLanguage {
+        canonical: "Nix",
+        aliases: &["nix"],
+    },
+    CodeLanguage {
+        canonical: "Zig",
+        aliases: &["zig"],
+    },
+    CodeLanguage {
         canonical: "R",
         aliases: &["r"],
+    },
+    CodeLanguage {
+        canonical: "Matlab",
+        aliases: &["matlab"],
+    },
+    CodeLanguage {
+        canonical: "Fortran",
+        aliases: &["fortran", "f90", "f95"],
+    },
+    CodeLanguage {
+        canonical: "GraphQL",
+        aliases: &["graphql", "gql"],
+    },
+    CodeLanguage {
+        canonical: "Protocol Buffers",
+        aliases: &["proto", "protobuf"],
+    },
+    CodeLanguage {
+        canonical: "Solidity",
+        aliases: &["solidity", "sol"],
+    },
+    CodeLanguage {
+        canonical: "Terraform (HCL)",
+        aliases: &["terraform", "tf", "hcl"],
+    },
+    CodeLanguage {
+        canonical: "INI",
+        aliases: &["ini"],
+    },
+    CodeLanguage {
+        canonical: "MathML",
+        aliases: &["mathml", "katex"],
     },
     CodeLanguage {
         canonical: "Dockerfile",
@@ -125,11 +217,23 @@ pub const KNOWN_CODE_LANGUAGES: &[CodeLanguage] = &[
     },
     CodeLanguage {
         canonical: "Makefile",
-        aliases: &["makefile", "make"],
+        aliases: &["makefile", "make", "mk", "mak"],
     },
     CodeLanguage {
         canonical: "PowerShell",
-        aliases: &["powershell", "pwsh", "ps1"],
+        aliases: &["powershell", "pwsh", "ps", "ps1"],
+    },
+    CodeLanguage {
+        canonical: "Vim Script",
+        aliases: &["vim", "vimscript"],
+    },
+    CodeLanguage {
+        canonical: "Assembly",
+        aliases: &["asm", "nasm", "x86asm"],
+    },
+    CodeLanguage {
+        canonical: "Plaintext",
+        aliases: &["plaintext", "text", "txt"],
     },
     CodeLanguage {
         canonical: "Diff",
@@ -188,6 +292,14 @@ mod tests {
         assert_eq!(canonical_language_name("Rust"), Some("Rust"));
         assert_eq!(canonical_language_name("JS"), Some("JavaScript"));
         assert_eq!(canonical_language_name("c++"), Some("C++"));
+        assert_eq!(canonical_language_name("tsx"), Some("TypeScript"));
+        assert_eq!(canonical_language_name("gql"), Some("GraphQL"));
+        assert_eq!(canonical_language_name("proto"), Some("Protocol Buffers"));
+        assert_eq!(canonical_language_name("tf"), Some("Terraform (HCL)"));
+        assert_eq!(canonical_language_name("nimrod"), Some("Nim"));
+        assert_eq!(canonical_language_name("ps"), Some("PowerShell"));
+        assert_eq!(canonical_language_name("mmd"), Some("Mermaid"));
+        assert_eq!(canonical_language_name("katex"), Some("MathML"));
     }
 
     #[test]

@@ -22,6 +22,22 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.20.0] - 2026-03-04
+
+### Added
+- Centralized settings manager (`SettingsManager` / `Settings` in `logic/swanson.rs`) — thread-safe RON-based settings with typed sub-structs for editor, appearance, layout, language, telemetry, window, file, and polo configuration; supports change listeners, file I/O, validation, and auto-repair on load.
+- Bookmark and emoji history persistence in `Settings`: `get_bookmarks`, `set_bookmarks`, `record_emoji_usage`, `get_top_emoji_usage`, and `clean_recent_files`.
+- `PoloSettings` and `PoloWindowSettings` structs for Polo-specific persistent configuration.
+- Emoji shortcode completion API (`logic/text_completion.rs`) — OnceLock-cached static list of `EmojiCompletionItem` values with `normalize_completion_query` and `emoji_shortcode_matches_query` prefix-match helpers.
+- Pure-Rust Mermaid diagram rendering (`render/diagram.rs`) — native diagram rendering via `mermaid_rs_renderer` with a `MERMAID_MAX_CHARS` safety limit; full GitHub-style dark and light themes via `create_mermaid_theme`.
+- KaTeX math rendering (`render/math.rs`) — `render_inline_math` and `render_display_math` with MathML output and a global `OnceLock<KatexContext>` for performance.
+- Unified HTML preview document builder (`render/preview_document.rs`) — `wrap_preview_html_document()` shared by Marco and Polo; embeds interactive table-resize CSS and JS, heading anchor link CSS and SVG, background-flash prevention, and the `window.MarcoPreview` JS API.
+- Layout state enum (`logic/layoutstate.rs`) — `LayoutState { DualView, EditorOnly, ViewOnly, EditorAndViewSeparate }` with a `layout_state_label` string helper.
+- Cross-platform detection helpers (`logic/crossplatforms.rs`) — `Platform { Linux, Windows, Unknown }` enum, `detect_platform()`, and `is_dark_mode_supported()`.
+
+### Changed
+- Settings system expanded from minimal telemetry and window structs (0.18.0) to a full application settings hub with typed per-component structs, audit-logged file I/O, and per-component typed change listeners.
+
 ## [0.18.0] - 2026-02-09
 
 ### Added

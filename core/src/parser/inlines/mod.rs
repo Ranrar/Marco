@@ -33,6 +33,8 @@ pub mod marco_subscript_arrow_parser;
 pub mod marco_subscript_parser;
 pub mod marco_superscript_parser;
 pub mod marco_task_checkbox_inline_parser;
+pub mod math_display_parser;
+pub mod math_inline_parser;
 pub mod text_parser;
 
 // Re-export parser functions for convenience
@@ -60,6 +62,8 @@ pub use marco_subscript_arrow_parser::parse_subscript_arrow;
 pub use marco_subscript_parser::parse_subscript;
 pub use marco_superscript_parser::parse_superscript;
 pub use marco_task_checkbox_inline_parser::parse_task_checkbox_inline;
+pub use math_display_parser::parse_display_math;
+pub use math_inline_parser::parse_inline_math;
 pub use text_parser::{parse_special_as_text, parse_text};
 
 use super::ast::{Node, NodeKind};
@@ -118,6 +122,20 @@ pub fn parse_inlines_from_span(span: GrammarSpan) -> Result<Vec<Node>, Box<dyn s
 
         // Try parsing code span first (highest priority to avoid conflicts)
         if let Ok((rest, node)) = parse_code_span(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
+        // Try parsing display math before inline math (avoid $$ being parsed as two $)
+        if let Ok((rest, node)) = parse_display_math(remaining) {
+            nodes.push(node);
+            remaining = rest;
+            continue;
+        }
+
+        // Try parsing inline math
+        if let Ok((rest, node)) = parse_inline_math(remaining) {
             nodes.push(node);
             remaining = rest;
             continue;

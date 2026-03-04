@@ -23,7 +23,7 @@ build/
 # Build Debian package (includes compilation with explicit target)
 bash build/linux/build_deb.sh --no-bump
 
-# Output: build/installer/marco-suite_alpha_VERSION_linux_amd64.deb
+# Output: build/installer/marco-suite_VERSION_linux_amd64.deb
 ```
 
 ### Windows (wry/WebView2)
@@ -34,8 +34,13 @@ bash build/linux/build_deb.sh --no-bump
 # Skip build (use existing binaries)
 .\build\windows\build_portable.ps1 -SkipBuild
 
-# Output: build/installer/marco-suite_alpha_VERSION_windows_amd64.zip
+# Output: build/installer/marco-suite_VERSION_windows_amd64.zip
 ```
+
+## Release Channel
+
+- Artifacts now follow normal release naming (no `alpha` suffix in filenames).
+- The current release line is marked as **Beta**.
 
 ## Build Targets
 

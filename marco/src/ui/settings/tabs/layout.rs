@@ -354,6 +354,9 @@ pub fn build_layout_tab(
         .position(|value| *value == current_text_direction.as_str())
         .unwrap_or(0);
     text_dir_combo.set_selected(text_dir_index as u32);
+    text_dir_combo.set_sensitive(false);
+    text_dir_combo.add_css_class("marco-control-unavailable");
+    text_dir_combo.set_tooltip_text(Some("Not available yet"));
 
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         text_dir_combo.connect_selected_notify(move |combo| {
@@ -385,6 +388,8 @@ pub fn build_layout_tab(
         &text_dir_combo,
         false, // Not first row
     );
+    text_dir_row.add_css_class("marco-settings-row-unavailable");
+    text_dir_row.set_tooltip_text(Some("Not available yet"));
     container.append(&text_dir_row);
 
     container

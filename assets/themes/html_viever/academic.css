@@ -346,7 +346,50 @@ pre code {
     overflow: visible;
 }
 
+/* Marco: code block copy button */
+.marco-code-block-wrapper {
+    position: relative;
+    margin: 1rem 0;
+}
 
+.marco-code-copy-btn {
+    position: absolute;
+    top: 2.5rem;
+    right: 0.50rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.4rem;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #3498db;
+    opacity: 1;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    z-index: 10;
+}
+
+.marco-code-copy-btn svg {
+    width: 1.1em;
+    height: 1.1em;
+    display: block;
+    stroke: currentColor;
+}
+
+.marco-code-copy-btn:hover {
+    background: rgba(52, 152, 219, 0.1);
+    color: #2980b9;
+}
+
+.marco-code-copy-btn:active {
+    background: rgba(52, 152, 219, 0.2);
+}
+
+.marco-code-copy-btn.copied {
+    background: rgba(52, 152, 219, 0.2);
+    color: #27ae60;
+}
 
 /* Nested Code Blocks (Marco Extension) */
 .nested-code-block {

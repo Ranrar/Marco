@@ -27,6 +27,12 @@ pub struct ScrollSynchronizer {
     is_syncing: Rc<Cell<bool>>,
     /// Whether synchronization is currently enabled
     enabled: Rc<Cell<bool>>,
+    /// Counter-based suppression for WebView -> editor sync callbacks.
+    ///
+    /// This is used for programmatic jumps (e.g. bookmark navigation) where we
+    /// want to ignore transient preview reports such as `marco_scroll:0.0` after
+    /// preview reloads in large documents.
+    suppress_preview_to_editor_sync: Rc<Cell<u32>>,
 }
 
 impl ScrollSynchronizer {
@@ -35,6 +41,7 @@ impl ScrollSynchronizer {
         Self {
             is_syncing: Rc::new(Cell::new(false)),
             enabled: Rc::new(Cell::new(true)),
+            suppress_preview_to_editor_sync: Rc::new(Cell::new(0)),
         }
     }
 
@@ -47,6 +54,22 @@ impl ScrollSynchronizer {
     /// Check if scroll synchronization is currently enabled
     pub fn is_enabled(&self) -> bool {
         self.enabled.get()
+    }
+
+    /// Temporarily suppress WebView -> editor sync reports.
+    ///
+    /// Nested calls are supported; each `suspend` must be paired with `resume`.
+    pub fn suspend_preview_to_editor_sync(&self) {
+        let depth = self.suppress_preview_to_editor_sync.get();
+        self.suppress_preview_to_editor_sync
+            .set(depth.saturating_add(1));
+    }
+
+    /// Resume WebView -> editor sync reports after a previous suspension.
+    pub fn resume_preview_to_editor_sync(&self) {
+        let depth = self.suppress_preview_to_editor_sync.get();
+        self.suppress_preview_to_editor_sync
+            .set(depth.saturating_sub(1));
     }
 
     #[cfg(target_os = "windows")]
@@ -267,10 +290,14 @@ impl ScrollSynchronizer {
         // WebView -> editor sync via IPC messages (see SCROLL_REPORT_JS).
         let is_syncing_cb = Rc::clone(&self.is_syncing);
         let enabled_cb = Rc::clone(&self.enabled);
+        let suppress_preview_to_editor_sync_cb = Rc::clone(&self.suppress_preview_to_editor_sync);
         let editor_sw_cb = editor_sw.clone();
         let last_host_percent_cb = Rc::clone(&last_host_percent);
         preview_webview.set_scroll_report_callback(move |percentage: f64| {
             if !enabled_cb.get() || is_syncing_cb.get() {
+                return;
+            }
+            if suppress_preview_to_editor_sync_cb.get() > 0 {
                 return;
             }
             if (percentage - last_host_percent_cb.get()).abs() < 0.0005 {
@@ -420,12 +447,17 @@ impl ScrollSynchronizer {
         // Clone references for the title change handler
         let is_syncing_clone = Rc::clone(&self.is_syncing);
         let enabled_clone = Rc::clone(&self.enabled);
+        let suppress_preview_to_editor_sync_clone =
+            Rc::clone(&self.suppress_preview_to_editor_sync);
         let target_sw_clone = target_sw.clone();
         let label_owned = label.to_string();
 
         // Connect to notify::title signal to handle scroll position reports
         source_webview.connect_notify_local(Some("title"), move |webview, _| {
             if !enabled_clone.get() || is_syncing_clone.get() {
+                return;
+            }
+            if suppress_preview_to_editor_sync_clone.get() > 0 {
                 return;
             }
 

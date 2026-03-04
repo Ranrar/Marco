@@ -39,6 +39,9 @@ pub fn generate_css() -> String {
     // SpinButton styling
     css.push_str(&generate_spinbutton_css());
 
+    // Segmented ToggleButton styling (3-way controls)
+    css.push_str(&generate_segmented_toggle_css());
+
     // Entry styling
     css.push_str(&generate_entry_css());
 
@@ -49,6 +52,136 @@ pub fn generate_css() -> String {
     css.push_str(&generate_checkbutton_css());
 
     css
+}
+
+/// Generate segmented ToggleButton CSS (used for 3-way controls like Left/Center/Right)
+fn generate_segmented_toggle_css() -> String {
+    format!(
+        r#"
+    /* Segmented ToggleButton base styles */
+    box.marco-segmented-control {{
+        min-height: {control_height};
+        border-radius: {radius};
+    }}
+
+    box.marco-segmented-control > button.toggle.marco-segmented-toggle {{
+        min-height: calc({control_height} - 2px);
+        min-width: 56px;
+        padding: 0 8px;
+        border-radius: 0;
+    }}
+
+    box.marco-segmented-control > button.toggle.marco-segmented-toggle:first-child {{
+        border-top-left-radius: {radius};
+        border-bottom-left-radius: {radius};
+    }}
+
+    box.marco-segmented-control > button.toggle.marco-segmented-toggle:last-child {{
+        border-top-right-radius: {radius};
+        border-bottom-right-radius: {radius};
+    }}
+
+    /* Segmented ToggleButton - Light Theme */
+    .marco-theme-light box.marco-segmented-control {{
+        background: #ffffff;
+        border: 1px solid {light_border};
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle {{
+        background: transparent;
+        color: {light_fg};
+        border: none;
+        border-left: 1px solid {light_border};
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle > label {{
+        color: {light_fg};
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle:first-child {{
+        border-left: none;
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle:hover {{
+        background: {light_blue};
+        color: #ffffff;
+        opacity: 0.9;
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle:hover > label {{
+        color: #ffffff;
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle:checked {{
+        background: {light_blue};
+        color: #ffffff;
+        opacity: 1;
+    }}
+
+    .marco-theme-light box.marco-segmented-control > button.toggle.marco-segmented-toggle:checked > label {{
+        color: #ffffff;
+    }}
+
+    .marco-theme-light box.marco-segmented-control:focus-within {{
+        border-color: {light_blue};
+        outline: none;
+    }}
+
+    /* Segmented ToggleButton - Dark Theme */
+    .marco-theme-dark box.marco-segmented-control {{
+        background: #2d2d2d;
+        border: 1px solid {dark_border};
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle {{
+        background: transparent;
+        color: {dark_fg};
+        border: none;
+        border-left: 1px solid {dark_border};
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle > label {{
+        color: {dark_fg};
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle:first-child {{
+        border-left: none;
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle:hover {{
+        background: {dark_blue};
+        color: #ffffff;
+        opacity: 0.9;
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle:hover > label {{
+        color: #ffffff;
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle:checked {{
+        background: {dark_blue};
+        color: #ffffff;
+        opacity: 1;
+    }}
+
+    .marco-theme-dark box.marco-segmented-control > button.toggle.marco-segmented-toggle:checked > label {{
+        color: #ffffff;
+    }}
+
+    .marco-theme-dark box.marco-segmented-control:focus-within {{
+        border-color: {dark_blue};
+        outline: none;
+    }}
+"#,
+        control_height = CONTROL_MIN_HEIGHT,
+        radius = TOOLBAR_BORDER_RADIUS,
+        light_border = LIGHT_PALETTE.titlebar_border,
+        light_fg = LIGHT_PALETTE.titlebar_foreground,
+        light_blue = LIGHT_PALETTE.toolbar_button_hover_border,
+        dark_border = DARK_PALETTE.titlebar_border,
+        dark_fg = DARK_PALETTE.titlebar_foreground,
+        dark_blue = DARK_PALETTE.toolbar_button_hover_border,
+    )
 }
 
 /// Generate DropDown widget CSS (ported from Polo with Marco constants)
@@ -317,6 +450,21 @@ fn generate_dropdown_css() -> String {
     .marco-theme-dark dropdown.marco-dropdown > popover scrolledwindow scrollbar slider:hover {{
         background: {foreground};
     }}
+
+    /* DropDown unavailable state */
+    .marco-theme-light dropdown.marco-dropdown.marco-control-unavailable > button:disabled {{
+        background: rgba(255, 193, 7, 0.08);
+        color: #7a5a00;
+        border: 1px dashed {border_hover};
+        opacity: 1;
+    }}
+
+    .marco-theme-dark dropdown.marco-dropdown.marco-control-unavailable > button:disabled {{
+        background: rgba(255, 193, 7, 0.12);
+        color: #f0c96a;
+        border: 1px dashed {border_hover};
+        opacity: 1;
+    }}
 "#,
         foreground = DARK_PALETTE.titlebar_foreground,
         border = DARK_PALETTE.titlebar_border,
@@ -406,6 +554,29 @@ fn generate_switch_css() -> String {
     .marco-theme-dark switch.marco-switch:checked > slider {{
         background: #ffffff;
         outline: none;
+    }}
+
+    /* Switch unavailable state */
+    .marco-theme-light switch.marco-switch.marco-control-unavailable:disabled {{
+        background: rgba(255, 193, 7, 0.08);
+        border: 1px dashed {light_accent};
+        opacity: 1;
+    }}
+
+    .marco-theme-light switch.marco-switch.marco-control-unavailable:disabled > slider {{
+        background: #fff7df;
+        border: 1px solid {light_accent};
+    }}
+
+    .marco-theme-dark switch.marco-switch.marco-control-unavailable:disabled {{
+        background: rgba(255, 193, 7, 0.12);
+        border: 1px dashed {dark_accent};
+        opacity: 1;
+    }}
+
+    .marco-theme-dark switch.marco-switch.marco-control-unavailable:disabled > slider {{
+        background: #3a331f;
+        border: 1px solid {dark_accent};
     }}
 "#,
         switch_width = SWITCH_MIN_WIDTH,
@@ -664,6 +835,21 @@ fn generate_spinbutton_css() -> String {
     .marco-theme-dark spinbutton.marco-spinbutton:focus {{
         border-color: {dark_accent};
         outline: none;
+    }}
+
+    /* SpinButton unavailable state */
+    .marco-theme-light spinbutton.marco-spinbutton.marco-control-unavailable:disabled {{
+        background: rgba(255, 193, 7, 0.08);
+        color: #7a5a00;
+        border: 1px dashed {light_accent};
+        opacity: 1;
+    }}
+
+    .marco-theme-dark spinbutton.marco-spinbutton.marco-control-unavailable:disabled {{
+        background: rgba(255, 193, 7, 0.12);
+        color: #f0c96a;
+        border: 1px dashed {dark_accent};
+        opacity: 1;
     }}
 "#,
         control_height = CONTROL_MIN_HEIGHT,
@@ -957,6 +1143,7 @@ mod tests {
         assert!(css.contains("switch.marco-switch"));
         assert!(css.contains("scale.marco-scale"));
         assert!(css.contains("spinbutton.marco-spinbutton"));
+        assert!(css.contains("box.marco-segmented-control"));
         assert!(css.contains("entry.marco-entry"));
 
         // Verify theme variants

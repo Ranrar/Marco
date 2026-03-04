@@ -5,4 +5,3 @@ pub mod editor;
 pub mod helpers;
 pub mod language;
 pub mod layout;
-pub mod markdown;

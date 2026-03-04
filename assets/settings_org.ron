@@ -52,18 +52,11 @@
     appearance: Some((
         editor_mode: Some(""),
         preview_theme: Some("marco.css"),
+        toolbar_svg_button_text: Some(false),
         ui_font: None,
         ui_font_size: None,
     )),
     language: None,
     debug: Some(false),
     log_to_file: Some(false),
-    engine: Some((
-        render: Some((
-            html: Some((
-                generate_toc: None,
-                include_metadata: None,
-            )),
-        )),
-    )),
 )

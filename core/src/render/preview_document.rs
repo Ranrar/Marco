@@ -354,6 +354,7 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
     <head>
         <meta charset=\"utf-8\">
         <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+        <link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css\" integrity=\"sha384-n8MVd4RsNIU0tAv4ct0nTaAbDJwPJzDEaqSD1odI+WdtXRGWt2kTvGFasHpSy3SV\" crossorigin=\"anonymous\">
         <style id=\"marco-preview-style\">{}{}</style>
         <style id=\"marco-preview-internal-style\">{}</style>
         <script>
@@ -684,6 +685,56 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                         try {{
                             var target = ev.target;
                             if (!target) return;
+                            
+                            // Handle code block copy button
+                            var copyBtn = target.closest('.marco-code-copy-btn');
+                            if (copyBtn) {{
+                                var wrapper = copyBtn.closest('.marco-code-block-wrapper');
+                                if (!wrapper) return;
+                                
+                                var codeEl = wrapper.querySelector('code');
+                                if (!codeEl) return;
+                                
+                                var codeText = codeEl.textContent || '';
+                                
+                                // Try to copy to clipboard
+                                try {{
+                                    if (navigator.clipboard && navigator.clipboard.writeText) {{
+                                        navigator.clipboard.writeText(codeText).then(function() {{
+                                            // Show success feedback
+                                            copyBtn.classList.add('copied');
+                                            setTimeout(function() {{
+                                                copyBtn.classList.remove('copied');
+                                            }}, 2000);
+                                        }}).catch(function(err) {{
+                                            console.error('Failed to copy code:', err);
+                                        }});
+                                    }} else {{
+                                        // Fallback for older browsers
+                                        var textArea = document.createElement('textarea');
+                                        textArea.value = codeText;
+                                        textArea.style.position = 'fixed';
+                                        textArea.style.left = '-9999px';
+                                        document.body.appendChild(textArea);
+                                        textArea.select();
+                                        try {{
+                                            document.execCommand('copy');
+                                            copyBtn.classList.add('copied');
+                                            setTimeout(function() {{
+                                                copyBtn.classList.remove('copied');
+                                            }}, 2000);
+                                        }} catch(err) {{
+                                            console.error('Fallback copy failed:', err);
+                                        }}
+                                        document.body.removeChild(textArea);
+                                    }}
+                                }} catch(err) {{
+                                    console.error('Copy error:', err);
+                                }}
+                                return;
+                            }}
+                            
+                            // Handle slider controls
                             var btn = target.closest('button');
                             if (!btn) return;
                             var deck = btn.closest('.marco-sliders');
@@ -704,7 +755,7 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
                                 slidersToggleDeck(deck.id);
                             }}
                         }} catch(e) {{
-                            console.error('Slider click handler error:', e);
+                            console.error('Click handler error:', e);
                         }}
                     }}, true);
                 }}

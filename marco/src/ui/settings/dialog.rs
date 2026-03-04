@@ -579,18 +579,6 @@ fn create_dialog_impl(
         &translations.settings.tabs.language,
     );
 
-    // Add Markdown tab for markdown-specific settings
-    let markdown_tab = tabs::markdown::build_markdown_tab(
-        settings_path.to_str().unwrap(),
-        &translations.settings.markdown,
-        &settings_i18n,
-    );
-    stack.add_titled(
-        &markdown_tab,
-        Some("markdown"),
-        &translations.settings.tabs.markdown,
-    );
-
     // Add Advanced tab for advanced settings
     let advanced_tab = tabs::advanced::build_advanced_tab(
         settings_path.to_str().unwrap(),
@@ -767,11 +755,6 @@ fn create_dialog_impl(
                             stack
                                 .page(&language_page)
                                 .set_title(&new_translations.settings.tabs.language);
-                        }
-                        if let Some(markdown_page) = stack.child_by_name("markdown") {
-                            stack
-                                .page(&markdown_page)
-                                .set_title(&new_translations.settings.tabs.markdown);
                         }
                     }
 

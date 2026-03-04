@@ -50,9 +50,13 @@ pub mod constants;
 pub mod controls;
 pub mod dialog;
 pub mod footer;
+pub mod list;
 pub mod menu;
+pub mod mermaid;
+pub mod radio;
 pub mod settings;
 pub mod syntax;
+pub mod textfield;
 pub mod toolbar;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
@@ -89,11 +93,23 @@ pub fn generate_marco_css() -> String {
     // Dialog styling
     css.push_str(&dialog::generate_css());
 
+    // List/ListView styling
+    css.push_str(&list::generate_css());
+
     // Control widgets styling
     css.push_str(&controls::generate_css());
 
+    // Radio indicator styling (grouped CheckButtons)
+    css.push_str(&radio::generate_css());
+
     // Settings dialog styling
     css.push_str(&settings::generate_css());
+
+    // Reusable textfield styling (Entry + TextView)
+    css.push_str(&textfield::generate_css());
+
+    // Mermaid dialog-specific widget styles
+    css.push_str(&mermaid::generate_css());
 
     css
 }

@@ -8,7 +8,7 @@ Debian package builder for Marco markdown editor.
 # Build package (compiles binaries and creates .deb)
 bash build/linux/build_deb.sh --no-bump
 
-# Output: build/installer/marco-suite_alpha_<version>_linux_amd64.deb
+# Output: build/installer/marco-suite_<version>_linux_amd64.deb
 ```
 
 ## Build Script
@@ -18,7 +18,7 @@ bash build/linux/build_deb.sh --no-bump
 2. Creates Debian package structure
 3. Installs binaries, assets, desktop files, icons, man pages
 4. Generates `.deb` package with `dpkg-deb`
-5. Outputs to `build/installer/marco-suite_alpha_<version>_linux_amd64.deb`
+5. Outputs to `build/installer/marco-suite_<version>_linux_amd64.deb`
 
 ## Usage
 
@@ -98,7 +98,7 @@ sudo apt-get install imagemagick
 
 ```bash
 # Install package
-sudo dpkg -i build/installer/marco-suite_alpha_<version>_linux_amd64.deb
+sudo dpkg -i build/installer/marco-suite_<version>_linux_amd64.deb
 
 # Fix missing dependencies (if any)
 sudo apt -f install
@@ -109,7 +109,7 @@ sudo dpkg -r marco-suite
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/alpha-deb-release.yml`):
+GitHub Actions workflow (`.github/workflows/alpha-release.yml`):
 
 ```yaml
 - name: Build Debian package
@@ -119,12 +119,12 @@ GitHub Actions workflow (`.github/workflows/alpha-deb-release.yml`):
 
 Workflow:
 1. Checks out repository
-2. Moves alpha tag to current commit
+2. Moves `release` tag to current commit
 3. Installs Rust toolchain (1.90.0)
 4. Caches cargo dependencies
 5. Installs system dependencies
 6. Builds package (no version bump)
-7. Updates Alpha GitHub Release with new .deb
+7. Updates the GitHub Release (beta channel) with new .deb
 
 ## Version Tracking
 
@@ -133,9 +133,9 @@ Versions are stored in `build/version.json`:
 ```json
 {
   "linux": {
-    "core": "0.16.0",
-    "marco": "0.16.0",
-    "polo": "0.16.0"
+    "core": "0.20.0",
+    "marco": "0.20.0",
+    "polo": "0.20.0"
   }
 }
 ```
@@ -166,13 +166,13 @@ bash build/linux/build_deb.sh --no-bump
 ### Package Won't Install
 ```bash
 # Check package contents
-dpkg-deb --contents build/installer/marco-suite_alpha_*.deb
+dpkg-deb --contents build/installer/marco-suite_*.deb
 
 # Check package info
-dpkg-deb --info build/installer/marco-suite_alpha_*.deb
+dpkg-deb --info build/installer/marco-suite_*.deb
 
 # Force install (not recommended)
-sudo dpkg -i --force-all build/installer/marco-suite_alpha_*.deb
+sudo dpkg -i --force-all build/installer/marco-suite_*.deb
 ```
 
 ## Desktop Files
@@ -196,6 +196,11 @@ Launch from:
 - **Maintainer**: Kim Skov Rasmussen <kim@skovrasmussen.com>
 - **Homepage**: https://github.com/Ranrar/marco
 - **License**: MIT
+
+## Release Channel
+
+- Artifact names use standard release format (`marco-suite_<version>_...`) instead of alpha-tagged filenames.
+- Current channel status: **Beta**.
 
 ## Advanced Options
 

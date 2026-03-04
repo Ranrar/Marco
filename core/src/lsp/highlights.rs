@@ -580,6 +580,24 @@ fn collect_highlights(node: &Node, highlights: &mut Vec<Highlight>) {
                     tag: HighlightTag::CodeBlock,
                 });
             }
+            NodeKind::InlineMath { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::CodeSpan, // Math uses same highlight as code spans
+                });
+            }
+            NodeKind::DisplayMath { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::CodeBlock, // Display math uses same highlight as code blocks
+                });
+            }
+            NodeKind::MermaidDiagram { .. } => {
+                highlights.push(Highlight {
+                    span: *span,
+                    tag: HighlightTag::CodeBlock, // Diagrams use same highlight as code blocks
+                });
+            }
             NodeKind::InlineHtml(_) => {
                 highlights.push(Highlight {
                     span: *span,

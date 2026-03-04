@@ -58,6 +58,9 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     // Blue is sourced from the existing Settings close button style.
     let blue = palette.toolbar_button_hover_border;
 
+    // Green/Yellow/Red are shared across themes; they remain readable on both.
+    let green = "#2ea043";
+
     // Yellow/Red are shared across themes; they remain readable on both.
     // (These were previously used in dialog.rs as warning/destructive colors.)
     let yellow = "#f0ad4e";
@@ -119,6 +122,42 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     .{theme}.marco-search-window .marco-search-button.marco-btn-blue:active {{
         background: {blue};
         border-color: {blue};
+        opacity: 0.8;
+    }}
+
+    /* Green */
+    .{theme} .marco-btn-green,
+    .{theme} .marco-search-button.marco-btn-green,
+    .{theme}.marco-btn-green {{
+        background: {green};
+        color: #ffffff;
+        border: 1px solid {green};
+    }}
+
+    .{theme} .marco-btn-green:disabled,
+    .{theme} .marco-search-button.marco-btn-green:disabled,
+    .{theme}.marco-btn-green:disabled {{
+        background: {disabled_bg};
+        color: {disabled_fg};
+        border: 1px solid {disabled_border};
+        opacity: 0.6;
+    }}
+
+    .{theme} .marco-btn-green:hover,
+    .{theme} .marco-search-button.marco-btn-green:hover,
+    .{theme}.marco-btn-green:hover,
+    .{theme}.marco-search-window .marco-search-button.marco-btn-green:hover {{
+        background: {green};
+        border-color: {green};
+        opacity: 0.9;
+    }}
+
+    .{theme} .marco-btn-green:active,
+    .{theme} .marco-search-button.marco-btn-green:active,
+    .{theme}.marco-btn-green:active,
+    .{theme}.marco-search-window .marco-search-button.marco-btn-green:active {{
+        background: {green};
+        border-color: {green};
         opacity: 0.8;
     }}
 
@@ -193,14 +232,72 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         border-color: {red};
         opacity: 0.8;
     }}
+
+    /* Suggested action (primary action button) */
+    .{theme} .marco-btn.suggested-action,
+    .{theme}.marco-btn.suggested-action {{
+        background: {blue};
+        color: #ffffff;
+        border: 1px solid {blue};
+    }}
+
+    .{theme} .marco-btn.suggested-action:hover,
+    .{theme}.marco-btn.suggested-action:hover {{
+        background: {blue};
+        border-color: {blue};
+        opacity: 0.9;
+    }}
+
+    .{theme} .marco-btn.suggested-action:active,
+    .{theme}.marco-btn.suggested-action:active {{
+        background: {blue};
+        border-color: {blue};
+        opacity: 0.8;
+    }}
+
+    .{theme} .marco-btn.suggested-action:disabled,
+    .{theme}.marco-btn.suggested-action:disabled {{
+        background: {disabled_bg};
+        color: {disabled_fg};
+        border: 1px solid {disabled_border};
+        opacity: 0.6;
+    }}
+
+    /* Default/neutral button styling for marco-btn without color class */
+    .{theme} .marco-btn:not(.marco-btn-blue):not(.marco-btn-green):not(.marco-btn-yellow):not(.marco-btn-red):not(.suggested-action),
+    .{theme}.marco-btn:not(.marco-btn-blue):not(.marco-btn-green):not(.marco-btn-yellow):not(.marco-btn-red):not(.suggested-action) {{
+        background: transparent;
+        color: {foreground};
+        border: 1px solid {border};
+    }}
+
+    .{theme} .marco-btn:not(.marco-btn-blue):not(.marco-btn-green):not(.marco-btn-yellow):not(.marco-btn-red):not(.suggested-action):hover,
+    .{theme}.marco-btn:not(.marco-btn-blue):not(.marco-btn-green):not(.marco-btn-yellow):not(.marco-btn-red):not(.suggested-action):hover {{
+        background: {hover_bg};
+        border-color: {border_hover};
+        color: {hover_color};
+    }}
+
+    .{theme} .marco-btn:not(.marco-btn-blue):not(.marco-btn-green):not(.marco-btn-yellow):not(.marco-btn-red):not(.suggested-action):active,
+    .{theme}.marco-btn:not(.marco-btn-blue):not(.marco-btn-green):not(.marco-btn-yellow):not(.marco-btn-red):not(.suggested-action):active {{
+        background: {hover_bg};
+        color: {active_color};
+    }}
 "#,
         theme = theme_class,
         blue = blue,
+        green = green,
         yellow = yellow,
         red = red,
         disabled_bg = palette.toolbar_button_disabled_bg,
         disabled_fg = palette.toolbar_button_disabled,
         disabled_border = palette.toolbar_button_disabled_border,
+        foreground = palette.titlebar_foreground,
+        border = palette.toolbar_border,
+        border_hover = palette.toolbar_button_hover_border,
+        hover_bg = palette.toolbar_popover_bg,
+        hover_color = palette.toolbar_button_hover,
+        active_color = palette.toolbar_button_active,
     )
 }
 
@@ -218,6 +315,7 @@ mod tests {
 
         // Variants
         assert!(css.contains(".marco-btn-blue"));
+        assert!(css.contains(".marco-btn-green"));
         assert!(css.contains(".marco-btn-yellow"));
         assert!(css.contains(".marco-btn-red"));
 

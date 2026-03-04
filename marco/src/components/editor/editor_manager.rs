@@ -198,6 +198,16 @@ impl EditorManager {
             if enabled { "enabled" } else { "disabled" }
         );
     }
+
+    /// Suspend WebView -> editor scroll sync callbacks.
+    pub fn suspend_preview_to_editor_sync(&self) {
+        self.scroll_synchronizer.suspend_preview_to_editor_sync();
+    }
+
+    /// Resume WebView -> editor scroll sync callbacks.
+    pub fn resume_preview_to_editor_sync(&self) {
+        self.scroll_synchronizer.resume_preview_to_editor_sync();
+    }
 }
 
 // Global editor manager instance using thread-local storage
@@ -380,6 +390,28 @@ pub fn set_scroll_sync_enabled_globally(enabled: bool) -> Result<(), Box<dyn std
     if let Some(manager) = get_editor_manager() {
         let mgr = manager.borrow();
         mgr.set_scroll_sync_enabled(enabled);
+        Ok(())
+    } else {
+        Err("Editor manager not initialized".to_string().into())
+    }
+}
+
+/// Suspend preview -> editor sync globally (counter-based).
+pub fn suppress_preview_to_editor_sync_globally() -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(manager) = get_editor_manager() {
+        let mgr = manager.borrow();
+        mgr.suspend_preview_to_editor_sync();
+        Ok(())
+    } else {
+        Err("Editor manager not initialized".to_string().into())
+    }
+}
+
+/// Resume preview -> editor sync globally (counter-based).
+pub fn resume_preview_to_editor_sync_globally() -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(manager) = get_editor_manager() {
+        let mgr = manager.borrow();
+        mgr.resume_preview_to_editor_sync();
         Ok(())
     } else {
         Err("Editor manager not initialized".to_string().into())

@@ -1,5 +1,5 @@
 use crate::components::language::DialogTranslations;
-use crate::logic::menu_items::file::SaveChangesResult;
+use crate::ui::menu_items::SaveChangesResult;
 use gtk4::{glib, prelude::*, Align, Box, Button, Label, Orientation, Window};
 use std::cell::RefCell;
 use std::future::Future;

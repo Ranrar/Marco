@@ -27,6 +27,8 @@ pub mod marco_mark;
 pub mod marco_subscript;
 pub mod marco_subscript_arrow;
 pub mod marco_superscript;
+pub mod math_display;
+pub mod math_inline;
 
 // Re-export all parser functions for convenience
 pub use cm_autolink::autolink;
@@ -45,3 +47,5 @@ pub use marco_mark::mark;
 pub use marco_subscript::subscript;
 pub use marco_subscript_arrow::subscript_arrow;
 pub use marco_superscript::superscript;
+pub use math_display::display_math;
+pub use math_inline::inline_math;
