@@ -4,6 +4,7 @@
 //! - Current cursor position (line and column)
 //! - Insert/overwrite mode status
 //! - Character and word count statistics
+//! - Diagnostics counters (errors/warnings)
 //!
 //! # Debouncing Strategy
 //!
@@ -21,18 +22,24 @@
 
 use crate::footer::{FooterLabels, FooterUpdate};
 use crate::logic::signal_manager::safe_source_remove;
+use core::logic::swanson::SettingsManager;
 use gtk4::glib::ControlFlow;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use gtk4::prelude::*;
 
 /// Wires up debounced footer updates to buffer events
 pub fn wire_footer_updates(
     buffer: &sourceview5::Buffer,
+    source_view: &sourceview5::View,
     labels: Rc<FooterLabels>,
     insert_mode_state: Rc<RefCell<bool>>,
+    settings_manager: Arc<SettingsManager>,
 ) {
+    crate::footer::bind_diagnostics_navigation(&labels, buffer, source_view);
+
     use std::cell::Cell;
     let debounce_ms = 300;
 
@@ -43,9 +50,15 @@ pub fn wire_footer_updates(
         let buffer = buffer.clone();
         let labels = labels.clone();
         let insert_mode_state = Rc::clone(&insert_mode_state);
+        let settings_manager = settings_manager.clone();
         move || {
             crate::footer_dbg!("[wire_footer_updates] update_footer closure called");
-            refresh_footer_snapshot(&buffer, labels.clone(), insert_mode_state.clone());
+            refresh_footer_snapshot(
+                &buffer,
+                labels.clone(),
+                insert_mode_state.clone(),
+                settings_manager.clone(),
+            );
         }
     };
 
@@ -94,6 +107,7 @@ pub fn refresh_footer_snapshot(
     buffer: &sourceview5::Buffer,
     labels: Rc<FooterLabels>,
     insert_mode_state: Rc<RefCell<bool>>,
+    settings_manager: Arc<SettingsManager>,
 ) {
     let offset = buffer.cursor_position();
     let iter = buffer.iter_at_offset(offset);
@@ -104,12 +118,89 @@ pub fn refresh_footer_snapshot(
         .to_string();
     let word_count = text.split_whitespace().filter(|w| !w.is_empty()).count();
     let char_count = text.chars().count();
+
+    // Reload from disk to pick up updates from other SettingsManager instances
+    // (e.g. settings dialog tab state changes).
+    if let Err(err) = settings_manager.reload_settings() {
+        log::debug!(
+            "Failed to reload settings for footer snapshot diagnostics: {}",
+            err
+        );
+    }
+
+    let settings = settings_manager.get_settings();
+    let editor = settings.editor.unwrap_or_default();
+
+    let issues_runtime_enabled = editor.diagnostics_underlines_enabled.unwrap_or(true)
+        || editor.diagnostics_hover_enabled.unwrap_or(true);
+
+    let (errors, warnings, diagnostics) = if !issues_runtime_enabled {
+        (0, 0, Vec::new())
+    } else {
+        match core::parser::parse(&text) {
+            Ok(doc) => {
+                let diagnostics = core::intelligence::compute_diagnostics_with_options(
+                    &doc,
+                    core::intelligence::DiagnosticsOptions::all(),
+                );
+                let errors = diagnostics
+                    .iter()
+                    .filter(|d| matches!(d.severity, core::intelligence::DiagnosticSeverity::Error))
+                    .count();
+                let warnings = diagnostics
+                    .iter()
+                    .filter(|d| {
+                        matches!(d.severity, core::intelligence::DiagnosticSeverity::Warning)
+                    })
+                    .count();
+                let diagnostics = diagnostics
+                    .iter()
+                    .map(|d| crate::footer::FooterDiagnosticItem {
+                        severity: d.severity.clone(),
+                        code: d.code_id().to_string(),
+                        line: d.span.start.line,
+                        column: d.span.start.column,
+                        message: d.message.clone(),
+                        fix_suggestion: d.fix_suggestion_resolved().into_owned(),
+                    })
+                    .collect();
+                (errors, warnings, diagnostics)
+            }
+            Err(err) => {
+                let parse_diagnostic = core::intelligence::Diagnostic::parse_error_at(
+                    core::parser::Position {
+                        line: row,
+                        column: col,
+                        offset: offset as usize,
+                    },
+                    format!("Parse error: {}", err),
+                );
+
+                (
+                    1,
+                    0,
+                    vec![crate::footer::FooterDiagnosticItem {
+                        severity: parse_diagnostic.severity.clone(),
+                        code: parse_diagnostic.code_id().to_string(),
+                        line: parse_diagnostic.span.start.line,
+                        column: parse_diagnostic.span.start.column,
+                        message: parse_diagnostic.message.clone(),
+                        fix_suggestion: parse_diagnostic.fix_suggestion_resolved().into_owned(),
+                    }],
+                )
+            }
+        }
+    };
+
     let encoding = labels.encoding_label.borrow().clone();
     let is_insert = *insert_mode_state.borrow();
 
     let msg = FooterUpdate::Snapshot {
         row,
         col,
+        errors,
+        warnings,
+        diagnostics,
         words: word_count,
         chars: char_count,
         encoding,

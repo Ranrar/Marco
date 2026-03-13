@@ -7,7 +7,7 @@
 //! - `ui` - Main editor UI construction with preview integration
 //! - `editor_manager` - Editor state management and lifecycle coordination
 //! - `footer` - Footer status bar updates and statistics
-//! - `lsp_integration` - LSP syntax highlighting integration
+//! - `intelligence_integration` - Markdown intelligence highlight integration
 //! - `scroll_sync` - Scroll synchronization between editor and preview
 //! - `sourceview` - SourceView5 rendering and configuration
 //! - `utilities` - Async extension processing (line wrapping, tab conversion, etc.)
@@ -17,7 +17,8 @@ pub mod debounce;
 pub mod display_config;
 pub mod editor_manager;
 pub mod footer;
-pub mod lsp_integration;
+pub mod hover_provider;
+pub mod intelligence;
 pub mod scroll_sync;
 pub mod sourceview;
 pub mod table_edit;

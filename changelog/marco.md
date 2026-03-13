@@ -13,16 +13,46 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 - Nothing yet.
 
 ### Changed
-- Disabled unfinished controls so users can clearly see they are not available yet: Auto Pairing, Enable Markdown Linting, Text Direction, UI Font, UI Font Size, Send Anonymous User Data, and File → Export.
+- Nothing yet.
 
 ### Fixed
 - Nothing yet.
 
 ### Removed
-- Removed the "Custom CSS for Preview" button from the Appearance settings tab.
+- Nothing yet.
 
 ### Security
 - Nothing yet.
+
+## [0.21.0] - 2026-03-13
+
+**Uses:** Core 0.21.0
+
+### Added
+- Native `GtkSourceHoverProvider` (`components/editor/hover_provider.rs`) — span-comparison logic selects the narrowest match when both a diagnostic and a Markdown insight apply at the cursor; when only a diagnostic is present, it is suppressed if a tighter AST node covers the cursor position.
+- Diagnostic underline markers in the editor (`components/editor/intelligence.rs`) — underlines are applied in chunks of 400 via GLib idle callbacks to avoid main-thread frame stutter.
+- Diagnostics panel in the footer — a button displays error and warning counts; clicking opens a popover with a filterable list of all document issues, each navigable by clicking.
+- Diagnostics Reference dialog (`ui/dialogs/diagnostics_reference.rs`) — searchable, categorized reference of all diagnostic codes with severity, descriptions, and fix suggestions.
+- Intelligence settings tab (`ui/settings/tabs/intelligence.rs`) — per-feature toggles for diagnostic underlines, Markdown insights hover, issue insights hover, and syntax highlighting.
+- Hover popover CSS module (`ui/css/popover.rs`) and diagnostics issue list CSS module (`ui/css/issue.rs`).
+- "Diagnostics Reference" item added to the Help menu.
+
+### Changed
+- Replaced `lsp_integration.rs` with `intelligence.rs` backed by `core::intelligence`; all previous LSP symbols removed.
+- Intelligence settings moved to a dedicated Intelligence tab; Auto Pairing and Markdown Linting controls removed from the Editor settings tab.
+- CSS system extended with `footer.rs` module for diagnostic badge and popover styles; `menu.rs` and `dialog.rs` updated with new component styles.
+- Updated translations (`en.toml`, `de.toml`) with intelligence settings keys, "Diagnostics Reference" menu label, and Intelligence tab keys.
+- Disabled unfinished controls so users can clearly see they are not available yet: Text Direction, UI Font, UI Font Size, Send Anonymous User Data, and File → Export.
+
+### Fixed
+- Hover provider no longer shows a diagnostic popover for text visually below the last diagnostic; the span-comparison logic correctly identifies the narrowest applicable insight at the cursor position.
+- Package installer now creates a `libxml2.so.2` compatibility symlink automatically on distributions that ship libxml2 2.12+ (soname `libxml2.so.16`), such as AnduinOS 1.4.2 and Ubuntu 24.10+, preventing a startup failure due to the missing shared library.
+- Added `libxml2 (>= 2.9)` to the `.deb` package `Depends` field; it was a direct runtime dependency that was previously undeclared.
+
+### Removed
+- `ui/menu_items/tools.rs` — Tools menu removed; its actions were migrated or deferred to other menus.
+- Auto Pairing and Markdown Linting settings removed from the Editor tab (superseded by Intelligence tab controls).
+- Removed the "Custom CSS for Preview" button from the Appearance settings tab.
 
 ## [0.20.0] - 2026-03-04
 

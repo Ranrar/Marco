@@ -4,7 +4,7 @@
 //! colors.
 //!
 //! The `core` crate produces highlight spans tagged with a small enum
-//! (`core::lsp::HighlightTag`). In the editor we apply those spans as GTK
+//! (`core::intelligence::HighlightTag`). In the editor we apply those spans as GTK
 //! `TextTag`s on the SourceView buffer.
 //!
 //! The color palette for those `TextTag`s is defined here (light/dark maps).
@@ -17,9 +17,9 @@ use std::collections::HashMap;
 /// All syntax tag names used by the editor highlight pipeline.
 ///
 /// Keep this list in sync with:
-/// - `marco/src/components/editor/lsp_integration.rs` (tag naming)
-/// - `core::lsp::HighlightTag` (tag variants)
-pub const LSP_TAG_NAMES: &[&str] = &[
+/// - `marco/src/components/editor/intelligence_integration.rs` (tag naming)
+/// - `core::intelligence::HighlightTag` (tag variants)
+pub const INTELLIGENCE_TAG_NAMES: &[&str] = &[
     "heading1",
     "heading2",
     "heading3",
@@ -190,7 +190,7 @@ fn dark_color_map() -> HashMap<&'static str, &'static str> {
 // strings avoids extra conversions and preserves fidelity with the XML
 // theme files.
 
-/// Apply LSP style tags (colors only) to the provided `sourceview5::Buffer`.
+/// Apply intelligence style tags (colors only) to the provided `sourceview5::Buffer`.
 ///
 /// This will create `TextTag`s named like `heading1`, `emphasis`, `code-span`, etc.
 /// If tags already exist they will be updated with the new foreground color.
@@ -207,7 +207,7 @@ pub fn apply_to_buffer(buffer: &sourceview5::Buffer, theme_mode: &str) {
     let tag_table = buffer.tag_table();
 
     // Apply our hardcoded palette. (No scheme lookup: code-driven colors only.)
-    for name in LSP_TAG_NAMES {
+    for name in INTELLIGENCE_TAG_NAMES {
         let Some(hex) = map.get(name) else {
             log::warn!("Missing syntax color for tag '{name}' in theme_mode='{theme_mode}'");
             continue;
@@ -223,14 +223,14 @@ pub fn apply_to_buffer(buffer: &sourceview5::Buffer, theme_mode: &str) {
     }
 }
 
-/// Remove or reset LSP style tag foregrounds from the provided `sourceview5::Buffer`.
+/// Remove or reset intelligence style tag foregrounds from the provided `sourceview5::Buffer`.
 ///
 /// This will clear the `foreground` property for any of the tags we create so the
 /// editor falls back to default text color. We iterate the union of known tag names
 /// to make sure both light and dark variants are covered.
 pub fn remove_from_buffer(buffer: &sourceview5::Buffer) {
     let tag_table = buffer.tag_table();
-    for name in LSP_TAG_NAMES {
+    for name in INTELLIGENCE_TAG_NAMES {
         if let Some(tag) = tag_table.lookup(name) {
             // Clearing the foreground will make the TextTag not override the default
             // text color used by the SourceView.
@@ -243,7 +243,7 @@ pub fn remove_from_buffer(buffer: &sourceview5::Buffer) {
 /// This keeps the module consistent with other `marco/src/ui/css/*` modules.
 pub fn generate_css() -> String {
     // Syntax module doesn't contribute large GTK CSS; return a small marker
-    String::from("/* syntax module: provides LSP tag colors for SourceView */\n")
+    String::from("/* syntax module: provides intelligence tag colors for SourceView */\n")
 }
 
 #[cfg(test)]
@@ -253,7 +253,7 @@ mod tests {
     #[test]
     fn smoke_test_all_tag_names_have_light_colors() {
         let map = light_color_map();
-        for name in LSP_TAG_NAMES {
+        for name in INTELLIGENCE_TAG_NAMES {
             assert!(map.contains_key(name), "missing light color for '{name}'");
         }
     }
@@ -261,7 +261,7 @@ mod tests {
     #[test]
     fn smoke_test_all_tag_names_have_dark_colors() {
         let map = dark_color_map();
-        for name in LSP_TAG_NAMES {
+        for name in INTELLIGENCE_TAG_NAMES {
             assert!(map.contains_key(name), "missing dark color for '{name}'");
         }
     }

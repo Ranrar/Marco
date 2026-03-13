@@ -269,39 +269,19 @@ fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> Strin
     box-shadow: none;
 }}
 
-/* Style the popover arrow - subtle and matching the background */
-.{theme} popover.menu > arrow {{
-    background: {popover_bg};
-    border: none;
-    min-height: {arrow_size};
-    min-width: {arrow_size};
-    -gtk-icon-shadow: {shadow};
-}}
-
-/* Arrow background shape - blends seamlessly with contents */
-.{theme} popover.menu > arrow.top {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-up-symbolic"));
-}}
-
-.{theme} popover.menu > arrow.bottom {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-down-symbolic"));
-}}
-
-.{theme} popover.menu > arrow.left {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-left-symbolic"));
-}}
-
-.{theme} popover.menu > arrow.right {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-right-symbolic"));
-}}
-
-/* Style the contents node - Marco standard with proper padding */
+/* Arrow and contents share the same bg/border/shadow so GTK draws them as one
+   connected bubble shape — mirrors how system themes (Yaru, Adwaita) work. */
+.{theme} popover.menu > arrow,
 .{theme} popover.menu > contents {{
-    background: {popover_bg};
-    color: {color};
-    border: none;
+    background-color: {popover_bg};
+    border: 1px solid {border};
     box-shadow: {shadow};
+}}
+
+/* Contents-only: rounded corners + text + padding */
+.{theme} popover.menu > contents {{
     border-radius: {popover_radius};
+    color: {color};
     padding: {contents_padding};
 }}
 
@@ -428,7 +408,6 @@ fn generate_popover_menu_css(theme_class: &str, palette: &ColorPalette) -> Strin
         item_padding = POPOVER_ITEM_PADDING,
         item_margin = POPOVER_ITEM_MARGIN,
         item_min_height = POPOVER_ITEM_MIN_HEIGHT,
-        arrow_size = POPOVER_ARROW_SIZE,
         separator_margin = POPOVER_SEPARATOR_MARGIN,
         separator_height = POPOVER_SEPARATOR_HEIGHT,
     )
@@ -445,40 +424,48 @@ fn generate_universal_popover_css(theme_class: &str, palette: &ColorPalette) -> 
     box-shadow: none;
 }}
 
-/* Universal popover arrow styling */
-.{theme} popover:not(.menu) > arrow {{
-    background: {popover_bg};
-    border: none;
-    min-height: {arrow_size};
-    min-width: {arrow_size};
-    -gtk-icon-shadow: {shadow};
-}}
-
-/* Arrow directional styling */
-.{theme} popover:not(.menu) > arrow.top {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-up-symbolic"));
-}}
-
-.{theme} popover:not(.menu) > arrow.bottom {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-down-symbolic"));
-}}
-
-.{theme} popover:not(.menu) > arrow.left {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-left-symbolic"));
-}}
-
-.{theme} popover:not(.menu) > arrow.right {{
-    -gtk-icon-source: -gtk-recolor(url("arrow-right-symbolic"));
-}}
-
-/* Universal popover contents styling */
+/* Arrow and contents share the same bg/border/shadow so GTK draws them as one
+   connected bubble shape — mirrors how system themes (Yaru, Adwaita) work. */
+.{theme} popover:not(.menu) > arrow,
 .{theme} popover:not(.menu) > contents {{
-    background: {popover_bg};
-    color: {color};
-    border: none;
+    background-color: {popover_bg};
+    border: 1px solid {border};
     box-shadow: {shadow};
+}}
+
+/* Contents-only: rounded corners + text + padding */
+.{theme} popover:not(.menu) > contents {{
     border-radius: {popover_radius};
+    color: {color};
     padding: {contents_padding};
+}}
+
+/* Editor hover popover — same arrow+contents pattern with tighter padding */
+.{theme} popover.editor-hover-popover > arrow,
+.{theme} popover.editor-hover-popover > contents {{
+    background-color: {popover_bg};
+    border: 1px solid {border};
+    box-shadow: {shadow};
+}}
+
+.{theme} popover.editor-hover-popover > contents {{
+    border-radius: {popover_radius};
+    padding: 8px 10px;
+}}
+
+.{theme} popover.editor-hover-popover label {{
+    color: {color};
+    font-size: {font_size};
+    line-height: 1.2;
+}}
+
+.{theme} popover.editor-hover-popover .editor-hover-title {{
+    font-weight: 700;
+    margin-bottom: 2px;
+}}
+
+.{theme} popover.editor-hover-popover .editor-hover-body {{
+    opacity: 0.95;
 }}
 
 /* Universal menu items (for context menus) */
@@ -553,7 +540,6 @@ fn generate_universal_popover_css(theme_class: &str, palette: &ColorPalette) -> 
         item_padding = POPOVER_ITEM_PADDING,
         item_margin = POPOVER_ITEM_MARGIN,
         item_min_height = POPOVER_ITEM_MIN_HEIGHT,
-        arrow_size = POPOVER_ARROW_SIZE,
         separator_margin = POPOVER_SEPARATOR_MARGIN,
         separator_height = POPOVER_SEPARATOR_HEIGHT,
     )

@@ -9,7 +9,7 @@ use crate::components::viewer::renderer::refresh_preview_into_webview;
 // - Bidirectional scroll synchronization
 // - Theme management and syntax highlighting
 // - Document buffer integration
-// - Debounced content processing (LSP, rendering, extensions)
+// - Debounced content processing (intelligence, rendering, extensions)
 //
 // # Architecture
 //
@@ -19,7 +19,7 @@ use crate::components::viewer::renderer::refresh_preview_into_webview;
 //
 // Content changes trigger debounced processing:
 // - Preview rendering (300ms debounce)
-// - LSP syntax highlighting (150ms debounce)
+// - Intelligence syntax highlighting (150ms debounce)
 // - Extension processing (500ms debounce)
 //
 // # Platform Support
@@ -60,17 +60,192 @@ pub struct EditorParams {
     pub theme_mode: Rc<RefCell<String>>,
 }
 
+pub(crate) fn split_hover_content(raw: &str) -> (String, String) {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return ("Info".to_string(), String::new());
+    }
+
+    let (title, details) = if let Some(rest) = trimmed.strip_prefix("**") {
+        if let Some(end_idx) = rest.find("**") {
+            let title = rest[..end_idx].trim().to_string();
+            let details = rest[end_idx + 2..].trim().to_string();
+            (title, details)
+        } else {
+            ("Info".to_string(), trimmed.to_string())
+        }
+    } else {
+        ("Info".to_string(), trimmed.to_string())
+    };
+
+    (title, details.replace('`', "").trim().to_string())
+}
+
+pub(crate) fn diagnostic_at_offset(
+    diagnostics: &[core::intelligence::Diagnostic],
+    byte_offset: usize,
+) -> Option<core::intelligence::Diagnostic> {
+    diagnostics
+        .iter()
+        .filter(|d| d.span.start.offset <= byte_offset && byte_offset < d.span.end.offset)
+        // Narrowest span wins (most specific diagnostic)
+        .min_by_key(|d| d.span.end.offset.saturating_sub(d.span.start.offset))
+        .cloned()
+}
+
+pub(crate) fn diagnostic_hover_markup(
+    diagnostic: &core::intelligence::Diagnostic,
+) -> (String, String, (usize, usize, String)) {
+    let severity = match diagnostic.severity {
+        core::intelligence::DiagnosticSeverity::Error => "Error",
+        core::intelligence::DiagnosticSeverity::Warning => "Warning",
+        core::intelligence::DiagnosticSeverity::Info => "Info",
+        core::intelligence::DiagnosticSeverity::Hint => "Hint",
+    };
+
+    let title_text = diagnostic
+        .title_resolved()
+        .unwrap_or(diagnostic.message.as_str());
+    let title = format!("{}: {}", severity, title_text);
+
+    let mut body_lines = vec![format!("Code: {}", diagnostic.code_id())];
+    if let Some(description) = diagnostic.description_resolved() {
+        if !description.trim().is_empty() {
+            body_lines.push(format!("About: {}", description));
+        }
+    }
+    body_lines.push(format!("Fix: {}", diagnostic.fix_suggestion_resolved()));
+
+    let body = body_lines.join("\n");
+    let signature = (
+        diagnostic.span.start.offset,
+        diagnostic.span.end.offset,
+        format!("{}|{}", title, body),
+    );
+    (title, body, signature)
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct RuntimeIntelligenceSettings {
+    pub(crate) markdown_intelligence_enabled: bool,
+    pub(crate) diagnostics_underlines_enabled: bool,
+    pub(crate) diagnostics_hover_enabled: bool,
+    pub(crate) markdown_hover_enabled: bool,
+    pub(crate) syntax_colors_enabled: bool,
+    pub(crate) level_1_enabled: bool,
+    pub(crate) level_2_enabled: bool,
+    pub(crate) level_3_enabled: bool,
+    pub(crate) level_4_enabled: bool,
+}
+
+impl Default for RuntimeIntelligenceSettings {
+    fn default() -> Self {
+        Self {
+            markdown_intelligence_enabled: true,
+            diagnostics_underlines_enabled: true,
+            diagnostics_hover_enabled: true,
+            markdown_hover_enabled: true,
+            syntax_colors_enabled: true,
+            level_1_enabled: true,
+            level_2_enabled: true,
+            // Keep runtime defaults in sync with footer diagnostics defaults:
+            // errors + warnings on, infos + hints off unless explicitly enabled.
+            level_3_enabled: false,
+            level_4_enabled: false,
+        }
+    }
+}
+
+fn read_runtime_intelligence_settings(
+    settings_manager: Option<&std::sync::Arc<core::logic::swanson::SettingsManager>>,
+) -> RuntimeIntelligenceSettings {
+    let Some(settings_manager) = settings_manager else {
+        return RuntimeIntelligenceSettings::default();
+    };
+
+    // Reload from disk so changes made by the settings window (which uses
+    // its own SettingsManager instance) are picked up immediately.
+    if let Err(e) = settings_manager.reload_settings() {
+        log::debug!("Failed to reload settings for intelligence: {}", e);
+    }
+
+    let settings = settings_manager.get_settings();
+    let editor = settings.editor.unwrap_or_default();
+    let filter =
+        editor
+            .diagnostics_filter
+            .unwrap_or(core::logic::swanson::DiagnosticsFilterSettings {
+                errors: Some(true),
+                warnings: Some(true),
+                infos: Some(false),
+                hints: Some(false),
+            });
+
+    let diagnostics_underlines_enabled = editor.diagnostics_underlines_enabled.unwrap_or(true);
+    let diagnostics_hover_enabled = editor.diagnostics_hover_enabled.unwrap_or(true);
+    let markdown_hover_enabled = editor.markdown_hover_enabled.unwrap_or(true);
+    let syntax_colors_enabled = editor.syntax_colors.unwrap_or(true);
+
+    // Master enablement is derived from visible feature toggles.
+    // This avoids a hidden legacy master flag from unexpectedly disabling all
+    // intelligence behavior after the UI master switch was removed.
+    let markdown_intelligence_enabled = diagnostics_underlines_enabled
+        || diagnostics_hover_enabled
+        || markdown_hover_enabled
+        || syntax_colors_enabled;
+
+    RuntimeIntelligenceSettings {
+        markdown_intelligence_enabled,
+        diagnostics_underlines_enabled,
+        diagnostics_hover_enabled,
+        markdown_hover_enabled,
+        syntax_colors_enabled,
+        level_1_enabled: filter.errors.unwrap_or(true),
+        level_2_enabled: filter.warnings.unwrap_or(true),
+        level_3_enabled: filter.infos.unwrap_or(true),
+        level_4_enabled: filter.hints.unwrap_or(true),
+    }
+}
+
+fn diagnostic_severity_enabled(
+    severity: &core::intelligence::DiagnosticSeverity,
+    settings: RuntimeIntelligenceSettings,
+) -> bool {
+    match severity {
+        core::intelligence::DiagnosticSeverity::Error => settings.level_1_enabled,
+        core::intelligence::DiagnosticSeverity::Warning => settings.level_2_enabled,
+        core::intelligence::DiagnosticSeverity::Info => settings.level_3_enabled,
+        core::intelligence::DiagnosticSeverity::Hint => settings.level_4_enabled,
+    }
+}
+
 pub fn create_editor_with_preview_and_buffer(
     _window: &gtk4::ApplicationWindow,
     params: EditorParams,
     labels: Rc<FooterLabels>,
-    _settings_path: &str,
+    settings_path: &str,
     _document_buffer: Option<Rc<RefCell<core::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     let preview_theme_filename = &params.preview_theme_filename;
     let preview_theme_dir = &params.preview_theme_dir;
     let theme_manager = params.theme_manager;
     let theme_mode = params.theme_mode;
+    let intelligence_settings_manager = match core::logic::swanson::SettingsManager::initialize(
+        std::path::PathBuf::from(settings_path),
+    ) {
+        Ok(manager) => Some(manager),
+        Err(err) => {
+            log::warn!(
+                "Failed to initialize settings manager for intelligence runtime settings: {}",
+                err
+            );
+            None
+        }
+    };
+    let resolve_runtime_intelligence_settings: Rc<dyn Fn() -> RuntimeIntelligenceSettings> = {
+        let settings_manager = intelligence_settings_manager.clone();
+        Rc::new(move || read_runtime_intelligence_settings(settings_manager.as_ref()))
+    };
     // Implementation largely copied from previous editor.rs but using helper modules
     let paned = Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(600);
@@ -168,6 +343,23 @@ pub fn create_editor_with_preview_and_buffer(
     // Set event controller to capture phase to ensure it receives events before SourceView
     event_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
+
+    // SourceView5 native hover provider.
+    // Uses the built-in GtkSourceHover infrastructure instead of a custom
+    // EventControllerMotion + Popover approach.
+    let current_diagnostics: Rc<RefCell<Vec<core::intelligence::Diagnostic>>> =
+        Rc::new(RefCell::new(Vec::new()));
+
+    {
+        let hover = source_view.hover();
+        hover.set_hover_delay(350);
+
+        let provider = crate::components::editor::hover_provider::MarcoHoverProvider::new(
+            Rc::clone(&current_diagnostics),
+            Rc::clone(&resolve_runtime_intelligence_settings),
+        );
+        hover.add_provider(&provider);
+    }
 
     // Editor callback registration moved later so buffer handle can be captured
 
@@ -429,8 +621,8 @@ paned > separator {{
     });
 
     let buffer_rc: Rc<sourceview5::Buffer> = Rc::new(buffer);
-    // Apply LSP syntax tag colors for the current theme so tags exist before
-    // any LSP or UI code attempts to lookup them by name. Only apply if the
+    // Apply intelligence syntax tag colors for the current theme so tags exist before
+    // any intelligence/UI code attempts to lookup them by name. Only apply if the
     // user settings enable syntax colors.
     {
         let tm = theme_manager.borrow();
@@ -1171,20 +1363,20 @@ paned > separator {{
 
     // Create debouncers for different types of processing.
     //
-    // Important: preview + LSP highlighting can be expensive on large documents.
+    // Important: preview + intelligence highlighting can be expensive on large documents.
     // Use trailing-edge debouncing so we update only after the user pauses typing.
     let preview_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(400));
     let extension_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(400));
-    let lsp_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(250));
+    let intelligence_debouncer = Rc::new(crate::components::editor::debounce::Debouncer::new(250));
 
     // Guard against re-entrant buffer "changed" notifications caused by applying
     // syntax highlight tags. Applying/removing tags can emit `changed`, which would
     // otherwise schedule more parsing/highlighting and cause flicker.
-    let applying_lsp_tags = Rc::new(Cell::new(false));
+    let applying_intelligence_tags = Rc::new(Cell::new(false));
 
-    // Track in-flight LSP computations so we can drop stale results.
+    // Track in-flight intelligence computations so we can drop stale results.
     // (A slow parse should not overwrite newer highlights.)
-    let lsp_request_id = Rc::new(Cell::new(0u64));
+    let intelligence_request_id = Rc::new(Cell::new(0u64));
 
     // Also update preview whenever buffer content changes (e.g. when opening a file).
     let refresh_for_signal = std::rc::Rc::clone(&refresh_preview_impl);
@@ -1194,13 +1386,178 @@ paned > separator {{
     let buffer_rc_clone = Rc::clone(&buffer_rc);
     let preview_debouncer_for_signal = Rc::clone(&preview_debouncer);
     let extension_debouncer_for_signal = Rc::clone(&extension_debouncer);
-    let lsp_debouncer_for_signal = Rc::clone(&lsp_debouncer);
-    let applying_lsp_tags_for_signal = Rc::clone(&applying_lsp_tags);
-    let lsp_request_id_for_signal = Rc::clone(&lsp_request_id);
+    let intelligence_debouncer_for_signal = Rc::clone(&intelligence_debouncer);
+    let applying_intelligence_tags_for_signal = Rc::clone(&applying_intelligence_tags);
+    // Shared intelligence pipeline closure. Called from:
+    // 1. Buffer changed handler (via debounce) on each text edit
+    // 2. Global intelligence refresh (immediately) when settings change
+    let run_intelligence: Rc<dyn Fn()> = {
+        let buffer_rc = Rc::clone(&buffer_rc);
+        let applying_tags = Rc::clone(&applying_intelligence_tags);
+        let request_id = Rc::clone(&intelligence_request_id);
+        let current_diagnostics = Rc::clone(&current_diagnostics);
+        let resolve_settings = Rc::clone(&resolve_runtime_intelligence_settings);
+
+        Rc::new(move || {
+            let runtime_settings = resolve_settings();
+
+            if !runtime_settings.markdown_intelligence_enabled {
+                current_diagnostics.borrow_mut().clear();
+                applying_tags.set(true);
+                let buffer_for_clear = buffer_rc.clone();
+                let applying_for_clear = Rc::clone(&applying_tags);
+                crate::components::editor::intelligence::apply_intelligence_highlights_chunked(
+                    &buffer_rc,
+                    Vec::new(),
+                    move || {
+                        crate::components::editor::intelligence::apply_diagnostics_markers_chunked(
+                            &buffer_for_clear,
+                            Vec::new(),
+                            move || applying_for_clear.set(false),
+                        );
+                    },
+                );
+                return;
+            }
+
+            let rid = request_id.get().wrapping_add(1);
+            request_id.set(rid);
+
+            let current_text = buffer_rc
+                .text(&buffer_rc.start_iter(), &buffer_rc.end_iter(), false)
+                .to_string();
+
+            let buffer_for_apply = buffer_rc.clone();
+            let request_id_for_apply = Rc::clone(&request_id);
+            let applying_flag_for_apply = Rc::clone(&applying_tags);
+            let current_diagnostics_for_async = Rc::clone(&current_diagnostics);
+            let resolve_settings_for_async = Rc::clone(&resolve_settings);
+
+            glib::spawn_future_local(async move {
+                let result = gio::spawn_blocking(move || {
+                    let src = current_text;
+                    core::parser::parse(&src)
+                        .map_err(|e| e.to_string())
+                        .map(|doc| {
+                            let highlights =
+                                core::intelligence::compute_highlights_with_source(&doc, &src);
+                            let diagnostics = core::intelligence::compute_diagnostics_with_options(
+                                &doc,
+                                core::intelligence::DiagnosticsOptions::all(),
+                            );
+                            (highlights, diagnostics)
+                        })
+                })
+                .await;
+
+                let current_diagnostics_for_idle = Rc::clone(&current_diagnostics_for_async);
+
+                glib::idle_add_local_once(move || {
+                    if request_id_for_apply.get() != rid {
+                        return;
+                    }
+
+                    let clear_intelligence_ui = || {
+                        applying_flag_for_apply.set(true);
+                        let buffer_for_clear = buffer_for_apply.clone();
+                        let applying_for_clear = Rc::clone(&applying_flag_for_apply);
+                        crate::components::editor::intelligence::apply_intelligence_highlights_chunked(
+                            &buffer_for_apply,
+                            Vec::new(),
+                            move || {
+                                crate::components::editor::intelligence::apply_diagnostics_markers_chunked(
+                                    &buffer_for_clear,
+                                    Vec::new(),
+                                    move || {
+                                        applying_for_clear.set(false);
+                                    },
+                                );
+                            },
+                        );
+                    };
+
+                    match result {
+                        Ok(Ok((highlights, diagnostics))) => {
+                            let rs = resolve_settings_for_async();
+
+                            let filtered_diagnostics: Vec<core::intelligence::Diagnostic> =
+                                diagnostics
+                                    .into_iter()
+                                    .filter(|d| diagnostic_severity_enabled(&d.severity, rs))
+                                    .collect();
+
+                            log::debug!(
+                                "Computed {} intelligence highlights and {} diagnostics",
+                                highlights.len(),
+                                filtered_diagnostics.len()
+                            );
+
+                            if rs.diagnostics_hover_enabled {
+                                *current_diagnostics_for_idle.borrow_mut() =
+                                    filtered_diagnostics.clone();
+                            } else {
+                                current_diagnostics_for_idle.borrow_mut().clear();
+                            }
+
+                            let highlights_to_apply = if rs.syntax_colors_enabled {
+                                highlights
+                            } else {
+                                Vec::new()
+                            };
+                            let diagnostics_to_apply = if rs.diagnostics_underlines_enabled {
+                                filtered_diagnostics
+                            } else {
+                                Vec::new()
+                            };
+
+                            applying_flag_for_apply.set(true);
+                            let buffer_for_diagnostics = buffer_for_apply.clone();
+                            crate::components::editor::intelligence::apply_intelligence_highlights_chunked(
+                                &buffer_for_apply,
+                                highlights_to_apply,
+                                move || {
+                                    crate::components::editor::intelligence::apply_diagnostics_markers_chunked(
+                                        &buffer_for_diagnostics,
+                                        diagnostics_to_apply,
+                                        move || {
+                                            applying_flag_for_apply.set(false);
+                                        },
+                                    );
+                                },
+                            );
+                        }
+                        Ok(Err(e)) => {
+                            current_diagnostics_for_idle.borrow_mut().clear();
+                            clear_intelligence_ui();
+                            log::warn!(
+                                "Failed to parse markdown for intelligence highlighting: {}",
+                                e
+                            );
+                        }
+                        Err(e) => {
+                            current_diagnostics_for_idle.borrow_mut().clear();
+                            clear_intelligence_ui();
+                            log::error!("Intelligence highlight task panicked: {:?}", e);
+                        }
+                    }
+                });
+            });
+        })
+    };
+
+    // Register the intelligence pipeline for global refresh from the settings tab.
+    {
+        let run_intelligence_for_refresh = Rc::clone(&run_intelligence);
+        crate::components::editor::editor_manager::register_intelligence_refresh(move || {
+            run_intelligence_for_refresh();
+        });
+    }
 
     buffer_rc_clone.connect_changed(move |buffer| {
+        // SourceView5's native hover handles dismissal on buffer changes.
+
         // Ignore change events caused by applying/removing highlight tags.
-        if applying_lsp_tags_for_signal.get() {
+        if applying_intelligence_tags_for_signal.get() {
             return;
         }
 
@@ -1219,63 +1576,10 @@ paned > separator {{
             }
         });
 
-        // Apply LSP syntax highlighting with debouncing
-        let buffer_for_lsp = buffer.clone();
-        let applying_lsp_tags_for_lsp = Rc::clone(&applying_lsp_tags_for_signal);
-        let request_id_cell = Rc::clone(&lsp_request_id_for_signal);
-        lsp_debouncer_for_signal.debounce_trailing(move || {
-            // Runs on GTK main thread (timeout callback). Keep it small.
-            // We intentionally do parsing/highlight computation off-thread.
-
-            let request_id = request_id_cell.get().wrapping_add(1);
-            request_id_cell.set(request_id);
-
-            let current_text_for_lsp = buffer_for_lsp
-                .text(&buffer_for_lsp.start_iter(), &buffer_for_lsp.end_iter(), false)
-                .to_string();
-
-            let buffer_for_apply = buffer_for_lsp.clone();
-            let request_id_cell_for_apply = Rc::clone(&request_id_cell);
-            let applying_flag_for_apply = Rc::clone(&applying_lsp_tags_for_lsp);
-
-            glib::spawn_future_local(async move {
-                let result = gio::spawn_blocking(move || {
-                    let src = current_text_for_lsp;
-                    core::parser::parse(&src)
-                        .map_err(|e| e.to_string())
-                        .map(|doc| core::lsp::compute_highlights_with_source(&doc, &src))
-                })
-                .await;
-
-                glib::idle_add_local_once(move || {
-                    // Drop stale results.
-                    if request_id_cell_for_apply.get() != request_id {
-                        return;
-                    }
-
-                    match result {
-                        Ok(Ok(highlights)) => {
-                            log::debug!("Computed {} LSP highlights", highlights.len());
-
-                            // Apply highlights to buffer in small chunks.
-                            applying_flag_for_apply.set(true);
-                            crate::components::editor::lsp_integration::apply_lsp_highlights_chunked(
-                                &buffer_for_apply,
-                                highlights,
-                                move || {
-                                    applying_flag_for_apply.set(false);
-                                },
-                            );
-                        }
-                        Ok(Err(e)) => {
-                            log::warn!("Failed to parse markdown for LSP highlighting: {}", e);
-                        }
-                        Err(e) => {
-                            log::error!("LSP highlight task panicked: {:?}", e);
-                        }
-                    }
-                });
-            });
+        // Apply intelligence with debouncing
+        let run_intelligence_for_debounce = Rc::clone(&run_intelligence);
+        intelligence_debouncer_for_signal.debounce_trailing(move || {
+            run_intelligence_for_debounce();
         });
 
         // Use new debounced extension processing with change delta detection
@@ -1308,7 +1612,10 @@ paned > separator {{
                         current_text_for_extensions,
                         cursor_position,
                         |results| {
-                            log::debug!("Extension processing completed: {} results", results.len());
+                            log::debug!(
+                                "Extension processing completed: {} results",
+                                results.len()
+                            );
                         },
                     ) {
                         log::error!("Failed to trigger extension processing: {}", e);
@@ -1678,4 +1985,99 @@ paned > separator {{
         overlay,          // 10: Overlay widget
         split_controller, // 11: Split position controller
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_diag(
+        severity: core::intelligence::DiagnosticSeverity,
+        code: core::intelligence::DiagnosticCode,
+        start: usize,
+        end: usize,
+        message: &str,
+    ) -> core::intelligence::Diagnostic {
+        core::intelligence::Diagnostic {
+            code,
+            span: core::parser::Span {
+                start: core::parser::Position {
+                    line: 1,
+                    column: start.saturating_add(1),
+                    offset: start,
+                },
+                end: core::parser::Position {
+                    line: 1,
+                    column: end.saturating_add(1),
+                    offset: end,
+                },
+            },
+            severity,
+            message: message.to_string(),
+        }
+    }
+
+    #[test]
+    fn smoke_test_diagnostic_at_offset_prefers_narrowest_span() {
+        let wide = make_diag(
+            core::intelligence::DiagnosticSeverity::Warning,
+            core::intelligence::DiagnosticCode::MissingCodeBlockLanguage,
+            10,
+            30,
+            "wide",
+        );
+        let narrow = make_diag(
+            core::intelligence::DiagnosticSeverity::Error,
+            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            12,
+            14,
+            "narrow",
+        );
+
+        let hit = diagnostic_at_offset(&[wide, narrow.clone()], 13)
+            .expect("expected diagnostic hit at offset 13");
+        assert_eq!(hit.message, "narrow");
+    }
+
+    #[test]
+    fn smoke_test_diagnostic_at_offset_none_outside_span() {
+        let diag = make_diag(
+            core::intelligence::DiagnosticSeverity::Error,
+            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            5,
+            10,
+            "hit-range",
+        );
+
+        assert!(diagnostic_at_offset(&[diag], 10).is_none()); // end-exclusive
+    }
+
+    #[test]
+    fn smoke_test_diagnostic_hover_markup_contains_code_and_fix() {
+        let diag = make_diag(
+            core::intelligence::DiagnosticSeverity::Error,
+            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            20,
+            24,
+            "Empty image URL",
+        );
+
+        let (title, body, signature) = diagnostic_hover_markup(&diag);
+        assert!(title.contains("Error"));
+        assert!(title.contains("Empty image URL"));
+        assert!(body.contains(&format!("Code: {}", diag.code_id())));
+        assert!(body.contains("About:"));
+        assert!(body.contains("Fix:"));
+        assert_eq!(signature.0, 20);
+        assert_eq!(signature.1, 24);
+    }
+
+    #[test]
+    fn smoke_test_runtime_intelligence_defaults_match_footer_filter_baseline() {
+        let settings = RuntimeIntelligenceSettings::default();
+        assert!(settings.level_1_enabled);
+        assert!(settings.level_2_enabled);
+        assert!(!settings.level_3_enabled);
+        assert!(!settings.level_4_enabled);
+    }
 }

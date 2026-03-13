@@ -255,11 +255,18 @@ impl Settings {
             editor: Some(EditorSettings {
                 font_size: Some(12),
                 line_wrapping: Some(true),
-                auto_pairing: Some(true),
                 show_invisibles: Some(false),
                 tabs_to_spaces: Some(true),
                 syntax_colors: Some(true),
-                linting: Some(true),
+                diagnostics_underlines_enabled: Some(true),
+                diagnostics_hover_enabled: Some(true),
+                markdown_hover_enabled: Some(true),
+                diagnostics_filter: Some(DiagnosticsFilterSettings {
+                    errors: Some(true),
+                    warnings: Some(true),
+                    hints: Some(true),
+                    infos: Some(true),
+                }),
                 ..Default::default()
             }),
             layout: Some(LayoutSettings {
@@ -499,7 +506,7 @@ impl SettingsManager {
     }
 
     /// Reload settings from file
-    fn reload_settings(&self) -> Result<(), SettingsError> {
+    pub fn reload_settings(&self) -> Result<(), SettingsError> {
         let content = fs::read_to_string(&self.settings_path)?;
         let parsed_settings: Settings = ron::de::from_str(&content)?;
 
@@ -667,11 +674,21 @@ pub struct EditorSettings {
     pub font_size: Option<u8>,
     pub line_height: Option<f32>,
     pub line_wrapping: Option<bool>,
-    pub auto_pairing: Option<bool>,
     pub show_invisibles: Option<bool>,
     pub tabs_to_spaces: Option<bool>,
     pub syntax_colors: Option<bool>,
-    pub linting: Option<bool>,
+    pub diagnostics_underlines_enabled: Option<bool>,
+    pub diagnostics_hover_enabled: Option<bool>,
+    pub markdown_hover_enabled: Option<bool>,
+    pub diagnostics_filter: Option<DiagnosticsFilterSettings>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct DiagnosticsFilterSettings {
+    pub errors: Option<bool>,
+    pub warnings: Option<bool>,
+    pub hints: Option<bool>,
+    pub infos: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -845,6 +862,15 @@ mod tests {
             .expect("appearance defaults should be present");
         assert_eq!(appearance.editor_mode.as_deref(), Some("marco-light"));
         assert_eq!(appearance.preview_theme.as_deref(), Some("marco.css"));
+
+        let editor = settings.editor.expect("editor defaults should be present");
+        let diagnostics_filter = editor
+            .diagnostics_filter
+            .expect("diagnostics filter defaults should be present");
+        assert_eq!(diagnostics_filter.errors, Some(true));
+        assert_eq!(diagnostics_filter.warnings, Some(true));
+        assert_eq!(diagnostics_filter.hints, Some(true));
+        assert_eq!(diagnostics_filter.infos, Some(true));
 
         assert_eq!(settings.debug, Some(true));
         assert_eq!(settings.log_to_file, Some(true));

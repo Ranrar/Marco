@@ -251,17 +251,15 @@ jobs:
           commit: ${{ github.sha }}
           artifacts: "artifacts/*.deb,artifacts/*.zip"
           body: |
-            **Release Build (Beta Channel)** - Automatic build from latest commit
+            **Beta Channel** — built automatically from the latest commit on `main`.
             
-            This is the normal release channel artifact set.
-            
-            ⚠️ **Status: Beta**
-            
-            This release is currently in beta and may still include rough edges.
+            Marco and Polo are actively developed. Features are functional but the project is still maturing — you may encounter rough edges or changes between releases.
             
             **Downloads:**
             - **Linux**: `marco-suite_*_linux_amd64.deb`
             - **Windows**: `marco-suite_*_windows_amd64.zip`
+            
+            Found something? [Open an issue](https://github.com/Ranrar/Marco/issues/new) — all feedback is welcome.
             
             Commit: ${{ github.sha }}
             Built: ${{ github.run_id }}

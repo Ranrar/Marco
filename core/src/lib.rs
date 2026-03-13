@@ -1,15 +1,15 @@
-// Marco Core Library - nom-based Markdown parser with LSP support
+// Marco Core Library - nom-based Markdown parser with intelligence support
 
-// Core modules: grammar → parser → AST → renderer → LSP
+// Core modules: grammar → parser → AST → renderer → intelligence
 pub mod grammar;
+pub mod intelligence;
 pub mod logic;
-pub mod lsp;
 pub mod parser;
 pub mod paths;
 pub mod render;
 
 // Re-export main API
-pub use lsp::LspProvider;
+pub use intelligence::MarkdownIntelligenceProvider;
 pub use parser::parse;
 pub use parser::{Document, Node, NodeKind};
 pub use render::{render, RenderOptions};

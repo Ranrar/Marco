@@ -239,6 +239,7 @@ fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwit
     // Create popover with the menu model
     let popover = gtk4::PopoverMenu::from_model(Some(menu));
     let popover_base: gtk4::Popover = popover.clone().upcast();
+    popover.add_css_class("marco-menu-popover");
     popover.set_parent(&button);
     crate::ui::popover_state::enforce_dismiss_behavior(&popover_base);
     popover.set_cascade_popdown(true);
@@ -663,10 +664,8 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
             wrap_enabled: false,
             line_numbers_enabled: true,
             sync_scrolling_enabled: true,
-            auto_pairing_enabled: true,
             tabs_to_spaces_enabled: true,
             syntax_colors_enabled: true,
-            markdown_linting_enabled: true,
             rtl_text_direction_enabled: false,
         },
     );
@@ -683,6 +682,10 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
     menu_state.help_menu.append(
         Some(&translations.menu.keyboard_shortcuts),
         Some("app.keyboard_shortcuts"),
+    );
+    menu_state.help_menu.append(
+        Some(&translations.menu.diagnostics_reference),
+        Some("app.diagnostics_reference"),
     );
     menu_state
         .help_menu

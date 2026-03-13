@@ -22,6 +22,29 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.21.0] - 2026-03-13
+
+### Added
+- In-process intelligence engine (`core/src/intelligence/`) — replaces the previous `lsp/` module; provides syntax highlighting, hover information, Markdown completions, and diagnostic analysis behind a clean public API boundary.
+- Two diagnostics catalogs in RON format (`diagnostics_catalog_marco.ron`, `diagnostics_catalog_markdownlint.ron`) — map diagnostic codes to human-readable titles, descriptions, severity, and fix suggestions.
+- `get_position_span` — returns the tightest AST node span enclosing a cursor position; supports hover suppression logic in the editor.
+- `intelligence/markdown/` boundary module — structured reinterpretation of the AST for intelligence consumers (blocks and inlines classification).
+- LSP protocol adapter stub (`intelligence/lsp_protocol.rs`) for future language server integration.
+- `DiagnosticsFilterSettings` struct in `EditorSettings` — per-severity toggles (errors, warnings, hints, infos) for the diagnostics display; replaces the previous `linting` boolean.
+- `diagnostics_underlines_enabled`, `diagnostics_hover_enabled`, and `markdown_hover_enabled` fields in `EditorSettings` for fine-grained intelligence feature control.
+- `SettingsManager::reload_settings` is now `pub` to allow external callers to trigger a settings reload.
+
+### Changed
+- Replaced `core/src/lsp/` module with `core/src/intelligence/` — Markdown intelligence capabilities (highlights, diagnostics, completions, hover) are now organized under feature-area sub-modules (`editor/`, `markdown/`, `analysis/`, `catalog/`).
+- `EditorSettings`: removed `auto_pairing` and `linting` fields; added `diagnostics_underlines_enabled`, `diagnostics_hover_enabled`, `markdown_hover_enabled`, and `diagnostics_filter`.
+
+### Fixed
+- Image nodes now carry the span of the full `![alt](url)` syntax rather than just the alt-text fragment; this prevents zero-length spans when alt text is empty.
+- Footnote definition nodes had their span end set to end-of-document due to use of the inclusive span range helper; corrected to use the exclusive variant so subsequent content is not erroneously enclosed within a footnote definition span.
+
+### Removed
+- Old `core/src/lsp/` module (completion, diagnostics, highlights, hover) superseded by `core/src/intelligence/`.
+
 ## [0.20.0] - 2026-03-04
 
 ### Added

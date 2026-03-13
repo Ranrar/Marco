@@ -744,6 +744,7 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
 
     let block_type_popover = gtk4::Popover::new();
     block_type_popover.set_parent(&text_paragraph_poover_button);
+    block_type_popover.add_css_class("marco-toolbar-popover");
     crate::ui::popover_state::enforce_dismiss_behavior(&block_type_popover);
     let popover_box = Box::new(Orientation::Vertical, 4);
     let block_type_items = [
@@ -823,6 +824,7 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     );
     let text_inline_popover = gtk4::Popover::new();
     text_inline_popover.set_parent(&text_inline_poover_button);
+    text_inline_popover.add_css_class("marco-toolbar-popover");
     crate::ui::popover_state::enforce_dismiss_behavior(&text_inline_popover);
     let text_inline_box = Box::new(Orientation::Vertical, 4);
     let text_inline_items = [
@@ -887,6 +889,7 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     );
     let inline_items_popover = gtk4::Popover::new();
     inline_items_popover.set_parent(&inline_items_poover_button);
+    inline_items_popover.add_css_class("marco-toolbar-popover");
     crate::ui::popover_state::enforce_dismiss_behavior(&inline_items_popover);
     let inline_items_box = Box::new(Orientation::Vertical, 4);
     let inline_items = [
@@ -962,6 +965,7 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     );
     let block_items_popover = gtk4::Popover::new();
     block_items_popover.set_parent(&block_items_poover_button);
+    block_items_popover.add_css_class("marco-toolbar-popover");
     crate::ui::popover_state::enforce_dismiss_behavior(&block_items_popover);
     let block_items_box = Box::new(Orientation::Vertical, 4);
     let block_items = [
@@ -1013,6 +1017,7 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     );
     let container_items_popover = gtk4::Popover::new();
     container_items_popover.set_parent(&container_items_poover_button);
+    container_items_popover.add_css_class("marco-toolbar-popover");
     crate::ui::popover_state::enforce_dismiss_behavior(&container_items_popover);
     let container_items_box = Box::new(Orientation::Vertical, 4);
     let container_items = [

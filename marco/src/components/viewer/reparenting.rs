@@ -64,9 +64,6 @@
 //     - `marco/src/components/viewer/reparenting.rs`
 //     - `marco/src/components/viewer/webkit6_detached_window.rs`
 //     - related menu wiring in `marco/src/menu.rs`
-//
-// TODO: add an integration test that exercises a full open/close reparent cycle (manual
-// test steps described in the module docs).
 
 use crate::components::viewer::webkit6_detached_window::PreviewWindow;
 use gtk4::prelude::*;

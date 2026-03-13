@@ -48,6 +48,12 @@ pub fn generate_css() -> String {
     // Footer spacer (empty labels) - theme-independent
     css.push_str(&generate_footer_spacer_css());
 
+    // Diagnostics trigger state colors (theme-independent)
+    css.push_str(&generate_footer_diagnostics_trigger_css());
+
+    // Diagnostics popover controls/chips
+    css.push_str(&generate_footer_diagnostics_popover_css());
+
     css
 }
 
@@ -114,6 +120,172 @@ fn generate_footer_spacer_css() -> String {
     .to_string()
 }
 
+/// Generate diagnostics trigger "button" state colors without changing layout metrics.
+fn generate_footer_diagnostics_trigger_css() -> String {
+    format!(
+        r##"
+/* Footer diagnostics/stub buttons - toolbar-like icon/text behavior */
+.marco-theme-light .footer .footer-diagnostics-trigger,
+.marco-theme-dark .footer .footer-diagnostics-trigger {{
+    border-radius: 4px;
+    padding: 0;
+    line-height: 1.0;
+    margin: 0;
+    min-height: 0;
+    min-width: 0;
+    background: transparent;
+    border: none;
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger {{
+    color: {light_normal};
+}}
+
+.marco-theme-dark .footer .footer-diagnostics-trigger {{
+    color: {dark_normal};
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger:hover {{
+    background: transparent;
+    color: {light_hover};
+}}
+
+.marco-theme-dark .footer .footer-diagnostics-trigger:hover {{
+    background: transparent;
+    color: {dark_hover};
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger:active {{
+    background: transparent;
+    color: {light_active};
+}}
+
+.marco-theme-dark .footer .footer-diagnostics-trigger:active {{
+    background: transparent;
+    color: {dark_active};
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger .footer-status-label,
+.marco-theme-dark .footer .footer-diagnostics-trigger .footer-status-label {{
+    color: inherit;
+    padding: 0;
+    margin: 0;
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger .footer-status-label {{
+    color: {light_normal};
+}}
+
+.marco-theme-dark .footer .footer-diagnostics-trigger .footer-status-label {{
+    color: {dark_normal};
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger:hover .footer-status-label {{
+    color: {light_hover};
+}}
+
+.marco-theme-dark .footer .footer-diagnostics-trigger:hover .footer-status-label {{
+    color: {dark_hover};
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger:active .footer-status-label {{
+    color: {light_active};
+}}
+
+.marco-theme-dark .footer .footer-diagnostics-trigger:active .footer-status-label {{
+    color: {dark_active};
+}}
+
+.marco-theme-light .footer .footer-diagnostics-trigger box,
+.marco-theme-dark .footer .footer-diagnostics-trigger box {{
+    padding: 0;
+    margin: 0;
+}}
+
+/* Neutralize severity classes so all 3 buttons share toolbar-like look */
+.marco-theme-light .footer .footer-diagnostics-trigger.footer-diagnostics-ok,
+.marco-theme-light .footer .footer-diagnostics-trigger.footer-diagnostics-warning,
+.marco-theme-light .footer .footer-diagnostics-trigger.footer-diagnostics-error,
+.marco-theme-dark .footer .footer-diagnostics-trigger.footer-diagnostics-ok,
+.marco-theme-dark .footer .footer-diagnostics-trigger.footer-diagnostics-warning,
+.marco-theme-dark .footer .footer-diagnostics-trigger.footer-diagnostics-error {{
+    background: transparent;
+    color: inherit;
+}}
+"##,
+        light_normal = LIGHT_PALETTE.control_icon,
+        light_hover = LIGHT_PALETTE.control_icon_hover,
+        light_active = LIGHT_PALETTE.control_icon_active,
+        dark_normal = DARK_PALETTE.control_icon,
+        dark_hover = DARK_PALETTE.control_icon_hover,
+        dark_active = DARK_PALETTE.control_icon_active,
+    )
+}
+
+fn generate_footer_diagnostics_popover_css() -> String {
+    r##"
+/* Diagnostics popover controls */
+.marco-theme-light .footer-diag-filter-check,
+.marco-theme-dark .footer-diag-filter-check {
+    border-radius: 4px;
+    padding: 1px 6px;
+    min-height: 0;
+}
+
+.marco-theme-light .footer-diag-filter-check check,
+.marco-theme-dark .footer-diag-filter-check check {
+    min-width: 12px;
+    min-height: 12px;
+}
+
+.marco-theme-light .footer-diag-filter-check label,
+.marco-theme-dark .footer-diag-filter-check label {
+    font-weight: 700;
+}
+
+/* Diagnostics list rows */
+.marco-theme-light .footer-diag-row,
+.marco-theme-dark .footer-diag-row {
+    padding: 2px 0;
+}
+
+/* Tiny severity chips */
+.marco-theme-light .footer-diag-chip,
+.marco-theme-dark .footer-diag-chip {
+    border-radius: 999px;
+    min-width: 12px;
+    padding: 0 5px;
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.marco-theme-light .footer-diag-chip.footer-diag-chip-error,
+.marco-theme-dark .footer-diag-chip.footer-diag-chip-error {
+    background-color: #d32f2f;
+    color: #ffffff;
+}
+
+.marco-theme-light .footer-diag-chip.footer-diag-chip-warning,
+.marco-theme-dark .footer-diag-chip.footer-diag-chip-warning {
+    background-color: #f9a825;
+    color: #1f1f1f;
+}
+
+.marco-theme-light .footer-diag-chip.footer-diag-chip-info,
+.marco-theme-dark .footer-diag-chip.footer-diag-chip-info {
+    background-color: #1976d2;
+    color: #ffffff;
+}
+
+.marco-theme-light .footer-diag-chip.footer-diag-chip-hint,
+.marco-theme-dark .footer-diag-chip.footer-diag-chip-hint {
+    background-color: #607d8b;
+    color: #ffffff;
+}
+"##
+    .to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,6 +306,10 @@ mod tests {
         assert!(
             css.contains(".footer-spacer"),
             "Should contain footer-spacer styling"
+        );
+        assert!(
+            css.contains(".footer-diagnostics-trigger"),
+            "Should contain diagnostics trigger styling"
         );
 
         // Verify both themes present
@@ -189,5 +365,27 @@ mod tests {
             !css.contains("label:empty"),
             "Should not use label:empty selector"
         );
+    }
+
+    #[test]
+    fn smoke_test_footer_diagnostics_trigger_colors() {
+        let css = generate_footer_diagnostics_trigger_css();
+        assert!(css.contains("footer-diagnostics-ok"));
+        assert!(css.contains("footer-diagnostics-warning"));
+        assert!(css.contains("footer-diagnostics-error"));
+    }
+
+    #[test]
+    fn smoke_test_footer_diagnostics_popover_styles() {
+        let css = generate_footer_diagnostics_popover_css();
+        assert!(css.contains("footer-diag-filter-check"));
+        assert!(css.contains("footer-diag-chip"));
+        assert!(css.contains("footer-diag-chip-error"));
+        assert!(css.contains("footer-diag-chip-warning"));
+        assert!(css.contains("footer-diag-chip-info"));
+        assert!(css.contains("footer-diag-chip-hint"));
+        assert!(css.contains("#d32f2f"));
+        assert!(css.contains("#f9a825"));
+        assert!(css.contains("#1976d2"));
     }
 }

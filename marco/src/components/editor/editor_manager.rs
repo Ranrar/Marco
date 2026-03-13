@@ -220,6 +220,13 @@ thread_local! {
     static PRIMARY_EDITOR_SCROLLED_WINDOW: RefCell<Option<ScrolledWindow>> = const { RefCell::new(None) };
 }
 
+// Global intelligence refresh callback.
+// Stored by the editor during init and invoked by the settings tab to force
+// immediate re-application of intelligence highlights/diagnostics.
+thread_local! {
+    static INTELLIGENCE_REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+}
+
 /// Store the primary editor ScrolledWindow so other components (like detached preview windows)
 /// can access it for wiring scroll synchronization.
 pub fn set_primary_editor_scrolled_window(sw: &ScrolledWindow) {
@@ -416,6 +423,27 @@ pub fn resume_preview_to_editor_sync_globally() -> Result<(), Box<dyn std::error
     } else {
         Err("Editor manager not initialized".to_string().into())
     }
+}
+
+/// Register a callback that triggers an intelligence pipeline re-run.
+/// Called once by the editor during init.
+pub fn register_intelligence_refresh<F>(callback: F)
+where
+    F: Fn() + 'static,
+{
+    INTELLIGENCE_REFRESH.with(|cell| {
+        *cell.borrow_mut() = Some(Rc::new(callback));
+    });
+}
+
+/// Trigger the intelligence pipeline to re-run immediately.
+/// Called by the settings tab when intelligence toggles change.
+pub fn trigger_intelligence_refresh() {
+    INTELLIGENCE_REFRESH.with(|cell| {
+        if let Some(callback) = cell.borrow().as_ref() {
+            callback();
+        }
+    });
 }
 
 #[cfg(test)]

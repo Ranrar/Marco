@@ -101,6 +101,7 @@ pub(crate) fn load_default_translations() -> Translations {
             markdown_reference: "Markdown Reference".to_string(),
             walkthrough: "Walkthrough".to_string(),
             keyboard_shortcuts: "Keyboard Shortcuts".to_string(),
+            diagnostics_reference: "Diagnostics Reference".to_string(),
             about: "About Marco".to_string(),
         },
         toolbar: ToolbarTranslations {
@@ -184,6 +185,7 @@ pub(crate) fn load_default_translations() -> Translations {
             close: "Close".to_string(),
             tabs: SettingsTabsTranslations {
                 editor: "Editor".to_string(),
+                intelligence: "Intelligence".to_string(),
                 layout: "Layout".to_string(),
                 appearance: "Appearance".to_string(),
                 language: "Language".to_string(),
@@ -204,16 +206,33 @@ pub(crate) fn load_default_translations() -> Translations {
                 line_height_description: "Adjust the vertical spacing between lines.".to_string(),
                 line_wrapping_label: "Line Wrapping".to_string(),
                 line_wrapping_description: "Wrap long lines to fit within the editor window.".to_string(),
-                auto_pairing_label: "Auto Pairing".to_string(),
-                auto_pairing_description: "Automatically insert closing characters for **, [], (), and backticks.".to_string(),
                 show_invisibles_label: "Show Invisible Characters".to_string(),
                 show_invisibles_description: "Display tabs, spaces, and newlines visually in the editor.".to_string(),
                 tabs_to_spaces_label: "Convert Tabs to Spaces".to_string(),
                 tabs_to_spaces_description: "Replace tab characters with spaces.".to_string(),
                 syntax_colors_label: "Syntax Colors".to_string(),
                 syntax_colors_description: "Enable or disable syntax-based color highlighting for Markdown.".to_string(),
-                linting_label: "Enable Markdown Linting".to_string(),
-                linting_description: "Check for Markdown syntax issues and style problems.".to_string(),
+            },
+            intelligence: SettingsIntelligenceTranslations {
+                section_intelligence: "Intelligence".to_string(),
+                intro_description:
+                    "Tools that understand the Markdown document and provide feedback."
+                        .to_string(),
+                section_issues: "Issues".to_string(),
+                diagnostics_underlines_label: "Show issue underlines".to_string(),
+                diagnostics_underlines_description:
+                    "Highlight potential problems such as broken links, invalid Markdown, or formatting mistakes.".to_string(),
+                section_insights: "Insights".to_string(),
+                markdown_insights_label: "Markdown insights".to_string(),
+                markdown_insights_description:
+                    "Show information about Markdown elements under the cursor.".to_string(),
+                issue_insights_label: "Issue insights".to_string(),
+                issue_insights_description:
+                    "Show details about detected issues when the cursor is placed on them.".to_string(),
+                section_highlighting: "Highlighting".to_string(),
+                syntax_highlighting_label: "Markdown syntax highlighting".to_string(),
+                syntax_highlighting_description:
+                    "Color Markdown elements to improve readability.".to_string(),
             },
             appearance: SettingsAppearanceTranslations {
                 preview_theme_label: "HTML Preview Theme".to_string(),

@@ -1,4 +1,5 @@
 pub mod admonition;
+pub mod diagnostics_reference;
 pub mod lists;
 pub mod math;
 pub mod mention;

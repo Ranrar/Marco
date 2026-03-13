@@ -17,7 +17,7 @@ use crate::parser::ast::{Node, NodeKind};
 ///
 /// # Note
 /// The span includes only the heading text content, not the # markers.
-/// For full-line highlighting including markers, the LSP layer should use
+/// For full-line highlighting including markers, the intelligence layer should use
 /// the full line span.
 ///
 /// # Example

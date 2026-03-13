@@ -445,3 +445,34 @@ pub fn create_section_header(text: &str) -> Label {
 
     label
 }
+
+/// Create a section header that is bound to runtime i18n updates.
+pub fn create_section_header_i18n(
+    i18n: &SettingsI18nRegistry,
+    text: &str,
+    text_get: I18nTextFn,
+) -> Label {
+    let label = Label::new(Some(text));
+    label.set_markup(&format!(
+        "<span size='large'><b>{}</b></span>",
+        glib::markup_escape_text(text)
+    ));
+    label.set_halign(Align::Start);
+    label.set_xalign(0.0);
+    label.set_margin_top(16);
+    label.set_margin_bottom(8);
+
+    let text_get_clone = text_get.clone();
+    i18n.bind_label_markup(
+        &label,
+        Rc::new(move |t: &Translations| {
+            let text = text_get_clone(t);
+            format!(
+                "<span size='large'><b>{}</b></span>",
+                glib::markup_escape_text(text.as_str())
+            )
+        }),
+    );
+
+    label
+}

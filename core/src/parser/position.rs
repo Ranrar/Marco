@@ -1,4 +1,4 @@
-// Position tracking for LSP integration (line/column mapping)
+// Position tracking for editor intelligence integration (line/column mapping)
 
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 /// 3. Convert column: `byte_offset → char_offset` using `char_indices()`
 /// 4. Set position: `iter_at_line(gtk_line).set_line_offset(char_offset)`
 ///
-/// See `marco/src/components/editor/lsp_integration.rs::position_to_iter()`
+/// See `marco/src/components/editor/intelligence_integration.rs::position_to_iter()`
 /// for the reference implementation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Position {

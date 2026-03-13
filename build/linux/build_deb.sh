@@ -680,7 +680,7 @@ Priority: optional
 Architecture: ${ARCHITECTURE}
 Maintainer: ${MAINTAINER}
 Installed-Size: ${INSTALLED_SIZE}
-Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44)
+Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44), libxml2 (>= 2.9)
 Suggests: imagemagick
 Description: Marco & Polo - A Markdown Composer and Viewer
  Marco is a fast, Markdown editor with a live preview to help you write
@@ -769,6 +769,19 @@ fi
 
 # Optional: also install icons to the invoking user's ~/.local/share/icons/hicolor
 install_user_icons
+
+# Handle libxml2 soname compatibility.
+# Ubuntu 24.10+ and some derivatives (e.g. AnduinOS 1.4.2) ship libxml2 2.12+
+# which uses the soname libxml2.so.16 instead of the older libxml2.so.2.
+# Create a compat symlink so the binary can find the library.
+for libdir in /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu /usr/lib; do
+    if [ -e "$libdir/libxml2.so.16" ] && [ ! -e "$libdir/libxml2.so.2" ]; then
+        ln -sf "$libdir/libxml2.so.16" "$libdir/libxml2.so.2" || true
+        ldconfig || true
+        echo "Note: created libxml2.so.2 -> libxml2.so.16 compatibility symlink in $libdir"
+        break
+    fi
+done
 
 echo "Marco and Polo installed successfully!"
 echo "Launch with: marco or polo"

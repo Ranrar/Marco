@@ -458,6 +458,17 @@ fn create_dialog_impl(
         &translations.settings.tabs.editor,
     );
 
+    let intelligence_tab = tabs::intelligence::build_intelligence_tab(
+        settings_path.to_str().unwrap(),
+        &translations.settings.intelligence,
+        &settings_i18n,
+    );
+    stack.add_titled(
+        &intelligence_tab,
+        Some("intelligence"),
+        &translations.settings.tabs.intelligence,
+    );
+
     // Build layout tab and provide a callback that will persist the setting and
     // forward the value to any external on_view_mode_changed handler supplied by
     // the caller via the `callbacks` struct.
@@ -745,6 +756,11 @@ fn create_dialog_impl(
                             stack
                                 .page(&layout_page)
                                 .set_title(&new_translations.settings.tabs.layout);
+                        }
+                        if let Some(intelligence_page) = stack.child_by_name("intelligence") {
+                            stack
+                                .page(&intelligence_page)
+                                .set_title(&new_translations.settings.tabs.intelligence);
                         }
                         if let Some(appearance_page) = stack.child_by_name("appearance") {
                             stack

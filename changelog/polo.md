@@ -24,6 +24,13 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.21.0] - 2026-03-13
+
+**Uses:** Core 0.21.0
+
+### Changed
+- Updated to Core 0.21.0 (in-process intelligence engine replacing `lsp/`, corrected image and footnote definition parser spans, new `EditorSettings` fields for diagnostics feature control).
+
 ## [0.20.0] - 2026-03-04
 
 **Uses:** Core 0.20.0

@@ -529,6 +529,7 @@ pub fn setup_editor_context_menu(
     popover.set_cascade_popdown(false);
     // Add the same CSS class used by the rest of the app's popovers.
     popover.add_css_class("editor-context-menu");
+    popover.add_css_class("marco-context-menu-popover");
 
     // ── right-click gesture ───────────────────────────────────────────────────
     let secondary_click = gtk4::GestureClick::new();

@@ -375,6 +375,38 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         opacity: 0.75;
     }}
 
+    /* Diagnostics Reference list (force explicit light/dark surfaces) */
+    .{theme} .marco-diagnostics-reference-scroller,
+    .{theme}.marco-dialog .marco-diagnostics-reference-scroller {{
+        background: {dialog_bg};
+        border: none;
+    }}
+
+    .{theme} .marco-diagnostics-reference-list,
+    .{theme}.marco-dialog .marco-diagnostics-reference-list {{
+        background: {dialog_bg};
+        color: {titlebar_foreground};
+        border: none;
+    }}
+
+    .{theme} .marco-diagnostics-reference-row,
+    .{theme}.marco-dialog .marco-diagnostics-reference-row {{
+        background: {diag_row_bg};
+        color: {titlebar_foreground};
+        border: none;
+    }}
+
+    .{theme} .marco-diagnostics-reference-row-content,
+    .{theme}.marco-dialog .marco-diagnostics-reference-row-content {{
+        background: transparent;
+        color: {titlebar_foreground};
+    }}
+
+    .{theme} .marco-diagnostics-reference-row:hover,
+    .{theme}.marco-dialog .marco-diagnostics-reference-row:hover {{
+        background: {diag_row_hover};
+    }}
+
     .{theme} .marco-mention-platform-btn,
     .{theme}.marco-dialog .marco-mention-platform-btn {{
         color: {titlebar_foreground};
@@ -907,6 +939,16 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
             "#F0F0F0"
         } else {
             "#252526"
+        },
+        diag_row_bg = if theme_class.contains("light") {
+            "#FAFAFA"
+        } else {
+            "#1E1E1E"
+        },
+        diag_row_hover = if theme_class.contains("light") {
+            "#F1F4F8"
+        } else {
+            "#2A2D32"
         },
         welcome_sidebar_bg = if theme_class.contains("light") {
             "#EEEEEE"

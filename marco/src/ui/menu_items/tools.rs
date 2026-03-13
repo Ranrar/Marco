@@ -34,20 +34,12 @@ pub fn populate_tools_menu(
         Some("app.tools_toggle_line_numbers"),
     );
     editor_toggles.append(
-        Some(&translations.settings.editor.auto_pairing_label),
-        Some("app.tools_toggle_auto_pairing"),
-    );
-    editor_toggles.append(
         Some(&translations.settings.editor.tabs_to_spaces_label),
         Some("app.tools_toggle_tabs_to_spaces"),
     );
     editor_toggles.append(
         Some(&translations.settings.editor.syntax_colors_label),
         Some("app.tools_toggle_syntax_colors"),
-    );
-    editor_toggles.append(
-        Some(&translations.settings.editor.linting_label),
-        Some("app.tools_toggle_markdown_linting"),
     );
     tools_menu.append_section(None, &editor_toggles);
 
@@ -74,21 +66,6 @@ pub fn setup_tools_actions(
 ) {
     // Ensure initial label reflects current mode.
     let initial = current_tools_state(&settings_manager, editor_view);
-
-    ensure_bool_toggle_action(
-        app,
-        "tools_toggle_auto_pairing",
-        initial.auto_pairing_enabled,
-        false,
-        || {},
-    );
-    ensure_bool_toggle_action(
-        app,
-        "tools_toggle_markdown_linting",
-        initial.markdown_linting_enabled,
-        false,
-        || {},
-    );
 
     sync_tools_toggle_action_states(app, &initial);
     populate_tools_menu(tools_menu, &translations_rc.borrow(), &initial);
@@ -424,21 +401,6 @@ pub fn setup_tools_actions(
             );
         });
     }
-
-    // Auto pairing + markdown linting are currently not fully wired in runtime behavior.
-    // Keep menu text visible with state indicator, but disable interaction for now.
-    set_bool_toggle_action_state(
-        app,
-        "tools_toggle_auto_pairing",
-        initial.auto_pairing_enabled,
-        false,
-    );
-    set_bool_toggle_action_state(
-        app,
-        "tools_toggle_markdown_linting",
-        initial.markdown_linting_enabled,
-        false,
-    );
 }
 
 #[derive(Clone, Copy)]
@@ -447,10 +409,8 @@ pub struct ToolsMenuState {
     pub wrap_enabled: bool,
     pub line_numbers_enabled: bool,
     pub sync_scrolling_enabled: bool,
-    pub auto_pairing_enabled: bool,
     pub tabs_to_spaces_enabled: bool,
     pub syntax_colors_enabled: bool,
-    pub markdown_linting_enabled: bool,
     pub rtl_text_direction_enabled: bool,
 }
 
@@ -469,11 +429,6 @@ fn current_tools_state(
         .as_ref()
         .and_then(|l| l.sync_scrolling)
         .unwrap_or(true);
-    let auto_pairing_enabled = settings
-        .editor
-        .as_ref()
-        .and_then(|e| e.auto_pairing)
-        .unwrap_or(true);
     let tabs_to_spaces_enabled = settings
         .editor
         .as_ref()
@@ -483,11 +438,6 @@ fn current_tools_state(
         .editor
         .as_ref()
         .and_then(|e| e.syntax_colors)
-        .unwrap_or(true);
-    let markdown_linting_enabled = settings
-        .editor
-        .as_ref()
-        .and_then(|e| e.linting)
         .unwrap_or(true);
     let rtl_text_direction_enabled = settings
         .layout
@@ -503,10 +453,8 @@ fn current_tools_state(
         wrap_enabled,
         line_numbers_enabled,
         sync_scrolling_enabled,
-        auto_pairing_enabled,
         tabs_to_spaces_enabled,
         syntax_colors_enabled,
-        markdown_linting_enabled,
         rtl_text_direction_enabled,
     }
 }
@@ -533,12 +481,6 @@ fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuSta
     );
     set_bool_toggle_action_state(
         app,
-        "tools_toggle_auto_pairing",
-        state.auto_pairing_enabled,
-        false,
-    );
-    set_bool_toggle_action_state(
-        app,
         "tools_toggle_tabs_to_spaces",
         state.tabs_to_spaces_enabled,
         true,
@@ -548,12 +490,6 @@ fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuSta
         "tools_toggle_syntax_colors",
         state.syntax_colors_enabled,
         true,
-    );
-    set_bool_toggle_action_state(
-        app,
-        "tools_toggle_markdown_linting",
-        state.markdown_linting_enabled,
-        false,
     );
     set_bool_toggle_action_state(
         app,
@@ -567,25 +503,6 @@ fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuSta
         state.rtl_text_direction_enabled,
         false,
     );
-}
-
-fn ensure_bool_toggle_action<F>(
-    app: &gtk4::Application,
-    name: &str,
-    initial: bool,
-    enabled: bool,
-    activate: F,
-) where
-    F: Fn() + 'static,
-{
-    if app.lookup_action(name).is_none() {
-        let action =
-            gio::SimpleAction::new_stateful(name, None, &gtk4::glib::Variant::from(initial));
-        action.connect_activate(move |_, _| activate());
-        app.add_action(&action);
-    }
-
-    set_bool_toggle_action_state(app, name, initial, enabled);
 }
 
 fn set_bool_toggle_action_state(app: &gtk4::Application, name: &str, state: bool, enabled: bool) {

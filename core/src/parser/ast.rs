@@ -1,4 +1,4 @@
-// AST node definitions: central representation consumed by renderer and LSP
+// AST node definitions: central representation consumed by renderer and intelligence
 
 use crate::parser::Span;
 use std::collections::HashMap;

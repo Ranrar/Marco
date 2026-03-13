@@ -50,9 +50,11 @@ pub mod constants;
 pub mod controls;
 pub mod dialog;
 pub mod footer;
+pub mod issue;
 pub mod list;
 pub mod menu;
 pub mod mermaid;
+pub mod popover;
 pub mod radio;
 pub mod settings;
 pub mod syntax;
@@ -90,6 +92,9 @@ pub fn generate_marco_css() -> String {
     // Footer styling
     css.push_str(&footer::generate_css());
 
+    // Diagnostics issue list styling
+    css.push_str(&issue::generate_css());
+
     // Dialog styling
     css.push_str(&dialog::generate_css());
 
@@ -110,6 +115,9 @@ pub fn generate_marco_css() -> String {
 
     // Mermaid dialog-specific widget styles
     css.push_str(&mermaid::generate_css());
+
+    // Toolbar insertion popovers (marco-link-popover)
+    css.push_str(&popover::generate_css());
 
     css
 }

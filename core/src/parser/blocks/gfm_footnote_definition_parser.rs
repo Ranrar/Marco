@@ -4,7 +4,7 @@
 //! - `[^label]: definition text`
 //! - Continuation lines may be indented by 4 spaces or a tab.
 
-use super::shared::{to_parser_span_range, GrammarSpan};
+use super::shared::GrammarSpan;
 use crate::parser::ast::{Node, NodeKind};
 use nom::Input;
 
@@ -120,7 +120,11 @@ pub fn parse_footnote_definition(input: GrammarSpan) -> Option<(GrammarSpan, Nod
     }
 
     let (rest, _taken) = input.take_split(consumed_len);
-    let span = to_parser_span_range(input, rest);
+    // Use the exclusive (non-inclusive) version so the span ends at the first
+    // byte of `rest`, not at the end of the entire remaining document.
+    // `blocks::shared::to_parser_span_range` is aliased to the *inclusive*
+    // variant; `crate::parser::shared::to_parser_span_range` is exclusive.
+    let span = crate::parser::shared::to_parser_span_range(input, rest);
 
     // Parse the definition content as paragraph-like blocks.
     // NOTE: We keep this conservative for now: a single paragraph with inline parsing.

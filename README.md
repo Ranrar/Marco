@@ -106,7 +106,6 @@ Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests pass
 
 - **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
 - **Document navigation** — TOC and cross-file links  
-- **Enhanced content blocks** — callouts, admonitions, mentions, and custom icons
 - **Structured formatting** — semantic elements for headings, notes, and exports  
 - **Export to PDF** - Export into PDF in A4 or US Letter
 - **Templates** — start from predefined markdown templates (README, runbook, etc.)
@@ -123,7 +122,7 @@ This project is developed with occasional help from AI tools (for example, Copil
 
 Marco uses a **Cargo workspace** with three crates:
 
-- **`core/`** — Pure Rust library with hand-crafted parser, AST builder, HTML renderer, LSP features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies.
+- **`core/`** — Pure Rust library with hand-crafted parser, AST builder, HTML renderer, dianostics features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies.
 - **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). Depends on `core`.
 - **`polo/`** — Lightweight viewer binary with GTK4 UI and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). No SourceView5. Depends on `core`.
 - **`assets/`** — Centralized workspace assets: themes, fonts, icons, settings.
@@ -144,20 +143,24 @@ Marco uses a **Cargo workspace** with three crates:
 
 - **Mermaid** (`mermaid-rs-renderer` / `mmdr`) - Pure Rust implementation by [Jeremy Huang](https://github.com/1jehuang/mermaid-rs-renderer). Renders diagrams 100-1400x faster than mermaid-cli by eliminating browser overhead. Supports 23 diagram types including flowcharts, sequence diagrams, class diagrams, and more.
 
+- **markdownlint** - A respected Markdown/CommonMark linting reference by David Anson that inspired Marco's **MD*** baseline diagnostics model. Project: [DavidAnson/markdownlint](https://github.com/DavidAnson/markdownlint).
+
 **Current development focus:**
 - Maintaining **100% CommonMark compliance** while adding extensions
 - Fine-tuning the **parser grammar** for comprehensive markdown support
 - Polishing the **AST builder** and **HTML renderer** components
-- Implementing **LSP features** (syntax highlighting, diagnostics, completion, hover)
-- Implementing robust **error handling** and **edge case coverage**
+- Refining **Markdown intelligence**: completion, hover accuracy, and diagnostic catalog coverage
+- Implement robust error handling and edge-case coverage
 - Optimizing **parser performance** and **caching** with Moka
 
 ## Roadmap
 
-### Core Parser & LSP (Current Focus)
-- [ ] Complete LSP integration with SourceView5 (syntax highlighting, diagnostics, completion, hover)
+### Core Parser & Language Features
+- [x] Syntax highlighting in editor (via intelligence engine)
+- [x] Diagnostic underlines — issue detection with hover details and footer panel
+- [x] Hover insights — Markdown element info and diagnostic details at cursor
+- [ ] Completion (in-progress: Markdown completions available; refinement ongoing)
 - [ ] Enhanced AST validation and error reporting
-- [ ] Advanced syntax features with linting support
 - [ ] Optimize parser performance and caching
 
 ### Editor Features (Marco)
@@ -165,9 +168,11 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Scroll sync between editor and preview
 - [x] Intelligent search
 - [x] Context menus & toolbar: Quick access to formatting and actions
-- [ ] Auto-pairing (automatic insertion/closing of brackets, quotes, etc.)
+- [x] Syntax highlighting in editor
+- [x] Diagnostics (issue underlines, footer panel, hover details, reference dialog)
+- [x] Markdown hover insights
 - [ ] Multi-cursor editing support
-- [ ] Syntax highlighting in editor (via LSP)
+- [ ] LSP protocol for language server integration
 
 ### Viewer Fetures (Polo)
 - [x] Same viewer engine as Marco
@@ -188,6 +193,7 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Language plugin system via. `assets/language/xx*.toml` files
 - [ ] Local AI-assisted tools: writing suggestions, grammar checking, content improvement
 - [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
+- [ ] Built in terminal to run code blocks in editor
 
 ### Distribution & Platform
 - [x] Cross-platform support: Linux and Windows builds

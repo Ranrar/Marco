@@ -1,4 +1,4 @@
-use core::lsp::{compute_highlights, HighlightTag};
+use core::intelligence::{compute_highlights, HighlightTag};
 /// Integration test to verify HTML tags are not parsed as autolinks.
 /// This test validates the fix for the issue where HTML tags like <img> and <span>
 /// were incorrectly being parsed as autolinks/links instead of inline HTML.

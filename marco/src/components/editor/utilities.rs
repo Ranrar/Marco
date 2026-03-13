@@ -8,7 +8,6 @@
 //! - **Marco extensions** - Process `@run`, `[toc]`, `[Page]` syntax
 //!
 //! ## Planned Extensions
-//! - Auto-pairing for brackets/quotes
 //! - Markdown linting and validation
 //!
 //! # Threading Model
@@ -80,7 +79,7 @@ impl AsyncExtensionManager {
         for (extension_name, &enabled) in &enabled_extensions {
             if enabled {
                 match extension_name.as_str() {
-                    "line_wrapping" | "tab_to_spaces" | "auto_pairing" => {
+                    "line_wrapping" | "tab_to_spaces" => {
                         lightweight_extensions.push(extension_name.clone());
                     }
                     "marco_extensions" | "markdown_linting" => {
@@ -128,10 +127,6 @@ impl AsyncExtensionManager {
                                         cursor_position,
                                     ),
                                     "tab_to_spaces" => Self::process_tab_to_spaces(
-                                        &content_for_lightweight,
-                                        cursor_position,
-                                    ),
-                                    "auto_pairing" => Self::process_auto_pairing(
                                         &content_for_lightweight,
                                         cursor_position,
                                     ),
@@ -377,19 +372,6 @@ impl AsyncExtensionManager {
                 )
             }
         }
-    }
-
-    /// Process auto-pairing (📋 FUTURE as per spec)
-    fn process_auto_pairing(
-        content: &str,
-        _cursor_position: Option<u32>,
-    ) -> (String, bool, Option<String>) {
-        // Future feature - return original content
-        (
-            content.to_string(),
-            false,
-            Some("Future feature".to_string()),
-        )
     }
 
     /// Process markdown linting (📋 FUTURE as per spec)

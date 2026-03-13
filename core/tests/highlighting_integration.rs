@@ -1,4 +1,4 @@
-use core::lsp::{compute_highlights, HighlightTag};
+use core::intelligence::{compute_highlights, HighlightTag};
 use core::parser::{Document, Node, NodeKind, Position, Span};
 
 #[test]

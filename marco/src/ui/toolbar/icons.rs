@@ -40,6 +40,9 @@ pub enum ToolbarIcon {
     Slideshow,
     Math,
     Mermaid,
+    Issue,
+    Terminal,
+    Toc,
     GutterOn,
     GutterOff,
 }
@@ -309,6 +312,15 @@ pub fn toolbar_icon_svg(icon: ToolbarIcon) -> &'static str {
         }
         ToolbarIcon::Mermaid => {
             r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'><path d='M3 13a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v6a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -6'/><path d='M15 9a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -10'/><path d='M9 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v14a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -14'/><path d='M4 20h14'/></svg>"#
+        }
+        ToolbarIcon::Issue => {
+            r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-bug'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M9 9v-1a3 3 0 0 1 6 0v1' /><path d='M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3' /><path d='M3 13l4 0' /><path d='M17 13l4 0' /><path d='M12 20l0 -6' /><path d='M4 19l3.35 -2' /><path d='M20 19l-3.35 -2' /><path d='M4 7l3.75 2.4' /><path d='M20 7l-3.75 2.4' /></svg>"#
+        }
+        ToolbarIcon::Terminal => {
+            r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-terminal-2'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M8 9l3 3l-3 3' /><path d='M13 15l3 0' /><path d='M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12' /></svg>"#
+        }
+        ToolbarIcon::Toc => {
+            r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-stack-2'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M12 4l-8 4l8 4l8 -4l-8 -4' /><path d='M4 12l8 4l8 -4' /><path d='M4 16l8 4l8 -4' /></svg>"#
         }
         ToolbarIcon::GutterOn => {
             r#"<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'><rect x='3' y='3' width='4' height='18' fill='currentColor' opacity='0.35'/><text x='5' y='8' font-size='4' text-anchor='middle' fill='currentColor' dominant-baseline='middle'>1</text><text x='5' y='12' font-size='4' text-anchor='middle' fill='currentColor' dominant-baseline='middle'>2</text><text x='5' y='16' font-size='4' text-anchor='middle' fill='currentColor' dominant-baseline='middle'>3</text><rect x='10' y='7' width='10' height='1.6' rx='0.5' fill='currentColor'/><rect x='10' y='11.2' width='9' height='1.6' rx='0.5' fill='currentColor'/><rect x='10' y='15.4' width='8' height='1.6' rx='0.5' fill='currentColor'/></svg>"#

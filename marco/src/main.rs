@@ -263,7 +263,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             .preview_theme_mode_from_scheme(&current_scheme)
     };
     let theme_mode = Rc::new(RefCell::new(initial_theme_mode));
-    let (footer, footer_labels_rc) = footer::create_footer(&translations.footer);
+    let (footer, footer_labels_rc) =
+        footer::create_footer(&translations.footer, settings_manager.clone());
 
     // Create file operations handler early so we can pass DocumentBuffer to editor
     let file_operations = FileOperations::new(
@@ -608,8 +609,10 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // the main loop and call `apply_footer_update` directly.
     wire_footer_updates(
         &editor_buffer,
+        &editor_source_view,
         footer_labels_rc.clone(),
         insert_mode_state.clone(),
+        settings_manager.clone(),
     );
     split_overlay.add_css_class("split-view"); // Apply CSS to overlay
 
@@ -791,6 +794,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let bookmark_manager = bookmark_manager.clone();
         let title_label = title_label.clone();
         let refresh_bookmark_marks_for_language = refresh_bookmark_marks.clone();
+        let settings_manager_for_language = settings_manager.clone();
 
         Rc::new(move |selected_code: Option<String>| {
             let locale_code = selected_code
@@ -813,6 +817,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             let bookmark_manager = bookmark_manager.clone();
             let title_label = title_label.clone();
             let refresh_bookmark_marks_for_language = refresh_bookmark_marks_for_language.clone();
+            let settings_manager_for_locale = settings_manager_for_language.clone();
 
             glib::idle_add_local(move || {
                 let localization_manager = match SimpleLocalizationManager::new() {
@@ -1044,6 +1049,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     &editor_buffer,
                     footer_labels_rc.clone(),
                     insert_mode_state.clone(),
+                    settings_manager_for_locale.clone(),
                 );
 
                 if file_operations_rc
@@ -1254,6 +1260,18 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         }
     });
     app.add_action(&about_action);
+
+    // Register diagnostics reference action
+    let diagnostics_reference_action = gtk4::gio::SimpleAction::new("diagnostics_reference", None);
+    diagnostics_reference_action.connect_activate({
+        let window = window.clone();
+        move |_, _| {
+            crate::ui::dialogs::diagnostics_reference::show_diagnostics_reference_dialog(
+                window.upcast_ref::<gtk4::Window>(),
+            );
+        }
+    });
+    app.add_action(&diagnostics_reference_action);
 
     crate::ui::menu_items::edit::setup_edit_actions(app, &editor_buffer, &editor_source_view);
 

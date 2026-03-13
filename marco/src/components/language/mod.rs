@@ -171,6 +171,7 @@ pub struct MenuTranslations {
     pub markdown_reference: String,
     pub walkthrough: String,
     pub keyboard_shortcuts: String,
+    pub diagnostics_reference: String,
     pub about: String,
 }
 
@@ -262,6 +263,7 @@ pub struct SettingsTranslations {
     pub tabs: SettingsTabsTranslations,
     pub language: SettingsLanguageTranslations,
     pub editor: SettingsEditorTranslations,
+    pub intelligence: SettingsIntelligenceTranslations,
     pub appearance: SettingsAppearanceTranslations,
     pub layout: SettingsLayoutTranslations,
     pub advanced: SettingsAdvancedTranslations,
@@ -271,6 +273,7 @@ pub struct SettingsTranslations {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SettingsTabsTranslations {
     pub editor: String,
+    pub intelligence: String,
     pub layout: String,
     pub appearance: String,
     pub language: String,
@@ -295,16 +298,29 @@ pub struct SettingsEditorTranslations {
     pub line_height_description: String,
     pub line_wrapping_label: String,
     pub line_wrapping_description: String,
-    pub auto_pairing_label: String,
-    pub auto_pairing_description: String,
     pub show_invisibles_label: String,
     pub show_invisibles_description: String,
     pub tabs_to_spaces_label: String,
     pub tabs_to_spaces_description: String,
     pub syntax_colors_label: String,
     pub syntax_colors_description: String,
-    pub linting_label: String,
-    pub linting_description: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SettingsIntelligenceTranslations {
+    pub section_intelligence: String,
+    pub intro_description: String,
+    pub section_issues: String,
+    pub diagnostics_underlines_label: String,
+    pub diagnostics_underlines_description: String,
+    pub section_insights: String,
+    pub markdown_insights_label: String,
+    pub markdown_insights_description: String,
+    pub issue_insights_label: String,
+    pub issue_insights_description: String,
+    pub section_highlighting: String,
+    pub syntax_highlighting_label: String,
+    pub syntax_highlighting_description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -899,6 +915,11 @@ impl SimpleLocalizationManager {
                     &["menu", "keyboard_shortcuts"],
                     &fallback.menu.keyboard_shortcuts,
                 ),
+                diagnostics_reference: Self::get_string(
+                    value,
+                    &["menu", "diagnostics_reference"],
+                    &fallback.menu.diagnostics_reference,
+                ),
                 about: Self::get_string(value, &["menu", "about"], &fallback.menu.about),
             },
             toolbar: ToolbarTranslations {
@@ -1201,6 +1222,11 @@ impl SimpleLocalizationManager {
                         &["settings", "tabs", "editor"],
                         &fallback.settings.tabs.editor,
                     ),
+                    intelligence: Self::get_string(
+                        value,
+                        &["settings", "tabs", "intelligence"],
+                        &fallback.settings.tabs.intelligence,
+                    ),
                     layout: Self::get_string(
                         value,
                         &["settings", "tabs", "layout"],
@@ -1285,16 +1311,6 @@ impl SimpleLocalizationManager {
                         &["settings", "editor", "line_wrapping_description"],
                         &fallback.settings.editor.line_wrapping_description,
                     ),
-                    auto_pairing_label: Self::get_string(
-                        value,
-                        &["settings", "editor", "auto_pairing_label"],
-                        &fallback.settings.editor.auto_pairing_label,
-                    ),
-                    auto_pairing_description: Self::get_string(
-                        value,
-                        &["settings", "editor", "auto_pairing_description"],
-                        &fallback.settings.editor.auto_pairing_description,
-                    ),
                     show_invisibles_label: Self::get_string(
                         value,
                         &["settings", "editor", "show_invisibles_label"],
@@ -1325,15 +1341,86 @@ impl SimpleLocalizationManager {
                         &["settings", "editor", "syntax_colors_description"],
                         &fallback.settings.editor.syntax_colors_description,
                     ),
-                    linting_label: Self::get_string(
+                },
+                intelligence: SettingsIntelligenceTranslations {
+                    section_intelligence: Self::get_string(
                         value,
-                        &["settings", "editor", "linting_label"],
-                        &fallback.settings.editor.linting_label,
+                        &["settings", "intelligence", "section_intelligence"],
+                        &fallback.settings.intelligence.section_intelligence,
                     ),
-                    linting_description: Self::get_string(
+                    intro_description: Self::get_string(
                         value,
-                        &["settings", "editor", "linting_description"],
-                        &fallback.settings.editor.linting_description,
+                        &["settings", "intelligence", "intro_description"],
+                        &fallback.settings.intelligence.intro_description,
+                    ),
+                    section_issues: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "section_issues"],
+                        &fallback.settings.intelligence.section_issues,
+                    ),
+                    diagnostics_underlines_label: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "diagnostics_underlines_label"],
+                        &fallback.settings.intelligence.diagnostics_underlines_label,
+                    ),
+                    diagnostics_underlines_description: Self::get_string(
+                        value,
+                        &[
+                            "settings",
+                            "intelligence",
+                            "diagnostics_underlines_description",
+                        ],
+                        &fallback
+                            .settings
+                            .intelligence
+                            .diagnostics_underlines_description,
+                    ),
+                    section_insights: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "section_insights"],
+                        &fallback.settings.intelligence.section_insights,
+                    ),
+                    markdown_insights_label: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "markdown_insights_label"],
+                        &fallback.settings.intelligence.markdown_insights_label,
+                    ),
+                    markdown_insights_description: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "markdown_insights_description"],
+                        &fallback.settings.intelligence.markdown_insights_description,
+                    ),
+                    issue_insights_label: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "issue_insights_label"],
+                        &fallback.settings.intelligence.issue_insights_label,
+                    ),
+                    issue_insights_description: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "issue_insights_description"],
+                        &fallback.settings.intelligence.issue_insights_description,
+                    ),
+                    section_highlighting: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "section_highlighting"],
+                        &fallback.settings.intelligence.section_highlighting,
+                    ),
+                    syntax_highlighting_label: Self::get_string(
+                        value,
+                        &["settings", "intelligence", "syntax_highlighting_label"],
+                        &fallback.settings.intelligence.syntax_highlighting_label,
+                    ),
+                    syntax_highlighting_description: Self::get_string(
+                        value,
+                        &[
+                            "settings",
+                            "intelligence",
+                            "syntax_highlighting_description",
+                        ],
+                        &fallback
+                            .settings
+                            .intelligence
+                            .syntax_highlighting_description,
                     ),
                 },
                 appearance: SettingsAppearanceTranslations {

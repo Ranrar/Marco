@@ -3,7 +3,7 @@
 //! Parses inline images (![alt](url "title")) and converts them to Image nodes.
 //! Image nodes contain URL and alt text but no children (unlike links).
 
-use super::shared::{to_parser_span, GrammarSpan};
+use super::shared::{to_parser_span_range, GrammarSpan};
 use crate::grammar::inlines as grammar;
 use crate::parser::ast::{Node, NodeKind};
 use nom::IResult;
@@ -22,7 +22,9 @@ use nom::IResult;
 pub fn parse_image(input: GrammarSpan) -> IResult<GrammarSpan, Node> {
     let (rest, (alt_text, url, _title)) = grammar::image(input)?;
 
-    let span = to_parser_span(alt_text);
+    // Span covers the full `![alt](url)` syntax, not just the alt text.
+    // Using alt_text alone gives a zero-length span when alt is empty.
+    let span = to_parser_span_range(input, rest);
 
     let node = Node {
         kind: NodeKind::Image {
@@ -119,8 +121,10 @@ mod tests {
         assert!(node.span.is_some(), "Image should have position info");
 
         let span = node.span.unwrap();
-        // Image alt text starts after '![' at position 2
-        assert_eq!(span.start.offset, 2);
+        // Span covers the full `![alt](url)` syntax starting at offset 0
+        assert_eq!(span.start.offset, 0);
+        // "![alt](url)" is 11 bytes
+        assert_eq!(span.end.offset, 11);
         assert!(span.end.offset > span.start.offset);
     }
 }

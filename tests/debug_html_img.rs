@@ -1,5 +1,5 @@
 /// Debug test for HTML img highlighting issues
-use core::{grammar, parser, lsp};
+use core::{grammar, intelligence, parser};
 
 fn main() {
     // Initialize logger
@@ -72,9 +72,9 @@ Text with <span>HTML</span> inline.
                 print_node(node, 0);
             }
             
-            // Test LSP highlights
-            println!("\n=== Testing LSP Highlights ===\n");
-            let highlights = lsp::compute_highlights(&doc);
+            // Test intelligence highlights
+            println!("\n=== Testing Intelligence Highlights ===\n");
+            let highlights = intelligence::compute_highlights(&doc);
             println!("Generated {} highlights:", highlights.len());
             for (i, hl) in highlights.iter().enumerate() {
                 println!("  {}: {:?} at L{}:C{}-L{}:C{} (offset {}-{})",
