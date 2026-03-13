@@ -153,8 +153,11 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
     filter_row.append(&severity_label);
 
     let severity_options = StringList::new(&["All", "Error", "Warning", "Info", "Hint"]);
-    let severity_expression =
-        PropertyExpression::new(StringObject::static_type(), None::<&gtk4::Expression>, "string");
+    let severity_expression = PropertyExpression::new(
+        StringObject::static_type(),
+        None::<&gtk4::Expression>,
+        "string",
+    );
     let severity_filter = DropDown::new(Some(severity_options), Some(severity_expression));
     severity_filter.add_css_class("marco-dropdown");
     severity_filter.set_selected(0);
@@ -270,7 +273,8 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
             let total = row_index.borrow().len();
 
             for (search_blob, entry_severity, row) in row_index.borrow().iter() {
-                let is_visible = matches_filters(search_blob, *entry_severity, query, severity_filter);
+                let is_visible =
+                    matches_filters(search_blob, *entry_severity, query, severity_filter);
                 row.set_visible(is_visible);
                 if is_visible {
                     visible += 1;

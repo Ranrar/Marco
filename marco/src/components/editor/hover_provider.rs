@@ -52,10 +52,19 @@ impl HoverBodyParts {
         if !is_diagnostic {
             // Plain markdown hover — the whole trimmed body is the description.
             let trimmed = body.trim();
-            about = if trimmed.is_empty() { None } else { Some(trimmed.to_string()) };
+            about = if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            };
         }
 
-        Self { code, about, fix, is_diagnostic }
+        Self {
+            code,
+            about,
+            fix,
+            is_diagnostic,
+        }
     }
 }
 
@@ -378,7 +387,10 @@ mod imp {
             // Code chip — visible only for diagnostics
             if let Some(chip) = self.hover_code_chip.borrow().as_ref() {
                 match &parts.code {
-                    Some(code) => { chip.set_text(code); chip.set_visible(true); }
+                    Some(code) => {
+                        chip.set_text(code);
+                        chip.set_visible(true);
+                    }
                     None => chip.set_visible(false),
                 }
             }
@@ -391,7 +403,10 @@ mod imp {
             // About / plain body
             if let Some(label) = self.hover_about_body.borrow().as_ref() {
                 match &parts.about {
-                    Some(text) => { label.set_text(text); label.set_visible(true); }
+                    Some(text) => {
+                        label.set_text(text);
+                        label.set_visible(true);
+                    }
                     None => label.set_visible(false),
                 }
             }
