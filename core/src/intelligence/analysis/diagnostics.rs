@@ -322,10 +322,7 @@ fn sort_and_dedup_diagnostics(diagnostics: &mut Vec<Diagnostic>) {
     });
 
     diagnostics.dedup_by(|a, b| {
-        a.span == b.span
-            && a.severity == b.severity
-            && a.code == b.code
-            && a.message == b.message
+        a.span == b.span && a.severity == b.severity && a.code == b.code && a.message == b.message
     });
 }
 
@@ -344,11 +341,7 @@ fn diag(
     });
 }
 
-fn diag_catalog(
-    diagnostics: &mut Vec<Diagnostic>,
-    code: DiagnosticCode,
-    span: Span,
-) {
+fn diag_catalog(diagnostics: &mut Vec<Diagnostic>, code: DiagnosticCode, span: Span) {
     diag(
         diagnostics,
         code,
@@ -399,17 +392,79 @@ fn contains_any_marker(text_lower: &str, markers: &[String]) -> bool {
 
 fn contains_unsafe_event_handler_attr(text_lower: &str) -> bool {
     const EVENT_ATTRS: &[&str] = &[
-        "onabort", "onanimationend", "onanimationiteration", "onanimationstart", "onauxclick",
-        "onbeforeinput", "onbeforeunload", "onblur", "oncancel", "oncanplay", "oncanplaythrough",
-        "onchange", "onclick", "onclose", "oncontextmenu", "oncopy", "oncuechange", "oncut",
-        "ondblclick", "ondrag", "ondragend", "ondragenter", "ondragleave", "ondragover", "ondragstart",
-        "ondrop", "ondurationchange", "onended", "onerror", "onfocus", "onfocusin", "onfocusout",
-        "onformdata", "oninput", "oninvalid", "onkeydown", "onkeypress", "onkeyup", "onload",
-        "onloadeddata", "onloadedmetadata", "onloadstart", "onmousedown", "onmouseenter", "onmouseleave",
-        "onmousemove", "onmouseout", "onmouseover", "onmouseup", "onpaste", "onpause", "onplay",
-        "onplaying", "onprogress", "onratechange", "onreset", "onresize", "onscroll", "onsecuritypolicyviolation",
-        "onseeked", "onseeking", "onselect", "onslotchange", "onstalled", "onsubmit", "onsuspend",
-        "ontimeupdate", "ontoggle", "ontransitionend", "onunload", "onvolumechange", "onwaiting", "onwheel",
+        "onabort",
+        "onanimationend",
+        "onanimationiteration",
+        "onanimationstart",
+        "onauxclick",
+        "onbeforeinput",
+        "onbeforeunload",
+        "onblur",
+        "oncancel",
+        "oncanplay",
+        "oncanplaythrough",
+        "onchange",
+        "onclick",
+        "onclose",
+        "oncontextmenu",
+        "oncopy",
+        "oncuechange",
+        "oncut",
+        "ondblclick",
+        "ondrag",
+        "ondragend",
+        "ondragenter",
+        "ondragleave",
+        "ondragover",
+        "ondragstart",
+        "ondrop",
+        "ondurationchange",
+        "onended",
+        "onerror",
+        "onfocus",
+        "onfocusin",
+        "onfocusout",
+        "onformdata",
+        "oninput",
+        "oninvalid",
+        "onkeydown",
+        "onkeypress",
+        "onkeyup",
+        "onload",
+        "onloadeddata",
+        "onloadedmetadata",
+        "onloadstart",
+        "onmousedown",
+        "onmouseenter",
+        "onmouseleave",
+        "onmousemove",
+        "onmouseout",
+        "onmouseover",
+        "onmouseup",
+        "onpaste",
+        "onpause",
+        "onplay",
+        "onplaying",
+        "onprogress",
+        "onratechange",
+        "onreset",
+        "onresize",
+        "onscroll",
+        "onsecuritypolicyviolation",
+        "onseeked",
+        "onseeking",
+        "onselect",
+        "onslotchange",
+        "onstalled",
+        "onsubmit",
+        "onsuspend",
+        "ontimeupdate",
+        "ontoggle",
+        "ontransitionend",
+        "onunload",
+        "onvolumechange",
+        "onwaiting",
+        "onwheel",
     ];
 
     EVENT_ATTRS.iter().any(|attr| {
@@ -458,10 +513,13 @@ fn list_item_has_malformed_task_marker(node: &Node) -> bool {
 
     let candidate_text = match &first_child.kind {
         NodeKind::Text(text) => Some(text.as_str()),
-        NodeKind::Paragraph => first_child.children.iter().find_map(|inline| match &inline.kind {
-            NodeKind::Text(text) => Some(text.as_str()),
-            _ => None,
-        }),
+        NodeKind::Paragraph => first_child
+            .children
+            .iter()
+            .find_map(|inline| match &inline.kind {
+                NodeKind::Text(text) => Some(text.as_str()),
+                _ => None,
+            }),
         _ => None,
     };
 
@@ -549,8 +607,7 @@ fn strip_surrounding_shortcode_wrappers(token: &str) -> &str {
     token.trim_matches(|c: char| {
         matches!(
             c,
-            ','
-                | '.'
+            ',' | '.'
                 | ';'
                 | '!'
                 | '?'
@@ -686,21 +743,13 @@ fn collect_footnote_consistency_diagnostics(nodes: &[Node], diagnostics: &mut Ve
             .entry(normalized_label.clone())
             .or_insert(0) += 1;
         if !definitions.contains_key(&normalized_label) {
-            diag_catalog(
-                diagnostics,
-                DiagnosticCode::MissingFootnoteDefinition,
-                span,
-            );
+            diag_catalog(diagnostics, DiagnosticCode::MissingFootnoteDefinition, span);
         }
     }
 
     for (label, span) in definitions {
         if !reference_counts.contains_key(&label) {
-            diag_catalog(
-                diagnostics,
-                DiagnosticCode::UnusedFootnoteDefinition,
-                span,
-            );
+            diag_catalog(diagnostics, DiagnosticCode::UnusedFootnoteDefinition, span);
         }
     }
 }
@@ -799,11 +848,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                 }
 
                 if text.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyHeadingText,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyHeadingText, *span);
                 }
 
                 // Friendly style guardrail for very long headings.
@@ -811,20 +856,12 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     > crate::intelligence::catalog::diagnostics_catalog_settings()
                         .heading_too_long_threshold
                 {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::HeadingTooLong,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::HeadingTooLong, *span);
                 }
             }
             NodeKind::Link { url, .. } => {
                 if url.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyLinkUrl,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyLinkUrl, *span);
                 }
 
                 let lower_url = url.to_lowercase();
@@ -845,46 +882,26 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                 }
 
                 if starts_with_any_prefix(&lower_url, &settings.insecure_link_prefixes) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::InsecureLinkProtocol,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::InsecureLinkProtocol, *span);
                 }
             }
             NodeKind::LinkReference { .. } => {}
             NodeKind::CodeBlock { language, code } => {
                 if code.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyCodeBlock,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyCodeBlock, *span);
                 }
 
                 if !code.trim().is_empty() && language.is_none() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::MissingCodeBlockLanguage,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::MissingCodeBlockLanguage, *span);
                 }
             }
             NodeKind::Image { url, alt } => {
                 if url.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyImageUrl,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyImageUrl, *span);
                 }
 
                 if alt.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::ImageMissingAltText,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::ImageMissingAltText, *span);
                 }
 
                 let lower_url = url.to_lowercase();
@@ -908,19 +925,11 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                 let lower_html = html.to_lowercase();
                 let settings = crate::intelligence::catalog::diagnostics_catalog_settings();
                 if contains_any_marker(&lower_html, &settings.script_tag_markers) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::InlineHtmlContainsScript,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::InlineHtmlContainsScript, *span);
                 }
 
                 if contains_unsafe_protocol_marker(&lower_html, &settings.unsafe_protocols) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::InlineHtmlJavascriptUrl,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::InlineHtmlJavascriptUrl, *span);
                 }
 
                 if contains_unsafe_event_handler_attr(&lower_html) {
@@ -933,25 +942,18 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             }
             NodeKind::List { .. } => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyList,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyList, *span);
                 }
             }
             NodeKind::ListItem => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyListItem,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyListItem, *span);
                 }
 
-                let has_task_checkbox = node.children.iter().any(|child| {
-                    matches!(child.kind, NodeKind::TaskCheckbox { .. })
-                });
+                let has_task_checkbox = node
+                    .children
+                    .iter()
+                    .any(|child| matches!(child.kind, NodeKind::TaskCheckbox { .. }));
 
                 if has_task_checkbox {
                     let has_task_content = node.children.iter().any(|child| {
@@ -960,18 +962,10 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                     });
 
                     if !has_task_content {
-                        diag_catalog(
-                            diagnostics,
-                            DiagnosticCode::EmptyTaskListItem,
-                            *span,
-                        );
+                        diag_catalog(diagnostics, DiagnosticCode::EmptyTaskListItem, *span);
                     }
                 } else if list_item_has_malformed_task_marker(node) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::MalformedTaskCheckbox,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::MalformedTaskCheckbox, *span);
                 }
             }
             NodeKind::HtmlBlock { html } => {
@@ -979,27 +973,15 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                 let settings = crate::intelligence::catalog::diagnostics_catalog_settings();
 
                 if contains_any_marker(&lower_html, &settings.script_tag_markers) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::HtmlBlockContainsScript,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::HtmlBlockContainsScript, *span);
                 }
 
                 if contains_unsafe_protocol_marker(&lower_html, &settings.unsafe_protocols) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::HtmlBlockJavascriptUrl,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::HtmlBlockJavascriptUrl, *span);
                 }
 
                 if html.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyHtmlBlock,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyHtmlBlock, *span);
                 }
 
                 let open_angles = html.matches('<').count();
@@ -1022,37 +1004,21 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             }
             NodeKind::Blockquote => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyBlockquote,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyBlockquote, *span);
                 }
 
                 if blockquote_has_unknown_admonition_marker(node) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::UnknownAdmonitionKind,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::UnknownAdmonitionKind, *span);
                 }
             }
             NodeKind::DefinitionList => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyDefinitionList,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyDefinitionList, *span);
                 }
             }
             NodeKind::DefinitionTerm => {
                 if !node_has_meaningful_content(node) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyDefinitionTerm,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyDefinitionTerm, *span);
                 }
             }
             NodeKind::DefinitionDescription => {
@@ -1066,20 +1032,12 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             }
             NodeKind::TableCell { .. } => {
                 if !node_has_meaningful_content(node) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyTableCell,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyTableCell, *span);
                 }
             }
             NodeKind::TabGroup => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyTabGroup,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyTabGroup, *span);
                 }
 
                 let mut seen_titles: HashMap<String, Span> = HashMap::new();
@@ -1089,11 +1047,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         let normalized = title.trim().to_lowercase();
 
                         if normalized.is_empty() {
-                            diag_catalog(
-                                diagnostics,
-                                DiagnosticCode::EmptyTabTitle,
-                                tab_span,
-                            );
+                            diag_catalog(diagnostics, DiagnosticCode::EmptyTabTitle, tab_span);
                         }
 
                         if !normalized.is_empty() {
@@ -1111,76 +1065,44 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
                         }
 
                         if !node_has_meaningful_content(child) {
-                            diag_catalog(
-                                diagnostics,
-                                DiagnosticCode::EmptyTabPanel,
-                                tab_span,
-                            );
+                            diag_catalog(diagnostics, DiagnosticCode::EmptyTabPanel, tab_span);
                         }
                     }
                 }
             }
             NodeKind::SliderDeck { timer_seconds } => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptySliderDeck,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptySliderDeck, *span);
                 }
 
                 if timer_seconds.is_some_and(|value| value == 0) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::InvalidSliderTimer,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::InvalidSliderTimer, *span);
                 }
             }
             NodeKind::Slide { .. } => {
                 if !node_has_meaningful_content(node) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptySlide,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptySlide, *span);
                 }
             }
             NodeKind::Admonition { title, .. } => {
                 if node.children.is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyAdmonitionBody,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyAdmonitionBody, *span);
                 }
 
                 if let Some(custom_title) = title {
                     if custom_title.trim().is_empty() {
-                        diag_catalog(
-                            diagnostics,
-                            DiagnosticCode::EmptyAdmonitionTitle,
-                            *span,
-                        );
+                        diag_catalog(diagnostics, DiagnosticCode::EmptyAdmonitionTitle, *span);
                     }
                 }
             }
             NodeKind::InlineMath { content } | NodeKind::DisplayMath { content } => {
                 if content.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyMathExpression,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyMathExpression, *span);
                 }
             }
             NodeKind::MermaidDiagram { content } => {
                 if content.trim().is_empty() {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::EmptyMermaidDiagram,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::EmptyMermaidDiagram, *span);
                 }
             }
             NodeKind::PlatformMention {
@@ -1214,11 +1136,7 @@ fn collect_diagnostics(node: &Node, diagnostics: &mut Vec<Diagnostic>) {
             }
             NodeKind::Text(text) => {
                 if text_has_unknown_emoji_shortcode(text) {
-                    diag_catalog(
-                        diagnostics,
-                        DiagnosticCode::UnknownEmojiShortcode,
-                        *span,
-                    );
+                    diag_catalog(diagnostics, DiagnosticCode::UnknownEmojiShortcode, *span);
                 }
             }
             _ => {}
@@ -1240,17 +1158,9 @@ fn collect_link_reference_consistency_diagnostics(
             let normalized = normalize_label_for_diagnostics(label);
 
             if normalized.is_empty() {
-                diag_catalog(
-                    diagnostics,
-                    DiagnosticCode::EmptyLinkReferenceLabel,
-                    span,
-                );
+                diag_catalog(diagnostics, DiagnosticCode::EmptyLinkReferenceLabel, span);
             } else if !references.contains(label) {
-                diag_catalog(
-                    diagnostics,
-                    DiagnosticCode::UnresolvedLinkReference,
-                    span,
-                );
+                diag_catalog(diagnostics, DiagnosticCode::UnresolvedLinkReference, span);
             }
         }
 

@@ -137,19 +137,17 @@ fn merge_catalogs(
     marco
 }
 
-static DIAGNOSTICS_CATALOG: LazyLock<DiagnosticsCatalog> = LazyLock::new(
-    || {
-        let marco = parse_catalog("marco", DIAGNOSTICS_CATALOG_MARCO_RON);
-        let markdownlint = parse_catalog("markdownlint", DIAGNOSTICS_CATALOG_MARKDOWNLINT_RON);
+static DIAGNOSTICS_CATALOG: LazyLock<DiagnosticsCatalog> = LazyLock::new(|| {
+    let marco = parse_catalog("marco", DIAGNOSTICS_CATALOG_MARCO_RON);
+    let markdownlint = parse_catalog("markdownlint", DIAGNOSTICS_CATALOG_MARKDOWNLINT_RON);
 
-        match (marco, markdownlint) {
-            (Some(marco), Some(markdownlint)) => merge_catalogs(marco, markdownlint),
-            (Some(marco), None) => marco,
-            (None, Some(markdownlint)) => markdownlint,
-            (None, None) => DiagnosticsCatalog::default(),
-        }
-    },
-);
+    match (marco, markdownlint) {
+        (Some(marco), Some(markdownlint)) => merge_catalogs(marco, markdownlint),
+        (Some(marco), None) => marco,
+        (None, Some(markdownlint)) => markdownlint,
+        (None, None) => DiagnosticsCatalog::default(),
+    }
+});
 
 /// Returns the embedded diagnostics catalog parsed from RON.
 pub fn diagnostics_catalog() -> &'static DiagnosticsCatalog {
@@ -384,7 +382,11 @@ mod tests {
         let markdownlint = parse_catalog("markdownlint", DIAGNOSTICS_CATALOG_MARKDOWNLINT_RON)
             .expect("markdownlint catalog should parse in tests");
 
-        let marco_codes: HashSet<&str> = marco.entries.iter().map(|entry| entry.code.as_str()).collect();
+        let marco_codes: HashSet<&str> = marco
+            .entries
+            .iter()
+            .map(|entry| entry.code.as_str())
+            .collect();
         let markdownlint_codes: HashSet<&str> = markdownlint
             .entries
             .iter()
@@ -504,8 +506,7 @@ mod tests {
                 assert!(
                     !is_url_only,
                     "markdownlint entry {} has URL-only example: {}",
-                    entry.code,
-                    text
+                    entry.code, text
                 );
             }
         }

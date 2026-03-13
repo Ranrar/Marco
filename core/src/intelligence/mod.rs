@@ -15,16 +15,15 @@ pub mod markdown;
 pub use analysis::{
     compute_diagnostics, compute_diagnostics_critical, compute_diagnostics_with_options,
     compute_lints, compute_lints_detailed, compute_lints_detailed_with_options,
-    compute_lints_with_options, Diagnostic, DiagnosticCode, DiagnosticSeverity,
-    DiagnosticsOptions, DiagnosticsProfile, LintCodeBucket, LintDetailedReport,
-    LintReport,
+    compute_lints_with_options, Diagnostic, DiagnosticCode, DiagnosticSeverity, DiagnosticsOptions,
+    DiagnosticsProfile, LintCodeBucket, LintDetailedReport, LintReport,
 };
 pub use catalog::{
     diagnostics_catalog, diagnostics_catalog_groups, diagnostics_catalog_settings,
     diagnostics_markdown_features, find_catalog_entry, find_catalog_entry_by_key,
-    find_catalog_group, find_catalog_group_by_code, find_markdown_feature,
-    DiagnosticsCatalog, DiagnosticsCatalogEntry, DiagnosticsCatalogGroup,
-    DiagnosticsCatalogSettings, MarkdownFeatureCoverage,
+    find_catalog_group, find_catalog_group_by_code, find_markdown_feature, DiagnosticsCatalog,
+    DiagnosticsCatalogEntry, DiagnosticsCatalogGroup, DiagnosticsCatalogSettings,
+    MarkdownFeatureCoverage,
 };
 pub use editor::{
     compute_highlights, compute_highlights_with_source, get_hover_info, get_markdown_completions,
