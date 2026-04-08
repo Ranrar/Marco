@@ -160,15 +160,17 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     }}
     
     .{theme} .polo-dialog-button.primary:hover {{
-        background: {hover_accent};
-        border-color: {hover_accent};
+        background: {border_hover};
+        border-color: {border_hover};
         color: #ffffff;
+        opacity: 0.9;
     }}
     
     .{theme} .polo-dialog-button.primary:active {{
-        background: {active_text};
-        border-color: {active_text};
+        background: {border_hover};
+        border-color: {border_hover};
         color: #ffffff;
+        opacity: 0.8;
     }}
     
     .{theme} .polo-dialog-button.destructive {{
@@ -179,6 +181,27 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     .{theme} .polo-dialog-button.destructive:hover {{
         background: #dc3545;
         color: #ffffff;
+        opacity: 0.9;
+    }}
+
+    .{theme} .polo-dialog-button.cancel {{
+        background: #f0ad4e;
+        color: #ffffff;
+        border-color: #f0ad4e;
+    }}
+
+    .{theme} .polo-dialog-button.cancel:hover {{
+        background: #f0ad4e;
+        border-color: #f0ad4e;
+        color: #ffffff;
+        opacity: 0.9;
+    }}
+
+    .{theme} .polo-dialog-button.cancel:active {{
+        background: #f0ad4e;
+        border-color: #f0ad4e;
+        color: #ffffff;
+        opacity: 0.8;
     }}
 "#,
         theme = theme_class,
@@ -215,6 +238,7 @@ mod tests {
         // Verify button variants
         assert!(css.contains(".primary"));
         assert!(css.contains(".destructive"));
+        assert!(css.contains(".cancel"));
 
         // Verify essential properties
         assert!(css.contains("border-radius: 6px"));

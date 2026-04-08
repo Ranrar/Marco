@@ -155,6 +155,10 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         }
     };
 
+    // Initialise the global RTL flag early — before create_editor_with_preview_and_buffer —
+    // so that every wrap_html_document call embeds the correct dir attribute.
+    crate::logic::rtl::init_rtl_from_settings(&settings_manager);
+
     let localization_manager =
         SimpleLocalizationManager::new().expect("Failed to initialize localization manager");
     let locale_code = settings_manager
@@ -303,6 +307,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         footer_labels_rc.clone(),
         settings_path.to_str().unwrap(),
         Some(document_buffer_ref),
+    );
+
+    // Register the preview WebView so the TOC panel can scroll it via JS.
+    #[cfg(target_os = "linux")]
+    crate::components::editor::editor_manager::set_primary_preview_webview(
+        &editor_webview.borrow(),
     );
 
     // Shared root popover tree state for menu + toolbar interaction.
@@ -666,6 +676,100 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     let menu_state = Rc::new(menu_state);
     window.set_titlebar(Some(&titlebar_handle));
 
+    // --- Local Markdown file link handler for the preview ---
+    // When the user clicks a `file://...md` link in the preview (e.g. a relative link
+    // to another document), intercept it, show a styled confirmation dialog that is
+    // also aware of unsaved changes, then open the file in the editor.
+    #[cfg(target_os = "linux")]
+    {
+        let file_ops_for_link = file_operations_rc.clone();
+        let window_for_link = window.clone();
+        let editor_buffer_for_link = editor_buffer.clone();
+        let dialog_translations_for_link = dialog_translations_rc.clone();
+        let title_label_for_link = title_label.clone();
+        let refresh_bookmarks_for_link = refresh_bookmark_marks.clone();
+
+        crate::components::viewer::webkit6::setup_local_file_link_handler(
+            &editor_webview.borrow(),
+            move |path, _fragment| {
+                let target_path = std::path::PathBuf::from(&path);
+                let filename = target_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.clone());
+
+                let file_ops = file_ops_for_link.clone();
+                let window = window_for_link.clone();
+                let editor_buffer = editor_buffer_for_link.clone();
+                let dialog_translations_rc = dialog_translations_for_link.clone();
+                let title_label = title_label_for_link.clone();
+                let refresh_bookmark_marks = refresh_bookmarks_for_link.clone();
+
+                glib::MainContext::default().spawn_local(async move {
+                    // Check unsaved state before asking the user anything.
+                    let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
+                    let current_doc = file_ops.borrow().get_document_title();
+
+                    // Single styled dialog — handles both "open?" and "save first?" in one step.
+                    let gtk_window: &gtk4::Window = window.upcast_ref();
+                    let choice =
+                        crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
+                            gtk_window,
+                            &filename,
+                            has_unsaved,
+                            &current_doc,
+                        )
+                        .await;
+
+                    use crate::ui::dialogs::open_local_file::OpenLocalFileChoice;
+                    let save_decision = match choice {
+                        OpenLocalFileChoice::Cancel => return,
+                        OpenLocalFileChoice::Open | OpenLocalFileChoice::DiscardAndOpen => {
+                            crate::ui::menu_items::SaveChangesResult::Discard
+                        }
+                        OpenLocalFileChoice::SaveAndOpen => {
+                            crate::ui::menu_items::SaveChangesResult::Save
+                        }
+                    };
+
+                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                    let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                    let dialog_translations = dialog_translations_rc.borrow().clone();
+
+                    // Use an auto-decision callback so the internal save-changes prompt
+                    // inside open_file_by_path_from_rc_async is bypassed — the user has
+                    // already made their choice in the dialog above.
+                    let auto_cb = FileDialogs::auto_save_decision_callback(save_decision);
+                    let result = FileOperations::open_file_by_path_from_rc_async(
+                        &file_ops,
+                        &target_path,
+                        gtk_window,
+                        text_buffer,
+                        &dialog_translations,
+                        |w, doc_name, action| auto_cb(w, doc_name, action),
+                        |w, title, suggested| {
+                            FileDialogs::save_dialog_callback(dialog_translations.clone())(
+                                w, title, suggested,
+                            )
+                        },
+                    )
+                    .await;
+
+                    match result {
+                        Ok(_) => {
+                            title_label.set_text(&file_ops.borrow().get_document_title());
+                            refresh_bookmark_marks();
+                        }
+                        Err(e) => {
+                            log::warn!("[main] Failed to open linked file: {}", e);
+                        }
+                    }
+                    let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                });
+            },
+        );
+    }
+
     // --- Settings Thread Pool for Proper Resource Management ---
     let settings_pool = crate::logic::settings_thread::SettingsThreadPool::new();
     let settings_tx = settings_pool.tx.clone();
@@ -688,7 +792,21 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     _ => {}
                 }
             }
+            if let Some(depth) = layout.toc_depth {
+                crate::components::editor::ui::with_toc_panel(|h| h.set_depth(depth));
+            }
         }
+        // Apply table auto-align setting at startup.
+        let table_auto_align = settings_manager
+            .get_settings()
+            .editor
+            .and_then(|e| e.table_auto_align)
+            .unwrap_or(true);
+        crate::logic::tables::set_table_auto_align(table_auto_align);
+
+        // Apply saved text direction (LTR/RTL) to the entire application at startup.
+        let is_rtl = crate::logic::rtl::is_rtl_from_settings(&settings_manager);
+        crate::logic::rtl::apply_text_direction(is_rtl, &window, &editor_source_view);
     }
 
     // Create footer update function using weak references to prevent circular retention
@@ -1083,6 +1201,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let set_view_mode_rc = set_view_mode_rc.clone();
         let save_view_mode = save_view_mode.clone();
         let language_changed_handler = language_changed_handler.clone();
+        let editor_source_view_for_rtl = editor_source_view.clone();
+        let editor_webview_for_rtl = editor_webview.clone();
         move |_, _| {
             use crate::ui::settings::dialog::show_settings_dialog;
 
@@ -1234,6 +1354,26 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         (handler)(selected_code);
                     }
                 }) as Box<dyn Fn(Option<String>) + 'static>),
+                on_text_direction_changed: Some(Box::new({
+                    let window = window.clone();
+                    let editor_source_view = editor_source_view_for_rtl.clone();
+                    let editor_webview = editor_webview_for_rtl.clone();
+                    move |is_rtl: bool| {
+                        crate::logic::rtl::apply_text_direction(is_rtl, &window, &editor_source_view);
+                        // Keep <html dir="ltr"> pinned so the WebKit scrollbar stays on the right.
+                        // Toggle direction on <body> instead — content flows RTL, scrollbar stays right.
+                        let js = if is_rtl {
+                            "document.documentElement.setAttribute('dir','ltr'); document.body.setAttribute('dir','rtl');".to_string()
+                        } else {
+                            "document.documentElement.setAttribute('dir','ltr'); document.body.removeAttribute('dir');".to_string()
+                        };
+                        crate::components::viewer::backend::evaluate_javascript(
+                            &editor_webview.borrow(),
+                            &js,
+                        );
+                        log::debug!("Text direction changed via settings dialog: rtl={}", is_rtl);
+                    }
+                }) as Box<dyn Fn(bool) + 'static>),
             };
 
             show_settings_dialog(
@@ -1302,7 +1442,45 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         settings_manager.clone(),
         &editor_source_view,
         set_view_mode_rc.clone(),
+        {
+            let window = window.clone();
+            let editor_source_view = editor_source_view.clone();
+            let editor_webview = editor_webview.clone();
+            Rc::new(move |rtl: bool| {
+                crate::logic::rtl::apply_text_direction(rtl, &window, &editor_source_view);
+                // Keep <html dir="ltr"> pinned so the WebKit scrollbar stays on the right.
+                // Toggle direction on <body> instead — content flows RTL, scrollbar stays right.
+                let js = if rtl {
+                    "document.documentElement.setAttribute('dir','ltr'); document.body.setAttribute('dir','rtl');".to_string()
+                } else {
+                    "document.documentElement.setAttribute('dir','ltr'); document.body.removeAttribute('dir');".to_string()
+                };
+                crate::components::viewer::backend::evaluate_javascript(
+                    &editor_webview.borrow(),
+                    &js,
+                );
+            })
+        },
     );
+
+    // Wire the pre-open refresh hook so the Tools menu always shows the
+    // current state from settings whenever it is opened (click or hover).
+    {
+        let app_hook = app.clone();
+        let tools_menu_hook = menu_state.tools_menu.clone();
+        let translations_hook = translations_rc.clone();
+        let settings_hook = settings_manager.clone();
+        let editor_hook = editor_source_view.clone();
+        *menu_state.tools_pre_open.borrow_mut() = Some(Rc::new(move || {
+            crate::ui::menu_items::tools::refresh_tools_menu(
+                &app_hook,
+                &tools_menu_hook,
+                &translations_hook,
+                &settings_hook,
+                &editor_hook,
+            );
+        }));
+    }
 
     // Register search & replace action
     let search_action = gtk4::gio::SimpleAction::new("search", None);
@@ -1660,6 +1838,21 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 let handler = language_changed_handler.clone();
                 move |selected_code: Option<String>| {
                     (handler)(selected_code);
+                }
+            })),
+            Some(Box::new({
+                let update_editor = update_editor_theme_rc.clone();
+                let update_preview = update_preview_theme_rc.clone();
+                let window_for_theme = window.clone();
+                move |editor_mode: String| {
+                    update_editor(&editor_mode);
+                    update_preview(&editor_mode);
+
+                    let new_mode = if editor_mode.contains("dark") { "dark" } else { "light" };
+                    let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
+                    let new_class = format!("marco-theme-{}", new_mode);
+                    window_for_theme.remove_css_class(old_class);
+                    window_for_theme.add_css_class(&new_class);
                 }
             })),
         );

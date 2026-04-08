@@ -212,6 +212,8 @@ pub(crate) fn load_default_translations() -> Translations {
                 tabs_to_spaces_description: "Replace tab characters with spaces.".to_string(),
                 syntax_colors_label: "Syntax Colors".to_string(),
                 syntax_colors_description: "Enable or disable syntax-based color highlighting for Markdown.".to_string(),
+                table_auto_align_label: "Auto-Align Tables".to_string(),
+                table_auto_align_description: "Automatically realign table columns when pressing Tab, Enter, or moving the cursor outside a table.".to_string(),
             },
             intelligence: SettingsIntelligenceTranslations {
                 section_intelligence: "Intelligence".to_string(),
@@ -266,6 +268,8 @@ pub(crate) fn load_default_translations() -> Translations {
                 split_description: "Adjust how much horizontal space the editor takes.".to_string(),
                 line_numbers_label: "Show Line Numbers".to_string(),
                 line_numbers_description: "Display line numbers in the editor gutter.".to_string(),
+                toc_depth_label: "TOC Heading Depth".to_string(),
+                toc_depth_description: "Maximum heading level (1–6) shown in the TOC sidebar panel.".to_string(),
                 text_direction_label: "Text Direction".to_string(),
                 text_direction_description: "Switch between Left-to-Right (LTR) and Right-to-Left (RTL) layout.".to_string(),
                 text_direction_ltr: "Left-to-Right (LTR)".to_string(),
@@ -310,10 +314,16 @@ pub(crate) fn load_default_translations() -> Translations {
 
             page_info: "Info".to_string(),
             page_language: "Language".to_string(),
+            page_appearance: "Appearance".to_string(),
             page_telemetry: "Telemetry".to_string(),
 
             language_header: "Choose your language".to_string(),
             language_description: "Select the language used for menus, labels, and tooltips.".to_string(),
+
+            appearance_header: "Choose your theme".to_string(),
+            appearance_description: "Select between light and dark mode for the editor and viewer.".to_string(),
+            appearance_light: "Light".to_string(),
+            appearance_dark: "Dark".to_string(),
 
             telemetry_header: "Help Improve Marco".to_string(),
             telemetry_intro: "Marco can send anonymous usage data to help prioritize features and fix bugs faster.".to_string(),

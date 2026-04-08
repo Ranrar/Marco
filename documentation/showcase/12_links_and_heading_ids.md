@@ -149,3 +149,47 @@ Link containing code: [`cargo build`](https://doc.rust-lang.org/cargo/)
 Link with special characters: [100% CommonMark](https://spec.commonmark.org)
 
 Nested brackets in link text: [Marco [editor]](https://github.com/Ranrar/Marco)
+
+---
+
+## External Links (hover to see URL in footer)
+
+Hover over each link below — the URL appears in the footer status bar.
+
+### HTTPS / HTTP
+
+[GitHub](https://github.com)
+
+[Rust Language](https://www.rust-lang.org)
+
+[GTK Project](https://gtk.org)
+
+[CommonMark Spec](https://spec.commonmark.org)
+
+[crates.io](https://crates.io)
+
+[docs.rs](https://docs.rs)
+
+### Mailto
+
+[Contact example](mailto:hello@example.com)
+
+### Long URL (ellipsis test)
+
+[Very long path](https://www.rust-lang.org/learn/get-started#installing-rust-on-linux-or-macos-with-rustup)
+
+---
+
+## Local File Links (hover to see path in footer)
+
+These link to files on disk relative to this document.
+
+[Showcase: Tables and Task Lists](02_tables_and_task_lists.md)
+
+[Showcase: Footnotes](09_footnotes.md)
+
+[Showcase: Table of Contents](16_table_of_contents.md)
+
+[Linked document (files/)](files/linked_doc.md)
+
+[Linked document — specific section](files/linked_doc.md#linked-section)

@@ -477,9 +477,12 @@ fn create_toolbar_icon_button(
         };
 
         // Recompute icon color when state changes (hover/active/normal).
+        // Guard with is_mapped() to avoid snapshotting GtkGizmo before first allocation.
         let update_for_state = update_icon.clone();
-        button.connect_state_flags_changed(move |_, _| {
-            update_for_state();
+        button.connect_state_flags_changed(move |btn, _| {
+            if btn.is_mapped() {
+                update_for_state();
+            }
         });
 
         // Recompute after map so theme class from the root window is available.
@@ -531,9 +534,13 @@ fn create_toolbar_composite_dropdown_button(
             render_composite_button_content(&btn, &icon_paths, &label);
         };
 
+        // Guard with is_mapped() so set_width/height_request doesn't fire before
+        // the button has a real allocation (avoids GtkGizmo snapshot warnings).
         let update_for_state = update.clone();
-        button.connect_state_flags_changed(move |_, _| {
-            update_for_state();
+        button.connect_state_flags_changed(move |btn, _| {
+            if btn.is_mapped() {
+                update_for_state();
+            }
         });
 
         let update_for_map = update.clone();

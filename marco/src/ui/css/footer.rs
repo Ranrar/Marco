@@ -54,6 +54,9 @@ pub fn generate_css() -> String {
     // Diagnostics popover controls/chips
     css.push_str(&generate_footer_diagnostics_popover_css());
 
+    // Hovered-link slot styling
+    css.push_str(&generate_footer_hovered_link_css());
+
     css
 }
 
@@ -219,6 +222,31 @@ fn generate_footer_diagnostics_trigger_css() -> String {
         dark_normal = DARK_PALETTE.control_icon,
         dark_hover = DARK_PALETTE.control_icon_hover,
         dark_active = DARK_PALETTE.control_icon_active,
+    )
+}
+
+fn generate_footer_hovered_link_css() -> String {
+    format!(
+        r#"
+/* Footer hovered-link slot — matches status-button label style */
+.marco-theme-light .footer .footer-hovered-link .footer-status-label,
+.marco-theme-dark .footer .footer-hovered-link .footer-status-label {{
+    padding: 0;
+    margin: 0;
+    font-size: {font_size};
+    font-weight: {font_weight};
+}}
+.marco-theme-light .footer .footer-hovered-link .footer-status-label {{
+    color: {light_color};
+}}
+.marco-theme-dark .footer .footer-hovered-link .footer-status-label {{
+    color: {dark_color};
+}}
+"#,
+        font_size = FOOTER_FONT_SIZE,
+        font_weight = FOOTER_LABEL_FONT_WEIGHT,
+        light_color = LIGHT_PALETTE.control_icon,
+        dark_color = DARK_PALETTE.control_icon,
     )
 }
 

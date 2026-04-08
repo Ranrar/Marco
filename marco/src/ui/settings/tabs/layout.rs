@@ -15,6 +15,9 @@ pub struct LayoutTabCallbacks {
     pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
     pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    pub on_toc_depth_changed: Option<std::boxed::Box<dyn Fn(u8) + 'static>>,
+    /// Called with `is_rtl = true` when the user selects RTL, `false` for LTR.
+    pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
 // Build the layout tab. `initial_view_mode` optionally sets which entry is
@@ -43,6 +46,8 @@ pub fn build_layout_tab(
         on_split_ratio_changed,
         on_sync_scrolling_changed,
         on_line_numbers_changed,
+        on_toc_depth_changed,
+        on_text_direction_changed,
     } = callbacks;
 
     // Initialize SettingsManager once if settings_path is available
@@ -318,6 +323,61 @@ pub fn build_layout_tab(
     );
     container.append(&line_numbers_row);
 
+    // TOC Heading Depth (SpinButton, 1–6, default 3)
+    let current_toc_depth = if let Some(ref settings_manager) = settings_manager_opt {
+        settings_manager
+            .get_settings()
+            .layout
+            .as_ref()
+            .and_then(|l| l.toc_depth)
+            .unwrap_or(3)
+    } else {
+        3
+    };
+
+    let toc_depth_adj =
+        Adjustment::new(current_toc_depth as f64, 1.0, 6.0, 1.0, 0.0, 0.0);
+    let toc_depth_spin = SpinButton::new(Some(&toc_depth_adj), 1.0, 0);
+    toc_depth_spin.add_css_class("marco-spinbutton");
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        toc_depth_adj.connect_value_changed(move |adj| {
+            let new_depth = adj.value() as u8;
+            debug!("TOC depth changed to: {}", new_depth);
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.layout.is_none() {
+                    settings.layout =
+                        Some(core::logic::swanson::LayoutSettings::default());
+                }
+                if let Some(ref mut layout) = settings.layout {
+                    layout.toc_depth = Some(new_depth);
+                }
+            }) {
+                debug!("Failed to save toc_depth setting: {}", e);
+            } else {
+                debug!("toc_depth saved: {}", new_depth);
+            }
+        });
+    }
+
+    if let Some(callback) = on_toc_depth_changed {
+        toc_depth_adj.connect_value_changed(move |adj| {
+            let new_depth = adj.value() as u8;
+            callback(new_depth);
+        });
+    }
+
+    let toc_depth_row = add_setting_row_i18n(
+        i18n,
+        &translations.toc_depth_label,
+        &translations.toc_depth_description,
+        Rc::new(|t: &Translations| t.settings.layout.toc_depth_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.toc_depth_description.clone()),
+        &toc_depth_spin,
+        false,
+    );
+    container.append(&toc_depth_row);
+
     // Text Direction (Dropdown)
     let text_dir_labels = [
         translations.text_direction_ltr.as_str(),
@@ -354,9 +414,7 @@ pub fn build_layout_tab(
         .position(|value| *value == current_text_direction.as_str())
         .unwrap_or(0);
     text_dir_combo.set_selected(text_dir_index as u32);
-    text_dir_combo.set_sensitive(false);
-    text_dir_combo.add_css_class("marco-control-unavailable");
-    text_dir_combo.set_tooltip_text(Some("Not available yet"));
+
 
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         text_dir_combo.connect_selected_notify(move |combo| {
@@ -378,6 +436,14 @@ pub fn build_layout_tab(
         });
     }
 
+    // Runtime callback: apply direction change immediately without restart
+    if let Some(callback) = on_text_direction_changed {
+        text_dir_combo.connect_selected_notify(move |combo| {
+            let is_rtl = combo.selected() == 1;
+            callback(is_rtl);
+        });
+    }
+
     // Create text direction row using unified helper
     let text_dir_row = add_setting_row_i18n(
         i18n,
@@ -388,8 +454,6 @@ pub fn build_layout_tab(
         &text_dir_combo,
         false, // Not first row
     );
-    text_dir_row.add_css_class("marco-settings-row-unavailable");
-    text_dir_row.set_tooltip_text(Some("Not available yet"));
     container.append(&text_dir_row);
 
     container

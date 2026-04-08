@@ -23,13 +23,15 @@ fn integration_test_heading_with_id_renders_anchor_link_with_svg() {
 }
 
 #[test]
-fn integration_test_heading_without_id_does_not_render_anchor_link() {
+fn integration_test_heading_without_id_renders_auto_slug_anchor() {
     let input = "## Title\n";
     let doc = parse(input).expect("parse failed");
 
     let options = RenderOptions::default();
     let html = core::render::render(&doc, &options).expect("render failed");
 
-    assert!(html.contains("<h2>Title</h2>"));
-    assert!(!html.contains("marco-heading-anchor"));
+    // Headings without explicit {#id} now get an auto-generated slug for TOC navigation.
+    assert!(html.contains("<h2 id=\"title\">"));
+    assert!(html.contains("class=\"marco-heading-anchor\""));
+    assert!(html.contains("href=\"#title\""));
 }

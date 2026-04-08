@@ -238,6 +238,10 @@ pub fn create_html_viewer_with_base(
 
     webview.set_vexpand(true);
     webview.set_hexpand(true);
+    // Pin the GTK widget direction to LTR so the WebKitGTK native overlay scrollbar
+    // always renders on the physical right, regardless of the global RTL default.
+    // Content direction is handled via <body dir="rtl"> in the HTML, not the widget.
+    webview.set_direction(gtk4::TextDirection::Ltr);
     webview
 }
 
@@ -388,7 +392,16 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    core::render::wrap_preview_html_document(body, css, theme_mode, background_color)
+    let html = core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
+    // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
+    // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
+    let html = html.replacen("<html ", "<html dir=\"ltr\" ", 1);
+    if crate::logic::rtl::is_rtl_global() {
+        html.replacen("<body>", "<body dir=\"rtl\">", 1)
+    } else {
+        html
+    }
 }
 
 // Note: in-page JS helpers are embedded in the HTML template produced by
@@ -626,6 +639,8 @@ pub fn create_html_source_viewer_webview(
 
     webview.set_vexpand(true);
     webview.set_hexpand(true);
+    // Pin GTK widget direction to LTR — scrollbar stays on physical right.
+    webview.set_direction(gtk4::TextDirection::Ltr);
 
     log::debug!("[webkit6] Code viewer WebView created successfully");
     Ok(webview)
@@ -929,6 +944,96 @@ fn open_external_uri(uri: &str) -> Result<(), String> {
     }
 }
 
+/// Wire up link-hover detection so callers can show the hovered URL in the footer.
+///
+/// The `on_hover` closure receives:
+/// - `Some(url)` when the cursor moves over a link
+/// - `None`      when the cursor leaves a link (no link under cursor)
+pub fn setup_link_hover_status(webview: &WebView, on_hover: impl Fn(Option<String>) + 'static) {
+    use webkit6::prelude::*;
+
+    webview.connect_mouse_target_changed(move |_webview, hit_test_result, _modifiers| {
+        let url = hit_test_result.link_uri().map(|s| s.to_string());
+        on_hover(url);
+    });
+}
+
+/// Returns `true` if the URI is a local Markdown file link (`file://...md` or `.markdown`).
+fn is_local_md_uri(uri: &str) -> bool {
+    let uri_lower = uri.to_lowercase();
+    if !uri_lower.starts_with("file://") {
+        return false;
+    }
+    // Strip any fragment before checking extension
+    let path_part = uri_lower.split('#').next().unwrap_or("");
+    path_part.ends_with(".md") || path_part.ends_with(".markdown")
+}
+
+/// Splits a `file://` URI into (absolute_path, Option<fragment>).
+/// Strips the `file://` scheme and URL-decodes `%20` spaces.
+fn extract_path_and_fragment_from_file_uri(uri: &str) -> (String, Option<String>) {
+    // Strip the "file://" prefix
+    let without_scheme = uri.trim_start_matches("file://");
+    let (raw_path, fragment) = match without_scheme.split_once('#') {
+        Some((p, f)) => (p, if f.is_empty() { None } else { Some(f.to_string()) }),
+        None => (without_scheme, None),
+    };
+    // Basic URL-decode for spaces
+    let path = raw_path.replace("%20", " ");
+    (path, fragment)
+}
+
+/// Intercept clicks on local Markdown file links in the WebView preview.
+///
+/// When the user clicks a `file://...md` link (e.g., a relative link to another
+/// Markdown document), WebKit would normally navigate away and show raw source.
+/// This handler intercepts such navigation and calls `on_local_md(path, fragment)`
+/// so the application can prompt the user and open the file properly.
+///
+/// The `on_local_md` closure receives:
+/// - `path` — absolute file system path to the target `.md` file
+/// - `fragment` — optional anchor fragment (e.g. `"section-title"`)
+pub fn setup_local_file_link_handler(
+    webview: &WebView,
+    on_local_md: impl Fn(String, Option<String>) + 'static,
+) {
+    use webkit6::prelude::*;
+
+    webview.connect_decide_policy(move |_wv, decision, decision_type| {
+        if decision_type != webkit6::PolicyDecisionType::NavigationAction
+            && decision_type != webkit6::PolicyDecisionType::NewWindowAction
+        {
+            return false;
+        }
+
+        if let Ok(nav) = decision
+            .clone()
+            .downcast::<webkit6::NavigationPolicyDecision>()
+        {
+            if let Some(mut action) = nav.navigation_action() {
+                if let Some(request) = action.request() {
+                    if let Some(uri) = request.uri() {
+                        let uri_str = uri.as_str();
+                        if is_local_md_uri(uri_str) {
+                            log::info!(
+                                "[webkit6] Local .md link intercepted: {}",
+                                uri_str
+                            );
+                            let (path, fragment) =
+                                extract_path_and_fragment_from_file_uri(uri_str);
+                            decision.ignore();
+                            on_local_md(path, fragment);
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+
+        false
+    });
+}
+
 /// Setup link handling to open external links in system browser.
 ///
 /// **Behavior**:
@@ -1100,5 +1205,60 @@ mod tests {
         // In manual testing, verify:
         // - open_external_uri("https://example.com") opens browser
         // - open_external_uri("http:...") opens browser
+    }
+
+    #[test]
+    fn smoke_test_local_md_uri_detection() {
+        // Should detect .md file URIs
+        assert!(
+            is_local_md_uri("file:///home/user/docs/README.md"),
+            ".md file should be detected"
+        );
+        assert!(
+            is_local_md_uri("file:///home/user/docs/page.markdown"),
+            ".markdown file should be detected"
+        );
+        assert!(
+            is_local_md_uri("file:///home/user/docs/README.md#section"),
+            ".md file with fragment should be detected"
+        );
+        assert!(
+            is_local_md_uri("file:///home/user/docs/README.MD"),
+            "uppercase .MD should be detected"
+        );
+
+        // Should NOT detect non-md URIs
+        assert!(
+            !is_local_md_uri("file:///home/user/docs/image.png"),
+            "image file should not be detected"
+        );
+        assert!(
+            !is_local_md_uri("https://example.com/page.md"),
+            "http URI to .md should not be detected"
+        );
+        assert!(
+            !is_local_md_uri("file:///home/user/docs/index.html"),
+            ".html file should not be detected"
+        );
+        assert!(!is_local_md_uri(""), "empty URI should not be detected");
+    }
+
+    #[test]
+    fn smoke_test_extract_path_and_fragment() {
+        let (path, fragment) =
+            extract_path_and_fragment_from_file_uri("file:///home/user/docs/README.md");
+        assert_eq!(path, "/home/user/docs/README.md");
+        assert_eq!(fragment, None);
+
+        let (path, fragment) =
+            extract_path_and_fragment_from_file_uri("file:///home/user/docs/page.md#intro");
+        assert_eq!(path, "/home/user/docs/page.md");
+        assert_eq!(fragment, Some("intro".to_string()));
+
+        // URL-decoded spaces
+        let (path, fragment) =
+            extract_path_and_fragment_from_file_uri("file:///home/user/my%20docs/note.md");
+        assert_eq!(path, "/home/user/my docs/note.md");
+        assert_eq!(fragment, None);
     }
 }

@@ -90,13 +90,18 @@ fn parse_alignment_marker(cell: &str) -> Option<ColumnAlignment> {
 }
 
 fn alignment_marker(alignment: ColumnAlignment, width: usize) -> String {
+    // Clamp to a minimum so every marker stays valid GFM.
+    // The marker must occupy exactly `width` display characters so it lines up
+    // with padded data cells:
+    //   Left   `:` + (width-1) dashes  → total = width
+    //   Center `:` + (width-2) dashes + `:` → total = width  (min 3)
+    //   Right  (width-1) dashes + `:`  → total = width
+    //   None   width dashes             → total = width  (min 3)
     let width = width.max(3);
     match alignment {
-        ColumnAlignment::Left => format!(":{}", "-".repeat(width)),
-        ColumnAlignment::Center => {
-            format!(":{}:", "-".repeat(width))
-        }
-        ColumnAlignment::Right => format!("{}:", "-".repeat(width)),
+        ColumnAlignment::Left => format!(":{}", "-".repeat(width - 1)),
+        ColumnAlignment::Center => format!(":{}:", "-".repeat(width.saturating_sub(2))),
+        ColumnAlignment::Right => format!("{}:", "-".repeat(width - 1)),
         ColumnAlignment::None => "-".repeat(width),
     }
 }
@@ -128,12 +133,17 @@ fn current_line_offset(buffer: &TextBuffer) -> i32 {
 }
 
 fn parse_table_around_cursor(buffer: &TextBuffer) -> Option<ParsedTable> {
+    parse_table_at_line(buffer, current_line(buffer))
+}
+
+/// Parse the GFM table block that contains `line`, without touching cursor position.
+fn parse_table_at_line(buffer: &TextBuffer, line: i32) -> Option<ParsedTable> {
     let line_count = buffer.line_count().max(0);
     if line_count == 0 {
         return None;
     }
 
-    let mut start_line = current_line(buffer).clamp(0, line_count - 1);
+    let mut start_line = line.clamp(0, line_count - 1);
     let center_line = line_text(buffer, start_line)?;
     if !is_table_candidate_line(&center_line) {
         return None;
@@ -147,7 +157,7 @@ fn parse_table_around_cursor(buffer: &TextBuffer) -> Option<ParsedTable> {
         start_line -= 1;
     }
 
-    let mut end_line = current_line(buffer).clamp(0, line_count - 1);
+    let mut end_line = line.clamp(0, line_count - 1);
     while end_line + 1 < line_count {
         let probe = line_text(buffer, end_line + 1)?;
         if !is_table_candidate_line(&probe) {
@@ -402,6 +412,24 @@ pub fn format_table_at_cursor(buffer: &TextBuffer) -> bool {
         ctx.col_idx,
     );
     true
+}
+
+/// Reformat the GFM table that contains `line` without moving the cursor.
+/// Used when the cursor leaves a table region.
+pub fn format_table_at_line_no_cursor(buffer: &TextBuffer, line: i32) -> bool {
+    let Some(table) = parse_table_at_line(buffer, line) else {
+        return false;
+    };
+    let formatted = format_rows(&table);
+    replace_table_in_buffer(buffer, &table, &formatted);
+    true
+}
+
+/// Returns `true` if the given line is inside a GFM table.
+pub fn line_is_in_table(buffer: &TextBuffer, line: i32) -> bool {
+    line_text(buffer, line)
+        .map(|t| is_table_candidate_line(&t))
+        .unwrap_or(false)
 }
 
 pub fn insert_row_above(buffer: &TextBuffer) -> bool {
@@ -680,6 +708,10 @@ fn navigate_prev_cell(view: &sourceview5::View) -> bool {
         return false;
     };
 
+    // One replace: reformat with current cell widths, then move cursor.
+    let lines = format_rows(&ctx.table);
+    replace_table_in_buffer(&buffer, &ctx.table, &lines);
+
     if ctx.col_idx > 0 {
         apply_navigation_result(
             view,
@@ -711,6 +743,9 @@ fn navigate_next_cell_or_append_row(view: &sourceview5::View) -> bool {
     };
 
     if ctx.col_idx + 1 < ctx.table.col_count {
+        // One replace: reformat then move to next cell in same row.
+        let lines = format_rows(&ctx.table);
+        replace_table_in_buffer(&buffer, &ctx.table, &lines);
         apply_navigation_result(
             view,
             ctx.table.start_line + ctx.row_idx as i32,
@@ -722,10 +757,15 @@ fn navigate_next_cell_or_append_row(view: &sourceview5::View) -> bool {
     let next_row =
         ((ctx.row_idx + 1)..ctx.table.rows.len()).find(|idx| !ctx.table.rows[*idx].is_delimiter);
     if let Some(next_row) = next_row {
+        // One replace: reformat then move to first cell of next row.
+        let lines = format_rows(&ctx.table);
+        replace_table_in_buffer(&buffer, &ctx.table, &lines);
         apply_navigation_result(view, ctx.table.start_line + next_row as i32, 0);
         return true;
     }
 
+    // Append new row — ONE replace that reformats existing cells AND adds the
+    // new empty row in a single buffer write.
     let mut table = ctx.table.clone();
     let insert_idx = table.rows.len();
     table.rows.push(ParsedRow {
@@ -747,10 +787,14 @@ fn navigate_next_row_same_column_or_append(view: &sourceview5::View) -> bool {
     let next_row =
         ((ctx.row_idx + 1)..ctx.table.rows.len()).find(|idx| !ctx.table.rows[*idx].is_delimiter);
     if let Some(next_row) = next_row {
+        // One replace: reformat then move to same column of next row.
+        let lines = format_rows(&ctx.table);
+        replace_table_in_buffer(&buffer, &ctx.table, &lines);
         apply_navigation_result(view, ctx.table.start_line + next_row as i32, ctx.col_idx);
         return true;
     }
 
+    // Append new row — ONE replace.
     let mut table = ctx.table.clone();
     let insert_idx = table.rows.len();
     table.rows.push(ParsedRow {
@@ -803,7 +847,9 @@ mod tests {
 
         let lines = format_rows(&table);
         assert_eq!(lines[0], "| A   | Long |");
-        assert_eq!(lines[1], "| :--- | ----: |");
+        // delimiter cells occupy the same width as the data cells:
+        // col0 width=3 → `:--` (Left), col1 width=4 → `---:` (Right)
+        assert_eq!(lines[1], "| :-- | ---: |");
         assert_eq!(lines[2], "| 1   | 2    |");
     }
 }

@@ -41,6 +41,9 @@ impl PlatformWebView {
         let webview = webkit6::WebView::new();
         webview.set_vexpand(true);
         webview.set_hexpand(true);
+        // Pin GTK widget direction to LTR so WebKitGTK's native overlay scrollbar
+        // always renders on the physical right, regardless of the global RTL default.
+        webview.set_direction(gtk4::TextDirection::Ltr);
 
         if let Some(settings) = webkit6::prelude::WebViewExt::settings(&webview) {
             settings.set_allow_file_access_from_file_urls(true);
@@ -80,6 +83,90 @@ impl PlatformWebView {
                     log::error!("JavaScript evaluation failed: {}", e);
                 }
             });
+    }
+
+    /// Setup link interception policy for the WebView.
+    ///
+    /// - External links (http/https/mailto/www) are opened in the system browser.
+    /// - Local `.md` / `.markdown` file links call `on_local_md(path, fragment)`.
+    ///
+    /// All other navigation (in-page anchors, resources) is passed through to WebKit.
+    pub fn setup_link_policy(&self, on_local_md: impl Fn(String, Option<String>) + 'static) {
+        use webkit6::prelude::*;
+
+        let webview = self.inner.clone();
+        webview.connect_decide_policy(move |_wv, decision, decision_type| {
+            if decision_type != webkit6::PolicyDecisionType::NavigationAction
+                && decision_type != webkit6::PolicyDecisionType::NewWindowAction
+            {
+                return false;
+            }
+
+            if let Ok(nav) = decision
+                .clone()
+                .downcast::<webkit6::NavigationPolicyDecision>()
+            {
+                if let Some(mut action) = nav.navigation_action() {
+                    if let Some(request) = action.request() {
+                        if let Some(uri) = request.uri() {
+                            let uri_str = uri.as_str();
+                            let uri_lower = uri_str.to_lowercase();
+
+                            // External link → open in system browser
+                            if uri_lower.starts_with("http:")
+                                || uri_lower.starts_with("https:")
+                                || uri_lower.starts_with("www.")
+                                || uri_lower.starts_with("mailto:")
+                            {
+                                let normalized = if uri_lower.starts_with("www.") {
+                                    format!("https://{}", uri_str)
+                                } else {
+                                    uri_str.to_string()
+                                };
+                                decision.ignore();
+                                if let Err(e) = gio::AppInfo::launch_default_for_uri(
+                                    &normalized,
+                                    None::<&gio::AppLaunchContext>,
+                                ) {
+                                    log::warn!("[polo] Failed to open external link: {}", e);
+                                }
+                                return true;
+                            }
+
+                            // Local .md file link → prompt to open
+                            if uri_lower.starts_with("file://") {
+                                let path_part =
+                                    uri_lower.split('#').next().unwrap_or("");
+                                if path_part.ends_with(".md")
+                                    || path_part.ends_with(".markdown")
+                                {
+                                    let without_scheme =
+                                        uri_str.trim_start_matches("file://");
+                                    let (raw_path, fragment) =
+                                        match without_scheme.split_once('#') {
+                                            Some((p, f)) => (
+                                                p,
+                                                if f.is_empty() {
+                                                    None
+                                                } else {
+                                                    Some(f.to_string())
+                                                },
+                                            ),
+                                            None => (without_scheme, None),
+                                        };
+                                    let path = raw_path.replace("%20", " ");
+                                    decision.ignore();
+                                    on_local_md(path, fragment);
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            false
+        });
     }
 }
 

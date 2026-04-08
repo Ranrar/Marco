@@ -95,7 +95,7 @@ pub fn show_insert_footnote_popover(text_buffer: &gtk4::TextBuffer, editor_view:
     note_scroller.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
     note_scroller.set_min_content_height(96);
     note_scroller.set_has_frame(false);
-    note_scroller.add_css_class("marco-search-entry");
+    note_scroller.add_css_class("marco-textfield-scroll");
     note_scroller.set_child(Some(&note_view));
 
     let actions = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);

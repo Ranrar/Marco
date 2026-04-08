@@ -24,6 +24,24 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.22.0] - 2026-04-08
+
+**Uses:** Core 0.22.0
+
+### Added
+- TOC sidebar panel — collapsible table-of-contents drawer extracted from live document headings; configurable depth and click-to-scroll navigation.
+- Table of contents insert — insert a Markdown TOC block at the cursor position via the Insert menu or toolbar.
+- TOC depth setting — controls how many heading levels (H1-H6) appear in the TOC sidebar.
+- Live preview link hover — hovering over a link in the HTML preview shows its target URL in the footer status bar; clears when the cursor leaves the link.
+- Welcome screen theme selection — first-run wizard now offers a light/dark mode choice before opening the editor for the first time.
+- Right-to-left (RTL) text direction support — full UI flip: editor layout, split-pane ordering, menus, toolbar, footer, scrollbar placement, line-number gutter migrated from left to right side, HTML preview body direction, and live JS toggle without a restart.
+- Table auto-align — pipe tables are automatically reformatted and column-aligned when pressing Tab, Enter, or moving the cursor outside a table row; the same reformat can be triggered on demand via the right-click context menu ("Format Table") or the keyboard shortcut Ctrl+Alt+T. Auto-alignment can be turned on or off in Settings → Editor → "Auto-Align Tables".
+- Local link prompt — clicking a local file link in the HTML preview prompts to open that file in Marco; if the current file has unsaved edits, the prompt additionally offers to save before opening or cancel.
+- Heading anchor links on all headings — hover-anchor links (the chain-link icon) are now rendered next to every heading; previously they only appeared on headings with an explicit `{#id}` marker. Required by click-to-scroll in the TOC sidebar.
+
+### Fixed
+- Tools menu restored and fully wired — quick-toggle panel covering line wrap, line numbers, show invisibles, tabs-to-spaces, syntax colours, table auto-align, scroll sync, and text direction; each toggle reads live editor state, applies the change immediately, and persists it to settings.
+
 ## [0.21.0] - 2026-03-13
 
 **Uses:** Core 0.21.0

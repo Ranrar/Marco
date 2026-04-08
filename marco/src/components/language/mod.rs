@@ -50,10 +50,16 @@ pub struct WelcomeTranslations {
 
     pub page_info: String,
     pub page_language: String,
+    pub page_appearance: String,
     pub page_telemetry: String,
 
     pub language_header: String,
     pub language_description: String,
+
+    pub appearance_header: String,
+    pub appearance_description: String,
+    pub appearance_light: String,
+    pub appearance_dark: String,
 
     pub telemetry_header: String,
     pub telemetry_intro: String,
@@ -304,6 +310,8 @@ pub struct SettingsEditorTranslations {
     pub tabs_to_spaces_description: String,
     pub syntax_colors_label: String,
     pub syntax_colors_description: String,
+    pub table_auto_align_label: String,
+    pub table_auto_align_description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -358,6 +366,8 @@ pub struct SettingsLayoutTranslations {
     pub split_description: String,
     pub line_numbers_label: String,
     pub line_numbers_description: String,
+    pub toc_depth_label: String,
+    pub toc_depth_description: String,
     pub text_direction_label: String,
     pub text_direction_description: String,
     pub text_direction_ltr: String,
@@ -1341,6 +1351,16 @@ impl SimpleLocalizationManager {
                         &["settings", "editor", "syntax_colors_description"],
                         &fallback.settings.editor.syntax_colors_description,
                     ),
+                    table_auto_align_label: Self::get_string(
+                        value,
+                        &["settings", "editor", "table_auto_align_label"],
+                        &fallback.settings.editor.table_auto_align_label,
+                    ),
+                    table_auto_align_description: Self::get_string(
+                        value,
+                        &["settings", "editor", "table_auto_align_description"],
+                        &fallback.settings.editor.table_auto_align_description,
+                    ),
                 },
                 intelligence: SettingsIntelligenceTranslations {
                     section_intelligence: Self::get_string(
@@ -1571,6 +1591,16 @@ impl SimpleLocalizationManager {
                         &["settings", "layout", "line_numbers_description"],
                         &fallback.settings.layout.line_numbers_description,
                     ),
+                    toc_depth_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "toc_depth_label"],
+                        &fallback.settings.layout.toc_depth_label,
+                    ),
+                    toc_depth_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "toc_depth_description"],
+                        &fallback.settings.layout.toc_depth_description,
+                    ),
                     text_direction_label: Self::get_string(
                         value,
                         &["settings", "layout", "text_direction_label"],
@@ -1759,6 +1789,11 @@ impl SimpleLocalizationManager {
                     &["welcome", "page_language"],
                     &fallback.welcome.page_language,
                 ),
+                page_appearance: Self::get_string(
+                    value,
+                    &["welcome", "page_appearance"],
+                    &fallback.welcome.page_appearance,
+                ),
                 page_telemetry: Self::get_string(
                     value,
                     &["welcome", "page_telemetry"],
@@ -1774,6 +1809,27 @@ impl SimpleLocalizationManager {
                     value,
                     &["welcome", "language_description"],
                     &fallback.welcome.language_description,
+                ),
+
+                appearance_header: Self::get_string(
+                    value,
+                    &["welcome", "appearance_header"],
+                    &fallback.welcome.appearance_header,
+                ),
+                appearance_description: Self::get_string(
+                    value,
+                    &["welcome", "appearance_description"],
+                    &fallback.welcome.appearance_description,
+                ),
+                appearance_light: Self::get_string(
+                    value,
+                    &["welcome", "appearance_light"],
+                    &fallback.welcome.appearance_light,
+                ),
+                appearance_dark: Self::get_string(
+                    value,
+                    &["welcome", "appearance_dark"],
+                    &fallback.welcome.appearance_dark,
                 ),
 
                 telemetry_header: Self::get_string(

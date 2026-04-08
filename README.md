@@ -185,9 +185,9 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Diagram support: Mermaid for flowcharts, sequence diagrams, class diagrams, and 20+ other diagram types
 - [ ] Export to PDF
 - [ ] Page size presets for export (A4, US Letter, etc.)
-- [ ] Document navigation: TOC sidebar
+- [X] Document navigation: TOC sidebar
 - [X] Document navigation: bookmarks
-- [ ] Document navigation: cross-file links
+- [X] Document navigation: cross-file links
 
 ### Advanced Features
 - [x] Language plugin system via. `assets/language/xx*.toml` files

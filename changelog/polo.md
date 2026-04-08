@@ -24,6 +24,16 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.22.0] - 2026-04-08
+
+**Uses:** Core 0.22.0
+
+### Added
+- Local link prompt — clicking a local file link in the HTML preview prompts to open that file in Polo; the dialog's cancel action uses a distinct button style to differentiate it visually from the primary open action.
+
+### Changed
+- Updated to Core 0.22.0.
+
 ## [0.21.0] - 2026-03-13
 
 **Uses:** Core 0.21.0

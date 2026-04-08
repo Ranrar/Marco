@@ -5,6 +5,7 @@ pub mod popover_state;
 pub mod settings;
 pub mod splitview;
 pub mod titlebar;
+pub mod toc_panel;
 pub mod toolbar;
 pub use splitview::create_split_view;
 pub use titlebar::{

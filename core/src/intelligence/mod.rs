@@ -11,6 +11,7 @@ pub mod catalog;
 pub mod editor;
 pub mod lsp_protocol;
 pub mod markdown;
+pub mod toc;
 
 pub use analysis::{
     compute_diagnostics, compute_diagnostics_critical, compute_diagnostics_with_options,

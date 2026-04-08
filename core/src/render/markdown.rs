@@ -40,6 +40,9 @@ struct RenderContext<'a> {
     tab_group_counter: usize,
     slider_deck_counter: usize,
     mermaid_result_cache: HashMap<(String, String), Result<String, String>>,
+    /// Tracks how many times each slug base has been used so duplicates get
+    /// a `-1`, `-2`, … suffix — matching the same logic in `intelligence::toc`.
+    heading_slug_counts: HashMap<String, usize>,
 }
 
 // Render document to HTML
@@ -114,26 +117,36 @@ fn render_node(
         NodeKind::Heading { level, text, id } => {
             log::trace!("Rendering heading level {}", level);
             let escaped_text = escape_html(text);
+
+            // Use explicit {#id} when present; otherwise auto-derive from heading text.
+            // Duplicate slugs get a -1, -2, … suffix (same algorithm as `intelligence::toc`).
+            let effective_id = if let Some(explicit_id) = id {
+                explicit_id.clone()
+            } else {
+                let base = crate::intelligence::toc::heading_slug(text);
+                let count = ctx.heading_slug_counts.entry(base.clone()).or_insert(0);
+                let slug = if *count == 0 {
+                    base.clone()
+                } else {
+                    format!("{}-{}", base, count)
+                };
+                *count += 1;
+                slug
+            };
+
             output.push_str("<h");
             output.push_str(&level.to_string());
-            if let Some(id) = id {
-                output.push_str(" id=\"");
-                output.push_str(&escape_html(id));
-                output.push('"');
-            }
-            output.push('>');
+            output.push_str(" id=\"");
+            output.push_str(&escape_html(&effective_id));
+            output.push_str("\">");
             output.push_str(&escaped_text);
 
-            // Optional, GitHub-style heading anchor link shown on hover.
-            // We keep the SVG stroke as `currentColor` and let CSS inherit
-            // the heading color so it matches the theme.
-            if let Some(id) = id {
-                output.push_str("<a class=\"marco-heading-anchor\" href=\"#");
-                output.push_str(&escape_html(id));
-                output.push_str("\" aria-label=\"Link to this heading\">");
-                output.push_str(HEADING_ANCHOR_SVG);
-                output.push_str("</a>");
-            }
+            // GitHub-style heading anchor link shown on hover.
+            output.push_str("<a class=\"marco-heading-anchor\" href=\"#");
+            output.push_str(&escape_html(&effective_id));
+            output.push_str("\" aria-label=\"Link to this heading\">");
+            output.push_str(HEADING_ANCHOR_SVG);
+            output.push_str("</a>");
 
             output.push_str("</h");
             output.push_str(&level.to_string());
@@ -1135,7 +1148,11 @@ mod tests {
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
-        assert_eq!(result, "<h1>Hello World</h1>\n");
+        // All headings now get an auto-generated id for TOC anchor navigation.
+        assert!(result.contains("<h1 id=\"hello-world\">"));
+        assert!(result.contains("Hello World"));
+        assert!(result.contains("class=\"marco-heading-anchor\""));
+        assert!(result.contains("href=\"#hello-world\""));
     }
 
     #[test]
@@ -1154,7 +1171,9 @@ mod tests {
         };
         let options = RenderOptions::default();
         let result = render_html(&doc, &options).unwrap();
-        assert_eq!(result, "<h2>Code &lt;example&gt; &amp; test</h2>\n");
+        // Heading text is HTML-escaped; id is the slug of the unescaped text.
+        assert!(result.contains("<h2 id=\"code-example-test\">"));
+        assert!(result.contains("Code &lt;example&gt; &amp; test"));
     }
 
     #[test]
@@ -1321,8 +1340,8 @@ mod tests {
             ..RenderOptions::default()
         };
         let result = render_html(&doc, &options).unwrap();
-        // Should contain heading, paragraph, and code block with wrapper
-        assert!(result.contains("<h1>Title</h1>\n"));
+        // Should contain heading (now with auto-slug id), paragraph, and code block with wrapper
+        assert!(result.contains("<h1 id=\"title\">"));
         assert!(result.contains("<p>Some text.</p>\n"));
         assert!(result.contains("<div class=\"marco-code-block-wrapper\">"));
         assert!(result.contains("<button class=\"marco-code-copy-btn\""));

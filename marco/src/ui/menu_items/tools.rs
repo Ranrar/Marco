@@ -26,12 +26,16 @@ pub fn populate_tools_menu(
     let editor_toggles = gio::Menu::new();
     let _ = state;
     editor_toggles.append(
-        Some(&translations.menu.text_wrap),
+        Some(&translations.settings.editor.line_wrapping_label),
         Some("app.tools_toggle_text_wrap"),
     );
     editor_toggles.append(
-        Some(&translations.menu.line_numbers),
+        Some(&translations.settings.layout.line_numbers_label),
         Some("app.tools_toggle_line_numbers"),
+    );
+    editor_toggles.append(
+        Some(&translations.settings.editor.show_invisibles_label),
+        Some("app.tools_toggle_show_invisibles"),
     );
     editor_toggles.append(
         Some(&translations.settings.editor.tabs_to_spaces_label),
@@ -41,14 +45,34 @@ pub fn populate_tools_menu(
         Some(&translations.settings.editor.syntax_colors_label),
         Some("app.tools_toggle_syntax_colors"),
     );
+    editor_toggles.append(
+        Some(&translations.settings.editor.table_auto_align_label),
+        Some("app.tools_toggle_table_auto_align"),
+    );
     tools_menu.append_section(None, &editor_toggles);
 
     // Settings-aligned layout function.
     let layout = gio::Menu::new();
     layout.append(
-        Some(&translations.menu.sync_scrolling),
+        Some(&translations.settings.layout.sync_scrolling_label),
         Some("app.tools_toggle_sync_scrolling"),
     );
+    {
+        let dir_item = gio::MenuItem::new(
+            Some(&translations.settings.layout.text_direction_label),
+            Some("app.tools_toggle_text_direction"),
+        );
+        let badge = if state.rtl_text_direction_enabled {
+            "RTL"
+        } else {
+            "LTR"
+        };
+        dir_item.set_attribute_value(
+            "badge",
+            Some(&gtk4::glib::Variant::from(badge)),
+        );
+        layout.append_item(&dir_item);
+    }
     tools_menu.append_section(None, &layout);
 
     let app_items = gio::Menu::new();
@@ -63,6 +87,7 @@ pub fn setup_tools_actions(
     settings_manager: Arc<SettingsManager>,
     editor_view: &sourceview5::View,
     set_view_mode: Rc<Box<dyn Fn(ViewMode)>>,
+    apply_rtl_fn: Rc<dyn Fn(bool)>,
 ) {
     // Ensure initial label reflects current mode.
     let initial = current_tools_state(&settings_manager, editor_view);
@@ -361,6 +386,7 @@ pub fn setup_tools_actions(
             &gtk4::glib::Variant::from(initial.rtl_text_direction_enabled),
         );
         app.add_action(&action);
+        let apply_rtl_fn = apply_rtl_fn.clone();
         action.connect_activate(move |_, _| {
             let current_rtl = settings_manager
                 .get_settings()
@@ -371,11 +397,8 @@ pub fn setup_tools_actions(
                 .unwrap_or(false);
             let next_rtl = !current_rtl;
 
-            editor_view.set_direction(if next_rtl {
-                gtk4::TextDirection::Rtl
-            } else {
-                gtk4::TextDirection::Ltr
-            });
+            // Apply direction to the entire application (window + all widgets).
+            (apply_rtl_fn)(next_rtl);
 
             if let Err(e) = settings_manager.update_settings(|s| {
                 if s.layout.is_none() {
@@ -401,6 +424,98 @@ pub fn setup_tools_actions(
             );
         });
     }
+
+    {
+        let tools_menu = tools_menu.clone();
+        let app = app.clone();
+        let app_for_closure = app.clone();
+        let translations_rc = translations_rc.clone();
+        let settings_manager = settings_manager.clone();
+        let editor_view = editor_view.clone();
+        let action = gio::SimpleAction::new_stateful(
+            "tools_toggle_show_invisibles",
+            None,
+            &gtk4::glib::Variant::from(initial.show_invisibles_enabled),
+        );
+        app.add_action(&action);
+        action.connect_activate(move |_, _| {
+            let current = settings_manager
+                .get_settings()
+                .editor
+                .as_ref()
+                .and_then(|e| e.show_invisibles)
+                .unwrap_or(false);
+            let next = !current;
+
+            if let Err(e) = settings_manager.update_settings(|s| {
+                if s.editor.is_none() {
+                    s.editor = Some(EditorSettings::default());
+                }
+                if let Some(ref mut editor) = s.editor {
+                    editor.show_invisibles = Some(next);
+                }
+            }) {
+                log::warn!("Failed to persist tools show-invisibles toggle: {}", e);
+            }
+
+            if let Err(e) = apply_editor_display_settings_from_settings(&settings_manager) {
+                log::warn!("Failed to apply show-invisibles editor settings: {}", e);
+            }
+
+            refresh_tools_menu(
+                &app_for_closure,
+                &tools_menu,
+                &translations_rc,
+                &settings_manager,
+                &editor_view,
+            );
+        });
+    }
+
+    {
+        let tools_menu = tools_menu.clone();
+        let app = app.clone();
+        let app_for_closure = app.clone();
+        let translations_rc = translations_rc.clone();
+        let settings_manager = settings_manager.clone();
+        let editor_view = editor_view.clone();
+        let action = gio::SimpleAction::new_stateful(
+            "tools_toggle_table_auto_align",
+            None,
+            &gtk4::glib::Variant::from(initial.table_auto_align_enabled),
+        );
+        app.add_action(&action);
+        action.connect_activate(move |_, _| {
+            let current = settings_manager
+                .get_settings()
+                .editor
+                .as_ref()
+                .and_then(|e| e.table_auto_align)
+                .unwrap_or(true);
+            let next = !current;
+
+            crate::logic::tables::set_table_auto_align(next);
+
+            if let Err(e) = settings_manager.update_settings(|s| {
+                if s.editor.is_none() {
+                    s.editor = Some(EditorSettings::default());
+                }
+                if let Some(ref mut editor) = s.editor {
+                    editor.table_auto_align = Some(next);
+                }
+            }) {
+                log::warn!("Failed to persist tools table-auto-align toggle: {}", e);
+            }
+
+            refresh_tools_menu(
+                &app_for_closure,
+                &tools_menu,
+                &translations_rc,
+                &settings_manager,
+                &editor_view,
+            );
+        });
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -412,11 +527,13 @@ pub struct ToolsMenuState {
     pub tabs_to_spaces_enabled: bool,
     pub syntax_colors_enabled: bool,
     pub rtl_text_direction_enabled: bool,
+    pub show_invisibles_enabled: bool,
+    pub table_auto_align_enabled: bool,
 }
 
 fn current_tools_state(
     settings_manager: &Arc<SettingsManager>,
-    editor_view: &sourceview5::View,
+    _editor_view: &sourceview5::View,
 ) -> ToolsMenuState {
     let settings = settings_manager.get_settings();
     let line_numbers_enabled = settings
@@ -446,7 +563,21 @@ fn current_tools_state(
         .map(|dir| dir.eq_ignore_ascii_case("rtl"))
         .unwrap_or(false);
     let show_raw_html = !is_currently_raw_mode(settings_manager);
-    let wrap_enabled = editor_view.wrap_mode() != gtk4::WrapMode::None;
+    let wrap_enabled = settings
+        .editor
+        .as_ref()
+        .and_then(|e| e.line_wrapping)
+        .unwrap_or(false);
+    let show_invisibles_enabled = settings
+        .editor
+        .as_ref()
+        .and_then(|e| e.show_invisibles)
+        .unwrap_or(false);
+    let table_auto_align_enabled = settings
+        .editor
+        .as_ref()
+        .and_then(|e| e.table_auto_align)
+        .unwrap_or(true);
 
     ToolsMenuState {
         show_raw_html,
@@ -456,10 +587,12 @@ fn current_tools_state(
         tabs_to_spaces_enabled,
         syntax_colors_enabled,
         rtl_text_direction_enabled,
+        show_invisibles_enabled,
+        table_auto_align_enabled,
     }
 }
 
-fn refresh_tools_menu(
+pub fn refresh_tools_menu(
     app: &gtk4::Application,
     tools_menu: &gio::Menu,
     translations_rc: &Rc<RefCell<Translations>>,
@@ -481,6 +614,12 @@ fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuSta
     );
     set_bool_toggle_action_state(
         app,
+        "tools_toggle_show_invisibles",
+        state.show_invisibles_enabled,
+        true,
+    );
+    set_bool_toggle_action_state(
+        app,
         "tools_toggle_tabs_to_spaces",
         state.tabs_to_spaces_enabled,
         true,
@@ -493,6 +632,12 @@ fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuSta
     );
     set_bool_toggle_action_state(
         app,
+        "tools_toggle_table_auto_align",
+        state.table_auto_align_enabled,
+        true,
+    );
+    set_bool_toggle_action_state(
+        app,
         "tools_toggle_sync_scrolling",
         state.sync_scrolling_enabled,
         true,
@@ -501,7 +646,7 @@ fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuSta
         app,
         "tools_toggle_text_direction",
         state.rtl_text_direction_enabled,
-        false,
+        true,
     );
 }
 

@@ -4,6 +4,7 @@ pub mod lists;
 pub mod math;
 pub mod mention;
 pub mod mermaid;
+pub mod open_local_file;
 pub mod save;
 pub mod search;
 pub mod sliderdeck;

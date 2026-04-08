@@ -66,11 +66,13 @@ pub fn generate_css() -> String {
 /// - `marco-diagnostics-popover`: footer diagnostics panel (`footer.rs`)
 /// - `marco-menu-popover`: main menubar menus (`menu.rs`)
 /// - `marco-context-menu-popover`: editor right-click context menu (`contextmenu.rs`)
+/// - `tools-menu-popover`: Tools menu custom popover (`menu.rs`)
 const NAMED_POPOVER_CLASSES: &[&str] = &[
     "marco-toolbar-popover",
     "marco-diagnostics-popover",
     "marco-menu-popover",
     "marco-context-menu-popover",
+    "tools-menu-popover",
 ];
 
 /// Dark bg matches the editor gutter colour (#2d2d30) — user preference.
@@ -135,7 +137,8 @@ popover.marco-link-popover > contents {
 popover.marco-toolbar-popover,
 popover.marco-diagnostics-popover,
 popover.marco-menu-popover,
-popover.marco-context-menu-popover {
+popover.marco-context-menu-popover,
+popover.tools-menu-popover {
     background: transparent;
     box-shadow: none;
     padding: 0;
@@ -144,7 +147,8 @@ popover.marco-context-menu-popover {
 popover.marco-toolbar-popover > contents,
 popover.marco-diagnostics-popover > contents,
 popover.marco-menu-popover > contents,
-popover.marco-context-menu-popover > contents {
+popover.marco-context-menu-popover > contents,
+popover.tools-menu-popover > contents {
     border-radius: 8px;
     padding: 4px;
 }

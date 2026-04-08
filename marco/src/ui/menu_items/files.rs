@@ -134,6 +134,21 @@ impl FileDialogs {
         })
     }
 
+    /// Create a save-changes callback that immediately returns the given `decision`
+    /// without showing a dialog.
+    ///
+    /// Use this when the user has already been asked about unsaved changes in a
+    /// prior dialog (e.g., the open-local-file confirmation) so that the internal
+    /// save-changes prompt inside `open_file_by_path_from_rc_async` is skipped.
+    pub fn auto_save_decision_callback(decision: SaveChangesResult) -> SaveChangesCallback {
+        Arc::new(move |_parent, _document_name, _action| {
+            let d = decision;
+            let fut: Box<dyn Future<Output = SaveChangesDialogResult> + '_> =
+                Box::new(async move { Ok(d) });
+            Pin::from(fut)
+        })
+    }
+
     /// Shows a native file open dialog
     ///
     /// # Arguments

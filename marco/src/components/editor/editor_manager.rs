@@ -227,6 +227,51 @@ thread_local! {
     static INTELLIGENCE_REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 }
 
+// Current application layout state (DualView / EditorOnly / ViewOnly / EditorAndViewSeparate).
+// Updated by menu.rs whenever the user switches layout modes.
+thread_local! {
+    static CURRENT_LAYOUT_STATE: RefCell<core::logic::layoutstate::LayoutState> =
+        RefCell::new(core::logic::layoutstate::LayoutState::DualView);
+}
+
+/// Update the globally-tracked layout state.
+/// Call this whenever `SplitController::set_mode` is called in `menu.rs`.
+pub fn set_current_layout_state(state: core::logic::layoutstate::LayoutState) {
+    CURRENT_LAYOUT_STATE.with(|cell| {
+        *cell.borrow_mut() = state;
+    });
+}
+
+/// Read the current layout state.
+pub fn get_current_layout_state() -> core::logic::layoutstate::LayoutState {
+    CURRENT_LAYOUT_STATE.with(|cell| *cell.borrow())
+}
+
+// Primary preview WebView handle — stored after the editor+viewer are created.
+// Used by the TOC panel to scroll the live preview to a heading anchor.
+#[cfg(target_os = "linux")]
+thread_local! {
+    static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<webkit6::WebView>> = const { RefCell::new(None) };
+}
+
+/// Register the primary preview WebView so other components can execute JavaScript in it.
+#[cfg(target_os = "linux")]
+pub fn set_primary_preview_webview(wv: &webkit6::WebView) {
+    PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
+        *cell.borrow_mut() = Some(wv.clone());
+    });
+}
+
+/// Execute `f` with the primary preview WebView if one has been registered.
+#[cfg(target_os = "linux")]
+pub fn with_primary_preview_webview<F: FnOnce(&webkit6::WebView)>(f: F) {
+    PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
+        if let Some(ref wv) = *cell.borrow() {
+            f(wv);
+        }
+    });
+}
+
 /// Store the primary editor ScrolledWindow so other components (like detached preview windows)
 /// can access it for wiring scroll synchronization.
 pub fn set_primary_editor_scrolled_window(sw: &ScrolledWindow) {

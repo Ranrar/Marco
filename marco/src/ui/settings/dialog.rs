@@ -107,6 +107,8 @@ pub struct SettingsDialogCallbacks {
     pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     pub on_language_changed: Option<std::boxed::Box<dyn Fn(Option<String>) + 'static>>,
+    /// Called with `is_rtl = true` when the user selects RTL, `false` for LTR.
+    pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
 pub fn show_settings_dialog(
@@ -515,6 +517,10 @@ fn create_dialog_impl(
         on_split_ratio_changed: callbacks.on_split_ratio_changed,
         on_sync_scrolling_changed: callbacks.on_sync_scrolling_changed,
         on_line_numbers_changed: callbacks.on_line_numbers_changed,
+        on_text_direction_changed: callbacks.on_text_direction_changed,
+        on_toc_depth_changed: Some(Box::new(|depth| {
+            crate::components::editor::ui::with_toc_panel(|h| h.set_depth(depth));
+        })),
     };
 
     let layout_tab = tabs::layout::build_layout_tab(

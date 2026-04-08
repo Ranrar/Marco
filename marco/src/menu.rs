@@ -261,22 +261,6 @@ fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwit
         });
     }
 
-    // Defensive close-on-focus-leave: if focus moves outside this button+popover,
-    // pop down to mimic native dropdown menu behavior.
-    {
-        let switch_state = switch_state.clone();
-        let popover_for_focus_out = popover_base.clone();
-        popover.connect_notify_local(Some("has-focus"), move |pop, _| {
-            if !pop.has_focus()
-                && switch_state
-                    .current()
-                    .is_some_and(|cur| cur == popover_for_focus_out)
-            {
-                popover_for_focus_out.popdown();
-            }
-        });
-    }
-
     // Hovering another menu button while a menu is open should switch menus.
     {
         let switch_state = switch_state.clone();
@@ -366,6 +350,7 @@ fn action_check_state(app: Option<&gtk4::Application>, action_name: &str) -> (bo
 fn create_tools_menu_row(
     label: &str,
     detailed_action: Option<&str>,
+    badge: Option<String>,
     popover: &gtk4::Popover,
     app: Option<&gtk4::Application>,
 ) -> Button {
@@ -422,7 +407,12 @@ fn create_tools_menu_row(
     check.set_xalign(1.0);
     check.set_width_chars(2);
     check.add_css_class("tools-popover-check");
-    if can_show_check && is_checked {
+    if let Some(badge_text) = badge {
+        // Show a text badge (e.g. "LTR" / "RTL") instead of a checkmark.
+        check.set_text(&badge_text);
+        check.add_css_class("is-visible");
+        check.add_css_class("tools-popover-badge");
+    } else if can_show_check && is_checked {
         check.add_css_class("is-visible");
     }
     right.append(&check);
@@ -458,6 +448,7 @@ fn create_tools_menu_button(
     label: &str,
     tools_menu: &gio::Menu,
     switch_state: HoverMenuSwitchState,
+    pre_open: std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>,
 ) -> Button {
     let button = Button::with_label(label);
     button.add_css_class("menu-button");
@@ -474,7 +465,12 @@ fn create_tools_menu_button(
     let tools_menu = tools_menu.clone();
     let popover_for_rebuild = popover.clone();
     let button_for_rebuild = button.clone();
+    let pre_open_for_rebuild = pre_open;
     let rebuild: Rc<dyn Fn()> = Rc::new(move || {
+        // Refresh menu state from settings before rendering the popover.
+        if let Some(f) = pre_open_for_rebuild.borrow().as_ref() {
+            f();
+        }
         let container = GtkBox::new(Orientation::Vertical, 0);
         let app = button_for_rebuild
             .root()
@@ -506,9 +502,14 @@ fn create_tools_menu_button(
                     .item_attribute_value(item_idx, "action", None)
                     .and_then(|v| v.str().map(str::to_string));
 
+                let badge = section_model
+                    .item_attribute_value(item_idx, "badge", None)
+                    .and_then(|v| v.str().map(str::to_string));
+
                 let row = create_tools_menu_row(
                     &label_text,
                     detailed_action.as_deref(),
+                    badge,
                     &popover_for_rebuild,
                     app.as_ref(),
                 );
@@ -529,20 +530,6 @@ fn create_tools_menu_button(
             {
                 switch_state.set_menu_open(false);
                 switch_state.set_current(None);
-            }
-        });
-    }
-
-    {
-        let switch_state = switch_state.clone();
-        let popover_for_focus_out = popover.clone();
-        popover.connect_notify_local(Some("has-focus"), move |pop, _| {
-            if !pop.has_focus()
-                && switch_state
-                    .current()
-                    .is_some_and(|cur| cur == popover_for_focus_out)
-            {
-                popover_for_focus_out.popdown();
             }
         });
     }
@@ -609,6 +596,9 @@ pub struct MenuBarState {
     blocks_menu: gio::Menu,
     modules_menu: gio::Menu,
     pub tools_menu: gio::Menu,
+    /// Hook called immediately before the Tools popover content is rebuilt.
+    /// Populated by `setup_tools_actions` so the menu always reflects current settings.
+    pub tools_pre_open: std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>,
     help_menu: gio::Menu,
     file_btn: Button,
     edit_btn: Button,
@@ -667,6 +657,8 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
             tabs_to_spaces_enabled: true,
             syntax_colors_enabled: true,
             rtl_text_direction_enabled: false,
+            show_invisibles_enabled: false,
+            table_auto_align_enabled: true,
         },
     );
 
@@ -723,6 +715,10 @@ pub fn main_menu_structure(
     // Tools menu with quick toggles and render-mode control
     let tools_menu = gio::Menu::new();
 
+    // Pre-open hook slot for the tools button (populated after setup_tools_actions).
+    let tools_pre_open: std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>> =
+        std::rc::Rc::new(std::cell::RefCell::new(None));
+
     // Help menu with application information
     let help_menu = gio::Menu::new();
 
@@ -756,7 +752,7 @@ pub fn main_menu_structure(
         switch_state.clone(),
     );
     let tools_btn =
-        create_tools_menu_button(&translations.menu.tools, &tools_menu, switch_state.clone());
+        create_tools_menu_button(&translations.menu.tools, &tools_menu, switch_state.clone(), tools_pre_open.clone());
     let bookmarks_btn = create_menu_button(
         &translations.menu.bookmarks,
         &bookmarks_menu,
@@ -784,6 +780,7 @@ pub fn main_menu_structure(
         blocks_menu,
         modules_menu,
         tools_menu,
+        tools_pre_open,
         help_menu,
         file_btn,
         edit_btn,
@@ -1083,6 +1080,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             if let Some(controller) = &split_controller_opt {
                 controller.set_mode(next);
             }
+            crate::components::editor::editor_manager::set_current_layout_state(next);
             if let Some(rc) = weak_rebuild_local.upgrade() {
                 if let Some(ref rebuild) = *rc.borrow() {
                     rebuild();
@@ -1124,6 +1122,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             if let Some(controller) = &split_controller_opt {
                 controller.set_mode(next);
             }
+            crate::components::editor::editor_manager::set_current_layout_state(next);
             if let Some(rc) = weak_rebuild_local.upgrade() {
                 if let Some(ref rebuild) = *rc.borrow() {
                     rebuild();
@@ -1195,6 +1194,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                             if let Some(controller) = &split_controller_opt {
                                 controller.set_mode(prev);
                             }
+                            crate::components::editor::editor_manager::set_current_layout_state(prev);
 
                             if let Some(tracker) = &webview_location_tracker_opt {
                                 tracker.set(crate::components::viewer::layout_controller::WebViewLocation::MainWindow);
@@ -1229,6 +1229,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             if let Some(controller) = &split_controller_opt {
                 controller.set_mode(next);
             }
+            crate::components::editor::editor_manager::set_current_layout_state(next);
 
             // Simple cross-platform behavior: show html_preview stack child (no reparenting yet)
             if let Some(split) = &split_opt {
@@ -1498,6 +1499,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             if let Some(controller) = &split_controller_opt {
                 controller.set_mode(next);
             }
+            crate::components::editor::editor_manager::set_current_layout_state(next);
 
             if let Some(rc) = weak_rebuild_local.upgrade() {
                 if let Some(ref rebuild) = *rc.borrow() {

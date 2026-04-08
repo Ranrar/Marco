@@ -11,6 +11,7 @@
         diagnostics_underlines_enabled: Some(true),
         markdown_hover_enabled: Some(true),
         diagnostics_hover_enabled: Some(true),
+        table_auto_align: Some(true),
         diagnostics_filter: Some((
             errors: Some(true),
             warnings: Some(true),
@@ -24,6 +25,7 @@
         editor_view_split: None,
         show_line_numbers: Some(true),
         text_direction: None,
+        toc_depth: Some(3),
     )),
     window: Some((
         width: Some(1000),

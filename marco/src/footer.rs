@@ -115,6 +115,8 @@ pub struct FooterLabels {
     pub diagnostics_filter: RefCell<DiagnosticsSeverityFilter>,
     pub diagnostics_items: RefCell<Vec<FooterDiagnosticItem>>,
     pub diagnostics_navigate_to: RefCell<Option<Rc<dyn Fn(usize, usize)>>>,
+    pub hovered_link_icon: Picture,
+    pub hovered_link_text: Label,
     pub row_label: RefCell<String>,
     pub column_label: RefCell<String>,
     pub words_label: RefCell<String>,
@@ -218,6 +220,76 @@ fn update_diagnostics_checkbox_labels(
 fn fallback_texture() -> gdk::MemoryTexture {
     let bytes = Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
     gdk::MemoryTexture::new(1, 1, gdk::MemoryFormat::B8g8r8a8Premultiplied, &bytes, 4)
+}
+
+// ── Link-type icons ──────────────────────────────────────────────────────────
+// SVG source: Tabler Icons (MIT)
+
+const LINK_ICON: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 21v-4"/><path d="M12 13v-4"/><path d="M12 5v-2"/><path d="M10 21h4"/><path d="M8 5v4h11l2 -2l-2 -2l-11 0"/><path d="M14 13v4h-8l-2 -2l2 -2l8 0"/></svg>"#;
+
+fn render_link_type_icon(svg: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+    let svg_colored = svg.replace("currentColor", color);
+    let bytes = Bytes::from_owned(svg_colored.into_bytes());
+    let stream = MemoryInputStream::from_bytes(&bytes);
+
+    let handle =
+        match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+            Ok(h) => h,
+            Err(e) => {
+                log::error!("load link icon SVG: {}", e);
+                return fallback_texture();
+            }
+        };
+
+    let display_scale = gdk::Display::default()
+        .and_then(|d| d.monitors().item(0))
+        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+        .map(|m| m.scale_factor() as f64)
+        .unwrap_or(1.0);
+
+    let render_scale = display_scale * 2.0;
+    let render_size = (icon_size * render_scale) as i32;
+
+    let mut surface =
+        match cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("create link icon surface: {}", e);
+                return fallback_texture();
+            }
+        };
+    {
+        let cr = match cairo::Context::new(&surface) {
+            Ok(c) => c,
+            Err(e) => {
+                log::error!("create link icon cairo context: {}", e);
+                return fallback_texture();
+            }
+        };
+        cr.scale(render_scale, render_scale);
+        let renderer = CairoRenderer::new(&handle);
+        let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+        if let Err(e) = renderer.render_document(&cr, &viewport) {
+            log::error!("render link icon SVG: {}", e);
+            return fallback_texture();
+        }
+    }
+
+    let data = match surface.data() {
+        Ok(d) => d.to_vec(),
+        Err(e) => {
+            log::error!("get link icon surface data: {}", e);
+            return fallback_texture();
+        }
+    };
+    let bytes = Bytes::from_owned(data);
+    gdk::MemoryTexture::new(
+        render_size,
+        render_size,
+        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+        &bytes,
+        (render_size * 4) as usize,
+    )
 }
 
 fn render_footer_svg_icon(icon: ToolbarIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
@@ -495,6 +567,36 @@ pub fn update_issue_count(labels: &FooterLabels, total: usize) {
     );
 }
 
+/// Show a hovered link URL in the footer spacer area.
+///
+/// Pass `Some(url)` when the mouse enters a link, `None` when it leaves.
+/// The appropriate icon is chosen automatically based on the URL scheme.
+pub fn update_hovered_link(labels: &FooterLabels, url: Option<&str>) {
+    match url {
+        None => {
+            let color = if footer_is_dark_theme(labels.hovered_link_icon.upcast_ref()) {
+                DARK_PALETTE.control_icon
+            } else {
+                LIGHT_PALETTE.control_icon
+            };
+            let texture = render_link_type_icon(LINK_ICON, color, 8.0);
+            labels.hovered_link_icon.set_paintable(Some(&texture));
+            labels.hovered_link_text.set_text("");
+        }
+        Some(url) => {
+            let color = if footer_is_dark_theme(labels.hovered_link_icon.upcast_ref()) {
+                DARK_PALETTE.control_icon
+            } else {
+                LIGHT_PALETTE.control_icon
+            };
+            let texture = render_link_type_icon(LINK_ICON, color, 8.0);
+            labels.hovered_link_icon.set_paintable(Some(&texture));
+            labels.hovered_link_icon.set_visible(true);
+            labels.hovered_link_text.set_text(url);
+        }
+    }
+}
+
 fn update_diagnostics_trigger_state(labels: &FooterLabels) {
     let trigger = &labels.diagnostics_trigger;
     trigger.remove_css_class("footer-diagnostics-ok");
@@ -731,15 +833,15 @@ pub fn create_footer(
     // Diagnostics trigger (left side)
     let status_buttons_box = Box::new(Orientation::Horizontal, 8);
     status_buttons_box.set_visible(true);
-    status_buttons_box.set_halign(gtk4::Align::Start);
-    status_buttons_box.set_hexpand(false);
+    status_buttons_box.set_halign(gtk4::Align::Fill);
+    status_buttons_box.set_hexpand(true);
     status_buttons_box.set_valign(gtk4::Align::Center);
 
     let (toc_stub_button, _toc_stub_label) =
         create_footer_status_button("TOC", ToolbarIcon::Toc, 8.0);
-    toc_stub_button.set_tooltip_text(Some("TOC: new stub"));
+    toc_stub_button.set_tooltip_text(Some("Toggle Table of Contents panel"));
     toc_stub_button.connect_clicked(|_| {
-        log::debug!("Footer TOC stub clicked");
+        crate::components::editor::ui::with_toc_panel(|h| h.toggle());
     });
     status_buttons_box.append(&toc_stub_button);
 
@@ -756,13 +858,41 @@ pub fn create_footer(
 
     status_buttons_box.append(&diagnostics_trigger_button);
 
-    footer_box.append(&status_buttons_box);
+    // Hovered-link area: icon + URL text. Sits right of Issue in the status bar.
+    let hovered_link_box = Box::new(Orientation::Horizontal, 2);
+    hovered_link_box.set_hexpand(true);
+    hovered_link_box.set_halign(gtk4::Align::Start);
+    hovered_link_box.set_valign(gtk4::Align::Center);
+    hovered_link_box.add_css_class("footer-hovered-link");
 
-    // Spacer to push the rest of items to the right
-    let spacer = Label::new(None);
-    spacer.set_hexpand(true);
-    spacer.set_visible(true);
-    footer_box.append(&spacer);
+    let hovered_link_icon = Picture::new();
+    hovered_link_icon.set_size_request(8, 8);
+    hovered_link_icon.set_can_shrink(false);
+    hovered_link_icon.set_halign(gtk4::Align::Center);
+    hovered_link_icon.set_valign(gtk4::Align::Center);
+    hovered_link_icon.set_visible(true);
+    // Show the default book icon immediately — it will be replaced on hover.
+    {
+        let color = if footer_is_dark_theme(hovered_link_icon.upcast_ref()) {
+            DARK_PALETTE.control_icon
+        } else {
+            LIGHT_PALETTE.control_icon
+        };
+        let texture = render_link_type_icon(LINK_ICON, color, 8.0);
+        hovered_link_icon.set_paintable(Some(&texture));
+    }
+    hovered_link_box.append(&hovered_link_icon);
+
+    let hovered_link_text = Label::new(None);
+    hovered_link_text.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+    hovered_link_text.set_visible(true);
+    hovered_link_text.set_valign(gtk4::Align::Center);
+    hovered_link_text.add_css_class("footer-status-label");
+    hovered_link_box.append(&hovered_link_text);
+
+    status_buttons_box.append(&hovered_link_box);
+
+    footer_box.append(&status_buttons_box);
 
     // Info labels (right side)
     let word_count_label = Label::new(Some(&format!("{}: 0", translations.words)));
@@ -868,6 +998,8 @@ pub fn create_footer(
         diagnostics_filter: RefCell::new(initial_filter),
         diagnostics_items: RefCell::new(Vec::new()),
         diagnostics_navigate_to: RefCell::new(None),
+        hovered_link_icon,
+        hovered_link_text,
         row_label: RefCell::new(translations.row.clone()),
         column_label: RefCell::new(translations.column.clone()),
         words_label: RefCell::new(translations.words.clone()),

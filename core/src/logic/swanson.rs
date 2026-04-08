@@ -275,6 +275,7 @@ impl Settings {
                 editor_view_split: Some(60),
                 show_line_numbers: Some(true),
                 text_direction: Some("ltr".to_string()),
+                toc_depth: Some(3),
             }),
             window: Some(WindowSettings {
                 width: Some(1200),
@@ -681,6 +682,8 @@ pub struct EditorSettings {
     pub diagnostics_hover_enabled: Option<bool>,
     pub markdown_hover_enabled: Option<bool>,
     pub diagnostics_filter: Option<DiagnosticsFilterSettings>,
+    /// Auto-align table columns on Tab/Enter while editing inside a table.
+    pub table_auto_align: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -708,6 +711,8 @@ pub struct LayoutSettings {
     pub editor_view_split: Option<u8>,
     pub show_line_numbers: Option<bool>,
     pub text_direction: Option<String>,
+    /// Maximum heading depth shown in the TOC panel (1-6, default 3).
+    pub toc_depth: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

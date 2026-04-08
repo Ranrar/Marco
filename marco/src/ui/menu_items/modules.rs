@@ -13,7 +13,11 @@ pub fn populate_modules_menu(modules_menu: &gio::Menu, _translations: &Translati
     modules.append(Some("Mermaid"), Some("app.insert_mermaid"));
     modules.append(Some("Admonition"), Some("app.format_insert_admonition"));
 
+    let navigation = gio::Menu::new();
+    navigation.append(Some("Insert / Update TOC"), Some("app.insert_update_toc"));
+
     modules_menu.append_section(None, &modules);
+    modules_menu.append_section(None, &navigation);
 }
 
 pub fn setup_modules_actions(
@@ -100,4 +104,57 @@ pub fn setup_modules_actions(
     app.set_accels_for_action("app.insert_table", &["<Control><Shift>t"]);
     app.set_accels_for_action("app.format_table", &["<Control><Alt>t"]);
     app.set_accels_for_action("app.format_insert_admonition", &["<Control><Shift>a"]);
+
+    {
+        let buf = editor_buffer.clone();
+        let view = editor_view.clone();
+        super::add_format_action(app, "insert_update_toc", move || {
+            use core::intelligence::toc::{extract_toc, generate_toc_markdown, replace_toc_in_text,
+                TocReplaceResult};
+
+            let text_buffer: gtk4::TextBuffer = buf.clone().upcast();
+            let current_text = text_buffer
+                .text(&text_buffer.start_iter(), &text_buffer.end_iter(), false)
+                .to_string();
+
+            let doc = match core::parse(&current_text) {
+                Ok(d) => d,
+                Err(e) => {
+                    log::warn!("TOC: parse failed: {}", e);
+                    return;
+                }
+            };
+
+            let entries = extract_toc(&doc);
+            if entries.is_empty() {
+                log::debug!("TOC: no headings found in document");
+                return;
+            }
+
+            let toc_md = generate_toc_markdown(&entries);
+
+            match replace_toc_in_text(&current_text, &toc_md) {
+                TocReplaceResult::Updated(new_text) => {
+                    // Use delete + insert instead of set_text: GtkSourceBuffer's set_text
+                    // internally calls begin_irreversible_action which conflicts with the
+                    // open user action and emits GTK-WARNING messages.
+                    text_buffer.begin_user_action();
+                    let mut start = text_buffer.start_iter();
+                    let mut end = text_buffer.end_iter();
+                    text_buffer.delete(&mut start, &mut end);
+                    let mut pos = text_buffer.start_iter();
+                    text_buffer.insert(&mut pos, &new_text);
+                    text_buffer.end_user_action();
+                    super::refocus(&buf, &view);
+                }
+                TocReplaceResult::NoMarkers => {
+                    super::insert_block_snippet(&text_buffer, &toc_md);
+                    super::refocus(&buf, &view);
+                }
+                TocReplaceResult::NoChange => {
+                    log::debug!("TOC: already up to date");
+                }
+            }
+        });
+    }
 }

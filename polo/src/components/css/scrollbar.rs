@@ -50,6 +50,7 @@ pub fn generate_css() -> String {
     scrollbar trough {
         border: none;
         box-shadow: none;
+        background-image: none;
         min-width: 12px;
         min-height: 12px;
         padding: 0;
@@ -60,6 +61,7 @@ pub fn generate_css() -> String {
         border-radius: 0px;
         border: none;
         box-shadow: none;
+        background-image: none;
         min-width: 12px;
         min-height: 12px;
         margin: 0;

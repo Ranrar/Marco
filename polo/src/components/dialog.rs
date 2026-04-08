@@ -512,6 +512,262 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     dialog.present();
 }
 
+/// Show a styled confirmation dialog for opening a local Markdown file from a preview link.
+///
+/// Uses Polo's `polo-dialog` CSS system and the current app theme. All title-bar and
+/// button styling follows the same conventions as `show_open_in_editor_dialog`.
+///
+/// `on_open` is called (exactly once) when the user confirms. Nothing is called when
+/// the user cancels.
+pub fn show_open_local_file_dialog<F>(window: &ApplicationWindow, filename: &str, on_open: F)
+where
+    F: Fn() + 'static,
+{
+    let theme_class = if window.has_css_class("marco-theme-dark") {
+        "marco-theme-dark"
+    } else {
+        "marco-theme-light"
+    };
+
+    let dialog = Window::builder()
+        .modal(true)
+        .transient_for(window)
+        .default_width(360)
+        .resizable(false)
+        .build();
+
+    dialog.add_css_class("polo-dialog");
+    dialog.add_css_class(theme_class);
+
+    // ── Titlebar ──────────────────────────────────────────────────────────
+    let headerbar = gtk4::HeaderBar::new();
+    headerbar.add_css_class("titlebar");
+    headerbar.add_css_class("polo-titlebar");
+    headerbar.set_show_title_buttons(false);
+
+    let title_label = Label::new(Some("Open File"));
+    title_label.set_valign(Align::Center);
+    title_label.add_css_class("title-label");
+    title_label.add_css_class("polo-title-label");
+    headerbar.set_title_widget(Some(&title_label));
+
+    // SVG close-button helpers (same pattern as show_open_in_editor_dialog)
+    use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
+    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use gio;
+    use gtk4::gdk;
+    use rsvg::{CairoRenderer, Loader};
+
+    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = window_icon_svg(icon).replace("currentColor", color);
+        let bytes = glib::Bytes::from_owned(svg.into_bytes());
+        let stream = gio::MemoryInputStream::from_bytes(&bytes);
+        let handle =
+            match Loader::new().read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE) {
+                Ok(h) => h,
+                Err(e) => {
+                    log::error!("load SVG handle: {}", e);
+                    let bytes = glib::Bytes::from_owned(vec![0u8, 0u8, 0u8, 0u8]);
+                    return gdk::MemoryTexture::new(
+                        1,
+                        1,
+                        gdk::MemoryFormat::B8g8r8a8Premultiplied,
+                        &bytes,
+                        4,
+                    );
+                }
+            };
+        let display_scale = gdk::Display::default()
+            .and_then(|d| d.monitors().item(0))
+            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
+            .map(|m| m.scale_factor() as f64)
+            .unwrap_or(1.0);
+        let render_scale = display_scale * 2.0;
+        let render_size = (icon_size * render_scale) as i32;
+        let mut surface =
+            cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
+                .expect("create surface");
+        {
+            let cr = cairo::Context::new(&surface).expect("create context");
+            cr.scale(render_scale, render_scale);
+            let renderer = CairoRenderer::new(&handle);
+            let viewport = cairo::Rectangle::new(0.0, 0.0, icon_size, icon_size);
+            renderer
+                .render_document(&cr, &viewport)
+                .expect("render SVG");
+        }
+        let data = surface.data().expect("get surface data").to_vec();
+        let bytes = glib::Bytes::from_owned(data);
+        gdk::MemoryTexture::new(
+            render_size,
+            render_size,
+            gdk::MemoryFormat::B8g8r8a8Premultiplied,
+            &bytes,
+            (render_size * 4) as usize,
+        )
+    }
+
+    fn svg_icon_button(
+        window: &Window,
+        icon: WindowIcon,
+        tooltip: &str,
+        color: &str,
+        icon_size: f64,
+    ) -> Button {
+        let pic = gtk4::Picture::new();
+        let texture = render_svg_icon(icon, color, icon_size);
+        pic.set_paintable(Some(&texture));
+        pic.set_size_request(icon_size as i32, icon_size as i32);
+        pic.set_can_shrink(false);
+        pic.set_halign(Align::Center);
+        pic.set_valign(Align::Center);
+        let btn = Button::new();
+        btn.set_child(Some(&pic));
+        btn.set_tooltip_text(Some(tooltip));
+        btn.set_valign(Align::Center);
+        btn.set_margin_start(1);
+        btn.set_margin_end(1);
+        btn.set_focusable(false);
+        btn.set_can_focus(false);
+        btn.set_has_frame(false);
+        btn.add_css_class("topright-btn");
+        btn.add_css_class("window-control-btn");
+        btn.set_width_request((icon_size + 6.0) as i32);
+        btn.set_height_request((icon_size + 6.0) as i32);
+        {
+            let pic_hover = pic.clone();
+            let normal_color = color.to_string();
+            let is_dark = window.has_css_class("marco-theme-dark");
+            let hover_color = if is_dark {
+                DARK_PALETTE.control_icon_hover.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_hover.to_string()
+            };
+            let active_color = if is_dark {
+                DARK_PALETTE.control_icon_active.to_string()
+            } else {
+                LIGHT_PALETTE.control_icon_active.to_string()
+            };
+            let motion_controller = gtk4::EventControllerMotion::new();
+            let icon_for_enter = icon;
+            let hover_color_enter = hover_color.clone();
+            motion_controller.connect_enter(move |_ctrl, _x, _y| {
+                let texture = render_svg_icon(icon_for_enter, &hover_color_enter, icon_size);
+                pic_hover.set_paintable(Some(&texture));
+            });
+            let pic_leave = pic.clone();
+            let icon_for_leave = icon;
+            let normal_color_leave = normal_color.clone();
+            motion_controller.connect_leave(move |_ctrl| {
+                let texture = render_svg_icon(icon_for_leave, &normal_color_leave, icon_size);
+                pic_leave.set_paintable(Some(&texture));
+            });
+            btn.add_controller(motion_controller);
+            let gesture = gtk4::GestureClick::new();
+            let pic_pressed = pic.clone();
+            let icon_for_pressed = icon;
+            let active_color_pressed = active_color.clone();
+            gesture.connect_pressed(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_pressed, &active_color_pressed, icon_size);
+                pic_pressed.set_paintable(Some(&texture));
+            });
+            let pic_released = pic.clone();
+            let icon_for_released = icon;
+            gesture.connect_released(move |_gesture, _n, _x, _y| {
+                let texture = render_svg_icon(icon_for_released, &hover_color, icon_size);
+                pic_released.set_paintable(Some(&texture));
+            });
+            btn.add_controller(gesture);
+        }
+        btn
+    }
+
+    let icon_color: std::borrow::Cow<'static, str> = if dialog.has_css_class("marco-theme-dark") {
+        std::borrow::Cow::from(DARK_PALETTE.control_icon)
+    } else {
+        std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+    };
+
+    let btn_close_titlebar =
+        svg_icon_button(&dialog, WindowIcon::Close, "Close", &icon_color, 8.0);
+
+    let dialog_weak_close = dialog.downgrade();
+    btn_close_titlebar.connect_clicked(move |_| {
+        if let Some(d) = dialog_weak_close.upgrade() {
+            d.close();
+        }
+    });
+    headerbar.pack_end(&btn_close_titlebar);
+    dialog.set_titlebar(Some(&headerbar));
+
+    // ── ESC key → Cancel ─────────────────────────────────────────────────
+    let key_ctrl = gtk4::EventControllerKey::new();
+    let dialog_weak_esc = dialog.downgrade();
+    key_ctrl.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk4::gdk::Key::Escape {
+            if let Some(d) = dialog_weak_esc.upgrade() {
+                d.close();
+            }
+            glib::Propagation::Stop
+        } else {
+            glib::Propagation::Proceed
+        }
+    });
+    dialog.add_controller(key_ctrl);
+
+    // ── Content ───────────────────────────────────────────────────────────
+    let vbox = Box::new(Orientation::Vertical, 0);
+    vbox.add_css_class("polo-dialog-content");
+
+    let primary_text = format!("Open \"{}\" in the viewer?", filename);
+    let primary = Label::new(Some(&primary_text));
+    primary.add_css_class("polo-dialog-title");
+    primary.set_halign(Align::Start);
+    primary.set_wrap(true);
+    primary.set_xalign(0.0);
+    primary.set_max_width_chars(45);
+    vbox.append(&primary);
+
+    // ── Button row (right-aligned) ────────────────────────────────────────
+    let button_box = Box::new(Orientation::Horizontal, 8);
+    button_box.add_css_class("polo-dialog-button-box");
+    button_box.set_halign(Align::End);
+    button_box.set_valign(Align::End);
+
+    let btn_cancel = Button::with_label("Cancel");
+    btn_cancel.add_css_class("polo-dialog-button");
+    btn_cancel.add_css_class("cancel");
+    btn_cancel.set_tooltip_text(Some("Cancel and stay on the current document"));
+    button_box.append(&btn_cancel);
+
+    let btn_open = Button::with_label("Open");
+    btn_open.add_css_class("polo-dialog-button");
+    btn_open.add_css_class("primary");
+    btn_open.set_tooltip_text(Some("Open the file in the viewer"));
+    button_box.append(&btn_open);
+
+    vbox.append(&button_box);
+    dialog.set_child(Some(&vbox));
+
+    // ── Button wiring ─────────────────────────────────────────────────────
+    let dialog_weak = dialog.downgrade();
+    btn_cancel.connect_clicked(move |_| {
+        if let Some(d) = dialog_weak.upgrade() {
+            d.close();
+        }
+    });
+
+    let dialog_weak_open = dialog.downgrade();
+    btn_open.connect_clicked(move |_| {
+        on_open();
+        if let Some(d) = dialog_weak_open.upgrade() {
+            d.close();
+        }
+    });
+
+    dialog.present();
+}
+
 /// Launch Marco editor with the specified file
 pub fn launch_marco(file_path: &str) -> Result<(), String> {
     use std::process::Command;

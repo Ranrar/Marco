@@ -92,10 +92,13 @@ fn infer_theme_class_from_settings(
 /// # Arguments
 /// * `settings_manager` - Settings manager for saving preferences
 /// * `parent` - Optional parent window to stay on top of
+/// * `on_language_changed` - Optional callback when user changes language
+/// * `on_theme_changed` - Optional callback when user changes theme (receives editor mode string)
 pub fn show_welcome_screen(
     settings_manager: &Arc<core::logic::swanson::SettingsManager>,
     parent: Option<&Window>,
     on_language_changed: Option<Box<dyn Fn(Option<String>) + 'static>>,
+    on_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) -> bool {
     log::info!("show_welcome_screen: Creating welcome assistant");
 
@@ -111,7 +114,7 @@ pub fn show_welcome_screen(
         .unwrap_or_else(|| infer_theme_class_from_settings(settings_manager));
 
     // Read initial settings.
-    let (initial_language_setting, initial_telemetry_enabled) = {
+    let (initial_language_setting, initial_telemetry_enabled, initial_editor_mode) = {
         let settings = settings_manager.get_settings();
 
         let initial_language_setting = settings.language.as_ref().and_then(|l| l.language.clone());
@@ -122,7 +125,13 @@ pub fn show_welcome_screen(
             .and_then(|t| t.enabled)
             .unwrap_or(false);
 
-        (initial_language_setting, initial_telemetry_enabled)
+        let initial_editor_mode = settings
+            .appearance
+            .as_ref()
+            .and_then(|a| a.editor_mode.clone())
+            .unwrap_or_else(|| "marco-light".to_string());
+
+        (initial_language_setting, initial_telemetry_enabled, initial_editor_mode)
     };
 
     // Load translations for the welcome screen.
@@ -360,7 +369,58 @@ pub fn show_welcome_screen(
     assistant.set_page_complete(&language_scrolled, true);
 
     // ---------------------------------------------------------------------
-    // Page 3: Telemetry placeholder (disabled)
+    // Page 3: Appearance (light / dark mode)
+    // ---------------------------------------------------------------------
+    let appearance_scrolled = ScrolledWindow::builder()
+        .vexpand(true)
+        .hscrollbar_policy(PolicyType::Never)
+        .build();
+    appearance_scrolled.add_css_class("editor-scrolled");
+
+    let appearance_box = GtkBox::new(Orientation::Vertical, 16);
+    appearance_box.add_css_class("marco-dialog-content");
+    appearance_box.set_margin_start(24);
+    appearance_box.set_margin_end(24);
+    appearance_box.set_margin_top(24);
+    appearance_box.set_margin_bottom(24);
+    appearance_scrolled.set_child(Some(&appearance_box));
+
+    let appearance_header_label = Label::builder().use_markup(true).xalign(0.0).build();
+    appearance_header_label.add_css_class("marco-dialog-section-label");
+    appearance_header_label.add_css_class("marco-dialog-section-label-strong");
+    appearance_box.append(&appearance_header_label);
+
+    let appearance_description_label = Label::builder().wrap(true).xalign(0.0).build();
+    appearance_description_label.add_css_class("marco-dialog-message");
+    appearance_box.append(&appearance_description_label);
+
+    let theme_radio_box = GtkBox::new(Orientation::Vertical, 8);
+    theme_radio_box.set_margin_top(8);
+    appearance_box.append(&theme_radio_box);
+
+    let light_radio = CheckButton::with_label(&translations.welcome.appearance_light);
+    light_radio.add_css_class("marco-radio");
+    light_radio.add_css_class(initial_theme_class);
+
+    let dark_radio = CheckButton::with_label(&translations.welcome.appearance_dark);
+    dark_radio.add_css_class("marco-radio");
+    dark_radio.add_css_class(initial_theme_class);
+    dark_radio.set_group(Some(&light_radio));
+
+    let is_dark = initial_editor_mode.contains("dark");
+    light_radio.set_active(!is_dark);
+    dark_radio.set_active(is_dark);
+
+    theme_radio_box.append(&light_radio);
+    theme_radio_box.append(&dark_radio);
+
+    assistant.append_page(&appearance_scrolled);
+    assistant.set_page_title(&appearance_scrolled, &translations.welcome.page_appearance);
+    assistant.set_page_type(&appearance_scrolled, AssistantPageType::Custom);
+    assistant.set_page_complete(&appearance_scrolled, true);
+
+    // ---------------------------------------------------------------------
+    // Page 4: Telemetry placeholder (disabled)
     // ---------------------------------------------------------------------
     let telemetry_scrolled = ScrolledWindow::builder()
         .vexpand(true)
@@ -460,15 +520,21 @@ pub fn show_welcome_screen(
     let current_language_setting_rc: Rc<RefCell<Option<String>>> =
         Rc::new(RefCell::new(initial_language_setting.clone()));
 
+    let current_editor_mode_rc: Rc<RefCell<String>> =
+        Rc::new(RefCell::new(initial_editor_mode.clone()));
+
     let queue_save_preferences = {
         let settings_manager = settings_manager.clone();
         let current_language_setting_rc = current_language_setting_rc.clone();
+        let current_editor_mode_rc = current_editor_mode_rc.clone();
         move || {
             let selected_language = current_language_setting_rc.borrow().clone();
+            let selected_editor_mode = current_editor_mode_rc.borrow().clone();
 
             log::info!(
-                "Welcome assistant: queue saving preferences (language={:?})",
-                selected_language
+                "Welcome assistant: queue saving preferences (language={:?}, theme={})",
+                selected_language,
+                selected_editor_mode
             );
 
             let settings_manager = settings_manager.clone();
@@ -490,6 +556,13 @@ pub fn show_welcome_screen(
                     if let Some(ref mut language) = s.language {
                         language.language = selected_language.clone();
                     }
+
+                    if s.appearance.is_none() {
+                        s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
+                    }
+                    if let Some(ref mut appearance) = s.appearance {
+                        appearance.editor_mode = Some(selected_editor_mode.clone());
+                    }
                 }) {
                     log::error!("Failed to save welcome screen preferences: {}", e);
                 }
@@ -506,6 +579,7 @@ pub fn show_welcome_screen(
 
         let intro_scrolled = intro_scrolled.clone();
         let language_scrolled = language_scrolled.clone();
+        let appearance_scrolled = appearance_scrolled.clone();
         let telemetry_scrolled = telemetry_scrolled.clone();
 
         let title_label = title_label.clone();
@@ -514,6 +588,11 @@ pub fn show_welcome_screen(
 
         let language_header_label = language_header_label.clone();
         let language_description_label = language_description_label.clone();
+
+        let appearance_header_label = appearance_header_label.clone();
+        let appearance_description_label = appearance_description_label.clone();
+        let light_radio = light_radio.clone();
+        let dark_radio = dark_radio.clone();
 
         let telemetry_header_label = telemetry_header_label.clone();
         let telemetry_not_implemented_label = telemetry_not_implemented_label.clone();
@@ -542,6 +621,7 @@ pub fn show_welcome_screen(
 
             assistant.set_page_title(&intro_scrolled, &t.welcome.page_info);
             assistant.set_page_title(&language_scrolled, &t.welcome.page_language);
+            assistant.set_page_title(&appearance_scrolled, &t.welcome.page_appearance);
             assistant.set_page_title(&telemetry_scrolled, &t.welcome.page_telemetry);
 
             title_label.set_markup(&format!(
@@ -590,6 +670,14 @@ pub fn show_welcome_screen(
             ));
             language_description_label.set_text(&t.welcome.language_description);
 
+            appearance_header_label.set_markup(&format!(
+                "<span size='large' weight='bold'>{}</span>",
+                escape_markup(&t.welcome.appearance_header)
+            ));
+            appearance_description_label.set_text(&t.welcome.appearance_description);
+            light_radio.set_label(Some(&t.welcome.appearance_light));
+            dark_radio.set_label(Some(&t.welcome.appearance_dark));
+
             // Update "System Default" dropdown label (index 0) when language changes.
             let additions = [t.settings.language.system_default.as_str()];
             language_string_list.splice(0, 1, &additions);
@@ -630,6 +718,12 @@ pub fn show_welcome_screen(
         ));
         language_description_label.set_text(&translations.welcome.language_description);
 
+        appearance_header_label.set_markup(&format!(
+            "<span size='large' weight='bold'>{}</span>",
+            escape_markup(&translations.welcome.appearance_header)
+        ));
+        appearance_description_label.set_text(&translations.welcome.appearance_description);
+
         telemetry_header_label.set_markup(&format!(
             "<span size='large' weight='bold'>{}</span>",
             escape_markup(&translations.welcome.telemetry_header)
@@ -649,6 +743,8 @@ pub fn show_welcome_screen(
         let assistant_for_theme = assistant.clone();
         let lang_dropdown_for_theme = lang_dropdown.clone();
         let telemetry_checkbox_for_theme = telemetry_checkbox.clone();
+        let light_radio_for_theme = light_radio.clone();
+        let dark_radio_for_theme = dark_radio.clone();
         let theme_class_state = Rc::new(RefCell::new(initial_theme_class.to_string()));
 
         parent_widget.connect_notify_local(Some("css-classes"), move |widget, _| {
@@ -677,6 +773,14 @@ pub fn show_welcome_screen(
             telemetry_checkbox_for_theme.remove_css_class("marco-theme-dark");
             telemetry_checkbox_for_theme.remove_css_class("marco-theme-light");
             telemetry_checkbox_for_theme.add_css_class(next_theme);
+
+            light_radio_for_theme.remove_css_class("marco-theme-dark");
+            light_radio_for_theme.remove_css_class("marco-theme-light");
+            light_radio_for_theme.add_css_class(next_theme);
+
+            dark_radio_for_theme.remove_css_class("marco-theme-dark");
+            dark_radio_for_theme.remove_css_class("marco-theme-light");
+            dark_radio_for_theme.add_css_class(next_theme);
         });
     }
 
@@ -857,6 +961,49 @@ pub fn show_welcome_screen(
                     callback(selected_code);
                 }
             });
+        });
+    }
+
+    // ---------------------------------------------------------------------
+    // Appearance radio button behavior
+    // ---------------------------------------------------------------------
+    {
+        let on_theme_changed = Rc::new(on_theme_changed);
+        let current_editor_mode_rc = current_editor_mode_rc.clone();
+        let queue_save_preferences = queue_save_preferences.clone();
+
+        // Widgets that carry the theme CSS class
+        let assistant_for_radio = assistant.clone();
+        let lang_dropdown_for_radio = lang_dropdown.clone();
+        let telemetry_checkbox_for_radio = telemetry_checkbox.clone();
+        let light_radio_for_radio = light_radio.clone();
+        let dark_radio_for_radio = dark_radio.clone();
+
+        dark_radio.connect_toggled(move |btn| {
+            let is_dark = btn.is_active();
+            let editor_mode = if is_dark { "marco-dark" } else { "marco-light" }.to_string();
+            let theme_class = if is_dark { "marco-theme-dark" } else { "marco-theme-light" };
+            let old_class = if is_dark { "marco-theme-light" } else { "marco-theme-dark" };
+
+            *current_editor_mode_rc.borrow_mut() = editor_mode.clone();
+
+            // Apply CSS class to all themed widgets immediately
+            for widget in [
+                assistant_for_radio.upcast_ref::<gtk4::Widget>(),
+                lang_dropdown_for_radio.upcast_ref::<gtk4::Widget>(),
+                telemetry_checkbox_for_radio.upcast_ref::<gtk4::Widget>(),
+                light_radio_for_radio.upcast_ref::<gtk4::Widget>(),
+                dark_radio_for_radio.upcast_ref::<gtk4::Widget>(),
+            ] {
+                widget.remove_css_class(old_class);
+                widget.add_css_class(theme_class);
+            }
+
+            queue_save_preferences();
+
+            if let Some(ref callback) = on_theme_changed.as_ref() {
+                callback(editor_mode);
+            }
         });
     }
 

@@ -48,6 +48,29 @@ use std::cell::Cell;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+// Thread-local handle to the active TOC panel, set once during editor init.
+thread_local! {
+    static TOC_PANEL_HANDLE: RefCell<Option<crate::ui::toc_panel::TocPanelHandle>> =
+        const { RefCell::new(None) };
+}
+
+/// Store the TOC panel handle so the footer button and the debounce pipeline
+/// can reach it without threading access through the whole call stack.
+pub fn set_toc_panel_handle(handle: crate::ui::toc_panel::TocPanelHandle) {
+    TOC_PANEL_HANDLE.with(|cell| {
+        *cell.borrow_mut() = Some(handle);
+    });
+}
+
+/// Access the TOC panel handle if it has been registered.
+pub fn with_toc_panel<F: FnOnce(&crate::ui::toc_panel::TocPanelHandle)>(f: F) {
+    TOC_PANEL_HANDLE.with(|cell| {
+        if let Some(handle) = cell.borrow().as_ref() {
+            f(handle);
+        }
+    });
+}
+
 use crate::components::viewer::css_utils::{pretty_print_html, webkit_scrollbar_css};
 
 // Renderer functions are Linux-only (keep use guarded where necessary)
@@ -294,6 +317,9 @@ pub fn create_editor_with_preview_and_buffer(
     );
     editor_widget.set_hexpand(true);
     editor_widget.set_vexpand(true);
+
+    // Editor widget goes directly as the start child of the outer editor/preview paned.
+    // The TOC panel will be wired at the outermost level after the preview is set up.
     paned.set_start_child(Some(&editor_widget));
 
     let insert_mode_state: Rc<RefCell<bool>> = Rc::new(RefCell::new(true));
@@ -307,12 +333,18 @@ pub fn create_editor_with_preview_and_buffer(
     let labels_clone = Rc::clone(&labels);
     let source_view_clone = source_view.clone();
     event_controller.connect_key_pressed(move |_controller, keyval, _keycode, state| {
-        if crate::components::editor::table_edit::handle_table_navigation_key(
-            &source_view_clone,
-            keyval,
-            state,
-        ) {
-            return Propagation::Stop;
+        if crate::logic::tables::is_table_auto_align_enabled() {
+            // Hold the guard for the entire duration of the navigation so that
+            // cursor-position signals fired by our own replace_table_in_buffer
+            // calls do NOT trigger the cursor-leave reformat path.
+            let _nav_guard = crate::logic::tables::NavigationGuard::new();
+            if crate::components::editor::table_edit::handle_table_navigation_key(
+                &source_view_clone,
+                keyval,
+                state,
+            ) {
+                return Propagation::Stop;
+            }
         }
 
         if keyval == Key::Insert {
@@ -344,6 +376,67 @@ pub fn create_editor_with_preview_and_buffer(
     event_controller.set_propagation_phase(gtk4::PropagationPhase::Capture);
     source_view.add_controller(event_controller.upcast::<gtk4::EventController>());
 
+    // Auto-align table when the cursor leaves a table region.
+    // We track the previous cursor line; when it was inside a table and the
+    // new line is outside, we reformat the table in-place without moving the cursor.
+    //
+    // IMPORTANT: `replace_table_in_buffer` (delete+insert) itself moves the
+    // GTK cursor, which re-fires `cursor-position`.  The `is_reformatting`
+    // guard prevents infinite re-entry (and the resulting stack-overflow
+    // segfault).
+    {
+        use gtk4::prelude::TextBufferExt as _;
+        let prev_line: Rc<std::cell::Cell<i32>> = Rc::new(std::cell::Cell::new(-1));
+        let is_reformatting: Rc<std::cell::Cell<bool>> = Rc::new(std::cell::Cell::new(false));
+        let buffer_for_leave = source_view.buffer();
+        buffer_for_leave.connect_notify_local(Some("cursor-position"), move |buf, _| {
+            // Block re-entrant calls triggered by our own buffer writes.
+            if is_reformatting.get() {
+                return;
+            }
+            // Block calls triggered by Tab/Enter navigation's buffer writes.
+            if crate::logic::tables::is_table_navigation_in_progress() {
+                return;
+            }
+            if !crate::logic::tables::is_table_auto_align_enabled() {
+                return;
+            }
+            let text_buf: gtk4::TextBuffer = buf.clone().upcast();
+            let cursor = text_buf.iter_at_offset(text_buf.cursor_position());
+            let new_line = cursor.line();
+            let old_line = prev_line.get();
+            prev_line.set(new_line);
+
+            if old_line >= 0
+                && old_line != new_line
+                && crate::components::editor::table_edit::line_is_in_table(&text_buf, old_line)
+                && !crate::components::editor::table_edit::line_is_in_table(&text_buf, new_line)
+            {
+                // Defer the buffer modification to the next idle cycle.
+                //
+                // When the cursor moves via a mouse click, GTK still holds an
+                // internal TextIter pointing at the click position after this
+                // signal fires.  Any synchronous delete+insert in this handler
+                // invalidates that iter and triggers:
+                //   "gtk_text_buffer_set_mark: assertion … failed"
+                //
+                // By scheduling the reformat as an idle callback we let GTK
+                // finish all cursor-placement housekeeping first, then safely
+                // rewrite the buffer in the next idle cycle.
+                let text_buf_idle = text_buf.clone();
+                let is_reformatting_idle = is_reformatting.clone();
+                glib::idle_add_local_once(move || {
+                    is_reformatting_idle.set(true);
+                    crate::components::editor::table_edit::format_table_at_line_no_cursor(
+                        &text_buf_idle,
+                        old_line,
+                    );
+                    is_reformatting_idle.set(false);
+                });
+            }
+        });
+    }
+
     // SourceView5 native hover provider.
     // Uses the built-in GtkSourceHover infrastructure instead of a custom
     // EventControllerMotion + Popover approach.
@@ -373,7 +466,10 @@ pub fn create_editor_with_preview_and_buffer(
                         "Applying line numbers setting to SourceView: {}",
                         show_line_numbers
                     );
-                    source_view_for_line_numbers.set_show_line_numbers(show_line_numbers);
+                    crate::logic::rtl::apply_rtl_line_numbers(
+                        show_line_numbers,
+                        &source_view_for_line_numbers,
+                    );
                 },
             )
         {
@@ -684,8 +780,11 @@ paned > separator {{
                     // Apply tabs to spaces setting
                     source_view_for_callback.set_insert_spaces_instead_of_tabs(new_settings.tabs_to_spaces);
 
-                    // Apply line numbers setting
-                    source_view_for_callback.set_show_line_numbers(new_settings.show_line_numbers);
+                    // Apply line numbers setting (direction-aware: right gutter in RTL mode)
+                    crate::logic::rtl::apply_rtl_line_numbers(
+                        new_settings.show_line_numbers,
+                        &source_view_for_callback,
+                    );
 
                     // Apply show invisibles setting (whitespace visibility)
                     let space_drawer = source_view_for_callback.space_drawer();
@@ -817,6 +916,18 @@ paned > separator {{
         );
         // Wrap WebView in Rc<RefCell<>> for shared ownership during reparenting
         let webview_rc = Rc::new(RefCell::new(webview.clone()));
+
+        // Wire link-hover → footer: when the cursor enters a link in the preview,
+        // show its URL in the footer spacer area; clear it when the cursor leaves.
+        {
+            let labels_for_hover = Rc::clone(&labels);
+            crate::components::viewer::webkit6::setup_link_hover_status(
+                &webview,
+                move |url: Option<String>| {
+                    crate::footer::update_hovered_link(&labels_for_hover, url.as_deref());
+                },
+            );
+        }
 
         // Initialize scroll synchronization between editor and preview
         if let Some(global_sync) =
@@ -1566,6 +1677,9 @@ paned > separator {{
         let update_code_clone = Rc::clone(&update_code_for_signal);
         let view_mode_clone = Rc::clone(&view_mode_for_signal);
 
+        // Capture buffer text for TOC rebuild.
+        let buffer_for_toc = buffer.clone();
+
         preview_debouncer_for_signal.debounce_trailing(move || {
             // Update HTML preview (trailing edge only)
             refresh_clone();
@@ -1574,6 +1688,25 @@ paned > separator {{
             if *view_mode_clone.borrow() == ViewMode::CodePreview {
                 update_code_clone();
             }
+
+            // Rebuild TOC sidebar if it is currently visible.
+            with_toc_panel(|handle| {
+                if !handle.is_visible() {
+                    return;
+                }
+                let text = buffer_for_toc
+                    .text(
+                        &buffer_for_toc.start_iter(),
+                        &buffer_for_toc.end_iter(),
+                        false,
+                    )
+                    .to_string();
+                let depth = handle.depth.get();
+                if let Ok(doc) = core::parser::parse(&text) {
+                    let entries = core::intelligence::toc::extract_toc(&doc);
+                    handle.rebuild(&entries, depth);
+                }
+            });
         });
 
         // Apply intelligence with debouncing
@@ -1942,8 +2075,18 @@ paned > separator {{
     );
     let overlay = split_indicator.widget().clone();
 
+    // Wrap the entire editor+preview paned in the TOC sidebar paned.
+    // Placing it here (outside the inner split) means the TOC panel is visible
+    // in all LayoutState modes — including ViewOnly and EditorAndViewSeparate —
+    // because the SplitController only manages `paned`, not `toc_paned`.
+    let (toc_paned, toc_handle) = crate::ui::toc_panel::create_toc_panel(&source_view);
+    toc_paned.set_end_child(Some(&overlay));
+    toc_paned.set_hexpand(true);
+    toc_paned.set_vexpand(true);
+    set_toc_panel_handle(toc_handle);
+
     (
-        paned,                                            // Return original paned for compatibility
+        paned,                                            // 0: Inner editor/preview split (split-ratio + reparenting)
         webview_rc_opt.expect("webview wrapper not set"), // Return wrapped WebView for reparenting support
         css_rc,
         Box::new({
@@ -1982,7 +2125,7 @@ paned > separator {{
                 }
             }) as Box<dyn Fn(ViewMode)>
         },
-        overlay,          // 10: Overlay widget
+        toc_paned,        // 10: Outermost TOC container paned (TOC sidebar | split overlay)
         split_controller, // 11: Split position controller
     )
 }

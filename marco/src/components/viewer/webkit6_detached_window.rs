@@ -124,6 +124,10 @@ impl PreviewWindow {
         container.set_hexpand(true);
         container.set_vexpand(true);
         container.set_policy(gtk4::PolicyType::Automatic, gtk4::PolicyType::Automatic);
+        // Pin scrollbar to physical-right edge regardless of text direction.
+        // The WebView content is RTL via <body dir="rtl">, not via the GTK widget direction,
+        // so setting Ltr here does not affect content layout.
+        container.set_direction(gtk4::TextDirection::Ltr);
 
         window.set_child(Some(&container));
 

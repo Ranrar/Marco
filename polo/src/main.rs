@@ -271,6 +271,45 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         webview.set_background_color_rgba(&rgba);
     }
 
+    // Wire link policy: external links open in browser, local .md links prompt to reload.
+    #[cfg(target_os = "linux")]
+    {
+        let webview_for_links = webview.clone();
+        let window_for_links = window.clone();
+        let theme_for_links = saved_theme.clone();
+        let settings_for_links = settings_manager.clone();
+        let asset_root_for_links = polo_paths.asset_root().to_path_buf();
+        let current_file_path_for_links = current_file_path.clone();
+
+        webview.setup_link_policy(move |path, _fragment| {
+            let filename = std::path::Path::new(&path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.clone());
+
+            let webview = webview_for_links.clone();
+            let window = window_for_links.clone();
+            let theme = theme_for_links.clone();
+            let settings = settings_for_links.clone();
+            let asset_root = asset_root_for_links.clone();
+            let current_file_path = current_file_path_for_links.clone();
+            let path_for_open = path.clone();
+            let fname_for_open = filename.clone();
+
+            components::dialog::show_open_local_file_dialog(
+                &window_for_links,
+                &filename,
+                move || {
+                    if let Ok(mut guard) = current_file_path.write() {
+                        *guard = Some(path_for_open.clone());
+                    }
+                    window.set_title(Some(&format!("Polo - {}", fname_for_open)));
+                    load_and_render_markdown(&webview, &path_for_open, &theme, &settings, &asset_root);
+                },
+            );
+        });
+    }
+
     // Load and render the markdown file
     let file_path_for_render = file_path.clone();
     let asset_root_for_render = polo_paths.asset_root();

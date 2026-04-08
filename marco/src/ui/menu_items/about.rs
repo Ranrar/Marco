@@ -350,7 +350,6 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     scroller.add_css_class("editor-scrolled");
     scroller.set_min_content_height(300);
     scroller.set_vexpand(true);
-    scroller.set_overlay_scrolling(true);
     scroller.set_child(Some(&content_box));
     dialog.set_child(Some(&scroller));
 

@@ -39,7 +39,16 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    core::render::wrap_preview_html_document(body, css, theme_mode, background_color)
+    let html = core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
+    // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
+    // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
+    let html = html.replacen("<html ", "<html dir=\"ltr\" ", 1);
+    if crate::logic::rtl::is_rtl_global() {
+        html.replacen("<body>", "<body dir=\"rtl\">", 1)
+    } else {
+        html
+    }
 }
 
 /// Generate a file:// base URI from a document path for resolving relative paths.

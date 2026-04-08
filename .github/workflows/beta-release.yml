@@ -178,7 +178,7 @@ jobs:
           retention-days: 1
 
   release:
-    name: Update release (Beta channel)
+    name: Create versioned release
     needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     permissions:
@@ -195,29 +195,29 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Move release tag to this commit
+      - name: Read version
+        id: version
         run: |
           set -euo pipefail
+          version="$(python3 -c 'import json;print(json.load(open("build/version.json"))["linux"]["marco"])')"
+          echo "version=${version}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
-          # The GitHub Release "Source code" archives are generated from the release tag.
-          # If the moving 'release' tag isn't updated, the source tar/zip stays stuck on an old commit.
+      - name: Create and push version tag
+        run: |
+          set -euo pipefail
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git tag -f release "${GITHUB_SHA}"
-          git push --force origin release
+          tag="${{ steps.version.outputs.tag }}"
 
-      - name: Delete existing release object (if any)
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if gh release view release >/dev/null 2>&1; then
-            gh release delete release --yes
-            echo "Deleted previous release object for tag 'release'."
-          else
-            echo "No previous release object found for tag 'release'."
+          if git rev-parse --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "ERROR: Tag ${tag} already exists. Bump the version in build/version.json before releasing." >&2
+            exit 1
           fi
+
+          git tag "${tag}" "${GITHUB_SHA}"
+          git push origin "${tag}"
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v8
@@ -252,27 +252,27 @@ jobs:
           fi
           echo "✓ All required artifacts present"
 
-      - name: Update release (overwrite assets)
+      - name: Create release
         uses: ncipollo/release-action@v1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          tag: release
-          name: Release (Beta)
+          tag: ${{ steps.version.outputs.tag }}
+          name: Marco Suite ${{ steps.version.outputs.version }}
           prerelease: false
           allowUpdates: false
           artifactErrorsFailBuild: true
           commit: ${{ github.sha }}
           artifacts: "artifacts/*.deb,artifacts/*.zip"
           body: |
-            **Beta Channel** — built automatically from the latest commit on `main`.
-            
+            **Marco Suite ${{ steps.version.outputs.version }}**
+
             Marco and Polo are actively developed. Features are functional but the project is still maturing — you may encounter rough edges or changes between releases.
-            
+
             **Downloads:**
             - **Linux**: `marco-suite_*_linux_amd64.deb`
             - **Windows**: `marco-suite_*_windows_amd64.zip`
-            
+
             Found something? [Open an issue](https://github.com/Ranrar/Marco/issues/new) — all feedback is welcome.
-            
+
             Commit: ${{ github.sha }}
             Built: ${{ github.run_id }}

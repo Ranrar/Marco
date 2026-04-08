@@ -108,7 +108,7 @@ pub fn build_debug_tab(
     show_welcome_button.connect_clicked(move |_| {
         let parent = parent_weak_for_welcome.upgrade();
         let parent_ref = parent.as_ref().map(|w| w.upcast_ref());
-        welcome_screen::show_welcome_screen(&settings_manager_for_welcome, parent_ref, None);
+        welcome_screen::show_welcome_screen(&settings_manager_for_welcome, parent_ref, None, None);
     });
 
     let welcome_row = add_setting_row_i18n(

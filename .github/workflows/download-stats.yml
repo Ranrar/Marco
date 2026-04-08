@@ -1,0 +1,78 @@
+name: Download Stats
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *'  # Every day at 08:00 UTC
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  stats:
+    name: Fetch release download counts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Fetch download counts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          # Build a JSON entry for this snapshot
+          snapshot="$(gh api "/repos/${{ github.repository }}/releases" --jq '
+            {
+              date: (now | strftime("%Y-%m-%d")),
+              run_id: "${{ github.run_id }}",
+              releases: [
+                .[] | {
+                  tag: .tag_name,
+                  assets: [
+                    .assets[] | { name: .name, downloads: .download_count }
+                  ]
+                }
+              ]
+            }
+          ')"
+
+          echo "$snapshot" > snapshot.json
+
+          # Write job summary table
+          echo "## Marco Suite — Release Download Stats" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Release | Asset | Downloads |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|-------|----------:|" >> "$GITHUB_STEP_SUMMARY"
+          echo "$snapshot" | jq -r '
+            .releases[] | .tag as $tag | .assets[] |
+            "| \($tag) | \(.name) | \(.downloads) |"
+          ' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          total=$(echo "$snapshot" | jq '[.releases[].assets[].downloads] | add // 0')
+          echo "**Total downloads across all releases:** ${total}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Save snapshot to private stats repo
+        env:
+          STATS_PAT: ${{ secrets.STATS }}
+        run: |
+          set -euo pipefail
+
+          git clone "https://x-access-token:${STATS_PAT}@github.com/${{ secrets.STATS_REPO }}.git" stats-repo
+
+          # Append snapshot to stats.json (create if missing)
+          stats_file="stats-repo/marco-stats.json"
+          if [ -f "$stats_file" ]; then
+            jq ". += [$(cat snapshot.json)]" "$stats_file" > stats_tmp.json
+          else
+            jq -n "[$(cat snapshot.json)]" > stats_tmp.json
+          fi
+          mv stats_tmp.json "$stats_file"
+
+          cd stats-repo
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add stats.json
+          git commit -m "stats: $(date -u '+%Y-%m-%d') snapshot"
+          git push

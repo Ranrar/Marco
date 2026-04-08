@@ -22,7 +22,16 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    core::render::wrap_preview_html_document(body, css, theme_mode, background_color)
+    let html = core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
+    // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
+    // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
+    let html = html.replacen("<html ", "<html dir=\"ltr\" ", 1);
+    if crate::logic::rtl::is_rtl_global() {
+        html.replacen("<body>", "<body dir=\"rtl\">", 1)
+    } else {
+        html
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -56,4 +65,23 @@ pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     // Preserve relative resource resolution by reusing the last base URI.
     let base_uri = crate::components::viewer::wry::get_latest_preview_base_uri();
     webview.load_html_with_base(content, base_uri.as_deref());
+}
+
+/// Evaluate a JavaScript snippet in the live preview webview.
+/// Used to update page-level attributes (e.g. `dir`) without a full reload.
+#[cfg(target_os = "linux")]
+pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
+    use webkit6::prelude::WebViewExt;
+    webview.evaluate_javascript(
+        js,
+        None,
+        None,
+        None::<&gtk4::gio::Cancellable>,
+        |_| {},
+    );
+}
+
+#[cfg(target_os = "windows")]
+pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
+    webview.evaluate_script(js);
 }

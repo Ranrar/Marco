@@ -551,5 +551,54 @@ pub fn build_editor_tab(
     );
     container.append(&tabs_to_spaces_row);
 
+    // Auto-Align Tables (Toggle)
+    let table_auto_align_switch = Switch::new();
+    table_auto_align_switch.add_css_class("marco-switch");
+
+    let current_table_auto_align = if let Some(ref settings_manager) = settings_manager_opt {
+        let settings = settings_manager.get_settings();
+        settings
+            .editor
+            .and_then(|e| e.table_auto_align)
+            .unwrap_or(true)
+    } else {
+        true
+    };
+    table_auto_align_switch.set_active(current_table_auto_align);
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        table_auto_align_switch.connect_state_set(move |_switch, state| {
+            let enabled = state;
+            debug!("Table auto-align changed to: {}", enabled);
+
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.editor.is_none() {
+                    settings.editor = Some(EditorSettings::default());
+                }
+                if let Some(ref mut editor) = settings.editor {
+                    editor.table_auto_align = Some(enabled);
+                }
+            }) {
+                error!("Failed to save table auto-align setting: {}", e);
+                return glib::Propagation::Proceed;
+            }
+
+            crate::logic::tables::set_table_auto_align(enabled);
+
+            glib::Propagation::Proceed
+        });
+    }
+
+    let table_auto_align_row = add_setting_row_i18n(
+        i18n,
+        &translations.table_auto_align_label,
+        &translations.table_auto_align_description,
+        Rc::new(|t: &Translations| t.settings.editor.table_auto_align_label.clone()),
+        Rc::new(|t: &Translations| t.settings.editor.table_auto_align_description.clone()),
+        &table_auto_align_switch,
+        false,
+    );
+    container.append(&table_auto_align_row);
+
     container
 }

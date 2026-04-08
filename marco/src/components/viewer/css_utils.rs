@@ -69,6 +69,7 @@ pub fn gtk_scrollbar_css(thumb: &str, track: &str) -> String {
         .editor-scrolled scrollbar trough,
         .source-preview scrollbar trough {{
             background-color: {track};
+            background-image: none;
             border: none;
             box-shadow: none;
             min-width: 12px;
@@ -79,6 +80,7 @@ pub fn gtk_scrollbar_css(thumb: &str, track: &str) -> String {
         .editor-scrolled scrollbar slider,
         .source-preview scrollbar slider {{
             background-color: {thumb};
+            background-image: none;
             border-radius: 0px;
             border: none;
             box-shadow: none;

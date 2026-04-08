@@ -22,6 +22,15 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.22.0] - 2026-04-08
+
+### Added
+- `intelligence::toc` module — extracts a table of contents from a parsed document (`extract_toc`), generates URL-safe heading slugs, produces Markdown TOC output (`generate_toc_markdown`), and replaces or inserts TOC marker blocks in source text (`replace_toc_in_text`).
+- `table_auto_align` field added to `EditorSettings` and `toc_depth` field added to `LayoutSettings` in the settings schema.
+
+### Changed
+- HTML renderer now generates an `id` attribute and a hover-anchor link for every heading, including headings without an explicit `{#id}` marker; duplicate slugs receive a `-1`, `-2`, … suffix to guarantee uniqueness.
+
 ## [0.21.0] - 2026-03-13
 
 ### Added
