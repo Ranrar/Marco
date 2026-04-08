@@ -1848,8 +1848,16 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     update_editor(&editor_mode);
                     update_preview(&editor_mode);
 
-                    let new_mode = if editor_mode.contains("dark") { "dark" } else { "light" };
-                    let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
+                    let new_mode = if editor_mode.contains("dark") {
+                        "dark"
+                    } else {
+                        "light"
+                    };
+                    let old_class = if new_mode == "dark" {
+                        "marco-theme-light"
+                    } else {
+                        "marco-theme-dark"
+                    };
                     let new_class = format!("marco-theme-{}", new_mode);
                     window_for_theme.remove_css_class(old_class);
                     window_for_theme.add_css_class(&new_class);

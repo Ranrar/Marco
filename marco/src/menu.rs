@@ -751,8 +751,12 @@ pub fn main_menu_structure(
         &modules_menu,
         switch_state.clone(),
     );
-    let tools_btn =
-        create_tools_menu_button(&translations.menu.tools, &tools_menu, switch_state.clone(), tools_pre_open.clone());
+    let tools_btn = create_tools_menu_button(
+        &translations.menu.tools,
+        &tools_menu,
+        switch_state.clone(),
+        tools_pre_open.clone(),
+    );
     let bookmarks_btn = create_menu_button(
         &translations.menu.bookmarks,
         &bookmarks_menu,

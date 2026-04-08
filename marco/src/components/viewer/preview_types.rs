@@ -29,16 +29,16 @@ pub type PlatformWebView = crate::components::viewer::wry_platform_webview::Plat
 // Keep the original type but add overlay and split controller support
 // WebView is now wrapped in Rc<RefCell<>> for shared ownership during reparenting
 pub type EditorReturn = (
-    Paned,                        // 0: Inner editor/preview split paned (for split-ratio callbacks and reparenting)
+    Paned, // 0: Inner editor/preview split paned (for split-ratio callbacks and reparenting)
     Rc<RefCell<PlatformWebView>>, // 1: WebView wrapped for reparenting support
-    Rc<RefCell<String>>,          // 2: Content string
-    Box<dyn Fn()>,                // 3: Refresh callback
-    Box<dyn Fn(&str)>,            // 4: Theme update callback
-    Box<dyn Fn(&str)>,            // 5: Content update callback
-    sourceview5::Buffer,          // 6: Editor buffer
-    sourceview5::View,            // 7: Editor view
-    Rc<RefCell<bool>>,            // 8: Insert mode state
-    Box<dyn Fn(ViewMode)>,        // 9: View mode switcher
-    Paned,                        // 10: Outermost TOC container paned (TOC panel | split overlay)
-    SplitController,              // 11: Split position controller
+    Rc<RefCell<String>>, // 2: Content string
+    Box<dyn Fn()>, // 3: Refresh callback
+    Box<dyn Fn(&str)>, // 4: Theme update callback
+    Box<dyn Fn(&str)>, // 5: Content update callback
+    sourceview5::Buffer, // 6: Editor buffer
+    sourceview5::View, // 7: Editor view
+    Rc<RefCell<bool>>, // 8: Insert mode state
+    Box<dyn Fn(ViewMode)>, // 9: View mode switcher
+    Paned, // 10: Outermost TOC container paned (TOC panel | split overlay)
+    SplitController, // 11: Split position controller
 );

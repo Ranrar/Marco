@@ -22,12 +22,11 @@
 //!
 /// The `toc_paned` position (= panel width) is auto-sized to fit the widest
 /// TOC entry whenever the panel is shown or rebuilt.
-
 use core::intelligence::toc::TocEntry;
-use gtk4::glib;
-use gtk4::prelude::*;
 #[cfg(target_os = "linux")]
 use gtk4::gio;
+use gtk4::glib;
+use gtk4::prelude::*;
 use std::cell::Cell;
 use std::rc::Rc;
 

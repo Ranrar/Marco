@@ -975,7 +975,14 @@ fn extract_path_and_fragment_from_file_uri(uri: &str) -> (String, Option<String>
     // Strip the "file://" prefix
     let without_scheme = uri.trim_start_matches("file://");
     let (raw_path, fragment) = match without_scheme.split_once('#') {
-        Some((p, f)) => (p, if f.is_empty() { None } else { Some(f.to_string()) }),
+        Some((p, f)) => (
+            p,
+            if f.is_empty() {
+                None
+            } else {
+                Some(f.to_string())
+            },
+        ),
         None => (without_scheme, None),
     };
     // Basic URL-decode for spaces
@@ -1015,12 +1022,8 @@ pub fn setup_local_file_link_handler(
                     if let Some(uri) = request.uri() {
                         let uri_str = uri.as_str();
                         if is_local_md_uri(uri_str) {
-                            log::info!(
-                                "[webkit6] Local .md link intercepted: {}",
-                                uri_str
-                            );
-                            let (path, fragment) =
-                                extract_path_and_fragment_from_file_uri(uri_str);
+                            log::info!("[webkit6] Local .md link intercepted: {}", uri_str);
+                            let (path, fragment) = extract_path_and_fragment_from_file_uri(uri_str);
                             decision.ignore();
                             on_local_md(path, fragment);
                             return true;

@@ -9,7 +9,7 @@
   <br/>
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Version-0.20.0-blue?style=for-the-badge" alt="Version 0.20.0" />
+  <img src="https://img.shields.io/badge/Version-0.22.0-blue?style=for-the-badge" alt="Version 0.22.0" />
   <img src="https://img.shields.io/badge/Channel-Beta-orange?style=for-the-badge" alt="Beta Channel" />
 </p>
 
@@ -40,7 +40,7 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 | Linux | Windows |
 |-------|---------|
 | **Beta (current release channel)** | **Beta (current release channel)** |
-| Download the latest Beta `.deb` from the **Release (Beta)** page:<br>https://github.com/Ranrar/Marco/releases/tag/release | Download the latest Beta `.zip` from the **Release (Beta)** page:<br>https://github.com/Ranrar/Marco/releases/tag/release |
+| Download the latest `.deb` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest | Download the latest `.zip` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest |
 | **Asset:** `marco-suite_<version>_linux_amd64.deb` | **Asset:** `marco-suite_<version>_windows_amd64.zip` |
 | **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
@@ -50,6 +50,7 @@ On first launch, Marco shows a short **welcome assistant** (non-blocking) to hel
 
 - A quick overview of key features
 - **Language selection** (saved to your settings)
+- **Light/dark theme selection** — choose your preferred colour scheme before the editor opens
 - A telemetry page (currently a placeholder; telemetry stays disabled)
 
 ## Why Marco?
@@ -105,9 +106,8 @@ Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests pass
 ## Future functions in pipeline
 
 - **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
-- **Document navigation** — TOC and cross-file links  
-- **Structured formatting** — semantic elements for headings, notes, and exports  
-- **Export to PDF** - Export into PDF in A4 or US Letter
+- **Structured formatting** — semantic elements for headings, notes, and exports
+- **Export to PDF** — export into PDF in A4 or US Letter
 - **Templates** — start from predefined markdown templates (README, runbook, etc.)
 
 ## AI-assisted development
@@ -171,13 +171,17 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Syntax highlighting in editor
 - [x] Diagnostics (issue underlines, footer panel, hover details, reference dialog)
 - [x] Markdown hover insights
+- [x] Right-to-left (RTL) text direction support with live toggle
+- [x] Table auto-align — pipe tables reformatted on Tab/Enter/cursor-leave; manual via context menu or Ctrl+Alt+T
+- [x] Tools menu — live toggles for wrap, line numbers, invisibles, tabs, syntax colours, table auto-align, scroll sync, and text direction
 - [ ] Multi-cursor editing support
 - [ ] LSP protocol for language server integration
 
-### Viewer Fetures (Polo)
+### Viewer Features (Polo)
 - [x] Same viewer engine as Marco
+- [x] Local link prompt — click a `.md` link in the preview to open it in Polo
 - [ ] Search function
-- [ ] Mouse over link information 
+- [ ] Mouse over link information
 
 ### Document Features
 - [x] Smart code blocks with programming languages syntax
@@ -185,9 +189,9 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Diagram support: Mermaid for flowcharts, sequence diagrams, class diagrams, and 20+ other diagram types
 - [ ] Export to PDF
 - [ ] Page size presets for export (A4, US Letter, etc.)
-- [X] Document navigation: TOC sidebar
-- [X] Document navigation: bookmarks
-- [X] Document navigation: cross-file links
+- [x] Document navigation: TOC sidebar (collapsible, click-to-scroll, configurable depth)
+- [x] Document navigation: bookmarks
+- [x] Document navigation: cross-file links (local link prompt in preview)
 
 ### Advanced Features
 - [x] Language plugin system via. `assets/language/xx*.toml` files

@@ -72,13 +72,7 @@ pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
 #[cfg(target_os = "linux")]
 pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
     use webkit6::prelude::WebViewExt;
-    webview.evaluate_javascript(
-        js,
-        None,
-        None,
-        None::<&gtk4::gio::Cancellable>,
-        |_| {},
-    );
+    webview.evaluate_javascript(js, None, None, None::<&gtk4::gio::Cancellable>, |_| {});
 }
 
 #[cfg(target_os = "windows")]

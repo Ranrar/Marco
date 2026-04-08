@@ -135,25 +135,21 @@ impl PlatformWebView {
 
                             // Local .md file link → prompt to open
                             if uri_lower.starts_with("file://") {
-                                let path_part =
-                                    uri_lower.split('#').next().unwrap_or("");
-                                if path_part.ends_with(".md")
-                                    || path_part.ends_with(".markdown")
-                                {
-                                    let without_scheme =
-                                        uri_str.trim_start_matches("file://");
-                                    let (raw_path, fragment) =
-                                        match without_scheme.split_once('#') {
-                                            Some((p, f)) => (
-                                                p,
-                                                if f.is_empty() {
-                                                    None
-                                                } else {
-                                                    Some(f.to_string())
-                                                },
-                                            ),
-                                            None => (without_scheme, None),
-                                        };
+                                let path_part = uri_lower.split('#').next().unwrap_or("");
+                                if path_part.ends_with(".md") || path_part.ends_with(".markdown") {
+                                    let without_scheme = uri_str.trim_start_matches("file://");
+                                    let (raw_path, fragment) = match without_scheme.split_once('#')
+                                    {
+                                        Some((p, f)) => (
+                                            p,
+                                            if f.is_empty() {
+                                                None
+                                            } else {
+                                                Some(f.to_string())
+                                            },
+                                        ),
+                                        None => (without_scheme, None),
+                                    };
                                     let path = raw_path.replace("%20", " ");
                                     decision.ignore();
                                     on_local_md(path, fragment);

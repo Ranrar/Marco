@@ -109,8 +109,9 @@ pub fn setup_modules_actions(
         let buf = editor_buffer.clone();
         let view = editor_view.clone();
         super::add_format_action(app, "insert_update_toc", move || {
-            use core::intelligence::toc::{extract_toc, generate_toc_markdown, replace_toc_in_text,
-                TocReplaceResult};
+            use core::intelligence::toc::{
+                extract_toc, generate_toc_markdown, replace_toc_in_text, TocReplaceResult,
+            };
 
             let text_buffer: gtk4::TextBuffer = buf.clone().upcast();
             let current_text = text_buffer

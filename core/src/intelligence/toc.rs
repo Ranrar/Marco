@@ -191,7 +191,10 @@ mod tests {
     fn smoke_heading_slug_basic() {
         assert_eq!(heading_slug("Hello World"), "hello-world");
         assert_eq!(heading_slug("Introduction"), "introduction");
-        assert_eq!(heading_slug("Getting Started Guide"), "getting-started-guide");
+        assert_eq!(
+            heading_slug("Getting Started Guide"),
+            "getting-started-guide"
+        );
     }
 
     #[test]
@@ -442,11 +445,19 @@ mod parse_roundtrip {
         // can recognise <!-- /TOC --> as an HTML comment rather than list inline text.
         let input = "<!-- TOC -->\n- [Title](#title)\n  - [Sub](#sub)\n\n<!-- /TOC -->\n";
         let doc = crate::parser::parse(input).expect("parse failed");
-        let kinds: Vec<_> = doc.children.iter().map(|n| format!("{:?}", n.kind)).collect();
+        let kinds: Vec<_> = doc
+            .children
+            .iter()
+            .map(|n| format!("{:?}", n.kind))
+            .collect();
         eprintln!("Parsed nodes: {:?}", kinds);
-        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default())
+            .expect("render failed");
         eprintln!("HTML output:\n{}", html);
         // Both markers must be invisible HTML comments, not text
-        assert!(!html.contains("&lt;!"), "markers were escaped as text, not passed through as HTML");
+        assert!(
+            !html.contains("&lt;!"),
+            "markers were escaped as text, not passed through as HTML"
+        );
     }
 }

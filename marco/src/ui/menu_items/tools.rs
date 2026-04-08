@@ -67,10 +67,7 @@ pub fn populate_tools_menu(
         } else {
             "LTR"
         };
-        dir_item.set_attribute_value(
-            "badge",
-            Some(&gtk4::glib::Variant::from(badge)),
-        );
+        dir_item.set_attribute_value("badge", Some(&gtk4::glib::Variant::from(badge)));
         layout.append_item(&dir_item);
     }
     tools_menu.append_section(None, &layout);

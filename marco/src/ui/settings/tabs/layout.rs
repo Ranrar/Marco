@@ -335,8 +335,7 @@ pub fn build_layout_tab(
         3
     };
 
-    let toc_depth_adj =
-        Adjustment::new(current_toc_depth as f64, 1.0, 6.0, 1.0, 0.0, 0.0);
+    let toc_depth_adj = Adjustment::new(current_toc_depth as f64, 1.0, 6.0, 1.0, 0.0, 0.0);
     let toc_depth_spin = SpinButton::new(Some(&toc_depth_adj), 1.0, 0);
     toc_depth_spin.add_css_class("marco-spinbutton");
 
@@ -346,8 +345,7 @@ pub fn build_layout_tab(
             debug!("TOC depth changed to: {}", new_depth);
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.layout.is_none() {
-                    settings.layout =
-                        Some(core::logic::swanson::LayoutSettings::default());
+                    settings.layout = Some(core::logic::swanson::LayoutSettings::default());
                 }
                 if let Some(ref mut layout) = settings.layout {
                     layout.toc_depth = Some(new_depth);
@@ -414,7 +412,6 @@ pub fn build_layout_tab(
         .position(|value| *value == current_text_direction.as_str())
         .unwrap_or(0);
     text_dir_combo.set_selected(text_dir_index as u32);
-
 
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
         text_dir_combo.connect_selected_notify(move |combo| {

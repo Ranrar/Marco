@@ -131,7 +131,11 @@ pub fn show_welcome_screen(
             .and_then(|a| a.editor_mode.clone())
             .unwrap_or_else(|| "marco-light".to_string());
 
-        (initial_language_setting, initial_telemetry_enabled, initial_editor_mode)
+        (
+            initial_language_setting,
+            initial_telemetry_enabled,
+            initial_editor_mode,
+        )
     };
 
     // Load translations for the welcome screen.
@@ -982,8 +986,16 @@ pub fn show_welcome_screen(
         dark_radio.connect_toggled(move |btn| {
             let is_dark = btn.is_active();
             let editor_mode = if is_dark { "marco-dark" } else { "marco-light" }.to_string();
-            let theme_class = if is_dark { "marco-theme-dark" } else { "marco-theme-light" };
-            let old_class = if is_dark { "marco-theme-light" } else { "marco-theme-dark" };
+            let theme_class = if is_dark {
+                "marco-theme-dark"
+            } else {
+                "marco-theme-light"
+            };
+            let old_class = if is_dark {
+                "marco-theme-light"
+            } else {
+                "marco-theme-dark"
+            };
 
             *current_editor_mode_rc.borrow_mut() = editor_mode.clone();
 

@@ -2086,7 +2086,7 @@ paned > separator {{
     set_toc_panel_handle(toc_handle);
 
     (
-        paned,                                            // 0: Inner editor/preview split (split-ratio + reparenting)
+        paned, // 0: Inner editor/preview split (split-ratio + reparenting)
         webview_rc_opt.expect("webview wrapper not set"), // Return wrapped WebView for reparenting support
         css_rc,
         Box::new({

@@ -304,7 +304,13 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
                         *guard = Some(path_for_open.clone());
                     }
                     window.set_title(Some(&format!("Polo - {}", fname_for_open)));
-                    load_and_render_markdown(&webview, &path_for_open, &theme, &settings, &asset_root);
+                    load_and_render_markdown(
+                        &webview,
+                        &path_for_open,
+                        &theme,
+                        &settings,
+                        &asset_root,
+                    );
                 },
             );
         });

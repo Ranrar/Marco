@@ -688,8 +688,7 @@ where
         std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
     };
 
-    let btn_close_titlebar =
-        svg_icon_button(&dialog, WindowIcon::Close, "Close", &icon_color, 8.0);
+    let btn_close_titlebar = svg_icon_button(&dialog, WindowIcon::Close, "Close", &icon_color, 8.0);
 
     let dialog_weak_close = dialog.downgrade();
     btn_close_titlebar.connect_clicked(move |_| {

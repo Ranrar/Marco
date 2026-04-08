@@ -221,7 +221,8 @@ pub fn apply_text_direction(rtl: bool, window: &ApplicationWindow, editor_view: 
                 renderer.connect_query_data(|r, _lines, line| {
                     r.set_text(&(line + 1).to_string());
                 });
-                let right_gutter = sourceview5::prelude::ViewExt::gutter(editor_view, gtk4::TextWindowType::Right);
+                let right_gutter =
+                    sourceview5::prelude::ViewExt::gutter(editor_view, gtk4::TextWindowType::Right);
                 right_gutter.insert(&renderer, 0);
 
                 // ── Auto-size: deferred initial sizing (font may not be loaded yet) ──
@@ -236,7 +237,10 @@ pub fn apply_text_direction(rtl: bool, window: &ApplicationWindow, editor_view: 
                     let count = buf_sz.line_count();
                     let mut n = count.max(1) as u32;
                     let mut d = 0usize;
-                    while n > 0 { n /= 10; d += 1; }
+                    while n > 0 {
+                        n /= 10;
+                        d += 1;
+                    }
                     last_digits_idle.set(d);
                     set_renderer_size_for_line_count(&renderer_sz, count);
                 });
@@ -253,7 +257,10 @@ pub fn apply_text_direction(rtl: bool, window: &ApplicationWindow, editor_view: 
                         let count = b.line_count().max(1) as u32;
                         let mut n = count;
                         let mut new_digits = 0usize;
-                        while n > 0 { n /= 10; new_digits += 1; }
+                        while n > 0 {
+                            n /= 10;
+                            new_digits += 1;
+                        }
                         if new_digits != last_digits.get() {
                             last_digits.set(new_digits);
                             set_renderer_size_for_line_count(&renderer_sig, b.line_count());
