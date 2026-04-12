@@ -138,7 +138,7 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
     let search_entry = SearchEntry::new();
     search_entry.add_css_class("marco-search-entry");
     search_entry.set_hexpand(true);
-    search_entry.set_placeholder_text(Some("Search diagnostics (e.g. MD401, heading, link)…"));
+    search_entry.set_placeholder_text(Some("Search diagnostics (e.g. MD203, heading, link)…"));
     search_row.append(&search_entry);
     content.append(&search_row);
 
@@ -353,17 +353,17 @@ mod tests {
 
     #[test]
     fn smoke_test_matches_query() {
-        let blob = "md401 warning heading too long use shorter heading";
+        let blob = "md203 warning heading too long use shorter heading";
 
         assert!(matches_query(blob, ""));
-        assert!(matches_query(blob, "MD401"));
+        assert!(matches_query(blob, "MD203"));
         assert!(matches_query(blob, "heading"));
         assert!(!matches_query(blob, "table-cell"));
     }
 
     #[test]
     fn smoke_test_matches_filters() {
-        let blob = "md401 warning heading too long use shorter heading";
+        let blob = "md203 warning heading too long use shorter heading";
 
         assert!(matches_filters(
             blob,
@@ -374,13 +374,13 @@ mod tests {
         assert!(matches_filters(
             blob,
             SeverityFilter::Warning,
-            "md401",
+            "md203",
             SeverityFilter::Warning
         ));
         assert!(!matches_filters(
             blob,
             SeverityFilter::Warning,
-            "md401",
+            "md203",
             SeverityFilter::Error
         ));
     }

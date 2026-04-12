@@ -110,7 +110,9 @@ pub struct SettingsDialogCallbacks {
     /// Called with `is_rtl = true` when the user selects RTL, `false` for LTR.
     pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     /// Called when any page view setting changes. Receives the full current state.
-    pub on_page_view_changed: Option<std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>>,
+    pub on_page_view_changed: Option<
+        std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>,
+    >,
 }
 
 pub fn show_settings_dialog(

@@ -46,10 +46,7 @@ pub fn make_print_export_css(paper: &str, orientation: &str, dark_mode: bool) ->
     let size_rule = if paper.is_empty() {
         String::new()
     } else {
-        format!(
-            "    size: {} {} !important;\n",
-            paper, orientation
-        )
+        format!("    size: {} {} !important;\n", paper, orientation)
     };
 
     // In dark-mode exports the page-box background is dark.  If there is any
@@ -305,5 +302,3 @@ pub fn remove_export_css(webview: &webkit6::WebView) {
         "(function(){var el=document.getElementById('marco-dynamic-export-css');if(el)el.remove();})()",
     );
 }
-
-

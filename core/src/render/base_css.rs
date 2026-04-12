@@ -821,9 +821,15 @@ mod tests {
         assert!(css.contains(".marco-tabs"), "tab block rule missing");
         assert!(css.contains(".toc"), "TOC rule missing");
         assert!(css.contains(".pagedjs_page"), "paged.js page rule missing");
-        assert!(css.contains("var(--text-color"), "text-color variable missing");
+        assert!(
+            css.contains("var(--text-color"),
+            "text-color variable missing"
+        );
         assert!(css.contains("var(--bg-color"), "bg-color variable missing");
-        assert!(css.contains("var(--heading-color"), "heading-color variable missing");
+        assert!(
+            css.contains("var(--heading-color"),
+            "heading-color variable missing"
+        );
     }
 
     #[test]
@@ -832,7 +838,13 @@ mod tests {
         // (which would indicate accidental format!()-style escaping).
         let css = base_css();
         // Valid CSS has single braces; doubled braces are a format! artifact.
-        assert!(!css.contains("{{"), "base_css contains escaped braces ('{{') — remove them");
-        assert!(!css.contains("}}"), "base_css contains escaped braces ('}}') — remove them");
+        assert!(
+            !css.contains("{{"),
+            "base_css contains escaped braces ('{{') — remove them"
+        );
+        assert!(
+            !css.contains("}}"),
+            "base_css contains escaped braces ('}}') — remove them"
+        );
     }
 }

@@ -143,8 +143,7 @@ pub fn build_application_tab(
     );
     let color_mode_expression =
         PropertyExpression::new(StringObject::static_type(), None::<Expression>, "string");
-    let color_mode_combo =
-        DropDown::new(Some(color_mode_string_list), Some(color_mode_expression));
+    let color_mode_combo = DropDown::new(Some(color_mode_string_list), Some(color_mode_expression));
     color_mode_combo.add_css_class("marco-dropdown");
     color_mode_combo.set_selected(match current_mode.as_str() {
         "marco-dark" | "dark" => 1,
@@ -318,7 +317,10 @@ pub fn build_application_tab(
         match core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
             Ok(sm) => Some(sm),
             Err(e) => {
-                debug!("Failed to initialize SettingsManager in application tab: {}", e);
+                debug!(
+                    "Failed to initialize SettingsManager in application tab: {}",
+                    e
+                );
                 None
             }
         }

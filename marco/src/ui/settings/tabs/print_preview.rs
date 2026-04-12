@@ -8,8 +8,9 @@ use crate::components::language::{SettingsLayoutTranslations, Translations};
 
 pub struct PrintPreviewTabCallbacks {
     /// Called when any page view setting changes. Receives the full current state.
-    pub on_page_view_changed:
-        Option<std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>>,
+    pub on_page_view_changed: Option<
+        std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>,
+    >,
 }
 
 impl Default for PrintPreviewTabCallbacks {
@@ -34,14 +35,19 @@ pub fn build_print_preview_tab(
     let container = GtkBox::new(Orientation::Vertical, 0);
     container.add_css_class("marco-settings-tab");
 
-    let PrintPreviewTabCallbacks { on_page_view_changed } = callbacks;
+    let PrintPreviewTabCallbacks {
+        on_page_view_changed,
+    } = callbacks;
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(path) = settings_path {
         match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(path)) {
             Ok(sm) => Some(sm),
             Err(e) => {
-                debug!("Failed to initialize SettingsManager in print preview tab: {}", e);
+                debug!(
+                    "Failed to initialize SettingsManager in print preview tab: {}",
+                    e
+                );
                 None
             }
         }
@@ -57,7 +63,10 @@ pub fn build_print_preview_tab(
             .map(|sm| sm.get_settings())
             .and_then(|s| s.layout.clone());
         PageViewState {
-            enabled: layout.as_ref().and_then(|l| l.page_view_enabled).unwrap_or(false),
+            enabled: layout
+                .as_ref()
+                .and_then(|l| l.page_view_enabled)
+                .unwrap_or(false),
             paper: layout
                 .as_ref()
                 .and_then(|l| l.page_view_paper.clone())
@@ -66,7 +75,10 @@ pub fn build_print_preview_tab(
                 .as_ref()
                 .and_then(|l| l.page_view_orientation.clone())
                 .unwrap_or_else(|| "portrait".to_string()),
-            margin_mm: layout.as_ref().and_then(|l| l.page_view_margin_mm).unwrap_or(20),
+            margin_mm: layout
+                .as_ref()
+                .and_then(|l| l.page_view_margin_mm)
+                .unwrap_or(20),
             show_page_numbers: layout
                 .as_ref()
                 .and_then(|l| l.page_view_show_page_numbers)
@@ -101,8 +113,10 @@ pub fn build_print_preview_tab(
         let pv_cb_c = Rc::clone(&pv_callback);
         let sm_c = settings_manager_opt.clone();
         paper_combo.connect_selected_notify(move |combo| {
-            let paper =
-                paper_values.get(combo.selected() as usize).copied().unwrap_or("A4");
+            let paper = paper_values
+                .get(combo.selected() as usize)
+                .copied()
+                .unwrap_or("A4");
             pv_state_c.borrow_mut().paper = paper.to_string();
             if let Some(ref sm) = sm_c {
                 if let Err(e) = sm.update_settings(|s| {
@@ -195,8 +209,14 @@ pub fn build_print_preview_tab(
     container.append(&orient_row);
 
     // ── Page Margin (SpinButton, 5-100 mm) ─────────────────────────────────
-    let margin_adj =
-        Adjustment::new(pv_state.borrow().margin_mm as f64, 5.0, 100.0, 1.0, 0.0, 0.0);
+    let margin_adj = Adjustment::new(
+        pv_state.borrow().margin_mm as f64,
+        5.0,
+        100.0,
+        1.0,
+        0.0,
+        0.0,
+    );
     let margin_spin = SpinButton::new(Some(&margin_adj), 1.0, 0);
     margin_spin.add_css_class("marco-spinbutton");
 
@@ -265,17 +285,21 @@ pub fn build_print_preview_tab(
         &translations.page_view_page_numbers_label,
         &translations.page_view_page_numbers_description,
         Rc::new(|t: &Translations| t.settings.layout.page_view_page_numbers_label.clone()),
-        Rc::new(|t: &Translations| {
-            t.settings.layout.page_view_page_numbers_description.clone()
-        }),
+        Rc::new(|t: &Translations| t.settings.layout.page_view_page_numbers_description.clone()),
         &page_numbers_switch,
         false,
     );
     container.append(&page_numbers_row);
 
     // ── Pages per Row (SpinButton, 1-4) ────────────────────────────────────
-    let cols_adj =
-        Adjustment::new(pv_state.borrow().columns_per_row as f64, 1.0, 4.0, 1.0, 0.0, 0.0);
+    let cols_adj = Adjustment::new(
+        pv_state.borrow().columns_per_row as f64,
+        1.0,
+        4.0,
+        1.0,
+        0.0,
+        0.0,
+    );
     let cols_spin = SpinButton::new(Some(&cols_adj), 1.0, 0);
     cols_spin.add_css_class("marco-spinbutton");
 
@@ -306,9 +330,7 @@ pub fn build_print_preview_tab(
         "Pages per Row",
         "Number of pages to display side by side in page view (1-4).",
         Rc::new(|t: &Translations| t.settings.layout.page_view_page_numbers_label.clone()),
-        Rc::new(|t: &Translations| {
-            t.settings.layout.page_view_page_numbers_description.clone()
-        }),
+        Rc::new(|t: &Translations| t.settings.layout.page_view_page_numbers_description.clone()),
         &cols_spin,
         false,
     );

@@ -1525,9 +1525,11 @@ mod tests {
     #[test]
     fn smoke_image_as_link() {
         // `[![alt](img)](url)` must render as `<a href="url"><img .../></a>`, not broken.
-        let input = "[![Marco Logo](https://example.com/logo.png)](https://github.com/Ranrar/Marco)\n";
+        let input =
+            "[![Marco Logo](https://example.com/logo.png)](https://github.com/Ranrar/Marco)\n";
         let doc = crate::parser::parse(input).expect("parse failed");
-        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default())
+            .expect("render failed");
         assert!(
             html.contains("<a href=\"https://github.com/Ranrar/Marco\"><img"),
             "image-as-link must render as <a><img/></a>, got: {}",
@@ -1540,8 +1542,13 @@ mod tests {
         // Backslash + newline → <br />
         let input = "Hello\\\nworld\n";
         let doc = crate::parser::parse(input).expect("parse failed");
-        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
-        assert!(html.contains("<br"), "backslash hard break should render <br />, got: {}", html);
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default())
+            .expect("render failed");
+        assert!(
+            html.contains("<br"),
+            "backslash hard break should render <br />, got: {}",
+            html
+        );
     }
 
     #[test]
@@ -1549,8 +1556,13 @@ mod tests {
         // Two trailing spaces + newline → <br /> (used by Shift+Enter in editor)
         let input = "Hello  \nworld\n";
         let doc = crate::parser::parse(input).expect("parse failed");
-        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
-        assert!(html.contains("<br"), "two-space hard break should render <br />, got: {}", html);
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default())
+            .expect("render failed");
+        assert!(
+            html.contains("<br"),
+            "two-space hard break should render <br />, got: {}",
+            html
+        );
     }
 
     #[test]
@@ -1558,10 +1570,19 @@ mod tests {
         // Three trailing spaces must also produce a clean <br /> with no stray space before it.
         let input = "Hello   \nworld\n";
         let doc = crate::parser::parse(input).expect("parse failed");
-        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
-        assert!(html.contains("<br"), "three-space hard break should render <br />, got: {}", html);
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default())
+            .expect("render failed");
+        assert!(
+            html.contains("<br"),
+            "three-space hard break should render <br />, got: {}",
+            html
+        );
         // Must not produce a stray space text node before <br />
-        assert!(!html.contains("Hello <br"), "three-space hard break should not leave a stray space before <br />, got: {}", html);
+        assert!(
+            !html.contains("Hello <br"),
+            "three-space hard break should not leave a stray space before <br />, got: {}",
+            html
+        );
     }
 
     #[test]
@@ -1572,12 +1593,26 @@ mod tests {
         // The rendered <p> has CSS line-height height → visible spacer in preview.
         let input = "before\n\n\u{00A0}\n\nafter\n";
         let doc = crate::parser::parse(input).expect("parse failed");
-        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default())
+            .expect("render failed");
         // Must have a paragraph containing the nbsp character (as literal or escaped)
-        let has_nbsp_para = html.contains("\u{00A0}") || html.contains("&#xa0;") || html.contains("&#160;");
-        assert!(has_nbsp_para, "nbsp spacer paragraph must appear in HTML output, got: {}", html);
+        let has_nbsp_para =
+            html.contains("\u{00A0}") || html.contains("&#xa0;") || html.contains("&#160;");
+        assert!(
+            has_nbsp_para,
+            "nbsp spacer paragraph must appear in HTML output, got: {}",
+            html
+        );
         // Must still have both surrounding paragraphs
-        assert!(html.contains(">before<"), "before paragraph must be present, got: {}", html);
-        assert!(html.contains(">after<"), "after paragraph must be present, got: {}", html);
+        assert!(
+            html.contains(">before<"),
+            "before paragraph must be present, got: {}",
+            html
+        );
+        assert!(
+            html.contains(">after<"),
+            "after paragraph must be present, got: {}",
+            html
+        );
     }
 }

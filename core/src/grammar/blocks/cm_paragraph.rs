@@ -59,11 +59,7 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
     // First line must not be empty (blank lines don't start paragraphs).
     // CommonMark: only ASCII space (U+0020) and tab (U+0009) make a line blank.
     // U+00A0 NO-BREAK SPACE is NOT blank — it creates visible spacer paragraphs.
-    if first_line
-        .fragment()
-        .chars()
-        .all(|c| c == ' ' || c == '\t')
-    {
+    if first_line.fragment().chars().all(|c| c == ' ' || c == '\t') {
         return Err(nom::Err::Error(nom::error::Error::new(
             original_input,
             nom::error::ErrorKind::Tag,

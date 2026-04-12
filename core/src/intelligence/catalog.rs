@@ -191,7 +191,7 @@ pub fn find_markdown_feature(key: &str) -> Option<&'static MarkdownFeatureCovera
         .find(|feature| feature.key == key)
 }
 
-/// Fast lookup by diagnostic code id (e.g. `MD401`).
+/// Fast lookup by diagnostic code id (e.g. `MD203`).
 pub fn find_catalog_entry(code: &str) -> Option<&'static DiagnosticsCatalogEntry> {
     diagnostics_catalog()
         .entries
@@ -241,8 +241,8 @@ mod tests {
 
     #[test]
     fn smoke_test_catalog_has_known_code() {
-        let md401 = find_catalog_entry("MD401");
-        assert!(md401.is_some());
+        let md060 = find_catalog_entry("MD060");
+        assert!(md060.is_some());
     }
 
     #[test]

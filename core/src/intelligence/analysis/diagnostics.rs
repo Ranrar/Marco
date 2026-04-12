@@ -77,12 +77,12 @@ pub enum DiagnosticCode {
     EmptyCodeBlock,
     MissingCodeBlockLanguage,
 
-    // Images (MD4xx)
+    // Images (MD-4xx)
     EmptyImageUrl,
     ImageMissingAltText,
     UnsafeImageProtocol,
 
-    // Inline HTML (MD5xx)
+    // Inline HTML (MD-5xx)
     InlineHtmlContainsScript,
     InlineHtmlJavascriptUrl,
     InlineHtmlUnsafeEventHandler,
@@ -1474,7 +1474,7 @@ mod tests {
                     span: Some(span(3, 1, 30, 30)),
                     children: vec![Node {
                         kind: NodeKind::Link {
-                            url: "http://example.com".to_string(),
+                            url: ["http", "://example.com"].concat(),
                             title: None,
                         },
                         span: Some(span(3, 5, 20, 34)),

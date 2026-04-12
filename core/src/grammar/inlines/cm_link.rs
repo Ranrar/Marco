@@ -19,7 +19,9 @@ pub fn link(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
         let inner = &content_str[1..];
         for (i, c) in inner.char_indices() {
             match c {
-                '[' => { depth += 1; }
+                '[' => {
+                    depth += 1;
+                }
                 ']' => {
                     if depth == 0 {
                         found = Some(i);

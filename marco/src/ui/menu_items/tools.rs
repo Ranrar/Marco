@@ -102,11 +102,8 @@ pub fn setup_tools_actions(
         let settings_manager = settings_manager.clone();
         let editor_view = editor_view.clone();
         let set_view_mode = set_view_mode.clone();
-        let action = gio::SimpleAction::new_stateful(
-            action_name,
-            None,
-            &gtk4::glib::Variant::from(false),
-        );
+        let action =
+            gio::SimpleAction::new_stateful(action_name, None, &gtk4::glib::Variant::from(false));
         app.add_action(&action);
         action.connect_activate(move |_, _| {
             // Apply the view mode switch immediately.
@@ -138,9 +135,9 @@ pub fn setup_tools_actions(
         });
     };
 
-    register_view_action("tools_view_live",  "HTML Preview", false);
+    register_view_action("tools_view_live", "HTML Preview", false);
     register_view_action("tools_view_print", "HTML Preview", true);
-    register_view_action("tools_view_code",  "Source Code",  false);
+    register_view_action("tools_view_code", "Source Code", false);
 
     {
         let tools_menu = tools_menu.clone();
@@ -611,16 +608,22 @@ pub fn refresh_tools_menu(
 
 fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuState) {
     set_bool_toggle_action_state(
-        app, "tools_view_live",
-        state.current_view_mode == "live", true,
+        app,
+        "tools_view_live",
+        state.current_view_mode == "live",
+        true,
     );
     set_bool_toggle_action_state(
-        app, "tools_view_print",
-        state.current_view_mode == "print", true,
+        app,
+        "tools_view_print",
+        state.current_view_mode == "print",
+        true,
     );
     set_bool_toggle_action_state(
-        app, "tools_view_code",
-        state.current_view_mode == "code", true,
+        app,
+        "tools_view_code",
+        state.current_view_mode == "code",
+        true,
     );
     set_bool_toggle_action_state(app, "tools_toggle_text_wrap", state.wrap_enabled, true);
     set_bool_toggle_action_state(

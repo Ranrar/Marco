@@ -62,7 +62,11 @@ fn make_paper_model(include_none: bool) -> StringList {
 }
 
 fn paper_index(paper: &str, include_none: bool) -> u32 {
-    let list = if include_none { HTML_PAPERS } else { PDF_PAPERS };
+    let list = if include_none {
+        HTML_PAPERS
+    } else {
+        PDF_PAPERS
+    };
     list.iter()
         .position(|p| p.eq_ignore_ascii_case(paper))
         .unwrap_or(0) as u32
@@ -199,10 +203,7 @@ pub async fn show_export_dialog(
     // Theme row
     let theme_expr =
         PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
-    let theme_dropdown = DropDown::new(
-        Some(StringList::new(&theme_labels)),
-        Some(theme_expr),
-    );
+    let theme_dropdown = DropDown::new(Some(StringList::new(&theme_labels)), Some(theme_expr));
     theme_dropdown.add_css_class("marco-dropdown");
     theme_dropdown.add_css_class(&theme_class_state.borrow());
     theme_dropdown.set_selected(init_theme_idx);
@@ -213,10 +214,7 @@ pub async fn show_export_dialog(
     // Mode row (Light / Dark)
     let mode_expr =
         PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
-    let mode_dropdown = DropDown::new(
-        Some(StringList::new(&["Light", "Dark"])),
-        Some(mode_expr),
-    );
+    let mode_dropdown = DropDown::new(Some(StringList::new(&["Light", "Dark"])), Some(mode_expr));
     mode_dropdown.add_css_class("marco-dropdown");
     mode_dropdown.add_css_class(&theme_class_state.borrow());
     mode_dropdown.set_selected(init_mode_idx);
@@ -258,7 +256,9 @@ pub async fn show_export_dialog(
                 *state = next_theme.to_string();
             }
 
-            let Some(dlg) = dialog_weak.upgrade() else { return };
+            let Some(dlg) = dialog_weak.upgrade() else {
+                return;
+            };
             dlg.remove_css_class("marco-theme-dark");
             dlg.remove_css_class("marco-theme-light");
             dlg.add_css_class(next_theme);
@@ -274,8 +274,10 @@ pub async fn show_export_dialog(
     // Orientation row
     let orient_expr =
         PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
-    let orient_dropdown =
-        DropDown::new(Some(StringList::new(&["Portrait", "Landscape"])), Some(orient_expr));
+    let orient_dropdown = DropDown::new(
+        Some(StringList::new(&["Portrait", "Landscape"])),
+        Some(orient_expr),
+    );
     orient_dropdown.add_css_class("marco-dropdown");
     orient_dropdown.add_css_class(&theme_class_state.borrow());
     orient_dropdown.set_selected(if init_orient == "landscape" { 1 } else { 0 });
@@ -327,9 +329,7 @@ pub async fn show_export_dialog(
                 od.add_css_class("marco-control-unavailable");
                 ms.add_css_class("marco-control-unavailable");
                 pn.add_css_class("marco-control-unavailable");
-                pn.set_tooltip_text(Some(
-                    "Locked when HTML paper size is set to None",
-                ));
+                pn.set_tooltip_text(Some("Locked when HTML paper size is set to None"));
             }
         }
     };

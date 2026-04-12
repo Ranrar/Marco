@@ -6,8 +6,11 @@
 
 use super::Span;
 use nom::{
-    branch::alt, bytes::complete::{tag, take_while_m_n}, character::complete::line_ending,
-    combinator::recognize, IResult, Parser,
+    branch::alt,
+    bytes::complete::{tag, take_while_m_n},
+    character::complete::line_ending,
+    combinator::recognize,
+    IResult, Parser,
 };
 
 /// Parse a soft line break.

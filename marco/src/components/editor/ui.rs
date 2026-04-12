@@ -1186,7 +1186,12 @@ paned > separator {{
             let page_view_changed = *last_page_view_enabled_clone.borrow() != page_view_active;
             *last_page_view_enabled_clone.borrow_mut() = page_view_active;
 
-            if is_first_load || css_changed || doc_path_changed || page_view_active || page_view_changed {
+            if is_first_load
+                || css_changed
+                || doc_path_changed
+                || page_view_active
+                || page_view_changed
+            {
                 // Use traditional load_html for initial load, when CSS/theme changes, or when document changes
                 // Generate base URI directly from DocumentBuffer for WebKit6
                 let base_uri = document_buffer_capture

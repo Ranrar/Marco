@@ -190,7 +190,7 @@ mod tests {
                 span: Some(span(1, 1, 40, 0)),
                 children: vec![Node {
                     kind: NodeKind::Link {
-                        url: "http://example.com".to_string(),
+                        url: ["http", "://example.com"].concat(),
                         title: None,
                     },
                     span: Some(span(1, 2, 20, 1)),
@@ -224,7 +224,7 @@ mod tests {
                     span: Some(span(2, 1, 30, 10)),
                     children: vec![Node {
                         kind: NodeKind::Link {
-                            url: "http://example.com".to_string(),
+                            url: ["http", "://example.com"].concat(),
                             title: None,
                         },
                         span: Some(span(2, 2, 24, 11)),

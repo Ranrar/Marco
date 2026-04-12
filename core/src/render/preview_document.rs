@@ -27,7 +27,11 @@ pub fn wrap_preview_html_document(
     };
 
     // Combine: base structural CSS first, then the theme token overrides.
-    let css = format!("{}\n\n/* ── Theme tokens ── */\n{}", base_css::base_css(), css);
+    let css = format!(
+        "{}\n\n/* ── Theme tokens ── */\n{}",
+        base_css::base_css(),
+        css
+    );
 
     // Table resize affordances (JS drives cursor; CSS disables selection during drag).
     // Keep this lightweight and self-contained to avoid fighting user themes.
@@ -1321,7 +1325,11 @@ pub fn wrap_preview_html_document_paged(
     };
 
     // Combine: base structural CSS first, then the theme token overrides.
-    let css = format!("{}\n\n/* ── Theme tokens ── */\n{}", base_css::base_css(), css);
+    let css = format!(
+        "{}\n\n/* ── Theme tokens ── */\n{}",
+        base_css::base_css(),
+        css
+    );
 
     // Build @page CSS rule
     let page_size_rule = format!(
@@ -1384,7 +1392,8 @@ pub fn wrap_preview_html_document_paged(
     //     CSS custom properties set by .theme-light / .theme-dark on <html>.
     //   • The "desk" (the area visible around pages) is a distinct neutral colour so
     //     the paper stands out visually.  Desk colour is NOT part of the theme.
-    let paged_body_css = format!(r#"
+    let paged_body_css = format!(
+        r#"
 /* paged.js: reset every theme layout constraint on html/body */
 html, body {{
     margin: 0 !important;
@@ -1445,7 +1454,9 @@ html.theme-dark .pagedjs_page {{
     box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55) !important;
 }}
 {multi_col}
-"#, multi_col = multi_col_css);
+"#,
+        multi_col = multi_col_css
+    );
 
     // Optional @media print overrides for PDF/print export.
     // Removes paged.js visual decorations so pages print without gaps or shadows.
@@ -1523,7 +1534,7 @@ window.PagedConfig = {
 
     // Safety-net block is only needed for the live WebKit preview.
     let safety_net_js = if page_opts.standalone_export {
-        ""  // already inlined in integration_js above
+        "" // already inlined in integration_js above
     } else {
         r#"
         <script>
@@ -1645,16 +1656,16 @@ mod tests {
             title: "",
             standalone_export: false,
         };
-        let doc = wrap_preview_html_document_paged(
-            "<p>Test</p>",
-            "",
-            "light",
-            None,
-            &opts,
-        );
+        let doc = wrap_preview_html_document_paged("<p>Test</p>", "", "light", None, &opts);
         // Multi-column layout CSS must be injected when columns_per_row > 1
-        assert!(doc.contains("flex-direction: row"), "expected flex-direction: row for multi-column");
-        assert!(doc.contains("flex-wrap: wrap"), "expected flex-wrap: wrap for multi-column");
+        assert!(
+            doc.contains("flex-direction: row"),
+            "expected flex-direction: row for multi-column"
+        );
+        assert!(
+            doc.contains("flex-wrap: wrap"),
+            "expected flex-wrap: wrap for multi-column"
+        );
     }
 
     #[test]
@@ -1671,14 +1682,11 @@ mod tests {
             title: "",
             standalone_export: false,
         };
-        let doc = wrap_preview_html_document_paged(
-            "<p>Test</p>",
-            "",
-            "light",
-            None,
-            &opts,
-        );
+        let doc = wrap_preview_html_document_paged("<p>Test</p>", "", "light", None, &opts);
         // Single-column: the multi-column layout comment must NOT be present
-        assert!(!doc.contains("pages per row"), "single-column should not have multi-column override");
+        assert!(
+            !doc.contains("pages per row"),
+            "single-column should not have multi-column override"
+        );
     }
 }

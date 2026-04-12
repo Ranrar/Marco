@@ -168,9 +168,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             .layout
             .get_or_insert_with(core::logic::swanson::LayoutSettings::default);
         layout.page_view_columns.get_or_insert(1);
-        layout.preview_zoom.get_or_insert(
-            crate::components::editor::editor_manager::ZOOM_DEFAULT,
-        );
+        layout
+            .preview_zoom
+            .get_or_insert(crate::components::editor::editor_manager::ZOOM_DEFAULT);
     });
 
     let localization_manager =
