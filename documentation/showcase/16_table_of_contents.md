@@ -56,7 +56,7 @@ Marco derives anchor IDs from heading text using the GitHub slug algorithm:
 
 Rules:
 - Text is lowercased.
-- Alphanumeric characters are kept as-is.
+- Letters and digits are kept as-is.
 - Spaces, hyphens, and underscores become `-`.
 - All other characters are dropped.
 - Consecutive hyphens are collapsed to one; leading and trailing hyphens are removed.
@@ -160,4 +160,4 @@ H5 is rarely needed but available for deeply nested reference material.
 ###### H6 — Fine print
 
 H6 is the deepest heading level. The TOC panel respects the configurable **depth** setting
-(1–6) in *Settings → Layout*, so you can hide H5/H6 entries when they clutter the panel.
+(1-6) in *Settings → Layout*, so you can hide H5/H6 entries when they clutter the panel.

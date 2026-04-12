@@ -82,19 +82,19 @@ func main() {
 
 :::tab
 @tab Linux (Debian/Ubuntu)
-Download the latest `.deb` from the [Alpha release](https://github.com/Ranrar/Marco/releases/tag/alpha):
+Download the latest `.deb` from the [latest release](https://github.com/Ranrar/Marco/releases/latest):
 
 ```bash
 # Download and install
-wget https://github.com/Ranrar/Marco/releases/download/alpha/marco-suite_alpha_amd64.deb
-sudo dpkg -i marco-suite_alpha_amd64.deb
+wget https://github.com/Ranrar/Marco/releases/latest/download/marco-suite_<version>_linux_amd64.deb
+sudo dpkg -i marco-suite_<version>_linux_amd64.deb
 sudo apt-get install -f   # fix any dependency gaps
 ```
 
 @tab Windows
-Download the portable `.zip` from the [Alpha release](https://github.com/Ranrar/Marco/releases/tag/alpha):
+Download the portable `.zip` from the [latest release](https://github.com/Ranrar/Marco/releases/latest):
 
-1. Download `marco-suite_alpha_windows_amd64.zip`
+1. Download `marco-suite_<version>_windows_amd64.zip`
 2. Extract to any folder, e.g. `C:\Tools\Marco`
 3. Run `marco.exe` or `polo.exe`
 4. Settings are stored next to the executable (portable mode)

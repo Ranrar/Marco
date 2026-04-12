@@ -5,7 +5,12 @@ use std::rc::Rc;
 /// Create a basic split view structure
 pub fn create_split_view() -> Paned {
     let paned = Paned::new(Orientation::Horizontal);
-    paned.set_position(400); // Initial position
+    // Do NOT call set_position() here before the paned is mapped/allocated.
+    // Setting a non-zero position on an unallocated Paned places its separator
+    // GtkGizmo at that offset before any layout pass, which triggers the
+    // "Trying to snapshot GtkGizmo without a current allocation" GTK warning.
+    // apply_saved_split_ratio() sets the correct position once the paned is
+    // allocated (or falls back to the 60 % default on first run).
     paned.set_resize_start_child(true);
     paned.set_resize_end_child(true);
     paned.set_shrink_start_child(false);

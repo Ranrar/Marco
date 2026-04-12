@@ -1,5 +1,3 @@
-#[cfg(target_os = "linux")]
-use crate::components::viewer::renderer::refresh_preview_into_webview;
 // Main editor construction with integrated preview
 //
 // This module builds the complete editor interface including:
@@ -359,9 +357,17 @@ pub fn create_editor_with_preview_and_buffer(
         if keyval == Key::Return {
             let buffer = source_view_clone.buffer();
             if state.contains(ModifierType::SHIFT_MASK) {
-                // Shift+Enter: Insert hard line break (backslash + newline)
-                buffer.insert_at_cursor("\\");
-                buffer.insert_at_cursor("\n");
+                // Shift+Enter: Insert a visible blank line (spacer paragraph).
+                //
+                // CommonMark ignores consecutive blank lines between blocks, so
+                // inserting "\n\n" produces no rendered output between elements.
+                //
+                // Inserting a non-breaking space (\u{00A0}) on its own line creates
+                // a real paragraph node because trim() does NOT strip \u{00A0}.
+                // The renderer emits <p>&#xa0;</p>, which has full line-height height
+                // in the preview — visually pushing content down. The character is
+                // invisible in the editor and doesn't interfere with the document.
+                buffer.insert_at_cursor("\u{00A0}\n\n");
             } else {
                 // Enter: Insert soft line break (just newline)
                 buffer.insert_at_cursor("\n");
@@ -1076,12 +1082,52 @@ paned > separator {{
     // refresh_preview closure
     let wheel_js_for_refresh = wheel_js_rc.clone();
 
+    // Read page view settings from SettingsManager and create a shared state handle.
+    // The handle is captured in refresh_preview_impl and updated live when the settings dialog changes.
+    #[cfg(target_os = "linux")]
+    let page_view_rc: std::rc::Rc<RefCell<crate::components::viewer::renderer::PageViewState>> = {
+        use crate::components::viewer::renderer::PageViewState;
+        let state = if let Some(ref sm) = intelligence_settings_manager {
+            let settings = sm.get_settings();
+            let layout = settings.layout.as_ref();
+            PageViewState {
+                enabled: layout.and_then(|l| l.page_view_enabled).unwrap_or(false),
+                paper: layout
+                    .and_then(|l| l.page_view_paper.clone())
+                    .unwrap_or_else(|| "A4".to_string()),
+                orientation: layout
+                    .and_then(|l| l.page_view_orientation.clone())
+                    .unwrap_or_else(|| "portrait".to_string()),
+                margin_mm: layout.and_then(|l| l.page_view_margin_mm).unwrap_or(20),
+                show_page_numbers: layout
+                    .and_then(|l| l.page_view_show_page_numbers)
+                    .unwrap_or(true),
+                columns_per_row: layout
+                    .and_then(|l| l.page_view_columns)
+                    .unwrap_or(1)
+                    .clamp(1, 4),
+            }
+        } else {
+            PageViewState {
+                enabled: false,
+                paper: "A4".to_string(),
+                orientation: "portrait".to_string(),
+                margin_mm: 20,
+                show_page_numbers: true,
+                columns_per_row: 1,
+            }
+        };
+        std::rc::Rc::new(RefCell::new(state))
+    };
+
     #[cfg(target_os = "linux")]
     let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
     #[cfg(target_os = "linux")]
     let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
     #[cfg(target_os = "linux")]
     let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
+    #[cfg(target_os = "linux")]
+    let last_page_view_enabled = Rc::new(RefCell::new(false)); // Track page-view transitions (enable→disable needs full reload)
 
     // Clone document_buffer for use in refresh closure (Linux only)
     #[cfg(target_os = "linux")]
@@ -1100,7 +1146,9 @@ paned > separator {{
         let is_initial_load_clone = Rc::clone(&is_initial_load);
         let last_css_hash_clone = Rc::clone(&last_css_hash);
         let last_document_path_clone = Rc::clone(&last_document_path);
+        let last_page_view_enabled_clone = Rc::clone(&last_page_view_enabled);
         let document_buffer_capture = document_buffer_for_refresh.clone();
+        let page_view_capture = std::rc::Rc::clone(&page_view_rc);
         std::rc::Rc::new(move || {
             let is_first_load = *is_initial_load_clone.borrow();
 
@@ -1132,7 +1180,13 @@ paned > separator {{
             let css_changed = *last_css_hash_clone.borrow() != current_css_hash;
             *last_css_hash_clone.borrow_mut() = current_css_hash;
 
-            if is_first_load || css_changed || doc_path_changed {
+            // Page view mode always requires a full reload (paged.js restructures DOM).
+            // Also force a full reload on any transition so disabling clears the paged DOM.
+            let page_view_active = page_view_capture.borrow().enabled;
+            let page_view_changed = *last_page_view_enabled_clone.borrow() != page_view_active;
+            *last_page_view_enabled_clone.borrow_mut() = page_view_active;
+
+            if is_first_load || css_changed || doc_path_changed || page_view_active || page_view_changed {
                 // Use traditional load_html for initial load, when CSS/theme changes, or when document changes
                 // Generate base URI directly from DocumentBuffer for WebKit6
                 let base_uri = document_buffer_capture
@@ -1147,6 +1201,7 @@ paned > separator {{
                     wheel_js: &wheel_js_local,
                     theme_mode: &theme_mode,
                     base_uri: base_uri.as_deref(),
+                    page_view: Some(std::rc::Rc::clone(&page_view_capture)),
                 };
                 crate::components::viewer::renderer::refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
 
@@ -1664,6 +1719,19 @@ paned > separator {{
         });
     }
 
+    // Register the page-view state handle so the settings dialog can update it live.
+    #[cfg(target_os = "linux")]
+    {
+        let page_view_for_reg = std::rc::Rc::clone(&page_view_rc);
+        let refresh_for_page_view = std::rc::Rc::clone(&refresh_preview_impl);
+        crate::components::editor::editor_manager::register_page_view_state(
+            page_view_for_reg,
+            move || {
+                refresh_for_page_view();
+            },
+        );
+    }
+
     buffer_rc_clone.connect_changed(move |buffer| {
         // SourceView5's native hover handles dismissal on buffer changes.
 
@@ -1780,12 +1848,9 @@ paned > separator {{
     {
         let theme_manager_for_preview = Rc::clone(&theme_manager);
         let css_rc_for_preview = Rc::clone(&css_rc);
-        let html_opts_for_preview = std::rc::Rc::clone(&html_opts_rc);
-        let buffer_rc_for_preview = Rc::clone(&buffer_rc);
-        let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> =
-            webview_rc_opt.as_ref().expect("webview_rc not set").clone();
-        let webview_rc_for_preview = Rc::clone(&webview_rc);
-        let wheel_js_for_preview = wheel_js_for_refresh.clone();
+        // Capture the main refresh closure so that a theme change re-renders via
+        // the correct code path (including paged.js when page view is active).
+        let refresh_impl_for_theme = std::rc::Rc::clone(&refresh_preview_impl);
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
         let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
         let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
@@ -1793,7 +1858,6 @@ paned > separator {{
         let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
         let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
         let editor_sw_for_preview = editor_scrolled_window.clone(); // For checking scrollbar state
-        let document_buffer_for_preview = _document_buffer.as_ref().map(Rc::clone);
         let preview_theme_timeout: Rc<Cell<Option<glib::SourceId>>> = Rc::new(Cell::new(None));
         let preview_theme_timeout_clone = Rc::clone(&preview_theme_timeout);
         let update_html_code_view_for_preview = Rc::clone(&update_html_code_view_rc);
@@ -1984,39 +2048,13 @@ paned > separator {{
                 safe_source_remove(id);
             }
             let preview_theme_timeout_clone2 = Rc::clone(&preview_theme_timeout_clone);
-            let webview_clone = webview_rc_for_preview.clone();
-            let css_clone = Rc::clone(&css_rc_for_preview);
-            let html_opts_clone = std::rc::Rc::clone(&html_opts_for_preview);
-            let buffer_clone = Rc::clone(&buffer_rc_for_preview);
-            let wheel_clone = wheel_js_for_preview.clone();
-            let theme_mode_clone = Rc::clone(&theme_mode_for_preview);
-            let document_buffer_clone = document_buffer_for_preview.as_ref().map(Rc::clone);
             let update_code_clone = Rc::clone(&update_html_code_view_for_preview);
+            let refresh_impl_clone = std::rc::Rc::clone(&refresh_impl_for_theme);
             let id = glib::timeout_add_local(std::time::Duration::from_millis(150), move || {
-                // Extract document path from DocumentBuffer for base URI generation
-                let doc_path = document_buffer_clone
-                    .as_ref()
-                    .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
-
-                // Debug: log the document path being passed
-                if let Some(ref path) = doc_path {
-                    log::debug!(
-                        "[theme] refresh: passing document path to preview: {}",
-                        path.display()
-                    );
-                } else {
-                    log::debug!("[theme] refresh: no document path available (untitled document)");
-                }
-
-                refresh_preview_into_webview(
-                    &webview_clone.borrow(),
-                    &css_clone,
-                    &html_opts_clone,
-                    &buffer_clone,
-                    &wheel_clone,
-                    &theme_mode_clone,
-                    doc_path.as_deref(),
-                );
+                // Use the main refresh closure.  It already handles page-view mode
+                // (forces a full paged.js reload when enabled) as well as normal mode.
+                // This ensures a theme switch never silently downgraded to non-paged rendering.
+                refresh_impl_clone();
 
                 // Also update code view if it exists (for theme changes)
                 (update_code_clone)();
@@ -2074,6 +2112,16 @@ paned > separator {{
         Some(split_controller.position_being_set()),
     );
     let overlay = split_indicator.widget().clone();
+
+    // ── Zoom overlay bar (bottom-right of the preview split) ───────────────
+    // Create the floating zoom control bar and add it to the same gtk4::Overlay
+    // that wraps the paned.  The zoom-changed callback in editor_manager keeps
+    // the label in sync with keyboard shortcuts as well.
+    let _zoom_bar = crate::ui::zoom_overlay::create_zoom_bar(
+        &overlay,
+        &paned,
+        intelligence_settings_manager.clone(),
+    );
 
     // Wrap the entire editor+preview paned in the TOC sidebar paned.
     // Placing it here (outside the inner split) means the TOC panel is visible

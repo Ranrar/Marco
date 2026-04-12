@@ -109,7 +109,7 @@ sudo dpkg -r marco-suite
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/alpha-release.yml`):
+GitHub Actions workflow (`.github/workflows/release.yml`):
 
 ```yaml
 - name: Build Debian package
@@ -124,7 +124,7 @@ Workflow:
 4. Caches cargo dependencies
 5. Installs system dependencies
 6. Builds package (no version bump)
-7. Updates the GitHub Release (beta channel) with new .deb
+7. Updates the GitHub Release with new .deb
 
 ## Version Tracking
 
@@ -196,11 +196,6 @@ Launch from:
 - **Maintainer**: Kim Skov Rasmussen <kim@skovrasmussen.com>
 - **Homepage**: https://github.com/Ranrar/marco
 - **License**: MIT
-
-## Release Channel
-
-- Artifact names use standard release format (`marco-suite_<version>_...`) instead of alpha-tagged filenames.
-- Current channel status: **Beta**.
 
 ## Advanced Options
 

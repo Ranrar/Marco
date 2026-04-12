@@ -37,10 +37,9 @@ bash build/linux/build_deb.sh --no-bump
 # Output: build/installer/marco-suite_VERSION_windows_amd64.zip
 ```
 
-## Release Channel
+## Release Artifacts
 
-- Artifacts now follow normal release naming (no `alpha` suffix in filenames).
-- The current release line is marked as **Beta**.
+- Artifacts follow versioned release naming.
 
 ## Build Targets
 

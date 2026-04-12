@@ -28,6 +28,21 @@ pub struct PreviewRefreshParams<'a> {
     pub wheel_js: &'a str,
     pub theme_mode: &'a RefCell<String>,
     pub base_uri: Option<&'a str>,
+    /// When `Some`, paged.js page view is active with these settings.
+    /// A full HTML reload is used; the smooth update path is bypassed.
+    pub page_view: Option<std::rc::Rc<RefCell<PageViewState>>>,
+}
+
+/// Runtime state for paged.js page view rendering, captured from `LayoutSettings`.
+#[derive(Clone, Debug)]
+pub struct PageViewState {
+    pub enabled: bool,
+    pub paper: String,
+    pub orientation: String,
+    pub margin_mm: u8,
+    pub show_page_numbers: bool,
+    /// Number of page columns to display side-by-side (1–4, default 1).
+    pub columns_per_row: u8,
 }
 
 /// Simplified parameters for smooth content updates
@@ -111,53 +126,7 @@ fn parse_markdown_to_html(text: &str, html_options: &RenderOptions, theme_mode: 
     parse_markdown_to_html_with_theme(text, html_options, theme_mode)
 }
 
-/// Small helper to wrap markdown -> html and load into webview using the new rendering system.
-/// If document_path is provided, it will be used to generate a base URI for resolving relative paths.
-pub fn refresh_preview_into_webview(
-    webview: &backend::PreviewWebView,
-    css: &RefCell<String>,
-    html_options: &RenderOptions,
-    buffer: &sourceview5::Buffer,
-    wheel_js: &str,
-    theme_mode: &RefCell<String>,
-    document_path: Option<&std::path::Path>,
-) {
-    let base_uri = document_path.and_then(backend::generate_base_uri_from_path);
-    refresh_preview_into_webview_with_base_uri(
-        webview,
-        css,
-        html_options,
-        buffer,
-        wheel_js,
-        theme_mode,
-        base_uri.as_deref(),
-    );
-}
-
-/// Small helper to wrap markdown -> html and load into webview using the new rendering system.
-/// If base_uri is provided, it will be used directly as the base URI for resolving relative paths.
-pub fn refresh_preview_into_webview_with_base_uri(
-    webview: &backend::PreviewWebView,
-    css: &RefCell<String>,
-    html_options: &RenderOptions,
-    buffer: &sourceview5::Buffer,
-    wheel_js: &str,
-    theme_mode: &RefCell<String>,
-    base_uri: Option<&str>,
-) {
-    let params = PreviewRefreshParams {
-        webview,
-        css,
-        html_options,
-        buffer,
-        wheel_js,
-        theme_mode,
-        base_uri,
-    };
-    refresh_preview_into_webview_with_base_uri_and_doc_buffer(params);
-}
-
-/// Enhanced version that checks both GTK TextBuffer and DocumentBuffer to determine if welcome message should show
+/// Renders markdown to HTML and loads it into the webview, checking both GTK TextBuffer and DocumentBuffer to determine if welcome message should show
 pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: PreviewRefreshParams<'_>) {
     let text = params
         .buffer
@@ -170,10 +139,15 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
 
     // Keep the main thread responsive: do not render Markdown to HTML synchronously here.
 
+    // Capture page view state before entering async context
+    let page_view_snapshot = params
+        .page_view
+        .as_ref()
+        .map(|pv| pv.borrow().clone())
+        .filter(|pv| pv.enabled);
+
     // If empty, show the welcome message immediately.
     if text.trim().is_empty() {
-        let html_body_with_js = generate_test_html(params.wheel_js);
-
         // Generate syntax highlighting CSS and combine with theme CSS
         let theme_css = params.css.borrow().clone();
         let theme_mode = params.theme_mode.borrow().clone();
@@ -183,13 +157,40 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
             theme_css, syntax_css
         );
 
-        let html =
-            backend::wrap_html_document(&html_body_with_js, &combined_css, &theme_mode, None);
-
         let base_uri = params.base_uri.map(|s| s.to_string());
         let webview = params.webview.clone();
+        let wheel_js_str = params.wheel_js;
 
-        backend::load_html_when_ready(&webview, html, base_uri);
+        if let Some(pv) = &page_view_snapshot {
+            // Page view enabled — wrap welcome through paged.js so it renders
+            // as a proper page instead of raw unstyled content.
+            let welcome_body = generate_test_html("");
+            let page_opts = core::render::PageViewOptions {
+                paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                paper: &pv.paper,
+                orientation: &pv.orientation,
+                margin_mm: pv.margin_mm,
+                show_page_numbers: pv.show_page_numbers,
+                wheel_js: wheel_js_str,
+                columns_per_row: pv.columns_per_row,
+                for_export: false,
+                title: "",
+                standalone_export: false,
+            };
+            let html = backend::wrap_html_document_paged(
+                &welcome_body,
+                &combined_css,
+                &theme_mode,
+                None,
+                &page_opts,
+            );
+            backend::load_html_when_ready(&webview, html, base_uri);
+        } else {
+            let html_body_with_js = generate_test_html(wheel_js_str);
+            let html =
+                backend::wrap_html_document(&html_body_with_js, &combined_css, &theme_mode, None);
+            backend::load_html_when_ready(&webview, html, base_uri);
+        }
 
         return;
     }
@@ -212,22 +213,46 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
 
         glib::idle_add_local_once(move || match rendered {
             Ok(html_body) => {
-                let mut html_body_with_js = html_body;
-                html_body_with_js.push_str(&wheel_js);
-
                 let combined_css = format!(
                     "{}\n\n/* Syntax Highlighting CSS */\n{}",
                     theme_css, syntax_css
                 );
 
-                let html = backend::wrap_html_document(
-                    &html_body_with_js,
-                    &combined_css,
-                    &theme_mode,
-                    None,
-                );
-
-                backend::load_html_when_ready(&webview, html, base_uri);
+                if let Some(pv) = page_view_snapshot {
+                    // Page view mode: inject paged.js for true CSS Paged Media simulation.
+                    // Full HTML reload required — smooth updates are incompatible with paged.js.
+                    let page_opts = core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &pv.paper,
+                        orientation: &pv.orientation,
+                        margin_mm: pv.margin_mm,
+                        show_page_numbers: pv.show_page_numbers,
+                        wheel_js: &wheel_js,
+                        columns_per_row: pv.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    let html = backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    );
+                    backend::load_html_when_ready(&webview, html, base_uri);
+                } else {
+                    // Normal mode: wrap with wheel JS for scroll sync, then load.
+                    let mut html_body_with_js = html_body;
+                    html_body_with_js.push_str(&wheel_js);
+                    let html = backend::wrap_html_document(
+                        &html_body_with_js,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    );
+                    backend::load_html_when_ready(&webview, html, base_uri);
+                }
             }
             Err(e) => {
                 log::error!("[viewer] Background render task panicked: {:?}", e);

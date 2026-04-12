@@ -220,18 +220,18 @@ For a real release commit:
 
 * **No leading zeros** in major, minor, or patch numbers.
 
-    * ✅ Correct: `1.2.3`, `0.1.0`, `1.0.0-alpha.1`
+    * ✅ Correct: `1.2.3`, `0.1.0`, `1.0.0-rc.1`
     * ❌ Incorrect: `01.2.3`, `1.02.3`, `1.2.03`
 
 * **Zero is allowed** if it's the only digit (`0`) in major, minor, or patch.
 
-* **Pre-release tags** (like `-alpha.1`) and **build metadata** (like `+build.123`) are allowed, but numeric parts must still have no leading zeros.
+* **Pre-release tags** (like `-rc.1`) and **build metadata** (like `+build.123`) are allowed, but numeric parts must still have no leading zeros.
 
 **Example valid versions:**
 
 ```toml
 version = "1.2.3"
-version = "0.9.1-alpha.2"
+version = "0.9.1-rc.2"
 version = "2.0.0+build.123"
 ```
 
@@ -252,9 +252,6 @@ Primary entry point: `build/linux/build_deb.sh`
 
 **Package naming policy:** the repo uses a fixed `amd64` suffix for produced package filenames.
 
-**Alpha artifact naming:** use `--alpha-artifact` to create an additional copy named:
-- `marco-suite_alpha_<version>_amd64.deb`
-
 #### Windows portable packaging
 Windows packaging assets and scripts live in `build/windows/`.
 Primary entry point: `build/windows/build_portable.ps1`
@@ -263,7 +260,7 @@ Primary entry point: `build/windows/build_portable.ps1`
     - Creates a self-contained directory structure with `marco.exe`, `polo.exe`, `assets/`, and empty `config/` + `data/` folders for portable mode.
 
 **Package naming:** 
-- `marco-suite_alpha_<version>_windows_amd64.zip`
+- `marco-suite_<version>_windows_amd64.zip`
 
 **Portable mode detection:** The Windows build automatically detects it's running in portable mode (writable directory next to the executable) and stores config/data locally instead of `%LOCALAPPDATA%`.
 
@@ -274,7 +271,7 @@ Primary entry point: `build/windows/build_portable.ps1`
     - Avoid changing `build/version.json` or `Cargo.toml` during CI runs.
     - Ensure required build tools are installed (notably `python3` is used by the packaging/version script).
 
-**Alpha release behavior:** the `alpha` GitHub Release is a moving target; CI overwrites the existing alpha asset on each run.
+Release assets are published per version tag in CI.
 
 ### Error Handling & Logging
 - Panic hook installed early in `marco/src/main.rs` with logger flush on crash

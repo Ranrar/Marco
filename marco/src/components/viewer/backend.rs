@@ -4,8 +4,6 @@
 //! implementations so higher-level code can avoid calling `webkit6`/`wry`
 //! modules directly.
 
-use std::path::Path;
-
 /// Platform preview webview type.
 ///
 /// - Linux: `webkit6::WebView`
@@ -34,9 +32,33 @@ pub fn wrap_html_document(
     }
 }
 
-#[cfg(target_os = "linux")]
-pub fn generate_base_uri_from_path<P: AsRef<Path>>(document_path: P) -> Option<String> {
-    crate::components::viewer::webkit6::generate_base_uri_from_path(document_path)
+/// Variant of [`wrap_html_document`] that injects paged.js for true CSS Paged Media simulation.
+///
+/// Uses [`core::render::wrap_preview_html_document_paged`] under the hood, then applies the
+/// same `dir="ltr"` fixup so the WebKit viewport scrollbar stays consistent.
+///
+/// **Important**: Content updates in page view mode require a full HTML reload — do **not**
+/// use `update_html_content_smooth` after this.
+pub fn wrap_html_document_paged(
+    body: &str,
+    css: &str,
+    theme_mode: &str,
+    background_color: Option<&str>,
+    page_opts: &core::render::PageViewOptions<'_>,
+) -> String {
+    let html = core::render::wrap_preview_html_document_paged(
+        body,
+        css,
+        theme_mode,
+        background_color,
+        page_opts,
+    );
+    let html = html.replacen("<html ", "<html dir=\"ltr\" ", 1);
+    if crate::logic::rtl::is_rtl_global() {
+        html.replacen("<body>", "<body dir=\"rtl\">", 1)
+    } else {
+        html
+    }
 }
 
 #[cfg(target_os = "windows")]

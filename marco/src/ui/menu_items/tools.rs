@@ -14,14 +14,12 @@ pub fn populate_tools_menu(
 ) {
     tools_menu.remove_all();
 
-    let preview = gio::Menu::new();
-    let preview_label = if state.show_raw_html {
-        &translations.menu.show_raw_html
-    } else {
-        &translations.menu.show_rendered_markdown
-    };
-    preview.append(Some(preview_label), Some("app.tools_toggle_render_mode"));
-    tools_menu.append_section(None, &preview);
+    // ── View-mode section (radio-style, three explicit items) ──────────────
+    let view_section = gio::Menu::new();
+    view_section.append(Some("Live preview"), Some("app.tools_view_live"));
+    view_section.append(Some("Print preview"), Some("app.tools_view_print"));
+    view_section.append(Some("Code"), Some("app.tools_view_code"));
+    tools_menu.append_section(None, &view_section);
 
     let editor_toggles = gio::Menu::new();
     let _ = state;
@@ -92,48 +90,57 @@ pub fn setup_tools_actions(
     sync_tools_toggle_action_states(app, &initial);
     populate_tools_menu(tools_menu, &translations_rc.borrow(), &initial);
 
-    {
+    // ── View-mode actions (radio group: live, print, code) ─────────────────
+    // Helper macro to reduce repetition for the three actions.
+    // Each action: (a) switches ViewMode / page_view state, (b) persists, (c) refreshes menu.
+    let register_view_action = |action_name: &'static str,
+                                html_view_mode: &'static str,
+                                page_view: bool| {
         let tools_menu = tools_menu.clone();
-        let app = app.clone();
-        let app_for_closure = app.clone();
+        let app_inner = app.clone();
         let translations_rc = translations_rc.clone();
         let settings_manager = settings_manager.clone();
         let editor_view = editor_view.clone();
         let set_view_mode = set_view_mode.clone();
-        super::add_format_action(&app, "tools_toggle_render_mode", move || {
-            let currently_raw = is_currently_raw_mode(&settings_manager);
-            if currently_raw {
-                (set_view_mode)(ViewMode::HtmlPreview);
-            } else {
+        let action = gio::SimpleAction::new_stateful(
+            action_name,
+            None,
+            &gtk4::glib::Variant::from(false),
+        );
+        app.add_action(&action);
+        action.connect_activate(move |_, _| {
+            // Apply the view mode switch immediately.
+            if html_view_mode == "Source Code" {
                 (set_view_mode)(ViewMode::CodePreview);
+            } else {
+                (set_view_mode)(ViewMode::HtmlPreview);
             }
 
-            let next_mode = if currently_raw {
-                "HTML Preview"
-            } else {
-                "Source Code"
-            };
+            // Toggle page-view on/off via the global helper (triggers re-render).
+            crate::components::editor::editor_manager::set_page_view_enabled(page_view);
 
+            // Persist.
             if let Err(e) = settings_manager.update_settings(|s| {
-                if s.layout.is_none() {
-                    s.layout = Some(LayoutSettings::default());
-                }
-                if let Some(ref mut l) = s.layout {
-                    l.view_mode = Some(next_mode.to_string());
-                }
+                let layout = s.layout.get_or_insert_with(LayoutSettings::default);
+                layout.view_mode = Some(html_view_mode.to_string());
+                layout.page_view_enabled = Some(page_view);
             }) {
-                log::warn!("Failed to persist tools render/raw mode: {}", e);
+                log::warn!("Failed to persist view mode '{}': {}", action_name, e);
             }
 
             refresh_tools_menu(
-                &app_for_closure,
+                &app_inner,
                 &tools_menu,
                 &translations_rc,
                 &settings_manager,
                 &editor_view,
             );
         });
-    }
+    };
+
+    register_view_action("tools_view_live",  "HTML Preview", false);
+    register_view_action("tools_view_print", "HTML Preview", true);
+    register_view_action("tools_view_code",  "Source Code",  false);
 
     {
         let tools_menu = tools_menu.clone();
@@ -517,7 +524,8 @@ pub fn setup_tools_actions(
 
 #[derive(Clone, Copy)]
 pub struct ToolsMenuState {
-    pub show_raw_html: bool,
+    /// Which view mode is currently active: "live", "print", or "code".
+    pub current_view_mode: &'static str,
     pub wrap_enabled: bool,
     pub line_numbers_enabled: bool,
     pub sync_scrolling_enabled: bool,
@@ -559,7 +567,7 @@ fn current_tools_state(
         .and_then(|l| l.text_direction.as_deref())
         .map(|dir| dir.eq_ignore_ascii_case("rtl"))
         .unwrap_or(false);
-    let show_raw_html = !is_currently_raw_mode(settings_manager);
+    let current_view_mode = current_view_mode_key(settings_manager);
     let wrap_enabled = settings
         .editor
         .as_ref()
@@ -577,7 +585,7 @@ fn current_tools_state(
         .unwrap_or(true);
 
     ToolsMenuState {
-        show_raw_html,
+        current_view_mode,
         wrap_enabled,
         line_numbers_enabled,
         sync_scrolling_enabled,
@@ -602,6 +610,18 @@ pub fn refresh_tools_menu(
 }
 
 fn sync_tools_toggle_action_states(app: &gtk4::Application, state: &ToolsMenuState) {
+    set_bool_toggle_action_state(
+        app, "tools_view_live",
+        state.current_view_mode == "live", true,
+    );
+    set_bool_toggle_action_state(
+        app, "tools_view_print",
+        state.current_view_mode == "print", true,
+    );
+    set_bool_toggle_action_state(
+        app, "tools_view_code",
+        state.current_view_mode == "code", true,
+    );
     set_bool_toggle_action_state(app, "tools_toggle_text_wrap", state.wrap_enabled, true);
     set_bool_toggle_action_state(
         app,
@@ -683,12 +703,25 @@ fn apply_editor_display_settings_from_settings(
     )
 }
 
-fn is_currently_raw_mode(settings_manager: &Arc<SettingsManager>) -> bool {
-    settings_manager
-        .get_settings()
+/// Return "live", "print", or "code" for the current saved view mode.
+fn current_view_mode_key(settings_manager: &Arc<SettingsManager>) -> &'static str {
+    let settings = settings_manager.get_settings();
+    let is_page_view = settings
+        .layout
+        .as_ref()
+        .and_then(|l| l.page_view_enabled)
+        .unwrap_or(false);
+    let is_code = settings
         .layout
         .as_ref()
         .and_then(|l| l.view_mode.as_ref())
         .map(|v| matches!(v.as_str(), "Source Code" | "Code Preview"))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    if is_code {
+        "code"
+    } else if is_page_view {
+        "print"
+    } else {
+        "live"
+    }
 }

@@ -9,17 +9,12 @@ fn integration_test_heading_with_id_renders_anchor_link_with_svg() {
     let options = RenderOptions::default();
     let html = core::render::render(&doc, &options).expect("render failed");
 
+    // The heading text itself is now wrapped in the anchor (no trailing icon).
     assert!(html.contains("<h2 id=\"custom-id\">"));
     assert!(html.contains("class=\"marco-heading-anchor\""));
     assert!(html.contains("href=\"#custom-id\""));
-    assert!(html.contains("icon-tabler-anchor"));
-    assert!(html.contains("stroke-width=\"2.0\""));
-    assert!(html.contains("width=\"1em\""));
-    assert!(html.contains("height=\"1em\""));
-
-    // Ensure SVG markup is emitted as valid HTML attributes (no stray backslashes).
-    assert!(html.contains(concat!("xmlns=\"", "http", "://www.w3.org/2000/svg\"")));
-    assert!(!html.contains("xmlns=\\\""));
+    // The anchor wraps the text directly — no SVG icon.
+    assert!(!html.contains("icon-tabler-anchor"));
 }
 
 #[test]

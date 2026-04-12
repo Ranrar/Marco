@@ -24,9 +24,9 @@ fn integration_test_extended_heading_ids_render_id_attribute() {
     let options = RenderOptions::default();
     let html = core::render::render(&doc, &options).expect("render failed");
 
-    assert!(html.contains("<h3 id=\"custom-id\">Title"));
+    assert!(html.contains("<h3 id=\"custom-id\"><a"));
     assert!(html.contains("href=\"#custom-id\""));
-    assert!(html.contains("<h2 id=\"another-id\">Another title"));
+    assert!(html.contains("<h2 id=\"another-id\"><a"));
     assert!(html.contains("href=\"#another-id\""));
 }
 

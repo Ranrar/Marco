@@ -1,3 +1,5 @@
+use super::base_css;
+
 /// Shared HTML preview document wrapper.
 ///
 /// This is intentionally **UI-toolkit agnostic**: it just produces a full HTML
@@ -5,6 +7,12 @@
 ///
 /// The embedded JS exposes `window.MarcoPreview` for smooth content updates and
 /// installs interactive table resizing (column + row) in the rendered preview.
+///
+/// CSS injection order:
+///   1. `inline_bg_style`  — instant background-colour flash-prevention
+///   2. `base_css()`       — base structural stylesheet (all HTML elements + Marco components)
+///   3. `css`              — active theme token file (only CSS custom property declarations)
+///   4. `table_resize_css` — interactive table/slider/heading-anchor rules (separate `<style>`)
 pub fn wrap_preview_html_document(
     body: &str,
     css: &str,
@@ -17,6 +25,9 @@ pub fn wrap_preview_html_document(
     } else {
         String::new()
     };
+
+    // Combine: base structural CSS first, then the theme token overrides.
+    let css = format!("{}\n\n/* ── Theme tokens ── */\n{}", base_css::base_css(), css);
 
     // Table resize affordances (JS drives cursor; CSS disables selection during drag).
     // Keep this lightweight and self-contained to avoid fighting user themes.
@@ -38,123 +49,41 @@ table.marco-resize-active td {
     text-overflow: ellipsis;
 }
 
-/* Marco: heading anchor links (visible on hover/focus) */
+/* Marco: heading anchor — the heading text itself is the link */
 .marco-heading-anchor {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    margin-left: 0.35em;
-    padding: 0.1em;
-    border-radius: 4px;
-    opacity: 0;
     text-decoration: none !important;
     color: inherit !important;
-    user-select: none;
-    -webkit-user-select: none;
-    transition: opacity 0.12s ease-in-out;
+    display: inline;
 }
 
 .marco-heading-anchor:link,
-.marco-heading-anchor:visited {
-    /* Force link/visited to be the same as the heading text color (no purple/blue). */
-    color: inherit !important;
-}
-
-.marco-heading-anchor svg {
-    width: 1em;
-    height: 1em;
-    display: block;
-    stroke: currentColor;
-}
-
-/* Show on hover like GitHub; also show for keyboard focus */
-h1:hover .marco-heading-anchor,
-h2:hover .marco-heading-anchor,
-h3:hover .marco-heading-anchor,
-h4:hover .marco-heading-anchor,
-h5:hover .marco-heading-anchor,
-h6:hover .marco-heading-anchor {
-    opacity: 0.9;
-}
-
+.marco-heading-anchor:visited,
+.marco-heading-anchor:hover,
 .marco-heading-anchor:focus,
-.marco-heading-anchor:focus-visible {
-    opacity: 0.9;
-    color: inherit !important;
-}
-
-/* Subtle hover affordance without changing theme colors */
-.marco-heading-anchor:hover {
-    opacity: 1;
-    color: inherit !important;
-}
-
+.marco-heading-anchor:focus-visible,
 .marco-heading-anchor:active {
     color: inherit !important;
+    text-decoration: none !important;
+    -webkit-text-fill-color: inherit !important;
+    background: inherit !important;
+    -webkit-background-clip: inherit !important;
+    background-clip: inherit !important;
 }
 
-/* Marco: internal jumping links (href starting with #)
-   - Keeps internal links looking like normal links.
-   - On hover/focus, appends an icon (like heading anchors) and suppresses theme hover effects.
-   - Uses an SVG mask so the icon inherits the link color via `currentColor`.
+/* Marco: internal and external links
+   - Keeps links looking like normal links.
+   - On hover/focus, suppresses theme hover effects.
    - Excludes the injected heading anchor link itself.
 */
-a[href^='#']:not(.marco-heading-anchor) {
-    position: relative;
-}
-
-a[href^='#']:not(.marco-heading-anchor):link,
-a[href^='#']:not(.marco-heading-anchor):visited {
-    /* Force internal links to stay the theme's normal link color (no visited purple). */
-    color: var(--link-color) !important;
-}
-
-a[href^='#']:not(.marco-heading-anchor):hover,
-a[href^='#']:not(.marco-heading-anchor):focus,
-a[href^='#']:not(.marco-heading-anchor):focus-visible,
-a[href^='#']:not(.marco-heading-anchor):active {
-    color: var(--link-color) !important;
-    text-decoration: none !important;
-    text-shadow: none !important;
-    background: none !important;
-    box-shadow: none !important;
-    transform: none !important;
-    filter: none !important;
-}
-
-a[href^='#']:not(.marco-heading-anchor)::after {
-    content: "";
-    display: inline-block;
-    width: 1em;
-    height: 1em;
-    margin-left: 0.35em;
-    vertical-align: -0.125em;
-    opacity: 0;
-    background-color: currentColor;
-    pointer-events: none;
-    transition: opacity 0.12s ease-in-out;
-
-    /* Tabler icon: circles-relation (stroked). Use opaque stroke for mask. */
-    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9.183%206.117a6%206%200%201%200%204.511%203.986'%2F%3E%3Cpath%20d%3D'M14.813%2017.883a6%206%200%201%200%20-4.496%20-3.954'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
-    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9.183%206.117a6%206%200%201%200%204.511%203.986'%2F%3E%3Cpath%20d%3D'M14.813%2017.883a6%206%200%201%200%20-4.496%20-3.954'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
-}
-
-a[href^='#']:not(.marco-heading-anchor):hover::after,
-a[href^='#']:not(.marco-heading-anchor):focus::after,
-a[href^='#']:not(.marco-heading-anchor):focus-visible::after {
-    opacity: 0.9;
-}
-
-/* Marco: external links (http/https/mailto)
-   Same idea as internal jump links: keep links looking normal, but on hover/focus
-   append an icon and suppress theme hover effects.
-*/
+a[href^='#']:not(.marco-heading-anchor),
 a[href^='http:']:not(.marco-heading-anchor),
 a[href^='https:']:not(.marco-heading-anchor),
 a[href^='mailto:']:not(.marco-heading-anchor) {
     position: relative;
 }
 
+a[href^='#']:not(.marco-heading-anchor):link,
+a[href^='#']:not(.marco-heading-anchor):visited,
 a[href^='http:']:not(.marco-heading-anchor):link,
 a[href^='http:']:not(.marco-heading-anchor):visited,
 a[href^='https:']:not(.marco-heading-anchor):link,
@@ -164,6 +93,10 @@ a[href^='mailto:']:not(.marco-heading-anchor):visited {
     color: var(--link-color) !important;
 }
 
+a[href^='#']:not(.marco-heading-anchor):hover,
+a[href^='#']:not(.marco-heading-anchor):focus,
+a[href^='#']:not(.marco-heading-anchor):focus-visible,
+a[href^='#']:not(.marco-heading-anchor):active,
 a[href^='http:']:not(.marco-heading-anchor):hover,
 a[href^='http:']:not(.marco-heading-anchor):focus,
 a[href^='http:']:not(.marco-heading-anchor):focus-visible,
@@ -176,8 +109,8 @@ a[href^='mailto:']:not(.marco-heading-anchor):hover,
 a[href^='mailto:']:not(.marco-heading-anchor):focus,
 a[href^='mailto:']:not(.marco-heading-anchor):focus-visible,
 a[href^='mailto:']:not(.marco-heading-anchor):active {
-    color: var(--link-color) !important;
-    text-decoration: none !important;
+    color: var(--link-hover, var(--link-color)) !important;
+    text-decoration: underline !important;
     text-shadow: none !important;
     background: none !important;
     box-shadow: none !important;
@@ -185,36 +118,6 @@ a[href^='mailto:']:not(.marco-heading-anchor):active {
     filter: none !important;
 }
 
-a[href^='http:']:not(.marco-heading-anchor)::after,
-a[href^='https:']:not(.marco-heading-anchor)::after,
-a[href^='mailto:']:not(.marco-heading-anchor)::after {
-    content: "";
-    display: inline-block;
-    width: 1em;
-    height: 1em;
-    margin-left: 0.35em;
-    vertical-align: -0.125em;
-    opacity: 0;
-    background-color: currentColor;
-    pointer-events: none;
-    transition: opacity 0.12s ease-in-out;
-
-    /* Tabler icon: link (stroked). Use opaque stroke for mask. */
-    -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2015l6%20-6'%2F%3E%3Cpath%20d%3D'M11%206l.463%20-.536a5%205%200%200%201%207.071%207.072l-.534%20.464'%2F%3E%3Cpath%20d%3D'M13%2018l-.397%20.534a5.068%205.068%200%200%201%20-7.127%200a4.972%204.972%200%200%201%200%20-7.071l.524%20-.463'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
-    mask: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg'%20viewBox%3D'0%200%2024%2024'%20fill%3D'none'%20stroke%3D'black'%20stroke-width%3D'2'%20stroke-linecap%3D'round'%20stroke-linejoin%3D'round'%3E%3Cpath%20d%3D'M9%2015l6%20-6'%2F%3E%3Cpath%20d%3D'M11%206l.463%20-.536a5%205%200%200%201%207.071%207.072l-.534%20.464'%2F%3E%3Cpath%20d%3D'M13%2018l-.397%20.534a5.068%205.068%200%200%201%20-7.127%200a4.972%204.972%200%200%201%200%20-7.071l.524%20-.463'%2F%3E%3C%2Fsvg%3E") no-repeat center / contain;
-}
-
-a[href^='http:']:not(.marco-heading-anchor):hover::after,
-a[href^='http:']:not(.marco-heading-anchor):focus::after,
-a[href^='http:']:not(.marco-heading-anchor):focus-visible::after,
-a[href^='https:']:not(.marco-heading-anchor):hover::after,
-a[href^='https:']:not(.marco-heading-anchor):focus::after,
-a[href^='https:']:not(.marco-heading-anchor):focus-visible::after,
-a[href^='mailto:']:not(.marco-heading-anchor):hover::after,
-a[href^='mailto:']:not(.marco-heading-anchor):focus::after,
-a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
-    opacity: 0.9;
-}
 
 /* Marco: sliders / slide decks */
 .marco-sliders {
@@ -1353,6 +1256,331 @@ a[href^='mailto:']:not(.marco-heading-anchor):focus-visible::after {
     )
 }
 
+/// Options for CSS paged media rendering via paged.js.
+///
+/// Pass this to [`wrap_preview_html_document_paged`] to control page layout.
+pub struct PageViewOptions<'a> {
+    /// The full source of the paged.js polyfill (usually `pagedjs::PAGED_POLYFILL_JS`).
+    pub paged_js_source: &'a str,
+    /// CSS paper size: `"A4"`, `"Letter"`, `"A3"`, `"A5"`, `"Legal"`, `"B5"`.
+    pub paper: &'a str,
+    /// Page orientation: `"portrait"` or `"landscape"`.
+    pub orientation: &'a str,
+    /// Page margin in millimetres.
+    pub margin_mm: u8,
+    /// Whether to inject a `@page` counter rule so page numbers appear in the margin.
+    pub show_page_numbers: bool,
+    /// `<script>` blocks for wheel scaling and scroll-position reporting (bidirectional scroll sync).
+    /// Pass the combined `wheel_js + SCROLL_REPORT_JS` string, or `""` to disable.
+    pub wheel_js: &'a str,
+    /// Number of page columns to show side-by-side (1–4). Values outside this range are clamped.
+    pub columns_per_row: u8,
+    /// When `true`, inject a `@media print` CSS block that removes paged.js visual
+    /// decorations (shadows, gaps, desk background) so pages export cleanly to PDF.
+    /// Set to `false` for normal preview rendering.
+    pub for_export: bool,
+    /// Document title for the HTML `<title>` tag.  Pass `""` to omit the tag.
+    /// Used for standalone HTML file exports; leave as `""` for live preview.
+    pub title: &'a str,
+    /// When `true`, the WebKit-specific integration JS (scroll-sync signals,
+    /// `document.title = 'marco_paged_ready'` hooks) is replaced with a minimal
+    /// opacity-restore callback.  Set to `true` when producing a standalone HTML
+    /// file; leave `false` for live preview in the editor WebView.
+    pub standalone_export: bool,
+}
+
+/// Variant of [`wrap_preview_html_document`] that injects paged.js for true CSS Paged Media
+/// simulation.
+///
+/// paged.js restructures the entire DOM into fixed-size page boxes, so **content updates
+/// in page view mode always require a full HTML reload** — the smooth `MarcoPreview.updateContent`
+/// path is incompatible.  The caller is responsible for triggering a full reload.
+///
+/// # Arguments
+/// * `body` — Rendered markdown HTML body (without `<html>`/`<head>` wrapper).
+/// * `css` — Theme CSS string.
+/// * `theme_class` — Theme mode string, e.g. `"dark"` or `"light"`.
+/// * `background_color` — Optional explicit background color for instant dark-mode.
+/// * `page_opts` — Page layout and paged.js source.
+pub fn wrap_preview_html_document_paged(
+    body: &str,
+    css: &str,
+    theme_class: &str,
+    background_color: Option<&str>,
+    page_opts: &PageViewOptions<'_>,
+) -> String {
+    // paged.js requires the document to be served with a real base URI; the
+    // caller is responsible for that.  We simply build a minimal page wrapper
+    // that includes the @page rule and the polyfill inline so that paged.js
+    // runs on DOMContentLoaded (its default auto:true behaviour).
+
+    let inline_bg_style = if let Some(bg) = background_color {
+        format!("body {{ background-color: {} !important; }}\n", bg)
+    } else {
+        String::new()
+    };
+
+    // Combine: base structural CSS first, then the theme token overrides.
+    let css = format!("{}\n\n/* ── Theme tokens ── */\n{}", base_css::base_css(), css);
+
+    // Build @page CSS rule
+    let page_size_rule = format!(
+        "@page {{ size: {} {}; margin: {}mm; }}\n",
+        page_opts.paper, page_opts.orientation, page_opts.margin_mm
+    );
+
+    // Optional page number counter rule (rendered via CSS generated content).
+    // Use a CSS custom property so the colour adapts to the active theme; fall
+    // back to a neutral grey that is readable on both light and dark papers.
+    // paged.js processes @page rules itself and supports var() resolution.
+    let page_counter_rule = if page_opts.show_page_numbers {
+        r#"@page {
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-size: 0.75em;
+    color: var(--text-muted, #888);
+  }
+}
+"#
+    } else {
+        ""
+    };
+
+    // Clamp columns to 1–4 range.
+    let columns = page_opts.columns_per_row.clamp(1, 4);
+
+    // Multi-column CSS: when columns > 1 switch the page container from a single
+    // vertical stack to a wrapping flex row so pages appear side-by-side.
+    let multi_col_css = if columns > 1 {
+        format!(
+            r#"
+/* ── Multi-column layout: {cols} pages per row ─────────────────────────── */
+.pagedjs_pages {{
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+    gap: 2em !important;
+    padding-left: 1em !important;
+    padding-right: 1em !important;
+}}
+.pagedjs_page {{
+    margin-bottom: 0 !important;
+}}
+"#,
+            cols = columns
+        )
+    } else {
+        String::new()
+    };
+
+    // paged.js layout overrides.
+    //
+    // These rules handle structural/layout concerns only.  Using !important is
+    // intentional where needed so paged.js cannot override layout rules.
+    //
+    // Theme/dark-mode notes:
+    //   • Each theme CSS file owns `.pagedjs_page { background-color, color }` via
+    //     CSS custom properties set by .theme-light / .theme-dark on <html>.
+    //   • The "desk" (the area visible around pages) is a distinct neutral colour so
+    //     the paper stands out visually.  Desk colour is NOT part of the theme.
+    let paged_body_css = format!(r#"
+/* paged.js: reset every theme layout constraint on html/body */
+html, body {{
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}}
+
+/* ── Viewport / desk ──────────────────────────────────────────────────────
+   The body background is the "desk" that surrounds the page boxes.
+   It must be visually distinct from the paper so pages have contrast.     */
+body {{
+    background-color: #d0d0d0 !important;   /* light-mode desk (medium grey) */
+    min-height: 100vh;
+}}
+
+/* Dark-mode desk: dark grey, clearly separate from typical dark-theme papers */
+html.theme-dark body {{
+    background-color: #2b2b2b !important;
+}}
+
+/* ── All-pages container ──────────────────────────────────────────────────
+   Flex column centres pages horizontally and adds vertical breathing room. */
+.pagedjs_pages {{
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding-top: 3em !important;
+    padding-bottom: 3em !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+}}
+
+/* ── Tell WebKit which color-scheme is active so scrollbars, form controls,
+   and native UI elements render correctly in dark mode.                    */
+html.theme-dark {{
+    color-scheme: dark;
+}}
+html.theme-light {{
+    color-scheme: light;
+}}
+
+/* ── Individual page (paper) ──────────────────────────────────────────────
+   Shadow and margins are structural — they stay here.
+   background-color and color are owned by each theme's .pagedjs_page rule,
+   which cascades from the active .theme-light / .theme-dark variables.    */
+.pagedjs_page {{
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.20) !important;
+    margin-bottom: 2em !important;
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}}
+
+/* Dark-mode paper: stronger shadow to separate page from the dark desk. */
+html.theme-dark .pagedjs_page {{
+    box-shadow: 0 2px 14px rgba(0, 0, 0, 0.55) !important;
+}}
+{multi_col}
+"#, multi_col = multi_col_css);
+
+    // Optional @media print overrides for PDF/print export.
+    // Removes paged.js visual decorations so pages print without gaps or shadows.
+    let export_css_block: &str = if page_opts.for_export {
+        concat!(
+            "        <style id=\"marco-print-export-css\">\n",
+            "@media print {\n",
+            "  @page { margin: 0 !important; }\n",
+            "  html, body { background-color: white !important; }\n",
+            "  body { background-color: white !important; }\n",
+            "  .pagedjs_page { box-shadow: none !important; margin-bottom: 0 !important;",
+            " margin-top: 0 !important; }\n",
+            "  .pagedjs_pages { padding-top: 0 !important; padding-bottom: 0 !important; }\n",
+            "}\n",
+            "        </style>\n",
+        )
+    } else {
+        ""
+    };
+
+    // Title tag: only emitted when a non-empty title is provided.
+    let title_tag = if page_opts.title.is_empty() {
+        String::new()
+    } else {
+        // Escape HTML special characters to prevent XSS / malformed HTML.
+        let escaped = page_opts
+            .title
+            .replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;");
+        format!("        <title>{}</title>\n", escaped)
+    };
+
+    // JavaScript integration block: WebKit-specific hooks for live preview vs.
+    // minimal opacity-restore for standalone HTML file exports.
+    let integration_js = if page_opts.standalone_export {
+        // Standalone HTML: paged.js just restores opacity when done.
+        // No WebKit scroll-sync signals, no document.title tricks.
+        r#"window.PagedConfig = {
+    auto: true,
+    after: function() {
+        document.body.style.transition = 'opacity 0.12s ease-in';
+        document.body.style.opacity = '1';
+    }
+};
+/* Safety net: reveal the page if after() never fires. */
+setTimeout(function() {
+    if (document.body.style.opacity !== '1') {
+        document.body.style.opacity = '1';
+    }
+}, 8000);"#
+    } else {
+        // Live preview: WebKit integration hooks (scroll-sync, title polling).
+        r#"/* Must be set BEFORE paged.js script evaluates so Ym reads these values. */
+window.__pagedJsReady = false;
+window.PagedConfig = {
+    auto: true,
+    /* paged.js calls after() once layout is fully complete — this is the
+       official hook and avoids all manual-preview() timing issues.        */
+    after: function() {
+        document.body.style.transition = 'opacity 0.12s ease-in';
+        document.body.style.opacity = '1';
+        /* Arm baseline guard so the initial scroll-position-0 the webview
+           reports right after layout is silently cached, not forwarded to
+           the editor (which would yank the editor caret to the top).      */
+        window.__pagedJsJustReady = true;
+        /* Tell Rust scroll-sync to restore the preview scroll to where the
+           editor cursor currently is.                                      */
+        document.title = 'marco_paged_ready';
+        window.__pagedJsReady = true;
+        setTimeout(function() { window.__pagedJsJustReady = false; }, 500);
+    }
+};"#
+    };
+
+    // Safety-net block is only needed for the live WebKit preview.
+    let safety_net_js = if page_opts.standalone_export {
+        ""  // already inlined in integration_js above
+    } else {
+        r#"
+        <script>
+/* Safety net: reveal the page if the after() hook never fires (e.g. empty
+   document or paged.js internal error).                                   */
+setTimeout(function() {
+    if (!window.__pagedJsReady) {
+        document.body.style.opacity = '1';
+        window.__pagedJsJustReady = true;
+        document.title = 'marco_paged_ready';
+        window.__pagedJsReady = true;
+        setTimeout(function() { window.__pagedJsJustReady = false; }, 500);
+    }
+}, 8000);
+        </script>"#
+    };
+
+    format!(
+        r#"<!DOCTYPE html>
+<html class="{}">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+{}        <style id="marco-paged-page-css">
+{}{}{}
+        </style>
+        <style id="marco-preview-style">
+{}{}
+        </style>
+{}    </head>
+    <body style="opacity:0">
+        <div id="marco-content-container">{}</div>
+        <script>
+{}
+        </script>
+        <script>
+{}
+        </script>
+        {}{}
+    </body>
+</html>"#,
+        theme_class,
+        title_tag,
+        page_size_rule,
+        page_counter_rule,
+        paged_body_css,
+        inline_bg_style,
+        css,
+        export_css_block,
+        body,
+        integration_js,
+        page_opts.paged_js_source,
+        page_opts.wheel_js,
+        safety_net_js,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1372,5 +1600,85 @@ mod tests {
         assert!(doc.contains("installSliders"));
         assert!(doc.contains("sliders:"));
         assert!(doc.contains("marco-content-container"));
+    }
+
+    #[test]
+    fn smoke_wrap_preview_paged_contains_page_css() {
+        let opts = PageViewOptions {
+            paged_js_source: "/* paged.js stub */",
+            paper: "A4",
+            orientation: "portrait",
+            margin_mm: 20,
+            show_page_numbers: true,
+            wheel_js: "",
+            columns_per_row: 1,
+            for_export: false,
+            title: "",
+            standalone_export: false,
+        };
+        let doc = wrap_preview_html_document_paged(
+            "<p>Hello</p>",
+            "body { color: red; }",
+            "light",
+            None,
+            &opts,
+        );
+        assert!(doc.contains("@page"));
+        assert!(doc.contains("A4 portrait"));
+        assert!(doc.contains("20mm"));
+        assert!(doc.contains("counter(page)"));
+        assert!(doc.contains("marco-content-container"));
+        assert!(doc.contains("paged.js stub"));
+    }
+
+    #[test]
+    fn smoke_paged_multi_column_css_injected() {
+        let opts = PageViewOptions {
+            paged_js_source: "/* paged.js stub */",
+            paper: "A4",
+            orientation: "portrait",
+            margin_mm: 20,
+            show_page_numbers: false,
+            wheel_js: "",
+            columns_per_row: 2,
+            for_export: false,
+            title: "",
+            standalone_export: false,
+        };
+        let doc = wrap_preview_html_document_paged(
+            "<p>Test</p>",
+            "",
+            "light",
+            None,
+            &opts,
+        );
+        // Multi-column layout CSS must be injected when columns_per_row > 1
+        assert!(doc.contains("flex-direction: row"), "expected flex-direction: row for multi-column");
+        assert!(doc.contains("flex-wrap: wrap"), "expected flex-wrap: wrap for multi-column");
+    }
+
+    #[test]
+    fn smoke_paged_single_column_no_multi_col_css() {
+        let opts = PageViewOptions {
+            paged_js_source: "/* paged.js stub */",
+            paper: "A4",
+            orientation: "portrait",
+            margin_mm: 20,
+            show_page_numbers: false,
+            wheel_js: "",
+            columns_per_row: 1,
+            for_export: false,
+            title: "",
+            standalone_export: false,
+        };
+        let doc = wrap_preview_html_document_paged(
+            "<p>Test</p>",
+            "",
+            "light",
+            None,
+            &opts,
+        );
+        // Single-column: the multi-column layout comment must NOT be present
+        assert!(!doc.contains("pages per row"), "single-column should not have multi-column override");
     }
 }

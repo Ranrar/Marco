@@ -26,6 +26,8 @@
         show_line_numbers: Some(true),
         text_direction: None,
         toc_depth: Some(3),
+        page_view_columns: Some(1),
+        preview_zoom: Some(1.0),
     )),
     window: Some((
         width: Some(1000),

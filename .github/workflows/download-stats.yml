@@ -7,6 +7,9 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Non-sensitive: target repository that stores aggregated stats snapshots.
+  # Format: owner/repo
+  STATS_REPO: Ranrar/marco-stats
 
 jobs:
   stats:
@@ -59,20 +62,42 @@ jobs:
         run: |
           set -euo pipefail
 
-          git clone "https://x-access-token:${STATS_PAT}@github.com/${{ secrets.STATS_REPO }}.git" stats-repo
+          # Trim accidental whitespace/newlines in secrets to avoid malformed URLs.
+          stats_pat="$(printf '%s' "${STATS_PAT}" | tr -d '\r\n' | xargs)"
+          stats_repo="$(printf '%s' "${STATS_REPO}" | tr -d '\r\n' | xargs)"
+
+          if [ -z "$stats_pat" ]; then
+            echo "ERROR: secret STATS is empty" >&2
+            exit 1
+          fi
+          if [ -z "$stats_repo" ]; then
+            echo "ERROR: STATS_REPO is empty. Set workflow env STATS_REPO in owner/repo format." >&2
+            exit 1
+          fi
+          if [[ "$stats_repo" != */* ]]; then
+            echo "ERROR: STATS_REPO must be in owner/repo format, got: '$stats_repo'" >&2
+            exit 1
+          fi
+
+          git clone "https://x-access-token:${stats_pat}@github.com/${stats_repo}.git" stats-repo
 
           # Append snapshot to stats.json (create if missing)
           stats_file="stats-repo/marco-stats.json"
+          tmp_file="stats-repo/marco-stats.tmp.json"
           if [ -f "$stats_file" ]; then
-            jq ". += [$(cat snapshot.json)]" "$stats_file" > stats_tmp.json
+            jq --slurpfile snap snapshot.json '. + $snap' "$stats_file" > "$tmp_file"
           else
-            jq -n "[$(cat snapshot.json)]" > stats_tmp.json
+            jq -n --slurpfile snap snapshot.json '$snap' > "$tmp_file"
           fi
-          mv stats_tmp.json "$stats_file"
+          mv "$tmp_file" "$stats_file"
 
           cd stats-repo
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add stats.json
+          git add marco-stats.json
+          if git diff --cached --quiet; then
+            echo "No stats changes to commit"
+            exit 0
+          fi
           git commit -m "stats: $(date -u '+%Y-%m-%d') snapshot"
           git push

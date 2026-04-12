@@ -140,9 +140,13 @@ impl SyntaxHighlighter {
             return cached_css.clone();
         }
 
-        let theme = match theme_mode {
-            "dark" => &self.dark_theme,
-            _ => &self.light_theme,
+        // Normalize to "dark" or "light" so callers can pass strings like
+        // "theme-dark", "marco-dark", etc. (the same convention core uses).
+        let is_dark = theme_mode.to_ascii_lowercase().contains("dark");
+        let theme = if is_dark {
+            &self.dark_theme
+        } else {
+            &self.light_theme
         };
 
         // Generate CSS with spaced class style to match our HTML generator

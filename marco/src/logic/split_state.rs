@@ -29,18 +29,20 @@ pub fn apply_saved_split_ratio(split: &gtk4::Paned, settings_manager: &Arc<Setti
                 *applied_clone.borrow_mut() = true;
 
                 let settings = settings_manager.get_settings();
-                if let Some(window_settings) = settings.window {
-                    let split_ratio = window_settings.get_split_ratio();
-                    let position = (paned_width as f64 * split_ratio as f64 / 100.0) as i32;
+                let split_ratio = settings
+                    .window
+                    .as_ref()
+                    .map(|w| w.get_split_ratio())
+                    .unwrap_or(60); // default 60% on first run
+                let position = (paned_width as f64 * split_ratio as f64 / 100.0) as i32;
 
-                    log::info!(
-                        "[SPLIT INIT] Applying saved ratio: {}% -> {}px (width: {}px)",
-                        split_ratio,
-                        position,
-                        paned_width
-                    );
-                    paned_clone.set_position(position);
-                }
+                log::info!(
+                    "[SPLIT INIT] Applying saved ratio: {}% -> {}px (width: {}px)",
+                    split_ratio,
+                    position,
+                    paned_width
+                );
+                paned_clone.set_position(position);
                 return glib::ControlFlow::Break;
             }
 

@@ -11,23 +11,16 @@ use crate::components::language::Translations;
 
 #[derive(Default)]
 pub struct LayoutTabCallbacks {
-    pub on_view_mode_changed: Option<std::boxed::Box<dyn Fn(String) + 'static>>,
     pub on_split_ratio_changed: Option<std::boxed::Box<dyn Fn(i32) + 'static>>,
     pub on_sync_scrolling_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
-    pub on_line_numbers_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     pub on_toc_depth_changed: Option<std::boxed::Box<dyn Fn(u8) + 'static>>,
     /// Called with `is_rtl = true` when the user selects RTL, `false` for LTR.
     pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
-// Build the layout tab. `initial_view_mode` optionally sets which entry is
-// active when the tab is first shown (e.g. Some("Source Code") to select
-// the code preview). The optional callback will be called when the View Mode
-// dropdown changes and receives the selected value as a String.
 // `settings_path` is used to load/save window settings including split ratio.
 // `callbacks` can optionally receive events when the user changes settings.
 pub fn build_layout_tab(
-    initial_view_mode: Option<String>,
     callbacks: LayoutTabCallbacks,
     settings_path: Option<&str>,
     translations: &SettingsLayoutTranslations,
@@ -42,10 +35,8 @@ pub fn build_layout_tab(
     container.add_css_class("marco-settings-tab");
 
     let LayoutTabCallbacks {
-        on_view_mode_changed,
         on_split_ratio_changed,
         on_sync_scrolling_changed,
-        on_line_numbers_changed,
         on_toc_depth_changed,
         on_text_direction_changed,
     } = callbacks;
@@ -64,67 +55,6 @@ pub fn build_layout_tab(
     } else {
         None
     };
-
-    // View Mode (Dropdown)
-    let view_mode_labels = [
-        translations.view_mode_html.as_str(),
-        translations.view_mode_source.as_str(),
-    ];
-    let view_mode_values = ["HTML Preview", "Source Code"];
-    let view_mode_options = StringList::new(&view_mode_labels);
-    i18n.bind_string_list_item(
-        &view_mode_options,
-        0,
-        Rc::new(|t: &Translations| t.settings.layout.view_mode_html.clone()),
-    );
-    i18n.bind_string_list_item(
-        &view_mode_options,
-        1,
-        Rc::new(|t: &Translations| t.settings.layout.view_mode_source.clone()),
-    );
-    let view_mode_expression =
-        PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
-    let view_mode_combo =
-        DropDown::new(Some(view_mode_options.clone()), Some(view_mode_expression));
-    view_mode_combo.add_css_class("marco-dropdown");
-
-    // Set active index based on saved setting if provided.
-    let active_index = match initial_view_mode.as_deref() {
-        Some(s)
-            if s.eq_ignore_ascii_case("source code") || s.eq_ignore_ascii_case("code preview") =>
-        {
-            1
-        }
-        _ => 0,
-    };
-    view_mode_combo.set_selected(active_index);
-    // Connect change handler to notify owner if provided. Convert selected index
-    // to String when invoking the provided callback so callers receive a
-    // straightforward String value.
-    {
-        view_mode_combo.connect_selected_notify(move |dropdown| {
-            let selected_index = dropdown.selected() as usize;
-            let mode_value = view_mode_values
-                .get(selected_index)
-                .copied()
-                .unwrap_or("HTML Preview");
-            if let Some(ref cb) = on_view_mode_changed {
-                cb(mode_value.to_string());
-            }
-        });
-    }
-
-    // Create view mode row using unified helper (first row)
-    let view_mode_row = add_setting_row_i18n(
-        i18n,
-        &translations.view_mode_label,
-        &translations.view_mode_description,
-        Rc::new(|t: &Translations| t.settings.layout.view_mode_label.clone()),
-        Rc::new(|t: &Translations| t.settings.layout.view_mode_description.clone()),
-        &view_mode_combo,
-        true, // First row - no top margin
-    );
-    container.append(&view_mode_row);
 
     // Sync Scrolling (Toggle)
     let sync_scroll_switch = Switch::new();
@@ -188,7 +118,7 @@ pub fn build_layout_tab(
         Rc::new(|t: &Translations| t.settings.layout.sync_scrolling_label.clone()),
         Rc::new(|t: &Translations| t.settings.layout.sync_scrolling_description.clone()),
         &sync_scroll_switch,
-        false, // Not first row
+        true, // First row - no top margin
     );
     container.append(&sync_scroll_row);
 
@@ -257,73 +187,7 @@ pub fn build_layout_tab(
     );
     container.append(&split_row);
 
-    // Show Line Numbers (Toggle)
-    let line_numbers_switch = Switch::new();
-    line_numbers_switch.add_css_class("marco-switch");
-
-    // Load current line numbers setting from SettingsManager
-    let current_line_numbers = if let Some(ref settings_manager) = settings_manager_opt {
-        settings_manager
-            .get_settings()
-            .layout
-            .as_ref()
-            .and_then(|l| l.show_line_numbers)
-            .unwrap_or(true) // Default to true if not set
-    } else {
-        true // Default to true
-    };
-
-    line_numbers_switch.set_active(current_line_numbers);
-
-    // Save line numbers setting when it changes
-    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
-        line_numbers_switch.connect_state_set(move |_switch, is_active| {
-            debug!("Line numbers changed to: {}", is_active);
-
-            // Use SettingsManager to update line numbers setting
-            if let Err(e) = settings_manager_clone.update_settings(|settings| {
-                // Ensure layout settings exist
-                if settings.layout.is_none() {
-                    use core::logic::swanson::LayoutSettings;
-                    settings.layout = Some(LayoutSettings::default());
-                }
-
-                // Update line numbers setting
-                if let Some(ref mut layout) = settings.layout {
-                    layout.show_line_numbers = Some(is_active);
-                }
-            }) {
-                debug!("Failed to save line numbers setting: {}", e);
-            } else {
-                debug!("Line numbers saved: {}", is_active);
-            }
-
-            glib::Propagation::Proceed
-        });
-    }
-
-    // Also connect runtime callback if provided
-    if let Some(callback) = on_line_numbers_changed {
-        line_numbers_switch.connect_state_set(move |_switch, is_active| {
-            debug!("Calling runtime line numbers update: {}", is_active);
-            callback(is_active);
-            glib::Propagation::Proceed
-        });
-    }
-
-    // Create line numbers row using unified helper
-    let line_numbers_row = add_setting_row_i18n(
-        i18n,
-        &translations.line_numbers_label,
-        &translations.line_numbers_description,
-        Rc::new(|t: &Translations| t.settings.layout.line_numbers_label.clone()),
-        Rc::new(|t: &Translations| t.settings.layout.line_numbers_description.clone()),
-        &line_numbers_switch,
-        false, // Not first row
-    );
-    container.append(&line_numbers_row);
-
-    // TOC Heading Depth (SpinButton, 1–6, default 3)
+    // TOC Heading Depth (SpinButton, 1-6, default 3)
     let current_toc_depth = if let Some(ref settings_manager) = settings_manager_opt {
         settings_manager
             .get_settings()

@@ -454,6 +454,28 @@ impl ScrollSynchronizer {
 
         // Connect to notify::title signal to handle scroll position reports
         source_webview.connect_notify_local(Some("title"), move |webview, _| {
+            let Some(title) = webview.title() else { return; };
+            let title_str = title.as_str();
+
+            // paged.js fires this once after layout is complete.  Scroll the
+            // webview to match the editor so the preview doesn't stay pinned
+            // at the top after every live-edit reload.
+            if title_str == "marco_paged_ready" {
+                let adj = target_sw_clone.vadjustment();
+                let range = adj.upper() - adj.page_size();
+                if range > 0.0 {
+                    let frac = (adj.value() / range).clamp(0.0, 1.0);
+                    let js = format!(
+                        "(function(){{var m=Math.max(0,document.documentElement.scrollHeight\
+                         -window.innerHeight);window.scrollTo({{top:{frac}*m,behavior:'auto'}});}})();"
+                    );
+                    webview.evaluate_javascript(
+                        &js, None, None, None::<&gio::Cancellable>, |_| {}
+                    );
+                }
+                return;
+            }
+
             if !enabled_clone.get() || is_syncing_clone.get() {
                 return;
             }
@@ -482,21 +504,17 @@ impl ScrollSynchronizer {
                 return;
             }
 
-            if let Some(title) = webview.title() {
-                let title_str = title.as_str();
-                if let Some(scroll_data) = title_str.strip_prefix("marco_scroll:") {
-                    if let Ok(percentage) = scroll_data.parse::<f64>() {
-                        // Set sync guard and update ScrolledWindow
-                        is_syncing_clone.set(true);
-                        Self::set_scroll_percentage(&target_sw_clone, percentage);
+            if let Some(scroll_data) = title_str.strip_prefix("marco_scroll:") {
+                if let Ok(percentage) = scroll_data.parse::<f64>() {
+                    is_syncing_clone.set(true);
+                    Self::set_scroll_percentage(&target_sw_clone, percentage);
 
-                        debug!(
-                            "[scroll_sync] {} sync: {:.2}%",
-                            label_owned, percentage * 100.0
-                        );
+                    debug!(
+                        "[scroll_sync] {} sync: {:.2}%",
+                        label_owned, percentage * 100.0
+                    );
 
-                        is_syncing_clone.set(false);
-                    }
+                    is_syncing_clone.set(false);
                 }
             }
         });

@@ -1,8 +1,8 @@
 pub mod advanced;
-pub mod appearance;
+pub mod application;
 pub mod debug;
 pub mod editor;
 pub mod helpers;
 pub mod intelligence;
 pub mod language;
-pub mod layout;
+pub mod print_preview;

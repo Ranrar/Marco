@@ -1,4 +1,4 @@
-name: Release (Linux & Windows, Beta Channel)
+name: Release (Linux & Windows)
 
 on:
   workflow_dispatch:
@@ -264,15 +264,32 @@ jobs:
           commit: ${{ github.sha }}
           artifacts: "artifacts/*.deb,artifacts/*.zip"
           body: |
-            **Marco Suite ${{ steps.version.outputs.version }}**
+            ## Marco Suite ${{ steps.version.outputs.version }} is live
 
-            Marco and Polo are actively developed. Features are functional but the project is still maturing — you may encounter rough edges or changes between releases.
+            Better writing flow. Better preview. Better export.
 
-            **Downloads:**
+            ### Highlights
+            - New page-view print preview powered by CSS Paged Media (paged.js).
+            - New export workflow for PDF and HTML with paper, orientation, margin, and page-number controls.
+            - New preview zoom controls with persisted zoom state.
+            - Settings redesigned around **Application** and **Print Preview** tabs.
+
+            ### Improvements
+            - Shared rendering pipeline for preview, print preview, and export for more consistent output.
+            - Base + theme-token CSS model for cleaner theming and less duplication.
+            - Heading text now acts as the direct permalink target.
+
+            ### Fixes
+            - Hard line breaks now follow CommonMark correctly (two or more trailing spaces).
+            - Blank-line handling now follows CommonMark ASCII space/tab rules.
+            - Nested-bracket links (including image-in-link syntax) render correctly.
+            - Preview and export UI consistency improvements.
+
+            ### Downloads
             - **Linux**: `marco-suite_*_linux_amd64.deb`
             - **Windows**: `marco-suite_*_windows_amd64.zip`
 
-            Found something? [Open an issue](https://github.com/Ranrar/Marco/issues/new) — all feedback is welcome.
+            If something feels off, [open an issue](https://github.com/Ranrar/Marco/issues/new) — feedback is always welcome.
 
             Commit: ${{ github.sha }}
             Built: ${{ github.run_id }}

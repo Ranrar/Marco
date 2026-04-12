@@ -18,7 +18,6 @@
 
 use gtk4::prelude::*;
 use std::cell::RefCell;
-use std::path::Path;
 use std::rc::Rc;
 use std::time::Duration;
 use webkit6::prelude::*;
@@ -149,24 +148,6 @@ fn parse_hex_to_rgba(hex: &str) -> Option<gtk4::gdk::RGBA> {
     ))
 }
 
-/// Generate a file:// base URI from a document path for resolving relative file references.
-/// If the document has a parent directory, returns a file:// URI for that directory.
-/// This allows relative image paths and other file references in the document to work correctly.
-pub fn generate_base_uri_from_path<P: AsRef<Path>>(document_path: P) -> Option<String> {
-    if let Some(parent_dir) = document_path.as_ref().parent() {
-        // Convert parent directory to absolute path and create file:// URI
-        if let Ok(absolute_parent) = parent_dir.canonicalize() {
-            let path_str = absolute_parent.to_string_lossy();
-            Some(format!("file://{}/", path_str))
-        } else {
-            // Fallback: use the path as-is if canonicalize fails
-            let path_str = parent_dir.to_string_lossy();
-            Some(format!("file://{}/", path_str))
-        }
-    } else {
-        None
-    }
-}
 /// Setup UserContentManager for proper script and stylesheet management
 /// This prevents memory leaks from accumulated JavaScript and CSS
 fn setup_user_content_manager(webview: &WebView) {

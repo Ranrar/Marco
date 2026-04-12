@@ -49,12 +49,12 @@ sudo apt -f install
 
 The `.github/workflows/` directory contains automated build workflows:
 
-- **alpha-release.yml**: Builds Linux/Windows packages and updates the `release` GitHub release
+- **release.yml**: Builds Linux/Windows packages and publishes the versioned GitHub release
 
 Both workflows:
 - Build binaries with explicit targets (x86_64-unknown-linux-gnu / x86_64-pc-windows-msvc)
 - Create installer packages
-- Upload to GitHub Releases (`release` tag, beta channel)
+- Upload to GitHub Releases (`release` tag)
 - Don't bump versions (use existing versions from `build/version.json`)
 
 ## Naming Convention
@@ -89,10 +89,9 @@ Versions are tracked in `build/version.json` with separate versions for Linux an
 }
 ```
 
-## Release Channel
+## Release Artifacts
 
-- These are normal release artifacts (no alpha suffix in filenames).
-- Current channel status: **Beta**.
+- Artifacts use versioned release naming (no channel suffixes in filenames).
 
 By default, builds use existing versions. To bump versions:
 

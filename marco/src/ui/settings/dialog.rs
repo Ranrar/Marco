@@ -109,6 +109,8 @@ pub struct SettingsDialogCallbacks {
     pub on_language_changed: Option<std::boxed::Box<dyn Fn(Option<String>) + 'static>>,
     /// Called with `is_rtl = true` when the user selects RTL, `false` for LTR.
     pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
+    /// Called when any page view setting changes. Receives the full current state.
+    pub on_page_view_changed: Option<std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>>,
 }
 
 pub fn show_settings_dialog(
@@ -448,10 +450,46 @@ fn create_dialog_impl(
     stack_sidebar.set_size_request(180, -1);
     stack_sidebar.set_margin_end(8);
 
-    // Add each tab to the stack using stable names so the sidebar shows titles
+    // Collect signal managers for cleanup on dialog close
+    let mut signal_managers: Vec<Rc<RefCell<SignalManager>>> = Vec::new();
+
+    // Add each tab to the stack using stable names so the sidebar shows titles.
+    // Application tab is first.
+    let application_callbacks = tabs::application::ApplicationTabCallbacks {
+        on_preview_theme_changed: callbacks
+            .on_preview_theme_changed
+            .unwrap_or_else(|| Box::new(|_| {})),
+        refresh_preview: callbacks
+            .refresh_preview
+            .unwrap_or_else(|| Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>))),
+        on_editor_theme_changed: callbacks.on_editor_theme_changed,
+        on_split_ratio_changed: callbacks.on_split_ratio_changed,
+        on_sync_scrolling_changed: callbacks.on_sync_scrolling_changed,
+        on_text_direction_changed: callbacks.on_text_direction_changed,
+        on_toc_depth_changed: Some(Box::new(|depth| {
+            crate::components::editor::ui::with_toc_panel(|h| h.set_depth(depth));
+        })),
+    };
+    let (application_tab, application_signals) = tabs::application::build_application_tab(
+        theme_manager.clone(),
+        settings_path.clone(),
+        asset_dir,
+        application_callbacks,
+        &translations.settings.appearance,
+        &translations.settings.layout,
+        &settings_i18n,
+    );
+    stack.add_titled(
+        &application_tab,
+        Some("application"),
+        &translations.settings.tabs.application,
+    );
+    signal_managers.push(application_signals);
+
     let editor_tab = tabs::editor::build_editor_tab(
         settings_path.to_str().unwrap(),
         &translations.settings.editor,
+        &translations.settings.layout,
         &settings_i18n,
     );
     stack.add_titled(
@@ -471,119 +509,21 @@ fn create_dialog_impl(
         &translations.settings.tabs.intelligence,
     );
 
-    // Build layout tab and provide a callback that will persist the setting and
-    // forward the value to any external on_view_mode_changed handler supplied by
-    // the caller via the `callbacks` struct.
-    let settings_path_clone = settings_path.clone();
-    // Read saved view mode so the layout tab can initialize its dropdown.
-    use core::logic::swanson::SettingsManager;
-    let saved_view_mode: Option<String> = {
-        if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
-            settings_manager
-                .get_settings()
-                .layout
-                .and_then(|l| l.view_mode)
-        } else {
-            None
-        }
+    // Print Preview tab (page view settings)
+    let print_preview_callbacks = tabs::print_preview::PrintPreviewTabCallbacks {
+        on_page_view_changed: callbacks.on_page_view_changed,
     };
-    // Move the optional outer callback into the closure so we don't require Clone
-    let outer_on_view = callbacks.on_view_mode_changed;
-    let layout_cb = std::boxed::Box::new(move |selected: String| {
-        use core::logic::swanson::{LayoutSettings, SettingsManager};
-        if let Ok(settings_manager) = SettingsManager::initialize(settings_path_clone.clone()) {
-            if let Err(e) = settings_manager.update_settings(|settings| {
-                if settings.layout.is_none() {
-                    settings.layout = Some(LayoutSettings::default());
-                }
-                if let Some(ref mut layout) = settings.layout {
-                    layout.view_mode = Some(selected.clone());
-                }
-            }) {
-                eprintln!("Failed to update view mode setting: {}", e);
-            }
-        } else {
-            eprintln!("Failed to initialize settings manager for view mode update");
-        }
-        // If the caller wanted a direct String callback, call it with the
-        // selected value.
-        if let Some(ref cb) = outer_on_view {
-            cb(selected.clone());
-        }
-    }) as std::boxed::Box<dyn Fn(String) + 'static>;
-
-    let layout_callbacks = tabs::layout::LayoutTabCallbacks {
-        on_view_mode_changed: Some(layout_cb),
-        on_split_ratio_changed: callbacks.on_split_ratio_changed,
-        on_sync_scrolling_changed: callbacks.on_sync_scrolling_changed,
-        on_line_numbers_changed: callbacks.on_line_numbers_changed,
-        on_text_direction_changed: callbacks.on_text_direction_changed,
-        on_toc_depth_changed: Some(Box::new(|depth| {
-            crate::components::editor::ui::with_toc_panel(|h| h.set_depth(depth));
-        })),
-    };
-
-    let layout_tab = tabs::layout::build_layout_tab(
-        saved_view_mode,
-        layout_callbacks,
+    let print_preview_tab = tabs::print_preview::build_print_preview_tab(
+        print_preview_callbacks,
         settings_path.to_str(),
         &translations.settings.layout,
         &settings_i18n,
     );
     stack.add_titled(
-        &layout_tab,
-        Some("layout"),
-        &translations.settings.tabs.layout,
+        &print_preview_tab,
+        Some("print_preview"),
+        &translations.settings.tabs.print_preview,
     );
-
-    // Collect signal managers for cleanup on dialog close
-    let mut signal_managers: Vec<Rc<RefCell<SignalManager>>> = Vec::new();
-
-    // Appearance tab wiring uses callbacks from the callbacks struct.
-    if let (Some(cb), Some(refresh_preview_cb)) = (
-        callbacks.on_preview_theme_changed,
-        callbacks.refresh_preview.clone(),
-    ) {
-        let appearance_callbacks = tabs::appearance::AppearanceTabCallbacks {
-            on_preview_theme_changed: cb,
-            refresh_preview: refresh_preview_cb,
-            on_editor_theme_changed: callbacks.on_editor_theme_changed,
-        };
-        let (appearance_tab, appearance_signals) = tabs::appearance::build_appearance_tab(
-            theme_manager.clone(),
-            settings_path.clone(),
-            asset_dir,
-            appearance_callbacks,
-            &translations.settings.appearance,
-            &settings_i18n,
-        );
-        stack.add_titled(
-            &appearance_tab,
-            Some("appearance"),
-            &translations.settings.tabs.appearance,
-        );
-        signal_managers.push(appearance_signals);
-    } else {
-        let appearance_callbacks = tabs::appearance::AppearanceTabCallbacks {
-            on_preview_theme_changed: Box::new(|_| {}),
-            refresh_preview: Rc::new(RefCell::new(Box::new(|| {}) as Box<dyn Fn()>)),
-            on_editor_theme_changed: callbacks.on_editor_theme_changed,
-        };
-        let (appearance_tab, appearance_signals) = tabs::appearance::build_appearance_tab(
-            theme_manager.clone(),
-            settings_path.clone(),
-            asset_dir,
-            appearance_callbacks,
-            &translations.settings.appearance,
-            &settings_i18n,
-        );
-        stack.add_titled(
-            &appearance_tab,
-            Some("appearance"),
-            &translations.settings.tabs.appearance,
-        );
-        signal_managers.push(appearance_signals);
-    }
     stack.add_titled(
         &tabs::language::build_language_tab(
             settings_path.to_str().unwrap(),
@@ -758,21 +698,17 @@ fn create_dialog_impl(
                                 .page(&editor_page)
                                 .set_title(&new_translations.settings.tabs.editor);
                         }
-                        if let Some(layout_page) = stack.child_by_name("layout") {
+                        if let Some(application_page) = stack.child_by_name("application") {
                             stack
-                                .page(&layout_page)
-                                .set_title(&new_translations.settings.tabs.layout);
+                                .page(&application_page)
+                                .set_title(&new_translations.settings.tabs.application);
                         }
                         if let Some(intelligence_page) = stack.child_by_name("intelligence") {
                             stack
                                 .page(&intelligence_page)
                                 .set_title(&new_translations.settings.tabs.intelligence);
                         }
-                        if let Some(appearance_page) = stack.child_by_name("appearance") {
-                            stack
-                                .page(&appearance_page)
-                                .set_title(&new_translations.settings.tabs.appearance);
-                        }
+
                         if let Some(language_page) = stack.child_by_name("language") {
                             stack
                                 .page(&language_page)

@@ -83,6 +83,7 @@ pub fn populate_file_menu(
     let persistence = gio::Menu::new();
     persistence.append(Some(&translations.menu.save), Some("app.save"));
     persistence.append(Some(&translations.menu.save_as), Some("app.save_as"));
+    persistence.append(Some(&translations.menu.print), Some("app.print"));
     persistence.append(Some(&translations.menu.export), Some("app.export"));
     file_menu.append_section(None, &persistence);
 

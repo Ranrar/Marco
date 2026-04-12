@@ -10,13 +10,6 @@ use crate::logic::loaders::icon_loader::{code_block_icon_svg, CodeBlockIcon};
 use crate::parser::{AdmonitionKind, AdmonitionStyle, Document, Node, NodeKind};
 use std::collections::HashMap;
 
-const HEADING_ANCHOR_SVG: &str = concat!(
-    r#"<svg xmlns=""#,
-    "http",
-    r#"://www.w3.org/2000/svg"#,
-    r#"" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-anchor" focusable="false" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v12m-8 -8a8 8 0 0 0 16 0m1 0h-2m-14 0h-2" /><path d="M9 6a3 3 0 1 0 6 0a3 3 0 1 0 -6 0" /></svg>"#,
-);
-
 // Marco sliders UI icons (Tabler).
 // These are embedded as inline SVG so they inherit `currentColor`.
 const SLIDER_ARROW_LEFT_SVG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-left" aria-hidden="true"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l14 0" /><path d="M5 12l4 4" /><path d="M5 12l4 -4" /></svg>"#;
@@ -139,13 +132,12 @@ fn render_node(
             output.push_str(" id=\"");
             output.push_str(&escape_html(&effective_id));
             output.push_str("\">");
-            output.push_str(&escaped_text);
 
-            // GitHub-style heading anchor link shown on hover.
+            // Wrap heading text in a self-anchor so the whole heading is clickable.
             output.push_str("<a class=\"marco-heading-anchor\" href=\"#");
             output.push_str(&escape_html(&effective_id));
             output.push_str("\" aria-label=\"Link to this heading\">");
-            output.push_str(HEADING_ANCHOR_SVG);
+            output.push_str(&escaped_text);
             output.push_str("</a>");
 
             output.push_str("</h");
@@ -1528,5 +1520,64 @@ mod tests {
         assert!(result.contains("<th style=\"text-align: center;\">h2</th>"));
         assert!(result.contains("<td style=\"text-align: left;\">c1</td>"));
         assert!(result.contains("<td style=\"text-align: center;\">c2</td>"));
+    }
+
+    #[test]
+    fn smoke_image_as_link() {
+        // `[![alt](img)](url)` must render as `<a href="url"><img .../></a>`, not broken.
+        let input = "[![Marco Logo](https://example.com/logo.png)](https://github.com/Ranrar/Marco)\n";
+        let doc = crate::parser::parse(input).expect("parse failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        assert!(
+            html.contains("<a href=\"https://github.com/Ranrar/Marco\"><img"),
+            "image-as-link must render as <a><img/></a>, got: {}",
+            html
+        );
+    }
+
+    #[test]
+    fn smoke_hard_break_backslash() {
+        // Backslash + newline → <br />
+        let input = "Hello\\\nworld\n";
+        let doc = crate::parser::parse(input).expect("parse failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        assert!(html.contains("<br"), "backslash hard break should render <br />, got: {}", html);
+    }
+
+    #[test]
+    fn smoke_hard_break_two_spaces() {
+        // Two trailing spaces + newline → <br /> (used by Shift+Enter in editor)
+        let input = "Hello  \nworld\n";
+        let doc = crate::parser::parse(input).expect("parse failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        assert!(html.contains("<br"), "two-space hard break should render <br />, got: {}", html);
+    }
+
+    #[test]
+    fn smoke_hard_break_three_spaces() {
+        // Three trailing spaces must also produce a clean <br /> with no stray space before it.
+        let input = "Hello   \nworld\n";
+        let doc = crate::parser::parse(input).expect("parse failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        assert!(html.contains("<br"), "three-space hard break should render <br />, got: {}", html);
+        // Must not produce a stray space text node before <br />
+        assert!(!html.contains("Hello <br"), "three-space hard break should not leave a stray space before <br />, got: {}", html);
+    }
+
+    #[test]
+    fn smoke_nbsp_spacer_paragraph() {
+        // Shift+Enter inserts "\u{00A0}\n\n" — a non-breaking space on its own line.
+        // Rust's trim() does NOT strip \u{00A0} (only strips ASCII whitespace),
+        // so the block parser accepts it as a real paragraph.
+        // The rendered <p> has CSS line-height height → visible spacer in preview.
+        let input = "before\n\n\u{00A0}\n\nafter\n";
+        let doc = crate::parser::parse(input).expect("parse failed");
+        let html = crate::render::render(&doc, &crate::render::RenderOptions::default()).expect("render failed");
+        // Must have a paragraph containing the nbsp character (as literal or escaped)
+        let has_nbsp_para = html.contains("\u{00A0}") || html.contains("&#xa0;") || html.contains("&#160;");
+        assert!(has_nbsp_para, "nbsp spacer paragraph must appear in HTML output, got: {}", html);
+        // Must still have both surrounding paragraphs
+        assert!(html.contains(">before<"), "before paragraph must be present, got: {}", html);
+        assert!(html.contains(">after<"), "after paragraph must be present, got: {}", html);
     }
 }

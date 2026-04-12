@@ -451,8 +451,10 @@ fn create_footer_status_button(text: &str, icon: ToolbarIcon, icon_size: f64) ->
         };
 
         let update_for_state = update_icon.clone();
-        button.connect_state_flags_changed(move |_, _| {
-            update_for_state();
+        button.connect_state_flags_changed(move |btn, _| {
+            if btn.is_mapped() {
+                update_for_state();
+            }
         });
 
         let update_for_map = update_icon.clone();

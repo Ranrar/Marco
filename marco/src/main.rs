@@ -159,6 +159,20 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // so that every wrap_html_document call embeds the correct dir attribute.
     crate::logic::rtl::init_rtl_from_settings(&settings_manager);
 
+    // Settings migration: ensure the on-disk file stays up-to-date with any new
+    // fields added to LayoutSettings.  This call is a no-op when the values are
+    // already set; it only fills in `None` defaults for fields that are absent
+    // (e.g. settings saved before page_view_columns / preview_zoom existed).
+    let _ = settings_manager.update_settings(|s| {
+        let layout = s
+            .layout
+            .get_or_insert_with(core::logic::swanson::LayoutSettings::default);
+        layout.page_view_columns.get_or_insert(1);
+        layout.preview_zoom.get_or_insert(
+            crate::components::editor::editor_manager::ZOOM_DEFAULT,
+        );
+    });
+
     let localization_manager =
         SimpleLocalizationManager::new().expect("Failed to initialize localization manager");
     let locale_code = settings_manager
@@ -314,6 +328,18 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     crate::components::editor::editor_manager::set_primary_preview_webview(
         &editor_webview.borrow(),
     );
+
+    // Apply saved preview zoom level to the WebView.
+    #[cfg(target_os = "linux")]
+    {
+        let saved_zoom = settings_manager
+            .get_settings()
+            .layout
+            .as_ref()
+            .and_then(|l| l.preview_zoom)
+            .unwrap_or(crate::components::editor::editor_manager::ZOOM_DEFAULT);
+        crate::components::editor::editor_manager::set_preview_zoom(saved_zoom);
+    }
 
     // Shared root popover tree state for menu + toolbar interaction.
     let root_popover_state = crate::ui::popover_state::RootPopoverState::new();
@@ -1374,6 +1400,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         log::debug!("Text direction changed via settings dialog: rtl={}", is_rtl);
                     }
                 }) as Box<dyn Fn(bool) + 'static>),
+                #[cfg(target_os = "linux")]
+                on_page_view_changed: Some(Box::new(move |state: crate::components::viewer::renderer::PageViewState| {
+                    crate::components::editor::editor_manager::update_page_view_state(state);
+                }) as Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>),
+                #[cfg(target_os = "windows")]
+                on_page_view_changed: None,
             };
 
             show_settings_dialog(
@@ -1534,6 +1566,454 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         FileDialogs::save_changes_dialog_callback(dialog_translations_rc.borrow().clone()),
         FileDialogs::save_dialog_callback(dialog_translations_rc.borrow().clone()),
     );
+
+    // Print action: opens the native GTK print dialog (Linux / WebKit6 only).
+    #[cfg(target_os = "linux")]
+    {
+        let print_action = gtk4::gio::SimpleAction::new("print", None);
+        print_action.connect_activate({
+            let window = window.clone();
+            let webview = editor_webview.clone();
+            let settings_manager = settings_manager.clone();
+            let theme_mode = theme_mode.clone();
+            move |_, _| {
+                let wv = webview.borrow();
+                // Read current page-view settings so the print CSS and dialog
+                // default PageSetup match the paged.js layout.
+                let s = settings_manager.get_settings();
+                let paper = s
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.page_view_paper.as_deref())
+                    .unwrap_or("A4")
+                    .to_string();
+                let orientation = s
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.page_view_orientation.as_deref())
+                    .unwrap_or("portrait")
+                    .to_string();
+                let dark_mode = theme_mode.borrow().contains("dark");
+                crate::components::viewer::print_driver::trigger_print_dialog(
+                    &wv,
+                    Some(window.upcast_ref()),
+                    &paper,
+                    &orientation,
+                    dark_mode,
+                );
+            }
+        });
+        app.add_action(&print_action);
+        app.set_accels_for_action("app.print", &["<Control>p"]);
+    }
+
+    // Export action: opens the full Export dialog (format, paper, settings),
+    // then a file-save dialog.  On PDF: injects print CSS and uses
+    // PrintOperation.  On HTML: renders markdown and writes to file.
+    // Linux / WebKit6 only.
+    #[cfg(target_os = "linux")]
+    {
+        let export_action = gtk4::gio::SimpleAction::new("export", None);
+        export_action.connect_activate({
+            let window = window.clone();
+            let webview = editor_webview.clone();
+            let file_operations_rc = file_operations_rc.clone();
+            let settings_manager = settings_manager.clone();
+            let editor_buffer = editor_buffer.clone();
+            let preview_theme_dir = preview_theme_dir.clone();
+            let refresh_preview_rc = refresh_preview_rc.clone();
+            move |_, _| {
+                let window = window.clone();
+                let webview = webview.clone();
+                let file_operations_rc = file_operations_rc.clone();
+                let settings_manager = settings_manager.clone();
+                let editor_buffer = editor_buffer.clone();
+                let preview_theme_dir = preview_theme_dir.clone();
+                let refresh_preview_rc = refresh_preview_rc.clone();
+                glib::MainContext::default().spawn_local(async move {
+                    // Derive the suggested filename stem from the open document.
+                    let (doc_stem, doc_title) = {
+                        let title = file_operations_rc.borrow().get_document_title();
+                        let clean = title.trim_start_matches('*').trim().to_string();
+                        let stem = file_operations_rc
+                            .borrow()
+                            .buffer
+                            .borrow()
+                            .get_file_path()
+                            .and_then(|p| {
+                                p.file_stem()
+                                    .and_then(|s| s.to_str())
+                                    .map(|s| s.to_owned())
+                            })
+                            .unwrap_or_else(|| clean.clone());
+                        (stem, clean)
+                    };
+
+                    // Read layout settings and appearance for pre-populating the dialog.
+                    let layout_opt = settings_manager.get_settings();
+                    let layout = layout_opt.layout.as_ref();
+
+                    // Build theme list from the preview themes directory.
+                    use core::logic::loaders::theme_loader::list_html_view_themes;
+                    let theme_entries = list_html_view_themes(&preview_theme_dir);
+                    let themes: Vec<(String, String)> = theme_entries
+                        .into_iter()
+                        .map(|e| {
+                            // Capitalise the display label.
+                            let label = e
+                                .label
+                                .get(..1)
+                                .map(|c| c.to_uppercase() + &e.label[1..])
+                                .unwrap_or(e.label);
+                            (label, e.filename)
+                        })
+                        .collect();
+
+                    let current_theme = layout_opt
+                        .appearance
+                        .as_ref()
+                        .and_then(|a| a.preview_theme.as_deref())
+                        .unwrap_or("marco.css")
+                        .to_string();
+                    let current_mode = {
+                        let mode = layout_opt
+                            .appearance
+                            .as_ref()
+                            .and_then(|a| a.editor_mode.as_deref())
+                            .unwrap_or("light");
+                        if mode.contains("dark") { "dark" } else { "light" }
+                    };
+
+                    // Show the full export dialog.
+                    let choice = crate::ui::dialogs::export::show_export_dialog(
+                        window.upcast_ref(),
+                        &doc_stem,
+                        &doc_title,
+                        &themes,
+                        &current_theme,
+                        current_mode,
+                        layout,
+                    )
+                    .await;
+
+                    let Some(settings) = choice else { return };
+
+                    match settings.format {
+                        crate::ui::dialogs::export::ExportFormat::Pdf => {
+                            // PDF export — re-render the document with the export dialog
+                            // settings (paper, orientation, margin_mm, theme, theme_mode)
+                            // so the PDF uses the user's chosen layout, not the current
+                            // live-preview settings.
+                            let markdown = editor_buffer
+                                .text(
+                                    &editor_buffer.start_iter(),
+                                    &editor_buffer.end_iter(),
+                                    false,
+                                )
+                                .to_string();
+
+                            let export_theme_class = if settings.theme_mode == "dark" {
+                                "theme-dark"
+                            } else {
+                                "theme-light"
+                            };
+                            let export_dark = settings.theme_mode == "dark";
+
+                            let export_theme_css = {
+                                let css_path = preview_theme_dir.join(&settings.theme);
+                                std::fs::read_to_string(&css_path).unwrap_or_default()
+                            };
+                            let export_syntax_css =
+                                crate::logic::syntax_highlighter::generate_css_with_global(
+                                    &settings.theme_mode,
+                                )
+                                .unwrap_or_else(|e| {
+                                    log::warn!(
+                                        "Failed to generate export syntax CSS (PDF): {}",
+                                        e
+                                    );
+                                    String::new()
+                                });
+                            let export_css = format!(
+                                "{}\n\n/* Syntax Highlighting CSS */\n{}",
+                                export_theme_css,
+                                export_syntax_css,
+                            );
+
+                            let html_body = match core::parse_to_html_cached(
+                                &markdown,
+                                core::RenderOptions {
+                                    theme: export_theme_class.to_string(),
+                                    ..Default::default()
+                                },
+                            ) {
+                                Ok(h) => h,
+                                Err(e) => {
+                                    log::error!("PDF export render failed: {}", e);
+                                    return;
+                                }
+                            };
+
+                            // Build the paged.js HTML using the export settings.
+                            // standalone_export=false keeps the WebKit marco_paged_ready signal.
+                            // for_export=false — print CSS is injected via inject_export_css.
+                            let page_opts = core::render::PageViewOptions {
+                                paged_js_source:
+                                    crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                                paper: &settings.paper,
+                                orientation: &settings.orientation,
+                                margin_mm: settings.margin_mm,
+                                show_page_numbers: settings.show_page_numbers,
+                                wheel_js: "",
+                                columns_per_row: 1,
+                                for_export: false,
+                                title: &settings.title,
+                                standalone_export: false,
+                            };
+                            let export_html =
+                                crate::components::viewer::backend::wrap_html_document_paged(
+                                    &html_body,
+                                    &export_css,
+                                    export_theme_class,
+                                    None,
+                                    &page_opts,
+                                );
+
+                            // Resolve document base URI for relative image references.
+                            let base_uri = file_operations_rc
+                                .borrow()
+                                .buffer
+                                .borrow()
+                                .get_base_uri_for_webview();
+
+                            // Load the export HTML into the live webview.
+                            {
+                                let wv = webview.borrow();
+                                crate::components::viewer::backend::load_html_when_ready(
+                                    &wv, export_html, base_uri,
+                                );
+                            }
+
+                            // Wait for paged.js layout to complete before printing.
+                            // paged.js (and the 8-second safety net) set
+                            // document.title = "marco_paged_ready" when done.
+                            // once_guard prevents double-firing if both signals arrive.
+                            let once_guard = Rc::new(Cell::new(false));
+                            let handler_id_slot: Rc<RefCell<Option<glib::SignalHandlerId>>> =
+                                Default::default();
+                            {
+                                let wv = webview.borrow();
+                                let webview_for_export = webview.clone();
+                                let refresh_for_export = refresh_preview_rc.clone();
+                                let guard = once_guard.clone();
+                                let slot = handler_id_slot.clone();
+                                let paper = settings.paper.clone();
+                                let orientation = settings.orientation.clone();
+                                let title = settings.title.clone();
+                                let output_path = settings.output_path.clone();
+                                let id =
+                                    wv.connect_notify_local(Some("title"), move |wv, _| {
+                                        if guard.get() {
+                                            return;
+                                        }
+                                        let Some(t) = wv.title() else { return };
+                                        if t.as_str() != "marco_paged_ready" {
+                                            return;
+                                        }
+                                        guard.set(true);
+                                        // Disconnect to avoid stale signals from future loads.
+                                        if let Some(id) = slot.borrow_mut().take() {
+                                            wv.disconnect(id);
+                                        }
+                                        // Inject print-clean CSS (suppresses opacity
+                                        // transition + resets body to fully opaque).
+                                        {
+                                            let wv_rc = webview_for_export.borrow();
+                                            crate::components::viewer::print_driver::inject_export_css(
+                                                &wv_rc,
+                                                &paper,
+                                                &orientation,
+                                                &title,
+                                                export_dark,
+                                            );
+                                        }
+                                        // Wait for the CSS injection to be processed
+                                        // by WebKit and repainted before the PDF
+                                        // renderer captures the page.
+                                        let refresh_after = refresh_for_export.clone();
+                                        let webview_cleanup = webview_for_export.clone();
+                                        let paper_2 = paper.clone();
+                                        let orientation_2 = orientation.clone();
+                                        let output_path_2 = output_path.clone();
+                                        glib::timeout_add_local_once(
+                                            std::time::Duration::from_millis(150),
+                                            move || {
+                                                // Pre-clone Rc handles for the on_done Fn
+                                                // closure before borrowing the webview, to
+                                                // avoid a borrow-while-moved conflict.
+                                                let wv_done = webview_cleanup.clone();
+                                                let refresh_done = refresh_after.clone();
+                                                {
+                                                    let wv_rc = webview_cleanup.borrow();
+                                                    crate::components::viewer::print_driver::export_to_pdf(
+                                                        &wv_rc,
+                                                        &output_path_2,
+                                                        &paper_2,
+                                                        &orientation_2,
+                                                        move |result| {
+                                                            if let Err(e) = result {
+                                                                log::error!("PDF export failed: {}", e);
+                                                            }
+                                                            let wv_c = wv_done.clone();
+                                                            let r_c = refresh_done.clone();
+                                                            // Remove export CSS then restore live preview.
+                                                            glib::timeout_add_local_once(
+                                                                std::time::Duration::from_millis(500),
+                                                                move || {
+                                                                    {
+                                                                        let wv = wv_c.borrow();
+                                                                        crate::components::viewer::print_driver::remove_export_css(&wv);
+                                                                    }
+                                                                    (r_c.borrow())();
+                                                                },
+                                                            );
+                                                        },
+                                                    );
+                                                } // wv_rc borrow dropped here
+                                            },
+                                        );
+                                    });
+                                *handler_id_slot.borrow_mut() = Some(id);
+                            }
+                        }
+                        crate::ui::dialogs::export::ExportFormat::Html => {
+                            // HTML: render markdown → wrap HTML → write to file.
+                            let markdown = editor_buffer
+                                .text(
+                                    &editor_buffer.start_iter(),
+                                    &editor_buffer.end_iter(),
+                                    false,
+                                )
+                                .to_string();
+
+                            // Use theme/mode from export dialog choices.
+                            let theme_mode = if settings.theme_mode == "dark" {
+                                "theme-dark"
+                            } else {
+                                "theme-light"
+                            };
+
+                            // Load the CSS for the selected theme file.
+                            let export_theme_css = {
+                                let css_path = preview_theme_dir.join(&settings.theme);
+                                std::fs::read_to_string(&css_path).unwrap_or_default()
+                            };
+                            let export_syntax_css =
+                                crate::logic::syntax_highlighter::generate_css_with_global(
+                                    &settings.theme_mode,
+                                )
+                                .unwrap_or_else(|e| {
+                                    log::warn!(
+                                        "Failed to generate export syntax CSS (HTML): {}",
+                                        e
+                                    );
+                                    String::new()
+                                });
+                            let export_css = format!(
+                                "{}\n\n/* Syntax Highlighting CSS */\n{}",
+                                export_theme_css,
+                                export_syntax_css,
+                            );
+
+                            let html_body = match core::parse_to_html_cached(
+                                &markdown,
+                                core::RenderOptions {
+                                    theme: theme_mode.to_string(),
+                                    ..Default::default()
+                                },
+                            ) {
+                                Ok(h) => h,
+                                Err(e) => {
+                                    log::error!("HTML export render failed: {}", e);
+                                    return;
+                                }
+                            };
+
+                            let full_html = if settings.paper.eq_ignore_ascii_case("none") {
+                                // Plain HTML — no paged.js.  Inject <title> manually since
+                                // wrap_html_document does not accept a title parameter.
+                                let title_escaped = settings
+                                    .title
+                                    .replace('&', "&amp;")
+                                    .replace('<', "&lt;")
+                                    .replace('>', "&gt;");
+                                let raw = crate::components::viewer::backend::wrap_html_document(
+                                    &html_body,
+                                    &export_css,
+                                    theme_mode,
+                                    None,
+                                );
+                                if title_escaped.is_empty() {
+                                    raw
+                                } else {
+                                    raw.replacen(
+                                        "<meta charset=",
+                                        &format!(
+                                            "<title>{}</title>\n        <meta charset=",
+                                            title_escaped
+                                        ),
+                                        1,
+                                    )
+                                }
+                            } else {
+                                // Paged HTML: standalone file with real paginated pages.
+                                // for_export=false keeps the page-view visual chrome (desk,
+                                // shadows) so it looks like print-preview in a browser.
+                                // standalone_export=true strips WebKit-only hooks and injects
+                                // the document title.
+                                let page_opts = core::render::PageViewOptions {
+                                    paged_js_source:
+                                        crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                                    paper: &settings.paper,
+                                    orientation: &settings.orientation,
+                                    margin_mm: settings.margin_mm,
+                                    show_page_numbers: settings.show_page_numbers,
+                                    wheel_js: "",
+                                    columns_per_row: 1,
+                                    for_export: false,
+                                    title: &settings.title,
+                                    standalone_export: true,
+                                };
+                                crate::components::viewer::backend::wrap_html_document_paged(
+                                    &html_body,
+                                    &export_css,
+                                    theme_mode,
+                                    None,
+                                    &page_opts,
+                                )
+                            };
+
+                            if let Err(e) =
+                                std::fs::write(&settings.output_path, full_html.as_bytes())
+                            {
+                                log::error!(
+                                    "HTML export write failed ({}): {}",
+                                    settings.output_path.display(),
+                                    e
+                                );
+                            } else {
+                                log::info!(
+                                    "HTML exported to {}",
+                                    settings.output_path.display()
+                                );
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        app.add_action(&export_action);
+    }
 
     // Wire dynamic recent-file actions using the recent_menu from the UI
     crate::ui::menu_items::setup_recent_actions(
@@ -1784,6 +2264,51 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     // Load and apply saved window state
     crate::logic::window_state::apply_saved_window_state(&window, &settings_manager);
+
+    // ── Preview zoom keyboard shortcuts ─────────────────────────────────────
+    // Ctrl++/Ctrl+= → zoom in, Ctrl+- → zoom out, Ctrl+0 → reset zoom.
+    // Works in both normal preview and paged.js page view.
+    {
+        use gtk4::gdk::{Key, ModifierType};
+        use gtk4::glib::Propagation;
+
+        let sm_zoom = settings_manager.clone();
+        let zoom_key_ctrl = gtk4::EventControllerKey::new();
+        zoom_key_ctrl.connect_key_pressed(move |_ctrl, keyval, _code, state| {
+            if !state.contains(ModifierType::CONTROL_MASK) {
+                return Propagation::Proceed;
+            }
+            let current = crate::components::editor::editor_manager::get_preview_zoom();
+            let step = crate::components::editor::editor_manager::ZOOM_STEP;
+            let new_zoom = match keyval {
+                // Regular keyboard: = / + / - / 0
+                Key::equal | Key::plus => Some(current + step),
+                Key::minus => Some(current - step),
+                Key::_0 => Some(crate::components::editor::editor_manager::ZOOM_DEFAULT),
+                // Numpad: + / - / 0
+                Key::KP_Add => Some(current + step),
+                Key::KP_Subtract => Some(current - step),
+                Key::KP_0 => Some(crate::components::editor::editor_manager::ZOOM_DEFAULT),
+                _ => None,
+            };
+            if let Some(zoom) = new_zoom {
+                crate::components::editor::editor_manager::set_preview_zoom(zoom);
+                // Persist the new zoom level so it survives restarts.
+                let saved = crate::components::editor::editor_manager::get_preview_zoom();
+                if let Err(e) = sm_zoom.update_settings(|s| {
+                    s.layout
+                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .preview_zoom = Some(saved);
+                }) {
+                    log::debug!("Failed to save preview_zoom: {}", e);
+                }
+                Propagation::Stop
+            } else {
+                Propagation::Proceed
+            }
+        });
+        window.add_controller(zoom_key_ctrl);
+    }
 
     // Connect window state change handlers to persist settings
     crate::logic::window_state::connect_window_state_persistence(

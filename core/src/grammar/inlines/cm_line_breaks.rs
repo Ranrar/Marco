@@ -1,13 +1,13 @@
 //! Line break grammar - soft and hard line breaks
 //!
 //! Per CommonMark spec sections 6.14-6.15:
-//! - Hard line break: two spaces + newline, or backslash + newline
+//! - Hard line break: two or more spaces + newline, or backslash + newline
 //! - Soft line break: regular newline (not in code span or HTML tag)
 
 use super::Span;
 use nom::{
-    branch::alt, bytes::complete::tag, character::complete::line_ending, combinator::recognize,
-    IResult, Parser,
+    branch::alt, bytes::complete::{tag, take_while_m_n}, character::complete::line_ending,
+    combinator::recognize, IResult, Parser,
 };
 
 /// Parse a soft line break.
@@ -49,9 +49,14 @@ pub fn soft_line_break(input: Span) -> IResult<Span, ()> {
 pub fn hard_line_break(input: Span) -> IResult<Span, ()> {
     log::debug!("Parsing hard line break");
 
-    // Two or more spaces followed by newline, OR backslash followed by newline
+    // Two or more spaces followed by newline, OR backslash followed by newline.
+    // Using take_while_m_n(2, usize::MAX, ...) to correctly consume ALL trailing
+    // spaces (not just exactly two) per CommonMark spec section 6.9.
     let (input, _) = alt((
-        recognize((tag("  "), line_ending)), // 2+ spaces + newline
+        recognize((
+            take_while_m_n(2, usize::MAX, |c: char| c == ' '),
+            line_ending,
+        )),
         recognize((tag("\\"), line_ending)), // backslash + newline
     ))
     .parse(input)?;
@@ -103,6 +108,17 @@ mod tests {
         let input = Span::new(" \nmore text");
         let result = hard_line_break(input);
         assert!(result.is_err()); // Only 1 space should fail
+    }
+
+    #[test]
+    fn smoke_test_hard_line_break_three_spaces() {
+        // CommonMark spec: two OR MORE spaces trigger a hard line break.
+        // Three spaces must match and consume all three spaces.
+        let input = Span::new("   \nmore text");
+        let result = hard_line_break(input);
+        assert!(result.is_ok());
+        let (rest, _) = result.unwrap();
+        assert_eq!(*rest.fragment(), "more text"); // All spaces consumed, not just two
     }
 
     #[test]

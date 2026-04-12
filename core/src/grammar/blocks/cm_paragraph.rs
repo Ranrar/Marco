@@ -56,8 +56,14 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
     // Parse at least one line of text
     let (after_first, first_line) = not_line_ending(after_ws)?;
 
-    // First line must not be empty (blank lines don't start paragraphs)
-    if first_line.fragment().trim().is_empty() {
+    // First line must not be empty (blank lines don't start paragraphs).
+    // CommonMark: only ASCII space (U+0020) and tab (U+0009) make a line blank.
+    // U+00A0 NO-BREAK SPACE is NOT blank — it creates visible spacer paragraphs.
+    if first_line
+        .fragment()
+        .chars()
+        .all(|c| c == ' ' || c == '\t')
+    {
         return Err(nom::Err::Error(nom::error::Error::new(
             original_input,
             nom::error::ErrorKind::Tag,
@@ -156,8 +162,8 @@ pub fn paragraph(input: Span) -> IResult<Span, Span> {
                 Err(_) => break,
             };
 
-        // Check if line is blank (only whitespace or empty)
-        if line.fragment().trim().is_empty() {
+        // Check if line is blank per CommonMark: only ASCII space/tab.
+        if line.fragment().chars().all(|c| c == ' ' || c == '\t') {
             // Blank line ends the paragraph
             break;
         }

@@ -6,11 +6,11 @@
   <img src="https://img.shields.io/badge/Platform-Linux%20|%20Windows-blue?style=for-the-badge&logo=windows&logoColor=white" alt="Cross-Platform: Linux & Windows" />
   <img src="https://img.shields.io/badge/CommonMark-100%25-brightgreen?style=for-the-badge&logo=markdown&logoColor=white" alt="100% CommonMark Compliant" />
   <img src="https://img.shields.io/badge/International-Characters-blue?style=for-the-badge&logo=translate&logoColor=white" alt="International Characters Support" />
+  <img src="https://img.shields.io/badge/RTL_%2B_Unicode-Ready-blue?style=for-the-badge&logo=translate&logoColor=white" alt="RTL and Unicode Ready" />
   <br/>
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Version-0.22.0-blue?style=for-the-badge" alt="Version 0.22.0" />
-  <img src="https://img.shields.io/badge/Channel-Beta-orange?style=for-the-badge" alt="Beta Channel" />
+  <img src="https://img.shields.io/badge/Version-0.23.0-blue?style=for-the-badge" alt="Version 0.23.0" />
 </p>
 
 **Marco** is a fast, cross-platform Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
@@ -39,19 +39,61 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 
 | Linux | Windows |
 |-------|---------|
-| **Beta (current release channel)** | **Beta (current release channel)** |
 | Download the latest `.deb` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest | Download the latest `.zip` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest |
 | **Asset:** `marco-suite_<version>_linux_amd64.deb` | **Asset:** `marco-suite_<version>_windows_amd64.zip` |
 | **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
-## Welcome screen (first run)
+## What can you use Marco & Polo for?
 
-On first launch, Marco shows a short **welcome assistant** (non-blocking) to help you get started:
+| Use Case | Marco (Editor) | Polo (Viewer) |
+|---|:---:|:---:|
+| Technical documentation & manuals | Yes | Yes |
+| Research papers (math, footnotes, references) | Yes | Yes |
+| Books & long-form writing | Yes | Yes |
+| Presentations & slide decks | Yes | Yes |
+| README & project documentation | Yes | Yes |
+| Blog posts & articles | Yes | Yes |
+| API documentation | Yes | Yes |
+| Meeting notes & minutes | Yes | Yes |
+| Knowledge base & personal wiki | Yes | Yes |
+| Release notes & changelogs | Yes | Yes |
+| Study notes & course material | Yes | Yes |
 
-- A quick overview of key features
-- **Language selection** (saved to your settings)
-- **Light/dark theme selection** — choose your preferred colour scheme before the editor opens
-- A telemetry page (currently a placeholder; telemetry stays disabled)
+## Features at a glance
+
+Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests passing), plus a practical set of focused extensions.
+
+| Feature | Status |
+|---|---|
+| CommonMark core (headings, lists, code, links, images, blockquotes…) | Yes |
+| International text (Unicode) + RTL text direction support | Yes |
+| Tables (GFM) including headerless tables | Yes |
+| Task lists and inline checkboxes | Yes |
+| Strikethrough, highlight, superscript, subscript | Yes |
+| Footnotes and inline footnotes | Yes |
+| Admonitions / callouts (Note, Warning, Tip, custom) | Yes |
+| Emoji shortcodes (`:joy:`) | Yes |
+| User mentions (`@name[platform]`) | Yes |
+| Math — KaTeX inline and block | Yes |
+| Mermaid diagrams | Yes |
+| Tab blocks | Yes |
+| Slide decks | Yes |
+| Heading IDs for stable anchors | Yes |
+| GFM autolink literals | Yes |
+| PDF export | Yes |
+| Print preview with page settings | Yes |
+| Table of contents (TOC) sidebar | Yes |
+| Bookmarks and cross-file links | Yes |
+| Scroll sync between editor and preview | Yes |
+
+## View modes
+
+| Mode | Purpose | Status | Notes |
+|---|---|---|---|
+| Live Preview | Real-time rendered Markdown while you edit. | Available | Synced with editor, supports themes and interactive preview behaviors. |
+| Print Preview | Paged, print-focused preview for PDF/export workflows. | Available | Uses paged media rules (paper size, orientation, margins, page numbers). |
+| Code View | Inspect the underlying rendered HTML source. | Available | Useful for debugging markup/output structure. |
+| Presentation View | Slide-style reading/presenting mode for documents and decks. | Planned | In progress for a future release. |
 
 ## Why Marco?
 
@@ -73,85 +115,34 @@ It's built for developers, engineers, and writers who need:
 
 Whether you're writing technical docs, tutorials, or long-form text, Marco turns Markdown into a professional writing tool — fast, clear, and extensible.
 
-## Marco Markdown Functions
+## Key technologies
 
-Marco aims for **100% CommonMark compliance** (currently 652/652 spec tests passing), plus a growing set of carefully-scoped extensions.
+- **GTK4-RS** (`gtk4`, `glib`, `gio`) - Cross-platform GUI toolkit powering windows, widgets, menus, and event handling.
+  Used for Marco and Polo's native Linux/Windows interface.
 
-| Markdown / Syntax feature | Status | Notes |
-|---|---|---|
-| CommonMark core (block + inline) | ✅ Supported | Includes ATX + Setext headings, paragraphs, blockquotes, thematic breaks, lists, code spans/blocks, links, images, HTML blocks/inlines, hard/soft breaks, and entity references. |
-| International text (Unicode) | ✅ Supported | Works with non-Latin scripts (e.g. 日本語, العربية) and emoji. |
-| Heading IDs (`# Title {#id}`) | ✅ Supported | Extension for stable anchors/links. |
-| Autolinks (`<https://…>` / `<user@…>`) | ✅ Supported | CommonMark autolinks (email becomes `mailto:`). |
-| GFM-style autolink literals (`https://…`, `www.…`, `user@…`) | ✅ Supported | Rendered as links when detected in text. |
-| Reference-style links (`[text][label]`, `[label][]`, `[label]`) | ✅ Supported | Resolved against `[label]: url` definitions (supports forward definitions). |
-| Task lists (`- [ ]` / `- [x]`) | ✅ Supported | Rendered with themed checkbox icons. Also supports checklist-style paragraph markers (`[ ]` / `[x]` / `[X]`) and mid-paragraph markers like `Do this [ ] today`. |
-| Tables (GFM pipe tables) | ✅ Supported | Header/body separation + per-column alignment. |
-| Headerless pipe tables (delimiter-first, no header row) | ✅ Supported | Marco extension: the first line is the delimiter row, followed by 1+ body rows; renders as a normal table with `<tbody>` only. |
-| Strikethrough (`~~text~~` / `--text--`) | ✅ Supported | GFM extension (`~~text~~`). Also supports Marco's dash-style alternative (`--text--`); both render as `<s>…</s>`. |
-| Admonitions / callouts | ✅ Supported | GitHub-style alerts (e.g. Note/Tip/Important/Warning/Caution) plus an extended custom-header form: `> [:joy: Happy Header]` (quote-styled with a custom emoji/icon + title). |
-| Footnotes (`[^a]` + `[^a]: …`) | ✅ Supported | Rendered as an end-of-document footnotes section. |
-| Inline footnotes (`^[...]`) | ✅ Supported | Marco extension: inline footnote content is defined at the reference point and rendered into the same footnotes section. |
-| Highlight/mark (`==text==`) | ✅ Supported | Rendered as `<mark>…</mark>`. |
-| Superscript (`^text^`) / subscript (`~text~`) | ✅ Supported | Marco extensions. Rendered as `<sup>…</sup>` / `<sub>…</sub>`. Subscript also accepts the arrow-style delimiter `˅text˅` (U+02C5) as an alternative. |
-| Emoji shortcodes (`:joy:`) | ✅ Supported | Only recognized shortcodes convert; unknown ones stay literal text. |
-| User mentions (`@name[platform]`) | ✅ Supported | Marco extension: renders as a profile link when `(platform, username)` maps to a stable public profile URL; otherwise renders as non-link text. |
-| Inline checkboxes mid-paragraph (`... [x] ...`) | ✅ Supported | Marco extension: `[ ]` / `[x]` / `[X]` markers are recognized inside normal text (with conservative parsing to avoid breaking link syntax). |
-| Tab blocks (`:::tab` + `@tab`) | ✅ Supported | Marco extension: `:::tab` container with `@tab <title>` headers; renders as a no-JS tab UI in the HTML preview (radio+label panels). Nested tab blocks are intentionally not supported. |
-| Slideshow decks (`@slidestart` / `@slideend`) | ✅ Supported | Marco extension: author slide decks inside Markdown using `@slidestart[:tN]` … `@slideend`. Use `---` for horizontal slide breaks and `--` for vertical breaks (stored as metadata). Renders as an interactive slideshow in the preview (controls + dots); adds autoplay when a timer is provided. |
-| YouTube embeds | Not implemented yet | Planned (URLs render as links today; embed would be opt-in). |
-| Math (KaTeX / LaTeX) | ✅ Supported | Inline (`$...$`) and display (`$$...$$`) math rendering via KaTeX. Supports standard LaTeX math syntax. |
-| Diagrams (Mermaid) | ✅ Supported | Flowcharts, sequence diagrams, class diagrams, state diagrams, ER diagrams, pie charts, Gantt charts, and more. Uses `mermaid-rs-renderer` (pure Rust, 100-1400x faster than mermaid-cli). |
+- **SourceView5** (`sourceview5`) - Editor component with syntax highlighting and code-friendly text features.
+  Powers the Markdown editing area (line numbers, search/replace, formatting aids).
 
-## Future functions in pipeline
+- **WebKit6 / WebView2** - HTML preview engine (`webkit6` on Linux, `wry`/WebView2 on Windows).
+  Renders live preview with local images, CSS themes, and scroll-sync interactions.
 
-- **Executable code blocks** — run Bash, Python, or shell snippets directly in the preview
-- **Structured formatting** — semantic elements for headings, notes, and exports
-- **Export to PDF** — export into PDF in A4 or US Letter
-- **Templates** — start from predefined markdown templates (README, runbook, etc.)
+- **nom** (`nom`) - Parser combinator library used for Marco's custom Markdown grammar.
+  Enables recursive-descent parsing and AST generation in `core/src/grammar/`.
 
-## AI-assisted development
+- **RON** (`ron`) - Human-readable configuration format for settings, themes, and preferences.
+  Easy to edit manually and friendly for version control.
 
-This project is developed with occasional help from AI tools (for example, Copilot-style code suggestions). AI can speed up prototyping and refactors, but:
+- **KaTeX** (`katex-rs`) - Rust implementation of KaTeX for math rendering.
+  Supports fast native inline and block LaTeX output without browser JS dependencies.
 
-- Changes are still reviewed by a human.
-- Tests and linting are expected to pass before merging.
-- If something looks "too magical to be true", please open an issue — bugs don't get a free pass just because a robot wrote the first draft.
+- **Mermaid** (`mermaid-rs-renderer` / `mmdr`) - Pure Rust renderer by [Jeremy Huang](https://github.com/1jehuang/mermaid-rs-renderer).
+  Supports 23 diagram types and can be 100-1400x faster than `mermaid-cli`.
 
-## Architecture & internals
+- **Paged.js** (`paged.js`) - CSS Paged Media polyfill used in print-preview pagination.
+  Project: [pagedjs/pagedjs](https://github.com/pagedjs/pagedjs) (MIT License).
 
-Marco uses a **Cargo workspace** with three crates:
-
-- **`core/`** — Pure Rust library with hand-crafted parser, AST builder, HTML renderer, dianostics features, and core logic (buffer management, settings, paths, cache, logging). No GTK dependencies.
-- **`marco/`** — Full-featured editor binary with GTK4 UI, SourceView5 text editing, and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). Depends on `core`.
-- **`polo/`** — Lightweight viewer binary with GTK4 UI and platform-specific HTML preview (WebKit6 on Linux, WebView2 on Windows via `wry`). No SourceView5. Depends on `core`.
-- **`assets/`** — Centralized workspace assets: themes, fonts, icons, settings.
-
-**Key technologies:**
-
-- **GTK4-RS** (`gtk4`, `glib`, `gio`) - Cross-platform GUI framework providing the main application window, widgets, and event handling. Used for the editor interface, menus, toolbars, and all user interactions.
-
-- **SourceView5** (`sourceview5`) - Advanced text editor component with syntax highlighting and code editing features. Provides the main markdown editing area with features like line numbers, search/replace, and text formatting.
-
-- **WebKit6 / WebView2** - Platform-specific web engines for HTML rendering and preview. Linux uses `webkit6` (GTK4-native WebKit), Windows uses `wry` (WebView2/Chromium wrapper). Both display the live markdown preview with support for local images, custom CSS themes, and JavaScript interactions like scroll synchronization.
-
-- **nom** (`nom`) - Parser combinator library for building the custom markdown grammar. nom uses **recursive descent parsing** where you write Rust functions that parse pieces of input and compose them together. This approach provides total control, incremental parsing capability, and native Rust performance. The parser lives in `core/src/grammar/` and generates an AST for fine-grained control over rendering and extensibility.
-
-- **RON** (`ron`) - Rusty Object Notation for configuration files. Used for settings storage, theme definitions, and user preferences with a human-readable format that's easy to edit and version control.
-
-- **KaTeX** (`katex-rs`) - Rust re-implementation of the KaTeX rendering engine for mathematical expressions. Provides fast, native math rendering without JavaScript dependencies.
-
-- **Mermaid** (`mermaid-rs-renderer` / `mmdr`) - Pure Rust implementation by [Jeremy Huang](https://github.com/1jehuang/mermaid-rs-renderer). Renders diagrams 100-1400x faster than mermaid-cli by eliminating browser overhead. Supports 23 diagram types including flowcharts, sequence diagrams, class diagrams, and more.
-
-- **markdownlint** - A respected Markdown/CommonMark linting reference by David Anson that inspired Marco's **MD*** baseline diagnostics model. Project: [DavidAnson/markdownlint](https://github.com/DavidAnson/markdownlint).
-
-**Current development focus:**
-- Maintaining **100% CommonMark compliance** while adding extensions
-- Fine-tuning the **parser grammar** for comprehensive markdown support
-- Polishing the **AST builder** and **HTML renderer** components
-- Refining **Markdown intelligence**: completion, hover accuracy, and diagnostic catalog coverage
-- Implement robust error handling and edge-case coverage
-- Optimizing **parser performance** and **caching** with Moka
+- **markdownlint** - Marco uses an internal diagnostics catalog aligned with markdownlint-style rule IDs (**MD***).
+  Project: [DavidAnson/markdownlint](https://github.com/DavidAnson/markdownlint).
 
 ## Roadmap
 
@@ -187,11 +178,12 @@ Marco uses a **Cargo workspace** with three crates:
 - [x] Smart code blocks with programming languages syntax
 - [x] Math rendering: KaTeX support for equations and formulas (inline `$...$` and display `$$...$$`)
 - [x] Diagram support: Mermaid for flowcharts, sequence diagrams, class diagrams, and 20+ other diagram types
-- [ ] Export to PDF
-- [ ] Page size presets for export (A4, US Letter, etc.)
+- [x] Export to PDF
+- [x] Page size presets for export (A4, US Letter, etc.)
 - [x] Document navigation: TOC sidebar (collapsible, click-to-scroll, configurable depth)
 - [x] Document navigation: bookmarks
 - [x] Document navigation: cross-file links (local link prompt in preview)
+- [ ] Document presentation mode
 
 ### Advanced Features
 - [x] Language plugin system via. `assets/language/xx*.toml` files
@@ -251,3 +243,11 @@ Reference locations for contributors working on components and translations:
 - [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
 - [documentation/language.md](documentation/language.md) — Localization provider contract and workflow
 - [assets/language/language_matrix.md](assets/language/language_matrix.md) — language implementation matrix
+
+## AI-assisted development
+
+This project is developed with occasional help from AI tools (for example, Copilot-style code suggestions). AI can speed up prototyping and refactors, but:
+
+- Changes are still reviewed by a human.
+- Tests and linting are expected to pass before merging.
+- If something looks "too magical to be true", please open an issue — bugs don't get a free pass just because a robot wrote the first draft.

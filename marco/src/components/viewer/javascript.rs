@@ -77,11 +77,22 @@ pub const SCROLL_REPORT_JS: &str = r#"<script>
     let scrollTimeout = null;
     
     function reportPosition(){
+        // In paged.js mode __pagedJsReady is set to false until layout is complete.
+        // Suppress reports while the DOM is being restructured to avoid spurious
+        // scroll:0 messages that would yank the editor to the top.
+        // In normal mode __pagedJsReady is never defined, so typeof returns
+        // 'undefined' and the guard is a no-op.
+        if (typeof window.__pagedJsReady !== 'undefined' && !window.__pagedJsReady) return;
         try{
             var el = document.scrollingElement||document.documentElement||document.body;
             var denom = Math.max(el.scrollHeight - el.clientHeight, 1);
             var frac = Math.max(0, Math.min(1, el.scrollTop / denom));
-            
+
+            // After paged.js reload the page starts at position 0.  Silently
+            // initialise the baseline so the fresh-load 0 is never sent as a
+            // scroll report (which would yank the editor to the top).
+            if (window.__pagedJsJustReady) { lastReportedPosition = frac; return; }
+
             // Only report if position has changed significantly (avoid noise)
             if (Math.abs(frac - lastReportedPosition) > 0.0001) {
                 var msg = 'marco_scroll:' + frac.toFixed(6);

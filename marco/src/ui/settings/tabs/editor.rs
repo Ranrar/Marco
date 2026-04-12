@@ -7,11 +7,13 @@ use std::rc::Rc;
 // Import unified helper
 use super::helpers::{add_setting_row_i18n, SettingsI18nRegistry};
 use crate::components::language::SettingsEditorTranslations;
+use crate::components::language::SettingsLayoutTranslations;
 use crate::components::language::Translations;
 
 pub fn build_editor_tab(
     settings_path: &str,
     translations: &SettingsEditorTranslations,
+    layout_translations: &SettingsLayoutTranslations,
     i18n: &SettingsI18nRegistry,
 ) -> Box {
     use gtk4::{
@@ -599,6 +601,52 @@ pub fn build_editor_tab(
         false,
     );
     container.append(&table_auto_align_row);
+
+    // Show Line Numbers (Toggle)
+    let line_numbers_switch = Switch::new();
+    line_numbers_switch.add_css_class("marco-switch");
+
+    let current_line_numbers = if let Some(ref settings_manager) = settings_manager_opt {
+        settings_manager
+            .get_settings()
+            .layout
+            .as_ref()
+            .and_then(|l| l.show_line_numbers)
+            .unwrap_or(true)
+    } else {
+        true
+    };
+    line_numbers_switch.set_active(current_line_numbers);
+
+    if let Some(settings_manager_clone) = settings_manager_opt.clone() {
+        line_numbers_switch.connect_state_set(move |_switch, is_active| {
+            debug!("Line numbers changed to: {}", is_active);
+            if let Err(e) = settings_manager_clone.update_settings(|settings| {
+                if settings.layout.is_none() {
+                    settings.layout = Some(core::logic::swanson::LayoutSettings::default());
+                }
+                if let Some(ref mut layout) = settings.layout {
+                    layout.show_line_numbers = Some(is_active);
+                }
+            }) {
+                debug!("Failed to save line numbers setting: {}", e);
+            }
+            use crate::components::editor::editor_manager::update_line_numbers_globally;
+            let _ = update_line_numbers_globally(is_active);
+            glib::Propagation::Proceed
+        });
+    }
+
+    let line_numbers_row = add_setting_row_i18n(
+        i18n,
+        layout_translations.line_numbers_label.as_str(),
+        layout_translations.line_numbers_description.as_str(),
+        Rc::new(|t: &Translations| t.settings.layout.line_numbers_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.line_numbers_description.clone()),
+        &line_numbers_switch,
+        false,
+    );
+    container.append(&line_numbers_row);
 
     container
 }

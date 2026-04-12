@@ -100,6 +100,7 @@ pub struct MenuTranslations {
     pub open: String,
     pub save: String,
     pub save_as: String,
+    pub print: String,
     pub export: String,
     pub export_pdf: String,
     pub settings: String,
@@ -278,13 +279,13 @@ pub struct SettingsTranslations {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct SettingsTabsTranslations {
+    pub application: String,
     pub editor: String,
     pub intelligence: String,
-    pub layout: String,
-    pub appearance: String,
     pub language: String,
     pub advanced: String,
     pub debug: String,
+    pub print_preview: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -372,6 +373,18 @@ pub struct SettingsLayoutTranslations {
     pub text_direction_description: String,
     pub text_direction_ltr: String,
     pub text_direction_rtl: String,
+    pub page_view_label: String,
+    pub page_view_description: String,
+    pub page_view_paper_label: String,
+    pub page_view_paper_description: String,
+    pub page_view_orientation_label: String,
+    pub page_view_orientation_description: String,
+    pub page_view_orientation_portrait: String,
+    pub page_view_orientation_landscape: String,
+    pub page_view_margin_label: String,
+    pub page_view_margin_description: String,
+    pub page_view_page_numbers_label: String,
+    pub page_view_page_numbers_description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -628,6 +641,7 @@ impl SimpleLocalizationManager {
                 open: Self::get_string(value, &["menu", "open"], &fallback.menu.open),
                 save: Self::get_string(value, &["menu", "save"], &fallback.menu.save),
                 save_as: Self::get_string(value, &["menu", "save_as"], &fallback.menu.save_as),
+                print: Self::get_string(value, &["menu", "print"], &fallback.menu.print),
                 export: Self::get_string(value, &["menu", "export"], &fallback.menu.export),
                 export_pdf: Self::get_string(
                     value,
@@ -1227,6 +1241,11 @@ impl SimpleLocalizationManager {
                 title: Self::get_string(value, &["settings", "title"], &fallback.settings.title),
                 close: Self::get_string(value, &["settings", "close"], &fallback.settings.close),
                 tabs: SettingsTabsTranslations {
+                    application: Self::get_string(
+                        value,
+                        &["settings", "tabs", "application"],
+                        &fallback.settings.tabs.application,
+                    ),
                     editor: Self::get_string(
                         value,
                         &["settings", "tabs", "editor"],
@@ -1236,16 +1255,6 @@ impl SimpleLocalizationManager {
                         value,
                         &["settings", "tabs", "intelligence"],
                         &fallback.settings.tabs.intelligence,
-                    ),
-                    layout: Self::get_string(
-                        value,
-                        &["settings", "tabs", "layout"],
-                        &fallback.settings.tabs.layout,
-                    ),
-                    appearance: Self::get_string(
-                        value,
-                        &["settings", "tabs", "appearance"],
-                        &fallback.settings.tabs.appearance,
                     ),
                     language: Self::get_string(
                         value,
@@ -1261,6 +1270,11 @@ impl SimpleLocalizationManager {
                         value,
                         &["settings", "tabs", "debug"],
                         &fallback.settings.tabs.debug,
+                    ),
+                    print_preview: Self::get_string(
+                        value,
+                        &["settings", "tabs", "print_preview"],
+                        &fallback.settings.tabs.print_preview,
                     ),
                 },
                 language: SettingsLanguageTranslations {
@@ -1620,6 +1634,66 @@ impl SimpleLocalizationManager {
                         value,
                         &["settings", "layout", "text_direction_rtl"],
                         &fallback.settings.layout.text_direction_rtl,
+                    ),
+                    page_view_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_label"],
+                        &fallback.settings.layout.page_view_label,
+                    ),
+                    page_view_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_description"],
+                        &fallback.settings.layout.page_view_description,
+                    ),
+                    page_view_paper_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_paper_label"],
+                        &fallback.settings.layout.page_view_paper_label,
+                    ),
+                    page_view_paper_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_paper_description"],
+                        &fallback.settings.layout.page_view_paper_description,
+                    ),
+                    page_view_orientation_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_orientation_label"],
+                        &fallback.settings.layout.page_view_orientation_label,
+                    ),
+                    page_view_orientation_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_orientation_description"],
+                        &fallback.settings.layout.page_view_orientation_description,
+                    ),
+                    page_view_orientation_portrait: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_orientation_portrait"],
+                        &fallback.settings.layout.page_view_orientation_portrait,
+                    ),
+                    page_view_orientation_landscape: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_orientation_landscape"],
+                        &fallback.settings.layout.page_view_orientation_landscape,
+                    ),
+                    page_view_margin_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_margin_label"],
+                        &fallback.settings.layout.page_view_margin_label,
+                    ),
+                    page_view_margin_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_margin_description"],
+                        &fallback.settings.layout.page_view_margin_description,
+                    ),
+                    page_view_page_numbers_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_page_numbers_label"],
+                        &fallback.settings.layout.page_view_page_numbers_label,
+                    ),
+                    page_view_page_numbers_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_page_numbers_description"],
+                        &fallback.settings.layout.page_view_page_numbers_description,
                     ),
                 },
                 advanced: SettingsAdvancedTranslations {

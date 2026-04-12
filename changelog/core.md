@@ -22,6 +22,25 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.23.0] - 2026-04-12
+
+### Added
+- Paged preview document API for CSS Paged Media workflows: `wrap_preview_html_document_paged` with `PageViewOptions` (paper size, orientation, margins, page numbers, columns per row, export mode, and standalone-export mode).
+- Base preview stylesheet module (`render::base_css`) and compositing pipeline that layers structural base CSS first, then theme tokens.
+- New layout settings fields for page-view and zoom state persistence: page-view enabled flag, paper, orientation, margin, page-number toggle, update delay, columns-per-row, and preview zoom.
+
+### Changed
+- Preview theming model was refactored from monolithic per-theme stylesheets to base structural CSS plus theme-token overrides, reducing duplication and aligning rendering across themes.
+- Heading anchors now wrap the full heading text, making the heading itself the clickable permalink target.
+
+### Fixed
+- Hard line break parsing now correctly accepts two **or more** trailing spaces before newline (CommonMark behavior), and consumes all trailing spaces to avoid stray-space artifacts before `<br />`.
+- Paragraph blank-line detection now follows CommonMark blank-line rules (ASCII space/tab only), so non-breaking-space spacer paragraphs are preserved.
+- Inline link parsing now handles nested bracket content correctly (for example image-in-link syntax like `[![alt](img)](url)`).
+
+### Removed
+- Removed decorative anchor/link icon adorners from generated preview heading/link markup.
+
 ## [0.22.0] - 2026-04-08
 
 ### Added

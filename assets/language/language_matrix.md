@@ -38,7 +38,7 @@ Example:
 | bi   | Bislama |   |   |
 | bm   | Bambara |   |   |
 | bn   | Bengali |   |   |
-| bo   | Tibetan |   |   |
+| bo   | Bodic (Tib.) |   |   |
 | br   | Breton |   |   |
 | bs   | Bosnian |   |   |
 | ca   | Catalan |   |   |

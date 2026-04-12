@@ -1234,16 +1234,6 @@ pub fn register_file_actions_async(
     });
     app.add_action(&clear_recent_action);
 
-    // Export action (placeholder)
-    let export_action = gio::SimpleAction::new("export", None);
-    export_action.set_enabled(false);
-    export_action.connect_activate(move |_, _| {
-        trace!("audit: export action triggered");
-        eprintln!("[main] Export action - placeholder implementation");
-        // Planned: implement export to PDF/HTML functionality
-    });
-    app.add_action(&export_action);
-
     // Document Builder action (placeholder)
     let document_builder_action = gio::SimpleAction::new("document_builder", None);
     document_builder_action.connect_activate(move |_, _| {

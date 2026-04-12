@@ -1,5 +1,7 @@
 pub mod admonition;
 pub mod diagnostics_reference;
+#[cfg(target_os = "linux")]
+pub mod export;
 pub mod lists;
 pub mod math;
 pub mod mention;

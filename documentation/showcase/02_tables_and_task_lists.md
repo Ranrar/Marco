@@ -49,7 +49,7 @@ Alignment is controlled by colons in the separator row.
 When the first line is the delimiter row (no header), Marco renders a body-only table:
 
 |--------|--------|--------|
-| Alpha  | Beta   | Gamma  |
+| First  | Second | Third  |
 | Delta  | Epsilon| Zeta   |
 | Eta    | Theta  | Iota   |
 
@@ -88,7 +88,7 @@ With alignment in the headerless delimiter:
 
 ### Task Lists in a Real Sprint
 
-**Sprint 24 — March 4–18**
+**Sprint 24 — March 4-18**
 
 - [x] Fix parser regression on nested emphasis
 - [x] Add Mermaid diagram rendering

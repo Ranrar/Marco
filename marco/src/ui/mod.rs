@@ -7,6 +7,7 @@ pub mod splitview;
 pub mod titlebar;
 pub mod toc_panel;
 pub mod toolbar;
+pub mod zoom_overlay;
 pub use splitview::create_split_view;
 pub use titlebar::{
     create_custom_titlebar, create_custom_titlebar_with_buttons, TitlebarButtons, TitlebarControls,

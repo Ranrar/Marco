@@ -12,7 +12,27 @@ pub fn link(input: Span) -> IResult<Span, (Span, Span, Option<Span>)> {
             nom::error::ErrorKind::Tag,
         )));
     }
-    let bracket_pos = content_str[1..].find(']').ok_or_else(|| {
+    // Find the matching `]` respecting nested bracket pairs (e.g. `[![img](url)]`).
+    let bracket_pos = {
+        let mut depth = 0usize;
+        let mut found = None;
+        let inner = &content_str[1..];
+        for (i, c) in inner.char_indices() {
+            match c {
+                '[' => { depth += 1; }
+                ']' => {
+                    if depth == 0 {
+                        found = Some(i);
+                        break;
+                    }
+                    depth -= 1;
+                }
+                _ => {}
+            }
+        }
+        found
+    };
+    let bracket_pos = bracket_pos.ok_or_else(|| {
         nom::Err::Error(nom::error::Error::new(
             input,
             nom::error::ErrorKind::TakeUntil,

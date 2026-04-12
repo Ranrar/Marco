@@ -153,7 +153,6 @@ cd /c/code/Marco
 
 See [README.md](README.md) for detailed documentation.
 
-## Release Channel
+## Release Artifacts
 
-- Portable artifacts now use standard release naming (`marco-suite_<version>_windows_amd64.zip`) instead of alpha-tagged filenames.
-- Current channel status: **Beta**.
+- Portable artifacts use versioned release naming: `marco-suite_<version>_windows_amd64.zip`.

@@ -24,6 +24,17 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.23.0] - 2026-04-12
+
+**Uses:** Core 0.23.0
+
+### Changed
+- Updated to Core 0.23.0.
+- Inherited preview rendering updates from Core: heading text acts as the direct permalink target, decorative anchor/link icon adorners are removed, and line-break parsing/rendering is more consistent with CommonMark hard-break behavior.
+
+### Fixed
+- Inherited Core parser fixes for nested-bracket links (for example image-in-link syntax) and NBSP spacer paragraph handling.
+
 ## [0.22.0] - 2026-04-08
 
 **Uses:** Core 0.22.0

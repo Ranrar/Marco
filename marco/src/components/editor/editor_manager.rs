@@ -28,6 +28,7 @@ use crate::components::editor::scroll_sync::ScrollSynchronizer;
 use core::logic::swanson::SettingsManager;
 use gtk4::ScrolledWindow;
 use log::debug;
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -227,6 +228,14 @@ thread_local! {
     static INTELLIGENCE_REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 }
 
+// Global page-view state + refresh callback.
+// The editor init stores an `Rc<RefCell<PageViewState>>` here; the settings dialog
+// reads/writes it and triggers a preview re-render.
+thread_local! {
+    static PAGE_VIEW_STATE: RefCell<Option<Rc<RefCell<crate::components::viewer::renderer::PageViewState>>>> = const { RefCell::new(None) };
+    static PAGE_VIEW_REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
+}
+
 // Current application layout state (DualView / EditorOnly / ViewOnly / EditorAndViewSeparate).
 // Updated by menu.rs whenever the user switches layout modes.
 thread_local! {
@@ -252,6 +261,66 @@ pub fn get_current_layout_state() -> core::logic::layoutstate::LayoutState {
 #[cfg(target_os = "linux")]
 thread_local! {
     static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<webkit6::WebView>> = const { RefCell::new(None) };
+}
+
+// Preview zoom level (0.5–3.0, default 1.0).  Applied via WebKit zoom-level property.
+thread_local! {
+    static PREVIEW_ZOOM: Cell<f64> = const { Cell::new(1.0) };
+    /// Optional callback fired whenever the zoom level changes (e.g. to update the
+    /// zoom-bar overlay label). Stored as an `Rc` so GTK widgets can be captured.
+    static ZOOM_CHANGED_CALLBACK: RefCell<Option<Rc<dyn Fn(f64)>>> = const { RefCell::new(None) };
+}
+
+/// Zoom step increment/decrement.
+pub const ZOOM_STEP: f64 = 0.1;
+/// Minimum allowed zoom level.
+pub const ZOOM_MIN: f64 = 0.5;
+/// Maximum allowed zoom level.
+pub const ZOOM_MAX: f64 = 3.0;
+/// Default zoom level.
+pub const ZOOM_DEFAULT: f64 = 1.0;
+
+/// Get the current preview zoom level.
+pub fn get_preview_zoom() -> f64 {
+    PREVIEW_ZOOM.with(|c| c.get())
+}
+
+/// Register a callback to be invoked whenever the zoom level changes.
+/// Replaces any previously registered callback. Pass `None` to clear.
+pub fn set_zoom_changed_callback(cb: Option<Rc<dyn Fn(f64)>>) {
+    ZOOM_CHANGED_CALLBACK.with(|cell| {
+        *cell.borrow_mut() = cb;
+    });
+}
+
+/// Invoke the registered zoom-change callback with the new zoom level.
+fn fire_zoom_changed(zoom: f64) {
+    ZOOM_CHANGED_CALLBACK.with(|cell| {
+        if let Some(ref cb) = *cell.borrow() {
+            cb(zoom);
+        }
+    });
+}
+
+/// Set the current preview zoom level (clamped to ZOOM_MIN..=ZOOM_MAX).
+/// Also applies the zoom to the registered primary WebView immediately.
+#[cfg(target_os = "linux")]
+pub fn set_preview_zoom(zoom: f64) {
+    use webkit6::prelude::WebViewExt;
+    let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
+    PREVIEW_ZOOM.with(|c| c.set(clamped));
+    with_primary_preview_webview(|wv| {
+        wv.set_zoom_level(clamped);
+    });
+    fire_zoom_changed(clamped);
+    log::debug!("[viewer] Preview zoom set to {:.1}", clamped);
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn set_preview_zoom(zoom: f64) {
+    let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
+    PREVIEW_ZOOM.with(|c| c.set(clamped));
+    fire_zoom_changed(clamped);
 }
 
 /// Register the primary preview WebView so other components can execute JavaScript in it.
@@ -487,6 +556,49 @@ pub fn trigger_intelligence_refresh() {
     INTELLIGENCE_REFRESH.with(|cell| {
         if let Some(callback) = cell.borrow().as_ref() {
             callback();
+        }
+    });
+}
+
+/// Register the page-view state handle and a refresh callback from the editor init.
+pub fn register_page_view_state(
+    state: Rc<RefCell<crate::components::viewer::renderer::PageViewState>>,
+    refresh: impl Fn() + 'static,
+) {
+    PAGE_VIEW_STATE.with(|cell| {
+        *cell.borrow_mut() = Some(state);
+    });
+    PAGE_VIEW_REFRESH.with(|cell| {
+        *cell.borrow_mut() = Some(Rc::new(refresh));
+    });
+}
+
+/// Update the full page-view state from the settings dialog and immediately re-render.
+pub fn update_page_view_state(new_state: crate::components::viewer::renderer::PageViewState) {
+    PAGE_VIEW_STATE.with(|cell| {
+        if let Some(state_rc) = cell.borrow().as_ref() {
+            *state_rc.borrow_mut() = new_state;
+        }
+    });
+    // Force a full render so the change is visible immediately
+    PAGE_VIEW_REFRESH.with(|cell| {
+        if let Some(refresh) = cell.borrow().as_ref() {
+            refresh();
+        }
+    });
+}
+
+/// Set only the `enabled` flag on the current page-view state and trigger a re-render.
+/// Used by the view-mode menu actions so they don't need to know the full state.
+pub fn set_page_view_enabled(enabled: bool) {
+    PAGE_VIEW_STATE.with(|cell| {
+        if let Some(state_rc) = cell.borrow().as_ref() {
+            state_rc.borrow_mut().enabled = enabled;
+        }
+    });
+    PAGE_VIEW_REFRESH.with(|cell| {
+        if let Some(refresh) = cell.borrow().as_ref() {
+            refresh();
         }
     });
 }

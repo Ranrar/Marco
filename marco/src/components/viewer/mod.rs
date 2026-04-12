@@ -1,7 +1,6 @@
 // For ApplicationWindow::application()
 #[cfg(target_os = "linux")]
 use gtk4::prelude::GtkWindowExt;
-// For refresh_preview_into_webview
 // Viewer Component Module
 //
 // This module provides the preview rendering system for Marco's markdown editor.
@@ -30,9 +29,12 @@ use gtk4::prelude::GtkWindowExt;
 // implementations using `#[cfg(target_os = "linux")]` and `#[cfg(target_os = "windows")]`.
 
 pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
+pub mod pagedjs; // Embedded paged.js polyfill for page view simulation
 pub mod layout_controller; // Split controller + webview location tracking
 #[cfg(target_os = "linux")]
 pub mod renderer; // Markdown rendering coordinator (Linux: WebKit6)
+#[cfg(target_os = "linux")]
+pub mod print_driver; // Print dialog and PDF export driver (Linux: WebKit6)
 #[cfg(target_os = "linux")]
 pub mod reparenting;
 #[cfg(target_os = "linux")]

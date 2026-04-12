@@ -13,6 +13,30 @@ use std::sync::{Mutex, OnceLock};
 // can read it when they start.
 pub(crate) static LATEST_PREVIEW_HTML: OnceLock<Mutex<String>> = OnceLock::new();
 
+// Thread-safe global to store the latest clean live-preview HTML (no scroll-sync JS)
+// for "Save as HTML" export.
+pub(crate) static LATEST_LIVE_HTML: OnceLock<Mutex<String>> = OnceLock::new();
+
+fn latest_live_html_mutex() -> &'static Mutex<String> {
+    LATEST_LIVE_HTML.get_or_init(|| Mutex::new(String::new()))
+}
+
+/// Store the clean live-preview HTML (no wheel_js / scroll-report JS) for export.
+pub(crate) fn set_latest_live_html(html: &str) {
+    if let Ok(mut guard) = latest_live_html_mutex().lock() {
+        *guard = html.to_string();
+    }
+}
+
+/// Retrieve the clean live-preview HTML for "Save as HTML" export.
+pub fn get_latest_live_html() -> String {
+    latest_live_html_mutex()
+        .lock()
+        .ok()
+        .map(|g| g.clone())
+        .unwrap_or_default()
+}
+
 // Thread-safe global to store the latest base URI (directory) for resolving
 // relative resources in detached preview windows.
 pub(crate) static LATEST_PREVIEW_BASE_URI: OnceLock<Mutex<Option<String>>> = OnceLock::new();

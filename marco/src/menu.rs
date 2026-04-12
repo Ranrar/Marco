@@ -333,7 +333,7 @@ fn action_check_state(app: Option<&gtk4::Application>, action_name: &str) -> (bo
         .map(|a| a.is_enabled())
         .unwrap_or(false);
 
-    if !action_name.starts_with("tools_toggle_") {
+    if !action_name.starts_with("tools_toggle_") && !action_name.starts_with("tools_view_") {
         return (enabled, false, false);
     }
 
@@ -650,7 +650,7 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
         &menu_state.tools_menu,
         translations,
         &crate::ui::menu_items::tools::ToolsMenuState {
-            show_raw_html: true,
+            current_view_mode: "live",
             wrap_enabled: false,
             line_numbers_enabled: true,
             sync_scrolling_enabled: true,

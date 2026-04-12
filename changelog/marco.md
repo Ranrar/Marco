@@ -24,6 +24,30 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.23.0] - 2026-04-12
+
+**Uses:** Core 0.23.0
+
+### Added
+- Live page-view print preview using paged.js integration in the preview pipeline, including paper size, orientation, margins, page numbers, and multi-column page layout options.
+- New export workflow and dialog for PDF and HTML export, with per-export controls for theme, color mode, paper options, orientation, margins, and page numbers.
+- Standalone HTML export mode options including paged output and paperless (`None`) output paths.
+- Preview zoom UI (overlay controls and zoom state persistence), including reset and incremental zoom actions.
+- Dedicated **Print Preview** settings tab for persistent page-view defaults.
+- New **Application** settings tab consolidating UI/theme and preview behavior options.
+
+### Changed
+- Settings UI was remodeled: the previous Appearance-focused structure was reorganized around Application and Print Preview workflows.
+- Viewer/render integration was refactored so print/export and page-view behavior share a consistent rendering pipeline.
+
+### Fixed
+- Fixed line-break behavior in live preview flows so authored hard-break patterns render consistently.
+- Export dialog styling and layout consistency improved (light/dark theme parity, aligned control sizing, consistent bottom action area, and clearer locked-state visuals).
+
+### Removed
+- Removed the legacy `Appearance` settings tab implementation.
+- Removed decorative anchor/link icon adorners in live preview link presentation (heading text remains directly linkable).
+
 ## [0.22.0] - 2026-04-08
 
 **Uses:** Core 0.22.0

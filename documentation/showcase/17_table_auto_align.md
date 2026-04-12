@@ -13,9 +13,9 @@ Try it: place the cursor inside a cell, type some text, then press `Tab` or `Ent
 
 | Name  | Value |
 |-------|-------|
-| Alpha | 1     |
-| Beta  | 2     |
-| Gamma | 3     |
+| First | 1     |
+| Second| 2     |
+| Third | 3     |
 
 ---
 

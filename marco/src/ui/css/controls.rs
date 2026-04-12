@@ -1073,6 +1073,18 @@ fn generate_checkbutton_css() -> String {
         border-color: {light_disabled_border};
         outline: none;
     }}
+
+    .marco-theme-light checkbutton.marco-checkbutton.marco-control-unavailable:disabled {{
+        color: #7a5a00;
+        opacity: 1;
+    }}
+
+    .marco-theme-light checkbutton.marco-checkbutton.marco-control-unavailable:disabled > check {{
+        background: rgba(255, 193, 7, 0.08);
+        border: 1px dashed {light_accent};
+        outline: none;
+        opacity: 1;
+    }}
     
     /* CheckButton - Dark Theme */
     .marco-theme-dark checkbutton.marco-checkbutton {{
@@ -1112,6 +1124,18 @@ fn generate_checkbutton_css() -> String {
         background: {dark_disabled_bg};
         border-color: {dark_disabled_border};
         outline: none;
+    }}
+
+    .marco-theme-dark checkbutton.marco-checkbutton.marco-control-unavailable:disabled {{
+        color: #f0c96a;
+        opacity: 1;
+    }}
+
+    .marco-theme-dark checkbutton.marco-checkbutton.marco-control-unavailable:disabled > check {{
+        background: rgba(255, 193, 7, 0.12);
+        border: 1px dashed {dark_accent};
+        outline: none;
+        opacity: 1;
     }}
 "#,
         radius = TOOLBAR_BORDER_RADIUS,

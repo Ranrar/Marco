@@ -1,5 +1,6 @@
 // HTML renderer: AST → HTML for WebKit6 preview
 
+pub mod base_css;
 pub mod code_languages;
 pub mod diagram;
 pub mod markdown;

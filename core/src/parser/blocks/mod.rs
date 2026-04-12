@@ -236,8 +236,9 @@ fn parse_blocks_internal(
             .unwrap_or(remaining.fragment().len());
         let first_line = &remaining.fragment()[..first_line_end];
 
-        // A line is blank if it contains only whitespace (spaces, tabs)
-        if first_line.trim().is_empty() {
+        // A line is blank per CommonMark spec: only ASCII space (U+0020) and tab (U+0009).
+        // Notably, U+00A0 NO-BREAK SPACE is NOT a blank line — it produces a spacer paragraph.
+        if first_line.chars().all(|c| c == ' ' || c == '\t') {
             // Peek at the next non-blank line to determine continuation
             let peek_offset = if first_line_end < remaining.fragment().len() {
                 first_line_end + 1

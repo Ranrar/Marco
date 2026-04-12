@@ -127,7 +127,7 @@ Common matrix forms:
 
 | Lowercase | Uppercase |
 |---|---|
-| `$\alpha$, $\beta$, $\gamma$, $\delta$` | `$\Gamma$, $\Delta$` |
+| `$\gamma$, $\delta$, $\epsilon$, $\zeta$` | `$\Gamma$, $\Delta$` |
 | `$\theta$, $\lambda$, $\mu$, $\pi$, $\sigma$, $\omega$` | `$\Theta$, $\Lambda$, $\Pi$, $\Sigma$, $\Omega$` |
 
 ---

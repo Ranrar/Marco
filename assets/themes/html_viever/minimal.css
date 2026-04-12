@@ -1,843 +1,169 @@
-/* Minimal CSS for Marco Markdown Editor Preview */
+/* Minimal – Clean serif reading theme
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in core/src/render/base_css.rs
+ */
 
-/* CSS Custom Properties for theming */
 :root {
-    --bg-color: #fefefe;
-    --text-color: #333;
-    --heading-color: #222;
-    --quote-color: #666;
-    --quote-border: #ccc;
-    --code-bg: #f5f5f5;
-    --pre-bg: #f8f8f8;
-    --pre-border: #e5e5e5;
-    --table-border: #ddd;
-    --table-header-bg: #f9f9f9;
-    --hr-color: #ccc;
-    --link-color: #0066cc;
-    --admonition-bg: #f9f9f9;
-    --admonition-border: #ccc;
-    
-    /* TOC-specific variables */
-    --toc-header-color: #0066cc;
-    --toc-header-border: #ccc;
-    --toc-link-color: #333;
-    --toc-link-hover-bg: #f0f0f0;
-    --toc-link-hover-color: #0066cc;
-    --toc-link-active-bg: #e0e0e0;
-    --toc-link-active-color: #0050aa;
-    --toc-bg: #f9f9f9;
-    --toc-border: #ddd;
-    --toc-shadow: rgba(0, 0, 0, 0.1);
+  /* ── Typography ── */
+  --body-font: 'Georgia', 'Times New Roman', serif;
+  --code-font: 'Monaco', 'Courier New', Courier, monospace;
+  --body-font-size: 18px;
+  --body-line-height: 1.7;
+  --body-max-width: 650px;
+  --body-padding: 1rem;
 
-    /* Marco sliders */
-    --marco-sliders-bg: var(--code-bg);
-    --marco-sliders-border: var(--pre-border);
+  /* ── Text colours (light defaults) ── */
+  --text-color: #333;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --heading-color: #222;
+  --heading-gradient-end: #222;
+  --strong-color: #333;
+  --link-color: #0066cc;
+  --link-hover: #0050aa;
+
+  /* ── Backgrounds ── */
+  --bg-color: #fefefe;
+  --bg-secondary: #f5f5f5;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+
+  /* ── Borders ── */
+  --border-color: #e5e5e5;
+  --border-light: #eee;
+  --border-strong: #ccc;
+
+  /* ── Components ── */
+  --blockquote-bg: transparent;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f9f9f9;
+  --table-header-color: #222;
+  --table-stripe-bg: #f9f9f9;
+  --mark-bg: #fffde7;
+  --mark-color: #333;
+  --admonition-bg: #f9f9f9;
+  --admonition-border: #ccc;
+  --note-bg: #eef6fb;
+  --tip-bg: #eefbee;
+  --important-bg: #faf5ff;
+  --warning-bg: #fffbee;
+  --caution-bg: #fef2f2;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #fefefe;
+  --pagedjs-page-color: #333;
+
+  /* ── TOC ── */
+  --toc-header-color: #0066cc;
+  --toc-header-border: #ccc;
+  --toc-link-color: #333;
+  --toc-link-hover-bg: #f0f0f0;
+  --toc-link-hover-color: #0066cc;
+  --toc-link-active-bg: #e0e0e0;
+  --toc-link-active-color: #0050aa;
+  --toc-bg: #f9f9f9;
+  --toc-border: #ddd;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-code);
+  --marco-sliders-border: var(--border-color);
 }
 
-/* Dark mode */
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg-color: #1a1a1a;
-        --text-color: #e0e0e0;
-        --heading-color: #f0f0f0;
-        --quote-color: #a0a0a0;
-        --quote-border: #666;
-        --code-bg: #2d2d2d;
-        --pre-bg: #222;
-        --pre-border: #444;
-        --table-border: #555;
-        --table-header-bg: #333;
-        --hr-color: #666;
-        --link-color: #66b3ff;
-        --admonition-bg: #2a2a2a;
-        --admonition-border: #666;
-        
-        /* TOC-specific variables for dark theme */
-        --toc-header-color: #66b3ff;
-        --toc-header-border: #666;
-        --toc-link-color: #e0e0e0;
-        --toc-link-hover-bg: #333;
-        --toc-link-hover-color: #66b3ff;
-        --toc-link-active-bg: #444;
-        --toc-link-active-color: #ffffff;
-        --toc-bg: #1a1a1a;
-        --toc-border: #555;
-        --toc-shadow: rgba(0, 0, 0, 0.3);
-
-        /* Marco sliders */
-        --marco-sliders-bg: var(--code-bg);
-        --marco-sliders-border: var(--pre-border);
-    }
-}
-
-/* Force light theme class override */
 .theme-light {
-    --bg-color: #fefefe;
-    --text-color: #333;
-    --heading-color: #222;
-    --quote-color: #666;
-    --quote-border: #ccc;
-    --code-bg: #f5f5f5;
-    --pre-bg: #f8f8f8;
-    --pre-border: #e5e5e5;
-    --table-border: #ddd;
-    --table-header-bg: #f9f9f9;
-    --hr-color: #ccc;
-    --link-color: #0066cc;
-    --admonition-bg: #f9f9f9;
-    --admonition-border: #ccc;
-    
-    /* TOC-specific variables */
-    --toc-header-color: #0066cc;
-    --toc-header-border: #ccc;
-    --toc-link-color: #333;
-    --toc-link-hover-bg: #f0f0f0;
-    --toc-link-hover-color: #0066cc;
-    --toc-link-active-bg: #e0e0e0;
-    --toc-link-active-color: #0050aa;
-    --toc-bg: #f9f9f9;
-    --toc-border: #ddd;
-    --toc-shadow: rgba(0, 0, 0, 0.1);
-
-    /* Marco sliders */
-    --marco-sliders-bg: var(--code-bg);
-    --marco-sliders-border: var(--pre-border);
+  --text-color: #333;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --heading-color: #222;
+  --heading-gradient-end: #222;
+  --strong-color: #333;
+  --link-color: #0066cc;
+  --link-hover: #0050aa;
+  --bg-color: #fefefe;
+  --bg-secondary: #f5f5f5;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+  --border-color: #e5e5e5;
+  --border-light: #eee;
+  --border-strong: #ccc;
+  --blockquote-bg: transparent;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f9f9f9;
+  --table-header-color: #222;
+  --table-stripe-bg: #f9f9f9;
+  --mark-bg: #fffde7;
+  --mark-color: #333;
+  --admonition-bg: #f9f9f9;
+  --admonition-border: #ccc;
+  --note-bg: #eef6fb;
+  --tip-bg: #eefbee;
+  --important-bg: #faf5ff;
+  --warning-bg: #fffbee;
+  --caution-bg: #fef2f2;
+  --pagedjs-page-bg: #fefefe;
+  --pagedjs-page-color: #333;
+  --toc-header-color: #0066cc;
+  --toc-header-border: #ccc;
+  --toc-link-color: #333;
+  --toc-link-hover-bg: #f0f0f0;
+  --toc-link-hover-color: #0066cc;
+  --toc-link-active-bg: #e0e0e0;
+  --toc-link-active-color: #0050aa;
+  --toc-bg: #f9f9f9;
+  --toc-border: #ddd;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+  --marco-sliders-bg: var(--bg-code);
+  --marco-sliders-border: var(--border-color);
 }
 
-/* Force dark theme class override */
 .theme-dark {
-    --bg-color: #1a1a1a;
-    --text-color: #e0e0e0;
-    --heading-color: #f0f0f0;
-    --quote-color: #a0a0a0;
-    --quote-border: #666;
-    --code-bg: #2d2d2d;
-    --pre-bg: #222;
-    --pre-border: #444;
-    --table-border: #555;
-    --table-header-bg: #333;
-    --hr-color: #666;
-    --link-color: #66b3ff;
-    --admonition-bg: #2a2a2a;
-    --admonition-border: #666;
-    
-    /* TOC-specific variables for dark theme */
-    --toc-header-color: #66b3ff;
-    --toc-header-border: #666;
-    --toc-link-color: #e0e0e0;
-    --toc-link-hover-bg: #333;
-    --toc-link-hover-color: #66b3ff;
-    --toc-link-active-bg: #444;
-    --toc-link-active-color: #ffffff;
-    --toc-bg: #1a1a1a;
-    --toc-border: #555;
-    --toc-shadow: rgba(0, 0, 0, 0.3);
-
-    /* Marco sliders */
-    --marco-sliders-bg: var(--code-bg);
-    --marco-sliders-border: var(--pre-border);
-}
-
-body {
-    font-family: 'Georgia', 'Times New Roman', serif;
-    font-size: 18px;
-    line-height: 1.7;
-    /* Fallback for browsers that don't support CSS custom properties */
-    color: #333;
-    background-color: #fefefe;
-    /* Use CSS custom properties */
-    color: var(--text-color);
-    background-color: var(--bg-color);
-    max-width: 650px;
-    margin: 0 auto;
-    padding: 1rem;
-}
-
-h1, h2, h3, h4, h5, h6 {
-    font-family: 'Helvetica Neue', 'Arial', sans-serif;
-    font-weight: 400;
-    margin: 2rem 0 1rem 0;
-    line-height: 1.3;
-    /* Fallback */
-    color: #222;
-    /* CSS custom properties */
-    color: var(--heading-color);
-}
-
-h1 { font-size: 2.5rem; }
-h2 { font-size: 2rem; }
-h3 { font-size: 1.6rem; }
-h4 { font-size: 1.3rem; }
-h5 { font-size: 1.1rem; }
-h6 { font-size: 1rem; font-weight: 600; }
-
-p {
-    margin: 0 0 1.5rem 0;
-}
-
-blockquote {
-    margin: 1.5rem 0;
-    padding: 0 0 0 1.5rem;
-    /* Fallback */
-    border-left: 2px solid #ccc;
-    color: #666;
-    /* CSS custom properties */
-    border-left: 2px solid var(--quote-border);
-    color: var(--quote-color);
-    font-style: italic;
-}
-
-
-
-ul, ol {
-    margin: 1rem 0;
-    padding-left: 2rem;
-}
-
-li {
-    margin-bottom: 0.5rem;
-}
-
-code {
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 0.9rem;
-    /* Fallback */
-    background-color: #f5f5f5;
-    /* CSS custom properties */
-    background-color: var(--code-bg);
-    padding: 0.2rem 0.4rem;
-    border-radius: 3px;
-}
-
-pre {
-    border: 1px solid var(--pre-border);
-    border-radius: 3px;
-    margin: 1.5rem 0;
-    overflow: hidden;
-    background-color: var(--pre-bg);
-    border-left: 4px solid var(--link-color);
-}
-
-pre:before {
-    content: attr(data-language, "Code");
-    display: block;
-    background-color: var(--pre-bg);
-    color: var(--text-secondary);
-    padding: 0.4rem 0.75rem;
-    font-weight: 400;
-    font-size: 0.8rem;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-    border-bottom: 1px solid var(--pre-border);
-    opacity: 0.8;
-}
-
-pre code {
-    display: block;
-    padding: 1rem;
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-size: 0.9rem;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-break: break-word;
-    overflow: visible;
-    border: 0;
-}
-
-/* Marco: code block copy button */
-.marco-code-block-wrapper {
-    position: relative;
-    margin: 1rem 0;
-}
-
-.marco-code-copy-btn {
-    position: absolute;
-    top: 2.5rem;
-    right: 0.50rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0.4rem;
-    border: none;
-    border-radius: 4px;
-    background: transparent;
-    color: var(--link-color);
-    opacity: 1;
-    cursor: pointer;
-    transition: background-color 0.2s ease, color 0.2s ease;
-    z-index: 10;
-}
-
-.marco-code-copy-btn svg {
-    width: 1.1em;
-    height: 1.1em;
-    display: block;
-    stroke: currentColor;
-}
-
-.marco-code-copy-btn:hover {
-    background: rgba(0, 102, 204, 0.1);
-    color: #0052a3;
-}
-
-.marco-code-copy-btn:active {
-    background: rgba(0, 102, 204, 0.2);
-}
-
-.marco-code-copy-btn.copied {
-    background: rgba(0, 102, 204, 0.15);
-    color: #28a745;
-}
-
-/* Dark theme copy button */
-@media (prefers-color-scheme: dark) {
-    .marco-code-copy-btn:hover {
-        background: rgba(102, 179, 255, 0.15);
-        color: #66b3ff;
-    }
-    
-    .marco-code-copy-btn:active {
-        background: rgba(102, 179, 255, 0.25);
-    }
-    
-    .marco-code-copy-btn.copied {
-        background: rgba(102, 179, 255, 0.2);
-        color: #48d597;
-    }
-}
-
-/* Nested Code Blocks (Marco Extension) */
-.nested-code-block {
-    border: 1px solid var(--pre-border);
-    border-radius: 3px;
-    margin: 1.5rem 0;
-    overflow: hidden;
-    background-color: var(--pre-bg);
-}
-
-.nested-code-block .code-header {
-    background-color: var(--pre-bg);
-    color: var(--text-secondary);
-    padding: 0.4rem 0.75rem;
-    font-weight: 400;
-    font-size: 0.8em;
-    font-family: sans-serif;
-    border-bottom: 1px solid var(--pre-border);
-    opacity: 0.8;
-}
-
-.nested-code-block .code-content {
-    padding: 1rem;
-    background-color: var(--bg-color);
-    min-height: 1rem;
-}
-
-/* Different border colors for nesting levels */
-.nested-code-block.level-1 {
-    border-left: 3px solid var(--heading-color);
-}
-
-.nested-code-block.level-2 {
-    border-left: 3px solid var(--link-color);
-}
-
-.nested-code-block.level-3 {
-    border-left: 3px solid var(--blockquote-border);
-}
-
-.nested-code-block.level-4,
-.nested-code-block.level-5,
-.nested-code-block.level-6,
-.nested-code-block.level-7,
-.nested-code-block.level-8,
-.nested-code-block.level-9,
-.nested-code-block.level-10 {
-    border-left: 3px solid var(--text-muted);
-}
-
-/* Code blocks inside nested blocks should have reduced padding */
-.nested-code-block .code-content pre {
-    margin: 0.5rem 0;
-    padding: 0.75rem;
-    background-color: var(--pre-bg);
-    border: 1px solid var(--pre-border);
-}
-
-/* Remove the "Code" label from pre blocks inside nested code blocks */
-.nested-code-block .code-content pre:before {
-    display: none !important;
-    content: none !important;
-}
-
-/* Adjust nested paragraph spacing */
-.nested-code-block .code-content p {
-    margin: 0.5rem 0;
-}
-
-.nested-code-block .code-content p:first-child {
-    margin-top: 0;
-}
-
-.nested-code-block .code-content p:last-child {
-    margin-bottom: 0;
-}
-
-table {
-    border-collapse: collapse;
-    margin: 1.5rem 0;
-    width: 100%;
-}
-
-table th,
-table td {
-    /* Fallback */
-    border: 1px solid #ddd;
-    /* CSS custom properties */
-    border: 1px solid var(--table-border);
-    padding: 0.5rem 1rem;
-    text-align: left;
-}
-
-table th {
-    /* Fallback */
-    background-color: #f9f9f9;
-    /* CSS custom properties */
-    background-color: var(--table-header-bg);
-    font-weight: 600;
-}
-
-
-
-img {
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 1.5rem auto;
-}
-
-hr {
-    border: none;
-    /* Fallback */
-    border-top: 1px solid #ccc;
-    /* CSS custom properties */
-    border-top: 1px solid var(--hr-color);
-    margin: 2rem 0;
-}
-
-a {
-    /* Fallback */
-    color: #0066cc;
-    /* CSS custom properties */
-    color: var(--link-color);
-    text-decoration: none;
-}
-
-
-
-a:hover {
-    text-decoration: underline;
-}
-
-/* Task lists */
-body {
-    --marco-task-primary: var(--link-color);
-    --marco-task-accent: var(--toc-link-active-color);
-}
-
-.task-list-item {
-    list-style-type: none;
-}
-
-.task-list-item {
-    /* no extra variables needed; values are defined on body */
-}
-
-.marco-task-checkbox,
-.task-list-item .task-list-item-checkbox {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 1.15em;
-    height: 1.15em;
-    margin: 0 0.5rem 0 0;
-    vertical-align: -0.125em;
-    color: currentColor;
-}
-
-.marco-task-checkbox .marco-task-icon,
-.task-list-item .task-list-item-checkbox .marco-task-icon {
-    width: 1.15em;
-    height: 1.15em;
-    flex: 0 0 auto;
-}
-
-.marco-task-checkbox.checked,
-.task-list-item .task-list-item-checkbox.checked {
-    color: var(--marco-task-primary);
-}
-
-.marco-task-checkbox.checked .marco-task-check,
-.task-list-item .task-list-item-checkbox.checked .marco-task-check {
-    stroke: var(--marco-task-accent);
-}
-
-.task-list-item input[type="checkbox"] {
-    margin-right: 0.5rem;
-    accent-color: var(--marco-task-primary);
-}
-
-/* Simple admonitions */
-.admonition {
-    margin: 0.75rem 0;
-    padding: 0.6rem 0.9rem;
-    /* Fallback */
-    border-left: 4px solid #ccc;
-    background-color: #f9f9f9;
-    /* CSS custom properties */
-    border-left: 4px solid var(--admonition-border);
-    background-color: var(--admonition-bg);
-}
-
-.admonition p {
-    margin: 0.5rem 0;
-}
-
-.admonition .markdown-alert-title {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-    line-height: 1.2;
-    margin: 0 0 0.5rem 0;
-}
-
-.admonition .markdown-alert-icon {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    justify-content: center;
-    line-height: 0;
-}
-
-.admonition .markdown-alert-icon svg {
-    width: 1.4em;
-    height: 1.4em;
-    display: block;
-    shape-rendering: auto;
-}
-
-.admonition .markdown-alert-emoji {
-    width: 1.4em;
-    height: 1.4em;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    line-height: 1;
-    font-size: 1.2em;
-}
-
-/* Quote-style admonitions (neutral / blockquote-like colors) */
-.admonition-quote {
-    border-left: 2px solid var(--quote-border, #ccc);
-    background-color: transparent;
-    color: var(--quote-color, inherit);
-}
-
-.admonition-quote .markdown-alert-title {
-    color: var(--link-color);
-}
-
-
-
-/* Standard admonition types with specific colors */
-.admonition-note { 
-    border-left-color: #0969da; /* Blue */
-}
-
-.admonition-note .markdown-alert-title {
-    color: #0969da;
-}
-
-.admonition-tip { 
-    border-left-color: #1a7f37; /* Green */
-}
-
-.admonition-tip .markdown-alert-title {
-    color: #1a7f37;
-}
-
-.admonition-important { 
-    border-left-color: #8250df; /* Purple */
-}
-
-.admonition-important .markdown-alert-title {
-    color: #8250df;
-}
-
-.admonition-warning { 
-    border-left-color: #d97706; /* Orange */
-}
-
-.admonition-warning .markdown-alert-title {
-    color: #d97706;
-}
-
-.admonition-caution { 
-    border-left-color: #cf222e; /* Red */
-}
-
-.admonition-caution .markdown-alert-title {
-    color: #cf222e;
-}
-
-/* Table of Contents (TOC) styles */
-.toc {
-    margin: 2rem 0;
-    padding: 1.5rem;
-    background-color: var(--toc-bg);
-    border: 1px solid var(--toc-border);
-    border-radius: 8px;
-    box-shadow: 0 2px 4px var(--toc-shadow);
-    transition: all 0.3s ease;
-}
-
-.toc h4 {
-    margin-top: 0;
-    margin-bottom: 1rem;
-    font-size: 1.1rem;
-    color: var(--toc-header-color);
-    border-bottom: 2px solid var(--toc-header-border);
-    padding-bottom: 0.5rem;
-    font-weight: 600;
-}
-
-.toc ul {
-    list-style: none;
-    padding-left: 0;
-    margin: 0;
-}
-
-.toc li {
-    margin: 0.25rem 0;
-    line-height: 1.4;
-}
-
-.toc a {
-    display: block;
-    padding: 0.4rem 0.8rem;
-    color: var(--toc-link-color);
-    text-decoration: none;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    font-size: 0.95rem;
-}
-
-.toc a:hover {
-    background-color: var(--toc-link-hover-bg);
-    color: var(--toc-link-hover-color);
-    text-decoration: none;
-    transform: translateX(2px);
-}
-
-.toc a:active,
-.toc a.active {
-    background-color: var(--toc-link-active-bg);
-    color: var(--toc-link-active-color);
-    font-weight: 500;
-}
-
-/* Nested TOC levels */
-.toc ul ul {
-    margin-top: 0.25rem;
-    margin-bottom: 0.25rem;
-    padding-left: 1.2rem;
-}
-
-.toc ul ul li {
-    margin: 0.15rem 0;
-}
-
-.toc ul ul a {
-    font-size: 0.9rem;
-    padding: 0.3rem 0.6rem;
-    color: var(--text-color);
-    opacity: 0.8;
-}
-
-.toc ul ul a:hover {
-    color: var(--toc-link-hover-color);
-    opacity: 1;
-}
-
-/* TOC for specific header detection */
-h4:has(+ ul li a[href^="#"]) {
-    color: var(--toc-header-color);
-    border-bottom: 2px solid var(--toc-header-border);
-    padding-bottom: 0.3em;
-    margin-bottom: 0.8em;
-}
-
-/* Generic anchor links styling (for TOC generated by Marco) */
-ul li a[href^="#"] {
-    color: var(--toc-link-color);
-    text-decoration: none;
-    padding: 0.3em 0.6em;
-    display: block;
-    border-radius: 4px;
-    transition: all 0.2s ease;
-    margin: 0.1em 0;
-}
-
-ul li a[href^="#"]:hover {
-    background-color: var(--toc-link-hover-bg);
-    color: var(--toc-link-hover-color);
-    text-decoration: none;
-    transform: translateX(2px);
-}
-
-ul li a[href^="#"]:active {
-    background-color: var(--toc-link-active-bg);
-    color: var(--toc-link-active-color);
-}
-
-/* TOC nested list styling for Marco-generated TOC */
-ul li ul {
-    margin-top: 0.2em;
-    margin-bottom: 0.2em;
-    padding-left: 1.2em;
-}
-
-ul li ul li a[href^="#"] {
-    font-size: 0.9em;
-    padding: 0.2em 0.5em;
-    color: var(--text-color);
-    opacity: 0.8;
-}
-
-ul li ul li a[href^="#"]:hover {
-    color: var(--toc-link-hover-color);
-    opacity: 1;
-}
-
-/* Editor styling for plain text mode (when syntax highlighting is off) */
-.editor-theme-light {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-}
-
-.editor-theme-dark {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-}
-
-/* SourceView editor styling that respects theme */
-textview {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    padding: 10px;
-}
-
-textview text {
-    background-color: var(--bg-color);
-    color: var(--text-color);
-}
-
-/* Selection colors that work with both themes */
-textview text selection {
-    background-color: var(--link-color);
-    color: var(--bg-color);
-}
-
-/* Marco extended tab blocks */
-.marco-tabs {
-    position: relative;
-    margin: 1rem 0;
-    border: 1px solid var(--border-color, var(--quote-border, #d0d7de));
-    border-radius: 8px;
-    background-color: var(--bg-color, #ffffff);
-    overflow: hidden;
-}
-
-/* Keep radios in the accessibility tree while hiding them visually */
-.marco-tabs__radio {
-    position: absolute;
-    opacity: 0;
-    pointer-events: none;
-}
-
-.marco-tabs__tablist {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    padding: 0.35rem;
-    border-bottom: 1px solid var(--border-color, var(--quote-border, #d0d7de));
-    background-color: var(--bg-secondary, var(--code-bg, #f6f8fa));
-}
-
-.marco-tabs__tab {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.35rem 0.65rem;
-    border-radius: 6px;
-    cursor: pointer;
-    font-weight: 600;
-    color: var(--link-color, #0969da);
-    user-select: none;
-}
-
-.marco-tabs__tab:hover {
-    background-color: var(--border-light, rgba(0, 0, 0, 0.06));
-}
-
-.marco-tabs__panels {
-    padding: 0.85rem 1rem;
-}
-
-.marco-tabs__panel {
-    display: none;
-}
-
-.marco-tabs__panel > :first-child {
-    margin-top: 0;
-}
-
-.marco-tabs__panel > :last-child {
-    margin-bottom: 0;
-}
-
-/* Show the selected panel + style the selected tab label.
-   Note: The radios are direct children of `.marco-tabs`, so nth-of-type rules are stable. */
-.marco-tabs > input.marco-tabs__radio:nth-of-type(1):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(1),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(2):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(2),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(3):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(3),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(4):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(4),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(5):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(5),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(6):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(6),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(7):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(7),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(8):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(8),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(9):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(9),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(10):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(10),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(11):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(11),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(12):checked ~ .marco-tabs__panels > .marco-tabs__panel:nth-of-type(12) {
-    display: block;
-}
-
-.marco-tabs > input.marco-tabs__radio:nth-of-type(1):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(1),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(2):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(2),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(3):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(3),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(4):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(4),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(5):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(5),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(6):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(6),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(7):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(7),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(8):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(8),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(9):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(9),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(10):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(10),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(11):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(11),
-.marco-tabs > input.marco-tabs__radio:nth-of-type(12):checked ~ .marco-tabs__tablist > .marco-tabs__tab:nth-of-type(12) {
-    background-color: var(--bg-color, #ffffff);
-    color: var(--text-color, #24292f);
-    box-shadow: inset 0 0 0 1px var(--border-color, var(--quote-border, #d0d7de));
+  --text-color: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #888;
+  --heading-color: #f0f0f0;
+  --heading-gradient-end: #f0f0f0;
+  --strong-color: #e0e0e0;
+  --link-color: #66b3ff;
+  --link-hover: #88ccff;
+  --bg-color: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-code: #2d2d2d;
+  --bg-pre: #222;
+  --border-color: #444;
+  --border-light: #444;
+  --border-strong: #666;
+  --blockquote-bg: transparent;
+  --blockquote-border: #666;
+  --blockquote-text: #a0a0a0;
+  --table-border: #555;
+  --table-header-bg: #333;
+  --table-header-color: #f0f0f0;
+  --table-stripe-bg: #252525;
+  --mark-bg: #f59e0b;
+  --mark-color: #1a1a1a;
+  --admonition-bg: #2a2a2a;
+  --admonition-border: #666;
+  --note-bg: #0d2137;
+  --tip-bg: #0d2012;
+  --important-bg: #1f0d3e;
+  --warning-bg: #27200a;
+  --caution-bg: #200d0d;
+  --pagedjs-page-bg: #1a1a1a;
+  --pagedjs-page-color: #e0e0e0;
+  --toc-header-color: #66b3ff;
+  --toc-header-border: #666;
+  --toc-link-color: #e0e0e0;
+  --toc-link-hover-bg: #333;
+  --toc-link-hover-color: #66b3ff;
+  --toc-link-active-bg: #444;
+  --toc-link-active-color: #ffffff;
+  --toc-bg: #1a1a1a;
+  --toc-border: #555;
+  --toc-shadow: rgba(0, 0, 0, 0.3);
+  --marco-sliders-bg: var(--bg-code);
+  --marco-sliders-border: var(--border-color);
 }

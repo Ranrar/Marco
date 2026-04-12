@@ -276,6 +276,14 @@ impl Settings {
                 show_line_numbers: Some(true),
                 text_direction: Some("ltr".to_string()),
                 toc_depth: Some(3),
+                page_view_enabled: Some(false),
+                page_view_paper: Some("A4".to_string()),
+                page_view_orientation: Some("portrait".to_string()),
+                page_view_margin_mm: Some(20),
+                page_view_show_page_numbers: Some(true),
+                page_view_update_delay_ms: Some(500),
+                page_view_columns: Some(1),
+                preview_zoom: Some(1.0),
             }),
             window: Some(WindowSettings {
                 width: Some(1200),
@@ -713,6 +721,22 @@ pub struct LayoutSettings {
     pub text_direction: Option<String>,
     /// Maximum heading depth shown in the TOC panel (1-6, default 3).
     pub toc_depth: Option<u8>,
+    /// Whether page view simulation (paged.js) is active.
+    pub page_view_enabled: Option<bool>,
+    /// Paper size for page view: "A4", "Letter", "A3", "A5", "Legal", "B5".
+    pub page_view_paper: Option<String>,
+    /// Page orientation for page view: "portrait" or "landscape".
+    pub page_view_orientation: Option<String>,
+    /// Page margin in millimetres for page view (default 20).
+    pub page_view_margin_mm: Option<u8>,
+    /// Whether to show page numbers in the footer area of each page.
+    pub page_view_show_page_numbers: Option<bool>,
+    /// Debounce delay in milliseconds before a full reload in page view mode (default 500).
+    pub page_view_update_delay_ms: Option<u16>,
+    /// Number of page columns to show side-by-side in page view mode (1–4, default 1).
+    pub page_view_columns: Option<u8>,
+    /// Preview zoom level (0.5–3.0, default 1.0). Applied to the WebView zoom factor.
+    pub preview_zoom: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
