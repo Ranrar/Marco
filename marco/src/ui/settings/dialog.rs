@@ -111,7 +111,7 @@ pub struct SettingsDialogCallbacks {
     pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
     /// Called when any page view setting changes. Receives the full current state.
     pub on_page_view_changed: Option<
-        std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>,
+        std::boxed::Box<dyn Fn(crate::components::viewer::preview_types::PageViewState) + 'static>,
     >,
 }
 

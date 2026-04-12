@@ -4,6 +4,9 @@
 //! implementations so higher-level code can avoid calling `webkit6`/`wry`
 //! modules directly.
 
+#[cfg(target_os = "windows")]
+use std::path::Path;
+
 /// Platform preview webview type.
 ///
 /// - Linux: `webkit6::WebView`

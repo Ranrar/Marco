@@ -1401,9 +1401,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     }
                 }) as Box<dyn Fn(bool) + 'static>),
                 #[cfg(target_os = "linux")]
-                on_page_view_changed: Some(Box::new(move |state: crate::components::viewer::renderer::PageViewState| {
+                on_page_view_changed: Some(Box::new(move |state: crate::components::viewer::preview_types::PageViewState| {
                     crate::components::editor::editor_manager::update_page_view_state(state);
-                }) as Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>),
+                }) as Box<dyn Fn(crate::components::viewer::preview_types::PageViewState) + 'static>),
                 #[cfg(target_os = "windows")]
                 on_page_view_changed: None,
             };

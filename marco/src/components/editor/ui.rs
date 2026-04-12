@@ -1085,8 +1085,10 @@ paned > separator {{
     // Read page view settings from SettingsManager and create a shared state handle.
     // The handle is captured in refresh_preview_impl and updated live when the settings dialog changes.
     #[cfg(target_os = "linux")]
-    let page_view_rc: std::rc::Rc<RefCell<crate::components::viewer::renderer::PageViewState>> = {
-        use crate::components::viewer::renderer::PageViewState;
+    let page_view_rc: std::rc::Rc<
+        RefCell<crate::components::viewer::preview_types::PageViewState>,
+    > = {
+        use crate::components::viewer::preview_types::PageViewState;
         let state = if let Some(ref sm) = intelligence_settings_manager {
             let settings = sm.get_settings();
             let layout = settings.layout.as_ref();

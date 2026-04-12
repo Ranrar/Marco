@@ -232,7 +232,7 @@ thread_local! {
 // The editor init stores an `Rc<RefCell<PageViewState>>` here; the settings dialog
 // reads/writes it and triggers a preview re-render.
 thread_local! {
-    static PAGE_VIEW_STATE: RefCell<Option<Rc<RefCell<crate::components::viewer::renderer::PageViewState>>>> = const { RefCell::new(None) };
+    static PAGE_VIEW_STATE: RefCell<Option<Rc<RefCell<crate::components::viewer::preview_types::PageViewState>>>> = const { RefCell::new(None) };
     static PAGE_VIEW_REFRESH: RefCell<Option<Rc<dyn Fn()>>> = const { RefCell::new(None) };
 }
 
@@ -562,7 +562,7 @@ pub fn trigger_intelligence_refresh() {
 
 /// Register the page-view state handle and a refresh callback from the editor init.
 pub fn register_page_view_state(
-    state: Rc<RefCell<crate::components::viewer::renderer::PageViewState>>,
+    state: Rc<RefCell<crate::components::viewer::preview_types::PageViewState>>,
     refresh: impl Fn() + 'static,
 ) {
     PAGE_VIEW_STATE.with(|cell| {
@@ -574,7 +574,7 @@ pub fn register_page_view_state(
 }
 
 /// Update the full page-view state from the settings dialog and immediately re-render.
-pub fn update_page_view_state(new_state: crate::components::viewer::renderer::PageViewState) {
+pub fn update_page_view_state(new_state: crate::components::viewer::preview_types::PageViewState) {
     PAGE_VIEW_STATE.with(|cell| {
         if let Some(state_rc) = cell.borrow().as_ref() {
             *state_rc.borrow_mut() = new_state;

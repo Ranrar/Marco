@@ -10,6 +10,18 @@ pub enum ViewMode {
     CodePreview,
 }
 
+/// Runtime state for paged.js page view rendering, captured from `LayoutSettings`.
+#[derive(Clone, Debug)]
+pub struct PageViewState {
+    pub enabled: bool,
+    pub paper: String,
+    pub orientation: String,
+    pub margin_mm: u8,
+    pub show_page_numbers: bool,
+    /// Number of page columns to display, from 1 to 4 (default 1).
+    pub columns_per_row: u8,
+}
+
 impl std::fmt::Display for ViewMode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -18,6 +18,7 @@ use gtk4::prelude::*;
 use std::cell::RefCell;
 
 use crate::components::viewer::backend;
+use crate::components::viewer::preview_types::PageViewState;
 
 /// Parameters for preview refresh operations
 pub struct PreviewRefreshParams<'a> {
@@ -31,18 +32,6 @@ pub struct PreviewRefreshParams<'a> {
     /// When `Some`, paged.js page view is active with these settings.
     /// A full HTML reload is used; the smooth update path is bypassed.
     pub page_view: Option<std::rc::Rc<RefCell<PageViewState>>>,
-}
-
-/// Runtime state for paged.js page view rendering, captured from `LayoutSettings`.
-#[derive(Clone, Debug)]
-pub struct PageViewState {
-    pub enabled: bool,
-    pub paper: String,
-    pub orientation: String,
-    pub margin_mm: u8,
-    pub show_page_numbers: bool,
-    /// Number of page columns to display side-by-side (1–4, default 1).
-    pub columns_per_row: u8,
 }
 
 /// Simplified parameters for smooth content updates

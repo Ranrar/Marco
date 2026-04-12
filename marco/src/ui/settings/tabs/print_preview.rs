@@ -9,7 +9,7 @@ use crate::components::language::{SettingsLayoutTranslations, Translations};
 pub struct PrintPreviewTabCallbacks {
     /// Called when any page view setting changes. Receives the full current state.
     pub on_page_view_changed: Option<
-        std::boxed::Box<dyn Fn(crate::components::viewer::renderer::PageViewState) + 'static>,
+        std::boxed::Box<dyn Fn(crate::components::viewer::preview_types::PageViewState) + 'static>,
     >,
 }
 
@@ -56,7 +56,7 @@ pub fn build_print_preview_tab(
     };
 
     // ── Shared state snapshot ───────────────────────────────────────────────
-    use crate::components::viewer::renderer::PageViewState;
+    use crate::components::viewer::preview_types::PageViewState;
     let pv_state: Rc<std::cell::RefCell<PageViewState>> = Rc::new(std::cell::RefCell::new({
         let layout = settings_manager_opt
             .as_ref()
