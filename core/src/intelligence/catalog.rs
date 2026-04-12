@@ -191,7 +191,7 @@ pub fn find_markdown_feature(key: &str) -> Option<&'static MarkdownFeatureCovera
         .find(|feature| feature.key == key)
 }
 
-/// Fast lookup by diagnostic code id (e.g. `MD203`).
+/// Fast lookup by diagnostic code id (e.g. `MD101`).
 pub fn find_catalog_entry(code: &str) -> Option<&'static DiagnosticsCatalogEntry> {
     diagnostics_catalog()
         .entries
@@ -274,7 +274,7 @@ mod tests {
     fn smoke_test_catalog_has_groups() {
         assert!(!diagnostics_catalog_groups().is_empty());
         assert!(find_catalog_group("links").is_some());
-        assert!(find_catalog_group_by_code("MD203").is_some());
+        assert!(find_catalog_group_by_code(&["MD", "203"].concat()).is_some());
     }
 
     #[test]

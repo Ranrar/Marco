@@ -177,6 +177,7 @@ impl TocPanelHandle {
             // depth-specific CSS class for optional styling
             btn.add_css_class(&format!("toc-depth-{}", entry.level));
 
+            #[cfg(target_os = "linux")]
             let slug = entry.slug.clone();
             let line = entry.line;
             let sv = self.source_view.clone();

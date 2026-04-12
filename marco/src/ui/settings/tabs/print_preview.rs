@@ -57,7 +57,7 @@ pub fn build_print_preview_tab(
 
     // ── Shared state snapshot ───────────────────────────────────────────────
     use crate::components::viewer::renderer::PageViewState;
-    let pv_state = std::rc::Rc::new(std::cell::RefCell::new({
+    let pv_state: Rc<std::cell::RefCell<PageViewState>> = Rc::new(std::cell::RefCell::new({
         let layout = settings_manager_opt
             .as_ref()
             .map(|sm| sm.get_settings())
