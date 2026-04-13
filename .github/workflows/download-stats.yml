@@ -9,7 +9,7 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Non-sensitive: target repository that stores aggregated stats snapshots.
   # Format: owner/repo
-  STATS_REPO: Ranrar/marco-stats
+  STATS_REPO: Ranrar/stats
 
 jobs:
   stats:
@@ -62,24 +62,40 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Trim accidental whitespace/newlines in secrets to avoid malformed URLs.
-          stats_pat="$(printf '%s' "${STATS_PAT}" | tr -d '\r\n' | xargs)"
-          stats_repo="$(printf '%s' "${STATS_REPO}" | tr -d '\r\n' | xargs)"
+          # Trim accidental CR/LF in secrets/vars.
+          stats_pat="$(printf '%s' "${STATS_PAT:-}" | tr -d '\r\n')"
+          raw_stats_repo="$(printf '%s' "${STATS_REPO:-}" | tr -d '\r\n')"
 
           if [ -z "$stats_pat" ]; then
             echo "ERROR: secret STATS is empty" >&2
             exit 1
           fi
-          if [ -z "$stats_repo" ]; then
+          if [ -z "$raw_stats_repo" ]; then
             echo "ERROR: STATS_REPO is empty. Set workflow env STATS_REPO in owner/repo format." >&2
             exit 1
           fi
+
+          # Accept either owner/repo or full GitHub URL and normalize to owner/repo.
+          stats_repo="$raw_stats_repo"
+          stats_repo="${stats_repo#https://github.com/}"
+          stats_repo="${stats_repo#http://github.com/}"
+          stats_repo="${stats_repo#github.com/}"
+          stats_repo="${stats_repo%.git}"
+          stats_repo="${stats_repo#/}"
+          stats_repo="${stats_repo%/}"
+
           if [[ "$stats_repo" != */* ]]; then
             echo "ERROR: STATS_REPO must be in owner/repo format, got: '$stats_repo'" >&2
             exit 1
           fi
+          if [[ "$stats_repo" == *" "* ]]; then
+            echo "ERROR: STATS_REPO contains whitespace, got: '$stats_repo'" >&2
+            exit 1
+          fi
 
-          git clone "https://x-access-token:${stats_pat}@github.com/${stats_repo}.git" stats-repo
+          # Avoid embedding PAT in URL (special chars can break URL parsing).
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$stats_pat" | base64 -w 0)"
+          git -c "http.https://github.com/.extraheader=${auth_header}" clone "https://github.com/${stats_repo}.git" stats-repo
 
           # Append snapshot to stats.json (create if missing)
           stats_file="stats-repo/marco-stats.json"
