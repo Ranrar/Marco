@@ -21,6 +21,8 @@ Both run natively on **Linux and Windows**, built with **GTK4 and Rust**, design
 <p align="center">
   <img src="documentation/Screenshot/marco.png" alt="Marco Editor" />
   <br/>
+  <img src="documentation/Screenshot/marco2.png" alt="Marco Editor" />
+  <br/>
   <em>Marco - Full-featured Markdown editor with live preview</em>
 </p>
 
