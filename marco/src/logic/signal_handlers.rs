@@ -6,8 +6,8 @@
 pub fn setup_signal_handlers(app: &gtk4::Application) {
     #[cfg(target_os = "linux")]
     {
-        use glib::source::unix_signal_add_local;
         use glib::ControlFlow;
+        use glib_unix::unix_signal_add_local;
         use gtk4::gio::prelude::ApplicationExt;
 
         // POSIX signal numbers (stable across Unix platforms).

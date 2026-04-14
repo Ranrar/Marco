@@ -1,12 +1,12 @@
 [package]
 name = "marco"
-version = "0.23.0"
+version = "0.23.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
 license = "MIT"
 default-run = "marco"
-rust-version = "1.93.0"
+rust-version = "1.94.1"
 
 [lib]
 # The `marco` crate is GTK/UI heavy; most docs contain illustrative snippets that
@@ -48,6 +48,7 @@ tempfile = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
+glib-unix = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 wry = { workspace = true }

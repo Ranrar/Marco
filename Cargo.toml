@@ -1,5 +1,5 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["core", "marco", "polo"]
 
 # Shared workspace dependencies
@@ -10,7 +10,7 @@ nom_locate = "5.0.0"                 # Position tracking for nom parsers
 ron = "0.12.0"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-toml = "0.9.8"
+toml = "1"
 log = "0.4.29"
 chrono = { version = "0.4.43", features = ["serde"] }
 tempfile = "3.25.0"
@@ -25,32 +25,28 @@ katex-rs = "0.2.3"                   # Pure Rust KaTeX math rendering
 mermaid-rs-renderer = { git = "https://github.com/1jehuang/mermaid-rs-renderer", tag = "v0.2.0", default-features = false }  # Pure Rust Mermaid diagram rendering (no CLI)
 
 # UI dependencies (GTK4 ecosystem)
-gtk4 = "0.10.3"
-glib = "0.21.5"
-gio = "0.21.5"
-sourceview5 = "0.10.0"
+gtk4 = "0.11.2"
+glib = "0.22.5"
+glib-unix = "0.22.0"
+gio = "0.22.5"
+sourceview5 = "0.11.0"
 dark-light = "2.0.0"
-librsvg = "2.60"
-cairo-rs = "0.21.5"
-gdk-pixbuf = "0.21.5"
+librsvg = "2"
+cairo-rs = "0.22.0"
+gdk-pixbuf = "0.22.0"
 
 # Platform-specific WebView dependencies
 # Linux: webkit6 (GTK4-native WebKit)
-webkit6 = "0.5.0"
+webkit6 = "0.6.1"
 # Windows: wry (cross-platform WebView wrapper)
-wry = { version = "0.54.1", default-features = false, features = ["os-webview", "protocol"] }
-tao = "0.34.5"
-gdk4-win32 = "0.10.3"
+wry = { version = "0.55.0", default-features = false, features = ["os-webview", "protocol"] }
+tao = "0.35.0"
+gdk4-win32 = "0.11.0"
 raw-window-handle = "0.6.2"
-urlencoding = "2.1"
-reqwest = { version = "0.12.24", default-features = false, features = ["blocking", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
 
 # Test dependencies
 clap = { version = "4.5.58", features = ["derive"] }
-similar = { version = "2.7", features = ["inline", "unicode"] }
-colored = "3.0.0"
-criterion = "0.8.1"
-rand = "0.10.0"
 serial_test = "3.3.1"
 
 # Profile optimizations

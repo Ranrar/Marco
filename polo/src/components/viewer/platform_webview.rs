@@ -106,7 +106,7 @@ impl PlatformWebView {
                 .clone()
                 .downcast::<webkit6::NavigationPolicyDecision>()
             {
-                if let Some(mut action) = nav.navigation_action() {
+                if let Some(action) = nav.navigation_action() {
                     if let Some(request) = action.request() {
                         if let Some(uri) = request.uri() {
                             let uri_str = uri.as_str();

@@ -1,11 +1,11 @@
 [package]
 name = "polo"
-version = "0.23.0"
+version = "0.23.1"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
 license = "MIT"
-rust-version = "1.93.0"
+rust-version = "1.94.1"
 
 [dependencies]
 # Core library

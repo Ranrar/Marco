@@ -998,7 +998,7 @@ pub fn setup_local_file_link_handler(
             .clone()
             .downcast::<webkit6::NavigationPolicyDecision>()
         {
-            if let Some(mut action) = nav.navigation_action() {
+            if let Some(action) = nav.navigation_action() {
                 if let Some(request) = action.request() {
                     if let Some(uri) = request.uri() {
                         let uri_str = uri.as_str();
@@ -1047,7 +1047,7 @@ fn setup_link_handling(webview: &WebView) {
             .downcast::<webkit6::NavigationPolicyDecision>()
         {
             // Get the navigation action to extract the request URI
-            if let Some(mut navigation_action) = navigation_decision.navigation_action() {
+            if let Some(navigation_action) = navigation_decision.navigation_action() {
                 if let Some(request) = navigation_action.request() {
                     if let Some(uri) = request.uri() {
                         let uri_str = uri.as_str();

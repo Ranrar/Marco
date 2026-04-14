@@ -24,6 +24,17 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 ### Security
 - Nothing yet.
 
+## [0.23.1] - 2026-04-14
+
+**Uses:** Core 0.23.1
+
+### Changed
+- Rust toolchain updated to 1.94.1 (MSRV bumped from 1.93.0).
+- GTK ecosystem upgraded to webkit6 0.6.1 / gtk4 0.11.2 / glib 0.22.5 series.
+
+### Security
+- Updated `rand` dependency to address unsound behavior (GHSA-cq8v-f236-94qc).
+
 ## [0.23.0] - 2026-04-12
 
 **Uses:** Core 0.23.0

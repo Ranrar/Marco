@@ -19,7 +19,7 @@ jobs:
 
       - name: Install Rust toolchain (pinned)
         id: toolchain
-        uses: dtolnay/rust-toolchain@1.90.0
+        uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: rustfmt, clippy
 

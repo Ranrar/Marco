@@ -502,8 +502,8 @@ System Requirements:
   Download: https://go.microsoft.com/fwlink/p/?LinkId=2124703
 
 For more information:
-- GitHub: https://github.com/marco-editor/marco
-- Report issues: https://github.com/marco-editor/marco/issues
+- GitHub: https://github.com/Ranrar/Marco
+- Report issues: https://github.com/Ranrar/Marco/issues
 
 License:
 See LICENSE file for terms of use.
@@ -547,7 +547,7 @@ if (Test-Path $versionFile) {
         "  log_to_file: Some(true), // Enables logging to log/ folder",
         "",
         "For more information:",
-        "https://github.com/marco-editor/marco"
+        "https://github.com/Ranrar/Marco"
     )
     $manifest | Out-File -FilePath $manifestPath -Encoding UTF8
     Write-Host "    + MANIFEST.txt" -ForegroundColor Green

@@ -22,7 +22,7 @@ jobs:
 
       - name: Install Rust toolchain (pinned)
         id: toolchain
-        uses: dtolnay/rust-toolchain@1.90.0
+        uses: dtolnay/rust-toolchain@1.94.1
 
       - name: Cache cargo
         uses: actions/cache@v5
@@ -93,7 +93,7 @@ jobs:
 
       - name: Install Rust toolchain (pinned)
         id: toolchain
-        uses: dtolnay/rust-toolchain@1.90.0
+        uses: dtolnay/rust-toolchain@1.94.1
 
       - name: Install GNU target
         run: rustup target add x86_64-pc-windows-gnu
@@ -264,26 +264,18 @@ jobs:
           commit: ${{ github.sha }}
           artifacts: "artifacts/*.deb,artifacts/*.zip"
           body: |
-            ## Marco Suite ${{ steps.version.outputs.version }} is live
+            ## Marco Suite ${{ steps.version.outputs.version }}
 
-            Better writing flow. Better preview. Better export.
+            Maintenance release — dependency updates and toolchain upgrade.
 
-            ### Highlights
-            - New page-view print preview powered by CSS Paged Media (paged.js).
-            - New export workflow for PDF and HTML with paper, orientation, margin, and page-number controls.
-            - New preview zoom controls with persisted zoom state.
-            - Settings redesigned around **Application** and **Print Preview** tabs.
+            ### Security
+            - Updated `rand` dependency to resolve unsound behavior ([GHSA-cq8v-f236-94qc](https://github.com/advisories/GHSA-cq8v-f236-94qc)).
 
-            ### Improvements
-            - Shared rendering pipeline for preview, print preview, and export for more consistent output.
-            - Base + theme-token CSS model for cleaner theming and less duplication.
-            - Heading text now acts as the direct permalink target.
-
-            ### Fixes
-            - Hard line breaks now follow CommonMark correctly (two or more trailing spaces).
-            - Blank-line handling now follows CommonMark ASCII space/tab rules.
-            - Nested-bracket links (including image-in-link syntax) render correctly.
-            - Preview and export UI consistency improvements.
+            ### Changed
+            - Rust toolchain updated to 1.94.1 (MSRV bumped from 1.93.0).
+            - GTK ecosystem upgraded: gtk4 0.11.2, glib 0.22.5, cairo-rs 0.22.0, gdk-pixbuf 0.22.0, gio 0.22.5, sourceview5 0.11.0, webkit6 0.6.1.
+            - `reqwest` updated to 0.13 and `toml` updated to 1.x.
+            - Removed unused workspace dependencies (`colored`, `criterion`, `rand`, `urlencoding`, `similar`).
 
             ### Downloads
             - **Linux**: `marco-suite_*_linux_amd64.deb`
