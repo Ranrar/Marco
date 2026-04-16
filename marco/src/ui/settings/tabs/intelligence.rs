@@ -1,4 +1,4 @@
-use core::logic::swanson::EditorSettings;
+use marco_shared::logic::swanson::EditorSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::{debug, error};
@@ -14,7 +14,7 @@ pub fn build_intelligence_tab(
 ) -> Box {
     use gtk4::{Box as GtkBox, Orientation, Switch};
 
-    let settings_manager_opt = match core::logic::swanson::SettingsManager::initialize(
+    let settings_manager_opt = match marco_shared::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path),
     ) {
         Ok(settings_manager) => Some(std::sync::Arc::new(settings_manager)),
@@ -242,7 +242,7 @@ pub fn build_intelligence_tab(
 
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.editor.is_none() {
-                    settings.editor = Some(core::logic::swanson::EditorSettings::default());
+                    settings.editor = Some(marco_shared::logic::swanson::EditorSettings::default());
                 }
                 if let Some(ref mut editor) = settings.editor {
                     editor.syntax_colors = Some(enabled);

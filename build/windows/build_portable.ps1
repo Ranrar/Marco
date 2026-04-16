@@ -424,7 +424,7 @@ if ($poloExe -and (Test-Path $poloExe)) {
 
 # Copy assets directory (this is what the app looks for in portable mode)
 Write-Host "  Copying assets..." -ForegroundColor Gray
-$assetsSource = Join-Path $projectRoot "assets"
+$assetsSource = Join-Path $projectRoot "marco-shared" "src" "assets"
 if (-not (Test-Path $assetsSource)) {
     Write-Error "Assets directory not found at: $assetsSource"
     exit 1

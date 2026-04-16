@@ -91,7 +91,7 @@ pub async fn show_export_dialog(
     themes: &[(String, String)],
     current_theme: &str,
     current_mode: &str,
-    layout: Option<&core::logic::swanson::LayoutSettings>,
+    layout: Option<&marco_shared::logic::swanson::LayoutSettings>,
 ) -> Option<ExportSettings> {
     // ── Theme detection ───────────────────────────────────────────────────────
     let parent_widget: gtk4::Widget = parent.clone().upcast();

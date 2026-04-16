@@ -18,7 +18,7 @@
 //! Display settings are persisted via the `SettingsManager` and can be
 //! updated at runtime through the editor settings dialog.
 
-use core::logic::{
+use marco_shared::logic::{
     loaders::font_loader::{AvailableFonts, FontLoader},
     swanson::{EditorSettings, SettingsManager},
 };

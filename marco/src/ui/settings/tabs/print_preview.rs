@@ -41,7 +41,7 @@ pub fn build_print_preview_tab(
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(path) = settings_path {
-        match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(path)) {
+        match marco_shared::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(path)) {
             Ok(sm) => Some(sm),
             Err(e) => {
                 debug!(
@@ -121,7 +121,7 @@ pub fn build_print_preview_tab(
             if let Some(ref sm) = sm_c {
                 if let Err(e) = sm.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .page_view_paper = Some(paper.to_string());
                 }) {
                     debug!("Failed to save page_view_paper: {}", e);
@@ -185,7 +185,7 @@ pub fn build_print_preview_tab(
             if let Some(ref sm) = sm_c {
                 if let Err(e) = sm.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .page_view_orientation = Some(orient.to_string());
                 }) {
                     debug!("Failed to save page_view_orientation: {}", e);
@@ -230,7 +230,7 @@ pub fn build_print_preview_tab(
             if let Some(ref sm) = sm_c {
                 if let Err(e) = sm.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .page_view_margin_mm = Some(mm);
                 }) {
                     debug!("Failed to save page_view_margin_mm: {}", e);
@@ -267,7 +267,7 @@ pub fn build_print_preview_tab(
             if let Some(ref sm) = sm_c {
                 if let Err(e) = sm.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .page_view_show_page_numbers = Some(active);
                 }) {
                     debug!("Failed to save page_view_show_page_numbers: {}", e);
@@ -313,7 +313,7 @@ pub fn build_print_preview_tab(
             if let Some(ref sm) = sm_c {
                 if let Err(e) = sm.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .page_view_columns = Some(cols);
                 }) {
                     debug!("Failed to save page_view_columns: {}", e);

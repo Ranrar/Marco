@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use core::ast::{Document, Node, NodeKind, traversal};
+    use marco_core::ast::{Document, Node, NodeKind, traversal};
     
     #[test]
     fn test_document_creation() {

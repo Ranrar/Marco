@@ -43,7 +43,7 @@ use components::menu::create_custom_titlebar;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::platform_webview::PlatformWebView;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
-use core::paths::PoloPaths;
+use marco_shared::paths::PoloPaths;
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -63,19 +63,19 @@ const APP_ID: &str = "io.github.ranrar.Polo";
 fn fatal_error(message: &str) -> ! {
     log::error!("FATAL: {}", message);
     eprintln!("Fatal error: {}", message);
-    core::logic::logger::shutdown_file_logger();
+    marco_core::logic::logger::shutdown_file_logger();
     std::process::exit(1);
 }
 
 fn main() -> glib::ExitCode {
     // Initialize logger early
-    if let Err(e) = core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
+    if let Err(e) = marco_core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
         // Fallback: print to stderr if logger fails
         eprintln!("Failed to initialize logger: {}", e);
     }
 
     // Setup font directory for IcoMoon icon font (MUST be done before GTK init)
-    use core::paths::PoloPaths;
+    use marco_shared::paths::PoloPaths;
     let polo_paths = match PoloPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -149,18 +149,18 @@ fn main() -> glib::ExitCode {
     let exit_code = app.run();
 
     // Cleanup
-    core::logic::logger::shutdown_file_logger();
+    marco_core::logic::logger::shutdown_file_logger();
     exit_code
 }
 
 fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::Rc<PoloPaths>) {
-    use core::paths::PathProvider;
+    use marco_shared::paths::PathProvider;
 
     // Initialize settings manager early
     let settings_path = polo_paths.settings_file();
 
     let settings_manager =
-        match core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+        match marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
             Ok(manager) => {
                 log::debug!("Settings loaded successfully");
                 manager
@@ -168,7 +168,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
             Err(e) => {
                 log::warn!("Failed to load settings, using defaults: {}", e);
                 // Create default settings and continue
-                match core::logic::swanson::SettingsManager::initialize(settings_path) {
+                match marco_shared::logic::swanson::SettingsManager::initialize(settings_path) {
                     Ok(manager) => manager,
                     Err(e) => {
                         fatal_error(&format!("Cannot initialize settings: {}", e));
@@ -356,12 +356,12 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         let _ = settings_manager_width.update_settings(|s| {
             // Ensure polo section exists
             if s.polo.is_none() {
-                s.polo = Some(core::logic::swanson::PoloSettings::default());
+                s.polo = Some(marco_shared::logic::swanson::PoloSettings::default());
             }
             // Ensure polo.window exists
             if let Some(ref mut polo) = s.polo {
                 if polo.window.is_none() {
-                    polo.window = Some(core::logic::swanson::PoloWindowSettings::default());
+                    polo.window = Some(marco_shared::logic::swanson::PoloWindowSettings::default());
                 }
                 if let Some(ref mut win) = polo.window {
                     win.width = Some(width);
@@ -379,11 +379,11 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
 
         let _ = settings_manager_height.update_settings(|s| {
             if s.polo.is_none() {
-                s.polo = Some(core::logic::swanson::PoloSettings::default());
+                s.polo = Some(marco_shared::logic::swanson::PoloSettings::default());
             }
             if let Some(ref mut polo) = s.polo {
                 if polo.window.is_none() {
-                    polo.window = Some(core::logic::swanson::PoloWindowSettings::default());
+                    polo.window = Some(marco_shared::logic::swanson::PoloWindowSettings::default());
                 }
                 if let Some(ref mut win) = polo.window {
                     win.width = Some(width);
@@ -401,11 +401,11 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
 
         let _ = settings_manager_max.update_settings(|s| {
             if s.polo.is_none() {
-                s.polo = Some(core::logic::swanson::PoloSettings::default());
+                s.polo = Some(marco_shared::logic::swanson::PoloSettings::default());
             }
             if let Some(ref mut polo) = s.polo {
                 if polo.window.is_none() {
-                    polo.window = Some(core::logic::swanson::PoloWindowSettings::default());
+                    polo.window = Some(marco_shared::logic::swanson::PoloWindowSettings::default());
                 }
                 if let Some(ref mut win) = polo.window {
                     win.maximized = Some(is_maximized);

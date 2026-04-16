@@ -19,7 +19,7 @@
 //! - `replace` - Replace operations
 
 use crate::components::language::SearchTranslations;
-use core::logic::cache::SimpleFileCache;
+use marco_core::logic::cache::SimpleFileCache;
 use gtk4::prelude::*;
 use gtk4::Window;
 use sourceview5::{Buffer, View};
@@ -186,7 +186,7 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
             // Refresh the close icon in its normal state for the new theme
             set_window_control_icon(
                 &close_pic,
-                core::logic::loaders::icon_loader::WindowIcon::Close,
+                marco_shared::logic::loaders::icon_loader::WindowIcon::Close,
                 parent_is_dark,
                 WindowControlState::Normal,
             );
@@ -276,12 +276,12 @@ enum WindowControlState {
 #[cfg(target_os = "windows")]
 fn set_window_control_icon(
     pic: &gtk4::Picture,
-    icon: core::logic::loaders::icon_loader::WindowIcon,
+    icon: marco_shared::logic::loaders::icon_loader::WindowIcon,
     is_dark: bool,
     state: WindowControlState,
 ) {
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::window_icon_svg;
+    use marco_shared::logic::loaders::icon_loader::window_icon_svg;
     use gio;
     use gtk4::gdk;
     use rsvg::{CairoRenderer, Loader};
@@ -366,7 +366,7 @@ fn set_window_control_icon(
 /// Create a close button that matches the main app's window control styling.
 #[cfg(target_os = "windows")]
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
-    use core::logic::loaders::icon_loader::WindowIcon;
+    use marco_shared::logic::loaders::icon_loader::WindowIcon;
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
 

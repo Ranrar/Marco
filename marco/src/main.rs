@@ -29,8 +29,8 @@ use crate::components::viewer::preview_types::ViewMode;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
 use crate::ui::menu_items::FileOperations;
-use core::logic::{DocumentBuffer, RecentFiles};
-use core::paths::MarcoPaths;
+use marco_shared::logic::{DocumentBuffer, RecentFiles};
+use marco_shared::paths::MarcoPaths;
 #[cfg(target_os = "windows")]
 use gio::prelude::*;
 #[cfg(target_os = "windows")]
@@ -52,7 +52,7 @@ fn main() -> glib::ExitCode {
     crate::logic::panic_hook::install_panic_hook();
 
     // path detection and environment setup
-    use core::paths::MarcoPaths;
+    use marco_shared::paths::MarcoPaths;
     let marco_paths = match MarcoPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -101,18 +101,18 @@ fn main() -> glib::ExitCode {
 
     // Clean up global resources before shutting down logger
     crate::components::editor::editor_manager::shutdown_editor_manager();
-    core::shutdown_global_parser_cache();
-    core::logic::cache::shutdown_global_cache();
+    marco_core::logic::cache::shutdown_global_parser_cache();
+    marco_core::logic::cache::shutdown_global_cache();
 
     // Ensure file logger is flushed and closed on normal exit
-    core::logic::logger::shutdown_file_logger();
+    marco_core::logic::logger::shutdown_file_logger();
     exit_code
 }
 
 fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<MarcoPaths>) {
     // Import path functions and settings manager
-    use core::logic::swanson::SettingsManager;
-    use core::paths::PathProvider;
+    use marco_shared::logic::swanson::SettingsManager;
+    use marco_shared::paths::PathProvider;
 
     // Load CSS using the new modular system
     crate::ui::css::load_css();
@@ -166,7 +166,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     let _ = settings_manager.update_settings(|s| {
         let layout = s
             .layout
-            .get_or_insert_with(core::logic::swanson::LayoutSettings::default);
+            .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default);
         layout.page_view_columns.get_or_insert(1);
         layout
             .preview_zoom
@@ -180,7 +180,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .language
         .and_then(|l| l.language)
         // "System Default" in settings means: detect OS language.
-        .or_else(core::paths::detect_system_locale_iso639_1)
+        .or_else(marco_shared::paths::detect_system_locale_iso639_1)
         .unwrap_or_else(|| "en".to_string());
     if let Err(e) = localization_manager.load_locale(&locale_code) {
         log::warn!(
@@ -208,7 +208,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     crate::logic::logger_init::init_logging(&settings_manager);
 
     // Initialize monospace font cache for fast settings loading
-    if let Err(e) = core::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
+    if let Err(e) = marco_shared::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
         log::warn!("Failed to initialize monospace font cache: {}", e);
     }
 
@@ -261,7 +261,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     toolbar::wire_gutter_toggle(&toolbar_ref.borrow(), &settings_manager);
 
     // --- Determine correct HTML preview theme based on settings and app theme ---
-    use core::logic::loaders::theme_loader::list_html_view_themes;
+    use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
     let settings = theme_manager.borrow().get_settings();
@@ -897,7 +897,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             let settings_manager = settings_manager.clone();
             let mode_owned = mode.to_string();
             let task = Box::new(move || {
-                use core::logic::swanson::LayoutSettings;
+                use marco_shared::logic::swanson::LayoutSettings;
                 if let Err(e) = settings_manager.update_settings(|s| {
                     if s.layout.is_none() {
                         s.layout = Some(LayoutSettings::default());
@@ -942,7 +942,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
         Rc::new(move |selected_code: Option<String>| {
             let locale_code = selected_code
-                .or_else(core::paths::detect_system_locale_iso639_1)
+                .or_else(marco_shared::paths::detect_system_locale_iso639_1)
                 .unwrap_or_else(|| "en".to_string());
 
             let window_for_locale = window_for_language_handler.clone();
@@ -1523,7 +1523,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let translations_rc = translations_rc.clone();
         #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
-        let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
+        let cache = Rc::new(RefCell::new(marco_core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
             #[cfg(target_os = "linux")]
@@ -1654,7 +1654,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     let layout = layout_opt.layout.as_ref();
 
                     // Build theme list from the preview themes directory.
-                    use core::logic::loaders::theme_loader::list_html_view_themes;
+                    use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
                     let theme_entries = list_html_view_themes(&preview_theme_dir);
                     let themes: Vec<(String, String)> = theme_entries
                         .into_iter()
@@ -1740,9 +1740,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 export_syntax_css,
                             );
 
-                            let html_body = match core::parse_to_html_cached(
+                            let html_body = match marco_core::parse_to_html_cached(
                                 &markdown,
-                                core::RenderOptions {
+                                marco_core::RenderOptions {
                                     theme: export_theme_class.to_string(),
                                     ..Default::default()
                                 },
@@ -1757,7 +1757,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             // Build the paged.js HTML using the export settings.
                             // standalone_export=false keeps the WebKit marco_paged_ready signal.
                             // for_export=false — print CSS is injected via inject_export_css.
-                            let page_opts = core::render::PageViewOptions {
+                            let page_opts = marco_core::render::PageViewOptions {
                                 paged_js_source:
                                     crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
                                 paper: &settings.paper,
@@ -1925,9 +1925,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 export_syntax_css,
                             );
 
-                            let html_body = match core::parse_to_html_cached(
+                            let html_body = match marco_core::parse_to_html_cached(
                                 &markdown,
-                                core::RenderOptions {
+                                marco_core::RenderOptions {
                                     theme: theme_mode.to_string(),
                                     ..Default::default()
                                 },
@@ -1971,7 +1971,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 // shadows) so it looks like print-preview in a browser.
                                 // standalone_export=true strips WebKit-only hooks and injects
                                 // the document title.
-                                let page_opts = core::render::PageViewOptions {
+                                let page_opts = marco_core::render::PageViewOptions {
                                     paged_js_source:
                                         crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
                                     paper: &settings.paper,
@@ -2297,7 +2297,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 let saved = crate::components::editor::editor_manager::get_preview_zoom();
                 if let Err(e) = sm_zoom.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .preview_zoom = Some(saved);
                 }) {
                     log::debug!("Failed to save preview_zoom: {}", e);
@@ -2327,8 +2327,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
-            core::shutdown_global_parser_cache();
-            core::logic::cache::shutdown_global_cache();
+            marco_core::logic::cache::shutdown_global_parser_cache();
+            marco_core::logic::cache::shutdown_global_cache();
         }
     });
 

@@ -30,7 +30,7 @@ use std::sync::Arc;
 pub fn create_zoom_bar(
     overlay_widget: &gtk4::Overlay,
     paned: &gtk4::Paned,
-    settings_manager: Option<Arc<core::logic::swanson::SettingsManager>>,
+    settings_manager: Option<Arc<marco_shared::logic::swanson::SettingsManager>>,
 ) -> ZoomBarHandle {
     // ── Container ──────────────────────────────────────────────────────────
     let bar = GtkBox::new(Orientation::Horizontal, 0);
@@ -152,11 +152,11 @@ fn zoom_percent_text(zoom: f64) -> String {
 }
 
 /// Persist the zoom level to settings if a manager is available.
-fn persist_zoom(zoom: f64, sm: Option<&core::logic::swanson::SettingsManager>) {
+fn persist_zoom(zoom: f64, sm: Option<&marco_shared::logic::swanson::SettingsManager>) {
     if let Some(manager) = sm {
         if let Err(e) = manager.update_settings(|s| {
             s.layout
-                .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                 .preview_zoom = Some(zoom);
         }) {
             log::debug!("zoom bar: failed to persist zoom: {}", e);

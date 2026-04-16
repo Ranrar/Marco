@@ -1,6 +1,6 @@
 //! About dialog for Marco application
 
-use core::logic::loaders::icon_loader::{about_icon_svg, AboutIcon};
+use marco_shared::logic::loaders::icon_loader::{about_icon_svg, AboutIcon};
 
 use gtk4::prelude::*;
 use gtk4::{gio, glib, Align, Box, Button, Label, Orientation, ScrolledWindow, Window};

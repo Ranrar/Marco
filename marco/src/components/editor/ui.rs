@@ -37,8 +37,8 @@ use crate::footer::FooterLabels;
 #[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
-use core::global_parser_cache; // New cache API
-use core::RenderOptions; // New parser API
+use marco_core::logic::cache::global_parser_cache; // New cache API
+use marco_core::RenderOptions; // New parser API
 use gtk4::prelude::*;
 use gtk4::Paned;
 use sourceview5::prelude::*;
@@ -103,9 +103,9 @@ pub(crate) fn split_hover_content(raw: &str) -> (String, String) {
 }
 
 pub(crate) fn diagnostic_at_offset(
-    diagnostics: &[core::intelligence::Diagnostic],
+    diagnostics: &[marco_core::intelligence::Diagnostic],
     byte_offset: usize,
-) -> Option<core::intelligence::Diagnostic> {
+) -> Option<marco_core::intelligence::Diagnostic> {
     diagnostics
         .iter()
         .filter(|d| d.span.start.offset <= byte_offset && byte_offset < d.span.end.offset)
@@ -115,13 +115,13 @@ pub(crate) fn diagnostic_at_offset(
 }
 
 pub(crate) fn diagnostic_hover_markup(
-    diagnostic: &core::intelligence::Diagnostic,
+    diagnostic: &marco_core::intelligence::Diagnostic,
 ) -> (String, String, (usize, usize, String)) {
     let severity = match diagnostic.severity {
-        core::intelligence::DiagnosticSeverity::Error => "Error",
-        core::intelligence::DiagnosticSeverity::Warning => "Warning",
-        core::intelligence::DiagnosticSeverity::Info => "Info",
-        core::intelligence::DiagnosticSeverity::Hint => "Hint",
+        marco_core::intelligence::DiagnosticSeverity::Error => "Error",
+        marco_core::intelligence::DiagnosticSeverity::Warning => "Warning",
+        marco_core::intelligence::DiagnosticSeverity::Info => "Info",
+        marco_core::intelligence::DiagnosticSeverity::Hint => "Hint",
     };
 
     let title_text = diagnostic
@@ -178,7 +178,7 @@ impl Default for RuntimeIntelligenceSettings {
 }
 
 fn read_runtime_intelligence_settings(
-    settings_manager: Option<&std::sync::Arc<core::logic::swanson::SettingsManager>>,
+    settings_manager: Option<&std::sync::Arc<marco_shared::logic::swanson::SettingsManager>>,
 ) -> RuntimeIntelligenceSettings {
     let Some(settings_manager) = settings_manager else {
         return RuntimeIntelligenceSettings::default();
@@ -195,7 +195,7 @@ fn read_runtime_intelligence_settings(
     let filter =
         editor
             .diagnostics_filter
-            .unwrap_or(core::logic::swanson::DiagnosticsFilterSettings {
+            .unwrap_or(marco_shared::logic::swanson::DiagnosticsFilterSettings {
                 errors: Some(true),
                 warnings: Some(true),
                 infos: Some(false),
@@ -229,14 +229,14 @@ fn read_runtime_intelligence_settings(
 }
 
 fn diagnostic_severity_enabled(
-    severity: &core::intelligence::DiagnosticSeverity,
+    severity: &marco_core::intelligence::DiagnosticSeverity,
     settings: RuntimeIntelligenceSettings,
 ) -> bool {
     match severity {
-        core::intelligence::DiagnosticSeverity::Error => settings.level_1_enabled,
-        core::intelligence::DiagnosticSeverity::Warning => settings.level_2_enabled,
-        core::intelligence::DiagnosticSeverity::Info => settings.level_3_enabled,
-        core::intelligence::DiagnosticSeverity::Hint => settings.level_4_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Error => settings.level_1_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Warning => settings.level_2_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Info => settings.level_3_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Hint => settings.level_4_enabled,
     }
 }
 
@@ -245,13 +245,13 @@ pub fn create_editor_with_preview_and_buffer(
     params: EditorParams,
     labels: Rc<FooterLabels>,
     settings_path: &str,
-    _document_buffer: Option<Rc<RefCell<core::logic::buffer::DocumentBuffer>>>,
+    _document_buffer: Option<Rc<RefCell<marco_shared::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     let preview_theme_filename = &params.preview_theme_filename;
     let preview_theme_dir = &params.preview_theme_dir;
     let theme_manager = params.theme_manager;
     let theme_mode = params.theme_mode;
-    let intelligence_settings_manager = match core::logic::swanson::SettingsManager::initialize(
+    let intelligence_settings_manager = match marco_shared::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path),
     ) {
         Ok(manager) => Some(manager),
@@ -446,7 +446,7 @@ pub fn create_editor_with_preview_and_buffer(
     // SourceView5 native hover provider.
     // Uses the built-in GtkSourceHover infrastructure instead of a custom
     // EventControllerMotion + Popover approach.
-    let current_diagnostics: Rc<RefCell<Vec<core::intelligence::Diagnostic>>> =
+    let current_diagnostics: Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>> =
         Rc::new(RefCell::new(Vec::new()));
 
     {
@@ -1609,14 +1609,14 @@ paned > separator {{
             glib::spawn_future_local(async move {
                 let result = gio::spawn_blocking(move || {
                     let src = current_text;
-                    core::parser::parse(&src)
+                    marco_core::parser::parse(&src)
                         .map_err(|e| e.to_string())
                         .map(|doc| {
                             let highlights =
-                                core::intelligence::compute_highlights_with_source(&doc, &src);
-                            let diagnostics = core::intelligence::compute_diagnostics_with_options(
+                                marco_core::intelligence::compute_highlights_with_source(&doc, &src);
+                            let diagnostics = marco_core::intelligence::compute_diagnostics_with_options(
                                 &doc,
-                                core::intelligence::DiagnosticsOptions::all(),
+                                marco_core::intelligence::DiagnosticsOptions::all(),
                             );
                             (highlights, diagnostics)
                         })
@@ -1653,7 +1653,7 @@ paned > separator {{
                         Ok(Ok((highlights, diagnostics))) => {
                             let rs = resolve_settings_for_async();
 
-                            let filtered_diagnostics: Vec<core::intelligence::Diagnostic> =
+                            let filtered_diagnostics: Vec<marco_core::intelligence::Diagnostic> =
                                 diagnostics
                                     .into_iter()
                                     .filter(|d| diagnostic_severity_enabled(&d.severity, rs))
@@ -1777,8 +1777,8 @@ paned > separator {{
                     )
                     .to_string();
                 let depth = handle.depth.get();
-                if let Ok(doc) = core::parser::parse(&text) {
-                    let entries = core::intelligence::toc::extract_toc(&doc);
+                if let Ok(doc) = marco_core::parser::parse(&text) {
+                    let entries = marco_core::intelligence::toc::extract_toc(&doc);
                     handle.rebuild(&entries, depth);
                 }
             });
@@ -2190,21 +2190,21 @@ mod tests {
     use super::*;
 
     fn make_diag(
-        severity: core::intelligence::DiagnosticSeverity,
-        code: core::intelligence::DiagnosticCode,
+        severity: marco_core::intelligence::DiagnosticSeverity,
+        code: marco_core::intelligence::DiagnosticCode,
         start: usize,
         end: usize,
         message: &str,
-    ) -> core::intelligence::Diagnostic {
-        core::intelligence::Diagnostic {
+    ) -> marco_core::intelligence::Diagnostic {
+        marco_core::intelligence::Diagnostic {
             code,
-            span: core::parser::Span {
-                start: core::parser::Position {
+            span: marco_core::parser::Span {
+                start: marco_core::parser::Position {
                     line: 1,
                     column: start.saturating_add(1),
                     offset: start,
                 },
-                end: core::parser::Position {
+                end: marco_core::parser::Position {
                     line: 1,
                     column: end.saturating_add(1),
                     offset: end,
@@ -2218,15 +2218,15 @@ mod tests {
     #[test]
     fn smoke_test_diagnostic_at_offset_prefers_narrowest_span() {
         let wide = make_diag(
-            core::intelligence::DiagnosticSeverity::Warning,
-            core::intelligence::DiagnosticCode::MissingCodeBlockLanguage,
+            marco_core::intelligence::DiagnosticSeverity::Warning,
+            marco_core::intelligence::DiagnosticCode::MissingCodeBlockLanguage,
             10,
             30,
             "wide",
         );
         let narrow = make_diag(
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticCode::EmptyImageUrl,
             12,
             14,
             "narrow",
@@ -2240,8 +2240,8 @@ mod tests {
     #[test]
     fn smoke_test_diagnostic_at_offset_none_outside_span() {
         let diag = make_diag(
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticCode::EmptyImageUrl,
             5,
             10,
             "hit-range",
@@ -2253,8 +2253,8 @@ mod tests {
     #[test]
     fn smoke_test_diagnostic_hover_markup_contains_code_and_fix() {
         let diag = make_diag(
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticCode::EmptyImageUrl,
             20,
             24,
             "Empty image URL",

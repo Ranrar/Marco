@@ -1,7 +1,7 @@
 // Grammar tests: validate nom parsers for block and inline syntax
 
 use super::utils::{print_header, print_section, Span};
-use core::grammar::{blocks, inlines};
+use marco_core::grammar::{blocks, inlines};
 
 pub fn run_inline_tests(filter: Option<String>) {
     print_header("Inline Grammar Tests");

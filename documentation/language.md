@@ -3,19 +3,19 @@
 Marco's UI localization lives in the Marco crate under:
 
 - Code: `marco/src/components/language/`
-- Translation assets: `assets/language/*.toml`
+- Translation assets: `marco-shared/src/assets/language/*.toml`
 
 This is separate from Markdown syntax/language work (parsing, highlighting, etc.).
 
 For the canonical, up-to-date implementation, see:
 
 - `marco/src/components/language/mod.rs` (loader, locale scanning, per-key fallback)
-- `assets/language/en.toml` (reference schema / template)
+- `marco-shared/src/assets/language/en.toml` (reference schema / template)
 
 ## Locale files (TOML)
 
 - Locale code must be **ISO 639-1**: exactly 2 lowercase ASCII letters (e.g. `en`, `de`).
-- Files are named: `assets/language/{code}.toml`
+- Files are named: `marco-shared/src/assets/language/{code}.toml`
 - Each locale file should include:
   - `[language] code = ".."`
   - `[language] native_name = ".."` (used in the language selector)
@@ -43,10 +43,10 @@ language = "Language"
 
 ## How to add a new locale
 
-1. Copy `assets/language/en.toml` to `assets/language/{code}.toml`.
+1. Copy `marco-shared/src/assets/language/en.toml` to `marco-shared/src/assets/language/{code}.toml`.
 2. Translate values, keeping keys unchanged.
 3. Ensure `[language.native_name]` is set.
-4. Update `assets/language/language_matrix.md`.
+4. Update `marco-shared/src/assets/language/language_matrix.md`.
 
 Reference: ISO 639-1 codes
 https://en.wikipedia.org/wiki/List_of_ISO_639_language_codes

@@ -24,7 +24,7 @@ pub fn setup_inline_blocks_modules_actions(
     editor_buffer: &sourceview5::Buffer,
     editor_view: &sourceview5::View,
     window: &gtk4::ApplicationWindow,
-    settings_manager: std::sync::Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: std::sync::Arc<marco_shared::logic::swanson::SettingsManager>,
     current_file_provider: std::rc::Rc<dyn Fn() -> Option<std::path::PathBuf>>,
 ) {
     inline::setup_inline_actions(

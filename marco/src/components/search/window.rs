@@ -113,7 +113,7 @@ pub fn create_search_window_impl(parent: &Window, translations: &SearchTranslati
 
     // Titlebar close button: match Marco's standard window-control look/behavior.
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use gio;
     use gtk4::gdk;
     use gtk4::{Button, Picture};

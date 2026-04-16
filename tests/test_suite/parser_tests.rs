@@ -3,7 +3,7 @@
 use super::utils::{print_header, print_section};
 
 pub fn run_parser_tests() {
-    use core::parser;
+    use marco_core::parser;
 
     print_header("Parser → AST Integration Tests");
 
@@ -18,7 +18,7 @@ pub fn run_parser_tests() {
     match parser::parse(input) {
         Ok(doc) => {
             if doc.children.len() == 1 {
-                if let core::parser::NodeKind::Heading { level, text, .. } = &doc.children[0].kind {
+                if let marco_core::parser::NodeKind::Heading { level, text, .. } = &doc.children[0].kind {
                     if *level == 1 && text == "Hello World" {
                         println!("  ✓ Heading parsed: level={}, text={:?}", level, text);
                         passed += 1;
@@ -51,7 +51,7 @@ pub fn run_parser_tests() {
     match parser::parse(input) {
         Ok(doc) => {
             if doc.children.len() == 1 {
-                if let core::parser::NodeKind::Paragraph = &doc.children[0].kind {
+                if let marco_core::parser::NodeKind::Paragraph = &doc.children[0].kind {
                     if !doc.children[0].children.is_empty() {
                         println!(
                             "  ✓ Paragraph parsed with {} child nodes",
@@ -84,7 +84,7 @@ pub fn run_parser_tests() {
     match parser::parse(input) {
         Ok(doc) => {
             if doc.children.len() == 1 {
-                if let core::parser::NodeKind::CodeBlock { language, code } = &doc.children[0].kind
+                if let marco_core::parser::NodeKind::CodeBlock { language, code } = &doc.children[0].kind
                 {
                     if language == &Some("rust".to_string()) && code.contains("fn main") {
                         println!(
@@ -120,12 +120,12 @@ pub fn run_parser_tests() {
         Ok(doc) => {
             if doc.children.len() == 3 {
                 let has_heading =
-                    matches!(doc.children[0].kind, core::parser::NodeKind::Heading { .. });
+                    matches!(doc.children[0].kind, marco_core::parser::NodeKind::Heading { .. });
                 let has_paragraph =
-                    matches!(doc.children[1].kind, core::parser::NodeKind::Paragraph);
+                    matches!(doc.children[1].kind, marco_core::parser::NodeKind::Paragraph);
                 let has_code = matches!(
                     doc.children[2].kind,
-                    core::parser::NodeKind::CodeBlock { .. }
+                    marco_core::parser::NodeKind::CodeBlock { .. }
                 );
 
                 if has_heading && has_paragraph && has_code {

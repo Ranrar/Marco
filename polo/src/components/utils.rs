@@ -26,7 +26,7 @@
 //! let themes = list_available_themes(); // ["github", "marco", "academic", ...]
 //! ```
 
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 use gtk4::gdk;
 use std::sync::Arc;
 
@@ -218,16 +218,16 @@ mod tests {
 
     #[test]
     fn smoke_test_list_available_themes() {
-        use core::paths::{workspace_root, PathProvider, PoloPaths};
+        use marco_shared::paths::{workspace_root, PathProvider, PoloPaths};
         use std::path::PathBuf;
 
         // Try to get PoloPaths, fall back to development workspace root for tests
         let asset_root = if let Ok(polo_paths) = PoloPaths::new() {
             polo_paths.asset_root().clone()
         } else if let Some(root) = workspace_root() {
-            root.join("assets")
+            root.join("marco-shared").join("src").join("assets")
         } else {
-            PathBuf::from("assets") // Fallback for test environment
+            PathBuf::from("marco-shared/src/assets") // Fallback for test environment
         };
 
         let themes = list_available_themes_from_path(&asset_root);

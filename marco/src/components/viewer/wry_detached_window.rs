@@ -123,7 +123,7 @@ impl PreviewWindow {
 
         // Helper: render a window control SVG into a GDK texture
         use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-        use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+        use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
         use gio;
         use gtk4::gdk;
         use rsvg::{CairoRenderer, Loader};

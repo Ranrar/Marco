@@ -1,4 +1,4 @@
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 use std::sync::Arc;
 
 /// Initialize the file logger according to application settings and the `RUST_LOG`
@@ -33,11 +33,11 @@ pub fn init_logging(settings_manager: &Arc<SettingsManager>) {
         Err(_) => log::LevelFilter::Info,
     };
 
-    if let Err(e) = core::logic::logger::init_file_logger(enabled, level) {
+    if let Err(e) = marco_core::logic::logger::init_file_logger(enabled, level) {
         eprintln!("Failed to initialize file logger: {}", e);
     } else if enabled {
         // Show the resolved log folder to avoid confusion about "./log" vs system cache
-        let resolved = core::logic::logger::current_log_dir();
+        let resolved = marco_core::logic::logger::current_log_dir();
         log::info!(
             "Logger initialized with level: {:?}, RUST_LOG set: {}, log_dir: {}",
             level,
@@ -54,7 +54,7 @@ pub fn init_logging(settings_manager: &Arc<SettingsManager>) {
         );
     } else if rust_log_set {
         // RUST_LOG was set but settings did not explicitly enable file logging — still show intended path
-        let resolved = core::logic::logger::current_log_dir();
+        let resolved = marco_core::logic::logger::current_log_dir();
         println!(
             "Logging enabled via RUST_LOG (level: {:?}), log files stored under: {}",
             level,
@@ -69,14 +69,14 @@ pub fn init_logging(settings_manager: &Arc<SettingsManager>) {
     settings_manager_for_logger.register_change_listener("logger".to_string(), move |s| {
         let enabled_now = s.log_to_file.unwrap_or(false) || std::env::var("MARCO_LOG").is_ok();
         if enabled_now {
-            if let Err(e) = core::logic::logger::init_file_logger(true, level_for_logger) {
+            if let Err(e) = marco_core::logic::logger::init_file_logger(true, level_for_logger) {
                 log::warn!("Failed to init file logger from settings listener: {}", e);
             } else {
                 log::info!("File logger enabled via settings listener");
             }
         } else {
             // Shutdown file logger immediately
-            core::logic::logger::shutdown_file_logger();
+            marco_core::logic::logger::shutdown_file_logger();
             log::info!("File logger disabled via settings listener");
         }
     });

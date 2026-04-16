@@ -79,7 +79,7 @@ pub fn setup_inline_actions(
     editor_buffer: &sourceview5::Buffer,
     editor_view: &sourceview5::View,
     window: &gtk4::ApplicationWindow,
-    settings_manager: Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: Arc<marco_shared::logic::swanson::SettingsManager>,
     current_file_provider: Rc<dyn Fn() -> Option<std::path::PathBuf>>,
 ) {
     // ── Toggle: Bold ──────────────────────────────────────────────────────────

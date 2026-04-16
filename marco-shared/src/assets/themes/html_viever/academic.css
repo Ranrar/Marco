@@ -1,0 +1,169 @@
+/* Academic – Scholarly serif theme
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in core/src/render/base_css.rs
+ */
+
+:root {
+  /* ── Typography ── */
+  --body-font: 'Palatino', 'Palatino Linotype', 'Palatino LT STD', 'Book Antiqua', Georgia, serif;
+  --code-font: 'Courier New', Courier, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
+  --body-font-size: 16px;
+  --body-line-height: 1.6;
+  --body-max-width: 800px;
+  --body-padding: 2rem;
+
+  /* ── Text colours (light defaults) ── */
+  --text-color: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --text-muted: #7f8c8d;
+  --heading-color: #2c3e50;
+  --heading-gradient-end: #2c3e50;
+  --strong-color: #2c3e50;
+  --link-color: #2980b9;
+  --link-hover: #3498db;
+
+  /* ── Backgrounds ── */
+  --bg-color: #ffffff;
+  --bg-secondary: #ecf0f1;
+  --bg-code: #ecf0f1;
+  --bg-pre: #2c3e50;
+
+  /* ── Borders ── */
+  --border-color: #bdc3c7;
+  --border-light: #ecf0f1;
+  --border-strong: #34495e;
+
+  /* ── Components ── */
+  --blockquote-bg: #ecf0f1;
+  --blockquote-border: #3498db;
+  --blockquote-text: #34495e;
+  --table-border: #bdc3c7;
+  --table-header-bg: #34495e;
+  --table-header-color: #ffffff;
+  --table-stripe-bg: #f8f9fa;
+  --mark-bg: #fff3cd;
+  --mark-color: #2c3e50;
+  --admonition-bg: #f8f9fa;
+  --admonition-border: #bdc3c7;
+  --note-bg: #ebf3fd;
+  --tip-bg: #eafaf1;
+  --important-bg: #fef5e7;
+  --warning-bg: #fef9e7;
+  --caution-bg: #fdedec;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #ffffff;
+  --pagedjs-page-color: #2c3e50;
+
+  /* ── TOC ── */
+  --toc-header-color: #2980b9;
+  --toc-header-border: #bdc3c7;
+  --toc-link-color: #2c3e50;
+  --toc-link-hover-bg: #ecf0f1;
+  --toc-link-hover-color: #2980b9;
+  --toc-link-active-bg: #d5dbdb;
+  --toc-link-active-color: #2c3e50;
+  --toc-bg: #f8f9fa;
+  --toc-border: #bdc3c7;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-light {
+  --text-color: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --text-muted: #7f8c8d;
+  --heading-color: #2c3e50;
+  --heading-gradient-end: #2c3e50;
+  --strong-color: #2c3e50;
+  --link-color: #2980b9;
+  --link-hover: #3498db;
+  --bg-color: #ffffff;
+  --bg-secondary: #ecf0f1;
+  --bg-code: #ecf0f1;
+  --bg-pre: #2c3e50;
+  --border-color: #bdc3c7;
+  --border-light: #ecf0f1;
+  --border-strong: #34495e;
+  --blockquote-bg: #ecf0f1;
+  --blockquote-border: #3498db;
+  --blockquote-text: #34495e;
+  --table-border: #bdc3c7;
+  --table-header-bg: #34495e;
+  --table-header-color: #ffffff;
+  --table-stripe-bg: #f8f9fa;
+  --mark-bg: #fff3cd;
+  --mark-color: #2c3e50;
+  --admonition-bg: #f8f9fa;
+  --admonition-border: #bdc3c7;
+  --note-bg: #ebf3fd;
+  --tip-bg: #eafaf1;
+  --important-bg: #fef5e7;
+  --warning-bg: #fef9e7;
+  --caution-bg: #fdedec;
+  --pagedjs-page-bg: #ffffff;
+  --pagedjs-page-color: #2c3e50;
+  --toc-header-color: #2980b9;
+  --toc-header-border: #bdc3c7;
+  --toc-link-color: #2c3e50;
+  --toc-link-hover-bg: #ecf0f1;
+  --toc-link-hover-color: #2980b9;
+  --toc-link-active-bg: #d5dbdb;
+  --toc-link-active-color: #2c3e50;
+  --toc-bg: #f8f9fa;
+  --toc-border: #bdc3c7;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-dark {
+  --text-color: #e0e0e0;
+  --text-secondary: #aaa;
+  --text-muted: #aaa;
+  --heading-color: #f0f0f0;
+  --heading-gradient-end: #f0f0f0;
+  --strong-color: #e0e0e0;
+  --link-color: #66b3ff;
+  --link-hover: #99ccff;
+  --bg-color: #1a1a1a;
+  --bg-secondary: #2a2a2a;
+  --bg-code: #2d2d2d;
+  --bg-pre: #222;
+  --border-color: #555;
+  --border-light: #444;
+  --border-strong: #777;
+  --blockquote-bg: #2a2a2a;
+  --blockquote-border: #66b3ff;
+  --blockquote-text: #ccc;
+  --table-border: #555;
+  --table-header-bg: #333;
+  --table-header-color: #f0f0f0;
+  --table-stripe-bg: #2a2a2a;
+  --mark-bg: #f59e0b;
+  --mark-color: #1a1a1a;
+  --admonition-bg: #2a2a2a;
+  --admonition-border: #555;
+  --note-bg: #1a2a3a;
+  --tip-bg: #1a3a2a;
+  --important-bg: #3a2a1a;
+  --warning-bg: #3a3a1a;
+  --caution-bg: #3a1a1a;
+  --pagedjs-page-bg: #1a1a1a;
+  --pagedjs-page-color: #e0e0e0;
+  --toc-header-color: #66b3ff;
+  --toc-header-border: #555;
+  --toc-link-color: #e0e0e0;
+  --toc-link-hover-bg: #2a2a2a;
+  --toc-link-hover-color: #66b3ff;
+  --toc-link-active-bg: #333;
+  --toc-link-active-color: #ffffff;
+  --toc-bg: #1a1a1a;
+  --toc-border: #555;
+  --toc-shadow: rgba(0, 0, 0, 0.3);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}

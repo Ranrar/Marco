@@ -18,7 +18,7 @@
 
 use crate::components::utils::get_theme_mode;
 use crate::components::viewer::platform_webview::PlatformWebView;
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 use std::sync::Arc;
 
 /// Show empty state when no file is opened - theme-aware version matching markdown rendering

@@ -45,7 +45,7 @@
 //! - Invalid paths are validated before attempting operations
 
 use crate::components::viewer::{load_and_render_markdown, platform_webview::PlatformWebView};
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 use gtk4::{prelude::*, Align, ApplicationWindow, Box, Button, Label, Orientation, Window};
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
@@ -100,7 +100,7 @@ fn open_file_and_update_state(ctx: OpenFileContext<'_>, path: PathBuf) {
 
     let _ = ctx.settings_manager.update_settings(|s| {
         if s.polo.is_none() {
-            s.polo = Some(core::logic::swanson::PoloSettings::default());
+            s.polo = Some(marco_shared::logic::swanson::PoloSettings::default());
         }
         if let Some(ref mut polo) = s.polo {
             polo.last_opened_file = Some(PathBuf::from(path_str));
@@ -252,7 +252,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
 
     // Create custom close button with SVG icon
     use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use gio;
     use gtk4::gdk;
     use rsvg::{CairoRenderer, Loader};
@@ -553,7 +553,7 @@ where
 
     // SVG close-button helpers (same pattern as show_open_in_editor_dialog)
     use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use gio;
     use gtk4::gdk;
     use rsvg::{CairoRenderer, Loader};

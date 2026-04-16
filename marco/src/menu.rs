@@ -1,4 +1,4 @@
-use core::logic::layoutstate::{layout_state_label, LayoutState};
+use marco_shared::logic::layoutstate::{layout_state_label, LayoutState};
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
@@ -1597,7 +1597,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     use gtk4::Label;
 
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::{
+    use marco_shared::logic::loaders::icon_loader::{
         layout_icon_svg, window_icon_svg, LayoutIcon, WindowIcon,
     };
     // Helper: render an SVG icon into a GDK memory texture at high DPI for crisp icons

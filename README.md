@@ -128,7 +128,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
   Renders live preview with local images, CSS themes, and scroll-sync interactions.
 
 - **nom** (`nom`) - Parser combinator library used for Marco's custom Markdown grammar.
-  Enables recursive-descent parsing and AST generation in `core/src/grammar/`.
+  Enables recursive-descent parsing and AST generation in `marco-core/src/grammar/`.
 
 - **RON** (`ron`) - Human-readable configuration format for settings, themes, and preferences.
   Easy to edit manually and friendly for version control.
@@ -147,7 +147,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 
 ## Roadmap
 
-### Core Parser & Language Features
+### core Parser & Language Features
 - [x] Syntax highlighting in editor (via intelligence engine)
 - [x] Diagnostic underlines — issue detection with hover details and footer panel
 - [x] Hover insights — Markdown element info and diagnostic details at cursor
@@ -187,7 +187,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 - [ ] Document presentation mode
 
 ### Advanced Features
-- [x] Language plugin system via. `assets/language/xx*.toml` files
+- [x] Language plugin system via. `marco-shared/src/assets/language/xx*.toml` files
 - [ ] Local AI-assisted tools: writing suggestions, grammar checking, content improvement
 - [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
 - [ ] Built in terminal to run code blocks in editor
@@ -225,7 +225,7 @@ We welcome contributions of all sizes. Short workflow:
 
 Code style & expectations:
 
-- Keep UI code in `marco/src/ui/` and business logic in `core/src/logic/`.
+- Keep UI code in `marco/src/ui/` and business logic in `marco-core/src/logic/`.
 - Follow Rust idioms (use `Result<T, E>`, avoid panics in library code).
 - Add unit tests and integration tests in `tests/` when applicable.
 
@@ -243,7 +243,7 @@ Reference locations for contributors working on components and translations:
 - [marco/src/components/ai/README.md](marco/src/components/ai/README.md) — AI component guidance and interface notes
 - [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
 - [documentation/language.md](documentation/language.md) — Localization provider contract and workflow
-- [assets/language/language_matrix.md](assets/language/language_matrix.md) — language implementation matrix
+- [marco-shared/src/assets/language/language_matrix.md](marco-shared/src/assets/language/language_matrix.md) — language implementation matrix
 
 ## AI-assisted development
 

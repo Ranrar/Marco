@@ -22,7 +22,7 @@ use crate::components::language::{LocalizationProvider, SimpleLocalizationManage
 fn effective_locale_code(selected_code: Option<&str>) -> String {
     selected_code
         .map(|s| s.to_string())
-        .or_else(core::paths::detect_system_locale_iso639_1)
+        .or_else(marco_shared::paths::detect_system_locale_iso639_1)
         .unwrap_or_else(|| "en".to_string())
 }
 
@@ -69,7 +69,7 @@ fn apply_welcome_sidebar_classes(assistant: &gtk4::Assistant) {
 }
 
 fn infer_theme_class_from_settings(
-    settings_manager: &Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: &Arc<marco_shared::logic::swanson::SettingsManager>,
 ) -> &'static str {
     let settings = settings_manager.get_settings();
     let scheme = settings
@@ -95,7 +95,7 @@ fn infer_theme_class_from_settings(
 /// * `on_language_changed` - Optional callback when user changes language
 /// * `on_theme_changed` - Optional callback when user changes theme (receives editor mode string)
 pub fn show_welcome_screen(
-    settings_manager: &Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: &Arc<marco_shared::logic::swanson::SettingsManager>,
     parent: Option<&Window>,
     on_language_changed: Option<Box<dyn Fn(Option<String>) + 'static>>,
     on_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
@@ -545,7 +545,7 @@ pub fn show_welcome_screen(
             gtk4::glib::idle_add_local_once(move || {
                 if let Err(e) = settings_manager.update_settings(|s| {
                     if s.telemetry.is_none() {
-                        s.telemetry = Some(core::logic::swanson::TelemetrySettings::default());
+                        s.telemetry = Some(marco_shared::logic::swanson::TelemetrySettings::default());
                     }
                     if let Some(ref mut telemetry) = s.telemetry {
                         // Showing the assistant counts as completing first-run.
@@ -555,14 +555,14 @@ pub fn show_welcome_screen(
                     }
 
                     if s.language.is_none() {
-                        s.language = Some(core::logic::swanson::LanguageSettings::default());
+                        s.language = Some(marco_shared::logic::swanson::LanguageSettings::default());
                     }
                     if let Some(ref mut language) = s.language {
                         language.language = selected_language.clone();
                     }
 
                     if s.appearance.is_none() {
-                        s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
+                        s.appearance = Some(marco_shared::logic::swanson::AppearanceSettings::default());
                     }
                     if let Some(ref mut appearance) = s.appearance {
                         appearance.editor_mode = Some(selected_editor_mode.clone());
@@ -1038,7 +1038,7 @@ pub fn show_welcome_screen(
 ///
 /// Returns true if the dialog has not been shown yet.
 pub fn should_show_welcome_screen(
-    settings_manager: &Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: &Arc<marco_shared::logic::swanson::SettingsManager>,
 ) -> bool {
     let settings = settings_manager.get_settings();
 

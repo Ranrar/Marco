@@ -527,7 +527,7 @@ impl SimpleLocalizationManager {
     ///
     /// Automatically loads English as the default locale.
     pub fn new() -> Result<Self, LocalizationError> {
-        let shared_paths = core::paths::SharedPaths::new().map_err(|e| {
+        let shared_paths = marco_shared::paths::SharedPaths::new().map_err(|e| {
             LocalizationError::Io(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 format!("Failed to find asset root: {}", e),

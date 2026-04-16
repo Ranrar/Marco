@@ -22,7 +22,8 @@ path = "src/main.rs"
 
 [dependencies]
 # Core library
-core = { path = "../core" }
+marco-core = { path = "../marco-core" }
+marco-shared = { path = "../marco-shared" }
 
 # Utilities
 log = { workspace = true }

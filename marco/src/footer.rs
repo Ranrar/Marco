@@ -66,7 +66,7 @@ pub enum FooterUpdate {
 
 #[derive(Debug, Clone)]
 pub struct FooterDiagnosticItem {
-    pub severity: core::intelligence::DiagnosticSeverity,
+    pub severity: marco_core::intelligence::DiagnosticSeverity,
     pub code: String,
     pub line: usize,
     pub column: usize,
@@ -126,35 +126,35 @@ pub struct FooterLabels {
     pub encoding_label: RefCell<String>,
 }
 
-fn severity_rank(severity: &core::intelligence::DiagnosticSeverity) -> u8 {
+fn severity_rank(severity: &marco_core::intelligence::DiagnosticSeverity) -> u8 {
     match severity {
-        core::intelligence::DiagnosticSeverity::Error => 0,
-        core::intelligence::DiagnosticSeverity::Warning => 1,
-        core::intelligence::DiagnosticSeverity::Info => 2,
-        core::intelligence::DiagnosticSeverity::Hint => 3,
+        marco_core::intelligence::DiagnosticSeverity::Error => 0,
+        marco_core::intelligence::DiagnosticSeverity::Warning => 1,
+        marco_core::intelligence::DiagnosticSeverity::Info => 2,
+        marco_core::intelligence::DiagnosticSeverity::Hint => 3,
     }
 }
 
-fn severity_label(severity: &core::intelligence::DiagnosticSeverity) -> &'static str {
+fn severity_label(severity: &marco_core::intelligence::DiagnosticSeverity) -> &'static str {
     match severity {
-        core::intelligence::DiagnosticSeverity::Error => "Error",
-        core::intelligence::DiagnosticSeverity::Warning => "Warning",
-        core::intelligence::DiagnosticSeverity::Info => "Info",
-        core::intelligence::DiagnosticSeverity::Hint => "Hint",
+        marco_core::intelligence::DiagnosticSeverity::Error => "Error",
+        marco_core::intelligence::DiagnosticSeverity::Warning => "Warning",
+        marco_core::intelligence::DiagnosticSeverity::Info => "Info",
+        marco_core::intelligence::DiagnosticSeverity::Hint => "Hint",
     }
 }
 
-fn severity_row_css_class(severity: &core::intelligence::DiagnosticSeverity) -> &'static str {
+fn severity_row_css_class(severity: &marco_core::intelligence::DiagnosticSeverity) -> &'static str {
     match severity {
-        core::intelligence::DiagnosticSeverity::Error => "footer-issue-row-error",
-        core::intelligence::DiagnosticSeverity::Warning => "footer-issue-row-warning",
-        core::intelligence::DiagnosticSeverity::Info => "footer-issue-row-info",
-        core::intelligence::DiagnosticSeverity::Hint => "footer-issue-row-hint",
+        marco_core::intelligence::DiagnosticSeverity::Error => "footer-issue-row-error",
+        marco_core::intelligence::DiagnosticSeverity::Warning => "footer-issue-row-warning",
+        marco_core::intelligence::DiagnosticSeverity::Info => "footer-issue-row-info",
+        marco_core::intelligence::DiagnosticSeverity::Hint => "footer-issue-row-hint",
     }
 }
 
 fn diagnostics_filter_from_settings(
-    settings: &core::logic::swanson::Settings,
+    settings: &marco_shared::logic::swanson::Settings,
 ) -> DiagnosticsSeverityFilter {
     let Some(editor) = settings.editor.as_ref() else {
         return DiagnosticsSeverityFilter::default_error_warning();
@@ -172,16 +172,16 @@ fn diagnostics_filter_from_settings(
 }
 
 fn persist_diagnostics_filter(
-    settings_manager: &Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: &Arc<marco_shared::logic::swanson::SettingsManager>,
     filter: DiagnosticsSeverityFilter,
 ) {
     if let Err(err) = settings_manager.update_settings(|settings| {
         if settings.editor.is_none() {
-            settings.editor = Some(core::logic::swanson::EditorSettings::default());
+            settings.editor = Some(marco_shared::logic::swanson::EditorSettings::default());
         }
 
         if let Some(editor) = settings.editor.as_mut() {
-            editor.diagnostics_filter = Some(core::logic::swanson::DiagnosticsFilterSettings {
+            editor.diagnostics_filter = Some(marco_shared::logic::swanson::DiagnosticsFilterSettings {
                 errors: Some(filter.errors),
                 warnings: Some(filter.warnings),
                 hints: Some(filter.hints),
@@ -635,10 +635,10 @@ fn render_diagnostics_panel(labels: &FooterLabels) {
 
     for item in &source_items {
         match item.severity {
-            core::intelligence::DiagnosticSeverity::Error => errors += 1,
-            core::intelligence::DiagnosticSeverity::Warning => warnings += 1,
-            core::intelligence::DiagnosticSeverity::Hint => hints += 1,
-            core::intelligence::DiagnosticSeverity::Info => infos += 1,
+            marco_core::intelligence::DiagnosticSeverity::Error => errors += 1,
+            marco_core::intelligence::DiagnosticSeverity::Warning => warnings += 1,
+            marco_core::intelligence::DiagnosticSeverity::Hint => hints += 1,
+            marco_core::intelligence::DiagnosticSeverity::Info => infos += 1,
         }
     }
 
@@ -648,10 +648,10 @@ fn render_diagnostics_panel(labels: &FooterLabels) {
     let mut items: Vec<FooterDiagnosticItem> = source_items
         .into_iter()
         .filter(|item| match item.severity {
-            core::intelligence::DiagnosticSeverity::Error => filter.errors,
-            core::intelligence::DiagnosticSeverity::Warning => filter.warnings,
-            core::intelligence::DiagnosticSeverity::Hint => filter.hints,
-            core::intelligence::DiagnosticSeverity::Info => filter.infos,
+            marco_core::intelligence::DiagnosticSeverity::Error => filter.errors,
+            marco_core::intelligence::DiagnosticSeverity::Warning => filter.warnings,
+            marco_core::intelligence::DiagnosticSeverity::Hint => filter.hints,
+            marco_core::intelligence::DiagnosticSeverity::Info => filter.infos,
         })
         .collect();
 
@@ -814,7 +814,7 @@ fn update_label_immediate(label: &Label, text: &str, use_markup: bool) {
 
 pub fn create_footer(
     translations: &FooterTranslations,
-    settings_manager: Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: Arc<marco_shared::logic::swanson::SettingsManager>,
 ) -> (Box, Rc<FooterLabels>) {
     let footer_box = Box::new(Orientation::Horizontal, 10);
     footer_box.set_margin_top(0);

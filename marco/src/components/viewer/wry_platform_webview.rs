@@ -109,6 +109,19 @@ impl PlatformWebView {
         let window_weak = window.downgrade();
         container.add_tick_callback(move |_, _| {
             if let (Some(container), Some(win), Some(view)) = (container_weak.upgrade(), window_weak.upgrade(), webview_for_tick.borrow().as_ref()) {
+                // When the GTK container is not mapped (e.g. the Stack switched to code_preview),
+                // move the native Win32 WebView off-screen so it does not overdraw other GTK widgets.
+                if !container.is_mapped() {
+                    let _ = view.set_bounds(wry::Rect {
+                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                            -32000.0,
+                            -32000.0,
+                        )),
+                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(1.0, 1.0)),
+                    });
+                    return gtk4::glib::ControlFlow::Continue;
+                }
+
                 let alloc = container.allocation();
                 let (offset_x, offset_y) = if win.is_maximized() { (0.0, 0.0) } else { (14.0, 12.0) };
 
@@ -226,7 +239,7 @@ impl PlatformWebView {
 
         // Configure WebView2 to use data directory (portable mode friendly)
         // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = core::paths::user_data_dir().join("webview");
+        let data_dir = marco_shared::paths::user_data_dir().join("webview");
         if let Err(e) = std::fs::create_dir_all(&data_dir) {
             log::warn!("Failed to create WebView2 data directory: {}", e);
         }

@@ -71,7 +71,7 @@ fn normalize_custom_icon_input(raw: &str) -> Option<String> {
         return Some(shortcode);
     }
 
-    let normalized = core::logic::normalize_completion_query(trimmed);
+    let normalized = marco_shared::logic::text_completion::normalize_completion_query(trimmed);
     if !normalized.is_empty()
         && normalized
             .chars()
@@ -85,7 +85,7 @@ fn normalize_custom_icon_input(raw: &str) -> Option<String> {
 
 fn extract_trailing_shortcode_name(raw: &str) -> Option<String> {
     let token = raw.split_whitespace().last()?;
-    let normalized = core::logic::normalize_completion_query(token);
+    let normalized = marco_shared::logic::text_completion::normalize_completion_query(token);
 
     if normalized.is_empty()
         || !normalized
@@ -96,7 +96,7 @@ fn extract_trailing_shortcode_name(raw: &str) -> Option<String> {
     }
 
     let candidate = format!(":{}:", normalized);
-    if core::logic::emoji_shortcodes_for_completion().contains(&candidate) {
+    if marco_shared::logic::text_completion::emoji_shortcodes_for_completion().contains(&candidate) {
         return Some(candidate);
     }
 
@@ -134,7 +134,7 @@ fn attach_emoji_completion(entry: &Entry) {
     completion.set_minimum_key_length(1);
 
     let model = ListStore::new(&[String::static_type(), String::static_type()]);
-    for item in core::logic::emoji_completion_items() {
+    for item in marco_shared::logic::text_completion::emoji_completion_items() {
         let iter = model.append();
         model.set(&iter, &[(0, &item.display), (1, &item.shortcode)]);
     }
@@ -147,7 +147,7 @@ fn attach_emoji_completion(entry: &Entry) {
             return false;
         };
         let candidate: String = model.get(iter, 1);
-        core::logic::emoji_shortcode_matches_query(&candidate, key)
+        marco_shared::logic::text_completion::emoji_shortcode_matches_query(&candidate, key)
     });
 
     entry.set_completion(Some(&completion));

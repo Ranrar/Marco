@@ -3,8 +3,8 @@
 use super::utils::{print_header, print_section};
 
 pub fn run_render_tests() {
-    use core::parser;
-    use core::render::{render_html, RenderOptions};
+    use marco_core::parser;
+    use marco_core::render::{render_html, RenderOptions};
 
     print_header("Full Pipeline Tests (Markdown → AST → HTML)");
 
@@ -227,8 +227,8 @@ pub fn run_render_tests() {
 // ============================================================================
 
 pub fn run_inline_pipeline_tests() {
-    use core::parser;
-    use core::render::{render_html, RenderOptions};
+    use marco_core::parser;
+    use marco_core::render::{render_html, RenderOptions};
 
     print_header("Inline Elements Pipeline Tests");
 

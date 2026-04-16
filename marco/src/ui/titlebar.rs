@@ -4,7 +4,7 @@
 //! close buttons and proper theme support.
 
 use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use gtk4::prelude::*;
 use gtk4::{gio, glib, Align, Button, HeaderBar, Label, Window};
 use rsvg::{CairoRenderer, Loader};

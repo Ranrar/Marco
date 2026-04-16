@@ -94,7 +94,7 @@ pub fn load_theme_css_from_path(theme: &str, asset_root: &std::path::Path) -> St
 /// This delegates to `core` so both `marco` and `polo` share the same CSS
 /// generator and language tokenization rules.
 pub fn generate_syntax_highlighting_css(theme_mode: &str) -> String {
-    core::render::syntect_css_for_theme_mode(theme_mode)
+    marco_core::render::syntect_css_for_theme_mode(theme_mode)
 }
 
 #[cfg(test)]
@@ -103,16 +103,16 @@ mod tests {
 
     #[test]
     fn smoke_test_load_theme_css_marco() {
-        use core::paths::{workspace_root, PathProvider, PoloPaths};
+        use marco_shared::paths::{workspace_root, PathProvider, PoloPaths};
         use std::path::PathBuf;
 
         // Try to get PoloPaths, fall back to development workspace root for tests
         let asset_root = if let Ok(polo_paths) = PoloPaths::new() {
             polo_paths.asset_root().clone()
         } else if let Some(root) = workspace_root() {
-            root.join("assets")
+            root.join("marco-shared").join("src").join("assets")
         } else {
-            PathBuf::from("assets") // Fallback for test environment
+            PathBuf::from("marco-shared/src/assets") // Fallback for test environment
         };
 
         let css = load_theme_css_from_path("marco.css", &asset_root);
@@ -126,16 +126,16 @@ mod tests {
 
     #[test]
     fn smoke_test_load_theme_css_fallback() {
-        use core::paths::{workspace_root, PathProvider, PoloPaths};
+        use marco_shared::paths::{workspace_root, PathProvider, PoloPaths};
         use std::path::PathBuf;
 
         // Try to get PoloPaths, fall back to development workspace root for tests
         let asset_root = if let Ok(polo_paths) = PoloPaths::new() {
             polo_paths.asset_root().clone()
         } else if let Some(root) = workspace_root() {
-            root.join("assets")
+            root.join("marco-shared").join("src").join("assets")
         } else {
-            PathBuf::from("assets") // Fallback for test environment
+            PathBuf::from("marco-shared/src/assets") // Fallback for test environment
         };
 
         // Test fallback when theme doesn't exist

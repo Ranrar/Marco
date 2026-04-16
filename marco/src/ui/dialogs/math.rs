@@ -27,7 +27,7 @@ type PreviewSurface = crate::components::viewer::wry_platform_webview::PlatformW
 static KATEX_CONTEXT: OnceLock<KatexContext> = OnceLock::new();
 
 fn is_debug_mode_enabled() -> bool {
-    let settings_path = match core::paths::MarcoPaths::new() {
+    let settings_path = match marco_shared::paths::MarcoPaths::new() {
         Ok(paths) => paths.settings_file(),
         Err(err) => {
             log::debug!("math dialog: failed to resolve settings path for debug mode: {err}");
@@ -35,7 +35,7 @@ fn is_debug_mode_enabled() -> bool {
         }
     };
 
-    match core::logic::swanson::SettingsManager::initialize(settings_path) {
+    match marco_shared::logic::swanson::SettingsManager::initialize(settings_path) {
         Ok(manager) => manager.get_settings().debug.unwrap_or(false),
         Err(err) => {
             log::debug!("math dialog: failed to initialize settings manager for debug mode: {err}");

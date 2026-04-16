@@ -77,14 +77,16 @@ Versions are tracked in `build/version.json` with separate versions for Linux an
 ```json
 {
   "linux": {
-    "core": "0.20.0",
-    "marco": "0.20.0",
-    "polo": "0.20.0"
+    "marco-core": "1.0.0",
+    "marco-shared": "1.0.0",
+    "marco": "0.23.1",
+    "polo": "0.23.1"
   },
   "windows": {
-    "core": "0.20.0",
-    "marco": "0.20.0",
-    "polo": "0.20.0"
+    "marco-core": "1.0.0",
+    "marco-shared": "1.0.0",
+    "marco": "0.23.1",
+    "polo": "0.23.1"
   }
 }
 ```

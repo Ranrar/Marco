@@ -22,7 +22,7 @@
 
 use crate::footer::{FooterLabels, FooterUpdate};
 use crate::logic::signal_manager::safe_source_remove;
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 use gtk4::glib::ControlFlow;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -137,20 +137,20 @@ pub fn refresh_footer_snapshot(
     let (errors, warnings, diagnostics) = if !issues_runtime_enabled {
         (0, 0, Vec::new())
     } else {
-        match core::parser::parse(&text) {
+        match marco_core::parser::parse(&text) {
             Ok(doc) => {
-                let diagnostics = core::intelligence::compute_diagnostics_with_options(
+                let diagnostics = marco_core::intelligence::compute_diagnostics_with_options(
                     &doc,
-                    core::intelligence::DiagnosticsOptions::all(),
+                    marco_core::intelligence::DiagnosticsOptions::all(),
                 );
                 let errors = diagnostics
                     .iter()
-                    .filter(|d| matches!(d.severity, core::intelligence::DiagnosticSeverity::Error))
+                    .filter(|d| matches!(d.severity, marco_core::intelligence::DiagnosticSeverity::Error))
                     .count();
                 let warnings = diagnostics
                     .iter()
                     .filter(|d| {
-                        matches!(d.severity, core::intelligence::DiagnosticSeverity::Warning)
+                        matches!(d.severity, marco_core::intelligence::DiagnosticSeverity::Warning)
                     })
                     .count();
                 let diagnostics = diagnostics
@@ -167,8 +167,8 @@ pub fn refresh_footer_snapshot(
                 (errors, warnings, diagnostics)
             }
             Err(err) => {
-                let parse_diagnostic = core::intelligence::Diagnostic::parse_error_at(
-                    core::parser::Position {
+                let parse_diagnostic = marco_core::intelligence::Diagnostic::parse_error_at(
+                    marco_core::parser::Position {
                         line: row,
                         column: col,
                         offset: offset as usize,

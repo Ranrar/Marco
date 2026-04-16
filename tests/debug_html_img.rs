@@ -1,5 +1,5 @@
 /// Debug test for HTML img highlighting issues
-use core::{grammar, intelligence, parser};
+use marco_core::{grammar, intelligence, parser};
 
 fn main() {
     // Initialize logger

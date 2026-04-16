@@ -12,7 +12,7 @@ use std::rc::Rc;
 /// Apply intelligence highlights in small chunks scheduled on the main loop.
 pub fn apply_intelligence_highlights_chunked<F>(
     buffer: &sourceview5::Buffer,
-    highlights: Vec<core::intelligence::Highlight>,
+    highlights: Vec<marco_core::intelligence::Highlight>,
     on_done: F,
 ) where
     F: FnOnce() + 'static,
@@ -64,7 +64,7 @@ pub fn apply_intelligence_highlights_chunked<F>(
 /// Apply diagnostics markers in small chunks scheduled on the main loop.
 pub fn apply_diagnostics_markers_chunked<F>(
     buffer: &sourceview5::Buffer,
-    diagnostics: Vec<core::intelligence::Diagnostic>,
+    diagnostics: Vec<marco_core::intelligence::Diagnostic>,
     on_done: F,
 ) where
     F: FnOnce() + 'static,
@@ -151,7 +151,7 @@ fn remove_all_diagnostic_tags(buffer: &sourceview5::Buffer) {
 
 fn span_to_text_iter(
     buffer: &sourceview5::Buffer,
-    span: &core::parser::position::Span,
+    span: &marco_core::parser::position::Span,
 ) -> Option<(gtk4::TextIter, gtk4::TextIter)> {
     let start = position_to_iter(buffer, &span.start)?;
     let end = position_to_iter(buffer, &span.end)?;
@@ -161,7 +161,7 @@ fn span_to_text_iter(
 
 fn position_to_iter(
     buffer: &sourceview5::Buffer,
-    position: &core::parser::position::Position,
+    position: &marco_core::parser::position::Position,
 ) -> Option<gtk4::TextIter> {
     let gtk_line = position.line.saturating_sub(1);
 
@@ -198,9 +198,9 @@ fn position_to_iter(
 
 fn get_or_create_tag(
     buffer: &sourceview5::Buffer,
-    tag: &core::intelligence::HighlightTag,
+    tag: &marco_core::intelligence::HighlightTag,
 ) -> gtk4::TextTag {
-    use core::intelligence::HighlightTag;
+    use marco_core::intelligence::HighlightTag;
 
     let style_name = match tag {
         HighlightTag::Heading1 => "heading1",
@@ -262,9 +262,9 @@ fn get_or_create_tag(
 
 fn get_or_create_diagnostic_tag(
     buffer: &sourceview5::Buffer,
-    severity: &core::intelligence::DiagnosticSeverity,
+    severity: &marco_core::intelligence::DiagnosticSeverity,
 ) -> gtk4::TextTag {
-    use core::intelligence::DiagnosticSeverity;
+    use marco_core::intelligence::DiagnosticSeverity;
 
     let style_name = match severity {
         DiagnosticSeverity::Error => "diagnostic-error",
@@ -303,8 +303,8 @@ fn get_or_create_diagnostic_tag(
     new_tag
 }
 
-fn severity_rank(severity: &core::intelligence::DiagnosticSeverity) -> u8 {
-    use core::intelligence::DiagnosticSeverity;
+fn severity_rank(severity: &marco_core::intelligence::DiagnosticSeverity) -> u8 {
+    use marco_core::intelligence::DiagnosticSeverity;
     match severity {
         DiagnosticSeverity::Error => 3,
         DiagnosticSeverity::Warning => 2,
@@ -316,9 +316,9 @@ fn severity_rank(severity: &core::intelligence::DiagnosticSeverity) -> u8 {
 /// Deduplicate diagnostics by span, keeping the highest-severity entry per
 /// unique (start_offset, end_offset) pair.
 fn deduplicate_diagnostics_by_span(
-    diagnostics: Vec<core::intelligence::Diagnostic>,
-) -> Vec<core::intelligence::Diagnostic> {
-    let mut map: std::collections::HashMap<(usize, usize), core::intelligence::Diagnostic> =
+    diagnostics: Vec<marco_core::intelligence::Diagnostic>,
+) -> Vec<marco_core::intelligence::Diagnostic> {
+    let mut map: std::collections::HashMap<(usize, usize), marco_core::intelligence::Diagnostic> =
         std::collections::HashMap::new();
     for d in diagnostics {
         let key = (d.span.start.offset, d.span.end.offset);
@@ -377,10 +377,10 @@ mod tests {
         let buffer = sourceview5::Buffer::new(None::<&gtk4::TextTagTable>);
 
         let severities = [
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticSeverity::Warning,
-            core::intelligence::DiagnosticSeverity::Info,
-            core::intelligence::DiagnosticSeverity::Hint,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticSeverity::Warning,
+            marco_core::intelligence::DiagnosticSeverity::Info,
+            marco_core::intelligence::DiagnosticSeverity::Hint,
         ];
 
         for severity in severities {

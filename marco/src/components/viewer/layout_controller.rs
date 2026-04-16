@@ -23,7 +23,7 @@
 //!
 //! ```no_run
 //! use marco::components::viewer::controller::{SplitController, WebViewLocationTracker, WebViewLocation};
-//! use core::logic::layoutstate::LayoutState;
+//! use marco_shared::logic::layoutstate::LayoutState;
 //!
 //! let controller = SplitController::new(paned.clone());
 //! controller.set_mode(LayoutState::EditorOnly); // Locks split at 100%
@@ -34,7 +34,7 @@
 //! assert!(tracker.is_in_preview_window());
 //! ```
 
-use core::logic::layoutstate::LayoutState;
+use marco_shared::logic::layoutstate::LayoutState;
 use gtk4::prelude::*;
 use gtk4::Paned;
 use std::cell::{Cell, RefCell};

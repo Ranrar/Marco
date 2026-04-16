@@ -22,7 +22,7 @@
 //!
 /// The `toc_paned` position (= panel width) is auto-sized to fit the widest
 /// TOC entry whenever the panel is shown or rebuilt.
-use core::intelligence::toc::TocEntry;
+use marco_core::intelligence::toc::TocEntry;
 #[cfg(target_os = "linux")]
 use gtk4::gio;
 use gtk4::glib;
@@ -92,9 +92,9 @@ impl TocPanelHandle {
             .text(&buffer.start_iter(), &buffer.end_iter(), false)
             .to_string();
         let depth = self.depth.get();
-        match core::parser::parse(&text) {
+        match marco_core::parser::parse(&text) {
             Ok(doc) => {
-                let entries = core::intelligence::toc::extract_toc(&doc);
+                let entries = marco_core::intelligence::toc::extract_toc(&doc);
                 self.rebuild(&entries, depth);
             }
             Err(e) => {
@@ -182,7 +182,7 @@ impl TocPanelHandle {
             let line = entry.line;
             let sv = self.source_view.clone();
             btn.connect_clicked(move |_| {
-                use core::logic::layoutstate::LayoutState;
+                use marco_shared::logic::layoutstate::LayoutState;
                 let layout =
                     crate::components::editor::editor_manager::get_current_layout_state();
 

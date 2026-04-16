@@ -1,0 +1,56 @@
+name: Publish marco-core to crates.io
+
+on:
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  publish:
+    name: Publish marco-core
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain (pinned)
+        uses: dtolnay/rust-toolchain@1.94.1
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-publish-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config \
+            libgtk-4-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev libfontconfig-dev
+
+      - name: Verify crate version matches tag
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          tag_version="${tag#core-v}"
+          crate_version="$(grep '^version' marco-core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+
+          if [ "$tag_version" != "$crate_version" ]; then
+            echo "ERROR: Tag version '$tag_version' does not match Cargo.toml version '$crate_version'" >&2
+            exit 1
+          fi
+
+          echo "Version check passed: $crate_version"
+
+      - name: Publish marco-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.MARCO_CORE_CRATE_IO }}
+        run: cargo publish -p marco-core

@@ -119,11 +119,11 @@ pub fn run_commonmark_tests(section: Option<String>) {
 
         for test in &filtered {
             let test_result = std::panic::catch_unwind(|| {
-                let result = core::parser::parse(&test.markdown);
+                let result = marco_core::parser::parse(&test.markdown);
                 match result {
                     Ok(document) => {
-                        let options = core::render::RenderOptions::default();
-                        match core::render::render(&document, &options) {
+                        let options = marco_core::render::RenderOptions::default();
+                        match marco_core::render::render(&document, &options) {
                             Ok(rendered_html) => {
                                 // Basic structural match
                                 let expected_has_h1 = test.html.contains("<h1>");
@@ -217,11 +217,11 @@ pub fn run_commonmark_tests(section: Option<String>) {
             for test in section_tests {
                 overall_total += 1;
                 let test_result = std::panic::catch_unwind(|| {
-                    let result = core::parser::parse(&test.markdown);
+                    let result = marco_core::parser::parse(&test.markdown);
                     match result {
                         Ok(document) => {
-                            let options = core::render::RenderOptions::default();
-                            match core::render::render(&document, &options) {
+                            let options = marco_core::render::RenderOptions::default();
+                            match marco_core::render::render(&document, &options) {
                                 Ok(rendered_html) => {
                                     let expected_has_h1 = test.html.contains("<h1>");
                                     let expected_has_h2 = test.html.contains("<h2>");
@@ -299,13 +299,13 @@ pub fn run_commonmark_tests(section: Option<String>) {
                 // Try to parse using the full pipeline: markdown -> AST -> HTML
                 // Use catch_unwind to handle parser panics gracefully
                 let test_result = std::panic::catch_unwind(|| {
-                    let result = core::parser::parse(&test.markdown);
+                    let result = marco_core::parser::parse(&test.markdown);
 
                     match result {
                         Ok(document) => {
                             // Successfully parsed - try to render
-                            let options = core::render::RenderOptions::default();
-                            match core::render::render(&document, &options) {
+                            let options = marco_core::render::RenderOptions::default();
+                            match marco_core::render::render(&document, &options) {
                                 Ok(rendered_html) => {
                                     // Very basic check: does the rendered HTML contain expected elements?
                                     // This is not a perfect match but gives us coverage metrics
@@ -448,11 +448,11 @@ pub fn run_extra_tests() {
 
     for test in &tests {
         let test_result = std::panic::catch_unwind(|| {
-            let result = core::parser::parse(&test.markdown);
+            let result = marco_core::parser::parse(&test.markdown);
             match result {
                 Ok(document) => {
-                    let options = core::render::RenderOptions::default();
-                    match core::render::render(&document, &options) {
+                    let options = marco_core::render::RenderOptions::default();
+                    match marco_core::render::render(&document, &options) {
                         Ok(rendered_html) => {
                             // Normalize whitespace for comparison
                             let expected_normalized = test.html.trim();

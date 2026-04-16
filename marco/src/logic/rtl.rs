@@ -33,7 +33,7 @@ use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 
 // ─── Global RTL state ───────────────────────────────────────────────────────
 

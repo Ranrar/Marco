@@ -9,7 +9,8 @@ rust-version = "1.94.1"
 
 [dependencies]
 # Core library
-core = { path = "../core" }
+marco-core = { path = "../marco-core" }
+marco-shared = { path = "../marco-shared" }
 
 # Utilities
 log = { workspace = true }

@@ -25,7 +25,7 @@
 
 use crate::components::editor::display_config::{EditorConfiguration, EditorDisplaySettings};
 use crate::components::editor::scroll_sync::ScrollSynchronizer;
-use core::logic::swanson::SettingsManager;
+use marco_shared::logic::swanson::SettingsManager;
 use gtk4::ScrolledWindow;
 use log::debug;
 use std::cell::Cell;
@@ -239,20 +239,20 @@ thread_local! {
 // Current application layout state (DualView / EditorOnly / ViewOnly / EditorAndViewSeparate).
 // Updated by menu.rs whenever the user switches layout modes.
 thread_local! {
-    static CURRENT_LAYOUT_STATE: RefCell<core::logic::layoutstate::LayoutState> =
-        RefCell::new(core::logic::layoutstate::LayoutState::DualView);
+    static CURRENT_LAYOUT_STATE: RefCell<marco_shared::logic::layoutstate::LayoutState> =
+        RefCell::new(marco_shared::logic::layoutstate::LayoutState::DualView);
 }
 
 /// Update the globally-tracked layout state.
 /// Call this whenever `SplitController::set_mode` is called in `menu.rs`.
-pub fn set_current_layout_state(state: core::logic::layoutstate::LayoutState) {
+pub fn set_current_layout_state(state: marco_shared::logic::layoutstate::LayoutState) {
     CURRENT_LAYOUT_STATE.with(|cell| {
         *cell.borrow_mut() = state;
     });
 }
 
 /// Read the current layout state.
-pub fn get_current_layout_state() -> core::logic::layoutstate::LayoutState {
+pub fn get_current_layout_state() -> marco_shared::logic::layoutstate::LayoutState {
     CURRENT_LAYOUT_STATE.with(|cell| *cell.borrow())
 }
 

@@ -64,7 +64,7 @@ fn inspect_example(test: &CommonMarkTest) {
     println!("└──────────────────────────────────────────────────────────┘\n");
 
     // 3. Parse and show results at each stage
-    match core::parser::parse(&test.markdown) {
+    match marco_core::parser::parse(&test.markdown) {
         Ok(document) => {
             // Show AST
             println!("┌─ PARSED AST ─────────────────────────────────────────────┐");
@@ -79,8 +79,8 @@ fn inspect_example(test: &CommonMarkTest) {
             println!("└──────────────────────────────────────────────────────────┘\n");
 
             // Render HTML
-            let options = core::render::RenderOptions::default();
-            match core::render::render(&document, &options) {
+            let options = marco_core::render::RenderOptions::default();
+            match marco_core::render::render(&document, &options) {
                 Ok(rendered_html) => {
                     println!("┌─ RENDERED HTML ──────────────────────────────────────────┐");
                     println!("{}", format_multiline(&rendered_html, "│ "));
@@ -119,7 +119,7 @@ fn inspect_example(test: &CommonMarkTest) {
 }
 
 /// Format AST as a tree structure
-fn format_ast_tree(document: &core::parser::ast::Document) -> String {
+fn format_ast_tree(document: &marco_core::parser::ast::Document) -> String {
     let mut output = String::new();
     writeln!(output, "Document").unwrap();
 
@@ -132,12 +132,12 @@ fn format_ast_tree(document: &core::parser::ast::Document) -> String {
 }
 
 fn format_node_tree(
-    node: &core::parser::ast::Node,
+    node: &marco_core::parser::ast::Node,
     prefix: &str,
     is_last: bool,
     output: &mut String,
 ) {
-    use core::parser::ast::NodeKind;
+    use marco_core::parser::ast::NodeKind;
 
     let connector = if is_last { "└─ " } else { "├─ " };
     let extension = if is_last { "   " } else { "│  " };

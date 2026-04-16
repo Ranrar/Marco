@@ -3,7 +3,7 @@
 //! A beginner-friendly + power-user dialog for inserting Mermaid diagrams.
 //! - Type selector with starter templates (Flowchart, Sequence, Pie, Git, Class, Custom)
 //! - Monospace source editor
-//! - Live preview rendered by `core::render::diagram::render_mermaid_diagram`
+//! - Live preview rendered by `marco_core::render::diagram::render_mermaid_diagram`
 //!   (pure-Rust mermaid-rs-renderer — no JS engine required)
 //! - Debounced preview updates (350 ms after last keystroke)
 //! - Inline error feedback without clearing the preview
@@ -506,7 +506,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
             } else {
                 "light"
             };
-            match core::render::diagram::render_mermaid_diagram(source.trim(), theme_hint) {
+            match marco_core::render::diagram::render_mermaid_diagram(source.trim(), theme_hint) {
                 Ok(svg) => {
                     error_label.set_visible(false);
 

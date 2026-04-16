@@ -1,4 +1,4 @@
-use core::logic::swanson::WindowSettings;
+use marco_shared::logic::swanson::WindowSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::debug;
@@ -43,7 +43,7 @@ pub fn build_layout_tab(
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(settings_path) = settings_path {
-        match core::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(
+        match marco_shared::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(
             settings_path,
         )) {
             Ok(sm) => Some(sm),
@@ -83,7 +83,7 @@ pub fn build_layout_tab(
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 // Ensure layout settings exist
                 if settings.layout.is_none() {
-                    use core::logic::swanson::LayoutSettings;
+                    use marco_shared::logic::swanson::LayoutSettings;
                     settings.layout = Some(LayoutSettings::default());
                 }
 
@@ -209,7 +209,7 @@ pub fn build_layout_tab(
             debug!("TOC depth changed to: {}", new_depth);
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.layout.is_none() {
-                    settings.layout = Some(core::logic::swanson::LayoutSettings::default());
+                    settings.layout = Some(marco_shared::logic::swanson::LayoutSettings::default());
                 }
                 if let Some(ref mut layout) = settings.layout {
                     layout.toc_depth = Some(new_depth);
@@ -286,7 +286,7 @@ pub fn build_layout_tab(
                 .unwrap_or("ltr");
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.layout.is_none() {
-                    settings.layout = Some(core::logic::swanson::LayoutSettings::default());
+                    settings.layout = Some(marco_shared::logic::swanson::LayoutSettings::default());
                 }
                 if let Some(ref mut layout) = settings.layout {
                     layout.text_direction = Some(direction.to_string());

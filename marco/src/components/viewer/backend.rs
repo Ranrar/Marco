@@ -23,7 +23,7 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    let html = core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    let html = marco_core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
     // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
     // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
     // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
@@ -37,7 +37,7 @@ pub fn wrap_html_document(
 
 /// Variant of [`wrap_html_document`] that injects paged.js for true CSS Paged Media simulation.
 ///
-/// Uses [`core::render::wrap_preview_html_document_paged`] under the hood, then applies the
+/// Uses [`marco_core::render::wrap_preview_html_document_paged`] under the hood, then applies the
 /// same `dir="ltr"` fixup so the WebKit viewport scrollbar stays consistent.
 ///
 /// **Important**: Content updates in page view mode require a full HTML reload — do **not**
@@ -47,9 +47,9 @@ pub fn wrap_html_document_paged(
     css: &str,
     theme_mode: &str,
     background_color: Option<&str>,
-    page_opts: &core::render::PageViewOptions<'_>,
+    page_opts: &marco_core::render::PageViewOptions<'_>,
 ) -> String {
-    let html = core::render::wrap_preview_html_document_paged(
+    let html = marco_core::render::wrap_preview_html_document_paged(
         body,
         css,
         theme_mode,

@@ -1,6 +1,6 @@
 // Comprehensive debug test for LSP highlighting with the test file
-use core::intelligence::compute_highlights;
-use core::parser::parse;
+use marco_core::intelligence::compute_highlights;
+use marco_core::parser::parse;
 use std::fs;
 
 pub fn debug_full_test_file() {
@@ -95,25 +95,25 @@ pub fn debug_full_test_file() {
             // Check for link highlights
             let links: Vec<_> = highlights
                 .iter()
-                .filter(|h| matches!(h.tag, core::intelligence::HighlightTag::Link))
+                .filter(|h| matches!(h.tag, marco_core::intelligence::HighlightTag::Link))
                 .collect();
             println!("✓ Found {} link highlights", links.len());
 
             // Check for code span highlights
             let code_spans: Vec<_> = highlights
                 .iter()
-                .filter(|h| matches!(h.tag, core::intelligence::HighlightTag::CodeSpan))
+                .filter(|h| matches!(h.tag, marco_core::intelligence::HighlightTag::CodeSpan))
                 .collect();
             println!("✓ Found {} code span highlights", code_spans.len());
 
             // Check for emphasis/strong highlights
             let emphasis: Vec<_> = highlights
                 .iter()
-                .filter(|h| matches!(h.tag, core::intelligence::HighlightTag::Emphasis))
+                .filter(|h| matches!(h.tag, marco_core::intelligence::HighlightTag::Emphasis))
                 .collect();
             let strong: Vec<_> = highlights
                 .iter()
-                .filter(|h| matches!(h.tag, core::intelligence::HighlightTag::Strong))
+                .filter(|h| matches!(h.tag, marco_core::intelligence::HighlightTag::Strong))
                 .collect();
             println!("✓ Found {} emphasis highlights", emphasis.len());
             println!("✓ Found {} strong highlights", strong.len());

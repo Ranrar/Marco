@@ -21,7 +21,7 @@ pub fn build_debug_tab(
     container.add_css_class("marco-settings-tab");
 
     // Use SettingsManager to load current setting (default to false)
-    let settings_manager = match core::logic::swanson::SettingsManager::initialize(
+    let settings_manager = match marco_shared::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path),
     ) {
         Ok(sm) => sm,
@@ -126,7 +126,7 @@ pub fn build_debug_tab(
     let parent_weak = parent.downgrade();
 
     // Helpful explanatory note: show platform-specific log locations and a restart tip
-    let resolved_dir = core::logic::logger::current_log_dir();
+    let resolved_dir = marco_core::logic::logger::current_log_dir();
     let resolved_display = resolved_dir.display().to_string();
 
     let log_paths_text = translations
@@ -152,7 +152,7 @@ pub fn build_debug_tab(
     }
 
     // Size label and buttons
-    let size_bytes = core::logic::logger::total_log_size_bytes();
+    let size_bytes = marco_core::logic::logger::total_log_size_bytes();
     let size_text = {
         let size_mb = size_bytes as f64 / (1024.0 * 1024.0);
         if translations.log_size_template.contains("{size_mb:.2}") {
@@ -174,7 +174,7 @@ pub fn build_debug_tab(
     i18n.bind_label_text(
         &size_label,
         Rc::new(|t: &Translations| {
-            let size_bytes = core::logic::logger::total_log_size_bytes();
+            let size_bytes = marco_core::logic::logger::total_log_size_bytes();
             let size_mb = size_bytes as f64 / (1024.0 * 1024.0);
             let template = &t.settings.debug.log_size_template;
             if template.contains("{size_mb:.2}") {
@@ -288,8 +288,8 @@ pub fn build_debug_tab(
         dialog.connect_response(move |dlg, resp| {
             if resp == gtk4::ResponseType::Yes {
                 // Shutdown logger before deleting files
-                core::logic::logger::shutdown_file_logger();
-                if let Err(e) = core::logic::logger::delete_all_logs() {
+                marco_core::logic::logger::shutdown_file_logger();
+                if let Err(e) = marco_core::logic::logger::delete_all_logs() {
                     log::error!("Failed to delete logs: {}", e);
                 } else {
                     log::info!("Deleted all logs via Debug settings");
@@ -304,7 +304,7 @@ pub fn build_debug_tab(
                 if enabled {
                     // Try to reinit logger with Info level by default
                     if let Err(e) =
-                        core::logic::logger::init_file_logger(true, log::LevelFilter::Info)
+                        marco_core::logic::logger::init_file_logger(true, log::LevelFilter::Info)
                     {
                         // Show an attached dialog explaining why enable failed
                         if let Some(parent_win) = parent_weak_for_response.upgrade() {
@@ -329,7 +329,7 @@ pub fn build_debug_tab(
                 }
 
                 // Update UI size label and button sensitivity
-                let new_size = core::logic::logger::total_log_size_bytes();
+                let new_size = marco_core::logic::logger::total_log_size_bytes();
                 let updated_size_mb = new_size as f64 / (1024.0 * 1024.0);
                 let updated_text = if translations_for_response
                     .log_size_template
@@ -373,7 +373,7 @@ pub fn build_debug_tab(
 
         // The settings listener registered in main.rs will perform the actual init/shutdown.
         // After update_settings returns the listener will have been invoked; check whether our file logger is active.
-        let initialized = core::logic::logger::is_file_logger_initialized();
+        let initialized = marco_core::logic::logger::is_file_logger_initialized();
         if active && !initialized {
             // Show a single, attached dialog explaining why logging couldn't be enabled
             if let Some(parent_win) = parent_weak.upgrade() {
@@ -394,12 +394,12 @@ pub fn build_debug_tab(
             }
         } else if !active && initialized {
             // In the rare case shutdown hasn't run, explicitly ensure we stop writing to files
-            core::logic::logger::shutdown_file_logger();
+            marco_core::logic::logger::shutdown_file_logger();
             log::info!("File logger disabled via UI (ensured shutdown)");
         }
 
         // Update size and button sensitivity
-        let new_size = core::logic::logger::total_log_size_bytes();
+        let new_size = marco_core::logic::logger::total_log_size_bytes();
         let updated_size_mb = new_size as f64 / (1024.0 * 1024.0);
         let updated_text = if translations_for_log
             .log_size_template
@@ -440,7 +440,7 @@ pub fn build_debug_tab(
     let delete_btn_for_refresh = delete_btn.clone();
     let translations_for_refresh = translations.clone();
     refresh_btn.connect_clicked(move |_| {
-        let new_size = core::logic::logger::total_log_size_bytes();
+        let new_size = marco_core::logic::logger::total_log_size_bytes();
         let updated_size_mb = new_size as f64 / (1024.0 * 1024.0);
         let updated_text = if translations_for_refresh
             .log_size_template
