@@ -324,13 +324,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     );
 
     // Register the preview WebView so the TOC panel can scroll it via JS.
-    #[cfg(target_os = "linux")]
     crate::components::editor::editor_manager::set_primary_preview_webview(
         &editor_webview.borrow(),
     );
 
     // Apply saved preview zoom level to the WebView.
-    #[cfg(target_os = "linux")]
     {
         let saved_zoom = settings_manager
             .get_settings()
@@ -795,6 +793,89 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             },
         );
     }
+
+        // --- Local Markdown file link handler for the preview (Windows) ---
+        #[cfg(target_os = "windows")]
+        {
+            let file_ops_for_link = file_operations_rc.clone();
+            let window_for_link = window.clone();
+            let editor_buffer_for_link = editor_buffer.clone();
+            let dialog_translations_for_link = dialog_translations_rc.clone();
+            let title_label_for_link = title_label.clone();
+            let refresh_bookmarks_for_link = refresh_bookmark_marks.clone();
+
+            editor_webview.borrow().set_local_md_link_handler(move |path, _fragment| {
+                let target_path = std::path::PathBuf::from(&path);
+                let filename = target_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.clone());
+
+                let file_ops = file_ops_for_link.clone();
+                let window = window_for_link.clone();
+                let editor_buffer = editor_buffer_for_link.clone();
+                let dialog_translations_rc = dialog_translations_for_link.clone();
+                let title_label = title_label_for_link.clone();
+                let refresh_bookmark_marks = refresh_bookmarks_for_link.clone();
+
+                glib::MainContext::default().spawn_local(async move {
+                    let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
+                    let current_doc = file_ops.borrow().get_document_title();
+
+                    let gtk_window: &gtk4::Window = window.upcast_ref();
+                    let choice =
+                        crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
+                            gtk_window,
+                            &filename,
+                            has_unsaved,
+                            &current_doc,
+                        )
+                        .await;
+
+                    use crate::ui::dialogs::open_local_file::OpenLocalFileChoice;
+                    let save_decision = match choice {
+                        OpenLocalFileChoice::Cancel => return,
+                        OpenLocalFileChoice::Open | OpenLocalFileChoice::DiscardAndOpen => {
+                            crate::ui::menu_items::SaveChangesResult::Discard
+                        }
+                        OpenLocalFileChoice::SaveAndOpen => {
+                            crate::ui::menu_items::SaveChangesResult::Save
+                        }
+                    };
+
+                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                    let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                    let dialog_translations = dialog_translations_rc.borrow().clone();
+
+                    let auto_cb = FileDialogs::auto_save_decision_callback(save_decision);
+                    let result = FileOperations::open_file_by_path_from_rc_async(
+                        &file_ops,
+                        &target_path,
+                        gtk_window,
+                        text_buffer,
+                        &dialog_translations,
+                        |w, doc_name, action| auto_cb(w, doc_name, action),
+                        |w, title, suggested| {
+                            FileDialogs::save_dialog_callback(dialog_translations.clone())(
+                                w, title, suggested,
+                            )
+                        },
+                    )
+                    .await;
+
+                    match result {
+                        Ok(_) => {
+                            title_label.set_text(&file_ops.borrow().get_document_title());
+                            refresh_bookmark_marks();
+                        }
+                        Err(e) => {
+                            log::warn!("[main] Failed to open linked file: {}", e);
+                        }
+                    }
+                    let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                });
+            });
+        }
 
     // --- Settings Thread Pool for Proper Resource Management ---
     let settings_pool = crate::logic::settings_thread::SettingsThreadPool::new();
@@ -1400,12 +1481,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         log::debug!("Text direction changed via settings dialog: rtl={}", is_rtl);
                     }
                 }) as Box<dyn Fn(bool) + 'static>),
-                #[cfg(target_os = "linux")]
-                on_page_view_changed: Some(Box::new(move |state: crate::components::viewer::preview_types::PageViewState| {
+                on_page_view_changed: Some(Box::new(|state: crate::components::viewer::preview_types::PageViewState| {
                     crate::components::editor::editor_manager::update_page_view_state(state);
                 }) as Box<dyn Fn(crate::components::viewer::preview_types::PageViewState) + 'static>),
-                #[cfg(target_os = "windows")]
-                on_page_view_changed: None,
             };
 
             show_settings_dialog(
@@ -1523,6 +1601,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let translations_rc = translations_rc.clone();
         #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
+            #[cfg(target_os = "windows")]
+            let webview_win = editor_webview.clone();
         let cache = Rc::new(RefCell::new(marco_core::logic::cache::SimpleFileCache::new()));
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
@@ -1546,6 +1626,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     cache.clone(),
                     Rc::clone(&buffer),
                     Rc::clone(&source_view),
+                    webview_win.borrow().clone(),
                     &search_translations,
                 );
             }

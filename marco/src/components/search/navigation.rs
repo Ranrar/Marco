@@ -459,9 +459,57 @@ fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
     }
 }
 
-/// Fallback for Windows - no preview sync available
+/// Sync HTML preview scroll via JS on Windows (wry/WebView2)
 #[cfg(target_os = "windows")]
-fn sync_html_preview_scroll(_match_iter: &gtk4::TextIter) {
-    // No-op on Windows since we don't have WebView integration
-    debug!("Preview scroll sync not available on Windows");
+fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
+    use crate::components::editor::editor_manager::get_global_scroll_synchronizer;
+    use super::state::{CURRENT_PLATFORM_WEBVIEW, CURRENT_BUFFER};
+
+    if let Some(sync) = get_global_scroll_synchronizer() {
+        if !sync.is_enabled() {
+            debug!("Scroll sync is disabled, skipping preview scroll sync");
+            return;
+        }
+    }
+
+    CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
+        if let Some(wv) = wv_ref.borrow().as_ref() {
+            CURRENT_BUFFER.with(|buffer_ref| {
+                if let Some(buffer) = buffer_ref.borrow().as_ref() {
+                    let total_lines = buffer.line_count();
+                    let match_line = match_iter.line();
+
+                    let scroll_percentage = if total_lines > 1 {
+                        (match_line as f64 / (total_lines - 1) as f64).clamp(0.0, 1.0)
+                    } else {
+                        0.0
+                    };
+
+                    let js_code = format!(
+                        r#"(function() {{
+                            if (window.__scroll_sync_guard) return;
+                            window.__scroll_sync_guard = true;
+                            const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+                            const targetScroll = {} * maxScroll;
+                            const viewportHeight = window.innerHeight;
+                            const adjustedScroll = Math.max(0, targetScroll - viewportHeight * 0.3);
+                            window.scrollTo({{ top: adjustedScroll, behavior: 'smooth' }});
+                            setTimeout(() => {{ window.__scroll_sync_guard = false; }}, 150);
+                        }})();"#,
+                        scroll_percentage
+                    );
+
+                    wv.evaluate_script(&js_code);
+
+                    debug!(
+                        "Synced HTML preview scroll to line {} ({:.1}%)",
+                        match_line + 1,
+                        scroll_percentage * 100.0
+                    );
+                }
+            });
+        } else {
+            debug!("No PlatformWebView available for preview scroll sync");
+        }
+    });
 }

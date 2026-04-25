@@ -24,6 +24,9 @@
     "rust-analyzer.checkOnSave": true,
     "rust-analyzer.check.command": "clippy",
     "rust-analyzer.cargo.allTargets": true,
+    "terminal.integrated.env.linux": {
+      "CARGO_TARGET_DIR": "target-linux"
+    },
     "chat.tools.terminal.autoApprove": {
       "cargo fmt": true,
       "cargo clippy": true

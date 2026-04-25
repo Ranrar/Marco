@@ -1277,7 +1277,7 @@ pub struct PageViewOptions<'a> {
     /// `<script>` blocks for wheel scaling and scroll-position reporting (bidirectional scroll sync).
     /// Pass the combined `wheel_js + SCROLL_REPORT_JS` string, or `""` to disable.
     pub wheel_js: &'a str,
-    /// Number of page columns to show side-by-side (1–4). Values outside this range are clamped.
+    /// Number of page columns to show side-by-side (1-4). Values outside this range are clamped.
     pub columns_per_row: u8,
     /// When `true`, inject a `@media print` CSS block that removes paged.js visual
     /// decorations (shadows, gaps, desk background) so pages export cleanly to PDF.
@@ -1354,7 +1354,7 @@ pub fn wrap_preview_html_document_paged(
         ""
     };
 
-    // Clamp columns to 1–4 range.
+    // Clamp columns to 1-4 range.
     let columns = page_opts.columns_per_row.clamp(1, 4);
 
     // Multi-column CSS: when columns > 1 switch the page container from a single

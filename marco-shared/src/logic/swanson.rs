@@ -733,9 +733,9 @@ pub struct LayoutSettings {
     pub page_view_show_page_numbers: Option<bool>,
     /// Debounce delay in milliseconds before a full reload in page view mode (default 500).
     pub page_view_update_delay_ms: Option<u16>,
-    /// Number of page columns to show side-by-side in page view mode (1–4, default 1).
+    /// Number of page columns to show side-by-side in page view mode (1-4, default 1).
     pub page_view_columns: Option<u8>,
-    /// Preview zoom level (0.5–3.0, default 1.0). Applied to the WebView zoom factor.
+    /// Preview zoom level (0.5-3.0, default 1.0). Applied to the WebView zoom factor.
     pub preview_zoom: Option<f64>,
 }
 

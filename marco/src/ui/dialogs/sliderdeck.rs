@@ -205,7 +205,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
     let timer_label = Label::new(Some("Auto-advance timer:"));
     timer_label.set_halign(Align::Start);
 
-    // SpinButton: 0 = disabled, 1–60 seconds.
+    // SpinButton: 0 = disabled, 1-60 seconds.
     let timer_spin = SpinButton::with_range(0.0, 60.0, 1.0);
     timer_spin.set_value(3.0);
     timer_spin.set_width_chars(4);

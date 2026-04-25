@@ -1,5 +1,7 @@
 # Rust
 target
+target-windows
+target-linux
 
 # internal dev code
 /.github/chatmodes

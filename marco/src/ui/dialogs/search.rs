@@ -29,6 +29,9 @@ use std::rc::Rc;
 #[cfg(target_os = "windows")]
 use gtk4::Label;
 
+#[cfg(target_os = "windows")]
+use crate::components::viewer::wry_platform_webview::PlatformWebView;
+
 // Re-export public API from the search component
 pub use crate::components::search::{
     apply_enhanced_search_highlighting, clear_enhanced_search_highlighting, SearchOptions,
@@ -67,17 +70,18 @@ pub fn show_search_window(
     crate::components::search::window::focus_search_entry_in_window(&search_window);
 }
 
-/// Windows search window - provides full search functionality without WebView preview sync
+/// Windows search window - provides search functionality with WebView preview sync
 #[cfg(target_os = "windows")]
 pub fn show_search_window_no_webview(
     parent: &Window,
     _file_cache: Rc<RefCell<SimpleFileCache>>,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
+    webview: PlatformWebView,
     translations: &SearchTranslations,
 ) {
     use crate::components::search::state::{
-        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW,
+        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW, CURRENT_PLATFORM_WEBVIEW,
     };
     use crate::components::search::window::initialize_async_manager;
 
@@ -90,6 +94,9 @@ pub fn show_search_window_no_webview(
     });
     CURRENT_SOURCE_VIEW.with(|view| {
         *view.borrow_mut() = Some(source_view);
+    });
+    CURRENT_PLATFORM_WEBVIEW.with(|wv| {
+        *wv.borrow_mut() = Some(webview);
     });
 
     // Check for cached window

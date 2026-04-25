@@ -20,9 +20,9 @@ fn ppd_paper_name(paper: &str) -> &'static str {
 
 /// Build the `@media print` CSS block for PDF export.
 ///
-/// * `paper`       – e.g. `"A4"`.  Empty string = omit `size` (print dialog
+/// * `paper`       - e.g. `"A4"`.  Empty string = omit `size` (print dialog
 ///                  user picks paper).
-/// * `orientation` – `"portrait"` or `"landscape"`.
+/// * `orientation` - `"portrait"` or `"landscape"`.
 ///
 /// ### What each rule does (per paged.js docs)
 ///

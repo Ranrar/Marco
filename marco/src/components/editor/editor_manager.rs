@@ -263,7 +263,12 @@ thread_local! {
     static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<webkit6::WebView>> = const { RefCell::new(None) };
 }
 
-// Preview zoom level (0.5–3.0, default 1.0).  Applied via WebKit zoom-level property.
+#[cfg(target_os = "windows")]
+thread_local! {
+    static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<crate::components::viewer::wry_platform_webview::PlatformWebView>> = const { RefCell::new(None) };
+}
+
+// Preview zoom level (0.5-3.0, default 1.0).  Applied via WebKit zoom-level property.
 thread_local! {
     static PREVIEW_ZOOM: Cell<f64> = const { Cell::new(1.0) };
     /// Optional callback fired whenever the zoom level changes (e.g. to update the
@@ -316,11 +321,16 @@ pub fn set_preview_zoom(zoom: f64) {
     log::debug!("[viewer] Preview zoom set to {:.1}", clamped);
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
 pub fn set_preview_zoom(zoom: f64) {
     let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
     PREVIEW_ZOOM.with(|c| c.set(clamped));
+    with_primary_preview_webview(|wv| {
+        let js = format!("document.documentElement.style.zoom = '{}'", clamped);
+        wv.evaluate_script(&js);
+    });
     fire_zoom_changed(clamped);
+    log::debug!("[viewer] Preview zoom set to {:.1}", clamped);
 }
 
 /// Register the primary preview WebView so other components can execute JavaScript in it.
@@ -331,9 +341,25 @@ pub fn set_primary_preview_webview(wv: &webkit6::WebView) {
     });
 }
 
+#[cfg(target_os = "windows")]
+pub fn set_primary_preview_webview(wv: &crate::components::viewer::wry_platform_webview::PlatformWebView) {
+    PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
+        *cell.borrow_mut() = Some(wv.clone());
+    });
+}
+
 /// Execute `f` with the primary preview WebView if one has been registered.
 #[cfg(target_os = "linux")]
 pub fn with_primary_preview_webview<F: FnOnce(&webkit6::WebView)>(f: F) {
+    PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
+        if let Some(ref wv) = *cell.borrow() {
+            f(wv);
+        }
+    });
+}
+
+#[cfg(target_os = "windows")]
+pub fn with_primary_preview_webview<F: FnOnce(&crate::components::viewer::wry_platform_webview::PlatformWebView)>(f: F) {
     PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
         if let Some(ref wv) = *cell.borrow() {
             f(wv);

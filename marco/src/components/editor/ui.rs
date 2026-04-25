@@ -1332,10 +1332,15 @@ paned > separator {{
                 *guard = full_html.clone();
             }
 
-            // If we have an embedded in-editor webview, load the HTML into it
+            // If we have an embedded in-editor webview, load the HTML into it.
+            // On Windows we always do a full load via the custom protocol (marco-preview://)
+            // because update_html_content_smooth only patches container.innerHTML, which never
+            // updates the <html data-theme> root attribute — so theme and CSS changes are lost.
+            // load_html_with_base navigates to the custom protocol URL which always serves the
+            // latest full document, making light/dark mode and CSS changes take effect correctly.
             if let Some(ref wv_rc) = webview_for_preview {
                 if let Ok(wv) = wv_rc.try_borrow() {
-                    crate::components::viewer::backend::update_html_content_smooth(&wv, &full_html);
+                    wv.load_html_with_base(&full_html, base_uri.as_deref());
                 } else {
                     log::debug!("In-editor webview borrow busy; skipping load");
                 }
@@ -2079,6 +2084,10 @@ paned > separator {{
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
         let refresh_for_preview = std::rc::Rc::clone(&refresh_preview_impl);
         let update_code_for_preview = Rc::clone(&update_html_code_view_rc);
+        let css_rc_for_preview = Rc::clone(&css_rc);
+        let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
+        let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
+        let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
 
         let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> =
             webview_rc_opt.as_ref().expect("webview_rc not set").clone();
@@ -2100,6 +2109,75 @@ paned > separator {{
 
             if let Ok(wv) = webview_rc.try_borrow() {
                 wv.set_background_color_rgba(&rgba);
+            }
+
+            // Extract updated scrollbar colors from the new editor theme scheme
+            // and update the HTML preview CSS so the WebView scrollbar changes too.
+            if editor_dir_for_preview.exists() && editor_dir_for_preview.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&editor_dir_for_preview) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .map(|s| s.eq_ignore_ascii_case("xml"))
+                            .unwrap_or(false)
+                        {
+                            if let Ok(contents) = std::fs::read_to_string(&path) {
+                                let id_search = format!("id=\"{}\"", scheme_id);
+                                if contents.contains(&id_search) {
+                                    if let Some(v) =
+                                        extract_xml_color_value(&contents, "scrollbar-thumb")
+                                    {
+                                        *scrollbar_thumb_for_preview.borrow_mut() = v;
+                                    }
+                                    if let Some(v) =
+                                        extract_xml_color_value(&contents, "scrollbar-track")
+                                    {
+                                        *scrollbar_track_for_preview.borrow_mut() = v;
+                                    }
+
+                                    // Rebuild the embedded webkit scrollbar CSS in the preview CSS
+                                    // string so the next full HTML load carries the correct colors.
+                                    let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
+                                    let new_track = scrollbar_track_for_preview.borrow().clone();
+                                    let new_webkit_css =
+                                        webkit_scrollbar_css(&new_thumb, &new_track);
+                                    let mut updated_css = css_rc_for_preview.borrow().clone();
+                                    if let Some(pos) = updated_css.rfind("::-webkit-scrollbar") {
+                                        if let Some(start) = updated_css[..pos].rfind("\n/*") {
+                                            updated_css.truncate(start);
+                                        } else {
+                                            updated_css.truncate(pos);
+                                        }
+                                    }
+                                    updated_css.push('\n');
+                                    updated_css.push_str(&new_webkit_css);
+                                    *css_rc_for_preview.borrow_mut() = updated_css;
+
+                                    // Also update the GTK scrollbar CSS so native scrollbars match.
+                                    if let Some(display) = gtk4::gdk::Display::default() {
+                                        let gtk_css = crate::components::viewer::css_utils::gtk_scrollbar_css(
+                                            &new_thumb, &new_track,
+                                        );
+                                        let provider = gtk4::CssProvider::new();
+                                        provider.load_from_data(&gtk_css);
+                                        gtk4::style_context_add_provider_for_display(
+                                            &display,
+                                            &provider,
+                                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                                        );
+                                        log::debug!(
+                                            "[win] Updated GTK scrollbar CSS: thumb={}, track={}",
+                                            new_thumb, new_track
+                                        );
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Apply the new theme mode to the preview + source code view.

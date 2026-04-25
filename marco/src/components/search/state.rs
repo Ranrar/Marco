@@ -11,6 +11,9 @@ use std::rc::Rc;
 #[cfg(target_os = "linux")]
 use webkit6::WebView;
 
+#[cfg(target_os = "windows")]
+use crate::components::viewer::wry_platform_webview::PlatformWebView;
+
 /// Search options for controlling search behavior
 #[derive(Debug, Clone, Default)]
 pub struct SearchOptions {
@@ -45,6 +48,8 @@ thread_local! {
     pub static CURRENT_SOURCE_VIEW: RefCell<Option<Rc<View>>> = const { RefCell::new(None) };
     #[cfg(target_os = "linux")]
     pub static CURRENT_WEBVIEW: RefCell<Option<Rc<RefCell<WebView>>>> = const { RefCell::new(None) };
+        #[cfg(target_os = "windows")]
+        pub static CURRENT_PLATFORM_WEBVIEW: RefCell<Option<PlatformWebView>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     pub static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_ENTRY: RefCell<Option<Entry>> = const { RefCell::new(None) };
