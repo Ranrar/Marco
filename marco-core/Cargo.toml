@@ -9,7 +9,7 @@ rust-version = "1.94.1"
 repository = "https://github.com/Ranrar/Marco"
 homepage = "https://github.com/Ranrar/Marco"
 keywords = ["markdown", "parser", "commonmark", "renderer", "nom"]
-categories = ["parsing", "text-processing", "markdown"]
+categories = ["parsing", "text-processing"]
 readme = "../README.md"
 exclude = [
     "tests/",

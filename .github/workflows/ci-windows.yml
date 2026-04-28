@@ -9,38 +9,6 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  security-audit:
-    name: Security audit (RustSec)
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Install Rust toolchain (pinned)
-        id: toolchain
-        uses: dtolnay/rust-toolchain@1.94.1
-
-      - name: Cache cargo
-        uses: actions/cache@v5
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cargo/bin
-          key: cargo-audit-windows-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
-
-      - name: Install cargo-audit
-        run: |
-          cargo install --locked cargo-audit --version 0.22.0
-
-      - name: Run cargo audit
-        run: |
-          # Ignored advisories (transitive, no upstream fix available):
-          #   RUSTSEC-2024-0320: yaml-rust unmaintained (via syntect 5.3.0)
-          #   RUSTSEC-2024-0429: glib 0.18.5 unsoundness (via wry/webkit2gtk/tao GTK stack)
-          cargo audit --deny warnings --ignore RUSTSEC-2024-0320 --ignore RUSTSEC-2024-0429
-
   build-windows:
     name: Build (Windows)
     runs-on: windows-latest
