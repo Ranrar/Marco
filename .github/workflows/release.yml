@@ -204,20 +204,26 @@ jobs:
           echo "tag=v${version}" >> "$GITHUB_OUTPUT"
 
       - name: Create and push version tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-
           tag="${{ steps.version.outputs.tag }}"
 
-          if git rev-parse --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+          # Check whether tag already exists on the remote.
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
             echo "ERROR: Tag ${tag} already exists. Bump the version in build/version.json before releasing." >&2
             exit 1
           fi
 
-          git tag "${tag}" "${GITHUB_SHA}"
-          git push origin "${tag}"
+          # Create the tag via the REST API. Using the API (instead of `git push`)
+          # avoids the GITHUB_TOKEN `workflows` scope restriction that blocks
+          # pushing refs which point at commits modifying .github/workflows/*.
+          gh api \
+            --method POST \
+            "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${tag}" \
+            -f sha="${GITHUB_SHA}"
 
       - name: Download Linux artifact
         uses: actions/download-artifact@v8
