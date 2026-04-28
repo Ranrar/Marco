@@ -2,12 +2,12 @@
 //!
 //! Searchable in-app reference for embedded diagnostics metadata.
 
-use marco_core::intelligence::diagnostics_catalog;
 use gtk4::prelude::*;
 use gtk4::{
     glib, Align, Box as GtkBox, Button, DropDown, Frame, Label, ListBox, ListBoxRow, Orientation,
     PropertyExpression, ScrolledWindow, SearchEntry, StringList, StringObject, Window,
 };
+use marco_core::intelligence::diagnostics_catalog;
 use std::cell::RefCell;
 use std::rc::Rc;
 

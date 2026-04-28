@@ -328,7 +328,8 @@ fn extract_trailing_shortcode_name(raw: &str) -> Option<String> {
     }
 
     let candidate = format!(":{}:", normalized);
-    if marco_shared::logic::text_completion::emoji_shortcodes_for_completion().contains(&candidate) {
+    if marco_shared::logic::text_completion::emoji_shortcodes_for_completion().contains(&candidate)
+    {
         return Some(candidate);
     }
 

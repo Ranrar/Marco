@@ -14,4 +14,6 @@ pub use marco_core::{parse, render, RenderOptions};
 pub use marco_core::{Document, Node, NodeKind};
 
 // Re-export parser cache for convenience
-pub use marco_core::logic::cache::{global_parser_cache, parse_to_html, parse_to_html_cached, ParserCache};
+pub use marco_core::logic::cache::{
+    global_parser_cache, parse_to_html, parse_to_html_cached, ParserCache,
+};

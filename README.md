@@ -9,7 +9,8 @@
   <img src="https://img.shields.io/badge/RTL_%2B_Unicode-Ready-blue?style=for-the-badge&logo=translate&logoColor=white" alt="RTL and Unicode Ready" />
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Version-0.23.0-blue?style=for-the-badge" alt="Version 0.23.0" />
+  <img src="https://img.shields.io/badge/Version-0.23.2-blue?style=for-the-badge" alt="Version 0.23.2" />
+  <a href="https://crates.io/crates/marco-core"><img src="https://img.shields.io/crates/v/marco-core?style=for-the-badge&label=marco-core&logo=rust" alt="marco-core on crates.io" /></a>
 </p>
 
 **Marco** is a fast, cross-platform Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
@@ -43,6 +44,26 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 | Download the latest `.deb` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest | Download the latest `.zip` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest |
 | **Asset:** `marco-suite_<version>_linux_amd64.deb` | **Asset:** `marco-suite_<version>_windows_amd64.zip` |
 | **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
+
+## Use the parser as a library
+
+Marco's parser, AST, HTML renderer, and language-intelligence features are now published as a standalone crate on crates.io:
+
+[![marco-core on crates.io](https://img.shields.io/crates/v/marco-core?style=flat-square&logo=rust)](https://crates.io/crates/marco-core)
+
+```toml
+[dependencies]
+marco-core = "1.0.2"
+```
+
+```rust
+use marco_core::{parse, render, RenderOptions};
+
+let doc = parse("# Hello\n\nThis is **Marco**.")?;
+let html = render(&doc, RenderOptions::default())?;
+```
+
+`marco-core` is pure Rust with no GTK dependencies, so it can be embedded in CLIs, build tools, and other editors. It versions independently from the Marco/Polo binaries.
 
 ## What can you use Marco & Polo for?
 

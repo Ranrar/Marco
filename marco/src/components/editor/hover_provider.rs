@@ -75,7 +75,8 @@ mod imp {
 
     #[derive(Default)]
     pub struct MarcoHoverProvider {
-        pub(super) diagnostics: RefCell<Option<Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>>>,
+        pub(super) diagnostics:
+            RefCell<Option<Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>>>,
         pub(super) settings_fn: RefCell<Option<Rc<dyn Fn() -> RuntimeIntelligenceSettings>>>,
         // ── Popover widget refs ────────────────────────────────────────────────
         pub(super) hover_popover: RefCell<Option<gtk4::Popover>>,

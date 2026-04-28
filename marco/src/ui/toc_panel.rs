@@ -20,13 +20,13 @@
 //!     └── paned (gtk4::Paned)          ← inner editor / preview split
 //! ```
 //!
-/// The `toc_paned` position (= panel width) is auto-sized to fit the widest
-/// TOC entry whenever the panel is shown or rebuilt.
-use marco_core::intelligence::toc::TocEntry;
 #[cfg(target_os = "linux")]
 use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
+/// The `toc_paned` position (= panel width) is auto-sized to fit the widest
+/// TOC entry whenever the panel is shown or rebuilt.
+use marco_core::intelligence::toc::TocEntry;
 use std::cell::Cell;
 use std::rc::Rc;
 

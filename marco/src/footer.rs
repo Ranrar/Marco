@@ -93,6 +93,8 @@ impl DiagnosticsSeverityFilter {
     }
 }
 
+type DiagnosticsNavigateTo = RefCell<Option<Rc<dyn Fn(usize, usize)>>>;
+
 #[derive(Clone)]
 pub struct FooterLabels {
     pub cursor_row: Label,
@@ -114,7 +116,7 @@ pub struct FooterLabels {
     pub diagnostics_total: RefCell<usize>,
     pub diagnostics_filter: RefCell<DiagnosticsSeverityFilter>,
     pub diagnostics_items: RefCell<Vec<FooterDiagnosticItem>>,
-    pub diagnostics_navigate_to: RefCell<Option<Rc<dyn Fn(usize, usize)>>>,
+    pub diagnostics_navigate_to: DiagnosticsNavigateTo,
     pub hovered_link_icon: Picture,
     pub hovered_link_text: Label,
     pub row_label: RefCell<String>,
@@ -181,12 +183,13 @@ fn persist_diagnostics_filter(
         }
 
         if let Some(editor) = settings.editor.as_mut() {
-            editor.diagnostics_filter = Some(marco_shared::logic::swanson::DiagnosticsFilterSettings {
-                errors: Some(filter.errors),
-                warnings: Some(filter.warnings),
-                hints: Some(filter.hints),
-                infos: Some(filter.infos),
-            });
+            editor.diagnostics_filter =
+                Some(marco_shared::logic::swanson::DiagnosticsFilterSettings {
+                    errors: Some(filter.errors),
+                    warnings: Some(filter.warnings),
+                    hints: Some(filter.hints),
+                    infos: Some(filter.infos),
+                });
         }
     }) {
         log::error!("Failed to persist diagnostics filter settings: {}", err);
@@ -584,6 +587,7 @@ pub fn update_hovered_link(labels: &FooterLabels, url: Option<&str>) {
             let texture = render_link_type_icon(LINK_ICON, color, 8.0);
             labels.hovered_link_icon.set_paintable(Some(&texture));
             labels.hovered_link_text.set_text("");
+            labels.hovered_link_text.set_tooltip_text(None);
         }
         Some(url) => {
             let color = if footer_is_dark_theme(labels.hovered_link_icon.upcast_ref()) {
@@ -595,6 +599,9 @@ pub fn update_hovered_link(labels: &FooterLabels, url: Option<&str>) {
             labels.hovered_link_icon.set_paintable(Some(&texture));
             labels.hovered_link_icon.set_visible(true);
             labels.hovered_link_text.set_text(url);
+            // Also expose the full URL via tooltip in case the footer width
+            // is too narrow to display the entire string at once.
+            labels.hovered_link_text.set_tooltip_text(Some(url));
         }
     }
 }
@@ -886,7 +893,16 @@ pub fn create_footer(
     hovered_link_box.append(&hovered_link_icon);
 
     let hovered_link_text = Label::new(None);
-    hovered_link_text.set_ellipsize(gtk4::pango::EllipsizeMode::End);
+    // Show the full URL inline (no ellipsis). When the URL is wider than the
+    // available space the GTK Box layout will already wrap or shrink other
+    // status items rather than truncating mid-URL. A tooltip with the full
+    // URL is set in `update_hovered_link` for the rare overflow case.
+    hovered_link_text.set_ellipsize(gtk4::pango::EllipsizeMode::None);
+    hovered_link_text.set_wrap(false);
+    hovered_link_text.set_max_width_chars(-1);
+    hovered_link_text.set_xalign(0.0);
+    hovered_link_text.set_hexpand(true);
+    hovered_link_text.set_halign(gtk4::Align::Start);
     hovered_link_text.set_visible(true);
     hovered_link_text.set_valign(gtk4::Align::Center);
     hovered_link_text.add_css_class("footer-status-label");

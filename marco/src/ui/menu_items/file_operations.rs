@@ -2,9 +2,9 @@
 #![allow(clippy::await_holding_refcell_ref)]
 
 use crate::components::language::{DialogTranslations, MenuTranslations};
-use marco_shared::logic::{DocumentBuffer, RecentFiles};
 use gtk4::{gio, glib, prelude::*};
 use log::trace;
+use marco_shared::logic::{DocumentBuffer, RecentFiles};
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;

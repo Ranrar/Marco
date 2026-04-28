@@ -28,8 +28,8 @@ fn test_gfm_task_list_items_parse_with_task_checkbox_marker() {
 fn test_gfm_task_list_renders_svg_checkbox_icons() {
     let md = "- [ ] todo\n- [x] done\n";
     let doc = marco_core::parser::parse(md).expect("parse failed");
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains("marco-task-icon"), "expected svg icon class");
     assert!(
@@ -72,8 +72,8 @@ fn test_task_checkbox_marker_without_list_still_renders_svg() {
     }
     assert_eq!(inline_count, 2, "expected two inline task checkboxes");
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
     assert!(html.contains("marco-task-icon"), "expected svg icon class");
     assert!(!html.contains("<ul>"), "should not render a list");
     assert!(
@@ -104,8 +104,8 @@ fn test_task_checkbox_marker_mid_paragraph_renders_svg_and_strips_marker() {
         .count();
     assert_eq!(inline_count, 2, "expected two inline checkboxes");
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
     assert!(html.contains("marco-task-icon"), "expected svg icon class");
     assert!(
         !html.contains("[ ]"),
@@ -172,8 +172,8 @@ fn test_task_checkbox_markers_after_hardbreak_lines_render_svg_for_each_line() {
         .count();
     assert_eq!(inline_count, 4, "expected one inline checkbox per line");
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
     assert!(html.contains("marco-task-icon"), "expected svg icon class");
     assert!(
         !html.contains("[ ]"),

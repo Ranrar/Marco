@@ -7,17 +7,24 @@ Version scheme note: `marco-core` and `marco-shared` follow independent semver f
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-04-28
+
 ### Added
-- Nothing yet.
+- New CI workflow for publishing `marco-core` to crates.io.
 
 ### Changed
-- Nothing yet.
+- Debian package runtime dependency compatibility was broadened for newer Ubuntu-family distributions by allowing `libxml2-16` as an alternative to `libxml2`.
+- Workspace refactor renamed the legacy `core` crate to `marco-core` and moved app-oriented shared logic/assets into `marco-shared`, clarifying the reusable library boundary.
 
 ### Fixed
-- Nothing yet.
+- Linux package build script path handling was hardened to correctly locate built binaries when Cargo target output is configured outside the default `target/` directory.
 
 ### Removed
-- Nothing yet.
+- Removed the legacy `core` crate path/name from the workspace in favor of `marco-core`.
+
+### Security
+- Verified mitigation status for GHSA-82j2-j2ch-gfr8: dependency graph resolves to patched `rustls-webpki` 0.103.13.
+- Updated transitive `rand` to 0.8.6 across the workspace lockfile to keep the dependency graph current with upstream advisories.
 
 ## [1.0.0] - 2026-04-15
 

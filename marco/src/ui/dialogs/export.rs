@@ -1,4 +1,4 @@
-//! Export dialog and file chooser (Linux / GTK4 only).
+//! Export dialog and file chooser (GTK4, cross-platform).
 //!
 //! Provides a full export dialog (format selection, paper settings) followed
 //! by a native file-save dialog.  Also exposes a standalone
@@ -6,9 +6,11 @@
 
 use gtk4::{
     glib, prelude::*, Adjustment, Align, Box as GtkBox, Button, CheckButton, DropDown, Entry,
-    Expression, FileChooserAction, FileChooserNative, FileFilter, Label, Orientation,
-    PropertyExpression, ResponseType, SpinButton, StringList, StringObject, Window,
+    Expression, Label, Orientation, PropertyExpression, SpinButton, StringList, StringObject,
+    Window,
 };
+#[cfg(not(target_os = "windows"))]
+use gtk4::{FileChooserAction, FileChooserNative, FileFilter, ResponseType};
 use std::{
     cell::RefCell,
     future::Future,
@@ -598,60 +600,89 @@ fn build_setting_row<W: IsA<gtk4::Widget>>(label_text: &str, widget: &W) -> GtkB
 
 /// Native file-save dialog filtered for the given export format.
 async fn show_save_dialog_for_format(
-    parent: &gtk4::Window,
+    _parent: &gtk4::Window,
     suggested: &str,
     format: ExportFormat,
 ) -> Option<PathBuf> {
-    let title = match format {
-        ExportFormat::Pdf => "Save PDF As\u{2026}",
-        ExportFormat::Html => "Save HTML As\u{2026}",
-    };
-    let native = FileChooserNative::new(
-        Some(title),
-        Some(parent),
-        FileChooserAction::Save,
-        Some("Save"),
-        Some("Cancel"),
-    );
-    native.set_current_name(suggested);
+    #[cfg(target_os = "windows")]
+    {
+        use rfd::AsyncFileDialog;
 
-    let main_filter = FileFilter::new();
-    match format {
-        ExportFormat::Pdf => {
-            main_filter.set_name(Some("PDF Documents (*.pdf)"));
-            main_filter.add_pattern("*.pdf");
+        let mut dialog = AsyncFileDialog::new().set_file_name(suggested);
+        dialog = match format {
+            ExportFormat::Pdf => dialog.add_filter("PDF Documents", &["pdf"]),
+            ExportFormat::Html => dialog.add_filter("HTML Files", &["html", "htm"]),
+        };
+
+        let picked = dialog.save_file().await?;
+        let mut p = picked.path().to_path_buf();
+        let ext = match format {
+            ExportFormat::Pdf => "pdf",
+            ExportFormat::Html => "html",
+        };
+        if !p
+            .extension()
+            .and_then(|e| e.to_str())
+            .is_some_and(|e| e.eq_ignore_ascii_case(ext))
+        {
+            p.set_extension(ext);
         }
-        ExportFormat::Html => {
-            main_filter.set_name(Some("HTML Files (*.html, *.htm)"));
-            main_filter.add_pattern("*.html");
-            main_filter.add_pattern("*.htm");
-        }
+        return Some(p);
     }
-    native.add_filter(&main_filter);
 
-    let all = FileFilter::new();
-    all.set_name(Some("All Files"));
-    all.add_pattern("*");
-    native.add_filter(&all);
+    #[cfg(not(target_os = "windows"))]
+    {
+        let title = match format {
+            ExportFormat::Pdf => "Save PDF As\u{2026}",
+            ExportFormat::Html => "Save HTML As\u{2026}",
+        };
+        let native = FileChooserNative::new(
+            Some(title),
+            Some(_parent),
+            FileChooserAction::Save,
+            Some("Save"),
+            Some("Cancel"),
+        );
+        native.set_current_name(suggested);
 
-    if native.run_future().await == ResponseType::Accept {
-        native.file().and_then(|f| f.path()).map(|mut p| {
-            let ext = match format {
-                ExportFormat::Pdf => "pdf",
-                ExportFormat::Html => "html",
-            };
-            if p.extension().and_then(|e| e.to_str()) != Some(ext) {
-                let stem = p
-                    .file_stem()
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("document")
-                    .to_owned();
-                p.set_file_name(format!("{}.{}", stem, ext));
+        let main_filter = FileFilter::new();
+        match format {
+            ExportFormat::Pdf => {
+                main_filter.set_name(Some("PDF Documents (*.pdf)"));
+                main_filter.add_pattern("*.pdf");
             }
-            p
-        })
-    } else {
-        None
+            ExportFormat::Html => {
+                main_filter.set_name(Some("HTML Files (*.html, *.htm)"));
+                main_filter.add_pattern("*.html");
+                main_filter.add_pattern("*.htm");
+            }
+        }
+        native.add_filter(&main_filter);
+
+        let all = FileFilter::new();
+        all.set_name(Some("All Files"));
+        all.add_pattern("*");
+        native.add_filter(&all);
+
+        if native.run_future().await == ResponseType::Accept {
+            native.file().and_then(|f| f.path()).map(|mut p| {
+                let ext = match format {
+                    ExportFormat::Pdf => "pdf",
+                    ExportFormat::Html => "html",
+                };
+                if p.extension().and_then(|e| e.to_str()) != Some(ext) {
+                    let stem = p
+                        .file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("document")
+                        .to_owned();
+                    p.set_file_name(format!("{}.{}", stem, ext));
+                }
+                p
+            })
+        } else {
+            None
+        }
     }
 }
 

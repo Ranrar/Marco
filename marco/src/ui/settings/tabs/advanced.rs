@@ -70,7 +70,8 @@ pub fn build_advanced_tab(
             // Update telemetry setting using SettingsManager
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.telemetry.is_none() {
-                    settings.telemetry = Some(marco_shared::logic::swanson::TelemetrySettings::default());
+                    settings.telemetry =
+                        Some(marco_shared::logic::swanson::TelemetrySettings::default());
                 }
                 if let Some(ref mut telemetry) = settings.telemetry {
                     telemetry.enabled = Some(enabled);

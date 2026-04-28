@@ -1,8 +1,8 @@
 use crate::components::language::Translations;
 use crate::components::viewer::preview_types::ViewMode;
-use marco_shared::logic::swanson::{EditorSettings, LayoutSettings, SettingsManager};
 use gtk4::gio;
 use gtk4::prelude::*;
+use marco_shared::logic::swanson::{EditorSettings, LayoutSettings, SettingsManager};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;

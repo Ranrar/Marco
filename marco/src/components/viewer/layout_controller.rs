@@ -34,9 +34,9 @@
 //! assert!(tracker.is_in_preview_window());
 //! ```
 
-use marco_shared::logic::layoutstate::LayoutState;
 use gtk4::prelude::*;
 use gtk4::Paned;
+use marco_shared::logic::layoutstate::LayoutState;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 

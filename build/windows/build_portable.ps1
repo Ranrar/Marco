@@ -77,13 +77,16 @@ Write-Host "Marco Portable Build for Windows" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Ensure we're in project root
-if (-not (Test-Path "Cargo.toml")) {
-    Write-Error "ERROR: Must run from project root directory"
+# Resolve project root from script location so it works from CI and manual runs
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Resolve-Path (Join-Path $scriptDir "..\..")
+
+if (-not (Test-Path (Join-Path $projectRoot "Cargo.toml"))) {
+    Write-Error "ERROR: Could not locate project root (Cargo.toml) from script path: $scriptDir"
     exit 1
 }
 
-$projectRoot = Get-Location
+Set-Location $projectRoot
 
 # Get version from version.json
 $versionFile = Join-Path $projectRoot 'build\version.json'
@@ -424,7 +427,8 @@ if ($poloExe -and (Test-Path $poloExe)) {
 
 # Copy assets directory (this is what the app looks for in portable mode)
 Write-Host "  Copying assets..." -ForegroundColor Gray
-$assetsSource = Join-Path $projectRoot "marco-shared" "src" "assets"
+# NOTE: Use single-segment Join-Path calls; the multi-arg form requires PS 7+.
+$assetsSource = Join-Path $projectRoot "marco-shared\src\assets"
 if (-not (Test-Path $assetsSource)) {
     Write-Error "Assets directory not found at: $assetsSource"
     exit 1
@@ -524,7 +528,7 @@ if (Test-Path $versionFile) {
         "Portable: Yes",
         "",
         "Component Versions:",
-        "  core:  $($json.windows.core)",
+        "  core:  $($json.windows.'marco-core')",
         "  marco: $($json.windows.marco)",
         "  polo:  $($json.windows.polo)",
         "",

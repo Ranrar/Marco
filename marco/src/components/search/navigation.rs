@@ -462,8 +462,8 @@ fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
 /// Sync HTML preview scroll via JS on Windows (wry/WebView2)
 #[cfg(target_os = "windows")]
 fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
+    use super::state::{CURRENT_BUFFER, CURRENT_PLATFORM_WEBVIEW};
     use crate::components::editor::editor_manager::get_global_scroll_synchronizer;
-    use super::state::{CURRENT_PLATFORM_WEBVIEW, CURRENT_BUFFER};
 
     if let Some(sync) = get_global_scroll_synchronizer() {
         if !sync.is_enabled() {

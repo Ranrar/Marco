@@ -2738,7 +2738,7 @@ dependencies = [
 
 [[package]]
 name = "marco"
-version = "0.23.1"
+version = "0.23.2"
 dependencies = [
  "cairo-rs 0.22.0",
  "ctrlc",
@@ -2767,12 +2767,15 @@ dependencies = [
  "tempfile",
  "toml 1.1.2+spec-1.1.0",
  "webkit6",
+ "webview2-com",
+ "windows",
+ "windows-core 0.61.2",
  "wry",
 ]
 
 [[package]]
 name = "marco-core"
-version = "1.0.0"
+version = "1.0.2"
 dependencies = [
  "chrono",
  "clap",
@@ -2797,7 +2800,7 @@ dependencies = [
 
 [[package]]
 name = "marco-shared"
-version = "0.23.1"
+version = "0.23.2"
 dependencies = [
  "chrono",
  "dirs",
@@ -3565,7 +3568,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
 dependencies = [
  "phf_shared 0.11.3",
- "rand 0.8.5",
+ "rand 0.8.6",
 ]
 
 [[package]]
@@ -3693,7 +3696,7 @@ checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "polo"
-version = "0.23.1"
+version = "0.23.2"
 dependencies = [
  "cairo-rs 0.22.0",
  "gdk-pixbuf 0.22.0",
@@ -3930,9 +3933,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "5ca0ecfa931c29007047d1bc58e623ab12e5590e8c7cc53200d5202b69266d8a"
 dependencies = [
  "rand_core 0.6.4",
 ]

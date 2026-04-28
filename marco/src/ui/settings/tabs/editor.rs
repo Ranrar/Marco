@@ -1,7 +1,7 @@
-use marco_shared::logic::swanson::EditorSettings;
 use gtk4::prelude::*;
 use gtk4::Box;
 use log::{debug, error};
+use marco_shared::logic::swanson::EditorSettings;
 use std::rc::Rc;
 
 // Import unified helper

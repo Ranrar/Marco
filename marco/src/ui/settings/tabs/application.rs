@@ -1,5 +1,5 @@
-use marco_shared::logic::swanson::WindowSettings;
 use gtk4::prelude::*;
+use marco_shared::logic::swanson::WindowSettings;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -239,7 +239,8 @@ pub fn build_application_tab(
     ui_font_combo.add_css_class("marco-control-unavailable");
     ui_font_combo.set_tooltip_text(Some("Not available yet"));
 
-    if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+    if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone())
+    {
         ui_font_combo.connect_selected_notify(move |combo| {
             let value = ui_font_values
                 .get(combo.selected() as usize)
@@ -247,7 +248,8 @@ pub fn build_application_tab(
                 .unwrap_or("system");
             let _ = sm.update_settings(|s| {
                 if s.appearance.is_none() {
-                    s.appearance = Some(marco_shared::logic::swanson::AppearanceSettings::default());
+                    s.appearance =
+                        Some(marco_shared::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut a) = s.appearance {
                     a.ui_font = Some(value.to_string());
@@ -284,12 +286,14 @@ pub fn build_application_tab(
     ui_font_size_spin.add_css_class("marco-control-unavailable");
     ui_font_size_spin.set_tooltip_text(Some("Not available yet"));
 
-    if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+    if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone())
+    {
         ui_font_size_adj.connect_value_changed(move |adj| {
             let new_size = adj.value() as u8;
             let _ = sm.update_settings(|s| {
                 if s.appearance.is_none() {
-                    s.appearance = Some(marco_shared::logic::swanson::AppearanceSettings::default());
+                    s.appearance =
+                        Some(marco_shared::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut a) = s.appearance {
                     a.ui_font_size = Some(new_size);

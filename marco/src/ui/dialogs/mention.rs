@@ -290,7 +290,8 @@ fn check_profile_exists(platform_key: &str, identifier: &str) -> ProfileCheckRes
         return api_result;
     }
 
-    let Some(url) = marco_core::render::plarform_mentions::profile_url(platform_key, identifier) else {
+    let Some(url) = marco_core::render::plarform_mentions::profile_url(platform_key, identifier)
+    else {
         return ProfileCheckResult {
             token: 0,
             exists: None,

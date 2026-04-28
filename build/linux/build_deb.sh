@@ -175,7 +175,7 @@ ensure_version_file() {
     local core_v marco_v polo_v
     core_v="$(grep '^version' marco-core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
     marco_v="$(grep '^version' marco/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
-    polo_v="$(grep '^version' polo/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')")
+    polo_v="$(grep '^version' polo/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
 
     python3 - <<PY
 import json
@@ -508,13 +508,26 @@ install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/marco/doc"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}"
 
+TARGET_TRIPLE="x86_64-unknown-linux-gnu"
+TARGET_BASE_DIR="$(cargo metadata --no-deps --format-version 1 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("target_directory", "target"))' 2>/dev/null || echo "target")"
+
 print_info "Building Marco and Polo binaries (release, workspace)..."
-cargo build --release --workspace --target x86_64-unknown-linux-gnu
+cargo build --release --workspace --target "$TARGET_TRIPLE"
 print_success "Build complete"
 
 print_info "Copying binaries..."
-install -m 0755 target/x86_64-unknown-linux-gnu/release/marco "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
-install -m 0755 target/x86_64-unknown-linux-gnu/release/polo "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
+MARCO_BIN="$TARGET_BASE_DIR/$TARGET_TRIPLE/release/marco"
+POLO_BIN="$TARGET_BASE_DIR/$TARGET_TRIPLE/release/polo"
+
+if [ ! -f "$MARCO_BIN" ] || [ ! -f "$POLO_BIN" ]; then
+    print_error "Built binaries not found"
+    echo "  Expected: $MARCO_BIN"
+    echo "  Expected: $POLO_BIN"
+    exit 1
+fi
+
+install -m 0755 "$MARCO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
+install -m 0755 "$POLO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
 
 # Strip binaries inside the package payload (avoid changing your local build artifacts)
 if command -v strip &>/dev/null; then
@@ -723,7 +736,7 @@ Priority: optional
 Architecture: ${ARCHITECTURE}
 Maintainer: ${MAINTAINER}
 Installed-Size: ${INSTALLED_SIZE}
-Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44), libxml2 (>= 2.9)
+Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44), libxml2 (>= 2.9) | libxml2-16
 Suggests: imagemagick
 Description: Marco & Polo - A Markdown Composer and Viewer
  Marco is a fast, Markdown editor with a live preview to help you write

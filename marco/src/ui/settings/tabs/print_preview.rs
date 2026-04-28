@@ -6,19 +6,12 @@ use std::rc::Rc;
 use super::helpers::{add_setting_row_i18n, SettingsI18nRegistry};
 use crate::components::language::{SettingsLayoutTranslations, Translations};
 
+#[derive(Default)]
 pub struct PrintPreviewTabCallbacks {
     /// Called when any page view setting changes. Receives the full current state.
     pub on_page_view_changed: Option<
         std::boxed::Box<dyn Fn(crate::components::viewer::preview_types::PageViewState) + 'static>,
     >,
-}
-
-impl Default for PrintPreviewTabCallbacks {
-    fn default() -> Self {
-        Self {
-            on_page_view_changed: None,
-        }
-    }
 }
 
 pub fn build_print_preview_tab(
@@ -41,7 +34,9 @@ pub fn build_print_preview_tab(
 
     // Initialize SettingsManager once if settings_path is available
     let settings_manager_opt = if let Some(path) = settings_path {
-        match marco_shared::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(path)) {
+        match marco_shared::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(
+            path,
+        )) {
             Ok(sm) => Some(sm),
             Err(e) => {
                 debug!(
@@ -57,6 +52,7 @@ pub fn build_print_preview_tab(
 
     // ── Shared state snapshot ───────────────────────────────────────────────
     use crate::components::viewer::preview_types::PageViewState;
+    type PageViewCallback = Rc<Option<std::boxed::Box<dyn Fn(PageViewState) + 'static>>>;
     let pv_state: Rc<std::cell::RefCell<PageViewState>> = Rc::new(std::cell::RefCell::new({
         let layout = settings_manager_opt
             .as_ref()
@@ -91,8 +87,7 @@ pub fn build_print_preview_tab(
         }
     }));
 
-    let pv_callback: Rc<Option<std::boxed::Box<dyn Fn(PageViewState) + 'static>>> =
-        Rc::new(on_page_view_changed);
+    let pv_callback: PageViewCallback = Rc::new(on_page_view_changed);
 
     // ── Paper Size (DropDown) ───────────────────────────────────────────────
     let paper_values = ["A4", "Letter", "A3", "A5", "Legal", "B5"];

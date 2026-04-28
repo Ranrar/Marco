@@ -266,16 +266,18 @@ jobs:
           body: |
             ## Marco Suite ${{ steps.version.outputs.version }}
 
-            Maintenance release — dependency updates and toolchain upgrade.
+            Maintenance release — workspace refactor, unified export/print pipeline, and security updates.
 
-            ### Security
-            - Updated `rand` dependency to resolve unsound behavior ([GHSA-cq8v-f236-94qc](https://github.com/advisories/GHSA-cq8v-f236-94qc)).
+            ### Highlights
+            - Workspace split into `marco-core` (parser/render/intelligence) and `marco-shared` (app logic). `marco-core` is now published on [crates.io](https://crates.io/crates/marco-core).
+            - Unified export & print pipeline shared between Linux and Windows, with new "Exporting…" and "Export complete" dialogs.
+            - Windows: native PDF export via WebView2 `PrintToPdf` and native print dialog (no headless Chromium subprocess).
+            - Security: dependency graph resolves to patched `rustls-webpki` 0.103.13 ([GHSA-82j2-j2ch-gfr8](https://github.com/advisories/GHSA-82j2-j2ch-gfr8)); transitive `rand` bumped to 0.8.6.
 
-            ### Changed
-            - Rust toolchain updated to 1.94.1 (MSRV bumped from 1.93.0).
-            - GTK ecosystem upgraded: gtk4 0.11.2, glib 0.22.5, cairo-rs 0.22.0, gdk-pixbuf 0.22.0, gio 0.22.5, sourceview5 0.11.0, webkit6 0.6.1.
-            - `reqwest` updated to 0.13 and `toml` updated to 1.x.
-            - Removed unused workspace dependencies (`colored`, `criterion`, `rand`, `urlencoding`, `similar`).
+            ### Changelogs
+            - [Marco ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco.md)
+            - [Polo ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/polo.md)
+            - [marco-core 1.0.2](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco-core.md)
 
             ### Downloads
             - **Linux**: `marco-suite_*_linux_amd64.deb`

@@ -10,8 +10,8 @@
 use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::{Mutex, OnceLock};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(target_os = "windows")]
 use raw_window_handle::{
@@ -27,14 +27,23 @@ type ScrollReportCallbackCell = Rc<RefCell<Option<ScrollReportCallback>>>;
 type LocalMdLinkCallback = Rc<dyn Fn(String, Option<String>)>;
 type LocalMdLinkCallbackCell = Rc<RefCell<Option<LocalMdLinkCallback>>>;
 
+/// Callback invoked when the export WebView posts a `marco_export:*` IPC message.
+/// Receives the full raw message string (e.g. `"marco_export:layout_done"`).
+type ExportEventCallback = Rc<dyn Fn(String)>;
+type ExportEventCallbackCell = Rc<RefCell<Option<ExportEventCallback>>>;
+
+/// Callback invoked when the preview JS reports a hovered link via
+/// `marco_hover:<url>` (or `marco_hover:` to clear). `None` clears.
+type HoverLinkCallback = Rc<dyn Fn(Option<String>)>;
+type HoverLinkCallbackCell = Rc<RefCell<Option<HoverLinkCallback>>>;
+
 /// Monotonic counter for assigning unique IDs to each PlatformWebView instance.
 static WEBVIEW_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Per-webview HTML content storage.
 /// Keyed by PlatformWebView.id so the custom protocol handler always serves
 /// the correct HTML even when multiple webviews coexist (one per editor tab).
-static WEBVIEW_HTML_MAP: OnceLock<Mutex<std::collections::HashMap<u64, Vec<u8>>>> =
-    OnceLock::new();
+static WEBVIEW_HTML_MAP: OnceLock<Mutex<std::collections::HashMap<u64, Vec<u8>>>> = OnceLock::new();
 
 fn html_map() -> &'static Mutex<std::collections::HashMap<u64, Vec<u8>>> {
     WEBVIEW_HTML_MAP.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
@@ -72,6 +81,13 @@ pub struct PlatformWebView {
     pub gtk_window: gtk4::ApplicationWindow,
     scroll_report_callback: ScrollReportCallbackCell,
     local_md_link_callback: LocalMdLinkCallbackCell,
+    /// One-shot listener for `marco_export:*` lifecycle events posted from the
+    /// export WebView's JS bridge. Installed by [`Self::set_export_event_listener`]
+    /// and cleared by [`Self::clear_export_event_listener`].
+    export_event_callback: ExportEventCallbackCell,
+    /// Listener for `marco_hover:<url>` IPC messages emitted by the preview's
+    /// hover-report JS. Used to drive the footer hovered-link label on Windows.
+    hover_link_callback: HoverLinkCallbackCell,
 }
 
 impl PlatformWebView {
@@ -92,7 +108,9 @@ impl PlatformWebView {
         let webview: Rc<RefCell<Option<wry::WebView>>> = Rc::new(RefCell::new(None));
         let bg_color = std::rc::Rc::new(std::cell::Cell::new((30u8, 30u8, 30u8, 255u8)));
         let scroll_report_callback: ScrollReportCallbackCell = Rc::new(RefCell::new(None));
-    let local_md_link_callback: LocalMdLinkCallbackCell = Rc::new(RefCell::new(None));
+        let local_md_link_callback: LocalMdLinkCallbackCell = Rc::new(RefCell::new(None));
+        let export_event_callback: ExportEventCallbackCell = Rc::new(RefCell::new(None));
+        let hover_link_callback: HoverLinkCallbackCell = Rc::new(RefCell::new(None));
 
         // Attempt to obtain parent HWND and parent_handle; on failure, keep inner None
         let parent_handle_rc = match (|| {
@@ -207,7 +225,9 @@ impl PlatformWebView {
             bg_color,
             gtk_window: window.clone(),
             scroll_report_callback,
-                    local_md_link_callback,
+            local_md_link_callback,
+            export_event_callback,
+            hover_link_callback,
         }
     }
 
@@ -217,6 +237,12 @@ impl PlatformWebView {
 
     pub fn set_local_md_link_handler<F: Fn(String, Option<String>) + 'static>(&self, callback: F) {
         *self.local_md_link_callback.borrow_mut() = Some(Rc::new(callback));
+    }
+
+    /// Install a callback invoked when the preview reports a hovered link via
+    /// `marco_hover:<url>` IPC. Pass `None` (empty payload) to clear.
+    pub fn set_hover_link_callback<F: Fn(Option<String>) + 'static>(&self, callback: F) {
+        *self.hover_link_callback.borrow_mut() = Some(Rc::new(callback));
     }
 
     pub fn widget(&self) -> gtk4::Widget {
@@ -334,17 +360,61 @@ impl PlatformWebView {
                 }
             })
             .with_ipc_handler({
-                let callback = self.scroll_report_callback.clone();
+                let scroll_cb = self.scroll_report_callback.clone();
+                let export_cb = self.export_event_callback.clone();
+                let hover_cb = self.hover_link_callback.clone();
                 move |req: wry::http::Request<String>| {
                     let msg = req.body().as_str();
+                    // ── scroll sync ───────────────────────────────────────
                     if let Some(scroll_data) = msg.strip_prefix("marco_scroll:") {
                         if let Ok(percentage) = scroll_data.parse::<f64>() {
-                            let cb_opt = callback.borrow().clone();
+                            let cb_opt = scroll_cb.borrow().clone();
                             if let Some(cb) = cb_opt {
                                 let percentage = percentage.clamp(0.0, 1.0);
                                 gtk4::glib::MainContext::default()
                                     .invoke_local(move || cb(percentage));
                             }
+                        }
+                        return;
+                    }
+                    // ── hovered link reports ──────────────────────────────
+                    if let Some(payload) = msg.strip_prefix("marco_hover:") {
+                        let url = if payload.is_empty() {
+                            None
+                        } else {
+                            Some(payload.to_string())
+                        };
+                        let cb_opt = hover_cb.borrow().clone();
+                        if let Some(cb) = cb_opt {
+                            gtk4::glib::MainContext::default().invoke_local(move || cb(url));
+                        }
+                        return;
+                    }
+                    // ── in-page zoom toolbar ──────────────────────────────
+                    if let Some(action) = msg.strip_prefix("marco_zoom:") {
+                        use crate::components::editor::editor_manager as em;
+                        let action = action.to_string();
+                        gtk4::glib::MainContext::default().invoke_local(move || {
+                            let new_zoom = match action.as_str() {
+                                "in" => em::get_preview_zoom() + em::ZOOM_STEP,
+                                "out" => em::get_preview_zoom() - em::ZOOM_STEP,
+                                "reset" => em::ZOOM_DEFAULT,
+                                // The page just (re)loaded — re-apply the
+                                // currently persisted zoom because `style.zoom`
+                                // is reset on every document replacement.
+                                "ready" => em::get_preview_zoom(),
+                                _ => return,
+                            };
+                            em::set_preview_zoom(new_zoom);
+                        });
+                        return;
+                    }
+                    // ── export lifecycle events ───────────────────────────
+                    if msg.starts_with("marco_export:") {
+                        let cb_opt = export_cb.borrow().clone();
+                        if let Some(cb) = cb_opt {
+                            let owned = msg.to_string();
+                            gtk4::glib::MainContext::default().invoke_local(move || cb(owned));
                         }
                     }
                 }
@@ -390,6 +460,108 @@ impl PlatformWebView {
             }
         }
     }
+
+    /// Install a one-shot listener for `marco_export:*` IPC events from the
+    /// export WebView's lifecycle bridge.
+    ///
+    /// Only one listener is active at a time; installing a new one replaces
+    /// the previous one. Call [`Self::clear_export_event_listener`] when the
+    /// export run finishes to avoid stale callbacks from future page loads.
+    pub fn set_export_event_listener<F: Fn(String) + 'static>(&self, cb: F) {
+        *self.export_event_callback.borrow_mut() = Some(Rc::new(cb));
+    }
+
+    /// Remove the currently registered export-event listener.
+    pub fn clear_export_event_listener(&self) {
+        *self.export_event_callback.borrow_mut() = None;
+    }
+
+    /// Trigger the browser print UI for the current page content.
+    pub fn trigger_print_dialog(&self) {
+        if let Some(view) = self.inner.borrow().as_ref() {
+            // Prefer the WebView2 native system print dialog (top-level Win32
+            // window owned by Marco) over wry's `view.print()`, which simply
+            // calls `window.print()` JS and renders the print preview *inside*
+            // the live preview area.
+            match show_system_print_ui(view) {
+                Ok(()) => return,
+                Err(e) => {
+                    log::warn!(
+                        "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                        e
+                    );
+                }
+            }
+
+            if let Err(e) = view.print() {
+                log::warn!(
+                    "Failed to open native WebView print UI: {}. Falling back to window.print()",
+                    e
+                );
+                self.evaluate_script("window.print();");
+            }
+            return;
+        }
+
+        // Fallback when the WebView is not initialized yet.
+        self.evaluate_script("window.print();");
+    }
+
+    /// Export the current page contents to a PDF using WebView2's native
+    /// `ICoreWebView2_7::PrintToPdf` (no Chromium subprocess).
+    ///
+    /// Blocks the main thread (pumping Win32 messages) until the COM async
+    /// operation completes, so the GTK main loop and any modal "Exporting…"
+    /// dialog stay responsive.
+    ///
+    /// Returns `Err` if the WebView is not initialized yet, the COM cast
+    /// fails, or the PDF write does not succeed.
+    pub fn print_to_pdf(
+        &self,
+        output_path: &std::path::Path,
+        paper: &str,
+        orientation: &str,
+        margin_mm: u8,
+    ) -> Result<(), String> {
+        let inner_borrow = self.inner.borrow();
+        let view = inner_borrow
+            .as_ref()
+            .ok_or_else(|| "WebView is not initialized yet".to_string())?;
+        crate::components::viewer::wry_print_to_pdf::print_to_pdf(
+            view,
+            output_path,
+            paper,
+            orientation,
+            margin_mm,
+        )
+    }
+}
+
+/// Open the WebView2 *system* print dialog (top-level Win32 window owned by
+/// the host) instead of the in-WebView browser print preview that
+/// `wry::WebView::print()` triggers via `window.print()`.
+///
+/// This casts the underlying `ICoreWebView2` to `ICoreWebView2_16` and calls
+/// `ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)`.  Returns `Err` on
+/// older WebView2 runtimes that don't expose the v16 interface so the caller
+/// can fall back to the legacy path.
+fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_16, COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM,
+    };
+    use windows::core::Interface;
+    use wry::WebViewExtWindows;
+
+    let core = view.webview();
+    let core16: ICoreWebView2_16 = core
+        .cast()
+        .map_err(|e| format!("WebView2 missing ICoreWebView2_16 (ShowPrintUI): {}", e))?;
+    unsafe {
+        core16
+            .ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)
+            .map_err(|e| format!("ShowPrintUI failed: {}", e))?;
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "windows")]
@@ -444,7 +616,10 @@ fn is_local_md_uri(uri: &str) -> bool {
     // Strip fragment before checking extension
     let without_fragment = lower.split('#').next().unwrap_or(&lower);
     // Strip query before checking extension
-    let without_query = without_fragment.split('?').next().unwrap_or(without_fragment);
+    let without_query = without_fragment
+        .split('?')
+        .next()
+        .unwrap_or(without_fragment);
     without_query.ends_with(".md")
 }
 

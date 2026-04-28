@@ -43,8 +43,8 @@ use components::menu::create_custom_titlebar;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::platform_webview::PlatformWebView;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
-use marco_shared::paths::PoloPaths;
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
+use marco_shared::paths::PoloPaths;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
 

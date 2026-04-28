@@ -9,20 +9,30 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-04-28
+
+**Uses:** Core 1.0.2
+
 ### Added
-- Nothing yet.
+- New CI workflow for publishing the shared engine crate `marco-core` to crates.io.
+- Polo now consumes the shared print/export CSS from `marco-shared`, keeping its rendering pipeline aligned with Marco's live print and export output.
 
 ### Changed
-- Nothing yet.
+- Windows portable packaging script now resolves the repository root from the script location, so packaging works the same in CI release workflows and manual runs.
+- Workspace crate layout was refactored: `core` was renamed to `marco-core`, and shared platform/app logic and assets were extracted into `marco-shared`, which Polo now consumes directly.
+- Cross-platform packaging/build scripts and docs were aligned with the refactored crate layout for Linux and Windows artifacts.
+- Source file permission metadata was normalized to avoid accidental executable bits on non-executable source/content files across platform checkouts.
 
 ### Fixed
-- Nothing yet.
+- Debian package dependency metadata now supports newer Ubuntu-family runtime naming by accepting `libxml2-16` as an alternative to `libxml2`.
+- Linux package build script now correctly detects Cargo's configured target directory when collecting built binaries for the package payload.
 
 ### Removed
-- Nothing yet.
+- Removed the legacy workspace `core` crate path in favor of the `marco-core` + `marco-shared` split.
 
 ### Security
-- Nothing yet.
+- Verified mitigation status for GHSA-82j2-j2ch-gfr8 on Linux and Windows release targets: dependency graph resolves to patched `rustls-webpki` 0.103.13.
+- Updated transitive `rand` to 0.8.6 in the workspace lockfile.
 
 ## [0.23.1] - 2026-04-14
 

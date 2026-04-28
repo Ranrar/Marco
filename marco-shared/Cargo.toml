@@ -1,6 +1,6 @@
 [package]
 name = "marco-shared"
-version = "0.23.1"
+version = "0.23.2"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Shared application logic for Marco and Polo (settings, paths, loaders, buffer)"

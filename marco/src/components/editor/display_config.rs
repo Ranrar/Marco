@@ -18,11 +18,11 @@
 //! Display settings are persisted via the `SettingsManager` and can be
 //! updated at runtime through the editor settings dialog.
 
+use log::debug;
 use marco_shared::logic::{
     loaders::font_loader::{AvailableFonts, FontLoader},
     swanson::{EditorSettings, SettingsManager},
 };
-use log::debug;
 use std::sync::Arc;
 
 /// Editor configuration manager for fonts and display settings

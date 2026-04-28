@@ -1,6 +1,9 @@
 use marco_core::parser::ast::NodeKind;
 
-fn collect_links<'a>(node: &'a marco_core::parser::Node, out: &mut Vec<&'a marco_core::parser::Node>) {
+fn collect_links<'a>(
+    node: &'a marco_core::parser::Node,
+    out: &mut Vec<&'a marco_core::parser::Node>,
+) {
     if matches!(node.kind, NodeKind::Link { .. }) {
         out.push(node);
     }
@@ -84,8 +87,8 @@ fn test_gfm_autolink_entity_suffix_trimmed() {
     let md = "www.google.com/search?q=commonmark&hl;\n";
     let doc = marco_core::parser::parse(md).expect("parse failed");
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     let expected_href = format!("href=\"{}://www.google.com/search?q=commonmark\"", "http");
 
@@ -193,7 +196,7 @@ fn test_gfm_autolink_trailing_right_bracket_is_excluded() {
         other => panic!("expected Link, got {other:?}"),
     }
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
     assert!(html.contains("<a href=\"https://example.com\">https://example.com</a>]"));
 }

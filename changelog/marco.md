@@ -9,20 +9,42 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
+## [0.23.2] - 2026-04-28
+
+**Uses:** Core 1.0.2
+
 ### Added
-- Nothing yet.
+- Unified export and print pipeline shared between Linux and Windows, with a common state machine, cancel token, and progress reporting so PDF and HTML export behave consistently across platforms.
+- New "Exporting…" modal progress dialog with indeterminate progress, phase reporting, and cancel-via-close support during long-running PDF / HTML exports.
+- New "Export complete" success dialog offering one-click actions to open the exported file in the system default app, reveal it in the file manager, or dismiss.
+- Windows: native PDF export via WebView2's `ICoreWebView2_7::PrintToPdf`, removing the previous dependency on a headless Chromium / Edge subprocess. The export runs entirely in-process and keeps the GTK / Win32 message loop responsive while the export completes.
+- Windows: native print dialog support — File → Print now opens the system print UI directly from the embedded WebView2 preview, matching the Linux print flow.
+- Shared print/export CSS in `marco-shared` so paged.js page-box layout, paper size, orientation, and dark-mode handling stay consistent between live print, PDF export, and HTML export on both platforms.
+- HTML export now uses a shared static-wrap composer for byte-stable output across runs and platforms.
+- New CI workflow for publishing the `marco-core` crate to crates.io.
 
 ### Changed
-- Nothing yet.
+- Windows portable packaging script now resolves the repository root from the script location, so it works consistently from both GitHub Actions release workflows and manual invocation from arbitrary working directories.
+- Workspace crate layout was refactored: `core` was renamed to `marco-core`, and shared app/platform logic/assets were extracted into `marco-shared` for clearer separation between reusable engine code and app-layer code.
+- Export dialog wiring was reworked to drive the unified pipeline, share progress UI between platforms, and surface clearer per-phase status.
+- Cross-platform packaging/build documentation and scripts were updated to reflect the refactored crate layout for both Linux and Windows release flows.
+- Source file permission metadata was normalized to avoid accidental executable bits on non-executable source/content files across platform checkouts.
 
 ### Fixed
-- Nothing yet.
+- Windows: PDF export no longer requires an external Chromium/Edge install or spawned subprocess; export now uses the in-process WebView2 backend.
+- Windows: print and PDF export now apply the same paged.js / `@media print` rules used on Linux, fixing prior fidelity gaps in paper size, orientation, margins, and dark-mode handling.
+- Print/export progress UI now stays responsive on Windows during long operations (message-loop pumping during the COM async call).
+- Debian package dependency metadata now supports newer Ubuntu-family runtime naming by accepting `libxml2-16` as an alternative to `libxml2`.
+- Linux package build script now correctly detects Cargo's configured target directory when copying built binaries into the `.deb` payload.
+- Fixed a Linux first-run Welcome screen regression where the Next button could be missing due to assistant action-area/header-bar behavior.
 
 ### Removed
-- Nothing yet.
+- Removed the legacy workspace `core` crate path in favor of `marco-core` + `marco-shared` split.
+- Removed the headless Chromium / Edge subprocess code path previously used for Windows PDF export.
 
 ### Security
-- Nothing yet.
+- Verified mitigation status for GHSA-82j2-j2ch-gfr8 on Linux and Windows release targets: dependency graph resolves to patched `rustls-webpki` 0.103.13.
+- Updated transitive `rand` to 0.8.6 in the workspace lockfile.
 
 ## [0.23.1] - 2026-04-14
 

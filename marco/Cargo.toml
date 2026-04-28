@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.23.1"
+version = "0.23.2"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
@@ -60,6 +60,13 @@ raw-window-handle = { workspace = true }
 ctrlc = { version = "3.5.1", default-features = false, features = ["termination"] }
 # Native Windows file dialogs
 rfd = "0.17.2"
+# Native WebView2 PDF export (PrintToPdf via ICoreWebView2_7).
+# webview2-com / windows / windows-core are already transitively pulled in by
+# `wry`, but we depend on them directly so the unsafe COM call sites in
+# `wry_platform_webview` can use the same versions wry uses (wry 0.55 → 0.38.2).
+webview2-com = "0.38.2"
+windows = { version = "0.61", features = ["Win32_Foundation"] }
+windows-core = "0.61"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 embed-resource = "3.0"

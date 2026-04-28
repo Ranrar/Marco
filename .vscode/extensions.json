@@ -1,0 +1,13 @@
+{
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "made-by.ron",
+    "jscearcy.rust-doc-viewer",
+    "pkief.material-icon-theme",
+    "ranrar.emoji-detector",
+    "fill-labs.dependi",
+    "github.vscode-github-actions",
+    "tamasfe.even-better-toml",
+    "eamodio.gitlens"
+  ]
+}

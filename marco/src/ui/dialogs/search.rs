@@ -19,9 +19,9 @@
 //! - `replace` - Replace operations
 
 use crate::components::language::SearchTranslations;
-use marco_core::logic::cache::SimpleFileCache;
 use gtk4::prelude::*;
 use gtk4::Window;
+use marco_core::logic::cache::SimpleFileCache;
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -81,7 +81,7 @@ pub fn show_search_window_no_webview(
     translations: &SearchTranslations,
 ) {
     use crate::components::search::state::{
-        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW, CURRENT_PLATFORM_WEBVIEW,
+        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_PLATFORM_WEBVIEW, CURRENT_SOURCE_VIEW,
     };
     use crate::components::search::window::initialize_async_manager;
 
@@ -288,9 +288,9 @@ fn set_window_control_icon(
     state: WindowControlState,
 ) {
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use marco_shared::logic::loaders::icon_loader::window_icon_svg;
     use gio;
     use gtk4::gdk;
+    use marco_shared::logic::loaders::icon_loader::window_icon_svg;
     use rsvg::{CairoRenderer, Loader};
 
     let color = match (is_dark, state) {
@@ -373,9 +373,9 @@ fn set_window_control_icon(
 /// Create a close button that matches the main app's window control styling.
 #[cfg(target_os = "windows")]
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
-    use marco_shared::logic::loaders::icon_loader::WindowIcon;
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
+    use marco_shared::logic::loaders::icon_loader::WindowIcon;
 
     let pic = Picture::new();
     let is_dark = window.has_css_class("marco-theme-dark");

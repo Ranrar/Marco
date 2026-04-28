@@ -4,9 +4,9 @@
 //! close buttons and proper theme support.
 
 use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use gtk4::prelude::*;
 use gtk4::{gio, glib, Align, Button, HeaderBar, Label, Window};
+use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use rsvg::{CairoRenderer, Loader};
 
 /// Render an SVG icon to a GdkMemoryTexture

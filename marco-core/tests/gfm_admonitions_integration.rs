@@ -29,8 +29,8 @@ fn test_gfm_admonition_transforms_top_level_blockquote_and_strips_marker() {
         })
     ));
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains("markdown-alert-note"));
     assert!(html.contains("admonition-note"));
@@ -96,8 +96,8 @@ fn test_gfm_custom_header_admonition_renders_quote_style_and_strips_marker() {
         other => panic!("expected Admonition node, got: {other:?}"),
     }
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains("admonition-quote"));
     assert!(html.contains("markdown-alert-title"));
@@ -127,8 +127,8 @@ fn test_gfm_admonition_unknown_marker_is_not_transformed() {
         Some(NodeKind::Blockquote)
     ));
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains("<blockquote>"));
     assert!(html.contains("[!FOO]"));

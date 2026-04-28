@@ -45,7 +45,7 @@
           "--target",
           "x86_64-pc-windows-msvc",
           "--target-dir",
-          "target\\windows"
+          "C:\\target"
         ]
       },
       "group": "build",

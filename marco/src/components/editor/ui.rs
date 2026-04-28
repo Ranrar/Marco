@@ -32,15 +32,17 @@ use crate::components::editor::display_config::extract_xml_color_value;
 use crate::components::editor::sourceview::render_editor_with_view;
 use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS};
+#[cfg(target_os = "windows")]
+use crate::components::viewer::javascript::{HOVER_REPORT_JS, WIN_ZOOM_BAR_HTML};
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
 #[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
-use marco_core::logic::cache::global_parser_cache; // New cache API
-use marco_core::RenderOptions; // New parser API
 use gtk4::prelude::*;
 use gtk4::Paned;
+use marco_core::logic::cache::global_parser_cache; // New cache API
+use marco_core::RenderOptions; // New parser API
 use sourceview5::prelude::*;
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -192,15 +194,14 @@ fn read_runtime_intelligence_settings(
 
     let settings = settings_manager.get_settings();
     let editor = settings.editor.unwrap_or_default();
-    let filter =
-        editor
-            .diagnostics_filter
-            .unwrap_or(marco_shared::logic::swanson::DiagnosticsFilterSettings {
-                errors: Some(true),
-                warnings: Some(true),
-                infos: Some(false),
-                hints: Some(false),
-            });
+    let filter = editor.diagnostics_filter.unwrap_or(
+        marco_shared::logic::swanson::DiagnosticsFilterSettings {
+            errors: Some(true),
+            warnings: Some(true),
+            infos: Some(false),
+            hints: Some(false),
+        },
+    );
 
     let diagnostics_underlines_enabled = editor.diagnostics_underlines_enabled.unwrap_or(true);
     let diagnostics_hover_enabled = editor.diagnostics_hover_enabled.unwrap_or(true);
@@ -251,18 +252,19 @@ pub fn create_editor_with_preview_and_buffer(
     let preview_theme_dir = &params.preview_theme_dir;
     let theme_manager = params.theme_manager;
     let theme_mode = params.theme_mode;
-    let intelligence_settings_manager = match marco_shared::logic::swanson::SettingsManager::initialize(
-        std::path::PathBuf::from(settings_path),
-    ) {
-        Ok(manager) => Some(manager),
-        Err(err) => {
-            log::warn!(
-                "Failed to initialize settings manager for intelligence runtime settings: {}",
-                err
-            );
-            None
-        }
-    };
+    let intelligence_settings_manager =
+        match marco_shared::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(
+            settings_path,
+        )) {
+            Ok(manager) => Some(manager),
+            Err(err) => {
+                log::warn!(
+                    "Failed to initialize settings manager for intelligence runtime settings: {}",
+                    err
+                );
+                None
+            }
+        };
     let resolve_runtime_intelligence_settings: Rc<dyn Fn() -> RuntimeIntelligenceSettings> = {
         let settings_manager = intelligence_settings_manager.clone();
         Rc::new(move || read_runtime_intelligence_settings(settings_manager.as_ref()))
@@ -531,6 +533,15 @@ pub fn create_editor_with_preview_and_buffer(
     let wheel_js = wheel_js(scroll_scale);
     let mut wheel_with_report = wheel_js.clone();
     wheel_with_report.push_str(SCROLL_REPORT_JS);
+    // Windows-only: native wry/WebView2 lacks a hit-test signal for hovered
+    // links and the GTK zoom-bar overlay is hidden behind the WebView2 child
+    // window. Inject a JS bridge that posts hovered link URLs and an in-page
+    // zoom toolbar via IPC instead.
+    #[cfg(target_os = "windows")]
+    {
+        wheel_with_report.push_str(HOVER_REPORT_JS);
+        wheel_with_report.push_str(WIN_ZOOM_BAR_HTML);
+    }
     let wheel_js_rc = Rc::new(wheel_with_report);
 
     // Extract some theme colors from editor theme XML
@@ -1030,6 +1041,17 @@ paned > separator {{
         let platform_webview =
             crate::components::viewer::wry_platform_webview::PlatformWebView::new(_window);
 
+        // Wire footer hovered-link updates from the preview's JS hover-report
+        // bridge. webkit6 provides this natively via `connect_mouse_target_changed`
+        // (see Linux branch above); on Windows we receive `marco_hover:<url>`
+        // IPC messages and forward them to the same footer label.
+        {
+            let labels_for_hover = Rc::clone(&labels);
+            platform_webview.set_hover_link_callback(move |url: Option<String>| {
+                crate::footer::update_hovered_link(&labels_for_hover, url.as_deref());
+            });
+        }
+
         // Initialize scroll synchronization between editor and the embedded wry preview.
         if let Some(global_sync) =
             crate::components::editor::editor_manager::get_global_scroll_synchronizer()
@@ -1084,7 +1106,6 @@ paned > separator {{
 
     // Read page view settings from SettingsManager and create a shared state handle.
     // The handle is captured in refresh_preview_impl and updated live when the settings dialog changes.
-    #[cfg(target_os = "linux")]
     let page_view_rc: std::rc::Rc<
         RefCell<crate::components::viewer::preview_types::PageViewState>,
     > = {
@@ -1238,6 +1259,7 @@ paned > separator {{
         let html_opts = std::rc::Rc::clone(&html_opts_rc);
         let wheel_js_local = wheel_js_for_refresh.clone();
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+        let page_view_capture = std::rc::Rc::clone(&page_view_rc);
         // Capture the in-editor platform webview if present
         let webview_for_preview = webview_rc_opt.clone();
         let document_buffer_capture = _document_buffer.as_ref().map(Rc::clone);
@@ -1264,12 +1286,36 @@ paned > separator {{
                 let html_body = crate::components::viewer::wry::generate_test_html(&wheel_js_local);
                 let combined_css = css.borrow().clone();
                 let theme_mode = theme_mode_for_preview.borrow().clone();
-                let full_html = crate::components::viewer::wry::wrap_html_document(
-                    &html_body,
-                    &combined_css,
-                    &theme_mode,
-                    None,
-                );
+                let page_view = page_view_capture.borrow().clone();
+                let full_html = if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: &wheel_js_local,
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
+                };
+                crate::components::viewer::wry::set_latest_live_html(&full_html);
 
                 if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
                     .get_or_init(|| std::sync::Mutex::new(String::new()))
@@ -1311,18 +1357,80 @@ paned > separator {{
 
             let formatted = pretty_print_html(&html_body);
 
+            // Store a clean live preview HTML snapshot (without wheel/scroll JS)
+            // for Windows HTML / PDF export. When page-view (paged.js) mode is
+            // enabled, store the paged variant so headless export reflects the
+            // visible paged layout.
+            {
+                let combined_css = css.borrow().clone();
+                let theme_mode = theme_mode_for_preview.borrow().clone();
+                let page_view = page_view_capture.borrow().clone();
+                let live_html = if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: "",
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
+                };
+                crate::components::viewer::wry::set_latest_live_html(&live_html);
+            }
+
             // Store the full HTML for detached preview windows (Windows fallback)
             let full_html = {
                 let mut html_with_js = html_body.clone();
                 html_with_js.push_str(&wheel_js_local);
                 let combined_css = css.borrow().clone();
                 let theme_mode = theme_mode_for_preview.borrow().clone();
-                crate::components::viewer::wry::wrap_html_document(
-                    &html_with_js,
-                    &combined_css,
-                    &theme_mode,
-                    None,
-                )
+                let page_view = page_view_capture.borrow().clone();
+                if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: &wheel_js_local,
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_with_js,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
+                }
             };
 
             if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
@@ -1618,11 +1726,14 @@ paned > separator {{
                         .map_err(|e| e.to_string())
                         .map(|doc| {
                             let highlights =
-                                marco_core::intelligence::compute_highlights_with_source(&doc, &src);
-                            let diagnostics = marco_core::intelligence::compute_diagnostics_with_options(
-                                &doc,
-                                marco_core::intelligence::DiagnosticsOptions::all(),
-                            );
+                                marco_core::intelligence::compute_highlights_with_source(
+                                    &doc, &src,
+                                );
+                            let diagnostics =
+                                marco_core::intelligence::compute_diagnostics_with_options(
+                                    &doc,
+                                    marco_core::intelligence::DiagnosticsOptions::all(),
+                                );
                             (highlights, diagnostics)
                         })
                 })
@@ -1732,7 +1843,6 @@ paned > separator {{
     }
 
     // Register the page-view state handle so the settings dialog can update it live.
-    #[cfg(target_os = "linux")]
     {
         let page_view_for_reg = std::rc::Rc::clone(&page_view_rc);
         let refresh_for_page_view = std::rc::Rc::clone(&refresh_preview_impl);
@@ -2157,9 +2267,10 @@ paned > separator {{
 
                                     // Also update the GTK scrollbar CSS so native scrollbars match.
                                     if let Some(display) = gtk4::gdk::Display::default() {
-                                        let gtk_css = crate::components::viewer::css_utils::gtk_scrollbar_css(
-                                            &new_thumb, &new_track,
-                                        );
+                                        let gtk_css =
+                                            crate::components::viewer::css_utils::gtk_scrollbar_css(
+                                                &new_thumb, &new_track,
+                                            );
                                         let provider = gtk4::CssProvider::new();
                                         provider.load_from_data(&gtk_css);
                                         gtk4::style_context_add_provider_for_display(
@@ -2169,7 +2280,8 @@ paned > separator {{
                                         );
                                         log::debug!(
                                             "[win] Updated GTK scrollbar CSS: thumb={}, track={}",
-                                            new_thumb, new_track
+                                            new_thumb,
+                                            new_track
                                         );
                                     }
                                     break;

@@ -13,6 +13,9 @@ use log::trace;
 use rsvg::{CairoRenderer, Loader};
 
 use crate::components::language::Translations;
+
+/// Optional pre-open hook for the Tools popover, shared via Rc/RefCell.
+type ToolsPreOpenHook = std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>;
 use crate::ui::popover_state::RootPopoverState;
 
 // Type alias for the complex rebuild callback type
@@ -448,7 +451,7 @@ fn create_tools_menu_button(
     label: &str,
     tools_menu: &gio::Menu,
     switch_state: HoverMenuSwitchState,
-    pre_open: std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>,
+    pre_open: ToolsPreOpenHook,
 ) -> Button {
     let button = Button::with_label(label);
     button.add_css_class("menu-button");
@@ -598,7 +601,7 @@ pub struct MenuBarState {
     pub tools_menu: gio::Menu,
     /// Hook called immediately before the Tools popover content is rebuilt.
     /// Populated by `setup_tools_actions` so the menu always reflects current settings.
-    pub tools_pre_open: std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>,
+    pub tools_pre_open: ToolsPreOpenHook,
     help_menu: gio::Menu,
     file_btn: Button,
     edit_btn: Button,
@@ -716,8 +719,7 @@ pub fn main_menu_structure(
     let tools_menu = gio::Menu::new();
 
     // Pre-open hook slot for the tools button (populated after setup_tools_actions).
-    let tools_pre_open: std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>> =
-        std::rc::Rc::new(std::cell::RefCell::new(None));
+    let tools_pre_open: ToolsPreOpenHook = std::rc::Rc::new(std::cell::RefCell::new(None));
 
     // Help menu with application information
     let help_menu = gio::Menu::new();

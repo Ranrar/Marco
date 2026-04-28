@@ -1,8 +1,8 @@
 //! Toolbar inline-code toggle helpers for Markdown (`` `...` ``).
 //! Wraps or unwraps the selection / word-at-cursor with single backticks.
 
-use marco_core::render::code_languages::KNOWN_CODE_LANGUAGES;
 use gtk4::prelude::*;
+use marco_core::render::code_languages::KNOWN_CODE_LANGUAGES;
 
 const CODE_BLOCK_POPOVER_WIDTH: i32 = 320;
 const CODE_BLOCK_POPOVER_HORIZONTAL_SAFE_PADDING: i32 = 8;

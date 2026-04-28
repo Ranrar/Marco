@@ -48,8 +48,8 @@
 use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
 use crate::components::viewer::platform_webview::PlatformWebView;
-use marco_shared::logic::swanson::SettingsManager;
 use marco_core::{parse_to_html_cached, RenderOptions};
+use marco_shared::logic::swanson::SettingsManager;
 use std::path::Path;
 use std::sync::Arc;
 

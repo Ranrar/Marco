@@ -26,8 +26,8 @@
 //! let themes = list_available_themes(); // ["github", "marco", "academic", ...]
 //! ```
 
-use marco_shared::logic::swanson::SettingsManager;
 use gtk4::gdk;
+use marco_shared::logic::swanson::SettingsManager;
 use std::sync::Arc;
 
 /// Parse hex color string to RGBA

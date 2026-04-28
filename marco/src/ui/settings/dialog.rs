@@ -277,9 +277,9 @@ fn create_dialog_impl(
 
     // Create custom close button with SVG icon
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use gio;
     use gtk4::gdk;
+    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use rsvg::{CairoRenderer, Loader};
 
     fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {

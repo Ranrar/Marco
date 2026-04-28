@@ -1197,9 +1197,7 @@ fn append_reference_definition_to_document_end(text_buffer: &gtk4::TextBuffer, d
     let end = text_buffer.end_iter();
     let document = text_buffer.text(&start, &end, false).to_string();
 
-    let separator = if document.is_empty() {
-        ""
-    } else if document.ends_with("\n\n") {
+    let separator = if document.is_empty() || document.ends_with("\n\n") {
         ""
     } else if document.ends_with('\n') {
         "\n"

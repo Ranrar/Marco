@@ -12,9 +12,9 @@
 //! - Smooth content updates without page reloads
 //! - Base URI support for relative file references
 
+use gtk4::prelude::*;
 use marco_core::logic::cache::global_parser_cache;
 use marco_core::RenderOptions;
-use gtk4::prelude::*;
 use std::cell::RefCell;
 
 use crate::components::viewer::backend;

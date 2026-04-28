@@ -25,9 +25,9 @@
 
 use crate::components::editor::display_config::{EditorConfiguration, EditorDisplaySettings};
 use crate::components::editor::scroll_sync::ScrollSynchronizer;
-use marco_shared::logic::swanson::SettingsManager;
 use gtk4::ScrolledWindow;
 use log::debug;
+use marco_shared::logic::swanson::SettingsManager;
 use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -240,7 +240,7 @@ thread_local! {
 // Updated by menu.rs whenever the user switches layout modes.
 thread_local! {
     static CURRENT_LAYOUT_STATE: RefCell<marco_shared::logic::layoutstate::LayoutState> =
-        RefCell::new(marco_shared::logic::layoutstate::LayoutState::DualView);
+        const { RefCell::new(marco_shared::logic::layoutstate::LayoutState::DualView) };
 }
 
 /// Update the globally-tracked layout state.
@@ -269,11 +269,12 @@ thread_local! {
 }
 
 // Preview zoom level (0.5-3.0, default 1.0).  Applied via WebKit zoom-level property.
+type ZoomChangedCallback = RefCell<Option<Rc<dyn Fn(f64)>>>;
 thread_local! {
     static PREVIEW_ZOOM: Cell<f64> = const { Cell::new(1.0) };
     /// Optional callback fired whenever the zoom level changes (e.g. to update the
     /// zoom-bar overlay label). Stored as an `Rc` so GTK widgets can be captured.
-    static ZOOM_CHANGED_CALLBACK: RefCell<Option<Rc<dyn Fn(f64)>>> = const { RefCell::new(None) };
+    static ZOOM_CHANGED_CALLBACK: ZoomChangedCallback = const { RefCell::new(None) };
 }
 
 /// Zoom step increment/decrement.
@@ -326,7 +327,24 @@ pub fn set_preview_zoom(zoom: f64) {
     let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
     PREVIEW_ZOOM.with(|c| c.set(clamped));
     with_primary_preview_webview(|wv| {
-        let js = format!("document.documentElement.style.zoom = '{}'", clamped);
+        // `__marcoApplyZoom` (defined in WIN_ZOOM_BAR_HTML) scales the page,
+        // counter-scales the in-page zoom toolbar so its buttons stay a
+        // constant visual size, and updates the percent label.
+        // Fallback to setting `style.zoom` directly in case the toolbar JS
+        // failed to initialize for some reason.
+        let pct = (clamped * 100.0).round() as i32;
+        let js = format!(
+            "if (typeof window.__marcoApplyZoom === 'function') {{ \
+                 window.__marcoApplyZoom({zoom}); \
+             }} else {{ \
+                 document.documentElement.style.zoom = '{zoom}'; \
+                 if (typeof window.__marcoSetZoomLabel === 'function') {{ \
+                     window.__marcoSetZoomLabel({pct}); \
+                 }} \
+             }}",
+            zoom = clamped,
+            pct = pct,
+        );
         wv.evaluate_script(&js);
     });
     fire_zoom_changed(clamped);
@@ -342,7 +360,9 @@ pub fn set_primary_preview_webview(wv: &webkit6::WebView) {
 }
 
 #[cfg(target_os = "windows")]
-pub fn set_primary_preview_webview(wv: &crate::components::viewer::wry_platform_webview::PlatformWebView) {
+pub fn set_primary_preview_webview(
+    wv: &crate::components::viewer::wry_platform_webview::PlatformWebView,
+) {
     PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
         *cell.borrow_mut() = Some(wv.clone());
     });
@@ -359,7 +379,11 @@ pub fn with_primary_preview_webview<F: FnOnce(&webkit6::WebView)>(f: F) {
 }
 
 #[cfg(target_os = "windows")]
-pub fn with_primary_preview_webview<F: FnOnce(&crate::components::viewer::wry_platform_webview::PlatformWebView)>(f: F) {
+pub fn with_primary_preview_webview<
+    F: FnOnce(&crate::components::viewer::wry_platform_webview::PlatformWebView),
+>(
+    f: F,
+) {
     PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
         if let Some(ref wv) = *cell.borrow() {
             f(wv);

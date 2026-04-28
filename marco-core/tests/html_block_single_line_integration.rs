@@ -6,8 +6,8 @@ fn integration_test_single_line_html_block_does_not_swallow_following_markdown()
 
     let doc = marco_core::parser::parse(md).expect("parse failed");
 
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(
         html.contains("<div>html</div>"),

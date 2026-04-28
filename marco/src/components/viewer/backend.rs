@@ -23,7 +23,8 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    let html = marco_core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    let html =
+        marco_core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
     // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
     // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
     // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
@@ -84,53 +85,10 @@ pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     crate::components::viewer::webkit6::update_html_content_smooth(webview, content)
 }
 
-#[cfg(target_os = "windows")]
-pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
-    // Read the current zoom so we can re-apply it via JS.  WebView2 has no native
-    // zoom-level property (unlike WebKit), so zoom is a per-page CSS style that gets
-    // reset on every full HTML load.  Re-applying it here ensures zoom is restored on
-    // the first content update after any full reload (startup, file switch, etc.).
-    let zoom = crate::components::editor::editor_manager::get_preview_zoom();
-
-    let escaped = content
-        .replace('\\', "\\\\")
-        .replace('\'', "\\'")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r");
-
-    // Mirror the Linux path:
-    //   1. Re-apply zoom (WebView2 resets it on every full load).
-    //   2. Prefer MarcoPreview.updateContent — it handles sliders + table sizes.
-    //   3. Fall back to direct container innerHTML with scroll restore.
-    //   4. Last resort: inject the container into <body> (startup race guard).
-    let js = format!(
-        r#"(function(){{
-            try {{
-                if (window._marcoTempUpdate) {{ delete window._marcoTempUpdate; }}
-                document.documentElement.style.zoom = '{}';
-                if (window.MarcoPreview && typeof window.MarcoPreview.updateContent === 'function') {{
-                    window.MarcoPreview.updateContent('{}');
-                    return;
-                }}
-                var container = document.getElementById('marco-content-container');
-                if (container) {{
-                    var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-                    container.innerHTML = '{}';
-                    setTimeout(function() {{
-                        document.documentElement.scrollTop = scrollTop;
-                        document.body.scrollTop = scrollTop;
-                    }}, 10);
-                }} else {{
-                    var body = document.body || document.getElementsByTagName('body')[0];
-                    if (body) {{ body.innerHTML = '<div id="marco-content-container">{}</div>'; }}
-                }}
-            }} catch(e) {{ console.error('Error in content update:', e); }}
-        }})();"#,
-        zoom, escaped, escaped, escaped
-    );
-
-    webview.evaluate_script(&js);
-}
+// Note: there is no Windows counterpart for `update_html_content_smooth`.
+// On Windows the live preview always goes through `load_html_when_ready`
+// (see the wry `PlatformWebView`), and the smooth-update helper is only
+// invoked from the Linux-only `renderer` module.
 
 /// Evaluate a JavaScript snippet in the live preview webview.
 /// Used to update page-level attributes (e.g. `dir`) without a full reload.

@@ -1,5 +1,5 @@
-use marco_core::logic::cache::{cached, global_cache};
 use crate::logic::swanson::SettingsManager;
+use marco_core::logic::cache::{cached, global_cache};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 

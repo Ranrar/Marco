@@ -22,8 +22,8 @@
 
 use crate::footer::{FooterLabels, FooterUpdate};
 use crate::logic::signal_manager::safe_source_remove;
-use marco_shared::logic::swanson::SettingsManager;
 use gtk4::glib::ControlFlow;
+use marco_shared::logic::swanson::SettingsManager;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -145,18 +145,26 @@ pub fn refresh_footer_snapshot(
                 );
                 let errors = diagnostics
                     .iter()
-                    .filter(|d| matches!(d.severity, marco_core::intelligence::DiagnosticSeverity::Error))
+                    .filter(|d| {
+                        matches!(
+                            d.severity,
+                            marco_core::intelligence::DiagnosticSeverity::Error
+                        )
+                    })
                     .count();
                 let warnings = diagnostics
                     .iter()
                     .filter(|d| {
-                        matches!(d.severity, marco_core::intelligence::DiagnosticSeverity::Warning)
+                        matches!(
+                            d.severity,
+                            marco_core::intelligence::DiagnosticSeverity::Warning
+                        )
                     })
                     .count();
                 let diagnostics = diagnostics
                     .iter()
                     .map(|d| crate::footer::FooterDiagnosticItem {
-                        severity: d.severity.clone(),
+                        severity: d.severity,
                         code: d.code_id().to_string(),
                         line: d.span.start.line,
                         column: d.span.start.column,
@@ -180,7 +188,7 @@ pub fn refresh_footer_snapshot(
                     1,
                     0,
                     vec![crate::footer::FooterDiagnosticItem {
-                        severity: parse_diagnostic.severity.clone(),
+                        severity: parse_diagnostic.severity,
                         code: parse_diagnostic.code_id().to_string(),
                         line: parse_diagnostic.span.start.line,
                         column: parse_diagnostic.span.start.column,

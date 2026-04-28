@@ -1,6 +1,6 @@
-use marco_shared::logic::swanson::SettingsManager;
 use gtk4::prelude::*;
 use gtk4::ApplicationWindow;
+use marco_shared::logic::swanson::SettingsManager;
 use std::sync::Arc;
 
 /// Apply the saved window state (size, maximized) from settings to the window.

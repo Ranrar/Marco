@@ -38,8 +38,8 @@ fn test_emoji_shortcode_parses_mid_text_as_separate_text_node() {
 fn test_emoji_shortcode_renders_as_unicode_emoji() {
     let md = "Hi :rocket:!";
     let doc = marco_core::parser::parse(md).expect("parse failed");
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains("🚀"), "expected rocket emoji in HTML");
     assert!(
@@ -52,8 +52,8 @@ fn test_emoji_shortcode_renders_as_unicode_emoji() {
 fn test_unknown_shortcode_remains_literal_text() {
     let md = "Hello :unknown: world";
     let doc = marco_core::parser::parse(md).expect("parse failed");
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains(":unknown:"), "expected literal shortcode");
     assert!(!html.contains("😂"), "should not convert to emoji");
@@ -63,8 +63,8 @@ fn test_unknown_shortcode_remains_literal_text() {
 fn test_shortcode_not_converted_inside_code_span() {
     let md = "`:joy:`";
     let doc = marco_core::parser::parse(md).expect("parse failed");
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(
         html.contains(":joy:"),
@@ -77,8 +77,8 @@ fn test_shortcode_not_converted_inside_code_span() {
 fn test_incomplete_shortcode_remains_literal() {
     let md = "Text :joy and more";
     let doc = marco_core::parser::parse(md).expect("parse failed");
-    let html =
-        marco_core::render::render(&doc, &marco_core::render::RenderOptions::default()).expect("render failed");
+    let html = marco_core::render::render(&doc, &marco_core::render::RenderOptions::default())
+        .expect("render failed");
 
     assert!(html.contains("Text :joy and more"));
     assert!(!html.contains("😂"));

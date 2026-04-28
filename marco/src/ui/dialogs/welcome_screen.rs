@@ -173,8 +173,11 @@ pub fn show_welcome_screen(
 
     let translations = localization_manager.translations();
 
+    // Ensure action widgets render in the assistant action area.
+    // When GTK routes actions into a header bar, our custom titlebar can hide
+    // assistant navigation controls on some Linux setups.
     #[allow(deprecated)]
-    let assistant = Assistant::new();
+    let assistant = Assistant::builder().use_header_bar(0).build();
     // Fixed size: keep the welcome flow visually stable and avoid scrollbars.
     assistant.set_default_size(860, 720);
     assistant.set_resizable(false);
@@ -513,10 +516,30 @@ pub fn show_welcome_screen(
     #[allow(deprecated)]
     assistant.add_action_widget(&action_row);
 
-    // Initial button visibility (page 0)
-    back_button.set_visible(false);
-    next_button.set_visible(true);
-    finish_button.set_visible(false);
+    // Force deterministic initial state: start on first page and sync nav buttons.
+    assistant.set_current_page(0);
+
+    let sync_nav_buttons = {
+        let back_button = back_button.clone();
+        let next_button = next_button.clone();
+        let finish_button = finish_button.clone();
+        move |assistant: &gtk4::Assistant| {
+            let current_page = assistant.current_page();
+            let n_pages = assistant.n_pages();
+
+            back_button.set_visible(current_page > 0);
+
+            if current_page >= 0 && current_page + 1 >= n_pages {
+                next_button.set_visible(false);
+                finish_button.set_visible(true);
+            } else {
+                next_button.set_visible(true);
+                finish_button.set_visible(false);
+            }
+        }
+    };
+
+    sync_nav_buttons(&assistant);
 
     // ---------------------------------------------------------------------
     // Persistence helpers
@@ -545,7 +568,8 @@ pub fn show_welcome_screen(
             gtk4::glib::idle_add_local_once(move || {
                 if let Err(e) = settings_manager.update_settings(|s| {
                     if s.telemetry.is_none() {
-                        s.telemetry = Some(marco_shared::logic::swanson::TelemetrySettings::default());
+                        s.telemetry =
+                            Some(marco_shared::logic::swanson::TelemetrySettings::default());
                     }
                     if let Some(ref mut telemetry) = s.telemetry {
                         // Showing the assistant counts as completing first-run.
@@ -555,14 +579,16 @@ pub fn show_welcome_screen(
                     }
 
                     if s.language.is_none() {
-                        s.language = Some(marco_shared::logic::swanson::LanguageSettings::default());
+                        s.language =
+                            Some(marco_shared::logic::swanson::LanguageSettings::default());
                     }
                     if let Some(ref mut language) = s.language {
                         language.language = selected_language.clone();
                     }
 
                     if s.appearance.is_none() {
-                        s.appearance = Some(marco_shared::logic::swanson::AppearanceSettings::default());
+                        s.appearance =
+                            Some(marco_shared::logic::swanson::AppearanceSettings::default());
                     }
                     if let Some(ref mut appearance) = s.appearance {
                         appearance.editor_mode = Some(selected_editor_mode.clone());
@@ -855,28 +881,10 @@ pub fn show_welcome_screen(
     }
 
     assistant.connect_prepare({
-        let back_button = back_button.clone();
-        let next_button = next_button.clone();
-        let finish_button = finish_button.clone();
+        let sync_nav_buttons = sync_nav_buttons.clone();
         move |assistant, _page| {
             apply_welcome_sidebar_classes(assistant);
-
-            let current_page = assistant.current_page();
-            let n_pages = assistant.n_pages();
-
-            if current_page <= 0 {
-                back_button.set_visible(false);
-            } else {
-                back_button.set_visible(true);
-            }
-
-            if current_page >= 0 && current_page + 1 >= n_pages {
-                next_button.set_visible(false);
-                finish_button.set_visible(true);
-            } else {
-                next_button.set_visible(true);
-                finish_button.set_visible(false);
-            }
+            sync_nav_buttons(assistant);
         }
     });
 

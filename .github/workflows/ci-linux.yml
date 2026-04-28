@@ -9,6 +9,35 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
+  security-audit:
+    name: Security audit (RustSec)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust toolchain (pinned)
+        id: toolchain
+        uses: dtolnay/rust-toolchain@1.94.1
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            ~/.cargo/bin
+          key: cargo-audit-linux-${{ steps.toolchain.outputs.cachekey }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install cargo-audit
+        run: |
+          cargo install --locked cargo-audit --version 0.22.0
+
+      - name: Run cargo audit
+        run: |
+          cargo audit --deny warnings
+
   test-linux:
     name: Test & lint (Linux)
     runs-on: ubuntu-24.04

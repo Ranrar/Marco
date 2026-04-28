@@ -1,6 +1,6 @@
 [package]
 name = "marco-core"
-version = "1.0.0"
+version = "1.0.2"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "nom-based Markdown parser, HTML renderer, and intelligence features (highlights, diagnostics, completions) for the Marco editor."

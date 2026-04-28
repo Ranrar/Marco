@@ -36,8 +36,5 @@ pub fn detect_platform() -> Platform {
 }
 
 pub fn is_dark_mode_supported() -> bool {
-    matches!(
-        detect_platform(),
-        Platform::Linux | Platform::Windows
-    )
+    matches!(detect_platform(), Platform::Linux | Platform::Windows)
 }
