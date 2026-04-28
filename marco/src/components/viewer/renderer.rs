@@ -12,9 +12,9 @@
 //! - Smooth content updates without page reloads
 //! - Base URI support for relative file references
 
-use core::global_parser_cache;
-use core::RenderOptions;
 use gtk4::prelude::*;
+use marco_core::logic::cache::global_parser_cache;
+use marco_core::RenderOptions;
 use std::cell::RefCell;
 
 use crate::components::viewer::backend;
@@ -154,7 +154,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
             // Page view enabled — wrap welcome through paged.js so it renders
             // as a proper page instead of raw unstyled content.
             let welcome_body = generate_test_html("");
-            let page_opts = core::render::PageViewOptions {
+            let page_opts = marco_core::render::PageViewOptions {
                 paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
                 paper: &pv.paper,
                 orientation: &pv.orientation,
@@ -210,7 +210,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                 if let Some(pv) = page_view_snapshot {
                     // Page view mode: inject paged.js for true CSS Paged Media simulation.
                     // Full HTML reload required — smooth updates are incompatible with paged.js.
-                    let page_opts = core::render::PageViewOptions {
+                    let page_opts = marco_core::render::PageViewOptions {
                         paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
                         paper: &pv.paper,
                         orientation: &pv.orientation,

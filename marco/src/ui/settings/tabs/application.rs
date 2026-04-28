@@ -1,5 +1,5 @@
-use core::logic::swanson::WindowSettings;
 use gtk4::prelude::*;
+use marco_shared::logic::swanson::WindowSettings;
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -9,7 +9,7 @@ use crate::components::language::SettingsAppearanceTranslations;
 use crate::components::language::SettingsLayoutTranslations;
 use crate::components::language::Translations;
 use crate::logic::signal_manager::SignalManager;
-use core::logic::loaders::theme_loader::list_html_view_themes;
+use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 
 pub struct ApplicationTabCallbacks {
     // Appearance callbacks
@@ -239,7 +239,8 @@ pub fn build_application_tab(
     ui_font_combo.add_css_class("marco-control-unavailable");
     ui_font_combo.set_tooltip_text(Some("Not available yet"));
 
-    if let Ok(sm) = core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+    if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone())
+    {
         ui_font_combo.connect_selected_notify(move |combo| {
             let value = ui_font_values
                 .get(combo.selected() as usize)
@@ -247,7 +248,8 @@ pub fn build_application_tab(
                 .unwrap_or("system");
             let _ = sm.update_settings(|s| {
                 if s.appearance.is_none() {
-                    s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
+                    s.appearance =
+                        Some(marco_shared::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut a) = s.appearance {
                     a.ui_font = Some(value.to_string());
@@ -284,12 +286,14 @@ pub fn build_application_tab(
     ui_font_size_spin.add_css_class("marco-control-unavailable");
     ui_font_size_spin.set_tooltip_text(Some("Not available yet"));
 
-    if let Ok(sm) = core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+    if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone())
+    {
         ui_font_size_adj.connect_value_changed(move |adj| {
             let new_size = adj.value() as u8;
             let _ = sm.update_settings(|s| {
                 if s.appearance.is_none() {
-                    s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
+                    s.appearance =
+                        Some(marco_shared::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut a) = s.appearance {
                     a.ui_font_size = Some(new_size);
@@ -314,7 +318,7 @@ pub fn build_application_tab(
     // ── Layout section ─────────────────────────────────────────────────────
 
     let settings_manager_opt = {
-        match core::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
+        match marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone()) {
             Ok(sm) => Some(sm),
             Err(e) => {
                 debug!(
@@ -347,7 +351,7 @@ pub fn build_application_tab(
             debug!("Sync scrolling changed to: {}", active);
             if let Err(e) = sm_c.update_settings(|s| {
                 if s.layout.is_none() {
-                    s.layout = Some(core::logic::swanson::LayoutSettings::default());
+                    s.layout = Some(marco_shared::logic::swanson::LayoutSettings::default());
                 }
                 if let Some(ref mut l) = s.layout {
                     l.sync_scrolling = Some(active);
@@ -445,7 +449,7 @@ pub fn build_application_tab(
             let depth = adj.value() as u8;
             if let Err(e) = sm_c.update_settings(|s| {
                 if s.layout.is_none() {
-                    s.layout = Some(core::logic::swanson::LayoutSettings::default());
+                    s.layout = Some(marco_shared::logic::swanson::LayoutSettings::default());
                 }
                 if let Some(ref mut l) = s.layout {
                     l.toc_depth = Some(depth);
@@ -519,7 +523,7 @@ pub fn build_application_tab(
                 .unwrap_or("ltr");
             if let Err(e) = sm_c.update_settings(|s| {
                 if s.layout.is_none() {
-                    s.layout = Some(core::logic::swanson::LayoutSettings::default());
+                    s.layout = Some(marco_shared::logic::swanson::LayoutSettings::default());
                 }
                 if let Some(ref mut l) = s.layout {
                     l.text_direction = Some(dir.to_string());

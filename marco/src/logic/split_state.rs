@@ -1,6 +1,6 @@
-use core::logic::swanson::SettingsManager;
 use gtk4::glib;
 use gtk4::prelude::*;
+use marco_shared::logic::swanson::SettingsManager;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;

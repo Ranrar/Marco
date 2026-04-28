@@ -1,0 +1,29 @@
+[package]
+name = "marco-shared"
+version = "0.23.2"
+edition = "2021"
+authors = ["Kim Skov Rasmussen"]
+description = "Shared application logic for Marco and Polo (settings, paths, loaders, buffer)"
+license = "MIT"
+rust-version = "1.94.1"
+
+[dependencies]
+marco-core = { path = "../marco-core" }
+
+# Serialization
+ron = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Utilities
+log = { workspace = true }
+chrono = { workspace = true }
+tempfile = { workspace = true }
+dirs = { workspace = true }
+emojis = { workspace = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fontconfig = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }

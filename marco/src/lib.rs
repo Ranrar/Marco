@@ -7,11 +7,13 @@ pub mod theme;
 pub mod ui;
 
 // Re-export commonly used types from core
-pub use core::logic::buffer::{DocumentBuffer, RecentFiles};
+pub use marco_shared::logic::buffer::{DocumentBuffer, RecentFiles};
 
 // Re-export the parser and renderer API
-pub use core::{parse, render, RenderOptions};
-pub use core::{Document, Node, NodeKind};
+pub use marco_core::{parse, render, RenderOptions};
+pub use marco_core::{Document, Node, NodeKind};
 
 // Re-export parser cache for convenience
-pub use core::{global_parser_cache, parse_to_html, parse_to_html_cached, ParserCache};
+pub use marco_core::logic::cache::{
+    global_parser_cache, parse_to_html, parse_to_html_cached, ParserCache,
+};

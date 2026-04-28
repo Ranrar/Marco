@@ -158,7 +158,7 @@ pub fn setup_block_actions(
     }
     app.set_accels_for_action("app.format_block_blockquote", &["<Control><Shift>q"]);
 
-    // ── Block type: Heading 1–6 ───────────────────────────────────────────────
+    // ── Block type: Heading 1-6 ───────────────────────────────────────────────
     for (name, level, accel) in [
         ("format_block_h1", 1u8, "<Control>1"),
         ("format_block_h2", 2u8, "<Control>2"),

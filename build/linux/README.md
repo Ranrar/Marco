@@ -133,16 +133,18 @@ Versions are stored in `build/version.json`:
 ```json
 {
   "linux": {
-    "core": "0.20.0",
-    "marco": "0.20.0",
-    "polo": "0.20.0"
+    "marco-core": "1.0.0",
+    "marco-shared": "1.0.0",
+    "marco": "0.23.1",
+    "polo": "0.23.1"
   }
 }
 ```
 
 The build script:
 - Reads versions from `version.json`
-- Syncs versions to `core/Cargo.toml`, `marco/Cargo.toml`, `polo/Cargo.toml`
+- Syncs versions to `marco-core/Cargo.toml`, `marco-shared/Cargo.toml`, `marco/Cargo.toml`, `polo/Cargo.toml`
+- `marco-core` and `marco-shared` are independently versioned from the app binaries
 - Uses `--no-bump` to prevent version changes in CI
 
 ## Troubleshooting

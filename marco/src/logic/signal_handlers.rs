@@ -17,7 +17,7 @@ pub fn setup_signal_handlers(app: &gtk4::Application) {
         let app_for_sigint = app.clone();
         unix_signal_add_local(SIGINT, move || {
             log::warn!("Received SIGINT, requesting graceful shutdown...");
-            core::logic::logger::shutdown_file_logger();
+            marco_core::logic::logger::shutdown_file_logger();
             app_for_sigint.quit();
             ControlFlow::Break
         });
@@ -25,7 +25,7 @@ pub fn setup_signal_handlers(app: &gtk4::Application) {
         let app_for_sigterm = app.clone();
         unix_signal_add_local(SIGTERM, move || {
             log::warn!("Received SIGTERM, requesting graceful shutdown...");
-            core::logic::logger::shutdown_file_logger();
+            marco_core::logic::logger::shutdown_file_logger();
             app_for_sigterm.quit();
             ControlFlow::Break
         });
@@ -50,7 +50,7 @@ pub fn setup_signal_handlers(app: &gtk4::Application) {
         glib::timeout_add_local(std::time::Duration::from_millis(100), move || {
             if ctrlc_flag.load(std::sync::atomic::Ordering::SeqCst) {
                 log::warn!("Received Ctrl-C, requesting graceful shutdown...");
-                core::logic::logger::shutdown_file_logger();
+                marco_core::logic::logger::shutdown_file_logger();
                 app_for_poll.quit();
                 glib::ControlFlow::Break
             } else {

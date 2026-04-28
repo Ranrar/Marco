@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod tests {
-    use core::{parser, render};
+    use marco_core::{parser, render};
     
     #[test]
     fn test_full_pipeline() {

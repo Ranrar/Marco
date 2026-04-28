@@ -10,7 +10,7 @@ pub fn set_toolbar_height(toolbar_box: &gtk4::Box, height: i32) {
 /// one hides it and shows the other while persisting the setting.
 pub fn wire_gutter_toggle(
     toolbar: &gtk4::Box,
-    settings_manager: &std::sync::Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: &std::sync::Arc<marco_shared::logic::swanson::SettingsManager>,
 ) {
     use gtk4::prelude::*;
 
@@ -42,7 +42,7 @@ pub fn wire_gutter_toggle(
             let gutter_off = gutter_off.clone();
             move |_| {
                 use crate::components::editor::editor_manager::update_line_numbers_globally;
-                use core::logic::swanson::LayoutSettings;
+                use marco_shared::logic::swanson::LayoutSettings;
 
                 let _ = update_line_numbers_globally(false);
                 if let Err(e) = settings_manager.update_settings(|settings| {
@@ -66,7 +66,7 @@ pub fn wire_gutter_toggle(
             let gutter_off = gutter_off.clone();
             move |_| {
                 use crate::components::editor::editor_manager::update_line_numbers_globally;
-                use core::logic::swanson::LayoutSettings;
+                use marco_shared::logic::swanson::LayoutSettings;
 
                 let _ = update_line_numbers_globally(true);
                 if let Err(e) = settings_manager.update_settings(|settings| {

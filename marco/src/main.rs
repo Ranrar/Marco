@@ -29,14 +29,14 @@ use crate::components::viewer::preview_types::ViewMode;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
 use crate::ui::menu_items::FileOperations;
-use core::logic::{DocumentBuffer, RecentFiles};
-use core::paths::MarcoPaths;
 #[cfg(target_os = "windows")]
 use gio::prelude::*;
 #[cfg(target_os = "windows")]
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use log::trace;
+use marco_shared::logic::{DocumentBuffer, RecentFiles};
+use marco_shared::paths::MarcoPaths;
 use sourceview5::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -52,7 +52,7 @@ fn main() -> glib::ExitCode {
     crate::logic::panic_hook::install_panic_hook();
 
     // path detection and environment setup
-    use core::paths::MarcoPaths;
+    use marco_shared::paths::MarcoPaths;
     let marco_paths = match MarcoPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
@@ -101,18 +101,18 @@ fn main() -> glib::ExitCode {
 
     // Clean up global resources before shutting down logger
     crate::components::editor::editor_manager::shutdown_editor_manager();
-    core::shutdown_global_parser_cache();
-    core::logic::cache::shutdown_global_cache();
+    marco_core::logic::cache::shutdown_global_parser_cache();
+    marco_core::logic::cache::shutdown_global_cache();
 
     // Ensure file logger is flushed and closed on normal exit
-    core::logic::logger::shutdown_file_logger();
+    marco_core::logic::logger::shutdown_file_logger();
     exit_code
 }
 
 fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<MarcoPaths>) {
     // Import path functions and settings manager
-    use core::logic::swanson::SettingsManager;
-    use core::paths::PathProvider;
+    use marco_shared::logic::swanson::SettingsManager;
+    use marco_shared::paths::PathProvider;
 
     // Load CSS using the new modular system
     crate::ui::css::load_css();
@@ -166,7 +166,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     let _ = settings_manager.update_settings(|s| {
         let layout = s
             .layout
-            .get_or_insert_with(core::logic::swanson::LayoutSettings::default);
+            .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default);
         layout.page_view_columns.get_or_insert(1);
         layout
             .preview_zoom
@@ -180,7 +180,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .language
         .and_then(|l| l.language)
         // "System Default" in settings means: detect OS language.
-        .or_else(core::paths::detect_system_locale_iso639_1)
+        .or_else(marco_shared::paths::detect_system_locale_iso639_1)
         .unwrap_or_else(|| "en".to_string());
     if let Err(e) = localization_manager.load_locale(&locale_code) {
         log::warn!(
@@ -208,7 +208,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     crate::logic::logger_init::init_logging(&settings_manager);
 
     // Initialize monospace font cache for fast settings loading
-    if let Err(e) = core::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
+    if let Err(e) = marco_shared::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
         log::warn!("Failed to initialize monospace font cache: {}", e);
     }
 
@@ -261,7 +261,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     toolbar::wire_gutter_toggle(&toolbar_ref.borrow(), &settings_manager);
 
     // --- Determine correct HTML preview theme based on settings and app theme ---
-    use core::logic::loaders::theme_loader::list_html_view_themes;
+    use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
     let preview_theme_dir_str = preview_theme_dir.clone().to_string_lossy().to_string();
     let html_themes = list_html_view_themes(&preview_theme_dir.clone());
     let settings = theme_manager.borrow().get_settings();
@@ -324,13 +324,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     );
 
     // Register the preview WebView so the TOC panel can scroll it via JS.
-    #[cfg(target_os = "linux")]
     crate::components::editor::editor_manager::set_primary_preview_webview(
         &editor_webview.borrow(),
     );
 
     // Apply saved preview zoom level to the WebView.
-    #[cfg(target_os = "linux")]
     {
         let saved_zoom = settings_manager
             .get_settings()
@@ -796,6 +794,89 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         );
     }
 
+    // --- Local Markdown file link handler for the preview (Windows) ---
+    #[cfg(target_os = "windows")]
+    {
+        let file_ops_for_link = file_operations_rc.clone();
+        let window_for_link = window.clone();
+        let editor_buffer_for_link = editor_buffer.clone();
+        let dialog_translations_for_link = dialog_translations_rc.clone();
+        let title_label_for_link = title_label.clone();
+        let refresh_bookmarks_for_link = refresh_bookmark_marks.clone();
+
+        editor_webview.borrow().set_local_md_link_handler(move |path, _fragment| {
+                let target_path = std::path::PathBuf::from(&path);
+                let filename = target_path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_else(|| path.clone());
+
+                let file_ops = file_ops_for_link.clone();
+                let window = window_for_link.clone();
+                let editor_buffer = editor_buffer_for_link.clone();
+                let dialog_translations_rc = dialog_translations_for_link.clone();
+                let title_label = title_label_for_link.clone();
+                let refresh_bookmark_marks = refresh_bookmarks_for_link.clone();
+
+                glib::MainContext::default().spawn_local(async move {
+                    let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
+                    let current_doc = file_ops.borrow().get_document_title();
+
+                    let gtk_window: &gtk4::Window = window.upcast_ref();
+                    let choice =
+                        crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
+                            gtk_window,
+                            &filename,
+                            has_unsaved,
+                            &current_doc,
+                        )
+                        .await;
+
+                    use crate::ui::dialogs::open_local_file::OpenLocalFileChoice;
+                    let save_decision = match choice {
+                        OpenLocalFileChoice::Cancel => return,
+                        OpenLocalFileChoice::Open | OpenLocalFileChoice::DiscardAndOpen => {
+                            crate::ui::menu_items::SaveChangesResult::Discard
+                        }
+                        OpenLocalFileChoice::SaveAndOpen => {
+                            crate::ui::menu_items::SaveChangesResult::Save
+                        }
+                    };
+
+                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
+                    let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
+                    let dialog_translations = dialog_translations_rc.borrow().clone();
+
+                    let auto_cb = FileDialogs::auto_save_decision_callback(save_decision);
+                    let result = FileOperations::open_file_by_path_from_rc_async(
+                        &file_ops,
+                        &target_path,
+                        gtk_window,
+                        text_buffer,
+                        &dialog_translations,
+                        |w, doc_name, action| auto_cb(w, doc_name, action),
+                        |w, title, suggested| {
+                            FileDialogs::save_dialog_callback(dialog_translations.clone())(
+                                w, title, suggested,
+                            )
+                        },
+                    )
+                    .await;
+
+                    match result {
+                        Ok(_) => {
+                            title_label.set_text(&file_ops.borrow().get_document_title());
+                            refresh_bookmark_marks();
+                        }
+                        Err(e) => {
+                            log::warn!("[main] Failed to open linked file: {}", e);
+                        }
+                    }
+                    let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
+                });
+            });
+    }
+
     // --- Settings Thread Pool for Proper Resource Management ---
     let settings_pool = crate::logic::settings_thread::SettingsThreadPool::new();
     let settings_tx = settings_pool.tx.clone();
@@ -897,7 +978,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             let settings_manager = settings_manager.clone();
             let mode_owned = mode.to_string();
             let task = Box::new(move || {
-                use core::logic::swanson::LayoutSettings;
+                use marco_shared::logic::swanson::LayoutSettings;
                 if let Err(e) = settings_manager.update_settings(|s| {
                     if s.layout.is_none() {
                         s.layout = Some(LayoutSettings::default());
@@ -942,7 +1023,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
         Rc::new(move |selected_code: Option<String>| {
             let locale_code = selected_code
-                .or_else(core::paths::detect_system_locale_iso639_1)
+                .or_else(marco_shared::paths::detect_system_locale_iso639_1)
                 .unwrap_or_else(|| "en".to_string());
 
             let window_for_locale = window_for_language_handler.clone();
@@ -1400,12 +1481,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         log::debug!("Text direction changed via settings dialog: rtl={}", is_rtl);
                     }
                 }) as Box<dyn Fn(bool) + 'static>),
-                #[cfg(target_os = "linux")]
-                on_page_view_changed: Some(Box::new(move |state: crate::components::viewer::preview_types::PageViewState| {
+                on_page_view_changed: Some(Box::new(|state: crate::components::viewer::preview_types::PageViewState| {
                     crate::components::editor::editor_manager::update_page_view_state(state);
                 }) as Box<dyn Fn(crate::components::viewer::preview_types::PageViewState) + 'static>),
-                #[cfg(target_os = "windows")]
-                on_page_view_changed: None,
             };
 
             show_settings_dialog(
@@ -1523,7 +1601,11 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let translations_rc = translations_rc.clone();
         #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
-        let cache = Rc::new(RefCell::new(core::logic::cache::SimpleFileCache::new()));
+        #[cfg(target_os = "windows")]
+        let webview_win = editor_webview.clone();
+        let cache = Rc::new(RefCell::new(
+            marco_core::logic::cache::SimpleFileCache::new(),
+        ));
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
             #[cfg(target_os = "linux")]
@@ -1546,6 +1628,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     cache.clone(),
                     Rc::clone(&buffer),
                     Rc::clone(&source_view),
+                    webview_win.borrow().clone(),
                     &search_translations,
                 );
             }
@@ -1607,6 +1690,44 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         app.set_accels_for_action("app.print", &["<Control>p"]);
     }
 
+    // Print action (Windows / wry): trigger WebView2 browser print UI.
+    #[cfg(target_os = "windows")]
+    {
+        let print_action = gtk4::gio::SimpleAction::new("print", None);
+        print_action.connect_activate({
+            let webview = editor_webview.clone();
+            let settings_manager = settings_manager.clone();
+            let theme_mode = theme_mode.clone();
+            move |_, _| {
+                let wv = webview.borrow();
+                // Read current page-view settings so the injected pre-print
+                // CSS matches the paged.js layout, mirroring the Linux path.
+                let s = settings_manager.get_settings();
+                let paper = s
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.page_view_paper.as_deref())
+                    .unwrap_or("A4")
+                    .to_string();
+                let orientation = s
+                    .layout
+                    .as_ref()
+                    .and_then(|l| l.page_view_orientation.as_deref())
+                    .unwrap_or("portrait")
+                    .to_string();
+                let dark_mode = theme_mode.borrow().contains("dark");
+                crate::components::viewer::print_driver_windows::trigger_print_dialog(
+                    &wv,
+                    &paper,
+                    &orientation,
+                    dark_mode,
+                );
+            }
+        });
+        app.add_action(&print_action);
+        app.set_accels_for_action("app.print", &["<Control>p"]);
+    }
+
     // Export action: opens the full Export dialog (format, paper, settings),
     // then a file-save dialog.  On PDF: injects print CSS and uses
     // PrintOperation.  On HTML: renders markdown and writes to file.
@@ -1649,12 +1770,18 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         (stem, clean)
                     };
 
+                    // Reload settings from disk so any out-of-process edits to
+                    // settings.ron are picked up before we open the export dialog.
+                    if let Err(e) = settings_manager.reload_settings() {
+                        log::warn!("Failed to reload settings before export: {}", e);
+                    }
+
                     // Read layout settings and appearance for pre-populating the dialog.
                     let layout_opt = settings_manager.get_settings();
                     let layout = layout_opt.layout.as_ref();
 
                     // Build theme list from the preview themes directory.
-                    use core::logic::loaders::theme_loader::list_html_view_themes;
+                    use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
                     let theme_entries = list_html_view_themes(&preview_theme_dir);
                     let themes: Vec<(String, String)> = theme_entries
                         .into_iter()
@@ -1700,10 +1827,13 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
                     match settings.format {
                         crate::ui::dialogs::export::ExportFormat::Pdf => {
-                            // PDF export — re-render the document with the export dialog
-                            // settings (paper, orientation, margin_mm, theme, theme_mode)
-                            // so the PDF uses the user's chosen layout, not the current
-                            // live-preview settings.
+                            // PDF export via the unified export pipeline.
+                            // The pipeline owns paged.js wrapping, lifecycle JS
+                            // injection, print-CSS apply, and live-preview restore.
+                            use crate::components::viewer::export_pipeline::{
+                                ExportFormat, ExportRequest, LinuxExportBackend, run_export,
+                            };
+
                             let markdown = editor_buffer
                                 .text(
                                     &editor_buffer.start_iter(),
@@ -1736,13 +1866,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 });
                             let export_css = format!(
                                 "{}\n\n/* Syntax Highlighting CSS */\n{}",
-                                export_theme_css,
-                                export_syntax_css,
+                                export_theme_css, export_syntax_css,
                             );
 
-                            let html_body = match core::parse_to_html_cached(
+                            let html_body = match marco_core::parse_to_html_cached(
                                 &markdown,
-                                core::RenderOptions {
+                                marco_core::RenderOptions {
                                     theme: export_theme_class.to_string(),
                                     ..Default::default()
                                 },
@@ -1754,31 +1883,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 }
                             };
 
-                            // Build the paged.js HTML using the export settings.
-                            // standalone_export=false keeps the WebKit marco_paged_ready signal.
-                            // for_export=false — print CSS is injected via inject_export_css.
-                            let page_opts = core::render::PageViewOptions {
-                                paged_js_source:
-                                    crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                                paper: &settings.paper,
-                                orientation: &settings.orientation,
-                                margin_mm: settings.margin_mm,
-                                show_page_numbers: settings.show_page_numbers,
-                                wheel_js: "",
-                                columns_per_row: 1,
-                                for_export: false,
-                                title: &settings.title,
-                                standalone_export: false,
-                            };
-                            let export_html =
-                                crate::components::viewer::backend::wrap_html_document_paged(
-                                    &html_body,
-                                    &export_css,
-                                    export_theme_class,
-                                    None,
-                                    &page_opts,
-                                );
-
                             // Resolve document base URI for relative image references.
                             let base_uri = file_operations_rc
                                 .borrow()
@@ -1786,108 +1890,99 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 .borrow()
                                 .get_base_uri_for_webview();
 
-                            // Load the export HTML into the live webview.
-                            {
-                                let wv = webview.borrow();
-                                crate::components::viewer::backend::load_html_when_ready(
-                                    &wv, export_html, base_uri,
+                            // Show the indeterminate "Exporting…" dialog. The X
+                            // button cancels via the shared CancelToken.
+                            let exporting_dialog =
+                                crate::ui::dialogs::exporting::show_exporting_dialog(
+                                    window.upcast_ref::<gtk4::Window>(),
+                                    "Exporting PDF…",
+                                    "Generating PDF, please wait…",
                                 );
-                            }
 
-                            // Wait for paged.js layout to complete before printing.
-                            // paged.js (and the 8-second safety net) set
-                            // document.title = "marco_paged_ready" when done.
-                            // once_guard prevents double-firing if both signals arrive.
-                            let once_guard = Rc::new(Cell::new(false));
-                            let handler_id_slot: Rc<RefCell<Option<glib::SignalHandlerId>>> =
-                                Default::default();
-                            {
-                                let wv = webview.borrow();
-                                let webview_for_export = webview.clone();
-                                let refresh_for_export = refresh_preview_rc.clone();
-                                let guard = once_guard.clone();
-                                let slot = handler_id_slot.clone();
-                                let paper = settings.paper.clone();
-                                let orientation = settings.orientation.clone();
-                                let title = settings.title.clone();
-                                let output_path = settings.output_path.clone();
-                                let id =
-                                    wv.connect_notify_local(Some("title"), move |wv, _| {
-                                        if guard.get() {
-                                            return;
+                            // Clone the live preview WebView for the backend.
+                            // Linux's restore path re-renders via refresh_preview_rc
+                            // (called below), so we pass an empty `saved_live_html`
+                            // and rely on the post-export refresh.
+                            let wv_clone = webview.borrow().clone();
+                            let backend = LinuxExportBackend::new(wv_clone, String::new());
+                            let request = ExportRequest {
+                                format: ExportFormat::Pdf,
+                                html_body,
+                                theme_css: export_css,
+                                theme_class: export_theme_class.to_string(),
+                                paper: settings.paper.clone(),
+                                orientation: settings.orientation.clone(),
+                                margin_mm: settings.margin_mm,
+                                show_page_numbers: settings.show_page_numbers,
+                                title: settings.title.clone(),
+                                output_path: settings.output_path.clone(),
+                                base_uri,
+                                dark_mode: export_dark,
+                            };
+                            let cancel = exporting_dialog.cancel_token();
+                            let reporter = exporting_dialog.reporter();
+
+                            let result = run_export(&backend, request, &reporter, &cancel)
+                                .await
+                                .map_err(|e| e.to_string());
+
+                            // Always close the progress dialog before any follow-up dialog.
+                            exporting_dialog.close();
+
+                            // Re-render the live preview so the user sees their
+                            // current document, not the export-styled version.
+                            (refresh_preview_rc.borrow())();
+
+                            match result {
+                                Ok(()) => {
+                                    log::info!(
+                                        "PDF exported to {}",
+                                        settings.output_path.display()
+                                    );
+                                    // Bring Marco back to the foreground after the
+                                    // PDF viewer / export tooling has stolen focus.
+                                    window.present();
+                                    let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
+                                        &window,
+                                        "PDF Export Complete",
+                                        "Your PDF was exported successfully.",
+                                        &settings.output_path,
+                                    )
+                                    .await;
+                                    match action {
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenDocument => {
+                                            crate::ui::dialogs::export_complete::open_path(&settings.output_path);
                                         }
-                                        let Some(t) = wv.title() else { return };
-                                        if t.as_str() != "marco_paged_ready" {
-                                            return;
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenFolder => {
+                                            let folder = crate::ui::dialogs::export_complete::parent_dir(&settings.output_path);
+                                            crate::ui::dialogs::export_complete::open_path(&folder);
                                         }
-                                        guard.set(true);
-                                        // Disconnect to avoid stale signals from future loads.
-                                        if let Some(id) = slot.borrow_mut().take() {
-                                            wv.disconnect(id);
-                                        }
-                                        // Inject print-clean CSS (suppresses opacity
-                                        // transition + resets body to fully opaque).
-                                        {
-                                            let wv_rc = webview_for_export.borrow();
-                                            crate::components::viewer::print_driver::inject_export_css(
-                                                &wv_rc,
-                                                &paper,
-                                                &orientation,
-                                                &title,
-                                                export_dark,
-                                            );
-                                        }
-                                        // Wait for the CSS injection to be processed
-                                        // by WebKit and repainted before the PDF
-                                        // renderer captures the page.
-                                        let refresh_after = refresh_for_export.clone();
-                                        let webview_cleanup = webview_for_export.clone();
-                                        let paper_2 = paper.clone();
-                                        let orientation_2 = orientation.clone();
-                                        let output_path_2 = output_path.clone();
-                                        glib::timeout_add_local_once(
-                                            std::time::Duration::from_millis(150),
-                                            move || {
-                                                // Pre-clone Rc handles for the on_done Fn
-                                                // closure before borrowing the webview, to
-                                                // avoid a borrow-while-moved conflict.
-                                                let wv_done = webview_cleanup.clone();
-                                                let refresh_done = refresh_after.clone();
-                                                {
-                                                    let wv_rc = webview_cleanup.borrow();
-                                                    crate::components::viewer::print_driver::export_to_pdf(
-                                                        &wv_rc,
-                                                        &output_path_2,
-                                                        &paper_2,
-                                                        &orientation_2,
-                                                        move |result| {
-                                                            if let Err(e) = result {
-                                                                log::error!("PDF export failed: {}", e);
-                                                            }
-                                                            let wv_c = wv_done.clone();
-                                                            let r_c = refresh_done.clone();
-                                                            // Remove export CSS then restore live preview.
-                                                            glib::timeout_add_local_once(
-                                                                std::time::Duration::from_millis(500),
-                                                                move || {
-                                                                    {
-                                                                        let wv = wv_c.borrow();
-                                                                        crate::components::viewer::print_driver::remove_export_css(&wv);
-                                                                    }
-                                                                    (r_c.borrow())();
-                                                                },
-                                                            );
-                                                        },
-                                                    );
-                                                } // wv_rc borrow dropped here
-                                            },
-                                        );
-                                    });
-                                *handler_id_slot.borrow_mut() = Some(id);
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::Close => {}
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "PDF export failed ({}): {}",
+                                        settings.output_path.display(),
+                                        e
+                                    );
+                                    crate::ui::menu_items::files::FileDialogs::show_error_dialog(
+                                        &window,
+                                        "PDF Export Failed",
+                                        "Marco could not generate this PDF.",
+                                        Some(&e),
+                                    )
+                                    .await;
+                                }
                             }
                         }
                         crate::ui::dialogs::export::ExportFormat::Html => {
-                            // HTML: render markdown → wrap HTML → write to file.
+                            // HTML export via the unified pipeline (static-wrap).
+                            // Same UX as PDF: progress dialog with cancel button.
+                            use crate::components::viewer::export_pipeline::{
+                                run_static_html_export, ExportFormat, ExportRequest,
+                            };
+
                             let markdown = editor_buffer
                                 .text(
                                     &editor_buffer.start_iter(),
@@ -1896,14 +1991,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 )
                                 .to_string();
 
-                            // Use theme/mode from export dialog choices.
                             let theme_mode = if settings.theme_mode == "dark" {
                                 "theme-dark"
                             } else {
                                 "theme-light"
                             };
 
-                            // Load the CSS for the selected theme file.
                             let export_theme_css = {
                                 let css_path = preview_theme_dir.join(&settings.theme);
                                 std::fs::read_to_string(&css_path).unwrap_or_default()
@@ -1921,13 +2014,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 });
                             let export_css = format!(
                                 "{}\n\n/* Syntax Highlighting CSS */\n{}",
-                                export_theme_css,
-                                export_syntax_css,
+                                export_theme_css, export_syntax_css,
                             );
 
-                            let html_body = match core::parse_to_html_cached(
+                            let html_body = match marco_core::parse_to_html_cached(
                                 &markdown,
-                                core::RenderOptions {
+                                marco_core::RenderOptions {
                                     theme: theme_mode.to_string(),
                                     ..Default::default()
                                 },
@@ -1939,73 +2031,415 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 }
                             };
 
-                            let full_html = if settings.paper.eq_ignore_ascii_case("none") {
-                                // Plain HTML — no paged.js.  Inject <title> manually since
-                                // wrap_html_document does not accept a title parameter.
-                                let title_escaped = settings
-                                    .title
-                                    .replace('&', "&amp;")
-                                    .replace('<', "&lt;")
-                                    .replace('>', "&gt;");
-                                let raw = crate::components::viewer::backend::wrap_html_document(
-                                    &html_body,
-                                    &export_css,
-                                    theme_mode,
-                                    None,
+                            let exporting_dialog =
+                                crate::ui::dialogs::exporting::show_exporting_dialog(
+                                    window.upcast_ref::<gtk4::Window>(),
+                                    "Exporting HTML…",
+                                    "Generating HTML, please wait…",
                                 );
-                                if title_escaped.is_empty() {
-                                    raw
-                                } else {
-                                    raw.replacen(
-                                        "<meta charset=",
-                                        &format!(
-                                            "<title>{}</title>\n        <meta charset=",
-                                            title_escaped
-                                        ),
-                                        1,
+
+                            let request = ExportRequest {
+                                format: ExportFormat::Html,
+                                html_body,
+                                theme_css: export_css,
+                                theme_class: theme_mode.to_string(),
+                                paper: settings.paper.clone(),
+                                orientation: settings.orientation.clone(),
+                                margin_mm: settings.margin_mm,
+                                show_page_numbers: settings.show_page_numbers,
+                                title: settings.title.clone(),
+                                output_path: settings.output_path.clone(),
+                                base_uri: None,
+                                dark_mode: settings.theme_mode == "dark",
+                            };
+                            let cancel = exporting_dialog.cancel_token();
+                            let reporter = exporting_dialog.reporter();
+                            let result = run_static_html_export(request, &reporter, &cancel)
+                                .await
+                                .map_err(|e| e.to_string());
+
+                            exporting_dialog.close();
+
+                            match result {
+                                Ok(()) => {
+                                    log::info!(
+                                        "HTML exported to {}",
+                                        settings.output_path.display()
+                                    );
+                                    window.present();
+                                    let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
+                                        &window,
+                                        "HTML Export Complete",
+                                        "Your HTML was exported successfully.",
+                                        &settings.output_path,
                                     )
+                                    .await;
+                                    match action {
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenDocument => {
+                                            crate::ui::dialogs::export_complete::open_path(&settings.output_path);
+                                        }
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenFolder => {
+                                            let folder = crate::ui::dialogs::export_complete::parent_dir(&settings.output_path);
+                                            crate::ui::dialogs::export_complete::open_path(&folder);
+                                        }
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::Close => {}
+                                    }
                                 }
-                            } else {
-                                // Paged HTML: standalone file with real paginated pages.
-                                // for_export=false keeps the page-view visual chrome (desk,
-                                // shadows) so it looks like print-preview in a browser.
-                                // standalone_export=true strips WebKit-only hooks and injects
-                                // the document title.
-                                let page_opts = core::render::PageViewOptions {
-                                    paged_js_source:
-                                        crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                                    paper: &settings.paper,
-                                    orientation: &settings.orientation,
-                                    margin_mm: settings.margin_mm,
-                                    show_page_numbers: settings.show_page_numbers,
-                                    wheel_js: "",
-                                    columns_per_row: 1,
-                                    for_export: false,
-                                    title: &settings.title,
-                                    standalone_export: true,
-                                };
-                                crate::components::viewer::backend::wrap_html_document_paged(
-                                    &html_body,
-                                    &export_css,
-                                    theme_mode,
-                                    None,
-                                    &page_opts,
-                                )
+                                Err(e) => {
+                                    log::error!(
+                                        "HTML export failed ({}): {}",
+                                        settings.output_path.display(),
+                                        e
+                                    );
+                                    crate::ui::menu_items::files::FileDialogs::show_error_dialog(
+                                        &window,
+                                        "HTML Export Failed",
+                                        "Marco could not write this HTML file.",
+                                        Some(&e),
+                                    )
+                                    .await;
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        });
+        app.add_action(&export_action);
+    }
+
+    // Export action (Windows): full export dialog identical to Linux; PDF
+    // is currently exported through the Windows print driver backend.
+    #[cfg(target_os = "windows")]
+    {
+        let export_action = gtk4::gio::SimpleAction::new("export", None);
+        export_action.connect_activate({
+            let window = window.clone();
+            let file_operations_rc = file_operations_rc.clone();
+            let settings_manager = settings_manager.clone();
+            let editor_buffer = editor_buffer.clone();
+            let preview_theme_dir = preview_theme_dir.clone();
+            move |_, _| {
+                let window = window.clone();
+                let file_operations_rc = file_operations_rc.clone();
+                let settings_manager = settings_manager.clone();
+                let editor_buffer = editor_buffer.clone();
+                let preview_theme_dir = preview_theme_dir.clone();
+                glib::MainContext::default().spawn_local(async move {
+                    // Derive the suggested filename stem from the open document.
+                    let (doc_stem, doc_title) = {
+                        let title = file_operations_rc.borrow().get_document_title();
+                        let clean = title.trim_start_matches('*').trim().to_string();
+                        let stem = file_operations_rc
+                            .borrow()
+                            .buffer
+                            .borrow()
+                            .get_file_path()
+                            .and_then(|p| {
+                                p.file_stem()
+                                    .and_then(|s| s.to_str())
+                                    .map(|s| s.to_owned())
+                            })
+                            .unwrap_or_else(|| clean.clone());
+                        (stem, clean)
+                    };
+
+                    // Reload settings from disk so any out-of-process edits to
+                    // settings.ron are picked up before we open the export dialog.
+                    if let Err(e) = settings_manager.reload_settings() {
+                        log::warn!("Failed to reload settings before export: {}", e);
+                    }
+
+                    // Read layout settings and appearance for pre-populating the dialog.
+                    let layout_opt = settings_manager.get_settings();
+                    let layout = layout_opt.layout.as_ref();
+
+                    // Build theme list from the preview themes directory.
+                    use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
+                    let theme_entries = list_html_view_themes(&preview_theme_dir);
+                    let themes: Vec<(String, String)> = theme_entries
+                        .into_iter()
+                        .map(|e| {
+                            let label = e
+                                .label
+                                .get(..1)
+                                .map(|c| c.to_uppercase() + &e.label[1..])
+                                .unwrap_or(e.label);
+                            (label, e.filename)
+                        })
+                        .collect();
+
+                    let current_theme = layout_opt
+                        .appearance
+                        .as_ref()
+                        .and_then(|a| a.preview_theme.as_deref())
+                        .unwrap_or("marco.css")
+                        .to_string();
+                    let current_mode = {
+                        let mode = layout_opt
+                            .appearance
+                            .as_ref()
+                            .and_then(|a| a.editor_mode.as_deref())
+                            .unwrap_or("light");
+                        if mode.contains("dark") { "dark" } else { "light" }
+                    };
+
+                    // Show the same full export dialog as Linux.
+                    let choice = crate::ui::dialogs::export::show_export_dialog(
+                        window.upcast_ref(),
+                        &doc_stem,
+                        &doc_title,
+                        &themes,
+                        &current_theme,
+                        current_mode,
+                        layout,
+                    )
+                    .await;
+
+                    let Some(settings) = choice else { return };
+
+                    // Render the markdown source with the user-selected theme.
+                    let markdown = editor_buffer
+                        .text(
+                            &editor_buffer.start_iter(),
+                            &editor_buffer.end_iter(),
+                            false,
+                        )
+                        .to_string();
+
+                    let export_theme_class = if settings.theme_mode == "dark" {
+                        "theme-dark"
+                    } else {
+                        "theme-light"
+                    };
+
+                    let export_theme_css = {
+                        let css_path = preview_theme_dir.join(&settings.theme);
+                        std::fs::read_to_string(&css_path).unwrap_or_default()
+                    };
+                    let export_syntax_css =
+                        crate::logic::syntax_highlighter::generate_css_with_global(
+                            &settings.theme_mode,
+                        )
+                        .unwrap_or_else(|e| {
+                            log::warn!("Failed to generate export syntax CSS: {}", e);
+                            String::new()
+                        });
+                    let export_css = format!(
+                        "{}\n\n/* Syntax Highlighting CSS */\n{}",
+                        export_theme_css, export_syntax_css,
+                    );
+
+                    let html_body = match marco_core::parse_to_html_cached(
+                        &markdown,
+                        marco_core::RenderOptions {
+                            theme: export_theme_class.to_string(),
+                            ..Default::default()
+                        },
+                    ) {
+                        Ok(h) => h,
+                        Err(e) => {
+                            log::error!("Export render failed: {}", e);
+                            return;
+                        }
+                    };
+
+                    match settings.format {
+                        crate::ui::dialogs::export::ExportFormat::Pdf => {
+                            // Windows PDF export via the unified export pipeline.
+                            use crate::components::viewer::export_pipeline::{
+                                ExportFormat, ExportRequest, WindowsExportBackend, run_export,
                             };
 
-                            if let Err(e) =
-                                std::fs::write(&settings.output_path, full_html.as_bytes())
-                            {
-                                log::error!(
-                                    "HTML export write failed ({}): {}",
-                                    settings.output_path.display(),
-                                    e
+                            // Resolve document base URI so relative images/links
+                            // in the exported HTML can be resolved by the live
+                            // WebView2 instance during PDF generation.
+                            let base_uri = file_operations_rc
+                                .borrow()
+                                .buffer
+                                .borrow()
+                                .get_base_uri_for_webview();
+
+                            // Show the indeterminate "Exporting…" dialog while the
+                            // (potentially long-running) PDF generation runs.
+                            let exporting_dialog =
+                                crate::ui::dialogs::exporting::show_exporting_dialog(
+                                    window.upcast_ref::<gtk4::Window>(),
+                                    "Exporting PDF…",
+                                    "Generating PDF, please wait…",
                                 );
-                            } else {
-                                log::info!(
-                                    "HTML exported to {}",
-                                    settings.output_path.display()
+
+                            // Take a clone of the live primary preview WebView so
+                            // the pipeline can drive ICoreWebView2_7::PrintToPdf.
+                            let live_webview_clone = {
+                                use std::cell::RefCell;
+                                let slot: RefCell<
+                                    Option<
+                                        crate::components::viewer::wry_platform_webview::PlatformWebView,
+                                    >,
+                                > = RefCell::new(None);
+                                crate::components::editor::editor_manager::with_primary_preview_webview(
+                                    |wv| {
+                                        *slot.borrow_mut() = Some(wv.clone());
+                                    },
                                 );
+                                slot.into_inner()
+                            };
+
+                            let export_result = match live_webview_clone {
+                                Some(wv) => {
+                                    // Capture the live preview HTML *before* loading
+                                    // the export document so restore_live_html can
+                                    // reload it at the end of the pipeline.
+                                    let saved_live_html =
+                                        crate::components::viewer::wry::get_latest_live_html();
+                                    let backend = WindowsExportBackend::new(wv, saved_live_html);
+                                    let request = ExportRequest {
+                                        format: ExportFormat::Pdf,
+                                        html_body: html_body.clone(),
+                                        theme_css: export_css.clone(),
+                                        theme_class: export_theme_class.to_string(),
+                                        paper: settings.paper.clone(),
+                                        orientation: settings.orientation.clone(),
+                                        margin_mm: settings.margin_mm,
+                                        show_page_numbers: settings.show_page_numbers,
+                                        title: settings.title.clone(),
+                                        output_path: settings.output_path.clone(),
+                                        base_uri,
+                                        dark_mode: settings.theme_mode == "dark",
+                                    };
+                                    let cancel = exporting_dialog.cancel_token();
+                                    let reporter = exporting_dialog.reporter();
+                                    run_export(&backend, request, &reporter, &cancel)
+                                        .await
+                                        .map_err(|e| e.to_string())
+                                }
+                                None => Err(
+                                    "Live preview WebView is not initialized; cannot export PDF"
+                                        .to_string(),
+                                ),
+                            };
+
+                            // Always close the progress dialog before showing any
+                            // success log / error popup so the modal stack is sane.
+                            exporting_dialog.close();
+
+                            match export_result {
+                                Ok(()) => {
+                                    log::info!(
+                                        "PDF exported to {}",
+                                        settings.output_path.display()
+                                    );
+                                    window.present();
+                                    let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
+                                        &window,
+                                        "PDF Export Complete",
+                                        "Your PDF was exported successfully.",
+                                        &settings.output_path,
+                                    )
+                                    .await;
+                                    match action {
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenDocument => {
+                                            crate::ui::dialogs::export_complete::open_path(&settings.output_path);
+                                        }
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenFolder => {
+                                            let folder = crate::ui::dialogs::export_complete::parent_dir(&settings.output_path);
+                                            crate::ui::dialogs::export_complete::open_path(&folder);
+                                        }
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::Close => {}
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "PDF export failed ({}): {}",
+                                        settings.output_path.display(),
+                                        e
+                                    );
+                                    crate::ui::menu_items::files::FileDialogs::show_error_dialog(
+                                        &window,
+                                        "PDF Export Failed",
+                                        "Marco could not generate this PDF on Windows.",
+                                        Some(&e),
+                                    )
+                                    .await;
+                                }
+                            }
+                        }
+                        crate::ui::dialogs::export::ExportFormat::Html => {
+                            // HTML export via the unified pipeline (static-wrap).
+                            // Identical code path to Linux \u2014 uses run_static_html_export.
+                            use crate::components::viewer::export_pipeline::{
+                                run_static_html_export, ExportFormat, ExportRequest,
+                            };
+
+                            let exporting_dialog =
+                                crate::ui::dialogs::exporting::show_exporting_dialog(
+                                    window.upcast_ref::<gtk4::Window>(),
+                                    "Exporting HTML…",
+                                    "Generating HTML, please wait…",
+                                );
+
+                            let request = ExportRequest {
+                                format: ExportFormat::Html,
+                                html_body: html_body.clone(),
+                                theme_css: export_css.clone(),
+                                theme_class: export_theme_class.to_string(),
+                                paper: settings.paper.clone(),
+                                orientation: settings.orientation.clone(),
+                                margin_mm: settings.margin_mm,
+                                show_page_numbers: settings.show_page_numbers,
+                                title: settings.title.clone(),
+                                output_path: settings.output_path.clone(),
+                                base_uri: None,
+                                dark_mode: settings.theme_mode == "dark",
+                            };
+                            let cancel = exporting_dialog.cancel_token();
+                            let reporter = exporting_dialog.reporter();
+                            let result = run_static_html_export(request, &reporter, &cancel)
+                                .await
+                                .map_err(|e| e.to_string());
+
+                            exporting_dialog.close();
+
+                            match result {
+                                Ok(()) => {
+                                    log::info!(
+                                        "HTML exported to {}",
+                                        settings.output_path.display()
+                                    );
+                                    window.present();
+                                    let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
+                                        &window,
+                                        "HTML Export Complete",
+                                        "Your HTML was exported successfully.",
+                                        &settings.output_path,
+                                    )
+                                    .await;
+                                    match action {
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenDocument => {
+                                            crate::ui::dialogs::export_complete::open_path(&settings.output_path);
+                                        }
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::OpenFolder => {
+                                            let folder = crate::ui::dialogs::export_complete::parent_dir(&settings.output_path);
+                                            crate::ui::dialogs::export_complete::open_path(&folder);
+                                        }
+                                        crate::ui::dialogs::export_complete::ExportCompleteAction::Close => {}
+                                    }
+                                }
+                                Err(e) => {
+                                    log::error!(
+                                        "HTML export failed ({}): {}",
+                                        settings.output_path.display(),
+                                        e
+                                    );
+                                    crate::ui::menu_items::files::FileDialogs::show_error_dialog(
+                                        &window,
+                                        "HTML Export Failed",
+                                        "Marco could not write this HTML file.",
+                                        Some(&e),
+                                    )
+                                    .await;
+                                }
                             }
                         }
                     }
@@ -2297,7 +2731,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 let saved = crate::components::editor::editor_manager::get_preview_zoom();
                 if let Err(e) = sm_zoom.update_settings(|s| {
                     s.layout
-                        .get_or_insert_with(core::logic::swanson::LayoutSettings::default)
+                        .get_or_insert_with(marco_shared::logic::swanson::LayoutSettings::default)
                         .preview_zoom = Some(saved);
                 }) {
                     log::debug!("Failed to save preview_zoom: {}", e);
@@ -2327,8 +2761,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
-            core::shutdown_global_parser_cache();
-            core::logic::cache::shutdown_global_cache();
+            marco_core::logic::cache::shutdown_global_parser_cache();
+            marco_core::logic::cache::shutdown_global_cache();
         }
     });
 

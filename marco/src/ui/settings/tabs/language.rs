@@ -59,17 +59,18 @@ pub fn build_language_tab(
     // Step 3: Create DropDown with automatic checkmarks
     let lang_combo = DropDown::new(Some(language_string_list), Some(language_expression));
     lang_combo.add_css_class("marco-dropdown");
-    let settings_manager_opt =
-        match core::logic::swanson::SettingsManager::initialize(PathBuf::from(settings_path)) {
-            Ok(settings_manager) => Some(settings_manager),
-            Err(e) => {
-                log::warn!(
-                    "Failed to initialize SettingsManager for language settings: {}",
-                    e
-                );
-                None
-            }
-        };
+    let settings_manager_opt = match marco_shared::logic::swanson::SettingsManager::initialize(
+        PathBuf::from(settings_path),
+    ) {
+        Ok(settings_manager) => Some(settings_manager),
+        Err(e) => {
+            log::warn!(
+                "Failed to initialize SettingsManager for language settings: {}",
+                e
+            );
+            None
+        }
+    };
 
     let current_locale = settings_manager_opt
         .as_ref()
@@ -98,7 +99,8 @@ pub fn build_language_tab(
 
             if let Err(e) = settings_manager.update_settings(|settings| {
                 if settings.language.is_none() {
-                    settings.language = Some(core::logic::swanson::LanguageSettings::default());
+                    settings.language =
+                        Some(marco_shared::logic::swanson::LanguageSettings::default());
                 }
                 if let Some(ref mut language) = settings.language {
                     language.language = selected_code.clone();

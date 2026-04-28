@@ -20,13 +20,13 @@
 //!     └── paned (gtk4::Paned)          ← inner editor / preview split
 //! ```
 //!
-/// The `toc_paned` position (= panel width) is auto-sized to fit the widest
-/// TOC entry whenever the panel is shown or rebuilt.
-use core::intelligence::toc::TocEntry;
 #[cfg(target_os = "linux")]
 use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
+/// The `toc_paned` position (= panel width) is auto-sized to fit the widest
+/// TOC entry whenever the panel is shown or rebuilt.
+use marco_core::intelligence::toc::TocEntry;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -92,9 +92,9 @@ impl TocPanelHandle {
             .text(&buffer.start_iter(), &buffer.end_iter(), false)
             .to_string();
         let depth = self.depth.get();
-        match core::parser::parse(&text) {
+        match marco_core::parser::parse(&text) {
             Ok(doc) => {
-                let entries = core::intelligence::toc::extract_toc(&doc);
+                let entries = marco_core::intelligence::toc::extract_toc(&doc);
                 self.rebuild(&entries, depth);
             }
             Err(e) => {
@@ -177,12 +177,11 @@ impl TocPanelHandle {
             // depth-specific CSS class for optional styling
             btn.add_css_class(&format!("toc-depth-{}", entry.level));
 
-            #[cfg(target_os = "linux")]
             let slug = entry.slug.clone();
             let line = entry.line;
             let sv = self.source_view.clone();
             btn.connect_clicked(move |_| {
-                use core::logic::layoutstate::LayoutState;
+                use marco_shared::logic::layoutstate::LayoutState;
                 let layout =
                     crate::components::editor::editor_manager::get_current_layout_state();
 
@@ -208,16 +207,16 @@ impl TocPanelHandle {
                     LayoutState::DualView
                     | LayoutState::ViewOnly
                     | LayoutState::EditorAndViewSeparate => {
+                        let js = format!(
+                            r#"(function(){{
+                                var el = document.getElementById({slug:?});
+                                if (el) {{ el.scrollIntoView({{behavior:'smooth', block:'start'}}); }}
+                            }})();"#,
+                            slug = slug,
+                        );
                         #[cfg(target_os = "linux")]
                         crate::components::editor::editor_manager::with_primary_preview_webview(
                             |wv| {
-                                let js = format!(
-                                    r#"(function(){{
-                                        var el = document.getElementById({slug:?});
-                                        if (el) {{ el.scrollIntoView({{behavior:'smooth', block:'start'}}); }}
-                                    }})();"#,
-                                    slug = slug,
-                                );
                                 use webkit6::prelude::WebViewExt as _;
                                 wv.evaluate_javascript(
                                     &js,
@@ -226,6 +225,12 @@ impl TocPanelHandle {
                                     None::<&gio::Cancellable>,
                                     |_| {},
                                 );
+                            },
+                        );
+                        #[cfg(target_os = "windows")]
+                        crate::components::editor::editor_manager::with_primary_preview_webview(
+                            |wv| {
+                                wv.evaluate_script(&js);
                             },
                         );
                     }
@@ -254,7 +259,7 @@ impl TocPanelHandle {
 ///   overlay (set by the caller via `toc_paned.set_end_child(Some(&overlay))`)
 /// - a [`TocPanelHandle`] for runtime control
 pub fn create_toc_panel(source_view: &sourceview5::View) -> (gtk4::Paned, TocPanelHandle) {
-    // Outer paned – start = TOC panel, end = split overlay (set by caller)
+    // Outer paned - start = TOC panel, end = split overlay (set by caller)
     let paned = gtk4::Paned::new(gtk4::Orientation::Horizontal);
     // Start at position 0 (start child collapsed) because the panel is hidden by
     // default. Setting a non-zero position on an unallocated Paned with a hidden

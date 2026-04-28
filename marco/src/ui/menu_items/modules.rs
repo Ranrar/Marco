@@ -109,7 +109,7 @@ pub fn setup_modules_actions(
         let buf = editor_buffer.clone();
         let view = editor_view.clone();
         super::add_format_action(app, "insert_update_toc", move || {
-            use core::intelligence::toc::{
+            use marco_core::intelligence::toc::{
                 extract_toc, generate_toc_markdown, replace_toc_in_text, TocReplaceResult,
             };
 
@@ -118,7 +118,7 @@ pub fn setup_modules_actions(
                 .text(&text_buffer.start_iter(), &text_buffer.end_iter(), false)
                 .to_string();
 
-            let doc = match core::parse(&current_text) {
+            let doc = match marco_core::parse(&current_text) {
                 Ok(d) => d,
                 Err(e) => {
                     log::warn!("TOC: parse failed: {}", e);

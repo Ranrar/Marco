@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["core", "marco", "polo"]
+members = ["marco-core", "marco", "polo", "marco-shared"]
 
 # Shared workspace dependencies
 [workspace.dependencies]
@@ -22,7 +22,7 @@ unicode-normalization = "0.1.25"                  # Unicode NFC normalization fo
 htmlescape = "0.3.1"                              # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting
 katex-rs = "0.2.3"                   # Pure Rust KaTeX math rendering
-mermaid-rs-renderer = { git = "https://github.com/1jehuang/mermaid-rs-renderer", tag = "v0.2.0", default-features = false }  # Pure Rust Mermaid diagram rendering (no CLI)
+mermaid-rs-renderer = { version = "0.2.1", default-features = false }  # Pure Rust Mermaid diagram rendering (no CLI)
 
 # UI dependencies (GTK4 ecosystem)
 gtk4 = "0.11.2"

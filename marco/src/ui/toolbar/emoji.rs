@@ -12,7 +12,7 @@ pub fn connect_emoji_toolbar_action(
     editor_buffer: &sourceview5::Buffer,
     editor_view: &sourceview5::View,
     parent_window: &gtk4::Window,
-    settings_manager: Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: Arc<marco_shared::logic::swanson::SettingsManager>,
     root_popover_state: crate::ui::popover_state::RootPopoverState,
 ) {
     if let Some(button) =
@@ -42,7 +42,7 @@ pub fn show_insert_emoji_popover(
     text_buffer: &gtk4::TextBuffer,
     editor_view: &gtk4::TextView,
     parent_window: &gtk4::Window,
-    settings_manager: Arc<core::logic::swanson::SettingsManager>,
+    settings_manager: Arc<marco_shared::logic::swanson::SettingsManager>,
 ) {
     let theme_class = if parent_window.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
@@ -214,7 +214,7 @@ fn submit_emoji_from_popover_entry(
     editor_view: &gtk4::TextView,
     popover: &gtk4::Popover,
     emoji_entry: &gtk4::Entry,
-    settings_manager: &core::logic::swanson::SettingsManager,
+    settings_manager: &marco_shared::logic::swanson::SettingsManager,
 ) {
     let raw = emoji_entry.text().to_string();
     let Some(emoji_value) = normalize_emoji_input(&raw) else {
@@ -230,7 +230,7 @@ fn submit_emoji_from_popover_entry(
 }
 
 fn persist_emoji_usage(
-    settings_manager: &core::logic::swanson::SettingsManager,
+    settings_manager: &marco_shared::logic::swanson::SettingsManager,
     emoji_value: &str,
 ) {
     if let Err(e) = settings_manager.update_settings(|settings| {
@@ -243,7 +243,7 @@ fn persist_emoji_usage(
 fn display_emoji_for_history_value(value: &str) -> String {
     let trimmed = value.trim();
     if trimmed.starts_with(':') && trimmed.ends_with(':') && trimmed.len() >= 3 {
-        if let Some(item) = core::logic::emoji_completion_items()
+        if let Some(item) = marco_shared::logic::text_completion::emoji_completion_items()
             .iter()
             .find(|item| item.shortcode == trimmed)
         {
@@ -303,7 +303,7 @@ fn normalize_emoji_input(raw: &str) -> Option<String> {
         return Some(shortcode);
     }
 
-    let normalized = core::logic::normalize_completion_query(trimmed);
+    let normalized = marco_shared::logic::text_completion::normalize_completion_query(trimmed);
     if !normalized.is_empty()
         && normalized
             .chars()
@@ -317,7 +317,7 @@ fn normalize_emoji_input(raw: &str) -> Option<String> {
 
 fn extract_trailing_shortcode_name(raw: &str) -> Option<String> {
     let token = raw.split_whitespace().last()?;
-    let normalized = core::logic::normalize_completion_query(token);
+    let normalized = marco_shared::logic::text_completion::normalize_completion_query(token);
 
     if normalized.is_empty()
         || !normalized
@@ -328,7 +328,8 @@ fn extract_trailing_shortcode_name(raw: &str) -> Option<String> {
     }
 
     let candidate = format!(":{}:", normalized);
-    if core::logic::emoji_shortcodes_for_completion().contains(&candidate) {
+    if marco_shared::logic::text_completion::emoji_shortcodes_for_completion().contains(&candidate)
+    {
         return Some(candidate);
     }
 
@@ -366,7 +367,7 @@ fn attach_emoji_completion(entry: &gtk4::Entry) {
     completion.set_minimum_key_length(1);
 
     let model = gtk4::ListStore::new(&[String::static_type(), String::static_type()]);
-    for item in core::logic::emoji_completion_items() {
+    for item in marco_shared::logic::text_completion::emoji_completion_items() {
         let iter = model.append();
         model.set(&iter, &[(0, &item.display), (1, &item.shortcode)]);
     }
@@ -379,7 +380,7 @@ fn attach_emoji_completion(entry: &gtk4::Entry) {
             return false;
         };
         let candidate: String = model.get(iter, 1);
-        core::logic::emoji_shortcode_matches_query(&candidate, key)
+        marco_shared::logic::text_completion::emoji_shortcode_matches_query(&candidate, key)
     });
 
     entry.set_completion(Some(&completion));

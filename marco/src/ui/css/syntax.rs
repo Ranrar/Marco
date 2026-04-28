@@ -4,7 +4,7 @@
 //! colors.
 //!
 //! The `core` crate produces highlight spans tagged with a small enum
-//! (`core::intelligence::HighlightTag`). In the editor we apply those spans as GTK
+//! (`marco_core::intelligence::HighlightTag`). In the editor we apply those spans as GTK
 //! `TextTag`s on the SourceView buffer.
 //!
 //! The color palette for those `TextTag`s is defined here (light/dark maps).
@@ -18,7 +18,7 @@ use std::collections::HashMap;
 ///
 /// Keep this list in sync with:
 /// - `marco/src/components/editor/intelligence_integration.rs` (tag naming)
-/// - `core::intelligence::HighlightTag` (tag variants)
+/// - `marco_core::intelligence::HighlightTag` (tag variants)
 pub const INTELLIGENCE_TAG_NAMES: &[&str] = &[
     "heading1",
     "heading2",

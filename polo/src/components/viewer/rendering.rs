@@ -48,8 +48,8 @@
 use crate::components::css::theme::{generate_syntax_highlighting_css, load_theme_css_from_path};
 use crate::components::utils::get_theme_mode;
 use crate::components::viewer::platform_webview::PlatformWebView;
-use core::logic::swanson::SettingsManager;
-use core::{parse_to_html_cached, RenderOptions};
+use marco_core::{parse_to_html_cached, RenderOptions};
+use marco_shared::logic::swanson::SettingsManager;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -101,7 +101,7 @@ pub fn load_and_render_markdown(
     asset_root: &Path,
 ) {
     // Use the same cached file loader as Marco (includes UTF-8 sanitization)
-    match core::logic::cache::cached::read_to_string(file_path) {
+    match marco_core::logic::cache::cached::read_to_string(file_path) {
         Ok(content) => {
             // Parse markdown to HTML using core
             let html = parse_markdown_to_html(&content, theme, settings_manager, asset_root);
@@ -233,7 +233,7 @@ pub fn parse_markdown_to_html(
 
             // Wrap in the shared preview document so both Marco and Polo get
             // identical in-page JS behavior (including table resizing).
-            core::render::wrap_preview_html_document(&html, &combined_css, &theme_class, None)
+            marco_core::render::wrap_preview_html_document(&html, &combined_css, &theme_class, None)
         }
         Err(e) => {
             // Show parse error with properly escaped content to prevent XSS

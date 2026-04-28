@@ -51,6 +51,12 @@ impl NavigationGuard {
     }
 }
 
+impl Default for NavigationGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for NavigationGuard {
     fn drop(&mut self) {
         TABLE_NAVIGATION_IN_PROGRESS.store(false, Ordering::Relaxed);

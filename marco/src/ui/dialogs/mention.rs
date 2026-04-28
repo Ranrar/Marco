@@ -290,7 +290,8 @@ fn check_profile_exists(platform_key: &str, identifier: &str) -> ProfileCheckRes
         return api_result;
     }
 
-    let Some(url) = core::render::plarform_mentions::profile_url(platform_key, identifier) else {
+    let Some(url) = marco_core::render::plarform_mentions::profile_url(platform_key, identifier)
+    else {
         return ProfileCheckResult {
             token: 0,
             exists: None,
@@ -780,7 +781,7 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
     mention_label.add_css_class("marco-dialog-section-label-strong");
     vbox.append(&mention_label);
 
-    let platforms = core::render::plarform_mentions::supported_platforms();
+    let platforms = marco_core::render::plarform_mentions::supported_platforms();
     let columns = 4usize;
     let row_count = platforms.len().div_ceil(columns);
     let platform_area_height = ((row_count * 32) + ((row_count.saturating_sub(1)) * 4) + 10) as i32;
@@ -1156,7 +1157,7 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
             }
 
             let Some(url) =
-                core::render::plarform_mentions::profile_url(&platform_key, &identifier)
+                marco_core::render::plarform_mentions::profile_url(&platform_key, &identifier)
             else {
                 return;
             };

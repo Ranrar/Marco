@@ -76,8 +76,10 @@ OPTIONS:
     -c, --check     Check dependencies only (don't build)
     --version-only  Bump/set versions and sync Cargo.toml, then exit (no build)
     --no-bump       Build using current versions (do not change version.json)
-    --bump MODE     Bump version before building: patch|minor|major (default: patch)
-    --set VERSION   Set Core/Marco/Polo versions to VERSION (X.Y.Z) before building
+    --bump MODE     Bump app (marco/polo/marco-shared) version: patch|minor|major (default: patch)
+    --bump-lib MODE Bump library (marco-core) version: patch|minor|major
+    --set VERSION   Set app (marco/polo/marco-shared) version to VERSION (X.Y.Z) before building
+    --set-lib VERSION   Set library (marco-core) version to VERSION (X.Y.Z)
 
 OUTPUT:
     Creates: build/installer/marco-suite_VERSION_linux_amd64.deb
@@ -86,7 +88,10 @@ EOF
 
 BUMP_MODE="patch"
 DO_BUMP="false"
+BUMP_LIB_MODE=""
+DO_BUMP_LIB="false"
 SET_VERSION=""
+SET_LIB_VERSION=""
 CHECK_ONLY="false"
 VERSION_ONLY="false"
 
@@ -117,6 +122,15 @@ while [ $# -gt 0 ]; do
             BUMP_MODE="$2"
             shift 2
             ;;
+        --bump-lib)
+            if [ -z "${2:-}" ]; then
+                print_error "--bump-lib requires a value: patch|minor|major"
+                exit 1
+            fi
+            DO_BUMP_LIB="true"
+            BUMP_LIB_MODE="$2"
+            shift 2
+            ;;
         --set)
             if [ -z "${2:-}" ]; then
                 print_error "--set requires a version: X.Y.Z"
@@ -124,6 +138,15 @@ while [ $# -gt 0 ]; do
             fi
             SET_VERSION="$2"
             DO_BUMP="false"
+            shift 2
+            ;;
+        --set-lib)
+            if [ -z "${2:-}" ]; then
+                print_error "--set-lib requires a version: X.Y.Z"
+                exit 1
+            fi
+            SET_LIB_VERSION="$2"
+            DO_BUMP_LIB="false"
             shift 2
             ;;
         *)
@@ -150,7 +173,7 @@ ensure_version_file() {
     print_warning "Version file not found; creating: $VERSION_FILE"
 
     local core_v marco_v polo_v
-    core_v="$(grep '^version' core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+    core_v="$(grep '^version' marco-core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
     marco_v="$(grep '^version' marco/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
     polo_v="$(grep '^version' polo/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
 
@@ -159,12 +182,14 @@ import json
 from pathlib import Path
 Path("$VERSION_FILE").write_text(json.dumps({
   "linux": {
-    "core": "$core_v",
+    "marco-core": "$core_v",
+    "marco-shared": "$marco_v",
     "marco": "$marco_v",
     "polo": "$polo_v"
   },
   "windows": {
-    "core": "$core_v",
+    "marco-core": "$core_v",
+    "marco-shared": "$marco_v",
     "marco": "$marco_v",
     "polo": "$polo_v"
   }
@@ -173,7 +198,7 @@ PY
 }
 
 read_versions() {
-    CORE_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["core"])')"
+    CORE_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["marco-core"])')"
     MARCO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["marco"])')"
     POLO_VERSION="$(python3 -c 'import json;print(json.load(open("'$VERSION_FILE'"))["linux"]["polo"])')"
 }
@@ -187,12 +212,14 @@ import json
 from pathlib import Path
 Path("$VERSION_FILE").write_text(json.dumps({
   "linux": {
-    "core": "$core_v",
+    "marco-core": "$core_v",
+    "marco-shared": "$marco_v",
     "marco": "$marco_v",
     "polo": "$polo_v"
   },
   "windows": {
-    "core": "$core_v",
+    "marco-core": "$core_v",
+    "marco-shared": "$marco_v",
     "marco": "$marco_v",
     "polo": "$polo_v"
   }
@@ -408,27 +435,41 @@ if ! validate_semver "$CORE_VERSION" || ! validate_semver "$MARCO_VERSION" || ! 
     exit 1
 fi
 
+if [ -n "$SET_LIB_VERSION" ]; then
+    if ! validate_semver "$SET_LIB_VERSION"; then
+        print_error "Invalid version for --set-lib: $SET_LIB_VERSION (expected X.Y.Z)"
+        exit 1
+    fi
+    print_info "Setting library (marco-core) version to: $SET_LIB_VERSION"
+    CORE_VERSION="$SET_LIB_VERSION"
+elif [ "$DO_BUMP_LIB" = "true" ]; then
+    if [ "$BUMP_LIB_MODE" != "patch" ] && [ "$BUMP_LIB_MODE" != "minor" ] && [ "$BUMP_LIB_MODE" != "major" ]; then
+        print_error "Invalid bump mode for --bump-lib: $BUMP_LIB_MODE (expected patch|minor|major)"
+        exit 1
+    fi
+    print_info "Bumping library version ($BUMP_LIB_MODE)..."
+    CORE_VERSION="$(bump_semver "$CORE_VERSION" "$BUMP_LIB_MODE")"
+fi
+
 if [ -n "$SET_VERSION" ]; then
     if ! validate_semver "$SET_VERSION"; then
         print_error "Invalid version for --set: $SET_VERSION (expected X.Y.Z)"
         exit 1
     fi
-
-    print_info "Setting Core/Marco/Polo version to: $SET_VERSION"
-    CORE_VERSION="$SET_VERSION"
+    print_info "Setting app (marco/polo/marco-shared) version to: $SET_VERSION"
     MARCO_VERSION="$SET_VERSION"
     POLO_VERSION="$SET_VERSION"
-    write_versions "$CORE_VERSION" "$MARCO_VERSION" "$POLO_VERSION"
 elif [ "$DO_BUMP" = "true" ]; then
     if [ "$BUMP_MODE" != "patch" ] && [ "$BUMP_MODE" != "minor" ] && [ "$BUMP_MODE" != "major" ]; then
         print_error "Invalid bump mode: $BUMP_MODE (expected patch|minor|major)"
         exit 1
     fi
-
-    print_info "Bumping versions ($BUMP_MODE)..."
-    CORE_VERSION="$(bump_semver "$CORE_VERSION" "$BUMP_MODE")"
+    print_info "Bumping app versions ($BUMP_MODE) [marco/polo/marco-shared]..."
     MARCO_VERSION="$(bump_semver "$MARCO_VERSION" "$BUMP_MODE")"
     POLO_VERSION="$(bump_semver "$POLO_VERSION" "$BUMP_MODE")"
+fi
+
+if [ -n "$SET_LIB_VERSION" ] || [ "$DO_BUMP_LIB" = "true" ] || [ -n "$SET_VERSION" ] || [ "$DO_BUMP" = "true" ]; then
     write_versions "$CORE_VERSION" "$MARCO_VERSION" "$POLO_VERSION"
 else
     print_info "Using existing versions from $VERSION_FILE"
@@ -439,7 +480,8 @@ print_info "Marco version: $MARCO_VERSION"
 print_info "Polo version:  $POLO_VERSION"
 
 print_info "Syncing Cargo.toml versions..."
-set_cargo_version "core/Cargo.toml" "$CORE_VERSION"
+set_cargo_version "marco-core/Cargo.toml" "$CORE_VERSION"
+set_cargo_version "marco-shared/Cargo.toml" "$MARCO_VERSION"
 set_cargo_version "marco/Cargo.toml" "$MARCO_VERSION"
 set_cargo_version "polo/Cargo.toml" "$POLO_VERSION"
 print_success "Versions updated"
@@ -447,10 +489,11 @@ print_success "Versions updated"
 if [ "$VERSION_ONLY" = "true" ]; then
     print_header "Version Sync Complete"
     echo "Updated versions only (no build):"
-    echo "  build/version.json: core=$CORE_VERSION marco=$MARCO_VERSION polo=$POLO_VERSION"
-    echo "  core/Cargo.toml:       $CORE_VERSION"
-    echo "  marco/Cargo.toml:      $MARCO_VERSION"
-    echo "  polo/Cargo.toml:       $POLO_VERSION"
+    echo "  build/version.json: marco-core=$CORE_VERSION marco-shared=$MARCO_VERSION marco=$MARCO_VERSION polo=$POLO_VERSION"
+    echo "  marco-core/Cargo.toml:    $CORE_VERSION"
+    echo "  marco-shared/Cargo.toml:  $MARCO_VERSION"
+    echo "  marco/Cargo.toml:         $MARCO_VERSION"
+    echo "  polo/Cargo.toml:          $POLO_VERSION"
     exit 0
 fi
 
@@ -465,13 +508,26 @@ install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/marco/doc"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}"
 
+TARGET_TRIPLE="x86_64-unknown-linux-gnu"
+TARGET_BASE_DIR="$(cargo metadata --no-deps --format-version 1 2>/dev/null | python3 -c 'import json,sys; print(json.load(sys.stdin).get("target_directory", "target"))' 2>/dev/null || echo "target")"
+
 print_info "Building Marco and Polo binaries (release, workspace)..."
-cargo build --release --workspace --target x86_64-unknown-linux-gnu
+cargo build --release --workspace --target "$TARGET_TRIPLE"
 print_success "Build complete"
 
 print_info "Copying binaries..."
-install -m 0755 target/x86_64-unknown-linux-gnu/release/marco "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
-install -m 0755 target/x86_64-unknown-linux-gnu/release/polo "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
+MARCO_BIN="$TARGET_BASE_DIR/$TARGET_TRIPLE/release/marco"
+POLO_BIN="$TARGET_BASE_DIR/$TARGET_TRIPLE/release/polo"
+
+if [ ! -f "$MARCO_BIN" ] || [ ! -f "$POLO_BIN" ]; then
+    print_error "Built binaries not found"
+    echo "  Expected: $MARCO_BIN"
+    echo "  Expected: $POLO_BIN"
+    exit 1
+fi
+
+install -m 0755 "$MARCO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
+install -m 0755 "$POLO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
 
 # Strip binaries inside the package payload (avoid changing your local build artifacts)
 if command -v strip &>/dev/null; then
@@ -492,10 +548,10 @@ for sz in $ICON_SIZES; do
 done
 
 # Repo icon sources (per-app)
-MARCO_ICON_64="assets/icons/icon_64x64_marco.png"
-POLO_ICON_64="assets/icons/icon_64x64_polo.png"
-MARCO_ICON_662="assets/icons/icon_662x662_marco.png"
-POLO_ICON_662="assets/icons/icon_662x662_polo.png"
+MARCO_ICON_64="marco-shared/src/assets/icons/icon_64x64_marco.png"
+POLO_ICON_64="marco-shared/src/assets/icons/icon_64x64_polo.png"
+MARCO_ICON_662="marco-shared/src/assets/icons/icon_662x662_marco.png"
+POLO_ICON_662="marco-shared/src/assets/icons/icon_662x662_polo.png"
 
 HAS_CONVERT="false"
 if command -v convert &>/dev/null; then
@@ -541,10 +597,10 @@ install_icon_set "polo" "$POLO_ICON_64" "$POLO_ICON_662"
 print_success "Icons installed"
 
 print_info "Copying shared assets..."
-# cp -r assets/fonts "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
-cp -r assets/icons "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
-cp -r assets/themes "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
-cp -r assets/language "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
+# cp -r marco-shared/src/assets/fonts "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
+cp -r marco-shared/src/assets/icons "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
+cp -r marco-shared/src/assets/themes "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
+cp -r marco-shared/src/assets/language "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
 
 # Normalize permissions on copied trees (cp -r preserves working tree perms)
 find "$BUILD_DIR${INSTALL_PREFIX}/share/marco" -type d -exec chmod 0755 {} +
@@ -680,7 +736,7 @@ Priority: optional
 Architecture: ${ARCHITECTURE}
 Maintainer: ${MAINTAINER}
 Installed-Size: ${INSTALLED_SIZE}
-Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44), libxml2 (>= 2.9)
+Depends: libc6, libgtk-4-1 (>= 4.0), libglib2.0-0t64 (>= 2.68) | libglib2.0-0 (>= 2.68), libgtksourceview-5-0 (>= 5.0), libwebkitgtk-6.0-4 (>= 2.40) | libwebkit2gtk-4.1-0 (>= 2.30), libjavascriptcoregtk-6.0-1 (>= 2.40) | libjavascriptcoregtk-4.1-0 (>= 2.30), libfontconfig1 (>= 2.12), libcairo2 (>= 1.16), libpango-1.0-0 (>= 1.44), libxml2 (>= 2.9) | libxml2-16
 Suggests: imagemagick
 Description: Marco & Polo - A Markdown Composer and Viewer
  Marco is a fast, Markdown editor with a live preview to help you write

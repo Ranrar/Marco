@@ -1,8 +1,8 @@
 // Performance benchmark tests for Marco parser
 
 use super::utils::print_header;
-use core::parser;
-use core::render;
+use marco_core::parser;
+use marco_core::render;
 use std::time::{Duration, Instant};
 
 /// Statistics for a single benchmark run

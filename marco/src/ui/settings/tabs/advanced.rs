@@ -20,7 +20,7 @@ pub fn build_advanced_tab(
     i18n: &SettingsI18nRegistry,
 ) -> GtkBox {
     // Initialize SettingsManager for this tab
-    let settings_manager_opt = match core::logic::swanson::SettingsManager::initialize(
+    let settings_manager_opt = match marco_shared::logic::swanson::SettingsManager::initialize(
         std::path::PathBuf::from(settings_path),
     ) {
         Ok(sm) => Some(sm),
@@ -70,7 +70,8 @@ pub fn build_advanced_tab(
             // Update telemetry setting using SettingsManager
             if let Err(e) = settings_manager_clone.update_settings(|settings| {
                 if settings.telemetry.is_none() {
-                    settings.telemetry = Some(core::logic::swanson::TelemetrySettings::default());
+                    settings.telemetry =
+                        Some(marco_shared::logic::swanson::TelemetrySettings::default());
                 }
                 if let Some(ref mut telemetry) = settings.telemetry {
                     telemetry.enabled = Some(enabled);

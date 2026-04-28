@@ -181,7 +181,7 @@ impl SyntaxHighlighter {
         }
 
         // Try shared alias normalization from core.
-        if let Some(canonical) = core::render::canonical_language_name(language) {
+        if let Some(canonical) = marco_core::render::canonical_language_name(language) {
             if let Some(syntax) = self.syntax_set.find_syntax_by_token(canonical) {
                 return syntax;
             }

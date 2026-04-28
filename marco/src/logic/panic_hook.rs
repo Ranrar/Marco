@@ -17,7 +17,7 @@ pub fn install_panic_hook() {
         };
         log::error!("PANIC at {}: {}", location, panic_msg);
         // Try to flush and shutdown the file logger cleanly
-        core::logic::logger::shutdown_file_logger();
+        marco_core::logic::logger::shutdown_file_logger();
         // Call the default hook so we preserve existing behavior (printing to stderr)
         default_panic(info);
     }));

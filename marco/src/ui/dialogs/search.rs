@@ -19,15 +19,18 @@
 //! - `replace` - Replace operations
 
 use crate::components::language::SearchTranslations;
-use core::logic::cache::SimpleFileCache;
 use gtk4::prelude::*;
 use gtk4::Window;
+use marco_core::logic::cache::SimpleFileCache;
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 #[cfg(target_os = "windows")]
 use gtk4::Label;
+
+#[cfg(target_os = "windows")]
+use crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 // Re-export public API from the search component
 pub use crate::components::search::{
@@ -67,17 +70,18 @@ pub fn show_search_window(
     crate::components::search::window::focus_search_entry_in_window(&search_window);
 }
 
-/// Windows search window - provides full search functionality without WebView preview sync
+/// Windows search window - provides search functionality with WebView preview sync
 #[cfg(target_os = "windows")]
 pub fn show_search_window_no_webview(
     parent: &Window,
     _file_cache: Rc<RefCell<SimpleFileCache>>,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
+    webview: PlatformWebView,
     translations: &SearchTranslations,
 ) {
     use crate::components::search::state::{
-        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_SOURCE_VIEW,
+        CACHED_SEARCH_WINDOW, CURRENT_BUFFER, CURRENT_PLATFORM_WEBVIEW, CURRENT_SOURCE_VIEW,
     };
     use crate::components::search::window::initialize_async_manager;
 
@@ -90,6 +94,9 @@ pub fn show_search_window_no_webview(
     });
     CURRENT_SOURCE_VIEW.with(|view| {
         *view.borrow_mut() = Some(source_view);
+    });
+    CURRENT_PLATFORM_WEBVIEW.with(|wv| {
+        *wv.borrow_mut() = Some(webview);
     });
 
     // Check for cached window
@@ -186,7 +193,7 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
             // Refresh the close icon in its normal state for the new theme
             set_window_control_icon(
                 &close_pic,
-                core::logic::loaders::icon_loader::WindowIcon::Close,
+                marco_shared::logic::loaders::icon_loader::WindowIcon::Close,
                 parent_is_dark,
                 WindowControlState::Normal,
             );
@@ -276,14 +283,14 @@ enum WindowControlState {
 #[cfg(target_os = "windows")]
 fn set_window_control_icon(
     pic: &gtk4::Picture,
-    icon: core::logic::loaders::icon_loader::WindowIcon,
+    icon: marco_shared::logic::loaders::icon_loader::WindowIcon,
     is_dark: bool,
     state: WindowControlState,
 ) {
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use core::logic::loaders::icon_loader::window_icon_svg;
     use gio;
     use gtk4::gdk;
+    use marco_shared::logic::loaders::icon_loader::window_icon_svg;
     use rsvg::{CairoRenderer, Loader};
 
     let color = match (is_dark, state) {
@@ -366,9 +373,9 @@ fn set_window_control_icon(
 /// Create a close button that matches the main app's window control styling.
 #[cfg(target_os = "windows")]
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
-    use core::logic::loaders::icon_loader::WindowIcon;
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
+    use marco_shared::logic::loaders::icon_loader::WindowIcon;
 
     let pic = Picture::new();
     let is_dark = window.has_css_class("marco-theme-dark");

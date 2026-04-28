@@ -13,7 +13,7 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         // Rerun if icon or RC file changes
-        println!("cargo:rerun-if-changed=../assets/icons/marco.ico");
+        println!("cargo:rerun-if-changed=../marco-shared/src/assets/icons/marco.ico");
         println!("cargo:rerun-if-changed=marco.rc");
 
         // Rerun if target env changes (msvc vs gnu)

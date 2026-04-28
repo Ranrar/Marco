@@ -107,6 +107,16 @@ fn generate_base_dialog_css() -> String {
         opacity: 0.8;
     }}
 
+    /* Secondary description label inside dialogs (e.g. ExportingDialog
+     * phase label).  Color is supplied per-theme below; this only
+     * defines geometry/typography. */
+    .marco-dialog-description {{
+        font-size: 12px;
+        line-height: 1.35;
+        margin-top: 2px;
+        margin-bottom: 4px;
+    }}
+
     .marco-mention-grid {{
         margin-top: 1px;
         margin-bottom: 1px;
@@ -373,6 +383,18 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
     .{theme}.marco-dialog .marco-dialog-option-desc {{
         color: {titlebar_foreground};
         opacity: 0.75;
+    }}
+
+    /* Description / secondary message text inside dialogs (e.g.
+     * `ExportingDialog` phase label, `Save changes?` secondary line).
+     * Without explicit theming these labels inherit GTK's default text
+     * color, which can render dark in dark mode. */
+    .{theme} .marco-dialog-description,
+    .{theme}.marco-dialog .marco-dialog-description,
+    .{theme} .marco-dialog-message,
+    .{theme}.marco-dialog .marco-dialog-message {{
+        color: {titlebar_foreground};
+        opacity: 0.85;
     }}
 
     /* Diagnostics Reference list (force explicit light/dark surfaces) */

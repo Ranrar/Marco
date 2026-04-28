@@ -23,7 +23,8 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    let html = core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    let html =
+        marco_core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
     // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
     // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
     // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
@@ -37,7 +38,7 @@ pub fn wrap_html_document(
 
 /// Variant of [`wrap_html_document`] that injects paged.js for true CSS Paged Media simulation.
 ///
-/// Uses [`core::render::wrap_preview_html_document_paged`] under the hood, then applies the
+/// Uses [`marco_core::render::wrap_preview_html_document_paged`] under the hood, then applies the
 /// same `dir="ltr"` fixup so the WebKit viewport scrollbar stays consistent.
 ///
 /// **Important**: Content updates in page view mode require a full HTML reload — do **not**
@@ -47,9 +48,9 @@ pub fn wrap_html_document_paged(
     css: &str,
     theme_mode: &str,
     background_color: Option<&str>,
-    page_opts: &core::render::PageViewOptions<'_>,
+    page_opts: &marco_core::render::PageViewOptions<'_>,
 ) -> String {
-    let html = core::render::wrap_preview_html_document_paged(
+    let html = marco_core::render::wrap_preview_html_document_paged(
         body,
         css,
         theme_mode,
@@ -84,13 +85,10 @@ pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     crate::components::viewer::webkit6::update_html_content_smooth(webview, content)
 }
 
-#[cfg(target_os = "windows")]
-pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
-    // WebView2 doesn't have the same in-page update JS yet; re-load for now.
-    // Preserve relative resource resolution by reusing the last base URI.
-    let base_uri = crate::components::viewer::wry::get_latest_preview_base_uri();
-    webview.load_html_with_base(content, base_uri.as_deref());
-}
+// Note: there is no Windows counterpart for `update_html_content_smooth`.
+// On Windows the live preview always goes through `load_html_when_ready`
+// (see the wry `PlatformWebView`), and the smooth-update helper is only
+// invoked from the Linux-only `renderer` module.
 
 /// Evaluate a JavaScript snippet in the live preview webview.
 /// Used to update page-level attributes (e.g. `dir`) without a full reload.

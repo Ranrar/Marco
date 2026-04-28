@@ -2,12 +2,12 @@
 //!
 //! Searchable in-app reference for embedded diagnostics metadata.
 
-use core::intelligence::diagnostics_catalog;
 use gtk4::prelude::*;
 use gtk4::{
     glib, Align, Box as GtkBox, Button, DropDown, Frame, Label, ListBox, ListBoxRow, Orientation,
     PropertyExpression, ScrolledWindow, SearchEntry, StringList, StringObject, Window,
 };
+use marco_core::intelligence::diagnostics_catalog;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -47,7 +47,7 @@ impl SeverityFilter {
     }
 }
 
-fn make_search_blob(entry: &core::intelligence::DiagnosticsCatalogEntry) -> String {
+fn make_search_blob(entry: &marco_core::intelligence::DiagnosticsCatalogEntry) -> String {
     format!(
         "{} {} {} {} {} {}",
         entry.code,

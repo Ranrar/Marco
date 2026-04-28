@@ -1,10 +1,10 @@
 thread_local! {}
 
 // Removed duplicate save_appearance_settings; use Swanson.rs only
-use core::logic::swanson::{AppearanceSettings, SettingsManager};
 use dark_light::Mode as SystemMode;
 #[cfg(target_os = "linux")]
 use gtk4::Settings as GtkSettings;
+use marco_shared::logic::swanson::{AppearanceSettings, SettingsManager};
 use sourceview5::{StyleScheme, StyleSchemeManager};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -113,8 +113,12 @@ impl ThemeManager {
     }
 
     /// List available editor style schemes
-    pub fn available_editor_schemes(&self) -> Vec<core::logic::loaders::theme_loader::ThemeEntry> {
-        core::logic::loaders::theme_loader::list_editor_style_schemes(&self.editor_theme_dir)
+    pub fn available_editor_schemes(
+        &self,
+    ) -> Vec<marco_shared::logic::loaders::theme_loader::ThemeEntry> {
+        marco_shared::logic::loaders::theme_loader::list_editor_style_schemes(
+            &self.editor_theme_dir,
+        )
     }
 
     /// Get the current editor style scheme ID
@@ -215,7 +219,7 @@ impl ThemeManager {
     }
 
     /// Get current settings from SettingsManager
-    pub fn get_settings(&self) -> core::logic::swanson::Settings {
+    pub fn get_settings(&self) -> marco_shared::logic::swanson::Settings {
         self.settings_manager.get_settings()
     }
 }

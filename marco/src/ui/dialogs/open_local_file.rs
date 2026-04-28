@@ -43,7 +43,7 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
 
     let theme_class = if parent
         .dynamic_cast_ref::<gtk4::Widget>()
-        .map_or(false, |w| w.has_css_class("marco-theme-dark"))
+        .is_some_and(|w| w.has_css_class("marco-theme-dark"))
     {
         "marco-theme-dark"
     } else {

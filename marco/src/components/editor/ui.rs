@@ -32,15 +32,17 @@ use crate::components::editor::display_config::extract_xml_color_value;
 use crate::components::editor::sourceview::render_editor_with_view;
 use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS};
+#[cfg(target_os = "windows")]
+use crate::components::viewer::javascript::{HOVER_REPORT_JS, WIN_ZOOM_BAR_HTML};
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
 #[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
-use core::global_parser_cache; // New cache API
-use core::RenderOptions; // New parser API
 use gtk4::prelude::*;
 use gtk4::Paned;
+use marco_core::logic::cache::global_parser_cache; // New cache API
+use marco_core::RenderOptions; // New parser API
 use sourceview5::prelude::*;
 use std::cell::Cell;
 use std::cell::RefCell;
@@ -103,9 +105,9 @@ pub(crate) fn split_hover_content(raw: &str) -> (String, String) {
 }
 
 pub(crate) fn diagnostic_at_offset(
-    diagnostics: &[core::intelligence::Diagnostic],
+    diagnostics: &[marco_core::intelligence::Diagnostic],
     byte_offset: usize,
-) -> Option<core::intelligence::Diagnostic> {
+) -> Option<marco_core::intelligence::Diagnostic> {
     diagnostics
         .iter()
         .filter(|d| d.span.start.offset <= byte_offset && byte_offset < d.span.end.offset)
@@ -115,13 +117,13 @@ pub(crate) fn diagnostic_at_offset(
 }
 
 pub(crate) fn diagnostic_hover_markup(
-    diagnostic: &core::intelligence::Diagnostic,
+    diagnostic: &marco_core::intelligence::Diagnostic,
 ) -> (String, String, (usize, usize, String)) {
     let severity = match diagnostic.severity {
-        core::intelligence::DiagnosticSeverity::Error => "Error",
-        core::intelligence::DiagnosticSeverity::Warning => "Warning",
-        core::intelligence::DiagnosticSeverity::Info => "Info",
-        core::intelligence::DiagnosticSeverity::Hint => "Hint",
+        marco_core::intelligence::DiagnosticSeverity::Error => "Error",
+        marco_core::intelligence::DiagnosticSeverity::Warning => "Warning",
+        marco_core::intelligence::DiagnosticSeverity::Info => "Info",
+        marco_core::intelligence::DiagnosticSeverity::Hint => "Hint",
     };
 
     let title_text = diagnostic
@@ -178,7 +180,7 @@ impl Default for RuntimeIntelligenceSettings {
 }
 
 fn read_runtime_intelligence_settings(
-    settings_manager: Option<&std::sync::Arc<core::logic::swanson::SettingsManager>>,
+    settings_manager: Option<&std::sync::Arc<marco_shared::logic::swanson::SettingsManager>>,
 ) -> RuntimeIntelligenceSettings {
     let Some(settings_manager) = settings_manager else {
         return RuntimeIntelligenceSettings::default();
@@ -192,15 +194,14 @@ fn read_runtime_intelligence_settings(
 
     let settings = settings_manager.get_settings();
     let editor = settings.editor.unwrap_or_default();
-    let filter =
-        editor
-            .diagnostics_filter
-            .unwrap_or(core::logic::swanson::DiagnosticsFilterSettings {
-                errors: Some(true),
-                warnings: Some(true),
-                infos: Some(false),
-                hints: Some(false),
-            });
+    let filter = editor.diagnostics_filter.unwrap_or(
+        marco_shared::logic::swanson::DiagnosticsFilterSettings {
+            errors: Some(true),
+            warnings: Some(true),
+            infos: Some(false),
+            hints: Some(false),
+        },
+    );
 
     let diagnostics_underlines_enabled = editor.diagnostics_underlines_enabled.unwrap_or(true);
     let diagnostics_hover_enabled = editor.diagnostics_hover_enabled.unwrap_or(true);
@@ -229,14 +230,14 @@ fn read_runtime_intelligence_settings(
 }
 
 fn diagnostic_severity_enabled(
-    severity: &core::intelligence::DiagnosticSeverity,
+    severity: &marco_core::intelligence::DiagnosticSeverity,
     settings: RuntimeIntelligenceSettings,
 ) -> bool {
     match severity {
-        core::intelligence::DiagnosticSeverity::Error => settings.level_1_enabled,
-        core::intelligence::DiagnosticSeverity::Warning => settings.level_2_enabled,
-        core::intelligence::DiagnosticSeverity::Info => settings.level_3_enabled,
-        core::intelligence::DiagnosticSeverity::Hint => settings.level_4_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Error => settings.level_1_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Warning => settings.level_2_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Info => settings.level_3_enabled,
+        marco_core::intelligence::DiagnosticSeverity::Hint => settings.level_4_enabled,
     }
 }
 
@@ -245,24 +246,25 @@ pub fn create_editor_with_preview_and_buffer(
     params: EditorParams,
     labels: Rc<FooterLabels>,
     settings_path: &str,
-    _document_buffer: Option<Rc<RefCell<core::logic::buffer::DocumentBuffer>>>,
+    _document_buffer: Option<Rc<RefCell<marco_shared::logic::buffer::DocumentBuffer>>>,
 ) -> EditorReturn {
     let preview_theme_filename = &params.preview_theme_filename;
     let preview_theme_dir = &params.preview_theme_dir;
     let theme_manager = params.theme_manager;
     let theme_mode = params.theme_mode;
-    let intelligence_settings_manager = match core::logic::swanson::SettingsManager::initialize(
-        std::path::PathBuf::from(settings_path),
-    ) {
-        Ok(manager) => Some(manager),
-        Err(err) => {
-            log::warn!(
-                "Failed to initialize settings manager for intelligence runtime settings: {}",
-                err
-            );
-            None
-        }
-    };
+    let intelligence_settings_manager =
+        match marco_shared::logic::swanson::SettingsManager::initialize(std::path::PathBuf::from(
+            settings_path,
+        )) {
+            Ok(manager) => Some(manager),
+            Err(err) => {
+                log::warn!(
+                    "Failed to initialize settings manager for intelligence runtime settings: {}",
+                    err
+                );
+                None
+            }
+        };
     let resolve_runtime_intelligence_settings: Rc<dyn Fn() -> RuntimeIntelligenceSettings> = {
         let settings_manager = intelligence_settings_manager.clone();
         Rc::new(move || read_runtime_intelligence_settings(settings_manager.as_ref()))
@@ -446,7 +448,7 @@ pub fn create_editor_with_preview_and_buffer(
     // SourceView5 native hover provider.
     // Uses the built-in GtkSourceHover infrastructure instead of a custom
     // EventControllerMotion + Popover approach.
-    let current_diagnostics: Rc<RefCell<Vec<core::intelligence::Diagnostic>>> =
+    let current_diagnostics: Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>> =
         Rc::new(RefCell::new(Vec::new()));
 
     {
@@ -531,6 +533,15 @@ pub fn create_editor_with_preview_and_buffer(
     let wheel_js = wheel_js(scroll_scale);
     let mut wheel_with_report = wheel_js.clone();
     wheel_with_report.push_str(SCROLL_REPORT_JS);
+    // Windows-only: native wry/WebView2 lacks a hit-test signal for hovered
+    // links and the GTK zoom-bar overlay is hidden behind the WebView2 child
+    // window. Inject a JS bridge that posts hovered link URLs and an in-page
+    // zoom toolbar via IPC instead.
+    #[cfg(target_os = "windows")]
+    {
+        wheel_with_report.push_str(HOVER_REPORT_JS);
+        wheel_with_report.push_str(WIN_ZOOM_BAR_HTML);
+    }
     let wheel_js_rc = Rc::new(wheel_with_report);
 
     // Extract some theme colors from editor theme XML
@@ -1030,6 +1041,17 @@ paned > separator {{
         let platform_webview =
             crate::components::viewer::wry_platform_webview::PlatformWebView::new(_window);
 
+        // Wire footer hovered-link updates from the preview's JS hover-report
+        // bridge. webkit6 provides this natively via `connect_mouse_target_changed`
+        // (see Linux branch above); on Windows we receive `marco_hover:<url>`
+        // IPC messages and forward them to the same footer label.
+        {
+            let labels_for_hover = Rc::clone(&labels);
+            platform_webview.set_hover_link_callback(move |url: Option<String>| {
+                crate::footer::update_hovered_link(&labels_for_hover, url.as_deref());
+            });
+        }
+
         // Initialize scroll synchronization between editor and the embedded wry preview.
         if let Some(global_sync) =
             crate::components::editor::editor_manager::get_global_scroll_synchronizer()
@@ -1084,7 +1106,6 @@ paned > separator {{
 
     // Read page view settings from SettingsManager and create a shared state handle.
     // The handle is captured in refresh_preview_impl and updated live when the settings dialog changes.
-    #[cfg(target_os = "linux")]
     let page_view_rc: std::rc::Rc<
         RefCell<crate::components::viewer::preview_types::PageViewState>,
     > = {
@@ -1238,6 +1259,7 @@ paned > separator {{
         let html_opts = std::rc::Rc::clone(&html_opts_rc);
         let wheel_js_local = wheel_js_for_refresh.clone();
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+        let page_view_capture = std::rc::Rc::clone(&page_view_rc);
         // Capture the in-editor platform webview if present
         let webview_for_preview = webview_rc_opt.clone();
         let document_buffer_capture = _document_buffer.as_ref().map(Rc::clone);
@@ -1264,12 +1286,36 @@ paned > separator {{
                 let html_body = crate::components::viewer::wry::generate_test_html(&wheel_js_local);
                 let combined_css = css.borrow().clone();
                 let theme_mode = theme_mode_for_preview.borrow().clone();
-                let full_html = crate::components::viewer::wry::wrap_html_document(
-                    &html_body,
-                    &combined_css,
-                    &theme_mode,
-                    None,
-                );
+                let page_view = page_view_capture.borrow().clone();
+                let full_html = if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: &wheel_js_local,
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
+                };
+                crate::components::viewer::wry::set_latest_live_html(&full_html);
 
                 if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
                     .get_or_init(|| std::sync::Mutex::new(String::new()))
@@ -1311,18 +1357,80 @@ paned > separator {{
 
             let formatted = pretty_print_html(&html_body);
 
+            // Store a clean live preview HTML snapshot (without wheel/scroll JS)
+            // for Windows HTML / PDF export. When page-view (paged.js) mode is
+            // enabled, store the paged variant so headless export reflects the
+            // visible paged layout.
+            {
+                let combined_css = css.borrow().clone();
+                let theme_mode = theme_mode_for_preview.borrow().clone();
+                let page_view = page_view_capture.borrow().clone();
+                let live_html = if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: "",
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
+                };
+                crate::components::viewer::wry::set_latest_live_html(&live_html);
+            }
+
             // Store the full HTML for detached preview windows (Windows fallback)
             let full_html = {
                 let mut html_with_js = html_body.clone();
                 html_with_js.push_str(&wheel_js_local);
                 let combined_css = css.borrow().clone();
                 let theme_mode = theme_mode_for_preview.borrow().clone();
-                crate::components::viewer::wry::wrap_html_document(
-                    &html_with_js,
-                    &combined_css,
-                    &theme_mode,
-                    None,
-                )
+                let page_view = page_view_capture.borrow().clone();
+                if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: &wheel_js_local,
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_with_js,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
+                }
             };
 
             if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
@@ -1332,10 +1440,15 @@ paned > separator {{
                 *guard = full_html.clone();
             }
 
-            // If we have an embedded in-editor webview, load the HTML into it
+            // If we have an embedded in-editor webview, load the HTML into it.
+            // On Windows we always do a full load via the custom protocol (marco-preview://)
+            // because update_html_content_smooth only patches container.innerHTML, which never
+            // updates the <html data-theme> root attribute — so theme and CSS changes are lost.
+            // load_html_with_base navigates to the custom protocol URL which always serves the
+            // latest full document, making light/dark mode and CSS changes take effect correctly.
             if let Some(ref wv_rc) = webview_for_preview {
                 if let Ok(wv) = wv_rc.try_borrow() {
-                    crate::components::viewer::backend::update_html_content_smooth(&wv, &full_html);
+                    wv.load_html_with_base(&full_html, base_uri.as_deref());
                 } else {
                     log::debug!("In-editor webview borrow busy; skipping load");
                 }
@@ -1609,15 +1722,18 @@ paned > separator {{
             glib::spawn_future_local(async move {
                 let result = gio::spawn_blocking(move || {
                     let src = current_text;
-                    core::parser::parse(&src)
+                    marco_core::parser::parse(&src)
                         .map_err(|e| e.to_string())
                         .map(|doc| {
                             let highlights =
-                                core::intelligence::compute_highlights_with_source(&doc, &src);
-                            let diagnostics = core::intelligence::compute_diagnostics_with_options(
-                                &doc,
-                                core::intelligence::DiagnosticsOptions::all(),
-                            );
+                                marco_core::intelligence::compute_highlights_with_source(
+                                    &doc, &src,
+                                );
+                            let diagnostics =
+                                marco_core::intelligence::compute_diagnostics_with_options(
+                                    &doc,
+                                    marco_core::intelligence::DiagnosticsOptions::all(),
+                                );
                             (highlights, diagnostics)
                         })
                 })
@@ -1653,7 +1769,7 @@ paned > separator {{
                         Ok(Ok((highlights, diagnostics))) => {
                             let rs = resolve_settings_for_async();
 
-                            let filtered_diagnostics: Vec<core::intelligence::Diagnostic> =
+                            let filtered_diagnostics: Vec<marco_core::intelligence::Diagnostic> =
                                 diagnostics
                                     .into_iter()
                                     .filter(|d| diagnostic_severity_enabled(&d.severity, rs))
@@ -1727,7 +1843,6 @@ paned > separator {{
     }
 
     // Register the page-view state handle so the settings dialog can update it live.
-    #[cfg(target_os = "linux")]
     {
         let page_view_for_reg = std::rc::Rc::clone(&page_view_rc);
         let refresh_for_page_view = std::rc::Rc::clone(&refresh_preview_impl);
@@ -1777,8 +1892,8 @@ paned > separator {{
                     )
                     .to_string();
                 let depth = handle.depth.get();
-                if let Ok(doc) = core::parser::parse(&text) {
-                    let entries = core::intelligence::toc::extract_toc(&doc);
+                if let Ok(doc) = marco_core::parser::parse(&text) {
+                    let entries = marco_core::intelligence::toc::extract_toc(&doc);
                     handle.rebuild(&entries, depth);
                 }
             });
@@ -2079,6 +2194,10 @@ paned > separator {{
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
         let refresh_for_preview = std::rc::Rc::clone(&refresh_preview_impl);
         let update_code_for_preview = Rc::clone(&update_html_code_view_rc);
+        let css_rc_for_preview = Rc::clone(&css_rc);
+        let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
+        let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
+        let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
 
         let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> =
             webview_rc_opt.as_ref().expect("webview_rc not set").clone();
@@ -2100,6 +2219,77 @@ paned > separator {{
 
             if let Ok(wv) = webview_rc.try_borrow() {
                 wv.set_background_color_rgba(&rgba);
+            }
+
+            // Extract updated scrollbar colors from the new editor theme scheme
+            // and update the HTML preview CSS so the WebView scrollbar changes too.
+            if editor_dir_for_preview.exists() && editor_dir_for_preview.is_dir() {
+                if let Ok(entries) = std::fs::read_dir(&editor_dir_for_preview) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path
+                            .extension()
+                            .and_then(|s| s.to_str())
+                            .map(|s| s.eq_ignore_ascii_case("xml"))
+                            .unwrap_or(false)
+                        {
+                            if let Ok(contents) = std::fs::read_to_string(&path) {
+                                let id_search = format!("id=\"{}\"", scheme_id);
+                                if contents.contains(&id_search) {
+                                    if let Some(v) =
+                                        extract_xml_color_value(&contents, "scrollbar-thumb")
+                                    {
+                                        *scrollbar_thumb_for_preview.borrow_mut() = v;
+                                    }
+                                    if let Some(v) =
+                                        extract_xml_color_value(&contents, "scrollbar-track")
+                                    {
+                                        *scrollbar_track_for_preview.borrow_mut() = v;
+                                    }
+
+                                    // Rebuild the embedded webkit scrollbar CSS in the preview CSS
+                                    // string so the next full HTML load carries the correct colors.
+                                    let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
+                                    let new_track = scrollbar_track_for_preview.borrow().clone();
+                                    let new_webkit_css =
+                                        webkit_scrollbar_css(&new_thumb, &new_track);
+                                    let mut updated_css = css_rc_for_preview.borrow().clone();
+                                    if let Some(pos) = updated_css.rfind("::-webkit-scrollbar") {
+                                        if let Some(start) = updated_css[..pos].rfind("\n/*") {
+                                            updated_css.truncate(start);
+                                        } else {
+                                            updated_css.truncate(pos);
+                                        }
+                                    }
+                                    updated_css.push('\n');
+                                    updated_css.push_str(&new_webkit_css);
+                                    *css_rc_for_preview.borrow_mut() = updated_css;
+
+                                    // Also update the GTK scrollbar CSS so native scrollbars match.
+                                    if let Some(display) = gtk4::gdk::Display::default() {
+                                        let gtk_css =
+                                            crate::components::viewer::css_utils::gtk_scrollbar_css(
+                                                &new_thumb, &new_track,
+                                            );
+                                        let provider = gtk4::CssProvider::new();
+                                        provider.load_from_data(&gtk_css);
+                                        gtk4::style_context_add_provider_for_display(
+                                            &display,
+                                            &provider,
+                                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                                        );
+                                        log::debug!(
+                                            "[win] Updated GTK scrollbar CSS: thumb={}, track={}",
+                                            new_thumb,
+                                            new_track
+                                        );
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Apply the new theme mode to the preview + source code view.
@@ -2190,21 +2380,21 @@ mod tests {
     use super::*;
 
     fn make_diag(
-        severity: core::intelligence::DiagnosticSeverity,
-        code: core::intelligence::DiagnosticCode,
+        severity: marco_core::intelligence::DiagnosticSeverity,
+        code: marco_core::intelligence::DiagnosticCode,
         start: usize,
         end: usize,
         message: &str,
-    ) -> core::intelligence::Diagnostic {
-        core::intelligence::Diagnostic {
+    ) -> marco_core::intelligence::Diagnostic {
+        marco_core::intelligence::Diagnostic {
             code,
-            span: core::parser::Span {
-                start: core::parser::Position {
+            span: marco_core::parser::Span {
+                start: marco_core::parser::Position {
                     line: 1,
                     column: start.saturating_add(1),
                     offset: start,
                 },
-                end: core::parser::Position {
+                end: marco_core::parser::Position {
                     line: 1,
                     column: end.saturating_add(1),
                     offset: end,
@@ -2218,15 +2408,15 @@ mod tests {
     #[test]
     fn smoke_test_diagnostic_at_offset_prefers_narrowest_span() {
         let wide = make_diag(
-            core::intelligence::DiagnosticSeverity::Warning,
-            core::intelligence::DiagnosticCode::MissingCodeBlockLanguage,
+            marco_core::intelligence::DiagnosticSeverity::Warning,
+            marco_core::intelligence::DiagnosticCode::MissingCodeBlockLanguage,
             10,
             30,
             "wide",
         );
         let narrow = make_diag(
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticCode::EmptyImageUrl,
             12,
             14,
             "narrow",
@@ -2240,8 +2430,8 @@ mod tests {
     #[test]
     fn smoke_test_diagnostic_at_offset_none_outside_span() {
         let diag = make_diag(
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticCode::EmptyImageUrl,
             5,
             10,
             "hit-range",
@@ -2253,8 +2443,8 @@ mod tests {
     #[test]
     fn smoke_test_diagnostic_hover_markup_contains_code_and_fix() {
         let diag = make_diag(
-            core::intelligence::DiagnosticSeverity::Error,
-            core::intelligence::DiagnosticCode::EmptyImageUrl,
+            marco_core::intelligence::DiagnosticSeverity::Error,
+            marco_core::intelligence::DiagnosticCode::EmptyImageUrl,
             20,
             24,
             "Empty image URL",

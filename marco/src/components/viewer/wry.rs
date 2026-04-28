@@ -63,7 +63,8 @@ pub fn wrap_html_document(
     theme_mode: &str,
     background_color: Option<&str>,
 ) -> String {
-    let html = core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
+    let html =
+        marco_core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
     // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
     // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
     // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.

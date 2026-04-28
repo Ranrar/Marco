@@ -1,7 +1,10 @@
 # Rust
 target
+target-windows
+target-linux
 
 # internal dev code
+/dev-tools
 /.github/chatmodes
 /.github/instructions
 /.VSCodeCounter

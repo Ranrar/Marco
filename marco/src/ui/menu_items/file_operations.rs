@@ -2,9 +2,9 @@
 #![allow(clippy::await_holding_refcell_ref)]
 
 use crate::components::language::{DialogTranslations, MenuTranslations};
-use core::logic::{DocumentBuffer, RecentFiles};
 use gtk4::{gio, glib, prelude::*};
 use log::trace;
+use marco_shared::logic::{DocumentBuffer, RecentFiles};
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
@@ -1428,7 +1428,7 @@ pub fn setup_recent_actions(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use core::logic::{DocumentBuffer, RecentFiles};
+    use marco_shared::logic::{DocumentBuffer, RecentFiles};
     use std::sync::{Arc, Mutex};
     use tempfile::tempdir;
 
@@ -1440,7 +1440,7 @@ mod tests {
         // Create test objects
         let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
         let settings_manager =
-            core::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
+            marco_shared::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
         let recent_files = Rc::new(RefCell::new(RecentFiles::new(settings_manager)));
         let file_ops = FileOperations::new(buffer, recent_files);
 
@@ -1523,7 +1523,7 @@ mod tests {
 
         let buffer = Rc::new(RefCell::new(DocumentBuffer::new_untitled()));
         let settings_manager =
-            core::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
+            marco_shared::logic::swanson::SettingsManager::initialize(settings_path).unwrap();
         let recent_files = Rc::new(RefCell::new(RecentFiles::new(settings_manager)));
         let file_ops = Rc::new(FileOperations::new(buffer, recent_files));
 

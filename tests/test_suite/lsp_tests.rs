@@ -6,8 +6,8 @@ use super::utils::print_header;
 /// Check if two overlapping highlights represent valid nesting
 /// Returns true if one highlight fully contains the other (parent-child relationship)
 fn is_valid_nested_highlight(
-    h1: &core::intelligence::Highlight,
-    h2: &core::intelligence::Highlight,
+    h1: &marco_core::intelligence::Highlight,
+    h2: &marco_core::intelligence::Highlight,
 ) -> bool {
     // Check if h1 fully contains h2 (h1 is parent)
     let h1_contains_h2 = (h1.span.start.line < h2.span.start.line
@@ -49,8 +49,8 @@ pub fn run_lsp_tests() {
 /// Test LSP highlighting on all CommonMark spec examples
 /// This ensures position preservation works correctly across all edge cases
 fn test_lsp_highlights_commonmark_spec() {
-    use core::intelligence::compute_highlights;
-    use core::parser::parse;
+    use marco_core::intelligence::compute_highlights;
+    use marco_core::parser::parse;
 
     println!("\n=== Testing LSP Highlights on CommonMark Spec Examples ===");
 
@@ -179,8 +179,8 @@ fn test_lsp_highlights_commonmark_spec() {
 
 /// Test LSP highlighting on extra test cases
 fn test_lsp_highlights_extra_spec() {
-    use core::intelligence::compute_highlights;
-    use core::parser::parse;
+    use marco_core::intelligence::compute_highlights;
+    use marco_core::parser::parse;
 
     println!("\n=== Testing LSP Highlights on Extra Spec Examples ===");
 
@@ -294,8 +294,8 @@ mod tests {
 
     #[test]
     fn test_html_img_highlighting() {
-        use core::intelligence::compute_highlights;
-        use core::parser::parse;
+        use marco_core::intelligence::compute_highlights;
+        use marco_core::parser::parse;
 
         // Test simple img tag
         let input1 = r#"<img src="test.png" alt="test" />"#;

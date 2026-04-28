@@ -1,6 +1,6 @@
 [package]
 name = "polo"
-version = "0.23.1"
+version = "0.23.2"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
@@ -9,7 +9,8 @@ rust-version = "1.94.1"
 
 [dependencies]
 # Core library
-core = { path = "../core" }
+marco-core = { path = "../marco-core" }
+marco-shared = { path = "../marco-shared" }
 
 # Utilities
 log = { workspace = true }

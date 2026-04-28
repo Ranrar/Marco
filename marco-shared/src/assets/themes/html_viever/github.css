@@ -1,0 +1,183 @@
+/* GitHub - GitHub-inspired theme
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in core/src/render/base_css.rs
+ */
+
+:root {
+  /* ── Typography ── */
+  --body-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --code-font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
+  --body-font-size: 16px;
+  --body-line-height: 1.5;
+  --body-max-width: 880px;
+  --body-padding: 2rem;
+
+  /* ── Text colours (light defaults) ── */
+  --text-color: #24292f;
+  --text-secondary: #656d76;
+  --text-muted: #8c959f;
+  --heading-color: #1f2328;
+  --heading-gradient-end: #1f2328;
+  --strong-color: #24292f;
+  --link-color: #0969da;
+  --link-hover: #0550ae;
+
+  /* ── Backgrounds ── */
+  --bg-color: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-code: #f6f8fa;
+  --bg-pre: #f6f8fa;
+
+  /* ── Borders ── */
+  --border-color: #d0d7de;
+  --border-light: #d1d9e0;
+  --border-strong: #8c959f;
+
+  /* ── Components ── */
+  --blockquote-bg: transparent;
+  --blockquote-border: #d0d7de;
+  --blockquote-text: #656d76;
+  --table-border: #d0d7de;
+  --table-header-bg: #f6f8fa;
+  --table-header-color: #1f2328;
+  --table-stripe-bg: rgba(175, 184, 193, 0.2);
+  --mark-bg: #fff8c5;
+  --mark-color: #24292f;
+  --admonition-bg: #f6f8fa;
+  --admonition-border: #d0d7de;
+  --note-bg: #ddf4ff;
+  --tip-bg: #dcffe4;
+  --important-bg: #eee8fd;
+  --warning-bg: #fff8c5;
+  --caution-bg: #ffebe9;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #ffffff;
+  --pagedjs-page-color: #24292f;
+
+  /* ── TOC ── */
+  --toc-header-color: #0969da;
+  --toc-header-border: #d0d7de;
+  --toc-link-color: #24292f;
+  --toc-link-hover-bg: #f6f8fa;
+  --toc-link-hover-color: #0969da;
+  --toc-link-active-bg: #dbeafe;
+  --toc-link-active-color: #0550ae;
+  --toc-bg: #f8f9fa;
+  --toc-border: #d0d7de;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+
+  /* ── GitHub-specific: h1/h2 underline ── */
+  --h1h2-border-bottom: 1px solid #d0d7de;
+  --h1h2-padding-bottom: 0.3em;
+}
+
+.theme-light {
+  --text-color: #24292f;
+  --text-secondary: #656d76;
+  --text-muted: #8c959f;
+  --heading-color: #1f2328;
+  --heading-gradient-end: #1f2328;
+  --strong-color: #24292f;
+  --link-color: #0969da;
+  --link-hover: #0550ae;
+  --bg-color: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-code: #f6f8fa;
+  --bg-pre: #f6f8fa;
+  --border-color: #d0d7de;
+  --border-light: #d1d9e0;
+  --border-strong: #8c959f;
+  --blockquote-bg: transparent;
+  --blockquote-border: #d0d7de;
+  --blockquote-text: #656d76;
+  --table-border: #d0d7de;
+  --table-header-bg: #f6f8fa;
+  --table-header-color: #1f2328;
+  --table-stripe-bg: rgba(175, 184, 193, 0.2);
+  --mark-bg: #fff8c5;
+  --mark-color: #24292f;
+  --admonition-bg: #f6f8fa;
+  --admonition-border: #d0d7de;
+  --note-bg: #ddf4ff;
+  --tip-bg: #dcffe4;
+  --important-bg: #eee8fd;
+  --warning-bg: #fff8c5;
+  --caution-bg: #ffebe9;
+  --pagedjs-page-bg: #ffffff;
+  --pagedjs-page-color: #24292f;
+  --toc-header-color: #0969da;
+  --toc-header-border: #d0d7de;
+  --toc-link-color: #24292f;
+  --toc-link-hover-bg: #f6f8fa;
+  --toc-link-hover-color: #0969da;
+  --toc-link-active-bg: #dbeafe;
+  --toc-link-active-color: #0550ae;
+  --toc-bg: #f8f9fa;
+  --toc-border: #d0d7de;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+  --h1h2-border-bottom: 1px solid #d0d7de;
+  --h1h2-padding-bottom: 0.3em;
+}
+
+.theme-dark {
+  --text-color: #f0f6fc;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --heading-color: #f0f6fc;
+  --heading-gradient-end: #f0f6fc;
+  --strong-color: #f0f6fc;
+  --link-color: #58a6ff;
+  --link-hover: #79c0ff;
+  --bg-color: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-code: #161b22;
+  --bg-pre: #161b22;
+  --border-color: #30363d;
+  --border-light: #21262d;
+  --border-strong: #6e7681;
+  --blockquote-bg: transparent;
+  --blockquote-border: #30363d;
+  --blockquote-text: #8b949e;
+  --table-border: #30363d;
+  --table-header-bg: #161b22;
+  --table-header-color: #f0f6fc;
+  --table-stripe-bg: rgba(110, 118, 129, 0.1);
+  --mark-bg: #ffd33d;
+  --mark-color: #24292f;
+  --admonition-bg: #161b22;
+  --admonition-border: #30363d;
+  --note-bg: #031d2e;
+  --tip-bg: #0a1f14;
+  --important-bg: #160e30;
+  --warning-bg: #161204;
+  --caution-bg: #160302;
+  --pagedjs-page-bg: #0d1117;
+  --pagedjs-page-color: #f0f6fc;
+  --toc-header-color: #58a6ff;
+  --toc-header-border: #30363d;
+  --toc-link-color: #f0f6fc;
+  --toc-link-hover-bg: #21262d;
+  --toc-link-hover-color: #58a6ff;
+  --toc-link-active-bg: #1f6feb;
+  --toc-link-active-color: #ffffff;
+  --toc-bg: #0d1117;
+  --toc-border: #30363d;
+  --toc-shadow: rgba(0, 0, 0, 0.3);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+  --h1h2-border-bottom: 1px solid #30363d;
+  --h1h2-padding-bottom: 0.3em;
+}
+
+/* GitHub-specific: h1 and h2 get a bottom border */
+h1, h2 {
+  border-bottom: var(--h1h2-border-bottom, none);
+  padding-bottom: var(--h1h2-padding-bottom, 0);
+}

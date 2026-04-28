@@ -1,4 +1,4 @@
-use core::logic::swanson::{BookmarkEntry, SettingsManager};
+use marco_shared::logic::swanson::{BookmarkEntry, SettingsManager};
 use std::cell::RefCell;
 use std::path::Path;
 use std::sync::Arc;

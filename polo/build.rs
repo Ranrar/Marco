@@ -13,14 +13,14 @@ fn main() {
     #[cfg(target_os = "windows")]
     {
         // Only rerun if icon file changes
-        println!("cargo:rerun-if-changed=../assets/icons/polo.ico");
+        println!("cargo:rerun-if-changed=../marco-shared/src/assets/icons/polo.ico");
         println!("cargo:rerun-if-env-changed=CARGO_CFG_TARGET_ENV");
 
         let target_env = env::var("CARGO_CFG_TARGET_ENV").unwrap_or_default();
 
         if target_env == "msvc" {
             let mut res = winres::WindowsResource::new();
-            res.set_icon("../assets/icons/polo.ico");
+            res.set_icon("../marco-shared/src/assets/icons/polo.ico");
 
             if let Err(e) = res.compile() {
                 eprintln!("Warning: Failed to compile Windows resources: {}", e);
@@ -32,7 +32,7 @@ fn main() {
             let rc_obj = out_dir.join("polo_rc.o");
 
             // The icon path is relative to the crate root (where build.rs runs).
-            let rc_contents = "1 ICON \"../assets/icons/polo.ico\"\n";
+            let rc_contents = "1 ICON \"../marco-shared/src/assets/icons/polo.ico\"\n";
             if let Err(e) = std::fs::write(&rc_path, rc_contents) {
                 println!(
                     "cargo:warning=Failed writing polo.rc ({}); continuing without icon embedding",

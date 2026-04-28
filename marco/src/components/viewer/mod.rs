@@ -29,6 +29,7 @@ use gtk4::prelude::GtkWindowExt;
 // implementations using `#[cfg(target_os = "linux")]` and `#[cfg(target_os = "windows")]`.
 
 pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
+pub mod export_pipeline; // Unified Export & Print Pipeline (skeleton — Phase 1, no callers)
 pub mod layout_controller; // Split controller + webview location tracking
 pub mod pagedjs; // Embedded paged.js polyfill for page view simulation
 #[cfg(target_os = "linux")]
@@ -42,11 +43,15 @@ pub mod webkit6_detached_window; // Separate preview window (Linux: WebKit6) // 
 
 // Windows: wry-based detached preview and helpers
 #[cfg(target_os = "windows")]
+pub mod print_driver_windows;
+#[cfg(target_os = "windows")]
 pub mod wry; // Windows (wry/WebView2) minimal parity helpers
 #[cfg(target_os = "windows")]
 pub mod wry_detached_window; // Detached preview window using wry
 #[cfg(target_os = "windows")]
-pub mod wry_platform_webview; // Windows: embedded child WebView
+pub mod wry_platform_webview; // Windows: embedded child WebView // Windows print driver (wry/WebView2)
+#[cfg(target_os = "windows")]
+pub mod wry_print_to_pdf; // Native WebView2 PrintToPdf (replaces headless Chromium)
 
 pub mod preview_types; // View mode enum (cross-platform)
 

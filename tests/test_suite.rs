@@ -1,17 +1,17 @@
 // Marco Test Suite - CLI entry point for all tests
 //
 // USAGE EXAMPLES:
-//   cargo test --package core --test test_suite -- --help       # Show all available commands
-//   cargo test --package core --test test_suite -- all          # Run all tests
-//   cargo test --package core --test test_suite -- summary      # Show test summary
-//   cargo test --package core --test test_suite -- inline       # Test inline grammar
-//   cargo test --package core --test test_suite -- block        # Test block grammar
-//   cargo test --package core --test test_suite -- parser       # Test parser
-//   cargo test --package core --test test_suite -- render       # Test HTML renderer
-//   cargo test --package core --test test_suite -- commonmark   # Test CommonMark spec
-//   cargo test --package core --test test_suite -- extra        # Test extra custom cases
-//   cargo test --package core --test test_suite -- benchmark    # Run performance benchmarks
-//   cargo test --package core --test test_suite -- inspect -e 307,318  # Inspect specific examples
+//   cargo test --package marco-core --test test_suite -- --help       # Show all available commands
+//   cargo test --package marco-core --test test_suite -- all          # Run all tests
+//   cargo test --package marco-core --test test_suite -- summary      # Show test summary
+//   cargo test --package marco-core --test test_suite -- inline       # Test inline grammar
+//   cargo test --package marco-core --test test_suite -- block        # Test block grammar
+//   cargo test --package marco-core --test test_suite -- parser       # Test parser
+//   cargo test --package marco-core --test test_suite -- render       # Test HTML renderer
+//   cargo test --package marco-core --test test_suite -- commonmark   # Test CommonMark spec
+//   cargo test --package marco-core --test test_suite -- extra        # Test extra custom cases
+//   cargo test --package marco-core --test test_suite -- benchmark    # Run performance benchmarks
+//   cargo test --package marco-core --test test_suite -- inspect -e 307,318  # Inspect specific examples
 //
 // NOTE: Use subcommands (e.g., "extra") NOT flags (e.g., "--extra")
 

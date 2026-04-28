@@ -313,7 +313,7 @@ impl PlatformWebView {
 
         // Configure WebView2 to use data directory (portable mode friendly)
         // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = core::paths::user_data_dir().join("webview");
+        let data_dir = marco_shared::paths::user_data_dir().join("webview");
         if let Err(e) = std::fs::create_dir_all(&data_dir) {
             log::warn!("Failed to create WebView2 data directory: {}", e);
         }

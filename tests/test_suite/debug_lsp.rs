@@ -1,6 +1,6 @@
 // Debug test to investigate LSP highlighting positions
-use core::intelligence::compute_highlights;
-use core::parser::parse;
+use marco_core::intelligence::compute_highlights;
+use marco_core::parser::parse;
 
 pub fn debug_lsp_positions() {
     // Simple test case from user's report

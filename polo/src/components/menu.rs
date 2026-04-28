@@ -40,12 +40,12 @@ use crate::components::dialog::{show_open_file_dialog, show_open_in_editor_dialo
 use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
 use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
-use core::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
-use core::logic::swanson::SettingsManager;
 use gtk4::{
     gdk, gio, prelude::*, Align, ApplicationWindow, Button, DropDown, Expression, HeaderBar, Image,
     Label, Picture, PropertyExpression, StringList, StringObject, WindowHandle,
 };
+use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+use marco_shared::logic::swanson::SettingsManager;
 use rsvg::{CairoRenderer, Loader};
 use std::borrow::Cow;
 use std::sync::{Arc, RwLock};
@@ -255,7 +255,7 @@ pub fn create_custom_titlebar(
         let new_mode_clone = new_mode.clone();
         let _ = settings_manager_for_mode.update_settings(move |s| {
             if s.appearance.is_none() {
-                s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
+                s.appearance = Some(marco_shared::logic::swanson::AppearanceSettings::default());
             }
             if let Some(ref mut appearance) = s.appearance {
                 appearance.editor_mode = Some(new_mode_clone);
@@ -759,7 +759,8 @@ fn create_theme_dropdown(
             // Update COMMON appearance.preview_theme (shared with Marco)
             let _ = settings_manager.update_settings(|s| {
                 if s.appearance.is_none() {
-                    s.appearance = Some(core::logic::swanson::AppearanceSettings::default());
+                    s.appearance =
+                        Some(marco_shared::logic::swanson::AppearanceSettings::default());
                 }
                 if let Some(ref mut appearance) = s.appearance {
                     appearance.preview_theme = Some(theme_name_with_ext.clone());

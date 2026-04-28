@@ -1,0 +1,169 @@
+/* Minimal - Clean serif reading theme
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in core/src/render/base_css.rs
+ */
+
+:root {
+  /* ── Typography ── */
+  --body-font: 'Georgia', 'Times New Roman', serif;
+  --code-font: 'Monaco', 'Courier New', Courier, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
+  --body-font-size: 18px;
+  --body-line-height: 1.7;
+  --body-max-width: 650px;
+  --body-padding: 1rem;
+
+  /* ── Text colours (light defaults) ── */
+  --text-color: #333;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --heading-color: #222;
+  --heading-gradient-end: #222;
+  --strong-color: #333;
+  --link-color: #0066cc;
+  --link-hover: #0050aa;
+
+  /* ── Backgrounds ── */
+  --bg-color: #fefefe;
+  --bg-secondary: #f5f5f5;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+
+  /* ── Borders ── */
+  --border-color: #e5e5e5;
+  --border-light: #eee;
+  --border-strong: #ccc;
+
+  /* ── Components ── */
+  --blockquote-bg: transparent;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f9f9f9;
+  --table-header-color: #222;
+  --table-stripe-bg: #f9f9f9;
+  --mark-bg: #fffde7;
+  --mark-color: #333;
+  --admonition-bg: #f9f9f9;
+  --admonition-border: #ccc;
+  --note-bg: #eef6fb;
+  --tip-bg: #eefbee;
+  --important-bg: #faf5ff;
+  --warning-bg: #fffbee;
+  --caution-bg: #fef2f2;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #fefefe;
+  --pagedjs-page-color: #333;
+
+  /* ── TOC ── */
+  --toc-header-color: #0066cc;
+  --toc-header-border: #ccc;
+  --toc-link-color: #333;
+  --toc-link-hover-bg: #f0f0f0;
+  --toc-link-hover-color: #0066cc;
+  --toc-link-active-bg: #e0e0e0;
+  --toc-link-active-color: #0050aa;
+  --toc-bg: #f9f9f9;
+  --toc-border: #ddd;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-code);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-light {
+  --text-color: #333;
+  --text-secondary: #666;
+  --text-muted: #999;
+  --heading-color: #222;
+  --heading-gradient-end: #222;
+  --strong-color: #333;
+  --link-color: #0066cc;
+  --link-hover: #0050aa;
+  --bg-color: #fefefe;
+  --bg-secondary: #f5f5f5;
+  --bg-code: #f5f5f5;
+  --bg-pre: #f8f8f8;
+  --border-color: #e5e5e5;
+  --border-light: #eee;
+  --border-strong: #ccc;
+  --blockquote-bg: transparent;
+  --blockquote-border: #ccc;
+  --blockquote-text: #666;
+  --table-border: #ddd;
+  --table-header-bg: #f9f9f9;
+  --table-header-color: #222;
+  --table-stripe-bg: #f9f9f9;
+  --mark-bg: #fffde7;
+  --mark-color: #333;
+  --admonition-bg: #f9f9f9;
+  --admonition-border: #ccc;
+  --note-bg: #eef6fb;
+  --tip-bg: #eefbee;
+  --important-bg: #faf5ff;
+  --warning-bg: #fffbee;
+  --caution-bg: #fef2f2;
+  --pagedjs-page-bg: #fefefe;
+  --pagedjs-page-color: #333;
+  --toc-header-color: #0066cc;
+  --toc-header-border: #ccc;
+  --toc-link-color: #333;
+  --toc-link-hover-bg: #f0f0f0;
+  --toc-link-hover-color: #0066cc;
+  --toc-link-active-bg: #e0e0e0;
+  --toc-link-active-color: #0050aa;
+  --toc-bg: #f9f9f9;
+  --toc-border: #ddd;
+  --toc-shadow: rgba(0, 0, 0, 0.1);
+  --marco-sliders-bg: var(--bg-code);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-dark {
+  --text-color: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #888;
+  --heading-color: #f0f0f0;
+  --heading-gradient-end: #f0f0f0;
+  --strong-color: #e0e0e0;
+  --link-color: #66b3ff;
+  --link-hover: #88ccff;
+  --bg-color: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-code: #2d2d2d;
+  --bg-pre: #222;
+  --border-color: #444;
+  --border-light: #444;
+  --border-strong: #666;
+  --blockquote-bg: transparent;
+  --blockquote-border: #666;
+  --blockquote-text: #a0a0a0;
+  --table-border: #555;
+  --table-header-bg: #333;
+  --table-header-color: #f0f0f0;
+  --table-stripe-bg: #252525;
+  --mark-bg: #f59e0b;
+  --mark-color: #1a1a1a;
+  --admonition-bg: #2a2a2a;
+  --admonition-border: #666;
+  --note-bg: #0d2137;
+  --tip-bg: #0d2012;
+  --important-bg: #1f0d3e;
+  --warning-bg: #27200a;
+  --caution-bg: #200d0d;
+  --pagedjs-page-bg: #1a1a1a;
+  --pagedjs-page-color: #e0e0e0;
+  --toc-header-color: #66b3ff;
+  --toc-header-border: #666;
+  --toc-link-color: #e0e0e0;
+  --toc-link-hover-bg: #333;
+  --toc-link-hover-color: #66b3ff;
+  --toc-link-active-bg: #444;
+  --toc-link-active-color: #ffffff;
+  --toc-bg: #1a1a1a;
+  --toc-border: #555;
+  --toc-shadow: rgba(0, 0, 0, 0.3);
+  --marco-sliders-bg: var(--bg-code);
+  --marco-sliders-border: var(--border-color);
+}

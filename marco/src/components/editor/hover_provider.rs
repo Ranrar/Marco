@@ -75,7 +75,8 @@ mod imp {
 
     #[derive(Default)]
     pub struct MarcoHoverProvider {
-        pub(super) diagnostics: RefCell<Option<Rc<RefCell<Vec<core::intelligence::Diagnostic>>>>>,
+        pub(super) diagnostics:
+            RefCell<Option<Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>>>,
         pub(super) settings_fn: RefCell<Option<Rc<dyn Fn() -> RuntimeIntelligenceSettings>>>,
         // ── Popover widget refs ────────────────────────────────────────────────
         pub(super) hover_popover: RefCell<Option<gtk4::Popover>>,
@@ -154,12 +155,12 @@ mod imp {
 
             // Parse once and reuse the document for both hover info and span
             // analysis — avoids parsing the same source twice.
-            let position = core::parser::Position {
+            let position = marco_core::parser::Position {
                 line,
                 column,
                 offset: byte_offset,
             };
-            let parsed_doc = core::parser::parse(&source).ok();
+            let parsed_doc = marco_core::parser::parse(&source).ok();
 
             let diagnostic_candidate = if runtime_settings.diagnostics_hover_enabled {
                 let diagnostics_ref = self.diagnostics.borrow();
@@ -180,7 +181,7 @@ mod imp {
             let markdown_candidate = if runtime_settings.markdown_hover_enabled {
                 parsed_doc
                     .as_ref()
-                    .and_then(|doc| core::intelligence::get_hover_info(position, doc))
+                    .and_then(|doc| marco_core::intelligence::get_hover_info(position, doc))
             } else {
                 None
             };
@@ -224,7 +225,7 @@ mod imp {
                         .saturating_sub(diagnostic.span.start.offset);
                     let has_tighter_node = parsed_doc
                         .as_ref()
-                        .and_then(|doc| core::intelligence::get_position_span(position, doc))
+                        .and_then(|doc| marco_core::intelligence::get_position_span(position, doc))
                         .map(|s| s.end.offset.saturating_sub(s.start.offset) < diag_span_len)
                         .unwrap_or(false);
 
@@ -480,7 +481,7 @@ glib::wrapper! {
 impl MarcoHoverProvider {
     /// Create a new hover provider wired to shared diagnostic state and settings.
     pub(crate) fn new(
-        diagnostics: Rc<RefCell<Vec<core::intelligence::Diagnostic>>>,
+        diagnostics: Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>,
         settings_fn: Rc<dyn Fn() -> RuntimeIntelligenceSettings>,
     ) -> Self {
         let obj: Self = glib::Object::new();
