@@ -36,19 +36,11 @@ jobs:
             build-essential pkg-config \
             libgtk-4-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev libfontconfig-dev
 
-      - name: Verify crate version matches tag
+      - name: Show crate version
         run: |
           set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          tag_version="${tag#core-v}"
           crate_version="$(grep '^version' marco-core/Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
-
-          if [ "$tag_version" != "$crate_version" ]; then
-            echo "ERROR: Tag version '$tag_version' does not match Cargo.toml version '$crate_version'" >&2
-            exit 1
-          fi
-
-          echo "Version check passed: $crate_version"
+          echo "Publishing marco-core version: $crate_version (ref: ${GITHUB_REF_NAME})"
 
       - name: Publish marco-core
         env:

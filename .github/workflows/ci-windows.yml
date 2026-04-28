@@ -36,7 +36,10 @@ jobs:
 
       - name: Run cargo audit
         run: |
-          cargo audit --deny warnings
+          # Ignored advisories (transitive, no upstream fix available):
+          #   RUSTSEC-2024-0320: yaml-rust unmaintained (via syntect 5.3.0)
+          #   RUSTSEC-2024-0429: glib 0.18.5 unsoundness (via wry/webkit2gtk/tao GTK stack)
+          cargo audit --deny warnings --ignore RUSTSEC-2024-0320 --ignore RUSTSEC-2024-0429
 
   build-windows:
     name: Build (Windows)
