@@ -272,18 +272,14 @@ jobs:
           body: |
             ## Marco Suite ${{ steps.version.outputs.version }}
 
-            Maintenance release — workspace refactor, unified export/print pipeline, and security updates.
+            See the per-app changelogs below for the full list of user-visible changes in this release.
 
-            ### Highlights
-            - Workspace split into `marco-core` (parser/render/intelligence) and `marco-shared` (app logic). `marco-core` is now published on [crates.io](https://crates.io/crates/marco-core).
-            - Unified export & print pipeline shared between Linux and Windows, with new "Exporting…" and "Export complete" dialogs.
-            - Windows: native PDF export via WebView2 `PrintToPdf` and native print dialog (no headless Chromium subprocess).
-            - Security: dependency graph resolves to patched `rustls-webpki` 0.103.13 ([GHSA-82j2-j2ch-gfr8](https://github.com/advisories/GHSA-82j2-j2ch-gfr8)); transitive `rand` bumped to 0.8.6.
+            > Marco and Polo are built on top of the [`marco-core`](https://crates.io/crates/marco-core) crate, which is developed and released independently in its [own repository](https://github.com/Ranrar/marco-core).
 
             ### Changelogs
             - [Marco ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco.md)
             - [Polo ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/polo.md)
-            - [marco-core 1.0.2](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco-core.md)
+            - [marco-core changelog](https://github.com/Ranrar/marco-core/blob/main/CHANGELOG.md)
 
             ### Downloads
             - **Linux**: `marco-suite_*_linux_amd64.deb`

@@ -23,7 +23,7 @@ jobs:
         with:
           # Avoid scanning vendored/spec fixture data (e.g., CommonMark examples) that intentionally
           # contains insecure URLs and localhost references.
-          ignore-globs: "**/tests/test_suite/spec/**,**/tests/test_suite/fixtures/**,**/tests/test_suite/showcase/**,**/vendor/**,**/target/**,**/marco/src/components/viewer/pagedjs/**"
+          ignore-globs: "**/vendor/**,**/target/**,**/marco/src/components/viewer/pagedjs/**"
 
       - name: Upload DevSkim scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3

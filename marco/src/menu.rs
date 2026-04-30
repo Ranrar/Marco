@@ -66,9 +66,15 @@ impl HoverMenuSwitchState {
         self.cancel_pending_hover_switch();
 
         let switch_state = self.clone();
+        let pending_slot = Rc::clone(&self.pending_hover_switch);
         let source_id = gtk4::glib::timeout_add_local(
             Duration::from_millis(HOVER_SWITCH_DELAY_MS),
             move || {
+                // Clear the stored SourceId before returning Break so a later
+                // cancel_pending_hover_switch() doesn't try to remove a source
+                // that GLib has already auto-removed.
+                let _ = pending_slot.borrow_mut().take();
+
                 if !switch_state.menu_open() {
                     return gtk4::glib::ControlFlow::Break;
                 }

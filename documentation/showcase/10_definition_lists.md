@@ -41,7 +41,7 @@ GTK
 : A strongly-defined, highly compatible specification of Markdown, maintained at https://commonmark.org.
 
 *nom*
-: A parser combinator library for Rust. Used in `marco-core/src/grammar/` to build Marco's hand-crafted Markdown parser.
+: A parser combinator library for Rust. Used in the `marco-core` crate to build Marco's hand-crafted Markdown parser.
 
 `RON`
 : Rusty Object Notation — a human-readable configuration format. Marco stores settings as `.ron` files.
@@ -60,7 +60,7 @@ Parser
 AST
 : Abstract Syntax Tree — a tree-like data structure that represents the syntactic
   structure of source text without including every token from the original input.
-  Marco's AST is defined in `marco-core/src/parser/ast.rs`.
+  Marco's AST is defined in the `marco-core` crate (`parser/ast.rs`).
 
 ---
 

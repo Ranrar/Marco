@@ -60,10 +60,10 @@ marco-core = "1.0.2"
 use marco_core::{parse, render, RenderOptions};
 
 let doc = parse("# Hello\n\nThis is **Marco**.")?;
-let html = render(&doc, RenderOptions::default())?;
+let html = render(&doc, &RenderOptions::default())?;
 ```
 
-`marco-core` is pure Rust with no GTK dependencies, so it can be embedded in CLIs, build tools, and other editors. It versions independently from the Marco/Polo binaries.
+`marco-core` is pure Rust with no GTK dependencies, so it can be embedded in CLIs, build tools, and other editors. It is developed in its own repository ([Ranrar/marco-core](https://github.com/Ranrar/marco-core)) and versions independently from the Marco/Polo binaries.
 
 ## What can you use Marco & Polo for?
 
@@ -149,7 +149,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
   Renders live preview with local images, CSS themes, and scroll-sync interactions.
 
 - **nom** (`nom`) - Parser combinator library used for Marco's custom Markdown grammar.
-  Enables recursive-descent parsing and AST generation in `marco-core/src/grammar/`.
+  Enables recursive-descent parsing and AST generation in the [`marco-core`](https://github.com/Ranrar/marco-core) crate.
 
 - **RON** (`ron`) - Human-readable configuration format for settings, themes, and preferences.
   Easy to edit manually and friendly for version control.
@@ -246,7 +246,7 @@ We welcome contributions of all sizes. Short workflow:
 
 Code style & expectations:
 
-- Keep UI code in `marco/src/ui/` and business logic in `marco-core/src/logic/`.
+- Keep UI code in `marco/src/ui/` and shared, GTK-free application logic in `marco-shared/src/`. Pure parser/renderer logic lives in the external [`marco-core`](https://github.com/Ranrar/marco-core) crate.
 - Follow Rust idioms (use `Result<T, E>`, avoid panics in library code).
 - Add unit tests and integration tests in `tests/` when applicable.
 

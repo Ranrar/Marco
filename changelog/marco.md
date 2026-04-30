@@ -7,7 +7,10 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
-## [Unreleased]
+## [Unreleased] - 2026-04-30
+
+### Changed
+- The `marco-core` crate now lives in its own repository (https://github.com/Ranrar/marco-core) and is consumed from crates.io. No user-visible behavior change; pinned via `[workspace.dependencies.marco-core]` in the root `Cargo.toml`.
 
 ## [0.23.2] - 2026-04-28
 

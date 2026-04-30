@@ -105,14 +105,14 @@ Remove-Item -Force $tempScript
 
 # 6. Run tests
 if (-not $SkipTests) {
-    Write-Host "`n[6/6] Running tests (core library)..." -ForegroundColor Green
+    Write-Host "`n[6/6] Running tests (workspace)..." -ForegroundColor Green
     
     $testScript = @"
 # Add Windows Cargo to PATH
 export PATH="`$HOME/.cargo/bin:/c/Users/`$USERNAME/.cargo/bin:`$PATH"
 
-echo "=== Running Core Library Tests ==="
-cargo test -p core --lib --locked
+echo "=== Running Workspace Tests ==="
+cargo test --workspace --lib --locked
 "@
     
     $tempTestScript = Join-Path $env:TEMP "msys2-test-script.sh"

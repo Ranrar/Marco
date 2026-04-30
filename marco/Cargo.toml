@@ -21,8 +21,8 @@ name = "marco"
 path = "src/main.rs"
 
 [dependencies]
-# Core library
-marco-core = { path = "../marco-core" }
+# Core library (published on crates.io)
+marco-core = { workspace = true }
 marco-shared = { path = "../marco-shared" }
 
 # Utilities

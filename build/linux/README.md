@@ -133,18 +133,19 @@ Versions are stored in `build/version.json`:
 ```json
 {
   "linux": {
-    "marco-core": "1.0.0",
-    "marco-shared": "1.0.0",
-    "marco": "0.23.1",
-    "polo": "0.23.1"
+    "marco-shared": "0.23.2",
+    "marco": "0.23.2",
+    "polo": "0.23.2"
   }
 }
 ```
 
 The build script:
 - Reads versions from `version.json`
-- Syncs versions to `marco-core/Cargo.toml`, `marco-shared/Cargo.toml`, `marco/Cargo.toml`, `polo/Cargo.toml`
-- `marco-core` and `marco-shared` are independently versioned from the app binaries
+- Syncs versions to `marco-shared/Cargo.toml`, `marco/Cargo.toml`, `polo/Cargo.toml`
+- `marco-core` is published independently on crates.io from its own repository
+  (https://github.com/Ranrar/marco-core); the workspace `Cargo.toml` pins the
+  consumed version
 - Uses `--no-bump` to prevent version changes in CI
 
 ## Troubleshooting

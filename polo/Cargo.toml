@@ -8,8 +8,8 @@ license = "MIT"
 rust-version = "1.94.1"
 
 [dependencies]
-# Core library
-marco-core = { path = "../marco-core" }
+# Core library (published on crates.io)
+marco-core = { workspace = true }
 marco-shared = { path = "../marco-shared" }
 
 # Utilities

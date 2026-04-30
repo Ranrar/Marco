@@ -82,10 +82,10 @@ jobs:
           # Build the workspace
           cargo build --workspace --locked --target x86_64-pc-windows-gnu --target-dir target/windows
 
-      - name: Tests (core)
+      - name: Tests (workspace)
         shell: msys2 {0}
         run: |
           # Add Windows Cargo to PATH
           export PATH="/c/Users/runneradmin/.cargo/bin:$PATH"
-          
-          cargo test -p marco-core --lib --locked
+
+          cargo test --workspace --lib --locked --target x86_64-pc-windows-gnu --target-dir target/windows

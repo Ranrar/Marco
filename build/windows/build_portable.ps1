@@ -528,7 +528,6 @@ if (Test-Path $versionFile) {
         "Portable: Yes",
         "",
         "Component Versions:",
-        "  core:  $($json.windows.'marco-core')",
         "  marco: $($json.windows.marco)",
         "  polo:  $($json.windows.polo)",
         "",

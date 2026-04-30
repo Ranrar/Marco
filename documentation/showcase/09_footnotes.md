@@ -48,7 +48,7 @@ The CommonMark spec[^cm] and GFM spec[^gfm] define the baseline. Marco's parser[
 
 [^cm]: CommonMark Spec v0.31.2 — https://spec.commonmark.org/0.31.2/
 [^gfm]: GitHub Flavored Markdown Spec — https://github.github.com/gfm/
-[^parser]: Marco uses a hand-crafted nom-based parser. Source in `marco-core/src/grammar/`.
+[^parser]: Marco uses a hand-crafted nom-based parser. Source in the `marco-core` crate.
 
 ---
 

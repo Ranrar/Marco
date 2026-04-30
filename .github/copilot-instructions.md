@@ -40,7 +40,7 @@ cargo llvm-cov --html --open # Generate code coverage report
 rustup doc                   # View Rust standard library docs
 ```
 
-**Code coverage**: Use `cargo llvm-cov` to analyze test coverage. UI coverage is typically low/0% for GTK apps; focus coverage on `marco-core/`.
+**Code coverage**: Use `cargo llvm-cov` to analyze test coverage. UI coverage is typically low/0% for GTK apps. Pure-Rust parser/render coverage now lives in the separate [marco-core](https://github.com/Ranrar/marco-core) repository.
 
 ### VS Code workspaces (native OS)
 
@@ -60,22 +60,28 @@ Marco uses file-based logging as part of the development workflow:
 
 ## Architecture Overview
 
-Marco uses a **Cargo workspace** with three crates:
+Marco uses a **Cargo workspace** with three crates and depends on the
+externally-published [`marco-core`](https://crates.io/crates/marco-core) crate
+(developed in its own repository: https://github.com/Ranrar/marco-core).
 
 ### Workspace Structure
-- **`marco-core/`** - Pure Rust library: nom-based parser, AST, HTML renderer, and core logic (cache, logging). No GTK dependencies.
-- **`marco-shared/`** - Shared app logic: buffer management, settings, paths, loaders, layout state. No GTK dependencies.
-- **`marco/`** - Full-featured editor binary: GTK4 UI, SourceView5 text editing, WebKit6 preview. Depends on `marco-core` and `marco-shared`.
-- **`polo/`** - Lightweight viewer binary: GTK4 UI, WebKit6 preview only (no SourceView5). Depends on `marco-core` and `marco-shared`.
+- **`marco-shared/`** - Shared app logic: buffer management, settings, paths, loaders, layout state. No GTK dependencies. Also owns the centralized assets and the `build.rs` that copies them into `target/*/marco_assets/`.
+- **`marco/`** - Full-featured editor binary: GTK4 UI, SourceView5 text editing, WebKit6 preview. Depends on `marco-core` (crates.io) and `marco-shared`.
+- **`polo/`** - Lightweight viewer binary: GTK4 UI, WebKit6 preview only (no SourceView5). Depends on `marco-core` (crates.io) and `marco-shared`.
 - **`marco-shared/src/assets/`** - Centralized assets: themes, fonts, icons, settings.
 
 ### Core Components
 
-#### marco-core Library (`marco-core/src/`)
+#### marco-core (external crate, separate repo)
+The parser, AST, HTML renderer, and intelligence/LSP features live in the
+`marco-core` crate published on crates.io. The pinned version is declared in
+the workspace `Cargo.toml` under `[workspace.dependencies.marco-core]`.
+
+Key modules (in the `marco-core` repo, accessible via the published crate):
 - **`grammar/`** - nom-based grammar parsers for block and inline Markdown elements
-- **`parser/`** - AST building from grammar output (includes `ast.rs`, `block_parser.rs`, `inline_parser.rs`, `position.rs`)
+- **`parser/`** - AST building from grammar output
 - **`render/`** - HTML renderer with entity escaping and syntax highlighting support
-- **`lsp/`** - LSP features: syntax highlighting, diagnostics, completion, hover
+- **`intelligence/`** (formerly `lsp/`) - syntax highlighting, diagnostics, completion, hover
 - **`logic/`** - Pure Rust business logic: cache, logging
 
 #### marco-shared Library (`marco-shared/src/`)
@@ -94,48 +100,31 @@ Marco uses a **Cargo workspace** with three crates:
 - Viewer-focused application (read-only viewer companion)
 
 ### Parser Architecture (nom-based)
-The core parser uses **nom combinators** for Markdown parsing:
+The parser is provided by the external `marco-core` crate:
 ```rust
 // Core workflow: grammar → parser → AST → renderer
-let document = parser::parse(input)?;           // Parse to AST
-let html = render::render(&document, options)?; // Render HTML
+let document = marco_core::parser::parse(input)?;           // Parse to AST
+let html = marco_core::render::render(&document, options)?; // Render HTML
 ```
 
-Key modules in `marco-core/src/`:
-- `grammar/{block,inline}.rs` - nom-based grammar parsers (headings, code blocks, emphasis, links, etc.)
-- `parser/{block_parser,inline_parser}.rs` - AST builders calling grammar functions
-- `parser/ast.rs` - Document, Node, NodeKind definitions
-- `render/html.rs` - HTML output with entity escaping
+### LSP / Intelligence Architecture
+The `marco-core` crate provides Language Server Protocol features for editor
+integration (syntax highlights, diagnostics, completion, hover) under
+`marco_core::intelligence`.
 
-### LSP Architecture
-The core library provides **Language Server Protocol features** for editor integration:
-
-**Key LSP modules** (`marco-core/src/lsp/`):
-- `highlights.rs` - Syntax highlighting tags (11 types: Heading1-6, Emphasis, Strong, Link, CodeSpan, CodeBlock)
-- `diagnostics.rs` - Parse validation (4 severity levels: Error, Warning, Info, Hint)
-- `completion.rs` - Context-aware suggestions (headings, code blocks, links, emphasis, strong)
-- `hover.rs` - Hover information (stub for future implementation)
-- `mod.rs` - LspProvider coordinator
-
-**Usage example**:
 ```rust
-use marco_core::lsp::{compute_highlights, compute_diagnostics, get_completions};
-
-let highlights = compute_highlights(&document);  // Returns Vec<Highlight>
-let diagnostics = compute_diagnostics(&document); // Returns Vec<Diagnostic>
-let completions = get_completions(position, context); // Returns Vec<CompletionItem>
+use marco_core::intelligence::{compute_highlights, compute_diagnostics, get_completions};
 ```
 
 ### Project Structure Patterns
 - `marco/src/main.rs` serves **only** as application gateway - UI logic lives in components
-- `marco-core/src/lib.rs` re-exports public API for external tools and tests
-- **Import convention**: Use `marco_core::` for core functionality, `marco_shared::` for shared app logic, `crate::` for local modules
+- **Import convention**: Use `marco_core::` for parser/render/intelligence (external crate), `marco_shared::` for shared app logic, `crate::` for local modules
 
 ## Development Workflows
 
 ### Build System
 - **Workspace root**: `Cargo.toml` defines workspace members and shared dependencies
-- **Core build**: `marco-core/build.rs` copies assets from `marco-shared/src/assets/` to `target/*/marco_assets/`
+- **Asset build**: `marco-shared/build.rs` copies assets from `marco-shared/src/assets/` to `target/*/marco_assets/`
 - Font loading uses absolute paths via `marco_shared::paths` helpers
 - Cross-platform support is primarily handled via `marco_core::paths::platform` (OS-specific path resolution) and platform-gated UI/webview code.
 
@@ -190,58 +179,54 @@ This keeps cross-platform code clean and compiler-friendly.
 
 Build commands:
 ```bash
-cargo build -p marco-core  # Core library only
 cargo build -p marco-shared # Shared library only
 cargo build -p marco    # Full editor
 cargo build -p polo     # Viewer only
-cargo build --workspace # All crates
+cargo build --workspace # All workspace crates (marco-shared, marco, polo)
 ```
 
 ### Versioning, Changelogs, and Packaging
 
 #### Version tracking (single source of truth)
 - **Do not** hand-edit crate versions in multiple places.
-- Use `build/version.json` as the single version source for the workspace crates (`marco-core`, `marco-shared`, `marco`, `polo`).
+- Use `build/version.json` as the single version source for the workspace crates (`marco-shared`, `marco`, `polo`).
 - `build/linux/build_deb.sh` is responsible for (optionally) bumping versions and syncing them into:
-    - `marco-core/Cargo.toml`
     - `marco-shared/Cargo.toml`
     - `marco/Cargo.toml`
     - `polo/Cargo.toml`
+- The `marco-core` dependency version is pinned in the workspace `Cargo.toml`
+  under `[workspace.dependencies.marco-core]` and is bumped manually when
+  upgrading to a newer published version.
 
 #### Version scheme: library vs apps
-`marco-core` is published to crates.io and follows **independent semver** from the app binaries. `marco-shared`, `marco`, and `polo` share an **app version track**:
+`marco-core` is published to crates.io from its own repository
+(https://github.com/Ranrar/marco-core) and follows **independent semver**.
+`marco-shared`, `marco`, and `polo` share an **app version track** in this repo:
 
 | Crate | Version track | Rationale |
 |---|---|---|
-| `marco-core` | `1.x.y` — semver | Published library; breaking changes → major bump |
+| `marco-core` | `1.x.y` — semver | Published library in separate repo; not bumped here |
 | `marco-shared` | `0.x.y` — app versioning | Internal shared lib; versioned with apps |
 | `marco` | `0.x.y` — app versioning | Binary release; no API contract |
 | `polo` | `0.x.y` — app versioning | Binary release; no API contract |
 
-Bump the library and app tracks independently using the flags below.
-
 #### Automated version bump (recommended)
-- Prefer using `build/linux/build_deb.sh` to bump versions and sync all `Cargo.toml` files.
+- Prefer using `build/linux/build_deb.sh` to bump versions and sync app `Cargo.toml` files.
 - For version changes without building a `.deb`, use:
-    - App crates (marco/polo/marco-shared):
-        - `bash build/linux/build_deb.sh --version-only` (patch bump)
-        - `bash build/linux/build_deb.sh --version-only --bump minor|major`
-        - `bash build/linux/build_deb.sh --version-only --set X.Y.Z`
-    - Library crate (marco-core only):
-        - `bash build/linux/build_deb.sh --version-only --bump-lib patch|minor|major`
-        - `bash build/linux/build_deb.sh --version-only --set-lib X.Y.Z`
-    - Both at once is allowed: combine `--set X.Y.Z --set-lib X.Y.Z`
+    - `bash build/linux/build_deb.sh --version-only` (patch bump)
+    - `bash build/linux/build_deb.sh --version-only --bump minor|major`
+    - `bash build/linux/build_deb.sh --version-only --set X.Y.Z`
+- To upgrade the consumed `marco-core` version, edit the workspace `Cargo.toml`
+  manually, run `cargo update -p marco-core`, and add a note to `changelog/marco.md` / `changelog/polo.md`.
 
 #### Release workflow (repo practice)
 For a real release commit:
-1. Update the changelogs (`changelog/marco-core.md`, `changelog/marco.md`, `changelog/polo.md`) — only update the ones that changed.
+1. Update the changelogs (`changelog/marco.md`, `changelog/polo.md`) — only update the ones that changed.
 2. Bump versions via `build/linux/build_deb.sh` (recommended: `--version-only`).
-   - Library release only: `--version-only --set-lib X.Y.Z`
-   - App release only: `--version-only --set X.Y.Z`
-   - Both: `--version-only --set X.Y.Z --set-lib X.Y.Z`
+   - `--version-only --set X.Y.Z`
 3. Run tests (`cargo test --workspace --locked`).
 4. Commit the changelog + version changes.
-5. Tag the release (for example `vX.Y.Z` for apps, `core-vX.Y.Z` for library) and push.
+5. Tag the release (for example `vX.Y.Z`) and push.
 
 #### Cargo/SemVer Zero-Padding Policy (Simple)
 
@@ -264,9 +249,9 @@ version = "2.0.0+build.123"
 
 #### Changelogs
 - Changelogs live in `changelog/`:
-    - `changelog/marco-core.md`
     - `changelog/marco.md`
     - `changelog/polo.md`
+  (`marco-core` keeps its own changelog in its own repository.)
 - Format: **Keep a Changelog** sections (`Added`, `Changed`, `Fixed`, `Removed`, `Security`).
 - Entries should be **user-visible** and avoid commit hashes/file names.
 - If details are ambiguous, prefer neutral wording and avoid guessing.
@@ -282,7 +267,7 @@ Primary entry point: `build/linux/build_deb.sh`
 #### Windows portable packaging
 Windows packaging assets and scripts live in `build/windows/`.
 Primary entry point: `build/windows/build_portable.ps1`
-    - Builds the workspace with `--target x86_64-pc-windows-msvc` and produces a portable `.zip` using the version from `build/version.json`.
+    - Builds the workspace with `--target x86_64-pc-windows-gnu` and produces a portable `.zip` using the version from `build/version.json`.
     - Must be run on Windows (not cross-compiled from Linux).
     - Creates a self-contained directory structure with `marco.exe`, `polo.exe`, `assets/`, and empty `config/` + `data/` folders for portable mode.
 
@@ -308,9 +293,9 @@ Release assets are published per version tag in CI.
 ### Code Organization Rules
 1. **No logic in `marco/src/main.rs`** - only application setup and UI creation
 2. **Component isolation** - each component directory is self-contained
-3. **Core vs UI separation** - Pure Rust logic in `marco-core`/`marco-shared`, GTK-dependent code in `marco`
+3. **Core vs UI separation** - Pure Rust logic in `marco-core` (external crate) and `marco-shared`, GTK-dependent code in `marco`
 4. **Asset management** - fonts, themes, icons loaded via `marco_shared::paths` from `marco-shared/src/assets/`
-5. **Library API** - `marco-core/src/lib.rs` exposes clean API for external tools and polo binary
+5. **Library API** - `marco-core` is consumed as a published crate; bump the workspace pin in the root `Cargo.toml` to upgrade
 6. **Import patterns**: 
    - Use `marco_core::` for parser/render/LSP functionality
    - Use `marco_shared::` for buffer, paths, settings from marco/polo binaries
@@ -394,10 +379,10 @@ mod tests {
 - **Integration points** - Test where modules interact (parser→AST, AST→renderer, AST→LSP)
 
 ### Secondary Testing Approaches:
-- **Integration tests** in `tests/test_suite/` directory - modular test suite with CLI interface
-- **Test modules**: `grammar_tests.rs`, `parser_tests.rs`, `render_tests.rs`, `commonmark_tests.rs`, `lsp_tests.rs`, `ast_tests.rs`
-- **Manual testing** preferred over unit tests for UI components
-- **CommonMark compliance** - Test against official spec examples
+- **Parser/renderer test suite** lives in the external [`marco-core`](https://github.com/Ranrar/marco-core) repository (grammar, parser, render, CommonMark, intelligence). Run it from a clone of that repo with `cargo test`.
+- **App-level integration tests** can be added under `marco/tests/` or `polo/tests/` if/when needed.
+- **Manual testing** preferred over unit tests for UI components.
+- **CommonMark compliance** — validated in the `marco-core` repository.
 
 ### Testing Guidelines:
 1. **Smoke tests first** - Every new module should include smoke tests
@@ -405,20 +390,6 @@ mod tests {
 3. **Avoid over-mocking** - Use real objects when possible
 4. **Document test intent** - Clear comments explaining what is being verified
 5. **Fast feedback** - Tests should complete quickly for development workflow
-6. **Run workspace tests** - Use `cargo test --workspace` to test all crates together
+6. **Run workspace tests** - Use `cargo test --workspace` to test all app crates (`marco-shared`, `marco`, `polo`) together
 7. **Verify with runtime testing** - Before completing work, run the application (`cargo run -p marco` or `cargo run -p polo`) and check the log file (e.g., `log/202510/251007.log`) to ensure no runtime errors or warnings
-
-### Test Results
-```
-Core Library Tests:   85/85 passing (100%)
-Integration Tests:     2/2 passing (100%)
-Total:                87/87 passing (100%)
-```
-
-Test suite structure:
-- `tests/test_suite.rs` - CLI entry point (145 lines)
-- `tests/test_suite/grammar_tests.rs` - Inline + block grammar tests
-- `tests/test_suite/parser_tests.rs` - Parser integration tests
-- `tests/test_suite/render_tests.rs` - Render + inline pipeline tests
-- `tests/test_suite/commonmark_tests.rs` - CommonMark spec tests
-- `tests/test_suite/lsp_tests.rs` - LSP feature tests
+8. **Parser changes** - File parser/render/intelligence work against the [`marco-core`](https://github.com/Ranrar/marco-core) repository; bump the workspace pin in this repo's root `Cargo.toml` once a new version is published.

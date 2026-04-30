@@ -1,23 +1,24 @@
 // build.rs
-// Copies runtime assets from marco-shared/src/assets/ to target/{debug|release}/marco_assets/ at build time.
+// Copies runtime assets from marco-shared/src/assets/ to target/{debug|release}/marco_assets/
+// at build time. Runs as part of the marco-shared crate so assets are available for both
+// `marco` and `polo` binaries (which both depend on marco-shared).
 
 use std::fs;
 use std::path::Path;
 
 fn main() {
-    // In workspace: assets are at ../marco-shared/src/assets relative to marco-core/
-    let asset_root = Path::new("../marco-shared/src/assets");
-    // Detect build profile (debug/release)
+    // Assets are next to this build.rs, under src/assets.
+    let asset_root = Path::new("src/assets");
+
+    // Detect target directory. OUT_DIR looks like target/debug/build/<crate>-<hash>/out;
+    // we want target/debug or target/release.
     let out_dir = std::env::var("OUT_DIR").expect("OUT_DIR not set");
-    // OUT_DIR is something like target/debug/build/core-xxxx/out
-    // We want target/debug or target/release
     let target_dir = Path::new(&out_dir)
         .ancestors()
         .nth(3)
         .expect("Failed to get target dir");
     let marco_root = target_dir.join("marco_assets");
 
-    // Helper to recursively copy a directory
     fn copy_dir_recursive(src: &Path, dst: &Path) {
         if !dst.exists() {
             fs::create_dir_all(dst).expect("Failed to create target directory");
@@ -29,7 +30,6 @@ fn main() {
                 if path.is_dir() {
                     copy_dir_recursive(&path, &dest_path);
                 } else {
-                    // Only copy if file doesn't exist or is newer
                     let should_copy = !dest_path.exists()
                         || fs::metadata(&path).ok().and_then(|m| m.modified().ok())
                             > fs::metadata(&dest_path)
@@ -44,35 +44,12 @@ fn main() {
         }
     }
 
-    // Tell cargo to rerun only if asset directories change
-    println!("cargo:rerun-if-changed=../marco-shared/src/assets");
+    println!("cargo:rerun-if-changed=src/assets");
 
-    // Copy fonts
-    let fonts_src = asset_root.join("fonts");
-    let fonts_dst = marco_root.join("fonts");
-    copy_dir_recursive(&fonts_src, &fonts_dst);
+    for sub in ["fonts", "icons", "documentation", "language", "themes"] {
+        copy_dir_recursive(&asset_root.join(sub), &marco_root.join(sub));
+    }
 
-    // Copy icons
-    let icons_src = asset_root.join("icons");
-    let icons_dst = marco_root.join("icons");
-    copy_dir_recursive(&icons_src, &icons_dst);
-
-    // Copy documentation
-    let doc_src = asset_root.join("documentation");
-    let doc_dst = marco_root.join("documentation");
-    copy_dir_recursive(&doc_src, &doc_dst);
-
-    // Copy language
-    let lang_src = asset_root.join("language");
-    let lang_dst = marco_root.join("language");
-    copy_dir_recursive(&lang_src, &lang_dst);
-
-    // Copy themes
-    let themes_src = asset_root.join("themes");
-    let themes_dst = marco_root.join("themes");
-    copy_dir_recursive(&themes_src, &themes_dst);
-
-    // Copy settings.ron
     let settings_src = asset_root.join("settings.ron");
     let settings_dst = marco_root.join("settings.ron");
     if settings_src.exists() {
