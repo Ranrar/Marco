@@ -2674,8 +2674,7 @@ dependencies = [
 [[package]]
 name = "marco-core"
 version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af57f2ce76d69a199dee4abeb2ab88978a12e78043c5794446cee6c58ffb61d7"
+source = "git+https://github.com/Ranrar/marco-core?branch=release%2Fv1.1.0#fb0b8312a96b069bd4124d9fb8db549054583194"
 dependencies = [
  "chrono",
  "dirs",

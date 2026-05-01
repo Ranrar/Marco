@@ -138,7 +138,7 @@ pub enum LifecycleEvent {
 
 impl LifecycleEvent {
     /// Common prefix used for both `document.title` and `ipc.postMessage`
-    /// payloads. Existing handlers (`marco_scroll:`, `marco_paged_ready`)
+    /// payloads. Existing handlers (`marco_scroll:`, `mc_paged_ready`)
     /// ignore this prefix and continue to fire normally.
     pub const PREFIX: &'static str = "marco_export:";
 
@@ -226,7 +226,7 @@ impl ProgressReporter for NoopReporter {
 
 /// JS injected into every export WebView. Posts `marco_export:*` payloads
 /// over both `document.title` (Linux/WebKit) and `window.ipc.postMessage`
-/// (Windows/wry). Coexists with the existing `marco_paged_ready` and
+/// (Windows/wry). Coexists with the existing `mc_paged_ready` and
 /// `marco_scroll:` handlers — they ignore unknown prefixes.
 pub const LIFECYCLE_BRIDGE_JS: &str = r#"<script id="marco-export-lifecycle">
 (function(){
@@ -687,10 +687,9 @@ impl PlatformExportBackend for LinuxExportBackend {
         // Shared one-shot slot — the title-notify handler writes here.
         let slot: Rc<RefCell<Option<LifecycleEvent>>> = Rc::new(RefCell::new(None));
         let slot_write = slot.clone();
-        // notify::title is the same channel `marco_paged_ready` already uses
+        // notify::title is the same channel `mc_paged_ready` already uses
         // for the live preview; we filter both `marco_export:*` (new bridge)
-        // and the legacy `marco_paged_ready` title for backward compatibility
-        // with `wrap_html_document_paged(standalone_export: false)` integration JS.
+        // and `mc_paged_ready` as the paged-ready signal from marco-core v1.1.0.
         let handler_id = self.webview.connect_notify_local(Some("title"), {
             let slot_write = slot_write.clone();
             move |wv: &webkit6::WebView, _| {
@@ -698,8 +697,8 @@ impl PlatformExportBackend for LinuxExportBackend {
                 let title = t.as_str();
                 let evt = if let Some(e) = LifecycleEvent::parse(title) {
                     Some(e)
-                } else if title == "marco_paged_ready" {
-                    // Legacy live-preview signal — treated as LayoutDone.
+                } else if title == "mc_paged_ready" {
+                    // Paged-ready signal from marco-core v1.1.0 — treated as LayoutDone.
                     Some(LifecycleEvent::LayoutDone)
                 } else {
                     None
@@ -972,10 +971,10 @@ mod tests {
 
     #[test]
     fn smoke_lifecycle_event_ignores_other_prefixes() {
-        // The bridge must coexist with `marco_scroll:` and `marco_paged_ready`
+        // The bridge must coexist with `marco_scroll:` and `mc_paged_ready`
         // without consuming them.
         assert_eq!(LifecycleEvent::parse("marco_scroll:0.5"), None);
-        assert_eq!(LifecycleEvent::parse("marco_paged_ready"), None);
+        assert_eq!(LifecycleEvent::parse("mc_paged_ready"), None);
         assert_eq!(LifecycleEvent::parse("loaded"), None);
         assert_eq!(LifecycleEvent::parse(""), None);
     }

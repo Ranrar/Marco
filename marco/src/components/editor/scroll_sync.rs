@@ -460,7 +460,7 @@ impl ScrollSynchronizer {
             // paged.js fires this once after layout is complete.  Scroll the
             // webview to match the editor so the preview doesn't stay pinned
             // at the top after every live-edit reload.
-            if title_str == "marco_paged_ready" {
+            if title_str == "mc_paged_ready" {
                 let adj = target_sw_clone.vadjustment();
                 let range = adj.upper() - adj.page_size();
                 if range > 0.0 {

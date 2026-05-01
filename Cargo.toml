@@ -6,7 +6,8 @@ members = ["marco", "polo", "marco-shared"]
 # and lives in its own repository. Pull it from crates.io with a single shared
 # version so all workspace members stay in sync.
 [workspace.dependencies.marco-core]
-version = "1.0.2"
+git = "https://github.com/Ranrar/marco-core"
+branch = "release/v1.1.0"
 
 # Shared workspace dependencies
 [workspace.dependencies]

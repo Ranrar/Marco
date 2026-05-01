@@ -196,9 +196,9 @@ pub fn create_html_viewer_with_base(
             // Cleanup JavaScript state before destruction
             webview_cleanup.evaluate_javascript(
                 "(function() { 
-                    if (window.MarcoPreview) { 
-                        MarcoPreview.cleanup(); 
-                        delete window.MarcoPreview; 
+                    if (window.MarcoCorePreview) { 
+                        MarcoCorePreview.cleanup(); 
+                        delete window.MarcoCorePreview; 
                     } 
                 })()",
                 None,                      // world_name
@@ -234,8 +234,8 @@ pub fn create_html_viewer_with_base(
 /// **How it works**:
 /// 1. Escapes the new HTML content for JavaScript string safety
 /// 2. Injects JavaScript that:
-///    a. Tries to use window.MarcoPreview.updateContent() if available
-///    b. Falls back to direct DOM update if MarcoPreview isn't ready
+///    a. Tries to use window.MarcoCorePreview.updateContent() if available
+///    b. Falls back to direct DOM update if MarcoCorePreview isn't ready
 ///    c. Preserves scroll position during update
 ///
 /// **Memory leak prevention**: Cleans up temporary variables and uses
@@ -310,14 +310,14 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
                     delete window._marcoTempUpdate;
                 }}
                 
-                // Check if our MarcoPreview object exists with update function
-                if (window.MarcoPreview && typeof window.MarcoPreview.updateContent === 'function') {{
-                    window.MarcoPreview.updateContent('{}');
+                // Check if our MarcoCorePreview object exists with update function
+                if (window.MarcoCorePreview && typeof window.MarcoCorePreview.updateContent === 'function') {{
+                    window.MarcoCorePreview.updateContent('{}');
                     return;
                 }}
                 
                 // Fallback: direct DOM update without creating persistent variables
-                var container = document.getElementById('marco-content-container');
+                var container = document.getElementById('mc-content-container');
                 if (container) {{
                     // Save scroll position
                     var scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
@@ -334,7 +334,7 @@ pub fn update_html_content_smooth(webview: &WebView, content: &str) {
                     // Last resort: create container
                     var body = document.body || document.getElementsByTagName('body')[0];
                     if (body) {{
-                        body.innerHTML = '<div id="marco-content-container">{}</div>';
+                        body.innerHTML = '<div id="mc-content-container">{}</div>';
                     }}
                 }}
             }} catch(e) {{
@@ -388,12 +388,12 @@ pub fn wrap_html_document(
 
 // Note: in-page JS helpers are embedded in the HTML template produced by
 // `wrap_html_document`. When we need to trigger preview interactions from Rust,
-// we do so via small helper functions that call into `window.MarcoPreview`.
+// we do so via small helper functions that call into `window.MarcoCorePreview`.
 
 /// Start autoplay timers for all `marco_sliders` decks in the current preview (if any).
 #[allow(dead_code)]
 pub fn sliders_play_all(webview: &WebView) {
-    let js = r#"(function(){try{if(window.MarcoPreview&&window.MarcoPreview.sliders&&typeof window.MarcoPreview.sliders.playAll==='function'){window.MarcoPreview.sliders.playAll();}}catch(e){console.error('sliders_play_all error',e);}})();"#;
+    let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.playAll==='function'){window.MarcoCorePreview.sliders.playAll();}}catch(e){console.error('sliders_play_all error',e);}})();"#;
     let webview_clone = webview.clone();
     glib::idle_add_local(move || {
         webview_clone.evaluate_javascript(js, None, None, None::<&gio::Cancellable>, |_result| {});
@@ -404,7 +404,7 @@ pub fn sliders_play_all(webview: &WebView) {
 /// Stop autoplay timers for all `marco_sliders` decks in the current preview (if any).
 #[allow(dead_code)]
 pub fn sliders_pause_all(webview: &WebView) {
-    let js = r#"(function(){try{if(window.MarcoPreview&&window.MarcoPreview.sliders&&typeof window.MarcoPreview.sliders.pauseAll==='function'){window.MarcoPreview.sliders.pauseAll();}}catch(e){console.error('sliders_pause_all error',e);}})();"#;
+    let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.pauseAll==='function'){window.MarcoCorePreview.sliders.pauseAll();}}catch(e){console.error('sliders_pause_all error',e);}})();"#;
     let webview_clone = webview.clone();
     glib::idle_add_local(move || {
         webview_clone.evaluate_javascript(js, None, None, None::<&gio::Cancellable>, |_result| {});
@@ -596,7 +596,7 @@ pub fn create_html_source_viewer_webview(
         let webview_cleanup = webview.clone();
         move |_| {
             webview_cleanup.evaluate_javascript(
-                "(function() { if (window.MarcoPreview) { MarcoPreview.cleanup(); delete window.MarcoPreview; } })()",
+                "(function() { if (window.MarcoCorePreview) { MarcoCorePreview.cleanup(); delete window.MarcoCorePreview; } })()",
                 None,
                 None,
                 None::<&gio::Cancellable>,
