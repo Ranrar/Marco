@@ -153,11 +153,18 @@ pub fn show_insert_emoji_popover(
     }
 
     if !top_usage.is_empty() {
+        let recently_used_tooltip = crate::components::language::SimpleLocalizationManager::new()
+            .ok()
+            .map(|m| {
+                use crate::components::language::LocalizationProvider;
+                m.translations().toolbar.recently_used.clone()
+            })
+            .unwrap_or_else(|| "Recently used".to_string());
         for (idx, item) in top_usage.into_iter().take(10).enumerate() {
             let display_emoji = display_emoji_for_history_value(&item.value);
             let quick_button = gtk4::Button::with_label(&display_emoji);
             quick_button.add_css_class("toolbar-functions-popover-btn");
-            quick_button.set_tooltip_text(Some("Recently used"));
+            quick_button.set_tooltip_text(Some(&recently_used_tooltip));
             quick_button.set_width_request(26);
 
             let text_buffer = text_buffer.clone();

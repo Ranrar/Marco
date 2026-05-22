@@ -31,6 +31,7 @@ use gtk4::prelude::GtkWindowExt;
 pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
 pub mod export_pipeline; // Unified Export & Print Pipeline (skeleton — Phase 1, no callers)
 pub mod layout_controller; // Split controller + webview location tracking
+pub mod loading_overlay; // Centered indeterminate loading bar overlayed on the preview
 pub mod pagedjs; // Embedded paged.js polyfill for page view simulation
 #[cfg(target_os = "linux")]
 pub mod print_driver; // Print dialog and PDF export driver (Linux: WebKit6)

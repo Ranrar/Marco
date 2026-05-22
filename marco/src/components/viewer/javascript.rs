@@ -154,6 +154,34 @@ pub const SCROLL_REPORT_JS: &str = r#"<script>
 })();
 </script>"#;
 
+/// JS that saves `window.scrollY` to `sessionStorage` before a full page
+/// reload and restores it once the new page has laid out.
+///
+/// Injected once into every page body (via `wheel_js_rc` in `ui.rs`).
+/// The save half is called from Rust just before `load_html_when_ready`
+/// fires (improvement #2); the restore half runs automatically on each
+/// page load.
+pub const SCROLL_RESTORE_JS: &str = r#"<script>
+(function(){
+    try {
+        var s = sessionStorage.getItem('marco-scroll');
+        if (s !== null) {
+            sessionStorage.removeItem('marco-scroll');
+            var y = parseInt(s, 10);
+            if (!isNaN(y) && y > 0) {
+                if (document.readyState === 'loading') {
+                    window.addEventListener('load', function() {
+                        window.scrollTo(0, y);
+                    }, { once: true });
+                } else {
+                    window.scrollTo(0, y);
+                }
+            }
+        }
+    } catch(e) {}
+})();
+</script>"#;
+
 /// JS that reports hovered link URLs back to the host via `window.ipc.postMessage`.
 ///
 /// Only meaningful on Windows where the wry/WebView2 backend lacks a native

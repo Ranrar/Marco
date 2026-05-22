@@ -9,9 +9,11 @@ use crate::components::editor::ui::{
 };
 use glib::subclass::prelude::ObjectSubclassIsExt;
 use gtk4::prelude::*;
+use marco_shared::cache::{global_parser_cache, hash_content};
 use std::cell::RefCell;
 use std::pin::Pin;
 use std::rc::Rc;
+use std::sync::Arc;
 
 const HOVER_POPOVER_WIDTH: i32 = 320;
 const HOVER_POPOVER_HORIZONTAL_SAFE_PADDING: i32 = 8;
@@ -153,14 +155,28 @@ mod imp {
                 return Err(no_content());
             }
 
-            // Parse once and reuse the document for both hover info and span
-            // analysis — avoids parsing the same source twice.
+            // Resolve the document AST, preferring the in-process cache to
+            // avoid re-parsing on the main thread.  For large uncached documents
+            // parsing would block the GTK event loop for hundreds of ms;
+            // in that case we fall back to diagnostic-only hover.
             let position = marco_core::parser::Position {
                 line,
                 column,
                 offset: byte_offset,
             };
-            let parsed_doc = marco_core::parser::parse(&source).ok();
+            let content_hash = hash_content(&source);
+            let parsed_doc: Option<Arc<marco_core::Document>> =
+                global_parser_cache().get_cached_ast(content_hash).or_else(|| {
+                    // Only parse synchronously if the document is small enough
+                    // that the parse will finish in a few milliseconds.  Large
+                    // documents will have their AST warmed in the background by
+                    // the section-cache prewarm and footer-diagnostics tasks.
+                    if source.len() < 50_000 {
+                        marco_core::parser::parse(&source).ok().map(Arc::new)
+                    } else {
+                        None
+                    }
+                });
 
             let diagnostic_candidate = if runtime_settings.diagnostics_hover_enabled {
                 let diagnostics_ref = self.diagnostics.borrow();
@@ -180,7 +196,7 @@ mod imp {
             // candidate has the tighter span; equal/no markdown → diagnostic wins.
             let markdown_candidate = if runtime_settings.markdown_hover_enabled {
                 parsed_doc
-                    .as_ref()
+                    .as_deref()
                     .and_then(|doc| marco_core::intelligence::get_hover_info(position, doc))
             } else {
                 None
@@ -224,7 +240,7 @@ mod imp {
                         .offset
                         .saturating_sub(diagnostic.span.start.offset);
                     let has_tighter_node = parsed_doc
-                        .as_ref()
+                        .as_deref()
                         .and_then(|doc| marco_core::intelligence::get_position_span(position, doc))
                         .map(|s| s.end.offset.saturating_sub(s.start.offset) < diag_span_len)
                         .unwrap_or(false);

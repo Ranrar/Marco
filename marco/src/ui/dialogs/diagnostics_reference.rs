@@ -75,6 +75,9 @@ fn matches_filters(
 }
 
 pub fn show_diagnostics_reference_dialog(parent: &Window) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let td = &t.diagnostics_reference;
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
     } else {
@@ -94,7 +97,7 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Diagnostics Reference",
+        &td.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -128,7 +131,7 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
     let search_row = GtkBox::new(Orientation::Horizontal, 8);
     search_row.set_halign(Align::Fill);
 
-    let search_label = Label::new(Some("Search"));
+    let search_label = Label::new(Some(&td.search_label));
     search_label.set_halign(Align::Start);
     search_label.set_xalign(0.0);
     search_label.set_width_chars(8);
@@ -138,21 +141,27 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
     let search_entry = SearchEntry::new();
     search_entry.add_css_class("marco-search-entry");
     search_entry.set_hexpand(true);
-    search_entry.set_placeholder_text(Some("Search diagnostics (e.g. MD101, heading, link)…"));
+    search_entry.set_placeholder_text(Some(&td.search_placeholder));
     search_row.append(&search_entry);
     content.append(&search_row);
 
     let filter_row = GtkBox::new(Orientation::Horizontal, 8);
     filter_row.set_halign(Align::Fill);
 
-    let severity_label = Label::new(Some("Severity"));
+    let severity_label = Label::new(Some(&td.severity_label));
     severity_label.set_halign(Align::Start);
     severity_label.set_xalign(0.0);
     severity_label.set_width_chars(8);
     severity_label.add_css_class("marco-dialog-option-title");
     filter_row.append(&severity_label);
 
-    let severity_options = StringList::new(&["All", "Error", "Warning", "Info", "Hint"]);
+    let severity_options = StringList::new(&[
+        td.severity_all.as_str(),
+        td.severity_error.as_str(),
+        td.severity_warning.as_str(),
+        td.severity_info.as_str(),
+        td.severity_hint.as_str(),
+    ]);
     let severity_expression = PropertyExpression::new(
         StringObject::static_type(),
         None::<&gtk4::Expression>,
@@ -234,7 +243,7 @@ pub fn show_diagnostics_reference_dialog(parent: &Window) {
     scroller.add_css_class("marco-diagnostics-reference-scroller");
     content.append(&scroller);
 
-    let close_button_bottom = Button::with_label("Close");
+    let close_button_bottom = Button::with_label(&t.close_button);
     close_button_bottom.add_css_class("marco-btn");
     close_button_bottom.add_css_class("marco-btn-yellow");
 

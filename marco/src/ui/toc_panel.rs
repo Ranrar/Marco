@@ -92,16 +92,8 @@ impl TocPanelHandle {
             .text(&buffer.start_iter(), &buffer.end_iter(), false)
             .to_string();
         let depth = self.depth.get();
-        match marco_core::parser::parse(&text) {
-            Ok(doc) => {
-                let entries = marco_core::intelligence::toc::extract_toc(&doc);
-                self.rebuild(&entries, depth);
-            }
-            Err(e) => {
-                log::warn!("[TOC] parser error during rebuild: {e}");
-                self.rebuild(&[], depth);
-            }
-        }
+        let entries = marco_shared::cache::global_parser_cache().get_or_compute_toc(&text);
+        self.rebuild(&entries, depth);
         // `rebuild()` already schedules a deferred paned resize via
         // idle_add_local_once, so no additional set_position call is needed here.
     }

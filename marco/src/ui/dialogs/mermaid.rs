@@ -45,6 +45,7 @@ const DIAGRAM_TYPES: &[DiagramType] = &[
     DiagramType::Custom,
 ];
 
+#[allow(dead_code)]
 fn diagram_label(kind: DiagramType) -> &'static str {
     match kind {
         DiagramType::Flowchart => "Flowchart",
@@ -255,6 +256,9 @@ fn load_preview(surface: &PreviewSurface, html: String) {
 // ── Main dialog ───────────────────────────────────────────────────────────────
 
 pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let tm = &t.mermaid;
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
     let initial_theme = if parent_widget.has_css_class("marco-theme-dark") {
         "marco-theme-dark".to_string()
@@ -277,7 +281,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Mermaid Diagram",
+        &tm.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -301,13 +305,23 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
     vbox.set_margin_bottom(0);
 
     // ── Diagram type selector ──────────────────────────────────────────────────
-    let type_section_label = Label::new(Some("Diagram type"));
+    let type_section_label = Label::new(Some(&tm.type_label));
     type_section_label.set_halign(Align::Start);
     type_section_label.add_css_class("marco-dialog-section-label");
     type_section_label.add_css_class("marco-dialog-section-label-strong");
     vbox.append(&type_section_label);
 
-    let type_labels: Vec<&str> = DIAGRAM_TYPES.iter().map(|k| diagram_label(*k)).collect();
+    let type_labels: Vec<&str> = DIAGRAM_TYPES
+        .iter()
+        .map(|k| match k {
+            DiagramType::Flowchart => tm.diagram_flowchart.as_str(),
+            DiagramType::Sequence => tm.diagram_sequence.as_str(),
+            DiagramType::Pie => tm.diagram_pie.as_str(),
+            DiagramType::GitGraph => tm.diagram_gitgraph.as_str(),
+            DiagramType::Class => tm.diagram_class.as_str(),
+            DiagramType::Custom => tm.diagram_custom.as_str(),
+        })
+        .collect();
     let type_list = StringList::new(&type_labels);
     let type_expression =
         PropertyExpression::new(StringObject::static_type(), None::<&Expression>, "string");
@@ -317,7 +331,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
     type_combo.set_selected(0);
     type_combo.set_hexpand(true);
 
-    let use_template_button = Button::with_label("Use Template");
+    let use_template_button = Button::with_label(&t.use_template_button);
     use_template_button.add_css_class("marco-btn");
     use_template_button.add_css_class("marco-btn-blue");
 
@@ -336,7 +350,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
     vbox.append(&hint_label);
 
     // ── Source editor ──────────────────────────────────────────────────────────
-    let source_section_label = Label::new(Some("Source"));
+    let source_section_label = Label::new(Some(&t.source_label));
     source_section_label.set_halign(Align::Start);
     source_section_label.add_css_class("marco-dialog-section-label");
     vbox.append(&source_section_label);
@@ -370,7 +384,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
     vbox.append(&error_label);
 
     // ── Live preview ───────────────────────────────────────────────────────────
-    let preview_section_label = Label::new(Some("Live Preview"));
+    let preview_section_label = Label::new(Some(&t.live_preview_label));
     preview_section_label.set_halign(Align::Start);
     preview_section_label.add_css_class("marco-dialog-section-label");
     vbox.append(&preview_section_label);
@@ -422,11 +436,11 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
     vbox.append(&preview_scroll);
 
     // ── Bottom action bar ──────────────────────────────────────────────────────
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
     insert_button.set_sensitive(false); // disabled until source is non-empty

@@ -75,6 +75,26 @@ pub struct ColorPalette {
     pub control_icon_hover: &'static str,
     /// Window control icon active/pressed color (high contrast)
     pub control_icon_active: &'static str,
+
+    // Toolbar colors — separate from titlebar (matches Marco's toolbar.css)
+    /// Toolbar background (lighter than titlebar in light mode)
+    pub toolbar_bg: &'static str,
+    /// Toolbar bottom border color
+    pub toolbar_border: &'static str,
+    /// Toolbar button default icon/text color
+    pub toolbar_button: &'static str,
+    /// Toolbar button hover icon/text color
+    pub toolbar_button_hover: &'static str,
+    /// Toolbar button active/pressed color
+    pub toolbar_button_active: &'static str,
+    /// Toolbar vertical separator color
+    pub toolbar_separator: &'static str,
+
+    // Menu-specific colors (matches Marco's menu.css hover/active/disabled)
+    /// Menu item hover text color
+    pub menu_hover: &'static str,
+    /// Menu item disabled text color
+    pub menu_disabled: &'static str,
 }
 
 /// Light theme color palette (matches Marco with enhanced window controls)
@@ -99,6 +119,18 @@ pub const LIGHT_PALETTE: ColorPalette = ColorPalette {
     control_icon: "#4a5568", // Subtle gray-blue (medium contrast on #e8ecef)
     control_icon_hover: "#2563eb", // Blue on hover (clear interaction)
     control_icon_active: "#1e40af", // Darker blue on click (confirmed action)
+
+    // Toolbar colors (matches Marco's toolbar.css light palette exactly)
+    toolbar_bg: "#f5f5f5",
+    toolbar_border: "#ddd",
+    toolbar_button: "#2c3e50",
+    toolbar_button_hover: "#5a6c7d",
+    toolbar_button_active: "#000",
+    toolbar_separator: "#b3b8bf",
+
+    // Menu colors (matches Marco's menu.css light palette exactly)
+    menu_hover: "#000000",
+    menu_disabled: "#999",
 };
 
 /// Dark theme color palette (matches Marco with enhanced window controls)
@@ -123,6 +155,18 @@ pub const DARK_PALETTE: ColorPalette = ColorPalette {
     control_icon: "#9ca3af",        // Light gray (medium contrast on #23272e)
     control_icon_hover: "#2563eb",  // Blue on hover (same as light mode)
     control_icon_active: "#1e40af", // Darker blue on click (same as light mode)
+
+    // Toolbar colors (matches Marco's toolbar.css dark palette exactly)
+    toolbar_bg: "#252526",
+    toolbar_border: "#3c3c3c",
+    toolbar_button: "#f0f5f1",
+    toolbar_button_hover: "#9198a1",
+    toolbar_button_active: "#fff",
+    toolbar_separator: "#6b7280",
+
+    // Menu colors (matches Marco's menu.css dark palette exactly)
+    menu_hover: "#ffffff",
+    menu_disabled: "#888",
 };
 
 /// Standard titlebar height in pixels

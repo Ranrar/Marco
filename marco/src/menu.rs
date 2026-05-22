@@ -240,7 +240,11 @@ fn reparent_webview_to_main_window(
 /// Behavior:
 /// - First click opens its popover.
 /// - While any menu popover is open, hovering other menu buttons switches to them.
-fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwitchState) -> Button {
+fn create_menu_button(
+    label: &str,
+    menu: &gio::Menu,
+    switch_state: HoverMenuSwitchState,
+) -> (Button, gtk4::PopoverMenu) {
     let button = Button::with_label(label);
     button.add_css_class("menu-button");
     button.set_has_frame(false);
@@ -319,7 +323,7 @@ fn create_menu_button(label: &str, menu: &gio::Menu, switch_state: HoverMenuSwit
         });
     }
 
-    button
+    (button, popover)
 }
 
 fn action_name_from_detailed(detailed_action: &str) -> Option<&str> {
@@ -599,7 +603,7 @@ pub struct MenuBarState {
     pub menu_bar: GtkBox,
     pub recent_menu: gio::Menu,
     pub bookmarks_menu: gio::Menu,
-    file_menu: gio::Menu,
+    pub file_menu: gio::Menu,
     edit_menu: gio::Menu,
     inline_menu: gio::Menu,
     blocks_menu: gio::Menu,
@@ -617,6 +621,33 @@ pub struct MenuBarState {
     tools_btn: Button,
     help_btn: Button,
     recent_menu_item: gio::MenuItem,
+    /// Popovers backed by `PopoverMenu::from_model`. Stored so we can reset
+    /// their menu model after rebuilding the underlying `gio::Menu`, which
+    /// forces GTK to drop stale submenu stack pages (otherwise GTK warns
+    /// about duplicate `GtkStack` child names like "Open Recent").
+    pub file_popover: gtk4::PopoverMenu,
+    edit_popover: gtk4::PopoverMenu,
+    inline_popover: gtk4::PopoverMenu,
+    blocks_popover: gtk4::PopoverMenu,
+    modules_popover: gtk4::PopoverMenu,
+    #[allow(dead_code)]
+    pub bookmarks_popover: gtk4::PopoverMenu,
+    help_popover: gtk4::PopoverMenu,
+    /// Titlebar widgets whose translated tooltips need to be refreshed when
+    /// the language is changed at runtime. Populated by `create_custom_titlebar`.
+    titlebar_widgets: RefCell<Option<TitlebarWidgets>>,
+}
+
+/// Refresh-on-language-change handles for the custom titlebar tooltips.
+pub(crate) struct TitlebarWidgets {
+    pub app_icon: gtk4::Image,
+    pub layout_btn_editor_only: Button,
+    pub layout_btn_view_only: Button,
+    pub layout_btn_detach: Button,
+    pub layout_btn_restore: Button,
+    pub win_minimize_btn: Button,
+    pub win_maximize_btn: Button,
+    pub win_close_btn: Button,
 }
 
 fn clear_menu(menu: &gio::Menu) {
@@ -633,6 +664,30 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
     menu_state.modules_btn.set_label(&translations.menu.modules);
     menu_state.tools_btn.set_label(&translations.menu.tools);
     menu_state.help_btn.set_label(&translations.menu.help);
+
+    // IMPORTANT: detach popover models BEFORE mutating the gio::Menu. The
+    // PopoverMenu listens to "items-changed" and tries to add a GtkStack page
+    // for each submenu using its (translated) label. If we mutate the model
+    // while it is attached, GTK will warn about duplicate stack child names
+    // when the new label was previously used (e.g. switching DE → EN → DE).
+    menu_state
+        .file_popover
+        .set_menu_model(None::<&gio::MenuModel>);
+    menu_state
+        .edit_popover
+        .set_menu_model(None::<&gio::MenuModel>);
+    menu_state
+        .inline_popover
+        .set_menu_model(None::<&gio::MenuModel>);
+    menu_state
+        .blocks_popover
+        .set_menu_model(None::<&gio::MenuModel>);
+    menu_state
+        .modules_popover
+        .set_menu_model(None::<&gio::MenuModel>);
+    menu_state
+        .help_popover
+        .set_menu_model(None::<&gio::MenuModel>);
 
     clear_menu(&menu_state.file_menu);
     crate::ui::menu_items::files::populate_file_menu(
@@ -691,6 +746,45 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
     menu_state
         .help_menu
         .append(Some(&translations.menu.about), Some("app.about"));
+
+    // Re-attach popover models now that menus have been rebuilt.
+    menu_state
+        .file_popover
+        .set_menu_model(Some(&menu_state.file_menu));
+    menu_state
+        .edit_popover
+        .set_menu_model(Some(&menu_state.edit_menu));
+    menu_state
+        .inline_popover
+        .set_menu_model(Some(&menu_state.inline_menu));
+    menu_state
+        .blocks_popover
+        .set_menu_model(Some(&menu_state.blocks_menu));
+    menu_state
+        .modules_popover
+        .set_menu_model(Some(&menu_state.modules_menu));
+    menu_state
+        .help_popover
+        .set_menu_model(Some(&menu_state.help_menu));
+
+    // Refresh translated tooltips on titlebar widgets (custom headerbar).
+    if let Some(tb) = menu_state.titlebar_widgets.borrow().as_ref() {
+        let t = &translations.titlebar;
+        tb.app_icon.set_tooltip_text(Some(&t.app_tooltip));
+        tb.layout_btn_editor_only
+            .set_tooltip_text(Some(&t.layout_editor_only));
+        tb.layout_btn_view_only
+            .set_tooltip_text(Some(&t.layout_view_only));
+        tb.layout_btn_detach
+            .set_tooltip_text(Some(&t.layout_detach_view));
+        tb.layout_btn_restore
+            .set_tooltip_text(Some(&t.layout_restore_split));
+        tb.win_minimize_btn
+            .set_tooltip_text(Some(&t.window_minimize));
+        tb.win_maximize_btn
+            .set_tooltip_text(Some(&t.window_maximize_restore));
+        tb.win_close_btn.set_tooltip_text(Some(&t.window_close));
+    }
 }
 
 pub fn main_menu_structure(
@@ -742,19 +836,21 @@ pub fn main_menu_structure(
     let bookmarks_menu = gio::Menu::new();
 
     // Create menu buttons
-    let file_btn = create_menu_button(&translations.menu.file, &file_menu, switch_state.clone());
-    let edit_btn = create_menu_button(&translations.menu.edit, &edit_menu, switch_state.clone());
-    let inline_btn = create_menu_button(
+    let (file_btn, file_popover) =
+        create_menu_button(&translations.menu.file, &file_menu, switch_state.clone());
+    let (edit_btn, edit_popover) =
+        create_menu_button(&translations.menu.edit, &edit_menu, switch_state.clone());
+    let (inline_btn, inline_popover) = create_menu_button(
         &translations.menu.inline,
         &inline_menu,
         switch_state.clone(),
     );
-    let blocks_btn = create_menu_button(
+    let (blocks_btn, blocks_popover) = create_menu_button(
         &translations.menu.blocks,
         &blocks_menu,
         switch_state.clone(),
     );
-    let modules_btn = create_menu_button(
+    let (modules_btn, modules_popover) = create_menu_button(
         &translations.menu.modules,
         &modules_menu,
         switch_state.clone(),
@@ -765,12 +861,13 @@ pub fn main_menu_structure(
         switch_state.clone(),
         tools_pre_open.clone(),
     );
-    let bookmarks_btn = create_menu_button(
+    let (bookmarks_btn, bookmarks_popover) = create_menu_button(
         &translations.menu.bookmarks,
         &bookmarks_menu,
         switch_state.clone(),
     );
-    let help_btn = create_menu_button(&translations.menu.help, &help_menu, switch_state);
+    let (help_btn, help_popover) =
+        create_menu_button(&translations.menu.help, &help_menu, switch_state);
 
     // Add buttons to the box
     menu_box.append(&file_btn);
@@ -802,6 +899,14 @@ pub fn main_menu_structure(
         tools_btn,
         help_btn,
         recent_menu_item,
+        file_popover,
+        edit_popover,
+        inline_popover,
+        blocks_popover,
+        modules_popover,
+        bookmarks_popover,
+        help_popover,
+        titlebar_widgets: RefCell::new(None),
     };
 
     update_menu_translations(&menu_state, translations);
@@ -1527,6 +1632,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     let popover_clone = popover.clone();
     // Clone the layout menu button so the rebuild closure can update its tooltip
     let layout_menu_btn_for_rebuild = layout_menu_btn.clone();
+    // Keep handles to the four layout buttons so we can stash them in
+    // `MenuBarState::titlebar_widgets` for runtime translation refresh; the
+    // popover-rebuild closure below moves the originals.
+    let btn1_for_state = btn1.clone();
+    let btn2_for_state = btn2.clone();
+    let btn3_for_state = btn3.clone();
+    let btn4_for_state = btn4.clone();
     *rebuild_popover.borrow_mut() = Some(Box::new(move || {
         let state = *layout_state_clone2.borrow();
         // Update the layout button tooltip to reflect the current state
@@ -2088,6 +2200,19 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     headerbar.pack_end(&btn_min); // Left of window controls
                                   // Then add layout button (it will be to the left of window controls)
     headerbar.pack_end(&layout_menu_btn); // Left of minimize button
+
+    // Stash titlebar widgets so `update_menu_translations` can refresh their
+    // translated tooltips when the user changes the UI language at runtime.
+    *menu_state.titlebar_widgets.borrow_mut() = Some(TitlebarWidgets {
+        app_icon: icon.clone(),
+        layout_btn_editor_only: btn1_for_state,
+        layout_btn_view_only: btn2_for_state,
+        layout_btn_detach: btn3_for_state,
+        layout_btn_restore: btn4_for_state,
+        win_minimize_btn: btn_min.clone(),
+        win_maximize_btn: btn_max_toggle.clone(),
+        win_close_btn: btn_close.clone(),
+    });
 
     // Add the HeaderBar to the WindowHandle
     handle.set_child(Some(&headerbar));

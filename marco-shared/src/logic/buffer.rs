@@ -1,5 +1,5 @@
 use crate::logic::swanson::SettingsManager;
-use marco_core::logic::cache::{cached, global_cache};
+use crate::cache::{cached, global_cache};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -611,7 +611,7 @@ impl RecentFiles {
         if let Err(e) = self.settings_manager.update_settings(|settings| {
             settings.add_recent_file(path);
         }) {
-            eprintln!("[RecentFiles] Failed to save recent file: {}", e);
+            eprintln!("[RecentFile] Failed to save recent file: {}", e);
         }
     }
 
@@ -629,7 +629,7 @@ impl RecentFiles {
         if let Err(e) = self.settings_manager.update_settings(|settings| {
             settings.clear_recent_files();
         }) {
-            eprintln!("[RecentFiles] Failed to clear recent files: {}", e);
+            eprintln!("[RecentFile] Failed to clear recent files: {}", e);
         }
     }
 }

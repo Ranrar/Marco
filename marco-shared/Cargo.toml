@@ -21,6 +21,9 @@ chrono = { workspace = true }
 tempfile = { workspace = true }
 dirs = { workspace = true }
 emojis = { workspace = true }
+moka = { version = "0.12", features = ["sync"] }
+blake3 = "1.5"
+dashmap = "6"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 fontconfig = { workspace = true }

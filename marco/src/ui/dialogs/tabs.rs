@@ -154,6 +154,9 @@ fn insert_tabs_at_cursor(buffer: &Buffer, view: &View, tabs_markdown: &str) {
 }
 
 pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let tt = &t.tabs;
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
     } else {
@@ -175,7 +178,7 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Tabs",
+        &tt.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -231,7 +234,7 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     tabs_scroller.set_child(Some(&list_view));
 
     // Empty-state overlay shown when the store has no items.
-    let empty_label = Label::new(Some("No tabs yet — click + Add Tab"));
+    let empty_label = Label::new(Some(&tt.empty_label));
     empty_label.set_halign(Align::Center);
     empty_label.set_valign(Align::Center);
     empty_label.add_css_class("marco-tabs-empty-label");
@@ -246,12 +249,12 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
     tabs_inner.append(&tabs_stack);
 
-    let add_button = Button::with_label("+ Add Tab");
+    let add_button = Button::with_label(&tt.add_button);
     add_button.add_css_class("marco-btn");
     add_button.add_css_class("marco-btn-blue");
     add_button.add_css_class("marco-tabs-action-btn");
 
-    let duplicate_button = Button::with_label("Duplicate");
+    let duplicate_button = Button::with_label(&t.duplicate_button);
     duplicate_button.add_css_class("marco-btn");
     duplicate_button.add_css_class("marco-btn-blue");
     duplicate_button.add_css_class("marco-tabs-action-btn");
@@ -273,7 +276,7 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     content_inner.set_margin_top(8);
     content_inner.set_margin_bottom(8);
 
-    let content_title = Label::new(Some("Content for: -"));
+    let content_title = Label::new(Some(&format!("{} -", tt.content_for)));
     content_title.set_halign(Align::Start);
     content_title.set_xalign(0.0);
     content_title.add_css_class("marco-tabs-content-title");
@@ -299,11 +302,11 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     content_frame.set_child(Some(&content_inner));
     content_box.append(&content_frame);
 
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 
@@ -348,6 +351,7 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         let content_title = content_title.clone();
         let content_buffer = content_view.buffer();
         let is_syncing_content = is_syncing_content.clone();
+        let content_for_text = tt.content_for.clone();
 
         Rc::new(move || {
             let count = store.n_items();
@@ -368,14 +372,14 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
             if let Some(pos) = selected {
                 if let Some(item_obj) = tab_object_at(&store, pos) {
                     let item = item_obj.borrow::<TabItem>();
-                    content_title.set_text(&format!("Content for: {}", item.name));
+                    content_title.set_text(&format!("{} {}", content_for_text, item.name));
 
                     is_syncing_content.set(true);
                     content_buffer.set_text(&item.content);
                     is_syncing_content.set(false);
                 }
             } else {
-                content_title.set_text("Content for:");
+                content_title.set_text(&content_for_text);
                 is_syncing_content.set(true);
                 content_buffer.set_text("");
                 is_syncing_content.set(false);

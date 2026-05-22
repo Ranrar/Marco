@@ -8,7 +8,7 @@
 //!
 //! - **`constants`**: Centralized color palettes, spacing, and sizing constants
 //! - **`titlebar`**: Titlebar and window background styling
-//! - **`buttons`**: All button types (open-file, mode-toggle, open-editor)
+//! - **`buttons`**: All button types (open-files, mode-toggle, open-editor)
 //! - **`dropdown`**: Theme selection dropdown and popover styling
 //! - **`dialog`**: Custom dialog windows matching app theme
 //! - **`scrollbar`**: GTK scrollbar styling matching WebKit preview
@@ -48,6 +48,7 @@ pub mod buttons;
 pub mod constants;
 pub mod dialog;
 pub mod dropdown;
+pub mod menu_and_toolbar;
 pub mod scrollbar;
 pub mod theme;
 pub mod titlebar;
@@ -55,25 +56,15 @@ pub mod tooltips;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 
-/// Minimal fallback CSS if menu.css cannot be loaded
-/// Note: This should rarely be used - menu.css is the canonical source
-const FALLBACK_MENU_CSS: &str = r#"
-    /* Critical styles for basic functionality */
-    .window-control-btn {
-        background: transparent;
-        border: none;
-    }
-    .titlebar {
-        min-height: 32px;
-    }
-"#;
-
 /// Generate all Polo-specific CSS from modular components
 pub fn generate_polo_css() -> String {
     let mut css = String::with_capacity(8192);
 
     // Titlebar and window styling
     css.push_str(&titlebar::generate_css());
+
+    // Menu buttons + popovers + toolbar (matches Marco's visual design)
+    css.push_str(&menu_and_toolbar::generate_css());
 
     // All button types
     css.push_str(&buttons::generate_css());
@@ -93,31 +84,18 @@ pub fn generate_polo_css() -> String {
     css
 }
 
-/// Load CSS for Polo styling with asset root
-/// This loads Marco's menu.css for consistent UI styling and adds Polo-specific styles
+/// Load CSS for Polo styling.
+///
+/// All UI CSS is generated programmatically — no external CSS files are needed.
 ///
 /// # Arguments
-/// * `asset_root` - The asset root directory path
-pub fn load_css_from_path(asset_root: &std::path::Path) {
+/// * `asset_root` - The asset root directory path (reserved for future use)
+pub fn load_css_from_path(_asset_root: &std::path::Path) {
     let css_provider = CssProvider::new();
 
-    // Load Marco's menu.css for consistent UI styling
-    let menu_css_path = asset_root.join("themes/ui_elements/menu.css");
-
-    let menu_css = if let Ok(css) = std::fs::read_to_string(&menu_css_path) {
-        log::debug!("Loaded menu.css from: {}", menu_css_path.display());
-        css
-    } else {
-        log::warn!("Could not load menu.css, using fallback");
-        String::from(FALLBACK_MENU_CSS)
-    };
-
-    // Generate Polo-specific styles from modular components
+    // Generate all Polo CSS from modular components
     let polo_css = generate_polo_css();
-
-    // Combine Marco's menu.css with Polo-specific styles.
-    let combined_css = format!("{}\n\n/* Polo-specific styles */\n{}", menu_css, polo_css);
-    css_provider.load_from_data(&combined_css);
+    css_provider.load_from_data(&polo_css);
 
     if let Some(display) = Display::default() {
         gtk4::style_context_add_provider_for_display(
@@ -142,6 +120,10 @@ mod tests {
         assert!(css.contains(".polo-mode-toggle-btn"));
         assert!(css.contains(".polo-theme-dropdown"));
         assert!(css.contains("tooltip"));
+        // New menu/toolbar CSS
+        assert!(css.contains(".polo-menu-btn"));
+        assert!(css.contains(".polo-toolbar-btn"));
+        assert!(css.contains(".polo-menu-popover"));
 
         // Verify both themes present
         assert!(css.contains(".marco-theme-light"));

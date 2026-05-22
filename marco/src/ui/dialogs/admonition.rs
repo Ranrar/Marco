@@ -155,6 +155,9 @@ fn attach_emoji_completion(entry: &Entry) {
 }
 
 pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let ta = &t.admonition;
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
     } else {
@@ -175,7 +178,7 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Admonition",
+        &ta.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -199,7 +202,7 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
     vbox.set_margin_top(8);
     vbox.set_margin_bottom(0);
 
-    let type_label = Label::new(Some("Admonition"));
+    let type_label = Label::new(Some(&ta.section_label));
     type_label.set_halign(Align::Start);
     type_label.add_css_class("marco-dialog-section-label");
     type_label.add_css_class("marco-dialog-section-label-strong");
@@ -270,33 +273,33 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
 
     radio_box.append(&make_option_row(
         &radio_note,
-        "Note",
-        "General information or context.",
+        &ta.type_note_title,
+        &ta.type_note_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_tip,
-        "Tip",
-        "Helpful advice or best practice.",
+        &ta.type_tip_title,
+        &ta.type_tip_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_important,
-        "Important",
-        "Key details users should not miss.",
+        &ta.type_important_title,
+        &ta.type_important_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_warning,
-        "Warning",
-        "Potential risks or dangerous outcomes.",
+        &ta.type_warning_title,
+        &ta.type_warning_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_caution,
-        "Caution",
-        "Actions that require extra care.",
+        &ta.type_caution_title,
+        &ta.type_caution_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_custom,
-        "Custom Admonition",
-        "Define your own icon and title.",
+        &ta.type_custom_title,
+        &ta.type_custom_desc,
     ));
 
     vbox.append(&radio_box);
@@ -307,7 +310,7 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
 
     let emoji_entry = Entry::new();
     emoji_entry.set_hexpand(true);
-    emoji_entry.set_placeholder_text(Some("Search emoji (e.g. smile)"));
+    emoji_entry.set_placeholder_text(Some(&ta.emoji_placeholder));
     emoji_entry.add_css_class("marco-textfield-entry");
     emoji_entry.add_css_class("marco-admonition-custom-field");
     emoji_entry.add_css_class(theme_class);
@@ -315,7 +318,7 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
 
     let title_entry = Entry::new();
     title_entry.set_hexpand(true);
-    title_entry.set_placeholder_text(Some("Title"));
+    title_entry.set_placeholder_text(Some(&ta.title_placeholder));
     title_entry.add_css_class("marco-textfield-entry");
     title_entry.add_css_class("marco-admonition-custom-field");
     title_entry.add_css_class(theme_class);
@@ -326,7 +329,7 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
     custom_row.set_sensitive(false);
     vbox.append(&custom_row);
 
-    let text_label = Label::new(Some("Text"));
+    let text_label = Label::new(Some(&ta.text_label));
     text_label.set_halign(Align::Start);
     text_label.add_css_class("marco-dialog-section-label");
     vbox.append(&text_label);
@@ -349,11 +352,11 @@ pub fn show_insert_admonition_dialog(parent: &Window, editor_buffer: &Buffer, ed
 
     vbox.append(&body_scroll);
 
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 

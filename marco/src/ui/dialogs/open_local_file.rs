@@ -37,6 +37,9 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
     has_unsaved: bool,
     current_doc: &str,
 ) -> OpenLocalFileChoice {
+    let translations = crate::ui::dialogs::current_translations();
+    let t_root = &translations.dialog;
+    let t = &t_root.open_local_file;
     // ====================================================================
     // Theme detection
     // ====================================================================
@@ -142,24 +145,24 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
 
     if has_unsaved {
         // Discard & Open (destructive — red)
-        let btn_discard = Button::with_label("Discard & Open");
+        let btn_discard = Button::with_label(&t.discard_open);
         btn_discard.add_css_class("marco-btn");
         btn_discard.add_css_class("marco-btn-red");
-        btn_discard.set_tooltip_text(Some("Discard unsaved changes and open the file"));
+        btn_discard.set_tooltip_text(Some(&t.tooltip_discard));
         button_box.append(&btn_discard);
 
         // Cancel (yellow)
-        let btn_cancel = Button::with_label("Cancel");
+        let btn_cancel = Button::with_label(&t.cancel_button);
         btn_cancel.add_css_class("marco-btn");
         btn_cancel.add_css_class("marco-btn-yellow");
-        btn_cancel.set_tooltip_text(Some("Cancel and stay in the current document"));
+        btn_cancel.set_tooltip_text(Some(&t.tooltip_cancel));
         button_box.append(&btn_cancel);
 
         // Save & Open (primary — blue)
-        let btn_save_open = Button::with_label("Save & Open");
+        let btn_save_open = Button::with_label(&t.save_open);
         btn_save_open.add_css_class("marco-btn");
         btn_save_open.add_css_class("marco-btn-blue");
-        btn_save_open.set_tooltip_text(Some("Save the current document, then open the file"));
+        btn_save_open.set_tooltip_text(Some(&t.tooltip_save_open));
         button_box.append(&btn_save_open);
 
         // Wire buttons
@@ -191,17 +194,17 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
         });
     } else {
         // Cancel (yellow)
-        let btn_cancel = Button::with_label("Cancel");
+        let btn_cancel = Button::with_label(&t.cancel_button);
         btn_cancel.add_css_class("marco-btn");
         btn_cancel.add_css_class("marco-btn-yellow");
-        btn_cancel.set_tooltip_text(Some("Cancel and stay in the current document"));
+        btn_cancel.set_tooltip_text(Some(&t.tooltip_cancel));
         button_box.append(&btn_cancel);
 
         // Open (primary — blue)
-        let btn_open = Button::with_label("Open");
+        let btn_open = Button::with_label(&t.open_button);
         btn_open.add_css_class("marco-btn");
         btn_open.add_css_class("marco-btn-blue");
-        btn_open.set_tooltip_text(Some("Open the file in the editor"));
+        btn_open.set_tooltip_text(Some(&t.tooltip_open));
         button_box.append(&btn_open);
 
         // Wire buttons

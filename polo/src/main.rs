@@ -40,6 +40,7 @@ mod components;
 
 use components::css::load_css_from_path;
 use components::menu::create_custom_titlebar;
+use components::toc_panel::create_toc_panel;
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::platform_webview::PlatformWebView;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
@@ -63,15 +64,50 @@ const APP_ID: &str = "io.github.ranrar.Polo";
 fn fatal_error(message: &str) -> ! {
     log::error!("FATAL: {}", message);
     eprintln!("Fatal error: {}", message);
-    marco_core::logic::logger::shutdown_file_logger();
+    marco_shared::logic::file_logger::shutdown();
     std::process::exit(1);
 }
 
+/// Install a glib default-log handler that suppresses the harmless
+/// `GLib-GIO-WARNING ... Error releasing name ...WebProcess-...: The
+/// connection is closed` message emitted by WebKitGTK during shutdown.
+/// All other messages are forwarded to glib's default handler.
+fn install_glib_log_filter() {
+    glib::log_set_default_handler(|domain, level, message| {
+        if message.contains("Error releasing name") && message.contains("WebProcess") {
+            return;
+        }
+        glib::log_default_handler(domain, level, Some(message));
+    });
+}
+
 fn main() -> glib::ExitCode {
-    // Initialize logger early
-    if let Err(e) = marco_core::logic::logger::init_file_logger(true, log::LevelFilter::Debug) {
-        // Fallback: print to stderr if logger fails
-        eprintln!("Failed to initialize logger: {}", e);
+    // Fix: restore environment variables modified by VS Code snap before WebKit
+    // spawns its helper subprocesses.  See marco/src/main.rs for full explanation.
+    #[cfg(target_os = "linux")]
+    {
+        const SNAP_PAIRS: &[(&str, &str)] = &[
+            ("XDG_DATA_DIRS", "XDG_DATA_DIRS_VSCODE_SNAP_ORIG"),
+            ("XDG_CONFIG_DIRS", "XDG_CONFIG_DIRS_VSCODE_SNAP_ORIG"),
+            ("GTK_EXE_PREFIX", "GTK_EXE_PREFIX_VSCODE_SNAP_ORIG"),
+            ("GTK_IM_MODULE_FILE", "GTK_IM_MODULE_FILE_VSCODE_SNAP_ORIG"),
+            (
+                "GSETTINGS_SCHEMA_DIR",
+                "GSETTINGS_SCHEMA_DIR_VSCODE_SNAP_ORIG",
+            ),
+            ("GIO_MODULE_DIR", "GIO_MODULE_DIR_VSCODE_SNAP_ORIG"),
+        ];
+        unsafe {
+            for (var, orig_var) in SNAP_PAIRS {
+                if let Ok(orig_val) = std::env::var(orig_var) {
+                    if orig_val.is_empty() {
+                        std::env::remove_var(var);
+                    } else {
+                        std::env::set_var(var, &orig_val);
+                    }
+                }
+            }
+        }
     }
 
     // Setup font directory for IcoMoon icon font (MUST be done before GTK init)
@@ -79,9 +115,64 @@ fn main() -> glib::ExitCode {
     let polo_paths = match PoloPaths::new() {
         Ok(paths) => paths,
         Err(e) => {
-            fatal_error(&format!("Cannot initialize Polo paths: {:?}", e));
+            // Fall back to printing — logger not yet initialized.
+            eprintln!("Cannot initialize Polo paths: {:?}", e);
+            std::process::exit(1);
         }
     };
+
+    // Initialize logger based on the same `log_to_file` setting Marco uses,
+    // so both binaries share consistent file-logging behavior.
+    //
+    // Default to `Info` to avoid massive log files: marco-core's grammar
+    // parsers emit Debug/Trace lines containing the full input slice, which
+    // can produce hundreds of MB of log spam for large documents (e.g.
+    // stresstest.md) and effectively block on log I/O. `RUST_LOG` can opt
+    // into more verbose levels.
+    let level = match std::env::var("RUST_LOG") {
+        Ok(v) => {
+            let v = v.to_ascii_lowercase();
+            if v.contains("trace") {
+                log::LevelFilter::Trace
+            } else if v.contains("debug") {
+                log::LevelFilter::Debug
+            } else if v.contains("warn") {
+                log::LevelFilter::Warn
+            } else if v.contains("error") {
+                log::LevelFilter::Error
+            } else {
+                log::LevelFilter::Info
+            }
+        }
+        Err(_) => log::LevelFilter::Info,
+    };
+    let rust_log_set = std::env::var("RUST_LOG").is_ok();
+    // Read shared `log_to_file` setting from the Polo settings file.
+    let log_to_file = {
+        let settings_path = polo_paths.settings_file();
+        match marco_shared::logic::swanson::SettingsManager::initialize(settings_path) {
+            Ok(mgr) => mgr.get_settings().log_to_file.unwrap_or(false),
+            Err(_) => false,
+        }
+    };
+    let logging_enabled = log_to_file || rust_log_set;
+    if let Err(e) = marco_shared::logic::file_logger::init(logging_enabled, level) {
+        eprintln!("Failed to initialize logger: {}", e);
+    } else if logging_enabled {
+        let resolved = marco_shared::logic::file_logger::current_log_dir();
+        println!(
+            "Logging enabled (level: {:?}), log files stored under: {}",
+            level,
+            resolved.display()
+        );
+    }
+
+    // Install a glib log filter to suppress the harmless WebKit shutdown
+    // warning `Error releasing name ...WebProcess-...: The connection is
+    // closed`.  This message is emitted by GLib-GIO when WebKitGTK tears
+    // down its sandboxed web-process D-Bus connection during exit; there
+    // is no application-side fix.
+    install_glib_log_filter();
 
     // Icon font support removed - icon fonts (IcoMoon) are no longer used; use inline SVGs instead.
 
@@ -118,10 +209,12 @@ fn main() -> glib::ExitCode {
                     continue;
                 } else if arg.ends_with(".md") || arg.ends_with(".markdown") {
                     // Found markdown file
+                    eprintln!("[FileOps] Opened file by path: {}", arg);
                     build_ui(app, Some(arg.clone()), polo_paths_for_cmdline.clone());
                     return 0.into();
                 } else if !arg.starts_with('-') {
                     // Treat as file path
+                    eprintln!("[FileOps] Opened file by path: {}", arg);
                     build_ui(app, Some(arg.clone()), polo_paths_for_cmdline.clone());
                     return 0.into();
                 }
@@ -137,6 +230,7 @@ fn main() -> glib::ExitCode {
     app.connect_open(move |app, files, _hint| {
         if let Some(file) = files.first() {
             if let Some(path) = file.path() {
+                eprintln!("[FileOps] Opened file by path: {}", path.display());
                 build_ui(
                     app,
                     Some(path.to_string_lossy().to_string()),
@@ -149,7 +243,7 @@ fn main() -> glib::ExitCode {
     let exit_code = app.run();
 
     // Cleanup
-    marco_core::logic::logger::shutdown_file_logger();
+    marco_shared::logic::file_logger::shutdown();
     exit_code
 }
 
@@ -316,6 +410,26 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         });
     }
 
+    // Create TOC panel (wraps webview in a Paned)
+    let (toc_paned, toc_handle) = create_toc_panel(&webview);
+    // Wrap the WebView in a loading-overlay so we can show an indeterminate
+    // progress bar (centered, GTK-themed) while files are being parsed and
+    // rendered.  The overlay itself becomes the Paned's end child; the
+    // WebView sits inside it as the main child.
+    let loading_overlay = components::viewer::loading_overlay::LoadingOverlay::new(&webview.widget());
+    components::viewer::loading_overlay::set_global(loading_overlay.clone());
+    toc_paned.set_end_child(Some(loading_overlay.widget()));
+
+    // Hide the overlay only once the WebView has *actually finished* painting
+    // the new page — not when we merely queued it for load.  Without this the
+    // bar disappears seconds before the new HTML replaces the old welcome
+    // content on screen.  Windows (wry) has no equivalent signal, so it uses
+    // an eager hide in `rendering.rs` instead.
+    #[cfg(target_os = "linux")]
+    webview.connect_load_finished(|| {
+        components::viewer::loading_overlay::hide();
+    });
+
     // Load and render the markdown file
     let file_path_for_render = file_path.clone();
     let asset_root_for_render = polo_paths.asset_root();
@@ -327,14 +441,43 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
             &settings_manager,
             asset_root_for_render,
         );
+        // Populate TOC off the main thread so large files don't stall the event loop.
+        if let Ok(text) = marco_shared::cache::cached::read_to_string(std::path::Path::new(path)) {
+            toc_handle.update_from_text_async(text);
+        }
     } else {
         // Show empty state with theme awareness
         show_empty_state_with_theme(&webview, &settings_manager);
     }
 
-    // Create custom titlebar (needs webview and file_path for theme switching)
+    // ── Toolbar ───────────────────────────────────────────────────────────
+    // Build the icon toolbar FIRST so we can pass open_editor_btn to the titlebar.
     let asset_root = polo_paths.asset_root();
-    let (titlebar_handle, _open_editor_btn, _title_label) = create_custom_titlebar(
+
+    // Build the on-file-opened callback for the toolbar's Open button
+    let toc_handle_for_toolbar_open = toc_handle.clone();
+    #[allow(clippy::type_complexity)]
+    let toc_cb_for_toolbar: Option<std::rc::Rc<dyn Fn(&str) + 'static>> =
+        Some(std::rc::Rc::new(move |path: &str| {
+            if let Ok(text) =
+                marco_shared::cache::cached::read_to_string(std::path::Path::new(path))
+            {
+                toc_handle_for_toolbar_open.update_from_text_async(text);
+            }
+        }));
+
+    let toolbar_state = components::toolbar::create_polo_toolbar(
+        &window,
+        webview.clone(),
+        settings_manager.clone(),
+        current_file_path.clone(),
+        asset_root,
+        toc_handle.clone(),
+        toc_cb_for_toolbar,
+    );
+
+    // ── Titlebar (text menu bar) ──────────────────────────────────────────
+    let (titlebar_handle, _title_label) = create_custom_titlebar(
         &window,
         filename.as_deref().unwrap_or("Untitled"),
         &saved_theme,
@@ -342,10 +485,18 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         webview.clone(),
         current_file_path.clone(),
         asset_root,
+        Some(toc_handle.clone()),
+        toolbar_state.open_editor_btn,
     );
     window.set_titlebar(Some(&titlebar_handle));
 
-    window.set_child(Some(&webview.widget()));
+    // ── Main content layout ───────────────────────────────────────────────
+    // Vertical box: toolbar (top) + paned content (fill)
+    let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+    main_box.append(&toolbar_state.toolbar);
+    main_box.append(&toc_paned);
+
+    window.set_child(Some(&main_box));
 
     // Save window size changes to Polo-specific settings
     let settings_manager_width = settings_manager.clone();

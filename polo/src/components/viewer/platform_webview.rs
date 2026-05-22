@@ -74,6 +74,19 @@ impl PlatformWebView {
         });
     }
 
+    /// Run `f` once each time the WebView finishes loading a page.
+    ///
+    /// Used to hide the loading overlay when the new HTML is actually on
+    /// screen, rather than when the load was merely *queued*.
+    pub fn connect_load_finished<F: Fn() + 'static>(&self, f: F) {
+        use webkit6::prelude::*;
+        self.inner.connect_load_changed(move |_wv, event| {
+            if event == webkit6::LoadEvent::Finished {
+                f();
+            }
+        });
+    }
+
     /// Kept for API consistency with Windows implementation, not currently used on Linux
     #[allow(dead_code)]
     pub fn evaluate_script(&self, script: &str) {
@@ -163,6 +176,33 @@ impl PlatformWebView {
 
             false
         });
+    }
+
+    /// Open the native GTK print dialog for the current page.
+    ///
+    /// Injects `@media print` CSS before triggering `PrintOperation` so the
+    /// rendered output looks correct on paper.  The injected element is removed
+    /// after the dialog is dismissed.
+    pub fn print(&self, parent: Option<&gtk4::Window>) {
+        use marco_shared::logic::print_css::make_print_export_css;
+        // No fixed paper size — the user configures paper in the print dialog.
+        let css = make_print_export_css("", "", false);
+        let css_escaped = css
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n");
+        let inject_js = format!(
+            r#"(function(){{var el=document.getElementById('polo-print-css');if(!el){{el=document.createElement('style');el.id='polo-print-css';document.head.appendChild(el);}}el.textContent="{}";}})();"#,
+            css_escaped
+        );
+        self.evaluate_script(&inject_js);
+
+        let print_op = webkit6::PrintOperation::new(&self.inner);
+        let _ = print_op.run_dialog(parent);
+
+        self.evaluate_script(
+            "(function(){var el=document.getElementById('polo-print-css');if(el)el.remove();})()",
+        );
     }
 }
 
@@ -341,6 +381,52 @@ impl PlatformWebView {
             }
         }
     }
+
+    /// Open the native browser print UI (WebView2 / Edge).
+    ///
+    /// Injects `@media print` CSS with a self-removal timer, then triggers the
+    /// WebView2 print dialog.  The `parent` parameter is present only to keep
+    /// the call site identical to the Linux version; it is not used on Windows.
+    pub fn print(&self, _parent: Option<&gtk4::Window>) {
+        use marco_shared::logic::print_css::make_print_export_css;
+        const STYLE_ID: &str = "polo-print-css";
+        const TTL_MS: u32 = 60_000;
+
+        let css = make_print_export_css("", "", false);
+        let css_json = polo_js_string_literal(&css);
+        let inject_script = format!(
+            r#"(function() {{
+    try {{
+        var e = document.getElementById('{id}');
+        if (e) {{ e.parentNode.removeChild(e); }}
+        var s = document.createElement('style');
+        s.id = '{id}';
+        s.appendChild(document.createTextNode({css}));
+        (document.head || document.documentElement).appendChild(s);
+        setTimeout(function() {{
+            var s2 = document.getElementById('{id}');
+            if (s2 && s2.parentNode) {{ s2.parentNode.removeChild(s2); }}
+        }}, {ttl});
+    }} catch (err) {{ console.error('polo print css inject failed', err); }}
+}})();"#,
+            id = STYLE_ID,
+            css = css_json,
+            ttl = TTL_MS,
+        );
+        self.evaluate_script(&inject_script);
+
+        if let Some(view) = self.inner.borrow().as_ref() {
+            if let Err(e) = view.print() {
+                log::warn!(
+                    "[polo] wry print() failed ({}); falling back to window.print()",
+                    e
+                );
+                self.evaluate_script("window.print();");
+            }
+        } else {
+            self.evaluate_script("window.print();");
+        }
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -384,4 +470,28 @@ fn inject_base_href(html: &str, base: &str) -> String {
 
     // Fallback: prepend base tag
     format!("<base href=\"{}\">{}", base, html)
+}
+
+/// Encode an arbitrary string as a JavaScript string literal (double-quoted).
+/// Escapes characters that would otherwise terminate or corrupt the literal.
+#[cfg(target_os = "windows")]
+fn polo_js_string_literal(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for ch in s.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{08}' => out.push_str("\\b"),
+            '\u{0C}' => out.push_str("\\f"),
+            '<' => out.push_str("\\u003c"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }

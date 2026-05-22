@@ -1,5 +1,6 @@
 pub mod buffer;
 pub mod crossplatforms;
+pub mod file_logger;
 pub mod layoutstate;
 pub mod loaders;
 pub mod print_css;

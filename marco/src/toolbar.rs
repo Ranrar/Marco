@@ -116,8 +116,43 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
         }
     }
 
-    // Core buttons/dropdowns
-    set_tooltip(toolbar, "toolbar-headings-btn", "Block Type");
+    /// Update the visible text Label inside a popover-row button (Box → [Picture, Label]).
+    fn set_popover_row_label(button: &Button, text: &str) {
+        if let Some(child) = button.child() {
+            if let Ok(row) = child.downcast::<gtk4::Box>() {
+                let mut c = row.first_child();
+                while let Some(w) = c {
+                    if let Ok(label) = w.clone().downcast::<Label>() {
+                        label.set_text(text);
+                        return;
+                    }
+                    c = w.next_sibling();
+                }
+            }
+        }
+    }
+
+    /// Update both the label inside a popover-row button and its tooltip text.
+    fn set_row_label_and_tooltip(
+        toolbar: &gtk4::Box,
+        css_class: &str,
+        label: &str,
+        tooltip: &str,
+    ) {
+        if let Some(button) =
+            find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), css_class)
+        {
+            set_popover_row_label(&button, label);
+            button.set_tooltip_text(Some(tooltip));
+        }
+    }
+
+    // Composite dropdown button tooltips
+    set_tooltip(
+        toolbar,
+        "toolbar-headings-btn",
+        &translations.toolbar.block_type,
+    );
     set_tooltip(toolbar, "toolbar-btn-bold", &translations.toolbar.bold);
     set_tooltip(toolbar, "toolbar-btn-italic", &translations.toolbar.italic);
     set_tooltip(
@@ -125,14 +160,42 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
         "toolbar-btn-strikethrough",
         &translations.toolbar.strikethrough,
     );
-    set_tooltip(toolbar, "toolbar-btn-highlight", "Highlight");
-    set_tooltip(toolbar, "toolbar-btn-text-inline", "Inline");
-    set_tooltip(toolbar, "toolbar-btn-inline-items", "Insert");
-    set_tooltip(toolbar, "toolbar-btn-lists", "Lists");
-    set_tooltip(toolbar, "toolbar-btn-hr", "Horizontal Rule");
-    set_tooltip(toolbar, "toolbar-btn-block-items", "Blocks");
-    set_tooltip(toolbar, "toolbar-btn-container-items", "Modules");
-    set_tooltip(toolbar, "toolbar-btn-mention", "Mentions");
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-highlight",
+        &translations.toolbar.highlight,
+    );
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-text-inline",
+        &translations.toolbar.inline,
+    );
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-inline-items",
+        &translations.toolbar.insert,
+    );
+    set_tooltip(toolbar, "toolbar-btn-lists", &translations.toolbar.lists);
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-hr",
+        &translations.toolbar.horizontal_rule,
+    );
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-block-items",
+        &translations.toolbar.blocks,
+    );
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-container-items",
+        &translations.toolbar.modules,
+    );
+    set_tooltip(
+        toolbar,
+        "toolbar-btn-mention",
+        &translations.toolbar.mentions,
+    );
 
     // Gutter toggles
     if let Some(button) = find_button_by_css_class(
@@ -155,37 +218,118 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
         )));
     }
 
-    // Block-type popover item tooltips
-    if let Some(button) =
-        find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), "toolbar-headings-btn")
-    {
-        if let Some(popover) = button.first_child() {
-            if let Ok(popover_widget) = popover.downcast::<gtk4::Popover>() {
-                if let Some(popover_child) = popover_widget.child() {
-                    if let Ok(popover_box) = popover_child.downcast::<gtk4::Box>() {
-                        let block_types = [
-                            "Paragraph",
-                            "Quote",
-                            "Heading 1",
-                            "Heading 2",
-                            "Heading 3",
-                            "Heading 4",
-                            "Heading 5",
-                            "Heading 6",
-                            "Heading ID",
-                        ];
-                        for (i, block_type) in block_types.iter().enumerate() {
-                            if let Some(btn_widget) = popover_box.observe_children().item(i as u32)
-                            {
-                                if let Ok(btn) = btn_widget.downcast::<Button>() {
-                                    btn.set_tooltip_text(Some(block_type));
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    // Block-type popover rows (label = item name, tooltip = same)
+    let block_type_rows: &[(&str, &str)] = &[
+        ("toolbar-blocktype-paragraph", &translations.toolbar.paragraph),
+        ("toolbar-blocktype-quote", &translations.toolbar.quote),
+        ("toolbar-blocktype-h1", &translations.toolbar.h1),
+        ("toolbar-blocktype-h2", &translations.toolbar.h2),
+        ("toolbar-blocktype-h3", &translations.toolbar.h3),
+        ("toolbar-blocktype-h4", &translations.toolbar.h4),
+        ("toolbar-blocktype-h5", &translations.toolbar.h5),
+        ("toolbar-blocktype-h6", &translations.toolbar.h6),
+        ("toolbar-btn-heading-id", &translations.toolbar.heading_id),
+    ];
+    for (css_class, text) in block_type_rows {
+        set_row_label_and_tooltip(toolbar, css_class, text, text);
+    }
+
+    // Text-inline popover rows (label, helper-text/tooltip)
+    let text_inline_rows: &[(&str, &str, &str)] = &[
+        (
+            "toolbar-btn-code",
+            &translations.toolbar.inline_code,
+            &translations.toolbar.inline_code_tooltip,
+        ),
+        (
+            "toolbar-btn-superscript",
+            &translations.toolbar.superscript,
+            &translations.toolbar.superscript_tooltip,
+        ),
+        (
+            "toolbar-btn-subscript",
+            &translations.toolbar.subscript,
+            &translations.toolbar.subscript_tooltip,
+        ),
+        (
+            "toolbar-btn-inline-math",
+            &translations.toolbar.math,
+            &translations.toolbar.inline_math_tooltip,
+        ),
+    ];
+    for (css_class, label, tooltip) in text_inline_rows {
+        set_row_label_and_tooltip(toolbar, css_class, label, tooltip);
+    }
+
+    // Insert/inline items popover rows
+    let inline_item_rows: &[(&str, &str, &str)] = &[
+        (
+            "toolbar-btn-link",
+            &translations.toolbar.link,
+            &translations.toolbar.link_tooltip,
+        ),
+        (
+            "toolbar-btn-link-reference",
+            &translations.toolbar.link_reference,
+            &translations.toolbar.link_reference_tooltip,
+        ),
+        (
+            "toolbar-btn-image",
+            &translations.toolbar.image,
+            &translations.toolbar.image_tooltip,
+        ),
+        (
+            "toolbar-btn-inline-footnote",
+            &translations.toolbar.footnote,
+            &translations.toolbar.inline_footnote_tooltip,
+        ),
+        (
+            "toolbar-btn-emoji",
+            &translations.toolbar.emoji,
+            &translations.toolbar.emoji_tooltip,
+        ),
+        (
+            "toolbar-btn-inline-checkbox",
+            &translations.toolbar.checkbox,
+            &translations.toolbar.checkbox_tooltip,
+        ),
+    ];
+    for (css_class, label, tooltip) in inline_item_rows {
+        set_row_label_and_tooltip(toolbar, css_class, label, tooltip);
+    }
+
+    // Block items popover rows
+    let block_item_rows: &[(&str, &str, &str)] = &[
+        (
+            "toolbar-btn-fenced-code-block",
+            &translations.toolbar.code,
+            &translations.toolbar.code_block_tooltip,
+        ),
+        (
+            "toolbar-btn-math",
+            &translations.toolbar.math,
+            &translations.toolbar.math_block_tooltip,
+        ),
+        (
+            "toolbar-btn-footnote",
+            &translations.toolbar.footnote,
+            &translations.toolbar.block_footnote_tooltip,
+        ),
+    ];
+    for (css_class, label, tooltip) in block_item_rows {
+        set_row_label_and_tooltip(toolbar, css_class, label, tooltip);
+    }
+
+    // Modules (container items) popover rows — label == tooltip for these
+    let container_rows: &[(&str, &str)] = &[
+        ("toolbar-btn-table", &translations.toolbar.table),
+        ("toolbar-btn-tab-block", &translations.toolbar.tab_block),
+        ("toolbar-btn-slideshow", &translations.toolbar.slider_deck),
+        ("toolbar-btn-mermaid", &translations.toolbar.mermaid),
+        ("toolbar-btn-admonition", &translations.toolbar.admonition),
+    ];
+    for (css_class, text) in container_rows {
+        set_row_label_and_tooltip(toolbar, css_class, text, text);
     }
 }
 
@@ -744,8 +888,8 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     // Block-type dropdown (Paragraph, Quote, Heading 1-6) — composite SVG button
     let text_paragraph_poover_button = create_toolbar_composite_dropdown_button(
         composite_paths::PARAGRAPH,
-        "Block",
-        "Block Type",
+        &translations.toolbar.block,
+        &translations.toolbar.block_type,
         "toolbar-headings-btn",
     );
 
@@ -757,19 +901,47 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     let block_type_items = [
         (
             ToolbarIcon::Paragraph,
-            "Paragraph",
+            translations.toolbar.paragraph.as_str(),
             "toolbar-blocktype-paragraph",
         ),
-        (ToolbarIcon::Blockquote, "Quote", "toolbar-blocktype-quote"),
-        (ToolbarIcon::H1, "Heading 1", "toolbar-blocktype-h1"),
-        (ToolbarIcon::H2, "Heading 2", "toolbar-blocktype-h2"),
-        (ToolbarIcon::H3, "Heading 3", "toolbar-blocktype-h3"),
-        (ToolbarIcon::H4, "Heading 4", "toolbar-blocktype-h4"),
-        (ToolbarIcon::H5, "Heading 5", "toolbar-blocktype-h5"),
-        (ToolbarIcon::H6, "Heading 6", "toolbar-blocktype-h6"),
+        (
+            ToolbarIcon::Blockquote,
+            translations.toolbar.quote.as_str(),
+            "toolbar-blocktype-quote",
+        ),
+        (
+            ToolbarIcon::H1,
+            translations.toolbar.h1.as_str(),
+            "toolbar-blocktype-h1",
+        ),
+        (
+            ToolbarIcon::H2,
+            translations.toolbar.h2.as_str(),
+            "toolbar-blocktype-h2",
+        ),
+        (
+            ToolbarIcon::H3,
+            translations.toolbar.h3.as_str(),
+            "toolbar-blocktype-h3",
+        ),
+        (
+            ToolbarIcon::H4,
+            translations.toolbar.h4.as_str(),
+            "toolbar-blocktype-h4",
+        ),
+        (
+            ToolbarIcon::H5,
+            translations.toolbar.h5.as_str(),
+            "toolbar-blocktype-h5",
+        ),
+        (
+            ToolbarIcon::H6,
+            translations.toolbar.h6.as_str(),
+            "toolbar-blocktype-h6",
+        ),
         (
             ToolbarIcon::HeadingId,
-            "Heading ID",
+            translations.toolbar.heading_id.as_str(),
             "toolbar-btn-heading-id",
         ),
     ];
@@ -818,15 +990,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
 
     let highlight_button = create_toolbar_icon_button(
         ToolbarIcon::Highlight,
-        "Highlight",
+        &translations.toolbar.highlight,
         "toolbar-btn-highlight",
         TOOLBAR_ICON_SIZE,
     );
 
     let text_inline_poover_button = create_toolbar_composite_dropdown_button(
         composite_paths::TEXT_INLINE,
-        "Inline",
-        "Inline",
+        &translations.toolbar.inline,
+        &translations.toolbar.inline,
         "toolbar-btn-text-inline",
     );
     let text_inline_popover = gtk4::Popover::new();
@@ -835,23 +1007,28 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     crate::ui::popover_state::enforce_dismiss_behavior(&text_inline_popover);
     let text_inline_box = Box::new(Orientation::Vertical, 4);
     let text_inline_items = [
-        (ToolbarIcon::Code, "Code", "Inline code", "toolbar-btn-code"),
+        (
+            ToolbarIcon::Code,
+            translations.toolbar.inline_code.as_str(),
+            translations.toolbar.inline_code_tooltip.as_str(),
+            "toolbar-btn-code",
+        ),
         (
             ToolbarIcon::Superscript,
-            "Superscript",
-            "Superscript text",
+            translations.toolbar.superscript.as_str(),
+            translations.toolbar.superscript_tooltip.as_str(),
             "toolbar-btn-superscript",
         ),
         (
             ToolbarIcon::Subscript,
-            "Subscript",
-            "Subscript text",
+            translations.toolbar.subscript.as_str(),
+            translations.toolbar.subscript_tooltip.as_str(),
             "toolbar-btn-subscript",
         ),
         (
             ToolbarIcon::Math,
-            "Math",
-            "Inline math",
+            translations.toolbar.math.as_str(),
+            translations.toolbar.inline_math_tooltip.as_str(),
             "toolbar-btn-inline-math",
         ),
     ];
@@ -883,15 +1060,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
 
     let list_button = create_toolbar_icon_button(
         ToolbarIcon::BulletList,
-        "Lists",
+        &translations.toolbar.lists,
         "toolbar-btn-lists",
         TOOLBAR_ICON_SIZE,
     );
 
     let inline_items_poover_button = create_toolbar_composite_dropdown_button(
         composite_paths::INLINE_ITEMS,
-        "Insert",
-        "Insert",
+        &translations.toolbar.insert,
+        &translations.toolbar.insert,
         "toolbar-btn-inline-items",
     );
     let inline_items_popover = gtk4::Popover::new();
@@ -900,35 +1077,40 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     crate::ui::popover_state::enforce_dismiss_behavior(&inline_items_popover);
     let inline_items_box = Box::new(Orientation::Vertical, 4);
     let inline_items = [
-        (ToolbarIcon::Link, "Link", "Inline link", "toolbar-btn-link"),
+        (
+            ToolbarIcon::Link,
+            translations.toolbar.link.as_str(),
+            translations.toolbar.link_tooltip.as_str(),
+            "toolbar-btn-link",
+        ),
         (
             ToolbarIcon::LinkReference,
-            "Link Reference",
-            "Link reference",
+            translations.toolbar.link_reference.as_str(),
+            translations.toolbar.link_reference_tooltip.as_str(),
             "toolbar-btn-link-reference",
         ),
         (
             ToolbarIcon::Image,
-            "Image",
-            "Inline image",
+            translations.toolbar.image.as_str(),
+            translations.toolbar.image_tooltip.as_str(),
             "toolbar-btn-image",
         ),
         (
             ToolbarIcon::InlineFootnote,
-            "Footnote",
-            "Inline footnote",
+            translations.toolbar.footnote.as_str(),
+            translations.toolbar.inline_footnote_tooltip.as_str(),
             "toolbar-btn-inline-footnote",
         ),
         (
             ToolbarIcon::Emoji,
-            "Emoji",
-            "Inline emoji",
+            translations.toolbar.emoji.as_str(),
+            translations.toolbar.emoji_tooltip.as_str(),
             "toolbar-btn-emoji",
         ),
         (
             ToolbarIcon::Checkbox,
-            "Checkbox",
-            "Inline checkbox",
+            translations.toolbar.checkbox.as_str(),
+            translations.toolbar.checkbox_tooltip.as_str(),
             "toolbar-btn-inline-checkbox",
         ),
     ];
@@ -960,13 +1142,13 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
 
     let block_items_poover_button = create_toolbar_composite_dropdown_button(
         composite_paths::BLOCK_ITEMS,
-        "Blocks",
-        "Blocks",
+        &translations.toolbar.blocks,
+        &translations.toolbar.blocks,
         "toolbar-btn-block-items",
     );
     let hr_button = create_toolbar_icon_button(
         ToolbarIcon::ThematicBreak,
-        "Horizontal Rule",
+        &translations.toolbar.horizontal_rule,
         "toolbar-btn-hr",
         TOOLBAR_ICON_SIZE,
     );
@@ -978,15 +1160,20 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     let block_items = [
         (
             ToolbarIcon::CodeBlock,
-            "Code",
-            "Code block",
+            translations.toolbar.code.as_str(),
+            translations.toolbar.code_block_tooltip.as_str(),
             "toolbar-btn-fenced-code-block",
         ),
-        (ToolbarIcon::Math, "Math", "Math block", "toolbar-btn-math"),
+        (
+            ToolbarIcon::Math,
+            translations.toolbar.math.as_str(),
+            translations.toolbar.math_block_tooltip.as_str(),
+            "toolbar-btn-math",
+        ),
         (
             ToolbarIcon::Footnote,
-            "Footnote",
-            "Block footnote",
+            translations.toolbar.footnote.as_str(),
+            translations.toolbar.block_footnote_tooltip.as_str(),
             "toolbar-btn-footnote",
         ),
     ];
@@ -1018,8 +1205,8 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
 
     let container_items_poover_button = create_toolbar_composite_dropdown_button(
         composite_paths::TABLE,
-        "Modules",
-        "Modules",
+        &translations.toolbar.modules,
+        &translations.toolbar.modules,
         "toolbar-btn-container-items",
     );
     let container_items_popover = gtk4::Popover::new();
@@ -1028,29 +1215,34 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     crate::ui::popover_state::enforce_dismiss_behavior(&container_items_popover);
     let container_items_box = Box::new(Orientation::Vertical, 4);
     let container_items = [
-        (ToolbarIcon::Table, "Table", "Table", "toolbar-btn-table"),
+        (
+            ToolbarIcon::Table,
+            translations.toolbar.table.as_str(),
+            translations.toolbar.table.as_str(),
+            "toolbar-btn-table",
+        ),
         (
             ToolbarIcon::TabBlock,
-            "Tab block",
-            "Tab block",
+            translations.toolbar.tab_block.as_str(),
+            translations.toolbar.tab_block.as_str(),
             "toolbar-btn-tab-block",
         ),
         (
             ToolbarIcon::Slideshow,
-            "Slider deck",
-            "Slider deck",
+            translations.toolbar.slider_deck.as_str(),
+            translations.toolbar.slider_deck.as_str(),
             "toolbar-btn-slideshow",
         ),
         (
             ToolbarIcon::Mermaid,
-            "Mermaid",
-            "Mermaid",
+            translations.toolbar.mermaid.as_str(),
+            translations.toolbar.mermaid.as_str(),
             "toolbar-btn-mermaid",
         ),
         (
             ToolbarIcon::Admonition,
-            "Admonition",
-            "Admonition",
+            translations.toolbar.admonition.as_str(),
+            translations.toolbar.admonition.as_str(),
             "toolbar-btn-admonition",
         ),
     ];
@@ -1082,7 +1274,7 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
 
     let mention_button = create_toolbar_icon_button(
         ToolbarIcon::Mention,
-        "Mentions",
+        &translations.toolbar.mentions,
         "toolbar-btn-mention",
         TOOLBAR_ICON_SIZE,
     );

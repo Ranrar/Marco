@@ -15,6 +15,7 @@ Example:
 |------|-----------|-------------|--------------------|
 | en   | English | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
 | de   | German | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
+| es   | Spanish | ✔ | [castillocon](https://github.com/castillocon) |
 
 ## Not yet translated
 | Code | Language | Implemented | Author/Contributor |
@@ -56,7 +57,6 @@ Example:
 | ee   | Ewe |   |   |
 | el   | Greek |   |   |
 | eo   | Esperanto |   |   |
-| es   | Spanish |   |   |
 | et   | Estonian |   |   |
 | eu   | Basque |   |   |
 | fa   | Persian |   |   |

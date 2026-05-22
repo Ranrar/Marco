@@ -104,6 +104,9 @@ pub fn generate_list(options: &ListOptions) -> String {
 /// * `editor_buffer` - Text buffer to insert list into
 /// * `editor_view` - Editor view for scrolling and focus
 pub fn show_insert_list_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let tl = &t.lists;
     // Get current theme from parent
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
@@ -127,7 +130,7 @@ pub fn show_insert_list_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     // Custom titlebar
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert List",
+        &tl.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -157,7 +160,7 @@ pub fn show_insert_list_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     // Section 1: List Type (Radio Group)
     // ========================================================================
 
-    let type_label = Label::new(Some("Type"));
+    let type_label = Label::new(Some(&tl.type_label));
     type_label.set_halign(Align::Start);
     type_label.add_css_class("marco-dialog-section-label");
     type_label.add_css_class("marco-dialog-section-label-strong");
@@ -241,33 +244,33 @@ pub fn show_insert_list_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
     radio_box.append(&make_option_row(
         &radio_bullet,
-        "Bullet",
-        "Creates a standard list using \"-\" markers.",
+        &tl.type_bullet_title,
+        &tl.type_bullet_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_ordered,
-        "Ordered",
-        "Creates a numbered list like \"1. Item\".",
+        &tl.type_ordered_title,
+        &tl.type_ordered_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_unordered,
-        "Unordered",
-        "Creates an outline-style list like \"1) Item\".",
+        &tl.type_unordered_title,
+        &tl.type_unordered_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_task_dot,
-        "Task",
-        "Creates a task list like \"- [ ] Task\".",
+        &tl.type_task_title,
+        &tl.type_task_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_task_no_dot,
-        "Task",
-        "Creates a task list without a leading bullet: \"[ ] Task\".",
+        &tl.type_task_nodot_title,
+        &tl.type_task_nodot_desc,
     ));
     radio_box.append(&make_option_row(
         &radio_definition,
-        "Definition List",
-        "Creates term/definition pairs using \"Term\" + \": Definition\".",
+        &tl.type_definition_title,
+        &tl.type_definition_desc,
     ));
 
     vbox.append(&radio_box);
@@ -276,7 +279,7 @@ pub fn show_insert_list_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     // Section 2: Item Count (SpinButton)
     // ========================================================================
 
-    let count_label = Label::new(Some("Items"));
+    let count_label = Label::new(Some(&tl.items_label));
     count_label.set_halign(Align::Start);
     count_label.add_css_class("marco-dialog-section-label");
     vbox.append(&count_label);
@@ -298,11 +301,11 @@ pub fn show_insert_list_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     // Bottom Button Row (Settings-style bottom frame)
     // ========================================================================
 
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 

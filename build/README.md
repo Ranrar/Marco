@@ -70,10 +70,10 @@ webkit6          wry/WebView2
 sudo apt install libgtk-4-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev
 
 # Fedora
-sudo dnf install gtk4-devel gtksourceview5-devel webkit2gtk4.1-devel
+sudo dnf install gtk4-devel gtksourceview5-devel webkitgtk6.0-devel
 
 # Arch
-sudo pacman -S gtk4 gtksourceview5 webkit2gtk-4.1
+sudo pacman -S gtk4 gtksourceview5 webkitgtk-6.0
 ```
 
 ### Windows

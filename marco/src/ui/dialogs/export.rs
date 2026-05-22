@@ -95,7 +95,8 @@ pub async fn show_export_dialog(
     current_mode: &str,
     layout: Option<&marco_shared::logic::swanson::LayoutSettings>,
 ) -> Option<ExportSettings> {
-    // ── Theme detection ───────────────────────────────────────────────────────
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog.export;
     let parent_widget: gtk4::Widget = parent.clone().upcast();
     let initial_theme_class = if parent_widget.has_css_class("marco-theme-dark") {
         "marco-theme-dark".to_string()
@@ -158,7 +159,7 @@ pub async fn show_export_dialog(
     // ── Custom titlebar ───────────────────────────────────────────────────────
     let titlebar = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Export Document",
+        &t.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -192,10 +193,10 @@ pub async fn show_export_dialog(
     format_controls.set_width_request(CONTROL_WIDTH_PX);
     format_controls.set_halign(Align::Start);
 
-    let pdf_radio = CheckButton::with_label("PDF");
+    let pdf_radio = CheckButton::with_label(&t.pdf_radio);
     pdf_radio.add_css_class("marco-radio");
     pdf_radio.set_active(true);
-    let html_radio = CheckButton::with_label("HTML");
+    let html_radio = CheckButton::with_label(&t.html_radio);
     html_radio.add_css_class("marco-radio");
     html_radio.set_group(Some(&pdf_radio));
     format_controls.append(&pdf_radio);
@@ -396,11 +397,11 @@ pub async fn show_export_dialog(
     let button_box = GtkBox::new(Orientation::Horizontal, 8);
     button_box.set_halign(Align::End);
 
-    let btn_cancel = Button::with_label("Cancel");
+    let btn_cancel = Button::with_label(&t.cancel_button);
     btn_cancel.add_css_class("marco-btn");
     btn_cancel.add_css_class("marco-btn-yellow");
 
-    let btn_export = Button::with_label("Export\u{2026}");
+    let btn_export = Button::with_label(&t.export_button);
     btn_export.add_css_class("marco-btn");
     btn_export.add_css_class("marco-btn-blue");
 
@@ -604,14 +605,16 @@ async fn show_save_dialog_for_format(
     suggested: &str,
     format: ExportFormat,
 ) -> Option<PathBuf> {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog.export;
     #[cfg(target_os = "windows")]
     {
         use rfd::AsyncFileDialog;
 
         let mut dialog = AsyncFileDialog::new().set_file_name(suggested);
         dialog = match format {
-            ExportFormat::Pdf => dialog.add_filter("PDF Documents", &["pdf"]),
-            ExportFormat::Html => dialog.add_filter("HTML Files", &["html", "htm"]),
+            ExportFormat::Pdf => dialog.add_filter(t.filter_pdf.as_str(), &["pdf"]),
+            ExportFormat::Html => dialog.add_filter(t.filter_html.as_str(), &["html", "htm"]),
         };
 
         let picked = dialog.save_file().await?;
@@ -633,26 +636,26 @@ async fn show_save_dialog_for_format(
     #[cfg(not(target_os = "windows"))]
     {
         let title = match format {
-            ExportFormat::Pdf => "Save PDF As\u{2026}",
-            ExportFormat::Html => "Save HTML As\u{2026}",
+            ExportFormat::Pdf => t.save_pdf_title.as_str(),
+            ExportFormat::Html => t.save_html_title.as_str(),
         };
         let native = FileChooserNative::new(
             Some(title),
             Some(_parent),
             FileChooserAction::Save,
             Some("Save"),
-            Some("Cancel"),
+            Some(t.cancel_button.as_str()),
         );
         native.set_current_name(suggested);
 
         let main_filter = FileFilter::new();
         match format {
             ExportFormat::Pdf => {
-                main_filter.set_name(Some("PDF Documents (*.pdf)"));
+                main_filter.set_name(Some(t.filter_pdf.as_str()));
                 main_filter.add_pattern("*.pdf");
             }
             ExportFormat::Html => {
-                main_filter.set_name(Some("HTML Files (*.html, *.htm)"));
+                main_filter.set_name(Some(t.filter_html.as_str()));
                 main_filter.add_pattern("*.html");
                 main_filter.add_pattern("*.htm");
             }

@@ -44,6 +44,8 @@ pub async fn show_export_complete_dialog<W: IsA<Window>>(
     message: &str,
     output_path: &Path,
 ) -> ExportCompleteAction {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog.export_complete;
     // ── Theme detection (mirrors save.rs / exporting.rs) ──────────────────
     let theme_class = if let Some(widget) = parent.dynamic_cast_ref::<gtk4::Widget>() {
         if widget.has_css_class("marco-theme-dark") {
@@ -139,17 +141,17 @@ pub async fn show_export_complete_dialog<W: IsA<Window>>(
     button_box.set_halign(Align::Start);
     button_box.set_valign(Align::End);
 
-    let btn_close = Button::with_label("Close");
+    let btn_close = Button::with_label(&t.close_button);
     btn_close.add_css_class("marco-btn");
     btn_close.add_css_class("marco-btn-yellow");
     button_box.append(&btn_close);
 
-    let btn_folder = Button::with_label("Open folder");
+    let btn_folder = Button::with_label(&t.open_folder);
     btn_folder.add_css_class("marco-btn");
     btn_folder.add_css_class("marco-btn-blue");
     button_box.append(&btn_folder);
 
-    let btn_doc = Button::with_label("Open document");
+    let btn_doc = Button::with_label(&t.open_document);
     btn_doc.add_css_class("marco-btn");
     btn_doc.add_css_class("marco-btn-blue");
     button_box.append(&btn_doc);

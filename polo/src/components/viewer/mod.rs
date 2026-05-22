@@ -37,6 +37,7 @@
 //! - **Base URI**: Properly sets base path for relative image/link resolution
 
 pub mod empty_state;
+pub mod loading_overlay;
 pub mod platform_webview;
 pub mod rendering;
 

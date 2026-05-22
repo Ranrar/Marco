@@ -354,7 +354,8 @@ impl AsyncExtensionManager {
         _cursor_position: Option<u32>,
     ) -> (String, bool, Option<String>) {
         // Use the cached parsing for better performance with new parser API
-        use marco_core::{parse_to_html_cached, RenderOptions};
+        use marco_core::RenderOptions;
+        use marco_shared::cache::parse_to_html_cached;
 
         let options = RenderOptions::default();
         match parse_to_html_cached(content, options) {

@@ -370,6 +370,12 @@ fn insert_math_at_cursor(buffer: &Buffer, view: &View, markdown: &str, mode: Mat
 }
 
 pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let tm = &t.math;
+    let status_waiting_text = tm.status_waiting.clone();
+    let status_valid_text = tm.status_valid.clone();
+    let no_templates_text = tm.no_templates.clone();
     let parent_widget = parent.upcast_ref::<gtk4::Widget>();
     let initial_theme_class = if parent_widget.has_css_class("marco-theme-dark") {
         "marco-theme-dark".to_string()
@@ -392,7 +398,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Math",
+        &tm.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -416,7 +422,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     vbox.set_margin_top(8);
     vbox.set_margin_bottom(0);
 
-    let mode_label = Label::new(Some("Math Mode"));
+    let mode_label = Label::new(Some(&tm.mode_label));
     mode_label.set_halign(Align::Start);
     mode_label.add_css_class("marco-dialog-section-label");
     mode_label.add_css_class("marco-dialog-section-label-strong");
@@ -425,11 +431,11 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     let mode_row = Box::new(Orientation::Horizontal, 10);
     mode_row.set_margin_start(4);
 
-    let inline_radio = CheckButton::with_label("Inline ($...$)");
+    let inline_radio = CheckButton::with_label(&tm.inline_radio);
     inline_radio.add_css_class("marco-radio");
     inline_radio.set_active(false);
 
-    let block_radio = CheckButton::with_label("Block ($$...$$)");
+    let block_radio = CheckButton::with_label(&tm.block_radio);
     block_radio.add_css_class("marco-radio");
     block_radio.set_group(Some(&inline_radio));
     block_radio.set_active(true);
@@ -438,7 +444,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     mode_row.append(&block_radio);
     vbox.append(&mode_row);
 
-    let template_label = Label::new(Some("Templates"));
+    let template_label = Label::new(Some(&tm.templates_label));
     template_label.set_halign(Align::Start);
     template_label.add_css_class("marco-dialog-section-label");
     vbox.append(&template_label);
@@ -468,7 +474,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     snippet_combo.add_css_class(&theme_class_state.borrow());
     snippet_combo.set_hexpand(true);
 
-    let use_template_button = Button::with_label("Use Template");
+    let use_template_button = Button::with_label(&t.use_template_button);
     use_template_button.add_css_class("marco-btn");
     use_template_button.add_css_class("marco-btn-blue");
 
@@ -485,7 +491,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     template_help.set_margin_start(4);
     vbox.append(&template_help);
 
-    let expr_label = Label::new(Some("Expression"));
+    let expr_label = Label::new(Some(&tm.expression_label));
     expr_label.set_halign(Align::Start);
     expr_label.add_css_class("marco-dialog-section-label");
     vbox.append(&expr_label);
@@ -507,7 +513,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     expr_scroll.set_child(Some(&expr_text));
     vbox.append(&expr_scroll);
 
-    let preview_label = Label::new(Some("Live Preview"));
+    let preview_label = Label::new(Some(&t.live_preview_label));
     preview_label.set_halign(Align::Start);
     preview_label.add_css_class("marco-dialog-section-label");
     vbox.append(&preview_label);
@@ -563,7 +569,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     vbox.append(&preview_scroll);
 
     let tip_label = Label::new(Some(
-        "Tips: Use \\\\frac{a}{b}, \\\\sqrt{x}, \\\\sum_{i=1}^{n}. For multiline arrays/matrices, \\\\ is row break.",
+        &tm.tip_text,
     ));
     tip_label.set_halign(Align::Start);
     tip_label.set_xalign(0.0);
@@ -571,18 +577,18 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     tip_label.add_css_class("marco-dialog-option-desc");
     vbox.append(&tip_label);
 
-    let status_label = Label::new(Some("Status: waiting for input."));
+    let status_label = Label::new(Some(&status_waiting_text));
     status_label.set_halign(Align::Start);
     status_label.set_xalign(0.0);
     status_label.set_wrap(true);
     status_label.add_css_class("marco-dialog-option-desc");
     vbox.append(&status_label);
 
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 
@@ -655,7 +661,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
             if let Some(first) = selected_templates.borrow().first() {
                 template_help.set_text(first.help);
             } else {
-                template_help.set_text("No templates in this category.");
+                template_help.set_text(&no_templates_text);
             }
         }
     };
@@ -666,6 +672,8 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         let status_label = status_label.clone();
         let insert_button = insert_button.clone();
         let theme_class_state = theme_class_state.clone();
+        let status_waiting_text = status_waiting_text.clone();
+        let status_valid_text = status_valid_text.clone();
 
         #[cfg(target_os = "linux")]
         let preview_surface = preview_surface.clone();
@@ -681,7 +689,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
             let expr = buf.text(&start, &end, false).to_string();
 
             if expr.trim().is_empty() {
-                status_label.set_text("Status: waiting for input.");
+                status_label.set_text(&status_waiting_text);
                 insert_button.set_sensitive(false);
 
                 #[cfg(target_os = "linux")]
@@ -703,7 +711,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
             match validate_math_expression(&expr, mode) {
                 Ok(()) => {
-                    status_label.set_text("Status: valid KaTeX expression.");
+                    status_label.set_text(&status_valid_text);
                     insert_button.set_sensitive(true);
 
                     if let Ok(html) = render_math_preview_document(&expr, mode, &theme_class) {

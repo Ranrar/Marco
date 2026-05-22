@@ -21,7 +21,6 @@
 use crate::components::language::SearchTranslations;
 use gtk4::prelude::*;
 use gtk4::Window;
-use marco_core::logic::cache::SimpleFileCache;
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -47,7 +46,6 @@ use webkit6::WebView;
 #[cfg(target_os = "linux")]
 pub fn show_search_window(
     parent: &Window,
-    _file_cache: Rc<RefCell<SimpleFileCache>>,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
     webview: Rc<RefCell<WebView>>,
@@ -74,7 +72,6 @@ pub fn show_search_window(
 #[cfg(target_os = "windows")]
 pub fn show_search_window_no_webview(
     parent: &Window,
-    _file_cache: Rc<RefCell<SimpleFileCache>>,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
     webview: PlatformWebView,

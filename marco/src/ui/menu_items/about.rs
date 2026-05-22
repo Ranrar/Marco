@@ -212,8 +212,15 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     ));
     version_label.add_css_class("marco-dialog-message");
     version_label.set_halign(Align::Center);
-    version_label.set_margin_bottom(16);
+    version_label.set_margin_bottom(4);
     content_box.append(&version_label);
+
+    // marco-core version
+    let core_version_label = Label::new(Some(&format!("marco-core {}", marco_core::VERSION)));
+    core_version_label.add_css_class("marco-dialog-message");
+    core_version_label.set_halign(Align::Center);
+    core_version_label.set_margin_bottom(16);
+    content_box.append(&core_version_label);
 
     // Main description and features
     let main_text = Label::new(Some(&translations.about_description));

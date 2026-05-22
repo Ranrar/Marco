@@ -110,7 +110,7 @@ pub fn setup_modules_actions(
         let view = editor_view.clone();
         super::add_format_action(app, "insert_update_toc", move || {
             use marco_core::intelligence::toc::{
-                extract_toc, generate_toc_markdown, replace_toc_in_text, TocReplaceResult,
+                generate_toc_markdown, replace_toc_in_text, TocReplaceResult,
             };
 
             let text_buffer: gtk4::TextBuffer = buf.clone().upcast();
@@ -118,15 +118,9 @@ pub fn setup_modules_actions(
                 .text(&text_buffer.start_iter(), &text_buffer.end_iter(), false)
                 .to_string();
 
-            let doc = match marco_core::parse(&current_text) {
-                Ok(d) => d,
-                Err(e) => {
-                    log::warn!("TOC: parse failed: {}", e);
-                    return;
-                }
-            };
-
-            let entries = extract_toc(&doc);
+            // Reuse cached TOC entries — same content_hash → no re-parse.
+            let entries =
+                marco_shared::cache::global_parser_cache().get_or_compute_toc(&current_text);
             if entries.is_empty() {
                 log::debug!("TOC: no headings found in document");
                 return;

@@ -25,7 +25,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 
-mod default_translations;
+pub(crate) mod default_translations;
 
 /// Translation key-value store representing all UI strings
 #[derive(Debug, Clone, Deserialize)]
@@ -198,6 +198,56 @@ pub struct ToolbarTranslations {
     pub h4: String,
     pub h5: String,
     pub h6: String,
+    // Block-type dropdown
+    pub block_type: String,
+    pub block: String,
+    pub paragraph: String,
+    pub quote: String,
+    pub heading_id: String,
+    // Inline formatting popover
+    pub highlight: String,
+    pub inline: String,
+    pub inline_code: String,
+    pub inline_code_tooltip: String,
+    pub superscript: String,
+    pub superscript_tooltip: String,
+    pub subscript: String,
+    pub subscript_tooltip: String,
+    pub math: String,
+    pub inline_math_tooltip: String,
+    // Lists button
+    pub lists: String,
+    // Insert (inline items) popover
+    pub link: String,
+    pub link_tooltip: String,
+    pub link_reference: String,
+    pub link_reference_tooltip: String,
+    pub image: String,
+    pub image_tooltip: String,
+    pub footnote: String,
+    pub inline_footnote_tooltip: String,
+    pub emoji: String,
+    pub emoji_tooltip: String,
+    pub checkbox: String,
+    pub checkbox_tooltip: String,
+    // Horizontal rule
+    pub horizontal_rule: String,
+    // Block items popover
+    pub blocks: String,
+    pub code_block_tooltip: String,
+    pub math_block_tooltip: String,
+    pub block_footnote_tooltip: String,
+    // Modules (container) items popover
+    pub modules: String,
+    pub table: String,
+    pub tab_block: String,
+    pub slider_deck: String,
+    pub mermaid: String,
+    pub admonition: String,
+    // Mentions button
+    pub mentions: String,
+    // Emoji popover
+    pub recently_used: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -261,6 +311,190 @@ pub struct DialogTranslations {
     pub about_license_text: String,
     pub about_copyright: String,
     pub about_close_button: String,
+    // --- Common dialog action buttons (used by insert dialogs) ---
+    pub insert_button: String,
+    pub close_button: String,
+    pub add_button: String,
+    pub duplicate_button: String,
+    pub use_template_button: String,
+    pub live_preview_label: String,
+    pub source_label: String,
+    // --- Per-dialog sub-translations ---
+    pub admonition: AdmonitionDialogTranslations,
+    pub lists: ListsDialogTranslations,
+    pub tables: TablesDialogTranslations,
+    pub tabs: TabsDialogTranslations,
+    pub sliderdeck: SliderDeckDialogTranslations,
+    pub math: MathDialogTranslations,
+    pub mermaid: MermaidDialogTranslations,
+    pub mention: MentionDialogTranslations,
+    pub diagnostics_reference: DiagnosticsReferenceDialogTranslations,
+    pub open_local_file: OpenLocalFileDialogTranslations,
+    pub export: ExportDialogTranslations,
+    pub export_complete: ExportCompleteDialogTranslations,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AdmonitionDialogTranslations {
+    pub title: String,
+    pub section_label: String,
+    pub text_label: String,
+    pub emoji_placeholder: String,
+    pub title_placeholder: String,
+    pub type_note_title: String,
+    pub type_note_desc: String,
+    pub type_tip_title: String,
+    pub type_tip_desc: String,
+    pub type_important_title: String,
+    pub type_important_desc: String,
+    pub type_warning_title: String,
+    pub type_warning_desc: String,
+    pub type_caution_title: String,
+    pub type_caution_desc: String,
+    pub type_custom_title: String,
+    pub type_custom_desc: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListsDialogTranslations {
+    pub title: String,
+    pub type_label: String,
+    pub items_label: String,
+    pub type_bullet_title: String,
+    pub type_bullet_desc: String,
+    pub type_ordered_title: String,
+    pub type_ordered_desc: String,
+    pub type_unordered_title: String,
+    pub type_unordered_desc: String,
+    pub type_task_title: String,
+    pub type_task_desc: String,
+    pub type_task_nodot_title: String,
+    pub type_task_nodot_desc: String,
+    pub type_definition_title: String,
+    pub type_definition_desc: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TablesDialogTranslations {
+    pub title: String,
+    pub rows_label: String,
+    pub columns_label: String,
+    pub alignment_title: String,
+    pub include_header: String,
+    pub edit_alignment: String,
+    pub align_left: String,
+    pub align_center: String,
+    pub align_right: String,
+    pub selected_format: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TabsDialogTranslations {
+    pub title: String,
+    pub empty_label: String,
+    pub add_button: String,
+    pub content_for: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SliderDeckDialogTranslations {
+    pub title: String,
+    pub timer_label: String,
+    pub timer_tooltip: String,
+    pub seconds_label: String,
+    pub empty_label: String,
+    pub add_button: String,
+    pub content_for: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MathDialogTranslations {
+    pub title: String,
+    pub mode_label: String,
+    pub inline_radio: String,
+    pub block_radio: String,
+    pub templates_label: String,
+    pub expression_label: String,
+    pub tip_text: String,
+    pub status_waiting: String,
+    pub status_valid: String,
+    pub no_templates: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MermaidDialogTranslations {
+    pub title: String,
+    pub type_label: String,
+    pub diagram_flowchart: String,
+    pub diagram_sequence: String,
+    pub diagram_pie: String,
+    pub diagram_gitgraph: String,
+    pub diagram_class: String,
+    pub diagram_custom: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct MentionDialogTranslations {
+    pub title: String,
+    pub mention_label: String,
+    pub username_label: String,
+    pub realname_label: String,
+    pub realname_placeholder: String,
+    pub valid_button: String,
+    pub error_button: String,
+    pub status_waiting: String,
+    pub status_checking: String,
+    pub status_invalid_value: String,
+    pub status_unsupported: String,
+    pub status_not_implemented: String,
+    pub status_blocked: String,
+    pub status_timeout: String,
+    pub status_prefix: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct DiagnosticsReferenceDialogTranslations {
+    pub title: String,
+    pub search_label: String,
+    pub search_placeholder: String,
+    pub severity_label: String,
+    pub severity_all: String,
+    pub severity_error: String,
+    pub severity_warning: String,
+    pub severity_info: String,
+    pub severity_hint: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct OpenLocalFileDialogTranslations {
+    pub discard_open: String,
+    pub save_open: String,
+    pub open_button: String,
+    pub cancel_button: String,
+    pub tooltip_discard: String,
+    pub tooltip_cancel: String,
+    pub tooltip_save_open: String,
+    pub tooltip_open: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExportDialogTranslations {
+    pub title: String,
+    pub pdf_radio: String,
+    pub html_radio: String,
+    pub cancel_button: String,
+    pub export_button: String,
+    pub save_pdf_title: String,
+    pub save_html_title: String,
+    pub filter_pdf: String,
+    pub filter_html: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExportCompleteDialogTranslations {
+    pub close_button: String,
+    pub open_folder: String,
+    pub open_document: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -977,6 +1211,171 @@ impl SimpleLocalizationManager {
                 h4: Self::get_string(value, &["toolbar", "h4"], &fallback.toolbar.h4),
                 h5: Self::get_string(value, &["toolbar", "h5"], &fallback.toolbar.h5),
                 h6: Self::get_string(value, &["toolbar", "h6"], &fallback.toolbar.h6),
+                block_type: Self::get_string(
+                    value,
+                    &["toolbar", "block_type"],
+                    &fallback.toolbar.block_type,
+                ),
+                block: Self::get_string(value, &["toolbar", "block"], &fallback.toolbar.block),
+                paragraph: Self::get_string(
+                    value,
+                    &["toolbar", "paragraph"],
+                    &fallback.toolbar.paragraph,
+                ),
+                quote: Self::get_string(value, &["toolbar", "quote"], &fallback.toolbar.quote),
+                heading_id: Self::get_string(
+                    value,
+                    &["toolbar", "heading_id"],
+                    &fallback.toolbar.heading_id,
+                ),
+                highlight: Self::get_string(
+                    value,
+                    &["toolbar", "highlight"],
+                    &fallback.toolbar.highlight,
+                ),
+                inline: Self::get_string(value, &["toolbar", "inline"], &fallback.toolbar.inline),
+                inline_code: Self::get_string(
+                    value,
+                    &["toolbar", "inline_code"],
+                    &fallback.toolbar.inline_code,
+                ),
+                inline_code_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "inline_code_tooltip"],
+                    &fallback.toolbar.inline_code_tooltip,
+                ),
+                superscript: Self::get_string(
+                    value,
+                    &["toolbar", "superscript"],
+                    &fallback.toolbar.superscript,
+                ),
+                superscript_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "superscript_tooltip"],
+                    &fallback.toolbar.superscript_tooltip,
+                ),
+                subscript: Self::get_string(
+                    value,
+                    &["toolbar", "subscript"],
+                    &fallback.toolbar.subscript,
+                ),
+                subscript_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "subscript_tooltip"],
+                    &fallback.toolbar.subscript_tooltip,
+                ),
+                math: Self::get_string(value, &["toolbar", "math"], &fallback.toolbar.math),
+                inline_math_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "inline_math_tooltip"],
+                    &fallback.toolbar.inline_math_tooltip,
+                ),
+                lists: Self::get_string(value, &["toolbar", "lists"], &fallback.toolbar.lists),
+                link: Self::get_string(value, &["toolbar", "link"], &fallback.toolbar.link),
+                link_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "link_tooltip"],
+                    &fallback.toolbar.link_tooltip,
+                ),
+                link_reference: Self::get_string(
+                    value,
+                    &["toolbar", "link_reference"],
+                    &fallback.toolbar.link_reference,
+                ),
+                link_reference_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "link_reference_tooltip"],
+                    &fallback.toolbar.link_reference_tooltip,
+                ),
+                image: Self::get_string(value, &["toolbar", "image"], &fallback.toolbar.image),
+                image_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "image_tooltip"],
+                    &fallback.toolbar.image_tooltip,
+                ),
+                footnote: Self::get_string(
+                    value,
+                    &["toolbar", "footnote"],
+                    &fallback.toolbar.footnote,
+                ),
+                inline_footnote_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "inline_footnote_tooltip"],
+                    &fallback.toolbar.inline_footnote_tooltip,
+                ),
+                emoji: Self::get_string(value, &["toolbar", "emoji"], &fallback.toolbar.emoji),
+                emoji_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "emoji_tooltip"],
+                    &fallback.toolbar.emoji_tooltip,
+                ),
+                checkbox: Self::get_string(
+                    value,
+                    &["toolbar", "checkbox"],
+                    &fallback.toolbar.checkbox,
+                ),
+                checkbox_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "checkbox_tooltip"],
+                    &fallback.toolbar.checkbox_tooltip,
+                ),
+                horizontal_rule: Self::get_string(
+                    value,
+                    &["toolbar", "horizontal_rule"],
+                    &fallback.toolbar.horizontal_rule,
+                ),
+                blocks: Self::get_string(value, &["toolbar", "blocks"], &fallback.toolbar.blocks),
+                code_block_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "code_block_tooltip"],
+                    &fallback.toolbar.code_block_tooltip,
+                ),
+                math_block_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "math_block_tooltip"],
+                    &fallback.toolbar.math_block_tooltip,
+                ),
+                block_footnote_tooltip: Self::get_string(
+                    value,
+                    &["toolbar", "block_footnote_tooltip"],
+                    &fallback.toolbar.block_footnote_tooltip,
+                ),
+                modules: Self::get_string(
+                    value,
+                    &["toolbar", "modules"],
+                    &fallback.toolbar.modules,
+                ),
+                table: Self::get_string(value, &["toolbar", "table"], &fallback.toolbar.table),
+                tab_block: Self::get_string(
+                    value,
+                    &["toolbar", "tab_block"],
+                    &fallback.toolbar.tab_block,
+                ),
+                slider_deck: Self::get_string(
+                    value,
+                    &["toolbar", "slider_deck"],
+                    &fallback.toolbar.slider_deck,
+                ),
+                mermaid: Self::get_string(
+                    value,
+                    &["toolbar", "mermaid"],
+                    &fallback.toolbar.mermaid,
+                ),
+                admonition: Self::get_string(
+                    value,
+                    &["toolbar", "admonition"],
+                    &fallback.toolbar.admonition,
+                ),
+                mentions: Self::get_string(
+                    value,
+                    &["toolbar", "mentions"],
+                    &fallback.toolbar.mentions,
+                ),
+                recently_used: Self::get_string(
+                    value,
+                    &["toolbar", "recently_used"],
+                    &fallback.toolbar.recently_used,
+                ),
             },
             footer: FooterTranslations {
                 row: Self::get_string(value, &["footer", "row"], &fallback.footer.row),
@@ -1236,6 +1635,180 @@ impl SimpleLocalizationManager {
                     &["dialog", "about_close_button"],
                     &fallback.dialog.about_close_button,
                 ),
+                insert_button: Self::get_string(
+                    value,
+                    &["dialog", "insert_button"],
+                    &fallback.dialog.insert_button,
+                ),
+                close_button: Self::get_string(
+                    value,
+                    &["dialog", "close_button"],
+                    &fallback.dialog.close_button,
+                ),
+                add_button: Self::get_string(
+                    value,
+                    &["dialog", "add_button"],
+                    &fallback.dialog.add_button,
+                ),
+                duplicate_button: Self::get_string(
+                    value,
+                    &["dialog", "duplicate_button"],
+                    &fallback.dialog.duplicate_button,
+                ),
+                use_template_button: Self::get_string(
+                    value,
+                    &["dialog", "use_template_button"],
+                    &fallback.dialog.use_template_button,
+                ),
+                live_preview_label: Self::get_string(
+                    value,
+                    &["dialog", "live_preview_label"],
+                    &fallback.dialog.live_preview_label,
+                ),
+                source_label: Self::get_string(
+                    value,
+                    &["dialog", "source_label"],
+                    &fallback.dialog.source_label,
+                ),
+                admonition: AdmonitionDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "admonition", "title"], &fallback.dialog.admonition.title),
+                    section_label: Self::get_string(value, &["dialog", "admonition", "section_label"], &fallback.dialog.admonition.section_label),
+                    text_label: Self::get_string(value, &["dialog", "admonition", "text_label"], &fallback.dialog.admonition.text_label),
+                    emoji_placeholder: Self::get_string(value, &["dialog", "admonition", "emoji_placeholder"], &fallback.dialog.admonition.emoji_placeholder),
+                    title_placeholder: Self::get_string(value, &["dialog", "admonition", "title_placeholder"], &fallback.dialog.admonition.title_placeholder),
+                    type_note_title: Self::get_string(value, &["dialog", "admonition", "type_note_title"], &fallback.dialog.admonition.type_note_title),
+                    type_note_desc: Self::get_string(value, &["dialog", "admonition", "type_note_desc"], &fallback.dialog.admonition.type_note_desc),
+                    type_tip_title: Self::get_string(value, &["dialog", "admonition", "type_tip_title"], &fallback.dialog.admonition.type_tip_title),
+                    type_tip_desc: Self::get_string(value, &["dialog", "admonition", "type_tip_desc"], &fallback.dialog.admonition.type_tip_desc),
+                    type_important_title: Self::get_string(value, &["dialog", "admonition", "type_important_title"], &fallback.dialog.admonition.type_important_title),
+                    type_important_desc: Self::get_string(value, &["dialog", "admonition", "type_important_desc"], &fallback.dialog.admonition.type_important_desc),
+                    type_warning_title: Self::get_string(value, &["dialog", "admonition", "type_warning_title"], &fallback.dialog.admonition.type_warning_title),
+                    type_warning_desc: Self::get_string(value, &["dialog", "admonition", "type_warning_desc"], &fallback.dialog.admonition.type_warning_desc),
+                    type_caution_title: Self::get_string(value, &["dialog", "admonition", "type_caution_title"], &fallback.dialog.admonition.type_caution_title),
+                    type_caution_desc: Self::get_string(value, &["dialog", "admonition", "type_caution_desc"], &fallback.dialog.admonition.type_caution_desc),
+                    type_custom_title: Self::get_string(value, &["dialog", "admonition", "type_custom_title"], &fallback.dialog.admonition.type_custom_title),
+                    type_custom_desc: Self::get_string(value, &["dialog", "admonition", "type_custom_desc"], &fallback.dialog.admonition.type_custom_desc),
+                },
+                lists: ListsDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "lists", "title"], &fallback.dialog.lists.title),
+                    type_label: Self::get_string(value, &["dialog", "lists", "type_label"], &fallback.dialog.lists.type_label),
+                    items_label: Self::get_string(value, &["dialog", "lists", "items_label"], &fallback.dialog.lists.items_label),
+                    type_bullet_title: Self::get_string(value, &["dialog", "lists", "type_bullet_title"], &fallback.dialog.lists.type_bullet_title),
+                    type_bullet_desc: Self::get_string(value, &["dialog", "lists", "type_bullet_desc"], &fallback.dialog.lists.type_bullet_desc),
+                    type_ordered_title: Self::get_string(value, &["dialog", "lists", "type_ordered_title"], &fallback.dialog.lists.type_ordered_title),
+                    type_ordered_desc: Self::get_string(value, &["dialog", "lists", "type_ordered_desc"], &fallback.dialog.lists.type_ordered_desc),
+                    type_unordered_title: Self::get_string(value, &["dialog", "lists", "type_unordered_title"], &fallback.dialog.lists.type_unordered_title),
+                    type_unordered_desc: Self::get_string(value, &["dialog", "lists", "type_unordered_desc"], &fallback.dialog.lists.type_unordered_desc),
+                    type_task_title: Self::get_string(value, &["dialog", "lists", "type_task_title"], &fallback.dialog.lists.type_task_title),
+                    type_task_desc: Self::get_string(value, &["dialog", "lists", "type_task_desc"], &fallback.dialog.lists.type_task_desc),
+                    type_task_nodot_title: Self::get_string(value, &["dialog", "lists", "type_task_nodot_title"], &fallback.dialog.lists.type_task_nodot_title),
+                    type_task_nodot_desc: Self::get_string(value, &["dialog", "lists", "type_task_nodot_desc"], &fallback.dialog.lists.type_task_nodot_desc),
+                    type_definition_title: Self::get_string(value, &["dialog", "lists", "type_definition_title"], &fallback.dialog.lists.type_definition_title),
+                    type_definition_desc: Self::get_string(value, &["dialog", "lists", "type_definition_desc"], &fallback.dialog.lists.type_definition_desc),
+                },
+                tables: TablesDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "tables", "title"], &fallback.dialog.tables.title),
+                    rows_label: Self::get_string(value, &["dialog", "tables", "rows_label"], &fallback.dialog.tables.rows_label),
+                    columns_label: Self::get_string(value, &["dialog", "tables", "columns_label"], &fallback.dialog.tables.columns_label),
+                    alignment_title: Self::get_string(value, &["dialog", "tables", "alignment_title"], &fallback.dialog.tables.alignment_title),
+                    include_header: Self::get_string(value, &["dialog", "tables", "include_header"], &fallback.dialog.tables.include_header),
+                    edit_alignment: Self::get_string(value, &["dialog", "tables", "edit_alignment"], &fallback.dialog.tables.edit_alignment),
+                    align_left: Self::get_string(value, &["dialog", "tables", "align_left"], &fallback.dialog.tables.align_left),
+                    align_center: Self::get_string(value, &["dialog", "tables", "align_center"], &fallback.dialog.tables.align_center),
+                    align_right: Self::get_string(value, &["dialog", "tables", "align_right"], &fallback.dialog.tables.align_right),
+                    selected_format: Self::get_string(value, &["dialog", "tables", "selected_format"], &fallback.dialog.tables.selected_format),
+                },
+                tabs: TabsDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "tabs", "title"], &fallback.dialog.tabs.title),
+                    empty_label: Self::get_string(value, &["dialog", "tabs", "empty_label"], &fallback.dialog.tabs.empty_label),
+                    add_button: Self::get_string(value, &["dialog", "tabs", "add_button"], &fallback.dialog.tabs.add_button),
+                    content_for: Self::get_string(value, &["dialog", "tabs", "content_for"], &fallback.dialog.tabs.content_for),
+                },
+                sliderdeck: SliderDeckDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "sliderdeck", "title"], &fallback.dialog.sliderdeck.title),
+                    timer_label: Self::get_string(value, &["dialog", "sliderdeck", "timer_label"], &fallback.dialog.sliderdeck.timer_label),
+                    timer_tooltip: Self::get_string(value, &["dialog", "sliderdeck", "timer_tooltip"], &fallback.dialog.sliderdeck.timer_tooltip),
+                    seconds_label: Self::get_string(value, &["dialog", "sliderdeck", "seconds_label"], &fallback.dialog.sliderdeck.seconds_label),
+                    empty_label: Self::get_string(value, &["dialog", "sliderdeck", "empty_label"], &fallback.dialog.sliderdeck.empty_label),
+                    add_button: Self::get_string(value, &["dialog", "sliderdeck", "add_button"], &fallback.dialog.sliderdeck.add_button),
+                    content_for: Self::get_string(value, &["dialog", "sliderdeck", "content_for"], &fallback.dialog.sliderdeck.content_for),
+                },
+                math: MathDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "math", "title"], &fallback.dialog.math.title),
+                    mode_label: Self::get_string(value, &["dialog", "math", "mode_label"], &fallback.dialog.math.mode_label),
+                    inline_radio: Self::get_string(value, &["dialog", "math", "inline_radio"], &fallback.dialog.math.inline_radio),
+                    block_radio: Self::get_string(value, &["dialog", "math", "block_radio"], &fallback.dialog.math.block_radio),
+                    templates_label: Self::get_string(value, &["dialog", "math", "templates_label"], &fallback.dialog.math.templates_label),
+                    expression_label: Self::get_string(value, &["dialog", "math", "expression_label"], &fallback.dialog.math.expression_label),
+                    tip_text: Self::get_string(value, &["dialog", "math", "tip_text"], &fallback.dialog.math.tip_text),
+                    status_waiting: Self::get_string(value, &["dialog", "math", "status_waiting"], &fallback.dialog.math.status_waiting),
+                    status_valid: Self::get_string(value, &["dialog", "math", "status_valid"], &fallback.dialog.math.status_valid),
+                    no_templates: Self::get_string(value, &["dialog", "math", "no_templates"], &fallback.dialog.math.no_templates),
+                },
+                mermaid: MermaidDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "mermaid", "title"], &fallback.dialog.mermaid.title),
+                    type_label: Self::get_string(value, &["dialog", "mermaid", "type_label"], &fallback.dialog.mermaid.type_label),
+                    diagram_flowchart: Self::get_string(value, &["dialog", "mermaid", "diagram_flowchart"], &fallback.dialog.mermaid.diagram_flowchart),
+                    diagram_sequence: Self::get_string(value, &["dialog", "mermaid", "diagram_sequence"], &fallback.dialog.mermaid.diagram_sequence),
+                    diagram_pie: Self::get_string(value, &["dialog", "mermaid", "diagram_pie"], &fallback.dialog.mermaid.diagram_pie),
+                    diagram_gitgraph: Self::get_string(value, &["dialog", "mermaid", "diagram_gitgraph"], &fallback.dialog.mermaid.diagram_gitgraph),
+                    diagram_class: Self::get_string(value, &["dialog", "mermaid", "diagram_class"], &fallback.dialog.mermaid.diagram_class),
+                    diagram_custom: Self::get_string(value, &["dialog", "mermaid", "diagram_custom"], &fallback.dialog.mermaid.diagram_custom),
+                },
+                mention: MentionDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "mention", "title"], &fallback.dialog.mention.title),
+                    mention_label: Self::get_string(value, &["dialog", "mention", "mention_label"], &fallback.dialog.mention.mention_label),
+                    username_label: Self::get_string(value, &["dialog", "mention", "username_label"], &fallback.dialog.mention.username_label),
+                    realname_label: Self::get_string(value, &["dialog", "mention", "realname_label"], &fallback.dialog.mention.realname_label),
+                    realname_placeholder: Self::get_string(value, &["dialog", "mention", "realname_placeholder"], &fallback.dialog.mention.realname_placeholder),
+                    valid_button: Self::get_string(value, &["dialog", "mention", "valid_button"], &fallback.dialog.mention.valid_button),
+                    error_button: Self::get_string(value, &["dialog", "mention", "error_button"], &fallback.dialog.mention.error_button),
+                    status_waiting: Self::get_string(value, &["dialog", "mention", "status_waiting"], &fallback.dialog.mention.status_waiting),
+                    status_checking: Self::get_string(value, &["dialog", "mention", "status_checking"], &fallback.dialog.mention.status_checking),
+                    status_invalid_value: Self::get_string(value, &["dialog", "mention", "status_invalid_value"], &fallback.dialog.mention.status_invalid_value),
+                    status_unsupported: Self::get_string(value, &["dialog", "mention", "status_unsupported"], &fallback.dialog.mention.status_unsupported),
+                    status_not_implemented: Self::get_string(value, &["dialog", "mention", "status_not_implemented"], &fallback.dialog.mention.status_not_implemented),
+                    status_blocked: Self::get_string(value, &["dialog", "mention", "status_blocked"], &fallback.dialog.mention.status_blocked),
+                    status_timeout: Self::get_string(value, &["dialog", "mention", "status_timeout"], &fallback.dialog.mention.status_timeout),
+                    status_prefix: Self::get_string(value, &["dialog", "mention", "status_prefix"], &fallback.dialog.mention.status_prefix),
+                },
+                diagnostics_reference: DiagnosticsReferenceDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "diagnostics_reference", "title"], &fallback.dialog.diagnostics_reference.title),
+                    search_label: Self::get_string(value, &["dialog", "diagnostics_reference", "search_label"], &fallback.dialog.diagnostics_reference.search_label),
+                    search_placeholder: Self::get_string(value, &["dialog", "diagnostics_reference", "search_placeholder"], &fallback.dialog.diagnostics_reference.search_placeholder),
+                    severity_label: Self::get_string(value, &["dialog", "diagnostics_reference", "severity_label"], &fallback.dialog.diagnostics_reference.severity_label),
+                    severity_all: Self::get_string(value, &["dialog", "diagnostics_reference", "severity_all"], &fallback.dialog.diagnostics_reference.severity_all),
+                    severity_error: Self::get_string(value, &["dialog", "diagnostics_reference", "severity_error"], &fallback.dialog.diagnostics_reference.severity_error),
+                    severity_warning: Self::get_string(value, &["dialog", "diagnostics_reference", "severity_warning"], &fallback.dialog.diagnostics_reference.severity_warning),
+                    severity_info: Self::get_string(value, &["dialog", "diagnostics_reference", "severity_info"], &fallback.dialog.diagnostics_reference.severity_info),
+                    severity_hint: Self::get_string(value, &["dialog", "diagnostics_reference", "severity_hint"], &fallback.dialog.diagnostics_reference.severity_hint),
+                },
+                open_local_file: OpenLocalFileDialogTranslations {
+                    discard_open: Self::get_string(value, &["dialog", "open_local_file", "discard_open"], &fallback.dialog.open_local_file.discard_open),
+                    save_open: Self::get_string(value, &["dialog", "open_local_file", "save_open"], &fallback.dialog.open_local_file.save_open),
+                    open_button: Self::get_string(value, &["dialog", "open_local_file", "open_button"], &fallback.dialog.open_local_file.open_button),
+                    cancel_button: Self::get_string(value, &["dialog", "open_local_file", "cancel_button"], &fallback.dialog.open_local_file.cancel_button),
+                    tooltip_discard: Self::get_string(value, &["dialog", "open_local_file", "tooltip_discard"], &fallback.dialog.open_local_file.tooltip_discard),
+                    tooltip_cancel: Self::get_string(value, &["dialog", "open_local_file", "tooltip_cancel"], &fallback.dialog.open_local_file.tooltip_cancel),
+                    tooltip_save_open: Self::get_string(value, &["dialog", "open_local_file", "tooltip_save_open"], &fallback.dialog.open_local_file.tooltip_save_open),
+                    tooltip_open: Self::get_string(value, &["dialog", "open_local_file", "tooltip_open"], &fallback.dialog.open_local_file.tooltip_open),
+                },
+                export: ExportDialogTranslations {
+                    title: Self::get_string(value, &["dialog", "export", "title"], &fallback.dialog.export.title),
+                    pdf_radio: Self::get_string(value, &["dialog", "export", "pdf_radio"], &fallback.dialog.export.pdf_radio),
+                    html_radio: Self::get_string(value, &["dialog", "export", "html_radio"], &fallback.dialog.export.html_radio),
+                    cancel_button: Self::get_string(value, &["dialog", "export", "cancel_button"], &fallback.dialog.export.cancel_button),
+                    export_button: Self::get_string(value, &["dialog", "export", "export_button"], &fallback.dialog.export.export_button),
+                    save_pdf_title: Self::get_string(value, &["dialog", "export", "save_pdf_title"], &fallback.dialog.export.save_pdf_title),
+                    save_html_title: Self::get_string(value, &["dialog", "export", "save_html_title"], &fallback.dialog.export.save_html_title),
+                    filter_pdf: Self::get_string(value, &["dialog", "export", "filter_pdf"], &fallback.dialog.export.filter_pdf),
+                    filter_html: Self::get_string(value, &["dialog", "export", "filter_html"], &fallback.dialog.export.filter_html),
+                },
+                export_complete: ExportCompleteDialogTranslations {
+                    close_button: Self::get_string(value, &["dialog", "export_complete", "close_button"], &fallback.dialog.export_complete.close_button),
+                    open_folder: Self::get_string(value, &["dialog", "export_complete", "open_folder"], &fallback.dialog.export_complete.open_folder),
+                    open_document: Self::get_string(value, &["dialog", "export_complete", "open_document"], &fallback.dialog.export_complete.open_document),
+                },
             },
             settings: SettingsTranslations {
                 title: Self::get_string(value, &["settings", "title"], &fallback.settings.title),

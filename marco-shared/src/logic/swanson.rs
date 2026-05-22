@@ -65,7 +65,7 @@ impl Settings {
     /// Get recent files list, validating that files still exist
     pub fn get_recent_files(&self) -> Vec<PathBuf> {
         if let Some(files_settings) = &self.files {
-            if let Some(recent_files) = &files_settings.recent_files {
+            if let Some(recent_files) = &files_settings.marco_recent_files {
                 // Filter out files that no longer exist
                 return recent_files
                     .iter()
@@ -91,12 +91,12 @@ impl Settings {
 
         let files_settings = self.files.as_mut().unwrap();
 
-        // Ensure recent_files vec exists
-        if files_settings.recent_files.is_none() {
-            files_settings.recent_files = Some(Vec::new());
+        // Ensure marco_recent_files vec exists
+        if files_settings.marco_recent_files.is_none() {
+            files_settings.marco_recent_files = Some(Vec::new());
         }
 
-        let recent_files = files_settings.recent_files.as_mut().unwrap();
+        let recent_files = files_settings.marco_recent_files.as_mut().unwrap();
 
         // Remove if already exists (to move to front)
         recent_files.retain(|p| p != &path);
@@ -113,7 +113,44 @@ impl Settings {
     /// Clear all recent files
     pub fn clear_recent_files(&mut self) {
         if let Some(files_settings) = &mut self.files {
-            files_settings.recent_files = Some(Vec::new());
+            files_settings.marco_recent_files = Some(Vec::new());
+        }
+    }
+
+    // ── Polo-specific recent files ────────────────────────────────────────
+
+    /// Get Polo's recently opened files, filtering out non-existent paths.
+    pub fn get_polo_recent_files(&self) -> Vec<PathBuf> {
+        if let Some(files) = &self.files {
+            if let Some(ref recent) = files.polo_recent_files {
+                return recent.iter().filter(|p| p.exists()).cloned().collect();
+            }
+        }
+        Vec::new()
+    }
+
+    /// Add a file to Polo's recent files list (most recent first, max 10).
+    pub fn add_polo_recent_file<P: AsRef<Path>>(&mut self, path: P) {
+        let path = path.as_ref().to_path_buf();
+        if self.files.is_none() {
+            self.files = Some(FileSettings::default());
+        }
+        let files = self.files.as_mut().unwrap();
+        if files.polo_recent_files.is_none() {
+            files.polo_recent_files = Some(Vec::new());
+        }
+        let recent = files.polo_recent_files.as_mut().unwrap();
+        recent.retain(|p| p != &path);
+        recent.insert(0, path);
+        if recent.len() > 10 {
+            recent.truncate(10);
+        }
+    }
+
+    /// Clear Polo's recent files list.
+    pub fn clear_polo_recent_files(&mut self) {
+        if let Some(files) = &mut self.files {
+            files.polo_recent_files = Some(Vec::new());
         }
     }
 
@@ -130,7 +167,7 @@ impl Settings {
     /// Clean up recent files list by removing non-existent files
     pub fn clean_recent_files(&mut self) -> bool {
         if let Some(files_settings) = &mut self.files {
-            if let Some(recent_files) = &mut files_settings.recent_files {
+            if let Some(recent_files) = &mut files_settings.marco_recent_files {
                 let original_len = recent_files.len();
                 recent_files.retain(|path| path.exists());
                 return recent_files.len() != original_len;
@@ -293,7 +330,8 @@ impl Settings {
                 ..Default::default()
             }),
             files: Some(FileSettings {
-                recent_files: Some(Vec::new()),
+                marco_recent_files: Some(Vec::new()),
+                polo_recent_files: Some(Vec::new()),
                 max_recent_files: Some(5),
                 bookmarks: Some(Vec::new()),
                 emoji_usage_history: Some(Vec::new()),
@@ -638,8 +676,11 @@ impl SettingsManager {
 
         // Remove non-existent recent files
         if let Some(files) = &mut settings.files {
-            if let Some(recent_files) = &mut files.recent_files {
-                recent_files.retain(|path| path.exists());
+            if let Some(recent_files) = &mut files.marco_recent_files {
+                recent_files.retain(|path: &PathBuf| path.exists());
+            }
+            if let Some(recent_files) = &mut files.polo_recent_files {
+                recent_files.retain(|path: &PathBuf| path.exists());
             }
             if let Some(bookmarks) = &mut files.bookmarks {
                 bookmarks.retain(|entry| entry.file_path.exists());
@@ -793,7 +834,8 @@ impl WindowSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileSettings {
-    pub recent_files: Option<Vec<PathBuf>>,
+    pub marco_recent_files: Option<Vec<PathBuf>>,
+    pub polo_recent_files: Option<Vec<PathBuf>>,
     pub max_recent_files: Option<u8>,
     pub bookmarks: Option<Vec<BookmarkEntry>>,
     pub emoji_usage_history: Option<Vec<EmojiUsageEntry>>,

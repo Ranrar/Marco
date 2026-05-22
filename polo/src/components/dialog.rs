@@ -48,6 +48,7 @@ use crate::components::viewer::{load_and_render_markdown, platform_webview::Plat
 use gtk4::{prelude::*, Align, ApplicationWindow, Box, Button, Label, Orientation, Window};
 use marco_shared::logic::swanson::SettingsManager;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 #[cfg(target_os = "linux")]
@@ -66,7 +67,11 @@ struct OpenFileContext<'a> {
     asset_root: &'a std::path::Path,
 }
 
-fn open_file_and_update_state(ctx: OpenFileContext<'_>, path: PathBuf) {
+fn open_file_and_update_state(
+    ctx: OpenFileContext<'_>,
+    path: PathBuf,
+    on_file_opened: Option<&dyn Fn(&str)>,
+) {
     let path_str = path.to_string_lossy().to_string();
     log::info!("Opening file: {}", path_str);
 
@@ -83,6 +88,10 @@ fn open_file_and_update_state(ctx: OpenFileContext<'_>, path: PathBuf) {
         ctx.settings_manager,
         ctx.asset_root,
     );
+
+    if let Some(cb) = on_file_opened {
+        cb(&path_str);
+    }
 
     if let Ok(mut path_guard) = ctx.current_file_path.write() {
         *path_guard = Some(path_str.clone());
@@ -102,6 +111,7 @@ fn open_file_and_update_state(ctx: OpenFileContext<'_>, path: PathBuf) {
         if s.polo.is_none() {
             s.polo = Some(marco_shared::logic::swanson::PoloSettings::default());
         }
+        s.add_polo_recent_file(&path_str);
         if let Some(ref mut polo) = s.polo {
             polo.last_opened_file = Some(PathBuf::from(path_str));
         }
@@ -109,6 +119,7 @@ fn open_file_and_update_state(ctx: OpenFileContext<'_>, path: PathBuf) {
 }
 
 /// Show file chooser dialog to open a markdown file
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 pub fn show_open_file_dialog(
     window: &ApplicationWindow,
     webview: PlatformWebView,
@@ -117,6 +128,7 @@ pub fn show_open_file_dialog(
     open_editor_btn: &Button,
     title_label: &Label,
     asset_root: &std::path::Path,
+    on_file_opened: Option<Rc<dyn Fn(&str) + 'static>>,
 ) {
     #[cfg(target_os = "linux")]
     {
@@ -170,7 +182,11 @@ pub fn show_open_file_dialog(
                                 title_label: &title_label,
                                 asset_root: &asset_root_owned,
                             };
-                            open_file_and_update_state(ctx, path);
+                            open_file_and_update_state(
+                                ctx,
+                                path,
+                                on_file_opened.as_ref().map(|rc| rc.as_ref()),
+                            );
                         }
                     }
                 }
@@ -210,7 +226,7 @@ pub fn show_open_file_dialog(
                 title_label,
                 asset_root,
             };
-            open_file_and_update_state(ctx, path);
+            open_file_and_update_state(ctx, path, on_file_opened.as_ref().map(|rc| rc.as_ref()));
         }
     }
 }

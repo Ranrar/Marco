@@ -134,6 +134,9 @@ fn insert_sliders_at_cursor(buffer: &Buffer, view: &View, markdown: &str) {
 }
 
 pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let ts = &t.sliderdeck;
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
     } else {
@@ -155,7 +158,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Slider Deck",
+        &ts.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -202,14 +205,14 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
     options_inner.set_margin_bottom(8);
     options_inner.set_valign(Align::Center);
 
-    let timer_label = Label::new(Some("Auto-advance timer:"));
+    let timer_label = Label::new(Some(&ts.timer_label));
     timer_label.set_halign(Align::Start);
 
     // SpinButton: 0 = disabled, 1-60 seconds.
     let timer_spin = SpinButton::with_range(0.0, 60.0, 1.0);
     timer_spin.set_value(3.0);
     timer_spin.set_width_chars(4);
-    timer_spin.set_tooltip_text(Some("0 = timer disabled"));
+    timer_spin.set_tooltip_text(Some(&ts.timer_tooltip));
 
     // Display "0" as "off" / display non-zero as numeric via output signal.
     {
@@ -220,7 +223,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
         });
     }
 
-    let seconds_label = Label::new(Some("seconds  (0 = off)"));
+    let seconds_label = Label::new(Some(&ts.seconds_label));
     seconds_label.set_halign(Align::Start);
 
     options_inner.append(&timer_label);
@@ -256,7 +259,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
     slides_scroller.set_child(Some(&list_view));
 
     // Empty-state placeholder shown when the store has no items.
-    let empty_label = Label::new(Some("No slides yet — click + Add Slide"));
+    let empty_label = Label::new(Some(&ts.empty_label));
     empty_label.set_halign(Align::Center);
     empty_label.set_valign(Align::Center);
     empty_label.add_css_class("marco-tabs-empty-label");
@@ -270,12 +273,12 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
 
     slides_inner.append(&slides_stack);
 
-    let add_button = Button::with_label("+ Add Slide");
+    let add_button = Button::with_label(&ts.add_button);
     add_button.add_css_class("marco-btn");
     add_button.add_css_class("marco-btn-blue");
     add_button.add_css_class("marco-tabs-action-btn");
 
-    let duplicate_button = Button::with_label("Duplicate");
+    let duplicate_button = Button::with_label(&t.duplicate_button);
     duplicate_button.add_css_class("marco-btn");
     duplicate_button.add_css_class("marco-btn-blue");
     duplicate_button.add_css_class("marco-tabs-action-btn");
@@ -298,7 +301,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
     content_inner.set_margin_top(8);
     content_inner.set_margin_bottom(8);
 
-    let content_title = Label::new(Some("Content for: -"));
+    let content_title = Label::new(Some(&format!("{} -", ts.content_for)));
     content_title.set_halign(Align::Start);
     content_title.set_xalign(0.0);
     content_title.add_css_class("marco-tabs-content-title");
@@ -325,11 +328,11 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
     content_box.append(&content_frame);
 
     // ── Bottom action bar ──────────────────────────────────────────────────────
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 
@@ -378,6 +381,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
         let content_title = content_title.clone();
         let content_buffer = content_view.buffer();
         let is_syncing_content = is_syncing_content.clone();
+        let content_for_text = ts.content_for.clone();
 
         Rc::new(move || {
             let count = store.n_items();
@@ -396,7 +400,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
             }
 
             if let Some(pos) = selected {
-                content_title.set_text(&format!("Content for: {}", slide_name(pos)));
+                content_title.set_text(&format!("{} {}", content_for_text, slide_name(pos)));
 
                 if let Some(item_obj) = slide_object_at(&store, pos) {
                     let item = item_obj.borrow::<SlideItem>();
@@ -405,7 +409,7 @@ pub fn show_insert_slider_deck_dialog(parent: &Window, editor_buffer: &Buffer, e
                     is_syncing_content.set(false);
                 }
             } else {
-                content_title.set_text("Content for:");
+                content_title.set_text(&content_for_text);
                 is_syncing_content.set(true);
                 content_buffer.set_text("");
                 is_syncing_content.set(false);

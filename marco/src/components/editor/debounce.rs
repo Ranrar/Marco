@@ -92,4 +92,37 @@ impl Debouncer {
 
         *timeout_handle = Some(source_id);
     }
+
+    /// Like [`debounce_trailing`] but uses a caller-supplied `timeout` instead of
+    /// the value from [`Debouncer::new`].
+    ///
+    /// Use this to implement adaptive debounce delays (e.g. larger timeouts for
+    /// larger documents) while sharing a single `Debouncer` instance.
+    pub fn debounce_trailing_with_timeout<F>(&self, timeout: Duration, func: F)
+    where
+        F: Fn() + 'static,
+    {
+        let mut last_call = self.last_call_time.borrow_mut();
+        let mut is_debouncing = self.is_debouncing.borrow_mut();
+        let mut timeout_handle = self.timeout_handle.borrow_mut();
+
+        *last_call = Some(Instant::now());
+        *is_debouncing = true;
+
+        if let Some(handle) = timeout_handle.take() {
+            safe_source_remove(handle);
+        }
+
+        let timeout_handle_clone = Rc::clone(&self.timeout_handle);
+        let is_debouncing_clone = Rc::clone(&self.is_debouncing);
+
+        let source_id = glib::timeout_add_local(timeout, move || {
+            func();
+            *is_debouncing_clone.borrow_mut() = false;
+            *timeout_handle_clone.borrow_mut() = None;
+            glib::ControlFlow::Break
+        });
+
+        *timeout_handle = Some(source_id);
+    }
 }

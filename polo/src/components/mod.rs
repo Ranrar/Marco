@@ -32,5 +32,7 @@
 pub mod css;
 pub mod dialog;
 pub mod menu;
+pub mod toc_panel;
+pub mod toolbar;
 pub mod utils;
 pub mod viewer;

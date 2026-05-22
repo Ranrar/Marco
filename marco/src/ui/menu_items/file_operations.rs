@@ -783,6 +783,11 @@ impl FileOperations {
         // Update our DocumentBuffer FIRST (before editor buffer to ensure preview refresh sees the updated state)
         *self.buffer.borrow_mut() = new_buffer;
 
+        // Show the centered loading bar over the preview while the new
+        // content is parsed and rendered.  The render-completion callbacks
+        // in `editor/ui.rs` hide it again when the WebView finishes loading.
+        crate::components::viewer::loading_overlay::show();
+
         // Update editor (this will trigger preview refresh which should now see the updated DocumentBuffer)
         *self.programmatic_buffer_update.borrow_mut() = true;
         editor_buffer.set_text(&content);
@@ -880,11 +885,28 @@ pub enum SaveChangesResult {
 /// # Arguments
 /// * `file_menu` - The file menu to update
 /// * `recent_files` - List of recent file paths
+/// * `menu_translations` - Current localized menu labels
+/// * `parent_popover` - Optional parent `PopoverMenu` (the File menu popover).
+///   When provided, its menu model is reset after the rebuild so GTK drops
+///   stale `GtkStack` submenu pages (e.g. "Open Recent" / "Abrir reciente")
+///   that would otherwise produce duplicate-child-name warnings.
 pub fn update_recent_files_menu(
     recent_menu: &gio::Menu,
     recent_files: &[std::path::PathBuf],
     menu_translations: &MenuTranslations,
+    parent_popover: Option<&gtk4::PopoverMenu>,
+    parent_menu: Option<&gio::Menu>,
 ) {
+    // Detach the parent PopoverMenu's model BEFORE mutating the recent submenu.
+    // The PopoverMenu listens to items-changed and tries to create a GtkStack
+    // page for each submenu keyed by the submenu's label. Mutating while
+    // attached can produce "duplicate child name in GtkStack" warnings for
+    // labels like "Open Recent" / "Abrir reciente" / "Zuletzt geöffnet"
+    // (the submenu page from a previous round may still be alive).
+    if let Some(popover) = parent_popover {
+        popover.set_menu_model(None::<&gio::MenuModel>);
+    }
+
     // Clear existing items
     while recent_menu.n_items() > 0 {
         recent_menu.remove(0);
@@ -920,6 +942,11 @@ pub fn update_recent_files_menu(
             Some("app.clear_recent"),
         );
         recent_menu.append_section(None, &separator_section);
+    }
+
+    // Re-attach the parent popover's model now that the submenu is rebuilt.
+    if let (Some(popover), Some(menu)) = (parent_popover, parent_menu) {
+        popover.set_menu_model(Some(menu));
     }
 
     // Recent files menu updated (debug output suppressed).
@@ -1276,9 +1303,11 @@ fn update_recent_file_actions(
     show_save_changes_dialog: &SaveChangesDialogCallback,
     show_save_dialog: &SaveDialogCallback,
     recent_action: &gio::SimpleAction,
+    parent_popover: Option<&gtk4::PopoverMenu>,
+    parent_menu: Option<&gio::Menu>,
 ) {
     let list = file_operations.borrow().get_recent_files();
-    update_recent_files_menu(recent_menu, &list, menu_translations);
+    update_recent_files_menu(recent_menu, &list, menu_translations, parent_popover, parent_menu);
     recent_action.set_enabled(!list.is_empty());
 
     // Remove old actions
@@ -1369,6 +1398,8 @@ pub fn setup_recent_actions(
     dialog_translations: Rc<RefCell<DialogTranslations>>,
     show_save_changes_dialog: SaveChangesDialogCallback,
     show_save_dialog: SaveDialogCallback,
+    parent_popover: Option<gtk4::PopoverMenu>,
+    parent_menu: Option<gio::Menu>,
 ) {
     // Create a simple action 'recent' so we can enable/disable the top-level Recent menu entry
     let recent_action = gio::SimpleAction::new("recent", None);
@@ -1389,6 +1420,8 @@ pub fn setup_recent_actions(
         &show_save_changes_dialog,
         &show_save_dialog,
         &recent_action,
+        parent_popover.as_ref(),
+        parent_menu.as_ref(),
     );
 
     // Register callback so that when recent files change we update menu and action sensitivity
@@ -1421,6 +1454,8 @@ pub fn setup_recent_actions(
                 &show_save_changes_owned,
                 &show_save_owned,
                 &recent_action_owned,
+                parent_popover.as_ref(),
+                parent_menu.as_ref(),
             );
         });
 }

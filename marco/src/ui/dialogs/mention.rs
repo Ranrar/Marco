@@ -83,23 +83,29 @@ enum ValidButtonState {
     Error,
 }
 
-fn set_valid_button_state(valid_button: &Button, state: ValidButtonState, tooltip: &str) {
+fn set_valid_button_state(
+    valid_button: &Button,
+    state: ValidButtonState,
+    tooltip: &str,
+    valid_label: &str,
+    error_label: &str,
+) {
     valid_button.remove_css_class("marco-btn-green");
     valid_button.remove_css_class("marco-btn-red");
     valid_button.set_tooltip_text(Some(tooltip));
 
     match state {
         ValidButtonState::Neutral => {
-            valid_button.set_label("Valid");
+            valid_button.set_label(valid_label);
             valid_button.set_sensitive(false);
         }
         ValidButtonState::Valid => {
-            valid_button.set_label("Valid");
+            valid_button.set_label(valid_label);
             valid_button.add_css_class("marco-btn-green");
             valid_button.set_sensitive(true);
         }
         ValidButtonState::Error => {
-            valid_button.set_label("Error");
+            valid_button.set_label(error_label);
             valid_button.add_css_class("marco-btn-red");
             valid_button.set_sensitive(true);
         }
@@ -727,6 +733,17 @@ fn create_platform_button(
 }
 
 pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let tm = &t.mention;
+    let valid_label_text = tm.valid_button.clone();
+    let error_label_text = tm.error_button.clone();
+    let status_waiting_text = tm.status_waiting.clone();
+    let status_checking_text = tm.status_checking.clone();
+    let status_invalid_text = tm.status_invalid_value.clone();
+    let status_unsupported_text = tm.status_unsupported.clone();
+    let status_not_impl_text = tm.status_not_implemented.clone();
+    let status_prefix_text = tm.status_prefix.clone();
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
     } else {
@@ -753,7 +770,7 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Mention",
+        &tm.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -775,7 +792,7 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
     vbox.set_margin_top(8);
     vbox.set_margin_bottom(0);
 
-    let mention_label = Label::new(Some("Mention"));
+    let mention_label = Label::new(Some(&tm.mention_label));
     mention_label.set_halign(Align::Start);
     mention_label.add_css_class("marco-dialog-section-label");
     mention_label.add_css_class("marco-dialog-section-label-strong");
@@ -833,13 +850,13 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
     let field_labels_row = Box::new(Orientation::Horizontal, 8);
     field_labels_row.set_margin_top(2);
 
-    let identifier_label = Label::new(Some("User Name"));
+    let identifier_label = Label::new(Some(&tm.username_label));
     identifier_label.set_halign(Align::Start);
     identifier_label.set_xalign(0.0);
     identifier_label.set_hexpand(true);
     identifier_label.add_css_class("marco-mention-field-label");
 
-    let real_name_label = Label::new(Some("Real Name"));
+    let real_name_label = Label::new(Some(&tm.realname_label));
     real_name_label.set_halign(Align::Start);
     real_name_label.set_xalign(0.0);
     real_name_label.set_hexpand(true);
@@ -859,7 +876,7 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
     let display_entry = Entry::new();
     display_entry.add_css_class("marco-textfield-entry");
     display_entry.set_hexpand(true);
-    display_entry.set_placeholder_text(Some("Real name (optional)"));
+    display_entry.set_placeholder_text(Some(&tm.realname_placeholder));
 
     fields_row.append(&identifier_entry);
     fields_row.append(&display_entry);
@@ -881,19 +898,21 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
     validation_note_label.add_css_class("marco-mention-validation-note");
     vbox.append(&validation_note_label);
 
-    let valid_button = Button::with_label("Valid");
+    let valid_button = Button::with_label(&valid_label_text);
     valid_button.add_css_class("marco-btn");
     set_valid_button_state(
         &valid_button,
         ValidButtonState::Neutral,
-        "Profile check: waiting for input.",
+        &tm.status_waiting,
+        &valid_label_text,
+        &error_label_text,
     );
 
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 
@@ -937,6 +956,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
         let pending_check_token = pending_check_token.clone();
         let profile_exists_state = profile_exists_state.clone();
         let valid_button = valid_button.clone();
+        let valid_label_text = valid_label_text.clone();
+        let error_label_text = error_label_text.clone();
+        let status_prefix_text = status_prefix_text.clone();
         glib::timeout_add_local(Duration::from_millis(120), move || {
             while let Ok(result) = profile_check_rx.try_recv() {
                 if result.token != *pending_check_token.borrow() {
@@ -945,9 +967,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
 
                 *profile_exists_state.borrow_mut() = result.exists;
                 let text = match result.exists {
-                    Some(true) => format!("Profile check: {}", result.message),
-                    Some(false) => format!("Profile check: {}", result.message),
-                    None => format!("Profile check: {}", result.message),
+                    Some(true) => format!("{}: {}", status_prefix_text, result.message),
+                    Some(false) => format!("{}: {}", status_prefix_text, result.message),
+                    None => format!("{}: {}", status_prefix_text, result.message),
                 };
 
                 let state = if result.exists == Some(true) {
@@ -955,7 +977,7 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                 } else {
                     ValidButtonState::Error
                 };
-                set_valid_button_state(&valid_button, state, &text);
+                set_valid_button_state(&valid_button, state, &text, &valid_label_text, &error_label_text);
             }
 
             glib::ControlFlow::Continue
@@ -970,6 +992,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
         let identifier_label = identifier_label.clone();
         let profile_exists_state = profile_exists_state.clone();
         let valid_button = valid_button.clone();
+        let valid_label_text = valid_label_text.clone();
+        let error_label_text = error_label_text.clone();
+        let status_waiting_text = status_waiting_text.clone();
 
         move || {
             let platform_key = selected_platform.borrow().clone();
@@ -989,7 +1014,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
             set_valid_button_state(
                 &valid_button,
                 ValidButtonState::Neutral,
-                "Profile check: waiting for input.",
+                &status_waiting_text,
+                &valid_label_text,
+                &error_label_text,
             );
             identifier_entry.set_tooltip_text(Some(profile.label));
             *profile_exists_state.borrow_mut() = None;
@@ -1002,6 +1029,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
         let insert_button = insert_button.clone();
         let profile_exists_state = profile_exists_state.clone();
         let valid_button = valid_button.clone();
+        let valid_label_text = valid_label_text.clone();
+        let error_label_text = error_label_text.clone();
+        let status_waiting_text = status_waiting_text.clone();
 
         move || {
             let platform_key = selected_platform.borrow().clone();
@@ -1014,7 +1044,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                 set_valid_button_state(
                     &valid_button,
                     ValidButtonState::Neutral,
-                    "Profile check: waiting for input.",
+                    &status_waiting_text,
+                    &valid_label_text,
+                    &error_label_text,
                 );
             }
         }
@@ -1027,6 +1059,13 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
         let profile_check_tx = profile_check_tx.clone();
         let profile_exists_state = profile_exists_state.clone();
         let valid_button = valid_button.clone();
+        let valid_label_text = valid_label_text.clone();
+        let error_label_text = error_label_text.clone();
+        let status_waiting_text = status_waiting_text.clone();
+        let status_checking_text = status_checking_text.clone();
+        let status_invalid_text = status_invalid_text.clone();
+        let status_unsupported_text = status_unsupported_text.clone();
+        let status_not_impl_text = status_not_impl_text.clone();
 
         move || {
             let platform_key = selected_platform.borrow().clone();
@@ -1037,7 +1076,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                 set_valid_button_state(
                     &valid_button,
                     ValidButtonState::Neutral,
-                    "Profile check: waiting for input.",
+                    &status_waiting_text,
+                    &valid_label_text,
+                    &error_label_text,
                 );
                 return;
             }
@@ -1047,7 +1088,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                 set_valid_button_state(
                     &valid_button,
                     ValidButtonState::Error,
-                    "Profile check: enter a valid value first.",
+                    &status_invalid_text,
+                    &valid_label_text,
+                    &error_label_text,
                 );
                 return;
             }
@@ -1058,7 +1101,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                     set_valid_button_state(
                         &valid_button,
                         ValidButtonState::Error,
-                        "Profile check: this platform does not support reliable validation.",
+                        &status_unsupported_text,
+                        &valid_label_text,
+                        &error_label_text,
                     );
                     return;
                 }
@@ -1067,7 +1112,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                     set_valid_button_state(
                         &valid_button,
                         ValidButtonState::Error,
-                        "Profile check: not implemented for this platform yet.",
+                        &status_not_impl_text,
+                        &valid_label_text,
+                        &error_label_text,
                     );
                     return;
                 }
@@ -1080,7 +1127,9 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
             set_valid_button_state(
                 &valid_button,
                 ValidButtonState::Neutral,
-                "Profile check: checking…",
+                &status_checking_text,
+                &valid_label_text,
+                &error_label_text,
             );
 
             let profile_check_tx = profile_check_tx.clone();

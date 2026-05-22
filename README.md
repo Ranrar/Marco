@@ -193,6 +193,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 ### Viewer Features (Polo)
 - [x] Same viewer engine as Marco
 - [x] Local link prompt — click a `.md` link in the preview to open it in Polo
+- [x] Document navigation: TOC sidebar (collapsible, click-to-scroll)
+- [x] Native Windows and Linux Print option
 - [ ] Search function
 - [ ] Mouse over link information
 

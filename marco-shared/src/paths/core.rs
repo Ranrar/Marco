@@ -69,10 +69,16 @@ pub fn is_dev_mode() -> bool {
     static IS_DEV: OnceLock<bool> = OnceLock::new();
     *IS_DEV.get_or_init(|| {
         if let Ok(exe) = env::current_exe() {
-            // Convert to string and check if path contains "target/"
-            let path_str = exe.to_string_lossy();
-            // Check for both Unix and Windows path separators
-            path_str.contains("target/") || path_str.contains("target\\")
+            // Cargo's default target directory is `target/`, but users can override
+            // it via `CARGO_TARGET_DIR` (this workspace uses `target-linux/`,
+            // `target-windows/`, etc.). Treat any path component whose name starts
+            // with `target` as an indicator of dev mode.
+            exe.components().any(|c| {
+                c.as_os_str()
+                    .to_str()
+                    .map(|s| s.starts_with("target"))
+                    .unwrap_or(false)
+            })
         } else {
             false
         }

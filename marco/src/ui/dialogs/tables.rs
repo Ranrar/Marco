@@ -148,6 +148,9 @@ fn insert_table_at_cursor(buffer: &Buffer, view: &View, table_text: &str) {
 fn create_alignment_row(
     column_index: u32,
     state: std::rc::Rc<std::cell::RefCell<Vec<ColumnAlignment>>>,
+    left_text: &str,
+    center_text: &str,
+    right_text: &str,
 ) -> Box {
     let row = Box::new(Orientation::Horizontal, 8);
     row.set_halign(Align::Fill);
@@ -161,9 +164,9 @@ fn create_alignment_row(
     let toggles_box = Box::new(Orientation::Horizontal, 0);
     toggles_box.add_css_class("marco-segmented-control");
 
-    let left_toggle = ToggleButton::with_label("Left");
-    let center_toggle = ToggleButton::with_label("Center");
-    let right_toggle = ToggleButton::with_label("Right");
+    let left_toggle = ToggleButton::with_label(left_text);
+    let center_toggle = ToggleButton::with_label(center_text);
+    let right_toggle = ToggleButton::with_label(right_text);
 
     left_toggle.add_css_class("marco-segmented-toggle");
     center_toggle.add_css_class("marco-segmented-toggle");
@@ -217,6 +220,9 @@ fn create_alignment_row(
 }
 
 pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_view: &View) {
+    let translations = crate::ui::dialogs::current_translations();
+    let t = &translations.dialog;
+    let tt = &t.tables;
     let theme_class = if parent.has_css_class("marco-theme-dark") {
         "marco-theme-dark"
     } else {
@@ -237,7 +243,7 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
 
     let titlebar_controls = crate::ui::titlebar::create_custom_titlebar_with_buttons(
         &dialog,
-        "Insert Table",
+        &tt.title,
         crate::ui::titlebar::TitlebarButtons {
             close: true,
             minimize: false,
@@ -266,7 +272,7 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     columns_row.set_halign(Align::Fill);
     columns_row.set_margin_start(4);
 
-    let columns_label = Label::new(Some("Columns"));
+    let columns_label = Label::new(Some(&tt.columns_label));
     columns_label.set_halign(Align::Start);
     columns_label.set_xalign(0.0);
     columns_label.set_width_chars(10);
@@ -287,7 +293,7 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     rows_row.set_halign(Align::Fill);
     rows_row.set_margin_start(4);
 
-    let rows_label = Label::new(Some("Rows"));
+    let rows_label = Label::new(Some(&tt.rows_label));
     rows_label.set_halign(Align::Start);
     rows_label.set_xalign(0.0);
     rows_label.set_width_chars(10);
@@ -303,7 +309,12 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     rows_row.append(&rows_spin);
     vbox.append(&rows_row);
 
-    let selected_label = Label::new(Some("Selected: 4 Columns × 1 Rows"));
+    let format_selected = |cols: u32, rows: u32| {
+        tt.selected_format
+            .replace("{cols}", &cols.to_string())
+            .replace("{rows}", &rows.to_string())
+    };
+    let selected_label = Label::new(Some(&format_selected(4, 1)));
     selected_label.set_halign(Align::Start);
     selected_label.set_xalign(0.0);
     selected_label.set_margin_start(4);
@@ -311,13 +322,13 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     selected_label.add_css_class("marco-dialog-option-desc");
     vbox.append(&selected_label);
 
-    let include_header_check = CheckButton::with_label("Include header row");
+    let include_header_check = CheckButton::with_label(&tt.include_header);
     include_header_check.add_css_class("marco-checkbutton");
     include_header_check.set_active(true);
     include_header_check.set_margin_start(4);
     include_header_check.set_margin_top(4);
 
-    let edit_alignment_check = CheckButton::with_label("Edit column alignment");
+    let edit_alignment_check = CheckButton::with_label(&tt.edit_alignment);
     edit_alignment_check.add_css_class("marco-checkbutton");
     edit_alignment_check.set_active(true);
     edit_alignment_check.set_margin_start(4);
@@ -330,7 +341,7 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     alignment_section.set_margin_top(2);
     alignment_section.set_margin_bottom(4);
 
-    let alignment_title = Label::new(Some("Column Alignment"));
+    let alignment_title = Label::new(Some(&tt.alignment_title));
     alignment_title.set_halign(Align::Start);
     alignment_title.set_xalign(0.0);
     alignment_title.add_css_class("marco-dialog-section-label");
@@ -342,11 +353,11 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
 
     vbox.append(&alignment_section);
 
-    let cancel_button = Button::with_label("Cancel");
+    let cancel_button = Button::with_label(&t.cancel_button);
     cancel_button.add_css_class("marco-btn");
     cancel_button.add_css_class("marco-btn-yellow");
 
-    let insert_button = Button::with_label("Insert");
+    let insert_button = Button::with_label(&t.insert_button);
     insert_button.add_css_class("marco-btn");
     insert_button.add_css_class("suggested-action");
 
@@ -384,6 +395,9 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     let rebuild_alignment_rows = {
         let alignment_rows_container = alignment_rows_container.clone();
         let alignment_state = alignment_state.clone();
+        let left_text = tt.align_left.clone();
+        let center_text = tt.align_center.clone();
+        let right_text = tt.align_right.clone();
 
         move |columns: u32| {
             let mut child = alignment_rows_container.first_child();
@@ -398,7 +412,13 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
             }
 
             for column_index in 0..columns {
-                let row = create_alignment_row(column_index, alignment_state.clone());
+                let row = create_alignment_row(
+                    column_index,
+                    alignment_state.clone(),
+                    &left_text,
+                    &center_text,
+                    &right_text,
+                );
                 alignment_rows_container.append(&row);
             }
         }
@@ -409,20 +429,28 @@ pub fn show_insert_table_dialog(parent: &Window, editor_buffer: &Buffer, editor_
     {
         let selected_label = selected_label.clone();
         let rows_spin = rows_spin.clone();
+        let fmt = tt.selected_format.clone();
         columns_spin.connect_value_changed(move |spin| {
             let columns = spin.value() as u32;
             let rows = rows_spin.value() as u32;
-            selected_label.set_text(&format!("Selected: {} Columns × {} Rows", columns, rows));
+            selected_label.set_text(
+                &fmt.replace("{cols}", &columns.to_string())
+                    .replace("{rows}", &rows.to_string()),
+            );
         });
     }
 
     {
         let selected_label = selected_label.clone();
         let columns_spin = columns_spin.clone();
+        let fmt = tt.selected_format.clone();
         rows_spin.connect_value_changed(move |spin| {
             let rows = spin.value() as u32;
             let columns = columns_spin.value() as u32;
-            selected_label.set_text(&format!("Selected: {} Columns × {} Rows", columns, rows));
+            selected_label.set_text(
+                &fmt.replace("{cols}", &columns.to_string())
+                    .replace("{rows}", &rows.to_string()),
+            );
         });
     }
 

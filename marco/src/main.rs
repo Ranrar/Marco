@@ -45,6 +45,42 @@ const APP_ID: &str = "io.github.ranrar.Marco";
 const BOOKMARK_MARK_CATEGORY: &str = "marco-bookmark";
 
 fn main() -> glib::ExitCode {
+    // Fix: restore environment variables modified by VS Code snap before WebKit
+    // spawns its helper subprocesses (WebKitNetworkProcess, WebKitWebProcess).
+    //
+    // VS Code (snap) overwrites several XDG/GTK/GIO variables at launch time
+    // and saves the originals with a "_VSCODE_SNAP_ORIG" suffix so they can be
+    // restored later.  WebKit subprocesses inherit the snap-modified values,
+    // load snap-compiled GIO modules (via GIO_MODULE_DIR) and GTK IM modules,
+    // which were linked against snap's libpthread-2.31 from /snap/core20.
+    // That library is ABI-incompatible with the system glibc, causing the
+    // "undefined symbol: __libc_pthread_init, version GLIBC_PRIVATE" crash
+    // that blocks JavaScript evaluation and hangs the preview.
+    #[cfg(target_os = "linux")]
+    {
+        const SNAP_PAIRS: &[(&str, &str)] = &[
+            ("XDG_DATA_DIRS",        "XDG_DATA_DIRS_VSCODE_SNAP_ORIG"),
+            ("XDG_CONFIG_DIRS",      "XDG_CONFIG_DIRS_VSCODE_SNAP_ORIG"),
+            ("GTK_EXE_PREFIX",       "GTK_EXE_PREFIX_VSCODE_SNAP_ORIG"),
+            ("GTK_IM_MODULE_FILE",   "GTK_IM_MODULE_FILE_VSCODE_SNAP_ORIG"),
+            ("GSETTINGS_SCHEMA_DIR", "GSETTINGS_SCHEMA_DIR_VSCODE_SNAP_ORIG"),
+            ("GIO_MODULE_DIR",       "GIO_MODULE_DIR_VSCODE_SNAP_ORIG"),
+        ];
+        unsafe {
+            for (var, orig_var) in SNAP_PAIRS {
+                // Only restore if VS Code snap actually touched this variable
+                // (i.e. the *_VSCODE_SNAP_ORIG counterpart exists).
+                if let Ok(orig_val) = std::env::var(orig_var) {
+                    if orig_val.is_empty() {
+                        std::env::remove_var(var);
+                    } else {
+                        std::env::set_var(var, &orig_val);
+                    }
+                }
+            }
+        }
+    }
+
     // Very early audit: record entering main (before initialization)
     log::trace!("audit: main() entry - very early");
 
@@ -101,12 +137,24 @@ fn main() -> glib::ExitCode {
 
     // Clean up global resources before shutting down logger
     crate::components::editor::editor_manager::shutdown_editor_manager();
-    marco_core::logic::cache::shutdown_global_parser_cache();
-    marco_core::logic::cache::shutdown_global_cache();
+    marco_shared::cache::shutdown_global_cache();
 
     // Ensure file logger is flushed and closed on normal exit
-    marco_core::logic::logger::shutdown_file_logger();
+    marco_shared::logic::file_logger::shutdown();
     exit_code
+}
+
+/// Install a glib default-log handler that suppresses the harmless
+/// `GLib-GIO-WARNING ... Error releasing name ...WebProcess-...: The
+/// connection is closed` message emitted by WebKitGTK during shutdown.
+/// All other messages are forwarded to glib's default handler.
+fn install_glib_log_filter() {
+    glib::log_set_default_handler(|domain, level, message| {
+        if message.contains("Error releasing name") && message.contains("WebProcess") {
+            return;
+        }
+        glib::log_default_handler(domain, level, Some(message));
+    });
 }
 
 fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<MarcoPaths>) {
@@ -206,6 +254,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     // Initialize file logger according to settings (runtime)
     crate::logic::logger_init::init_logging(&settings_manager);
+
+    // Suppress harmless WebKit shutdown noise:
+    //   GLib-GIO-WARNING: Error releasing name io.github.ranrar.Marco.Sandboxed.WebProcess-...
+    // emitted when WebKitGTK tears down its sandboxed web-process D-Bus
+    // connection on exit.
+    install_glib_log_filter();
 
     // Initialize monospace font cache for fast settings loading
     if let Err(e) = marco_shared::logic::loaders::font_loader::FontLoader::init_monospace_cache() {
@@ -1078,6 +1132,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     &menu_state.recent_menu,
                     &recent_files,
                     &new_translations.menu,
+                    Some(&menu_state.file_popover),
+                    Some(&menu_state.file_menu),
                 );
 
                 let current_file_provider: Rc<dyn Fn() -> Option<std::path::PathBuf>> = {
@@ -1603,9 +1659,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
         #[cfg(target_os = "windows")]
         let webview_win = editor_webview.clone();
-        let cache = Rc::new(RefCell::new(
-            marco_core::logic::cache::SimpleFileCache::new(),
-        ));
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
             #[cfg(target_os = "linux")]
@@ -1613,7 +1666,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 use crate::ui::dialogs::search::show_search_window;
                 show_search_window(
                     window.upcast_ref(),
-                    cache.clone(),
                     Rc::clone(&buffer),
                     Rc::clone(&source_view),
                     webview.clone(),
@@ -1625,7 +1677,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 use crate::ui::dialogs::search::show_search_window_no_webview;
                 show_search_window_no_webview(
                     window.upcast_ref(),
-                    cache.clone(),
                     Rc::clone(&buffer),
                     Rc::clone(&source_view),
                     webview_win.borrow().clone(),
@@ -1869,7 +1920,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 export_theme_css, export_syntax_css,
                             );
 
-                            let html_body = match marco_core::parse_to_html_cached(
+                            let html_body = match marco_shared::cache::parse_to_html_cached(
                                 &markdown,
                                 marco_core::RenderOptions {
                                     theme: export_theme_class.to_string(),
@@ -2017,7 +2068,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 export_theme_css, export_syntax_css,
                             );
 
-                            let html_body = match marco_core::parse_to_html_cached(
+                            let html_body = match marco_shared::cache::parse_to_html_cached(
                                 &markdown,
                                 marco_core::RenderOptions {
                                     theme: theme_mode.to_string(),
@@ -2230,7 +2281,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         export_theme_css, export_syntax_css,
                     );
 
-                    let html_body = match marco_core::parse_to_html_cached(
+                    let html_body = match marco_shared::cache::parse_to_html_cached(
                         &markdown,
                         marco_core::RenderOptions {
                             theme: export_theme_class.to_string(),
@@ -2461,6 +2512,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         dialog_translations_rc.clone(),
         FileDialogs::save_changes_dialog_callback(dialog_translations_rc.borrow().clone()),
         FileDialogs::save_dialog_callback(dialog_translations_rc.borrow().clone()),
+        Some(menu_state.file_popover.clone()),
+        Some(menu_state.file_menu.clone()),
     );
 
     // Wire bookmarks menu actions and dynamic updates.
@@ -2761,8 +2814,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
             // Clean up global resources
             crate::components::editor::editor_manager::shutdown_editor_manager();
-            marco_core::logic::cache::shutdown_global_parser_cache();
-            marco_core::logic::cache::shutdown_global_cache();
+            marco_shared::cache::shutdown_global_cache();
         }
     });
 

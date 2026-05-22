@@ -7,10 +7,24 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
-## [Unreleased] - 2026-04-30
+## [Unreleased] - 2026-05-22
+
+**Uses:** Core 1.1.0
+
+### Added
+- New multi-layer parse and render cache (HTML, AST, section, TOC, and diagnostics layers) backed by Moka TinyLFU. Frequently edited sections are served from cache without re-parsing, reducing CPU usage on large documents.
+- Section-based incremental preview rendering: only the document sections whose content changed since the last keystroke are re-rendered and patched into the DOM. Full-page rebuilds now occur only on the very first render of a document.
+- Rendering progress overlay shown over the preview while large documents are loading. The overlay displays a framed "Rendering…" indicator with an indeterminate progress bar in the app's blue accent color and stays visible until the preview has fully painted, so long opens no longer look like a frozen window. The overlay follows the active light/dark theme.
 
 ### Changed
+- Updated to `marco-core` 1.1.0. Internal JS bridge identifiers (`MarcoCorePreview`, `mc_paged_ready`, `mc-content-container`) were updated to match the new Core API; no user-visible behavior change.
 - The `marco-core` crate now lives in its own repository (https://github.com/Ranrar/marco-core) and is consumed from crates.io. No user-visible behavior change; pinned via `[workspace.dependencies.marco-core]` in the root `Cargo.toml`.
+- Localization coverage expanded across Marco dialogs: the Lists and Mention insert dialogs are now fully translatable, and the German (`de`) locale received the matching strings. Other locales fall back to English for any keys they do not yet provide.
+- Language changes made from Settings now apply at runtime to every translated surface — menus, toolbar, footer, dialogs, the untitled-document title, and the custom titlebar tooltips (app icon, layout buttons, and window minimize / maximize / close controls) — without requiring an application restart.
+
+### Fixed
+- Dialog strings no longer stayed in English after switching the UI language. The shared dialog translation helper now reads the configured (or system-detected) locale instead of always loading English, so all dialogs render in the active language immediately after a language switch.
+- Custom titlebar tooltips (app icon, the four layout-mode buttons, and the window minimize / maximize / close buttons) now update when the UI language is changed at runtime instead of remaining in the language that was active at startup.
 
 ## [0.23.2] - 2026-04-28
 

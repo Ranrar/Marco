@@ -7,10 +7,25 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
-## [Unreleased] - 2026-04-30
+## [Unreleased] - 2026-05-22
+
+**Uses:** Core 1.1.0
+
+### Added
+- Icon toolbar below the titlebar with buttons for Open file, Open in Marco editor, Toggle TOC, Print, and Light/Dark mode toggle. Icons use the Tabler icon set and adapt to the active theme color.
+- Table of Contents side panel: auto-populated from document headings, click any entry to scroll the preview to that section. Panel can be toggled from the toolbar or the View menu.
+- File → Print (Ctrl+P): opens the native print dialog for the current document preview. On Linux uses WebKit's `PrintOperation`; on Windows uses the embedded WebView2 print API.
+- File → Open Recent submenu: lists recently opened files; selecting one reopens the document immediately. The list can be cleared via File → Open Recent → Clear Recent Files.
+- Rendering progress overlay shown over the preview while large documents are loading. The overlay displays a framed "Rendering…" indicator with an indeterminate progress bar in the app's blue accent color and stays visible until the preview has fully painted. The overlay follows the active light/dark theme.
+- File-based logging, matching Marco's logger. Polo now writes daily log files under `log/YYYYMM/YYMMDD.log` so startup, file open, render, and error events can be inspected after the fact.
 
 ### Changed
+- Updated to `marco-core` 1.1.0.
 - The `marco-core` crate now lives in its own repository (https://github.com/Ranrar/marco-core) and is consumed from crates.io. No user-visible behavior change; pinned via `[workspace.dependencies.marco-core]` in the root `Cargo.toml`.
+- CSS theming system was rewritten as a programmatic Rust generator, aligned with Marco's palette constants, so light and dark mode colors are consistent across the two apps.
+
+### Fixed
+- Opening large markdown files no longer leaves the preview blank or appears to hang. The viewer now waits for the WebView's load-finished signal before hiding the rendering indicator, so the progress overlay remains visible until the document is actually painted.
 
 ## [0.23.2] - 2026-04-28
 
