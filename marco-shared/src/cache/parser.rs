@@ -227,7 +227,8 @@ impl ParserCache {
             marco_core::intelligence::DiagnosticsOptions::all(),
         );
         let arc = Arc::new(diags);
-        self.diagnostics_cache.insert(content_hash, Arc::clone(&arc));
+        self.diagnostics_cache
+            .insert(content_hash, Arc::clone(&arc));
         arc
     }
 
@@ -397,9 +398,7 @@ mod tests {
 
         // Section A and C should be cache hits (same content hash)
         // We can verify by checking that the HTML for A and C is the same Arc pointer
-        let first_a = cache
-            .render_sections_with_cache(&sections, &opts)
-            .unwrap();
+        let first_a = cache.render_sections_with_cache(&sections, &opts).unwrap();
         assert!(
             Arc::ptr_eq(&first_a[0], &results[0]),
             "section A should be a cache hit (same Arc)"

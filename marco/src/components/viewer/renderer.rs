@@ -419,8 +419,9 @@ fn compute_section_payload(
 
         // Insert new "middle" sections before _ref (which now has the new id
         // of the first suffix section, or is null if no suffix).
-        for new_idx in prefix_len..new_suffix_start {
-            let html = escape_for_js_string(html_arcs[new_idx].as_str());
+        for (new_idx, html_arc) in html_arcs[prefix_len..new_suffix_start].iter().enumerate() {
+            let new_idx = prefix_len + new_idx;
+            let html = escape_for_js_string(html_arc.as_str());
             js.push_str("var _n=document.createElement('div');");
             js.push_str(&format!("_n.id='mc-s-{}';", new_idx));
             js.push_str(&format!("_n.innerHTML='{}';", html));
@@ -571,8 +572,7 @@ pub fn refresh_preview_content_sections(
                             &webview,
                             "try{sessionStorage.setItem('marco-scroll',String(Math.round(window.scrollY)));}catch(e){}",
                         );
-                        let full_html =
-                            backend::wrap_html_document(&body, &css, &theme_mode, None);
+                        let full_html = backend::wrap_html_document(&body, &css, &theme_mode, None);
                         backend::load_html_when_ready(&webview, full_html, base_uri);
                         on_complete(new_hashes);
                     }
@@ -599,10 +599,7 @@ pub fn refresh_preview_content_sections(
                         // Section count changed but we morph the DOM in place
                         // instead of reloading the page — scroll position is
                         // preserved and there is no white-flash.
-                        log::debug!(
-                            "[viewer] Section morph → {} sections",
-                            new_hashes.len()
-                        );
+                        log::debug!("[viewer] Section morph → {} sections", new_hashes.len());
                         backend::evaluate_javascript(&webview, &js);
                         on_complete(new_hashes);
                     }
@@ -621,5 +618,3 @@ pub fn refresh_preview_content_sections(
         });
     });
 }
-
-

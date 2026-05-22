@@ -568,9 +568,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
     vbox.append(&preview_scroll);
 
-    let tip_label = Label::new(Some(
-        &tm.tip_text,
-    ));
+    let tip_label = Label::new(Some(&tm.tip_text));
     tip_label.set_halign(Align::Start);
     tip_label.set_xalign(0.0);
     tip_label.set_wrap(true);

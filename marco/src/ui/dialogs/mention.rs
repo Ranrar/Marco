@@ -977,7 +977,13 @@ pub fn show_insert_mention_dialog(parent: &Window, editor_buffer: &Buffer, edito
                 } else {
                     ValidButtonState::Error
                 };
-                set_valid_button_state(&valid_button, state, &text, &valid_label_text, &error_label_text);
+                set_valid_button_state(
+                    &valid_button,
+                    state,
+                    &text,
+                    &valid_label_text,
+                    &error_label_text,
+                );
             }
 
             glib::ControlFlow::Continue

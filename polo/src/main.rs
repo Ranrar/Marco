@@ -416,7 +416,8 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // progress bar (centered, GTK-themed) while files are being parsed and
     // rendered.  The overlay itself becomes the Paned's end child; the
     // WebView sits inside it as the main child.
-    let loading_overlay = components::viewer::loading_overlay::LoadingOverlay::new(&webview.widget());
+    let loading_overlay =
+        components::viewer::loading_overlay::LoadingOverlay::new(&webview.widget());
     components::viewer::loading_overlay::set_global(loading_overlay.clone());
     toc_paned.set_end_child(Some(loading_overlay.widget()));
 

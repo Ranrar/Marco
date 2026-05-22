@@ -1,5 +1,5 @@
-use crate::logic::swanson::SettingsManager;
 use crate::cache::{cached, global_cache};
+use crate::logic::swanson::SettingsManager;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 

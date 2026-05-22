@@ -25,8 +25,7 @@ pub fn read_to_string(path: &Path) -> Result<String, io::Error> {
     // Only cache if the file was stable across the read. If mtime changed,
     // skip caching this round; the next read will pick up the latest content.
     if mtime_after == Some(mtime_before) {
-        super::global_cache()
-            .insert(path.to_path_buf(), content.clone(), mtime_before);
+        super::global_cache().insert(path.to_path_buf(), content.clone(), mtime_before);
     }
     Ok(content)
 }

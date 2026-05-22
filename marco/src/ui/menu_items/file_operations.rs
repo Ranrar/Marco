@@ -1307,7 +1307,13 @@ fn update_recent_file_actions(
     parent_menu: Option<&gio::Menu>,
 ) {
     let list = file_operations.borrow().get_recent_files();
-    update_recent_files_menu(recent_menu, &list, menu_translations, parent_popover, parent_menu);
+    update_recent_files_menu(
+        recent_menu,
+        &list,
+        menu_translations,
+        parent_popover,
+        parent_menu,
+    );
     recent_action.set_enabled(!list.is_empty());
 
     // Remove old actions

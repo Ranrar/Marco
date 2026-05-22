@@ -133,12 +133,7 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
     }
 
     /// Update both the label inside a popover-row button and its tooltip text.
-    fn set_row_label_and_tooltip(
-        toolbar: &gtk4::Box,
-        css_class: &str,
-        label: &str,
-        tooltip: &str,
-    ) {
+    fn set_row_label_and_tooltip(toolbar: &gtk4::Box, css_class: &str, label: &str, tooltip: &str) {
         if let Some(button) =
             find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), css_class)
         {
@@ -220,7 +215,10 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
 
     // Block-type popover rows (label = item name, tooltip = same)
     let block_type_rows: &[(&str, &str)] = &[
-        ("toolbar-blocktype-paragraph", &translations.toolbar.paragraph),
+        (
+            "toolbar-blocktype-paragraph",
+            &translations.toolbar.paragraph,
+        ),
         ("toolbar-blocktype-quote", &translations.toolbar.quote),
         ("toolbar-blocktype-h1", &translations.toolbar.h1),
         ("toolbar-blocktype-h2", &translations.toolbar.h2),

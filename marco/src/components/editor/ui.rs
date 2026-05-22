@@ -90,7 +90,7 @@ pub struct EditorParams {
 /// 400ms baseline so small files feel unchanged.
 fn preview_debounce_duration(line_count: i32) -> std::time::Duration {
     std::time::Duration::from_millis(match line_count {
-        0..=500 => 400,       // existing baseline — no change for small files
+        0..=500 => 400, // existing baseline — no change for small files
         501..=2000 => 600,
         2001..=10000 => 900,
         _ => 1200,
@@ -1206,9 +1206,9 @@ paned > separator {{
     let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
     #[cfg(target_os = "linux")]
     let last_page_view_enabled = Rc::new(RefCell::new(false)); // Track page-view transitions (enable→disable needs full reload)
-    // Phase 8 Layer 1: content-hash guard — prevents re-rendering when the text
-    // hasn't actually changed (undo/redo, cursor moves, settings refreshes, etc.).
-    // Reset to 0 on new file open so the first render always fires.
+                                                               // Phase 8 Layer 1: content-hash guard — prevents re-rendering when the text
+                                                               // hasn't actually changed (undo/redo, cursor moves, settings refreshes, etc.).
+                                                               // Reset to 0 on new file open so the first render always fires.
     #[cfg(target_os = "linux")]
     let last_preview_hash: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
     // Phase 9 differential section DOM updates: hashes from the previous section
@@ -1305,8 +1305,7 @@ paned > separator {{
                 // Layer 2: reset in-flight and advance generation on full reload
                 // so any render in progress knows it is stale.
                 preview_in_flight_capture.set(false);
-                preview_generation_capture
-                    .set(preview_generation_capture.get().wrapping_add(1));
+                preview_generation_capture.set(preview_generation_capture.get().wrapping_add(1));
 
                 // For large documents without paged.js, always use the section
                 // render even on the initial/reload path.  The full-document async
@@ -2004,9 +2003,7 @@ paned > separator {{
                     let src = current_text;
                     let content_hash = marco_shared::cache::hash_content(&src);
                     // Reuse cached AST when available (warmed by the render pipeline).
-                    match marco_shared::cache::global_parser_cache()
-                        .parse_and_cache_ast(&src)
-                    {
+                    match marco_shared::cache::global_parser_cache().parse_and_cache_ast(&src) {
                         Ok(doc) => {
                             let highlights =
                                 marco_core::intelligence::compute_highlights_with_source(
@@ -2182,8 +2179,7 @@ paned > separator {{
                     )
                     .to_string();
                 let depth = handle.depth.get();
-                let entries =
-                    marco_shared::cache::global_parser_cache().get_or_compute_toc(&text);
+                let entries = marco_shared::cache::global_parser_cache().get_or_compute_toc(&text);
                 handle.rebuild(&entries, depth);
             });
         });

@@ -59,12 +59,15 @@ fn main() -> glib::ExitCode {
     #[cfg(target_os = "linux")]
     {
         const SNAP_PAIRS: &[(&str, &str)] = &[
-            ("XDG_DATA_DIRS",        "XDG_DATA_DIRS_VSCODE_SNAP_ORIG"),
-            ("XDG_CONFIG_DIRS",      "XDG_CONFIG_DIRS_VSCODE_SNAP_ORIG"),
-            ("GTK_EXE_PREFIX",       "GTK_EXE_PREFIX_VSCODE_SNAP_ORIG"),
-            ("GTK_IM_MODULE_FILE",   "GTK_IM_MODULE_FILE_VSCODE_SNAP_ORIG"),
-            ("GSETTINGS_SCHEMA_DIR", "GSETTINGS_SCHEMA_DIR_VSCODE_SNAP_ORIG"),
-            ("GIO_MODULE_DIR",       "GIO_MODULE_DIR_VSCODE_SNAP_ORIG"),
+            ("XDG_DATA_DIRS", "XDG_DATA_DIRS_VSCODE_SNAP_ORIG"),
+            ("XDG_CONFIG_DIRS", "XDG_CONFIG_DIRS_VSCODE_SNAP_ORIG"),
+            ("GTK_EXE_PREFIX", "GTK_EXE_PREFIX_VSCODE_SNAP_ORIG"),
+            ("GTK_IM_MODULE_FILE", "GTK_IM_MODULE_FILE_VSCODE_SNAP_ORIG"),
+            (
+                "GSETTINGS_SCHEMA_DIR",
+                "GSETTINGS_SCHEMA_DIR_VSCODE_SNAP_ORIG",
+            ),
+            ("GIO_MODULE_DIR", "GIO_MODULE_DIR_VSCODE_SNAP_ORIG"),
         ];
         unsafe {
             for (var, orig_var) in SNAP_PAIRS {

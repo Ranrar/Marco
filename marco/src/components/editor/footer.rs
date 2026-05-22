@@ -206,9 +206,7 @@ pub fn refresh_footer_snapshot(
                             line: parse_diagnostic.span.start.line,
                             column: parse_diagnostic.span.start.column,
                             message: parse_diagnostic.message.clone(),
-                            fix_suggestion: parse_diagnostic
-                                .fix_suggestion_resolved()
-                                .into_owned(),
+                            fix_suggestion: parse_diagnostic.fix_suggestion_resolved().into_owned(),
                         }],
                     )
                 }

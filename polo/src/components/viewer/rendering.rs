@@ -146,7 +146,10 @@ fn build_html_from_content(
                     theme_css, syntax_css, scrollbar_css
                 )
             } else {
-                format!("{}\n\n/* Scrollbar Styling */\n{}", theme_css, scrollbar_css)
+                format!(
+                    "{}\n\n/* Scrollbar Styling */\n{}",
+                    theme_css, scrollbar_css
+                )
             };
 
             let theme_class = format!("theme-{}", theme_mode);
@@ -238,9 +241,10 @@ pub fn load_and_render_markdown(
     // event loop stays responsive for large files (e.g. stresstest.md).
     // GTK / WebView calls stay on the main thread — only plain data crosses.
     glib::spawn_future_local(async move {
-        let rendered =
-            gio::spawn_blocking(move || build_html_from_content(content, theme, theme_mode, asset_root))
-                .await;
+        let rendered = gio::spawn_blocking(move || {
+            build_html_from_content(content, theme, theme_mode, asset_root)
+        })
+        .await;
 
         match rendered {
             Ok(html) => webview.load_html_with_base(&html, Some(&base_uri)),

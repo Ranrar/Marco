@@ -248,8 +248,7 @@ mod tests {
         let doc2 = "## Foo\n\nModified content.";
         let sections_b = split_into_sections(doc2);
         assert_ne!(
-            sections_a[0].content_hash,
-            sections_b[0].content_hash,
+            sections_a[0].content_hash, sections_b[0].content_hash,
             "content hash must differ when text changes"
         );
     }

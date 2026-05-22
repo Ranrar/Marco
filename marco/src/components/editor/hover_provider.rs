@@ -165,8 +165,9 @@ mod imp {
                 offset: byte_offset,
             };
             let content_hash = hash_content(&source);
-            let parsed_doc: Option<Arc<marco_core::Document>> =
-                global_parser_cache().get_cached_ast(content_hash).or_else(|| {
+            let parsed_doc: Option<Arc<marco_core::Document>> = global_parser_cache()
+                .get_cached_ast(content_hash)
+                .or_else(|| {
                     // Only parse synchronously if the document is small enough
                     // that the parse will finish in a few milliseconds.  Large
                     // documents will have their AST warmed in the background by

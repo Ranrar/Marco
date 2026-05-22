@@ -44,11 +44,7 @@ pub struct AppFileLogger {
 }
 
 impl AppFileLogger {
-    fn rotate_if_needed_locked(
-        &self,
-        guard: &mut Option<BufWriter<File>>,
-        file_path: &PathBuf,
-    ) {
+    fn rotate_if_needed_locked(&self, guard: &mut Option<BufWriter<File>>, file_path: &PathBuf) {
         if self.bytes_written.load(Ordering::Relaxed) <= MAX_LOG_BYTES {
             return;
         }

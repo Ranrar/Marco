@@ -275,10 +275,7 @@ fn make_mode_btn(
 // ── Private helpers ────────────────────────────────────────────────────────
 
 /// Determine toolbar button color based on GTK state flags and current theme.
-fn toolbar_color_for_flags(
-    btn: &gtk4::Button,
-    flags: gtk4::StateFlags,
-) -> &'static str {
+fn toolbar_color_for_flags(btn: &gtk4::Button, flags: gtk4::StateFlags) -> &'static str {
     use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     let is_dark = btn
         .root()
@@ -286,9 +283,17 @@ fn toolbar_color_for_flags(
         .map(|w| w.has_css_class("marco-theme-dark"))
         .unwrap_or(false);
     if flags.contains(gtk4::StateFlags::ACTIVE) {
-        if is_dark { DARK_PALETTE.control_icon_active } else { LIGHT_PALETTE.control_icon_active }
+        if is_dark {
+            DARK_PALETTE.control_icon_active
+        } else {
+            LIGHT_PALETTE.control_icon_active
+        }
     } else if flags.contains(gtk4::StateFlags::PRELIGHT) {
-        if is_dark { DARK_PALETTE.control_icon_hover } else { LIGHT_PALETTE.control_icon_hover }
+        if is_dark {
+            DARK_PALETTE.control_icon_hover
+        } else {
+            LIGHT_PALETTE.control_icon_hover
+        }
     } else if is_dark {
         DARK_PALETTE.control_icon
     } else {
