@@ -22,6 +22,7 @@ use crate::components::language::SearchTranslations;
 use gtk4::prelude::*;
 use gtk4::Window;
 use sourceview5::{Buffer, View};
+#[cfg(target_os = "linux")]
 use std::cell::RefCell;
 use std::rc::Rc;
 

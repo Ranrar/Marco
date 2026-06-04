@@ -411,26 +411,19 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
 
     #[cfg(target_os = "windows")]
     let preview_surface: Option<Rc<PreviewSurface>> = {
-        if let Some(app_window) = parent.dynamic_cast_ref::<gtk4::ApplicationWindow>() {
-            let wv =
-                crate::components::viewer::wry_platform_webview::PlatformWebView::new(app_window);
-            let (_, rgba) = preview_bg_for_theme(&theme_state.borrow());
-            wv.set_background_color_rgba(&rgba);
-            let widget = wv.widget();
-            widget.set_hexpand(true);
-            widget.set_vexpand(true);
-            preview_scroll.set_child(Some(&widget));
-            Some(Rc::new(wv))
-        } else {
-            let fallback = Label::new(Some(
-                "Live preview is unavailable in this window on Windows.",
-            ));
-            fallback.set_wrap(true);
-            fallback.set_margin_start(8);
-            fallback.set_margin_top(8);
-            preview_scroll.set_child(Some(&fallback));
-            None
-        }
+        // `PlatformWebView::new` now accepts any `IsA<gtk4::Window>`, so the
+        // dialog no longer needs to downcast or fall back to a `Label` when
+        // the parent is a plain `gtk4::Window`. The `Option` wrapper is kept
+        // so downstream `if let Some(surface) = ...` patterns still compile.
+        let wv =
+            crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
+        let (_, rgba) = preview_bg_for_theme(&theme_state.borrow());
+        wv.set_background_color_rgba(&rgba);
+        let widget = wv.widget();
+        widget.set_hexpand(true);
+        widget.set_vexpand(true);
+        preview_scroll.set_child(Some(&widget));
+        Some(Rc::new(wv))
     };
 
     vbox.append(&preview_scroll);

@@ -213,6 +213,18 @@ function Copy-Msys2GtkRuntime {
         }
     }
 
+    # Also seed the scan with GDK Pixbuf loader plugins so their transitive
+    # dependencies (e.g. librsvg-2-2.dll required by libpixbufloader-svg.dll)
+    # are discovered and bundled. Without this, Windows falls back to any
+    # librsvg on PATH (e.g. from Inkscape), which is a different ABI and causes
+    # "Entry Point Not Found" errors at startup.
+    $pixbufLoaderScanDir = Join-Path $Root "ucrt64\lib\gdk-pixbuf-2.0\2.10.0\loaders"
+    if (Test-Path $pixbufLoaderScanDir) {
+        Get-ChildItem -Path $pixbufLoaderScanDir -Filter "*.dll" | ForEach-Object {
+            $queue.Enqueue($_.FullName)
+        }
+    }
+
     while ($queue.Count -gt 0) {
         $current = $queue.Dequeue()
         if (-not $visited.Add($current)) {

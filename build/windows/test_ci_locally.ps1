@@ -111,8 +111,11 @@ if (-not $SkipTests) {
 # Add Windows Cargo to PATH
 export PATH="`$HOME/.cargo/bin:/c/Users/`$USERNAME/.cargo/bin:`$PATH"
 
+# Must match the build target so GTK pkg-config resolution works
+export PKG_CONFIG_ALLOW_CROSS=1
+
 echo "=== Running Workspace Tests ==="
-cargo test --workspace --lib --locked
+cargo test --workspace --lib --locked --target x86_64-pc-windows-gnu --target-dir target/windows
 "@
     
     $tempTestScript = Join-Path $env:TEMP "msys2-test-script.sh"

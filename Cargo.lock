@@ -2697,7 +2697,7 @@ dependencies = [
 
 [[package]]
 name = "marco"
-version = "0.23.2"
+version = "0.24.0"
 dependencies = [
  "cairo-rs 0.22.0",
  "ctrlc",
@@ -2758,7 +2758,7 @@ dependencies = [
 
 [[package]]
 name = "marco-shared"
-version = "0.23.2"
+version = "0.24.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -3651,7 +3651,7 @@ checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "polo"
-version = "0.23.2"
+version = "0.24.0"
 dependencies = [
  "cairo-rs 0.22.0",
  "gdk-pixbuf 0.22.0",
@@ -3667,6 +3667,9 @@ dependencies = [
  "rfd",
  "tao",
  "webkit6",
+ "webview2-com",
+ "windows",
+ "windows-core",
  "winres",
  "wry",
 ]

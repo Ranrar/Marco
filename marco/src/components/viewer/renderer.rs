@@ -11,6 +11,18 @@
 //! - Theme-aware syntax highlighting
 //! - Smooth content updates without page reloads
 //! - Base URI support for relative file references
+//!
+//! # Cross-platform note
+//!
+//! The renderer is fully platform-agnostic — it dispatches all WebView I/O
+//! through [`crate::components::viewer::backend`], whose Linux/Windows
+//! implementations live in `webkit6`/`wry_platform_webview` respectively.
+//!
+//! Until the Windows refresh closure in `editor::ui` adopts this module
+//! (planned Step 4b of the webkit6→wry parity work), several public items
+//! here have no Windows caller. The module-level `dead_code` allow below
+//! suppresses the resulting warnings without affecting the Linux build.
+#![cfg_attr(target_os = "windows", allow(dead_code))]
 
 use gtk4::prelude::*;
 use marco_core::RenderOptions;

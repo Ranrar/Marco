@@ -360,13 +360,15 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         })
         .unwrap_or_else(|e| fatal_error(&format!("Cannot create WebView: {}", e)));
 
-    // Set background color to prevent white flash during loading
-    if let Some(rgba) = parse_hex_to_rgba("#1e1e1e") {
+    // Set background color to prevent flash during loading: match the HTML theme
+    // background so no dark/light mismatch is visible if the HWND appears before
+    // the page finishes painting.
+    let bg_hex = if current_theme_mode == "dark" { "#1e1e1e" } else { "#ffffff" };
+    if let Some(rgba) = parse_hex_to_rgba(bg_hex) {
         webview.set_background_color_rgba(&rgba);
     }
 
     // Wire link policy: external links open in browser, local .md links prompt to reload.
-    #[cfg(target_os = "linux")]
     {
         let webview_for_links = webview.clone();
         let window_for_links = window.clone();
@@ -419,14 +421,23 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     let loading_overlay =
         components::viewer::loading_overlay::LoadingOverlay::new(&webview.widget());
     components::viewer::loading_overlay::set_global(loading_overlay.clone());
+    // On Windows the wry HWND is a native child window and paints on top of all
+    // GTK content, so the GTK progress frame is never visible while the WebView
+    // is in its normal position.  Wire up the offscreen hook so that show()/hide()
+    // move the HWND out of the way while rendering and restore it when done.
+    #[cfg(target_os = "windows")]
+    {
+        let webview_for_hook = webview.clone();
+        loading_overlay.set_offscreen_hook(move |offscreen| {
+            webview_for_hook.set_offscreen_for_loading(offscreen);
+        });
+    }
     toc_paned.set_end_child(Some(loading_overlay.widget()));
 
     // Hide the overlay only once the WebView has *actually finished* painting
     // the new page — not when we merely queued it for load.  Without this the
     // bar disappears seconds before the new HTML replaces the old welcome
-    // content on screen.  Windows (wry) has no equivalent signal, so it uses
-    // an eager hide in `rendering.rs` instead.
-    #[cfg(target_os = "linux")]
+    // content on screen.
     webview.connect_load_finished(|| {
         components::viewer::loading_overlay::hide();
     });

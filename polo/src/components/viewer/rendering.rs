@@ -256,9 +256,6 @@ pub fn load_and_render_markdown(
         }
         // Success path: the WebView's `load-finished` signal (wired in
         // `main.rs`) hides the overlay once the new HTML is actually painted.
-        // On Windows (wry) we have no equivalent signal, so hide eagerly.
-        #[cfg(target_os = "windows")]
-        crate::components::viewer::loading_overlay::hide();
     });
 }
 

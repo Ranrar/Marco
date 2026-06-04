@@ -243,6 +243,23 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                     std::time::Duration::from_millis(delay_ms as u64),
                     move || {
                         navigate_to_current_position();
+
+                        // Windows: advance the active preview match in sync with
+                        // the editor navigation direction.
+                        #[cfg(target_os = "windows")]
+                        {
+                            use super::state::CURRENT_PLATFORM_WEBVIEW;
+                            CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
+                                if let Some(wv) = wv_ref.borrow().as_ref() {
+                                    if direction > 0 {
+                                        crate::components::viewer::wry_find::next(wv);
+                                    } else {
+                                        crate::components::viewer::wry_find::prev(wv);
+                                    }
+                                }
+                            });
+                        }
+
                         NAVIGATION_DEBOUNCE_TIMER.with(|timer_ref| {
                             *timer_ref.borrow_mut() = None;
                         });

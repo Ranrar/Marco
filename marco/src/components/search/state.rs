@@ -82,5 +82,14 @@ pub fn clear_search_highlighting() {
     CURRENT_MATCH_POSITION.with(|pos| {
         *pos.borrow_mut() = None;
     });
+
+    // Windows: clear find highlights in the WebView preview.
+    #[cfg(target_os = "windows")]
+    CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
+        if let Some(wv) = wv_ref.borrow().as_ref() {
+            crate::components::viewer::wry_find::clear(wv);
+        }
+    });
+
     trace!("Search highlighting cleared");
 }

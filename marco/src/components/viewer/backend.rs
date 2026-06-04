@@ -85,10 +85,18 @@ pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     crate::components::viewer::webkit6::update_html_content_smooth(webview, content)
 }
 
-// Note: there is no Windows counterpart for `update_html_content_smooth`.
-// On Windows the live preview always goes through `load_html_when_ready`
-// (see the wry `PlatformWebView`), and the smooth-update helper is only
-// invoked from the Linux-only `renderer` module.
+/// Windows: patch the live preview's `mc-content-container` via the wry
+/// WebView's JS bridge, preserving scroll position. Mirrors the Linux helper —
+/// see [`crate::components::viewer::wry_platform_webview::PlatformWebView::update_html_content_smooth`].
+///
+/// `#[allow(dead_code)]` because the cross-platform `renderer` module is still
+/// Linux-gated (see Step 4 of the webkit6→wry parity plan). Once `renderer`
+/// dispatches via the `PreviewBackend` trait this attribute can be removed.
+#[cfg(target_os = "windows")]
+#[allow(dead_code)]
+pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
+    webview.update_html_content_smooth(content);
+}
 
 /// Evaluate a JavaScript snippet in the live preview webview.
 /// Used to update page-level attributes (e.g. `dir`) without a full reload.

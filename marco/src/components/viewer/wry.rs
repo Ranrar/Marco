@@ -5,9 +5,10 @@
 //!
 // Note: this module is conditionally compiled from `components::viewer::mod`.
 
-use gtk4::prelude::*;
-use gtk4::{ScrolledWindow, TextView};
+use gtk4::glib::object::IsA;
 use std::sync::{Mutex, OnceLock};
+
+use super::wry_platform_webview::PlatformWebView;
 
 // Thread-safe global to store the latest preview HTML so detached preview windows
 // can read it when they start.
@@ -110,61 +111,102 @@ pub(crate) fn generate_test_html(wheel_js: &str) -> String {
     html_with_js
 }
 
-/// Create a simple HTML source viewer widget.
+/// Create a syntax-highlighted HTML source viewer backed by a wry / WebView2
+/// `PlatformWebView` (§14.5 of `webkit6_wry_parity_audit.md`, Step 5b).
 ///
-/// Note: on Windows we keep the code-preview as a `TextView` (not a WebView).
-/// The caller typically inserts this widget into a surrounding `ScrolledWindow`.
+/// Mirrors [`super::webkit6::create_html_source_viewer_webview`] so both
+/// platforms render bit-identical output. The HTML page is built by the
+/// shared [`super::code_view_html::build_full_page`] helper (syntect-based
+/// highlighting + theme / scrollbar CSS + body shell), then loaded into a
+/// fresh `PlatformWebView` attached to `parent_window`.
+///
+/// The caller is responsible for inserting `pv.widget()` into the visual tree
+/// (typically a surrounding `ScrolledWindow`) and for retaining the
+/// `PlatformWebView` so subsequent [`update_code_view_smooth`] calls have a
+/// live `evaluate_script` target.
 pub fn create_html_source_viewer_webview(
+    parent_window: &impl IsA<gtk4::Window>,
     html_source: &str,
-    _theme_mode: &str,
-    _base_uri: Option<&str>,
-    _editor_bg: Option<&str>,
-    _editor_fg: Option<&str>,
-    _scrollbar_thumb: Option<&str>,
-    _scrollbar_track: Option<&str>,
-) -> Result<gtk4::Widget, String> {
-    let tv = TextView::new();
-    tv.set_editable(false);
-    tv.set_monospace(true);
-    tv.buffer().set_text(html_source);
+    theme_mode: &str,
+    base_uri: Option<&str>,
+    editor_bg: Option<&str>,
+    editor_fg: Option<&str>,
+    scrollbar_thumb: Option<&str>,
+    scrollbar_track: Option<&str>,
+) -> Result<PlatformWebView, String> {
+    log::debug!(
+        "[wry] Creating WebView-based code viewer with theme: {} (source: {} bytes)",
+        theme_mode,
+        html_source.len()
+    );
 
-    Ok(tv.upcast::<gtk4::Widget>())
+    // Same builder the Linux branch uses — keeps the highlighted HTML output
+    // identical across backends.
+    let complete_page = crate::components::viewer::code_view_html::build_full_page(
+        html_source,
+        theme_mode,
+        editor_bg,
+        editor_fg,
+        scrollbar_thumb,
+        scrollbar_track,
+    )?;
+
+    log::debug!(
+        "[wry] Generated code-view HTML page: {} bytes",
+        complete_page.len()
+    );
+
+    let pv = PlatformWebView::new(parent_window);
+    pv.load_html_with_base(&complete_page, base_uri);
+    Ok(pv)
 }
 
-/// Smooth update for the source view - update text in TextView.
+/// Smooth update for the wry code-view WebView — mirrors
+/// [`super::webkit6::update_code_view_smooth`] (§14.5, Step 5b).
+///
+/// Builds the update script via [`super::code_view_html::build_smooth_update_js`]
+/// (shared with webkit6 so the JS payload is identical) and dispatches it
+/// through [`PlatformWebView::evaluate_script`]. No DOM full-reload occurs:
+/// only the highlighted code body and theme CSS are swapped.
 pub fn update_code_view_smooth(
-    widget: &gtk4::Widget,
+    pv: &PlatformWebView,
     html_source: &str,
-    _theme_mode: &str,
-    _editor_bg: Option<&str>,
-    _editor_fg: Option<&str>,
-    _scrollbar_thumb: Option<&str>,
-    _scrollbar_track: Option<&str>,
+    theme_mode: &str,
+    editor_bg: Option<&str>,
+    editor_fg: Option<&str>,
+    scrollbar_thumb: Option<&str>,
+    scrollbar_track: Option<&str>,
 ) -> Result<(), String> {
-    if let Ok(tv) = widget.clone().downcast::<TextView>() {
-        tv.buffer().set_text(html_source);
-        return Ok(());
-    }
+    let js_code = crate::components::viewer::code_view_html::build_smooth_update_js(
+        html_source,
+        theme_mode,
+        editor_bg,
+        editor_fg,
+        scrollbar_thumb,
+        scrollbar_track,
+    )?;
 
-    if let Ok(scrolled) = widget.clone().downcast::<ScrolledWindow>() {
-        if let Some(child) = scrolled.child() {
-            if let Ok(tv) = child.clone().downcast::<TextView>() {
-                tv.buffer().set_text(html_source);
-                return Ok(());
-            }
+    pv.evaluate_script(&js_code);
+    Ok(())
+}
 
-            // GTK ScrolledWindow may wrap the child inside a Viewport.
-            if let Ok(viewport) = child.downcast::<gtk4::Viewport>() {
-                if let Some(inner) = viewport.child() {
-                    if let Ok(tv) = inner.downcast::<TextView>() {
-                        tv.buffer().set_text(html_source);
-                        return Ok(());
-                    }
-                }
-            }
-        }
-    }
-    Err("Failed to find TextView to update code view".to_string())
+/// Start autoplay timers for all `marco_sliders` decks in the current preview (if any).
+///
+/// Mirrors `webkit6::sliders_play_all` so `MarcoCorePreview.sliders.playAll()`
+/// can be invoked uniformly across both backends (Gap #9 / §14.9).
+#[allow(dead_code)]
+pub fn sliders_play_all(webview: &super::wry_platform_webview::PlatformWebView) {
+    let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.playAll==='function'){window.MarcoCorePreview.sliders.playAll();}}catch(e){console.error('sliders_play_all error',e);}})();"#;
+    webview.evaluate_script(js);
+}
+
+/// Stop autoplay timers for all `marco_sliders` decks in the current preview (if any).
+///
+/// Mirrors `webkit6::sliders_pause_all` (Gap #9 / §14.9).
+#[allow(dead_code)]
+pub fn sliders_pause_all(webview: &super::wry_platform_webview::PlatformWebView) {
+    let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.pauseAll==='function'){window.MarcoCorePreview.sliders.pauseAll();}}catch(e){console.error('sliders_pause_all error',e);}})();"#;
+    webview.evaluate_script(js);
 }
 
 /// Open external URI in system browser

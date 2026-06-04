@@ -540,30 +540,20 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
 
     #[cfg(target_os = "windows")]
     let preview_surface: Option<std::rc::Rc<PreviewSurface>> = {
-        if let Some(app_window) = parent.dynamic_cast_ref::<gtk4::ApplicationWindow>() {
-            let webview =
-                crate::components::viewer::wry_platform_webview::PlatformWebView::new(app_window);
-            let (_, rgba) = preview_background_for_theme(&theme_class_state.borrow());
-            webview.set_background_color_rgba(&rgba);
-            let widget = webview.widget();
-            widget.set_hexpand(true);
-            widget.set_vexpand(true);
-            preview_scroll.set_child(Some(&widget));
-            Some(std::rc::Rc::new(webview))
-        } else {
-            let fallback = Label::new(Some(
-                "Live browser preview is unavailable in this window on Windows. Math validation and insertion still work.",
-            ));
-            fallback.set_wrap(true);
-            fallback.set_xalign(0.0);
-            fallback.set_halign(Align::Start);
-            fallback.set_margin_start(8);
-            fallback.set_margin_end(8);
-            fallback.set_margin_top(8);
-            fallback.set_margin_bottom(8);
-            preview_scroll.set_child(Some(&fallback));
-            None
-        }
+        // `PlatformWebView::new` now accepts any `IsA<gtk4::Window>`, so dialog
+        // parents that are plain `Window`s (not `ApplicationWindow`) no longer
+        // need to fall back to a `Label`. We keep the `Option` wrapper here so
+        // downstream code that already uses `if let Some(surface) = ...` keeps
+        // compiling untouched.
+        let webview =
+            crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
+        let (_, rgba) = preview_background_for_theme(&theme_class_state.borrow());
+        webview.set_background_color_rgba(&rgba);
+        let widget = webview.widget();
+        widget.set_hexpand(true);
+        widget.set_vexpand(true);
+        preview_scroll.set_child(Some(&widget));
+        Some(std::rc::Rc::new(webview))
     };
 
     vbox.append(&preview_scroll);

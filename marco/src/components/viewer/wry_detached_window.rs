@@ -345,10 +345,13 @@ impl PreviewWindow {
         window.set_titlebar(Some(&handle));
     }
 
-    /// Attach a preview - creates (or re-uses) an embedded `PlatformWebView` and
-    /// loads the current saved HTML content. This keeps the editor preview and
-    /// detached preview independent so both can render simultaneously.
-    pub fn attach_webview(&self, _webview: Option<&gtk4::Widget>) {
+    /// Load the current saved preview HTML into this window.
+    ///
+    /// Creates (or re-uses) an embedded [`PlatformWebView`] and navigates it to
+    /// the latest rendered HTML stored in `LATEST_PREVIEW_HTML`. The detached
+    /// preview is fully independent from the editor's own WebView — both render
+    /// the document simultaneously.
+    pub fn load_preview_content(&self) {
         // If we already have a platform webview, refresh content
         if let Some(ref pv) = *self.platform_webview.borrow() {
             if let Ok(guard) = wry::LATEST_PREVIEW_HTML
@@ -392,6 +395,46 @@ impl PreviewWindow {
             let base_uri = wry::get_latest_preview_base_uri();
             pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
         }
+
+        // Install a one-shot state-restore handler that fires when the freshly
+        // loaded document signals `marco_zoom:ready`. This is the wry/WebView2
+        // surrogate for true WebView reparenting (see §14.3 of the parity
+        // audit): the editor side snapshotted user-visible state before
+        // detach via `request_state_snapshot`, and the snapshot now lives in
+        // `preview_state::LATEST_PREVIEW_STATE`. `take_latest_state` provides
+        // one-shot semantics so a late or duplicate `ready` event cannot
+        // re-apply a stale snapshot.
+        let pv_for_restore = pv.clone();
+        let restore_fired = std::rc::Rc::new(std::cell::Cell::new(false));
+        pv.set_ready_callback(move || {
+            if restore_fired.replace(true) {
+                return; // Only the first `ready` after attach should restore.
+            }
+            let Some(state) =
+                crate::components::viewer::preview_state::take_latest_state()
+            else {
+                log::debug!(
+                    "[wry_detached_window] no preview snapshot to restore on ready"
+                );
+                return;
+            };
+            match crate::components::viewer::preview_state::restore_script(&state) {
+                Ok(js) => {
+                    log::debug!(
+                        "[wry_detached_window] restoring preview state (scroll_y={}, open_details={})",
+                        state.scroll_y,
+                        state.open_details.len()
+                    );
+                    pv_for_restore.evaluate_script(&js);
+                }
+                Err(e) => {
+                    log::warn!(
+                        "[wry_detached_window] failed to build restore script: {}",
+                        e
+                    );
+                }
+            }
+        });
 
         *self.platform_webview.borrow_mut() = Some(pv);
         log::info!("Created embedded PlatformWebView in preview window (attempted load)");
@@ -484,7 +527,7 @@ impl PreviewWindow {
     pub fn show(&self) {
         if self.platform_webview.borrow().is_none() {
             // Create and load content
-            self.attach_webview(None);
+            self.load_preview_content();
         }
         log::info!("Showing PreviewWindow (present)");
         // Reset the callback guard so the callback will fire for each open/close cycle

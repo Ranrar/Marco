@@ -34,10 +34,6 @@ use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS, SCROLL_RESTORE_JS};
 #[cfg(target_os = "windows")]
 use crate::components::viewer::javascript::{HOVER_REPORT_JS, WIN_ZOOM_BAR_HTML};
-#[cfg(target_os = "windows")]
-use gio;
-#[cfg(target_os = "windows")]
-use glib;
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
 #[cfg(target_os = "linux")]
@@ -1094,19 +1090,6 @@ paned > separator {{
         let platform_webview =
             crate::components::viewer::wry_platform_webview::PlatformWebView::new(_window);
 
-        // Set initial WebView background to match the current theme mode so the
-        // GTK container (visible while the HWND is offscreen during loading) shows
-        // the correct colour instead of a white GTK-widget flash.
-        {
-            let is_dark = theme_mode_for_wrap.eq_ignore_ascii_case("dark");
-            let initial_bg = if is_dark {
-                gtk4::gdk::RGBA::new(30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0)
-            } else {
-                gtk4::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
-            };
-            platform_webview.set_background_color_rgba(&initial_bg);
-        }
-
         // Wire footer hovered-link updates from the preview's JS hover-report
         // bridge. webkit6 provides this natively via `connect_mouse_target_changed`
         // (see Linux branch above); on Windows we receive `marco_hover:<url>`
@@ -1169,17 +1152,6 @@ paned > separator {{
         let loading_overlay =
             crate::components::viewer::loading_overlay::LoadingOverlay::new(&webview_widget);
         crate::components::viewer::loading_overlay::set_global(loading_overlay.clone());
-        // On Windows the wry HWND paints on top of all GTK content, so the GTK
-        // progress frame is never visible while the WebView is in its normal
-        // position.  Wire up the offscreen hook so that show()/hide() move the
-        // HWND out of the way while rendering and restore it when done.
-        #[cfg(target_os = "windows")]
-        {
-            let webview_for_hook = webview_rc.borrow().clone();
-            loading_overlay.set_offscreen_hook(move |offscreen| {
-                webview_for_hook.set_offscreen_for_loading(offscreen);
-            });
-        }
 
         stack.add_named(loading_overlay.widget(), Some("html_preview"));
         stack.add_named(precreated_code_sw.as_ref(), Some("code_preview"));
@@ -1703,8 +1675,13 @@ paned > separator {{
                 if use_smooth_update { "smooth" } else { "full-reload" }
             );
 
-            // Fast path: empty document — no parsing needed, immediately show
-            // the welcome HTML and release the in-flight guard.
+            let html_body =
+                match global_parser_cache().render_with_cache(&text, (*html_opts).clone()) {
+                    Ok(html) => html,
+                    Err(e) => format!("Error rendering HTML: {}", e),
+                };
+
+            // If document is empty, show the test welcome HTML (non-invasive placeholder)
             if text.trim().is_empty() {
                 let html_body = crate::components::viewer::wry::generate_test_html(&wheel_js_local);
                 let combined_css = css.borrow().clone();
@@ -1747,7 +1724,10 @@ paned > separator {{
                     *guard = full_html.clone();
                 }
 
-                // Step 4b: on the welcome/empty branch we always full-reload.
+                // If we have an embedded in-editor webview, load the HTML into it.
+                // Step 4b: on the welcome/empty branch we always full-reload because
+                // there's no shared <div id="mc-content-container"> to swap into
+                // when the WebView was previously showing a real document.
                 if let Some(ref wv_rc) = webview_for_preview {
                     if let Ok(wv) = wv_rc.try_borrow() {
                         wv.load_html_with_base(&full_html, base_uri.as_deref());
@@ -1755,11 +1735,13 @@ paned > separator {{
                         log::debug!("In-editor webview borrow busy; skipping load");
                     }
                 } else {
+                    // No embedded webview available; HTML was stored in LATEST_PREVIEW_HTML for detached windows.
                     log::debug!(
                         "No embedded webview available; stored welcome HTML for detached preview"
                     );
                 }
 
+                // Update the code view if present with pretty-printed welcome HTML
                 let formatted = pretty_print_html(&html_body);
                 if let Some(ref pv) = *code_view_widget_for_windows.borrow() {
                     let _ = crate::components::viewer::wry::update_code_view_smooth(
@@ -1780,161 +1762,139 @@ paned > separator {{
                 return;
             }
 
-            // Slow path: non-empty document — offload parsing to a thread-pool
-            // worker so the GTK main thread (and its event loop) stays responsive
-            // while large files are being rendered.
-            //
-            // `glib::spawn_future_local` schedules the async block on the GTK
-            // main thread, so all Rc<…> values remain accessible.  The inner
-            // `gio::spawn_blocking` dispatches only Send-safe owned data to the
-            // thread pool.
+            let formatted = pretty_print_html(&html_body);
 
-            // Clone Rc handles — these stay on the main thread.
-            let css_a = Rc::clone(&css);
-            let theme_a = Rc::clone(&theme_mode_for_preview);
-            let page_view_a = Rc::clone(&page_view_capture);
-            let wheel_js_a = Rc::clone(&wheel_js_local);
-            let webview_a = webview_for_preview.clone();
-            let code_view_a = Rc::clone(&code_view_widget_for_windows);
-            let flight_a = Rc::clone(&preview_in_flight);
-            let gen_a = Rc::clone(&preview_generation);
-            let hash_a = Rc::clone(&last_preview_hash);
-
-            // Owned, Send values captured by the thread-pool closure.
-            let text_bg = text.clone();
-            let html_opts_bg = (*html_opts).clone();
-            let base_uri_a = base_uri.clone();
-
-            glib::spawn_future_local(async move {
-                // --- thread pool: parse + render (may be slow for large files) ---
-                let html_body = gio::spawn_blocking(move || {
-                    match marco_shared::cache::global_parser_cache()
-                        .render_with_cache(&text_bg, html_opts_bg)
-                    {
-                        Ok(html) => html,
-                        Err(e) => format!("Error rendering HTML: {}", e),
-                    }
-                })
-                .await
-                .unwrap_or_default();
-
-                // --- back on GTK main thread ---
-
-                let formatted = pretty_print_html(&html_body);
-
-                // Store a clean live HTML snapshot (no wheel JS) for export.
-                {
-                    let combined_css = css_a.borrow().clone();
-                    let theme_mode = theme_a.borrow().clone();
-                    let page_view = page_view_a.borrow().clone();
-                    let live_html = if page_view.enabled {
-                        let page_opts = marco_core::render::PageViewOptions {
-                            paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                            paper: &page_view.paper,
-                            orientation: &page_view.orientation,
-                            margin_mm: page_view.margin_mm,
-                            show_page_numbers: page_view.show_page_numbers,
-                            wheel_js: "",
-                            columns_per_row: page_view.columns_per_row,
-                            for_export: false,
-                            title: "",
-                            standalone_export: false,
-                        };
-                        crate::components::viewer::backend::wrap_html_document_paged(
-                            &html_body,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                            &page_opts,
-                        )
-                    } else {
-                        crate::components::viewer::wry::wrap_html_document(
-                            &html_body,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                        )
+            // Store a clean live preview HTML snapshot (without wheel/scroll JS)
+            // for Windows HTML / PDF export. When page-view (paged.js) mode is
+            // enabled, store the paged variant so headless export reflects the
+            // visible paged layout.
+            {
+                let combined_css = css.borrow().clone();
+                let theme_mode = theme_mode_for_preview.borrow().clone();
+                let page_view = page_view_capture.borrow().clone();
+                let live_html = if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: "",
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
                     };
-                    crate::components::viewer::wry::set_latest_live_html(&live_html);
-                }
-
-                // Build the full HTML (with wheel JS) for WebView and detached windows.
-                let full_html = {
-                    let mut html_with_js = html_body.clone();
-                    html_with_js.push_str(&*wheel_js_a);
-                    let combined_css = css_a.borrow().clone();
-                    let theme_mode = theme_a.borrow().clone();
-                    let page_view = page_view_a.borrow().clone();
-                    if page_view.enabled {
-                        let page_opts = marco_core::render::PageViewOptions {
-                            paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                            paper: &page_view.paper,
-                            orientation: &page_view.orientation,
-                            margin_mm: page_view.margin_mm,
-                            show_page_numbers: page_view.show_page_numbers,
-                            wheel_js: &*wheel_js_a,
-                            columns_per_row: page_view.columns_per_row,
-                            for_export: false,
-                            title: "",
-                            standalone_export: false,
-                        };
-                        crate::components::viewer::backend::wrap_html_document_paged(
-                            &html_body,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                            &page_opts,
-                        )
-                    } else {
-                        crate::components::viewer::wry::wrap_html_document(
-                            &html_with_js,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                        )
-                    }
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
                 };
+                crate::components::viewer::wry::set_latest_live_html(&live_html);
+            }
 
-                if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
-                    .get_or_init(|| std::sync::Mutex::new(String::new()))
-                    .lock()
-                {
-                    *guard = full_html.clone();
+            // Store the full HTML for detached preview windows (Windows fallback)
+            let full_html = {
+                let mut html_with_js = html_body.clone();
+                html_with_js.push_str(&wheel_js_local);
+                let combined_css = css.borrow().clone();
+                let theme_mode = theme_mode_for_preview.borrow().clone();
+                let page_view = page_view_capture.borrow().clone();
+                if page_view.enabled {
+                    let page_opts = marco_core::render::PageViewOptions {
+                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
+                        paper: &page_view.paper,
+                        orientation: &page_view.orientation,
+                        margin_mm: page_view.margin_mm,
+                        show_page_numbers: page_view.show_page_numbers,
+                        wheel_js: &wheel_js_local,
+                        columns_per_row: page_view.columns_per_row,
+                        for_export: false,
+                        title: "",
+                        standalone_export: false,
+                    };
+                    crate::components::viewer::backend::wrap_html_document_paged(
+                        &html_body,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                        &page_opts,
+                    )
+                } else {
+                    crate::components::viewer::wry::wrap_html_document(
+                        &html_with_js,
+                        &combined_css,
+                        &theme_mode,
+                        None,
+                    )
                 }
+            };
 
-                // Push HTML to the embedded WebView.
-                if let Some(ref wv_rc) = webview_a {
-                    if let Ok(wv) = wv_rc.try_borrow() {
-                        if use_smooth_update {
-                            wv.update_html_content_smooth(&full_html);
-                        } else {
-                            wv.load_html_with_base(&full_html, base_uri_a.as_deref());
-                        }
+            if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
+                .get_or_init(|| std::sync::Mutex::new(String::new()))
+                .lock()
+            {
+                *guard = full_html.clone();
+            }
+
+            // If we have an embedded in-editor webview, push the new HTML.
+            //
+            // Step 4b: choose between a full navigation and an in-place body
+            // swap based on the reload-trigger booleans computed at the top of
+            // this closure.
+            //
+            //   * `use_smooth_update == false` → full reload via load_html_with_base.
+            //     Required when CSS / theme changes, the document path changes,
+            //     paged.js is active, or on the very first render. Navigation
+            //     refreshes the `<html data-theme>` root attribute and the
+            //     `<style>` block which the smooth path cannot touch.
+            //   * `use_smooth_update == true` → update_html_content_smooth.
+            //     Swaps `#mc-content-container` innerHTML (or body innerHTML)
+            //     without navigating, so the WebView stays alive — no white
+            //     flash, scroll position is preserved, and the
+            //     MarcoCorePreview Mermaid/KaTeX caches survive between edits.
+            if let Some(ref wv_rc) = webview_for_preview {
+                if let Ok(wv) = wv_rc.try_borrow() {
+                    if use_smooth_update {
+                        wv.update_html_content_smooth(&full_html);
                     } else {
-                        log::debug!("In-editor webview borrow busy; skipping load");
+                        wv.load_html_with_base(&full_html, base_uri.as_deref());
                     }
+                } else {
+                    log::debug!("In-editor webview borrow busy; skipping load");
                 }
+            }
 
-                // Update the code view.
-                if let Some(ref pv) = *code_view_a.borrow() {
-                    let _ = crate::components::viewer::wry::update_code_view_smooth(
-                        pv,
-                        &formatted,
-                        &theme_a.borrow(),
-                        None,
-                        None,
-                        None,
-                        None,
-                    );
-                }
+            // Update the code view if present
+            if let Some(ref pv) = *code_view_widget_for_windows.borrow() {
+                let _ = crate::components::viewer::wry::update_code_view_smooth(
+                    pv,
+                    &formatted,
+                    &theme_mode_for_preview.borrow(),
+                    None,
+                    None,
+                    None,
+                    None,
+                );
+            }
 
-                flight_a.set(false);
-                if gen_a.get() != my_gen {
-                    hash_a.set(0);
-                }
-            });
-            // The sync closure returns immediately; the async block above finishes
-            // on the GTK main thread once the thread-pool render completes.
+            // Clear in-flight guard; if a newer request arrived during this
+            // synchronous render (should not happen normally), reset the
+            // content-hash guard so the next debounce fires a fresh pass.
+            preview_in_flight.set(false);
+            if preview_generation.get() != my_gen {
+                last_preview_hash.set(0);
+            }
         })
     };
 

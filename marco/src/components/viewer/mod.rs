@@ -28,15 +28,17 @@ use gtk4::prelude::GtkWindowExt;
 // instead of WebKit6. The interface will remain similar but with platform-specific
 // implementations using `#[cfg(target_os = "linux")]` and `#[cfg(target_os = "windows")]`.
 
+pub mod allocation_wait; // Cross-platform widget allocation/map polling helper
 pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
+pub mod code_view_html; // Cross-platform HTML / JS builders for the code-view preview
 pub mod export_pipeline; // Unified Export & Print Pipeline (skeleton — Phase 1, no callers)
+pub mod preview_state; // Cross-platform preview state snapshot/restore primitive (§14.3)
 pub mod layout_controller; // Split controller + webview location tracking
 pub mod loading_overlay; // Centered indeterminate loading bar overlayed on the preview
 pub mod pagedjs; // Embedded paged.js polyfill for page view simulation
 #[cfg(target_os = "linux")]
 pub mod print_driver; // Print dialog and PDF export driver (Linux: WebKit6)
-#[cfg(target_os = "linux")]
-pub mod renderer; // Markdown rendering coordinator (Linux: WebKit6)
+pub mod renderer; // Markdown rendering coordinator (cross-platform via `backend`)
 #[cfg(target_os = "linux")]
 pub mod reparenting;
 #[cfg(target_os = "linux")]
@@ -50,10 +52,13 @@ pub mod wry; // Windows (wry/WebView2) minimal parity helpers
 #[cfg(target_os = "windows")]
 pub mod wry_detached_window; // Detached preview window using wry
 #[cfg(target_os = "windows")]
+pub mod wry_find; // Windows: JS-based find-in-preview engine (parity for webkit6 FindController)
+#[cfg(target_os = "windows")]
 pub mod wry_platform_webview; // Windows: embedded child WebView // Windows print driver (wry/WebView2)
 #[cfg(target_os = "windows")]
 pub mod wry_print_to_pdf; // Native WebView2 PrintToPdf (replaces headless Chromium)
 
+pub mod find_backend; // Cross-platform find-in-preview trait (§14.1, Step 6b)
 pub mod preview_types; // View mode enum (cross-platform)
 
 /// Open the preview in a new detached window. Implemented per-platform below.
@@ -98,8 +103,15 @@ pub fn open_preview_in_separate_window(
         use crate::components::viewer::wry_detached_window::PreviewWindow;
         let pw = PreviewWindow::new(parent_window);
         if let Some(webview) = webview_opt {
-            // On Windows the PlatformWebView exposes `.widget()` to get gtk4::Widget
-            pw.attach_webview(Some(&webview.widget()));
+            // Snapshot user-visible state from the editor's live WebView
+            // before the detached window builds its own (see §14.3 of the
+            // parity audit). The reply is auto-stashed in
+            // `preview_state::LATEST_PREVIEW_STATE` and the detached
+            // window's `set_ready_callback` will restore it post-load.
+            webview.request_state_snapshot();
+            // On Windows the detached window creates its own PlatformWebView
+            // internally; the editor's WebView cannot be reparented (§14.3).
+            pw.load_preview_content();
         }
         pw.show();
         return Some(pw);

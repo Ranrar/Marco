@@ -33,6 +33,23 @@ pub struct PlatformWebView {
     bg_color: std::rc::Rc<std::cell::Cell<(u8, u8, u8, u8)>>,
     #[cfg(target_os = "windows")]
     gtk_window: gtk4::ApplicationWindow,
+    #[cfg(target_os = "windows")]
+    navigation_handler: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>,
+    #[cfg(target_os = "windows")]
+    load_finished_handler: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn()>>>>,
+    /// When `true` the tick callback keeps the wry HWND at −32000,−32000 so
+    /// the GTK loading-overlay frame is visible above it.
+    #[cfg(target_os = "windows")]
+    is_offscreen_for_loading: std::rc::Rc<std::cell::Cell<bool>>,
+    /// Monotonically increasing counter appended to reload URLs as `?v=N`
+    /// so WebView2 never serves a cached response for the custom protocol.
+    #[cfg(target_os = "windows")]
+    load_version: std::rc::Rc<std::cell::Cell<u64>>,
+    /// GTK CSS provider used to paint the container background to match the
+    /// WebView2 background colour, preventing a white flash while the HWND
+    /// is at −32000,−32000 during loading.
+    #[cfg(target_os = "windows")]
+    bg_css_provider: std::rc::Rc<gtk4::CssProvider>,
 }
 
 #[cfg(target_os = "linux")]
@@ -206,6 +223,37 @@ impl PlatformWebView {
     }
 }
 
+/// Custom protocol scheme used to serve HTML content to polo's WebView2.
+///
+/// Using a custom protocol instead of `load_html` / `NavigateToString`
+/// bypasses WebView2's ~2 MB content limit, which would silently drop large
+/// markdown files and leave polo in a permanent loading state.
+#[cfg(target_os = "windows")]
+const POLO_SCHEME: &str = "polo-preview";
+
+/// URL passed to `with_url()` in the WebViewBuilder.  wry transforms this to
+/// `http://polo-preview.localhost/` internally at build time.
+#[cfg(target_os = "windows")]
+const POLO_CONTENT_URL_BUILDER: &str = "polo-preview://localhost/";
+
+/// Base for versioned reload URLs (`?v=N`). Must be the already-transformed
+/// HTTP form because wry's scheme rewrite only runs during `build()`, not
+/// on subsequent `load_url()` calls.
+#[cfg(target_os = "windows")]
+const POLO_CONTENT_URL_RELOAD: &str = "http://polo-preview.localhost/";
+
+/// In-memory HTML store for polo's single custom-protocol WebView.
+/// Updated before every `load_url` call so the protocol handler always
+/// returns the latest rendered HTML.
+#[cfg(target_os = "windows")]
+static POLO_HTML: std::sync::OnceLock<std::sync::Mutex<Vec<u8>>> =
+    std::sync::OnceLock::new();
+
+#[cfg(target_os = "windows")]
+fn polo_html() -> &'static std::sync::Mutex<Vec<u8>> {
+    POLO_HTML.get_or_init(|| std::sync::Mutex::new(Vec::new()))
+}
+
 #[cfg(target_os = "windows")]
 impl PlatformWebView {
     pub fn new(window: &gtk4::ApplicationWindow) -> Result<Self, String> {
@@ -254,31 +302,87 @@ impl PlatformWebView {
 
         let webview: Rc<RefCell<Option<wry::WebView>>> = Rc::new(RefCell::new(None));
         let bg_color = std::rc::Rc::new(std::cell::Cell::new((30u8, 30u8, 30u8, 255u8)));
+        let navigation_handler = std::rc::Rc::new(std::cell::RefCell::new(
+            None::<Box<dyn Fn(String, Option<String>)>>,
+        ));
+        let load_finished_handler =
+            std::rc::Rc::new(std::cell::RefCell::new(None::<Box<dyn Fn()>>));
+        let is_offscreen_for_loading = std::rc::Rc::new(std::cell::Cell::new(false));
+        let load_version = std::rc::Rc::new(std::cell::Cell::new(0u64));
 
-        // Keep WebView bounds in sync with GTK container on every frame
-        // In windowed mode, offset by titlebar/border size; maximized mode needs no offset
+        // Set up a GTK CSS provider so the container widget is painted with the
+        // theme background colour while the WebView2 HWND is offscreen during
+        // loading — preventing the white-GTK-widget-behind-invisible-HWND flash.
+        container.add_css_class("polo-preview-bg");
+        let bg_css_provider = std::rc::Rc::new(gtk4::CssProvider::new());
+        bg_css_provider
+            .load_from_data(".polo-preview-bg { background-color: #1e1e1e; }");
+        if let Some(display) = gtk4::gdk::Display::default() {
+            gtk4::style_context_add_provider_for_display(
+                &display,
+                &*bg_css_provider,
+                gtk4::STYLE_PROVIDER_PRIORITY_USER,
+            );
+        }
+
+        // Keep WebView bounds in sync with GTK container on every frame.
+        // Use `translate_coordinates` to get the container origin in window coordinates
+        // so the native Win32 child window is placed below the titlebar and toolbar.
         let webview_for_tick = webview.clone();
         let container_weak = container.downgrade();
         let window_weak = window.downgrade();
+        let is_offscreen_tick = is_offscreen_for_loading.clone();
         container.add_tick_callback(move |_, _| {
             if let (Some(container), Some(win), Some(view)) = (
                 container_weak.upgrade(),
                 window_weak.upgrade(),
                 webview_for_tick.borrow().as_ref(),
             ) {
+                // When the GTK container is not mapped, or a loading operation
+                // is in progress, move the native Win32 WebView off-screen so
+                // the GTK loading-overlay frame is visible.
+                if !container.is_mapped() || is_offscreen_tick.get() {
+                    // When offscreen for loading, use the actual container size so
+                    // WebView2 renders the page at the correct viewport dimensions
+                    // and no reflow/white-flash occurs when the HWND is restored.
+                    let (w, h) = if is_offscreen_tick.get() {
+                        let alloc = container.allocation();
+                        (alloc.width().max(100) as f64, alloc.height().max(100) as f64)
+                    } else {
+                        // Container not mapped (e.g. tab hidden): use minimal size.
+                        (1.0, 1.0)
+                    };
+                    let _ = view.set_bounds(wry::Rect {
+                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                            -32000.0,
+                            -32000.0,
+                        )),
+                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
+                    });
+                    return gtk4::glib::ControlFlow::Continue;
+                }
+
                 let alloc = container.allocation();
                 let (offset_x, offset_y) = if win.is_maximized() {
                     (0.0, 0.0)
                 } else {
                     (14.0, 12.0)
                 };
+
+                // Translate the container origin into window coordinates so the
+                // position accounts for the titlebar and toolbar heights.
+                let origin_in_window = match container.translate_coordinates(&win, 0.0, 0.0) {
+                    Some((x, y)) => (x, y),
+                    None => (alloc.x() as f64, alloc.y() as f64),
+                };
+
                 let rect = wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        alloc.x() as f64 + offset_x,
-                        alloc.y() as f64 + offset_y,
+                        origin_in_window.0 + offset_x - 1.0,
+                        origin_in_window.1 + offset_y,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(1) as f64,
+                        alloc.width().max(1) as f64 + 1.0,
                         alloc.height().max(1) as f64,
                     )),
                 };
@@ -295,6 +399,11 @@ impl PlatformWebView {
             parent_handle,
             bg_color,
             gtk_window: window.clone(),
+            navigation_handler,
+            load_finished_handler,
+            is_offscreen_for_loading,
+            load_version,
+            bg_css_provider,
         })
     }
 
@@ -315,6 +424,15 @@ impl PlatformWebView {
                 log::warn!("Failed to update wry background color: {}", e);
             }
         }
+        // Keep the GTK container background in sync so there is no white flash
+        // while the WebView2 HWND is offscreen during loading.
+        let css_data = format!(
+            ".polo-preview-bg {{ background-color: rgb({},{},{}); }}",
+            (color.red() * 255.0) as u32,
+            (color.green() * 255.0) as u32,
+            (color.blue() * 255.0) as u32,
+        );
+        self.bg_css_provider.load_from_data(&css_data);
     }
 
     pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
@@ -324,31 +442,75 @@ impl PlatformWebView {
             html.to_string()
         };
 
-        if let Some(view) = self.inner.borrow().as_ref() {
-            if let Err(e) = view.load_html(&final_html) {
-                log::error!("Failed to load HTML into wry WebView: {}", e);
-            }
+        // Store HTML for the custom protocol handler.
+        // Using a custom protocol instead of `load_html` / `NavigateToString`
+        // bypasses WebView2's ~2 MB content limit that silently drops large
+        // markdown files, leaving polo in a permanent loading state.
+        if let Ok(mut guard) = polo_html().lock() {
+            *guard = final_html.into_bytes();
+        } else {
+            log::error!("[polo] polo_html mutex poisoned — cannot update HTML");
+            return;
+        }
+
+        // Increment load version so each reload URL is unique (busts WebView2 cache).
+        let v = self.load_version.get().wrapping_add(1);
+        self.load_version.set(v);
+        let reload_url = format!("{}?v={}", POLO_CONTENT_URL_RELOAD, v);
+
+        if self.inner.borrow().is_some() {
+            // Defer to the next event-loop idle, matching the Linux webkit6
+            // behaviour: this gives the loading overlay one frame to paint
+            // before WebView2 starts replacing the current page.
+            let inner = self.inner.clone();
+            gtk4::glib::idle_add_local_once(move || {
+                if let Some(view) = inner.borrow().as_ref() {
+                    if let Err(e) = view.load_url(&reload_url) {
+                        log::error!("[polo] Failed to reload via custom protocol: {}", e);
+                    }
+                }
+            });
             return;
         }
 
         // If the WebView is not ready yet (early call before the first allocation),
         // store the HTML and load it after the widget is realized by forcing an
         // initial creation now with a minimal rect.
-        let alloc = self.container.allocation();
-        let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
-            (0.0, 0.0)
+        // Build the WebView off-screen if a loading operation is in progress
+        // so the GTK loading-overlay frame stays visible until the page loads.
+        let rect = if self.is_offscreen_for_loading.get() {
+            let alloc = self.container.allocation();
+            wry::Rect {
+                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                    -32000.0,
+                    -32000.0,
+                )),
+                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                    alloc.width().max(100) as f64,
+                    alloc.height().max(100) as f64,
+                )),
+            }
         } else {
-            (16.0, 14.0)
-        };
-        let rect = wry::Rect {
-            position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                alloc.x() as f64 + offset_x,
-                alloc.y() as f64 + offset_y,
-            )),
-            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                alloc.width().max(100) as f64,
-                alloc.height().max(100) as f64,
-            )),
+            let alloc = self.container.allocation();
+            let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
+                (0.0, 0.0)
+            } else {
+                (14.0, 12.0)
+            };
+            let origin_in_window = match self.container.translate_coordinates(&self.gtk_window, 0.0, 0.0) {
+                Some((x, y)) => (x, y),
+                None => (alloc.x() as f64, alloc.y() as f64),
+            };
+            wry::Rect {
+                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                    origin_in_window.0 + offset_x - 1.0,
+                    origin_in_window.1 + offset_y,
+                )),
+                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                    alloc.width().max(100) as f64 + 1.0,
+                    alloc.height().max(100) as f64,
+                )),
+            }
         };
 
         // Configure WebView2 to use data directory (portable mode friendly)
@@ -362,13 +524,86 @@ impl PlatformWebView {
         match wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
             .with_bounds(rect)
-            .with_html(&final_html)
+            // Navigate to custom protocol URL instead of loading HTML directly.
+            // This avoids WebView2's ~2 MB NavigateToString limit for large files.
+            .with_url(POLO_CONTENT_URL_BUILDER)
+            .with_custom_protocol(POLO_SCHEME.to_string(), |_id, _req| {
+                let body = match polo_html().lock() {
+                    Ok(guard) => guard.clone(),
+                    Err(_) => b"<html><body>Content unavailable</body></html>".to_vec(),
+                };
+                wry::http::Response::builder()
+                    .header("Content-Type", "text/html; charset=utf-8")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(std::borrow::Cow::Owned(body))
+                    .unwrap()
+            })
+            .with_navigation_handler({
+                let nav_handler = self.navigation_handler.clone();
+                move |uri: String| wry_navigation_handler(&uri, &nav_handler)
+            })
+            .with_on_page_load_handler({
+                let load_handler = self.load_finished_handler.clone();
+                move |event, _url: String| {
+                    if matches!(event, wry::PageLoadEvent::Finished) {
+                        if let Some(f) = load_handler.borrow().as_ref() {
+                            f();
+                        }
+                    }
+                }
+            })
             .build_as_child(&*self.parent_handle)
         {
             Ok(view) => {
                 *self.inner.borrow_mut() = Some(view);
             }
             Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
+        }
+    }
+
+    /// Setup link interception policy for the WebView.
+    ///
+    /// - External links (http/https/mailto/www) are opened in the system browser.
+    /// - Local `.md` / `.markdown` file links call `on_local_md(path, fragment)`.
+    ///
+    /// The handler is stored and applied to the wry `WebViewBuilder` the first time
+    /// [`load_html_with_base`] builds the `WebView`.
+    pub fn setup_link_policy(&self, on_local_md: impl Fn(String, Option<String>) + 'static) {
+        *self.navigation_handler.borrow_mut() = Some(Box::new(on_local_md));
+    }
+
+    /// Run `f` once each time the WebView finishes loading a page.
+    ///
+    /// The handler is stored and applied to the wry `WebViewBuilder` the first time
+    /// [`load_html_with_base`] builds the `WebView`.
+    pub fn connect_load_finished<F: Fn() + 'static>(&self, f: F) {
+        *self.load_finished_handler.borrow_mut() = Some(Box::new(f));
+    }
+
+    /// Move the wry HWND off-screen (`offscreen = true`) so the GTK loading-
+    /// overlay frame is visible during rendering, or restore it to its normal
+    /// position (`offscreen = false`) once the page has loaded.
+    ///
+    /// Called by the [`LoadingOverlay`](super::loading_overlay::LoadingOverlay)
+    /// offscreen hook that is wired up in `main.rs`.
+    pub fn set_offscreen_for_loading(&self, offscreen: bool) {
+        self.is_offscreen_for_loading.set(offscreen);
+        // Immediately push the HWND off-screen so we don't wait for the next
+        // tick-callback iteration (~16 ms) before the GTK overlay becomes visible.
+        if offscreen {
+            if let Some(view) = self.inner.borrow().as_ref() {
+                let alloc = self.container.allocation();
+                let _ = view.set_bounds(wry::Rect {
+                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                        -32000.0,
+                        -32000.0,
+                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width().max(100) as f64,
+                        alloc.height().max(100) as f64,
+                    )),
+                });
+            }
         }
     }
 
@@ -382,40 +617,23 @@ impl PlatformWebView {
         }
     }
 
-    /// Open the native browser print UI (WebView2 / Edge).
+    /// Trigger the browser print UI for the current page content.
     ///
-    /// Injects `@media print` CSS with a self-removal timer, then triggers the
-    /// WebView2 print dialog.  The `parent` parameter is present only to keep
-    /// the call site identical to the Linux version; it is not used on Windows.
+    /// Mirrors Marco's approach: prefer the WebView2 native system print dialog
+    /// (`ICoreWebView2_16::ShowPrintUI(SYSTEM)`), fall back to `view.print()`,
+    /// then fall back to `window.print()` JS.
     pub fn print(&self, _parent: Option<&gtk4::Window>) {
-        use marco_shared::logic::print_css::make_print_export_css;
-        const STYLE_ID: &str = "polo-print-css";
-        const TTL_MS: u32 = 60_000;
-
-        let css = make_print_export_css("", "", false);
-        let css_json = polo_js_string_literal(&css);
-        let inject_script = format!(
-            r#"(function() {{
-    try {{
-        var e = document.getElementById('{id}');
-        if (e) {{ e.parentNode.removeChild(e); }}
-        var s = document.createElement('style');
-        s.id = '{id}';
-        s.appendChild(document.createTextNode({css}));
-        (document.head || document.documentElement).appendChild(s);
-        setTimeout(function() {{
-            var s2 = document.getElementById('{id}');
-            if (s2 && s2.parentNode) {{ s2.parentNode.removeChild(s2); }}
-        }}, {ttl});
-    }} catch (err) {{ console.error('polo print css inject failed', err); }}
-}})();"#,
-            id = STYLE_ID,
-            css = css_json,
-            ttl = TTL_MS,
-        );
-        self.evaluate_script(&inject_script);
-
         if let Some(view) = self.inner.borrow().as_ref() {
+            match show_system_print_ui(view) {
+                Ok(()) => return,
+                Err(e) => {
+                    log::warn!(
+                        "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                        e
+                    );
+                }
+            }
+
             if let Err(e) = view.print() {
                 log::warn!(
                     "[polo] wry print() failed ({}); falling back to window.print()",
@@ -423,9 +641,117 @@ impl PlatformWebView {
                 );
                 self.evaluate_script("window.print();");
             }
-        } else {
-            self.evaluate_script("window.print();");
+            return;
         }
+
+        log::warn!("[polo] print: WebView not ready; ignoring");
+    }
+}
+
+/// Open the WebView2 *system* print dialog.
+///
+/// Casts the underlying `ICoreWebView2` to `ICoreWebView2_16` and calls
+/// `ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)`.  Returns `Err` on
+/// older WebView2 runtimes so the caller can fall back to the legacy path.
+#[cfg(target_os = "windows")]
+fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
+    use webview2_com::Microsoft::Web::WebView2::Win32::{
+        ICoreWebView2_16, COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM,
+    };
+    use windows::core::Interface;
+    use wry::WebViewExtWindows;
+
+    let core = view.webview();
+    let core16: ICoreWebView2_16 = core
+        .cast()
+        .map_err(|e| format!("WebView2 missing ICoreWebView2_16 (ShowPrintUI): {}", e))?;
+    unsafe {
+        core16
+            .ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)
+            .map_err(|e| format!("ShowPrintUI failed: {}", e))?;
+    }
+    Ok(())
+}
+
+/// Decide whether a wry navigation should be allowed, and handle side effects.
+///
+/// - External links (http/https/www/mailto) → open in system browser, deny navigation.
+/// - Local `.md` / `.markdown` file links → invoke the stored callback, deny navigation.
+/// - Everything else (anchors, data URIs, about:blank) → allow.
+///
+/// Returns `true` to allow the navigation, `false` to deny it.
+#[cfg(target_os = "windows")]
+fn wry_navigation_handler(
+    uri: &str,
+    on_local_md: &std::rc::Rc<
+        std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>,
+    >,
+) -> bool {
+    let uri_lower = uri.to_lowercase();
+
+    // Allow polo custom-protocol navigation (internal content reloads).
+    // These are `http://polo-preview.localhost/?v=N` URLs produced by
+    // `load_html_with_base` and must NOT be treated as external links.
+    if uri_lower.starts_with("polo-preview:")
+        || uri_lower.starts_with("http://polo-preview.")
+        || uri_lower.starts_with("https://polo-preview.")
+    {
+        return true;
+    }
+
+    // External link → open in system browser, deny navigation.
+    if uri_lower.starts_with("http:")
+        || uri_lower.starts_with("https:")
+        || uri_lower.starts_with("www.")
+        || uri_lower.starts_with("mailto:")
+    {
+        let normalized = if uri_lower.starts_with("www.") {
+            format!("https://{}", uri)
+        } else {
+            uri.to_string()
+        };
+        wry_open_external_url(&normalized);
+        return false;
+    }
+
+    // Local .md file link → invoke callback, deny navigation.
+    if uri_lower.starts_with("file://") {
+        let path_part = uri_lower.split('#').next().unwrap_or("");
+        if path_part.ends_with(".md") || path_part.ends_with(".markdown") {
+            let without_scheme = uri.trim_start_matches("file://");
+            let (raw_path, fragment) = match without_scheme.split_once('#') {
+                Some((p, f)) => (
+                    p,
+                    if f.is_empty() {
+                        None
+                    } else {
+                        Some(f.to_string())
+                    },
+                ),
+                None => (without_scheme, None),
+            };
+            let path = raw_path.replace("%20", " ");
+            if let Some(handler) = on_local_md.borrow().as_ref() {
+                handler(path, fragment);
+            }
+            return false;
+        }
+    }
+
+    // Allow all other navigation (in-page anchors, resources, etc.).
+    true
+}
+
+/// Open a URL in the default system browser on Windows.
+#[cfg(target_os = "windows")]
+fn wry_open_external_url(url: &str) {
+    // `cmd /c start "" <url>` is the idiomatic Windows way to open a URL.
+    // The empty-string first argument is the window title required by `start`.
+    if let Err(e) = std::process::Command::new("cmd")
+        .args(["/c", "start", "", url])
+        .spawn()
+    {
+        log::warn!("[polo] Failed to open external link '{}': {}", url, e);
     }
 }
 
@@ -470,28 +796,4 @@ fn inject_base_href(html: &str, base: &str) -> String {
 
     // Fallback: prepend base tag
     format!("<base href=\"{}\">{}", base, html)
-}
-
-/// Encode an arbitrary string as a JavaScript string literal (double-quoted).
-/// Escapes characters that would otherwise terminate or corrupt the literal.
-#[cfg(target_os = "windows")]
-fn polo_js_string_literal(s: &str) -> String {
-    let mut out = String::with_capacity(s.len() + 2);
-    out.push('"');
-    for ch in s.chars() {
-        match ch {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            '\u{08}' => out.push_str("\\b"),
-            '\u{0C}' => out.push_str("\\f"),
-            '<' => out.push_str("\\u003c"),
-            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
-            c => out.push(c),
-        }
-    }
-    out.push('"');
-    out
 }

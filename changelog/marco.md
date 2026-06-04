@@ -7,7 +7,7 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
-## [Unreleased] - 2026-05-22
+## [0.24.0] - 2026-06-04
 
 **Uses:** Core 1.1.0
 

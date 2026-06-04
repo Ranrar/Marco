@@ -1395,8 +1395,22 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                             }
                             #[cfg(target_os = "windows")]
                             {
-                                // On Windows, PlatformWebView exposes .widget(); pass as Option
-                                pw.attach_webview(Some(&wv.widget()));
+                                // On Windows, true WebView reparenting is impossible
+                                // (the WebView2 child HWND is bound to its host for
+                                // life — see §14.3 of the parity audit). Before the
+                                // detached window builds its own WebView, ask the
+                                // editor's live WebView to snapshot user-visible
+                                // state (scroll position + open <details>) via
+                                // `marco_state:` IPC. The reply is auto-stashed in
+                                // `preview_state::LATEST_PREVIEW_STATE`, and the
+                                // detached window's `set_ready_callback` (installed
+                                // in `attach_webview`) restores it after the new
+                                // document paints.
+                                wv.request_state_snapshot();
+                                // The detached window creates its own PlatformWebView
+                                // internally; the editor WebView cannot be reparented
+                                // (§14.3 of the parity audit).
+                                pw.load_preview_content();
                             }
                         } else {
                             // No inline webview available; let the preview window load persisted HTML

@@ -271,6 +271,27 @@ pub fn perform_search(search_entry: &Entry, match_count_label: &Label, options: 
             match_count_label.set_text("No buffer");
         }
     });
+
+    // Windows: also highlight all matches in the WebView preview using the JS
+    // find engine (CSS Custom Highlight API with window.find() fallback).
+    #[cfg(target_os = "windows")]
+    {
+        use super::state::CURRENT_PLATFORM_WEBVIEW;
+        use crate::components::viewer::wry_find::{self, FindOptions};
+        CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
+            if let Some(wv) = wv_ref.borrow().as_ref() {
+                wry_find::install(wv);
+                wry_find::search(
+                    wv,
+                    &query,
+                    FindOptions {
+                        case_sensitive: options.match_case_cb.is_active(),
+                        whole_word: options.match_whole_word_cb.is_active(),
+                    },
+                );
+            }
+        });
+    }
 }
 
 /// Perform search operation asynchronously with debounce timer

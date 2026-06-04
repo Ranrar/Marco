@@ -63,7 +63,6 @@ pub struct PoloToolbarState {
 /// The returned `PoloToolbarState.open_editor_btn` should be passed to
 /// `create_custom_titlebar` so that the File → Open action can enable it
 /// when a file is successfully opened.
-#[cfg(target_os = "linux")]
 #[allow(clippy::type_complexity)]
 pub fn create_polo_toolbar(
     window: &gtk4::ApplicationWindow,

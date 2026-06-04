@@ -1,6 +1,6 @@
 [package]
 name = "polo"
-version = "0.23.2"
+version = "0.24.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
@@ -32,6 +32,11 @@ tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
 rfd = "0.17.2"
+# Native WebView2 system print dialog (ICoreWebView2_16::ShowPrintUI).
+# Same versions as marco; transitively pulled in by wry already.
+webview2-com = "0.38.2"
+windows = { version = "0.61", features = ["Win32_Foundation"] }
+windows-core = "0.61"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"

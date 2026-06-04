@@ -19,103 +19,44 @@
 use gtk4::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::time::Duration;
 use webkit6::prelude::*;
 use webkit6::WebView;
+
+use crate::components::viewer::allocation_wait;
 
 type WebViewOnceFn = Box<dyn FnOnce(WebView)>;
 
 /// Run a closure once the widget is mapped (visible in the widget tree).
 ///
-/// **Why this is needed**: GTK requires widgets to be mapped (visible) before certain
-/// operations can be performed safely. Updating unmapped widgets causes GTK warnings
-/// like "Trying to snapshot ... without a current allocation".
-///
-/// **Use cases**:
-/// - Loading HTML into a WebView that's hidden in a Stack
-/// - Updating content in tabs that aren't currently visible
-///
-/// **Implementation**: If the widget is already mapped, the closure runs immediately.
-/// Otherwise, we connect to the "map" signal and run it once mapped, then disconnect.
+/// Thin `WebView`-typed adapter around
+/// [`allocation_wait::run_once_when_mapped`] so existing call sites in this
+/// module that pass the `WebView` into the closure can stay unchanged.
 fn run_once_when_mapped(webview: &WebView, f: impl FnOnce(WebView) + 'static) {
-    if webview.is_mapped() {
-        f(webview.clone());
-        return;
-    }
-
-    let webview_clone = webview.clone();
-    let handler_id: Rc<RefCell<Option<glib::SignalHandlerId>>> = Rc::new(RefCell::new(None));
+    let webview_for_cb = webview.clone();
     let f_cell: Rc<RefCell<Option<WebViewOnceFn>>> = Rc::new(RefCell::new(Some(Box::new(f))));
-
-    let handler_id_clone = handler_id.clone();
-    let f_cell_clone = f_cell.clone();
-
-    let id = webview.connect_map(move |_| {
-        if let Some(id) = handler_id_clone.borrow_mut().take() {
-            webview_clone.disconnect(id);
-        }
-        if let Some(f) = f_cell_clone.borrow_mut().take() {
-            f(webview_clone.clone());
+    allocation_wait::run_once_when_mapped(webview, move || {
+        if let Some(callback) = f_cell.borrow_mut().take() {
+            callback(webview_for_cb.clone());
         }
     });
-
-    *handler_id.borrow_mut() = Some(id);
 }
 
 /// Load HTML into a WebView with deferred execution to avoid GTK allocation warnings.
 ///
-/// **Problem this solves**: GTK throws warnings if you try to load HTML into a WebView
-/// that doesn't have a valid allocation (width/height). This happens during initialization
-/// or when widgets are being rearranged.
+/// Delegates the map+allocation polling to
+/// [`allocation_wait::run_when_allocated`] so the retry behaviour is shared
+/// with the Windows (wry) backend.
 ///
-/// **Solution**: Poll with a timer (every 16ms ≈ 60fps) until the WebView is both:
-/// 1. Realized (has a backing surface)
-/// 2. Has a non-trivial allocation (width > 1, height > 1)
-///
-/// **Retry limit**: 300 attempts × 16ms = ~4.8 seconds maximum wait
-///
-/// **Special case**: If the WebView is unmapped (hidden), we defer until it's mapped
-/// to avoid timing out while the widget is legitimately not visible.
+/// **Retry budget**: [`allocation_wait::DEFAULT_MAX_RETRIES`] × 16 ms ≈ 4.8 s.
 pub fn load_html_when_ready(webview: &WebView, html: String, base_uri: Option<String>) {
-    use std::cell::Cell;
-
-    // If the WebView is not mapped, it is effectively "not on screen" (e.g. hidden
-    // in a Stack when the user is in code view). Defer until mapped to avoid
-    // snapshot/allocation warnings and avoid timing out while hidden.
-    if !webview.is_mapped() {
-        let webview = webview.clone();
-        run_once_when_mapped(&webview, move |wv| {
-            load_html_when_ready(&wv, html, base_uri)
-        });
-        return;
-    }
-
-    let webview = webview.clone();
-    let tries = Cell::new(0u32);
-
-    // Poll on a timer rather than an idle loop: idle sources can run extremely
-    // fast (hundreds/thousands of iterations per second), which makes the retry
-    // counter effectively meaningless and can lead to "giving up" too early.
-    glib::timeout_add_local(Duration::from_millis(16), move || {
-        let t = tries.get();
-        if t >= 300 {
-            log::debug!("[webkit6] Giving up delayed load_html after {} retries", t);
-            return glib::ControlFlow::Break;
-        }
-        tries.set(t + 1);
-
-        // Realized implies a backing surface exists, but allocation can still be
-        // pending during the first frame(s).
-        if !webview.is_realized() {
-            return glib::ControlFlow::Continue;
-        }
-        if webview.allocated_width() <= 1 || webview.allocated_height() <= 1 {
-            return glib::ControlFlow::Continue;
-        }
-
-        webview.load_html(&html, base_uri.as_deref());
-        glib::ControlFlow::Break
-    });
+    let webview_for_load = webview.clone();
+    allocation_wait::run_when_allocated(
+        webview,
+        allocation_wait::DEFAULT_MAX_RETRIES,
+        move || {
+            webview_for_load.load_html(&html, base_uri.as_deref());
+        },
+    );
 }
 
 /// Parse a hex color string (e.g., "#2b303b") into a gtk4::gdk::RGBA struct.
@@ -443,140 +384,29 @@ pub fn create_html_source_viewer_webview(
     scrollbar_thumb: Option<&str>,
     scrollbar_track: Option<&str>,
 ) -> Result<WebView, String> {
-    use crate::logic::syntax_highlighter::{generate_css_with_global, global_syntax_highlighter};
-
-    // Normalize theme mode to "light" or "dark"
-    let normalized_theme = if theme_mode.contains("dark") {
-        "dark"
-    } else {
-        "light"
-    };
-
     log::debug!(
-        "[webkit6] Creating WebView-based code viewer with theme: {} (normalized: {})",
+        "[webkit6] Creating WebView-based code viewer with theme: {} (source: {} bytes)",
         theme_mode,
-        normalized_theme
+        html_source.len()
     );
-    log::debug!("[webkit6] HTML source length: {} bytes", html_source.len());
 
-    // If HTML source is empty, use a placeholder
-    let display_html = if html_source.is_empty() {
-        log::debug!("[webkit6] HTML source is empty, using placeholder");
-        "<!-- No content yet -->"
-    } else {
-        html_source
-    };
-
-    // Initialize global syntax highlighter
-    global_syntax_highlighter()
-        .map_err(|e| format!("Failed to initialize syntax highlighter: {}", e))?;
-
-    // Get syntect CSS for current theme
-    let syntect_css = generate_css_with_global(normalized_theme)
-        .map_err(|e| format!("Failed to generate CSS: {}", e))?;
-
-    // Highlight HTML source using syntect
-    let highlighted_html = SYNTAX_HIGHLIGHTER.with(|highlighter| {
-        let h = highlighter.borrow();
-        let syntax_highlighter = h
-            .as_ref()
-            .ok_or_else(|| "Syntax highlighter not initialized".to_string())?;
-
-        syntax_highlighter
-            .highlight_to_html(display_html, "html", normalized_theme)
-            .map_err(|e| format!("Highlighting failed: {}", e))
-    })?;
-
-    // Determine theme colors - use editor colors if provided, otherwise use defaults
-    let (bg_color, fg_color) = if let (Some(bg), Some(fg)) = (editor_bg, editor_fg) {
-        (bg, fg)
-    } else if normalized_theme == "dark" {
-        ("#2b303b", "#c0c5ce")
-    } else {
-        ("#fdf6e3", "#657b83") // Solarized Light colors
-    };
-
-    // Generate webkit scrollbar CSS to match editor
-    let scrollbar_css = if let (Some(thumb), Some(track)) = (scrollbar_thumb, scrollbar_track) {
-        crate::components::viewer::css_utils::webkit_scrollbar_css(thumb, track)
-    } else {
-        String::new()
-    };
-
-    // Build complete HTML page with syntect CSS and scrollbar styling
-    let complete_page = format!(
-        r#"<!DOCTYPE html>
-<html style="height: 100%; margin: 0; padding: 0; overflow: hidden;">
-  <head>
-    <meta charset="UTF-8">
-    <style>
-      html, body {{
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        overflow: hidden;
-      }}
-      body {{
-        background: {};
-        color: {};
-        font-family: 'Fira Code', 'Monaco', 'Courier New', monospace;
-        font-size: 12px;
-        line-height: 1.5;
-        display: flex;
-        flex-direction: column;
-      }}
-      #code-container {{
-        flex: 1;
-        overflow: auto;
-        padding: 16px;
-        box-sizing: border-box;
-      }}
-      pre {{
-        margin: 0;
-        white-space: pre;
-        word-wrap: normal;
-      }}
-      code {{
-        font-family: inherit;
-        white-space: pre;
-      }}
-      /* Syntect CSS */
-      {}
-      /* Scrollbar styling */
-      {}
-    </style>
-  </head>
-  <body>
-    <div id="code-container">
-      <pre><code>{}</code></pre>
-    </div>
-  </body>
-</html>"#,
-        bg_color, fg_color, syntect_css, scrollbar_css, highlighted_html
-    );
+    // Delegate HTML page assembly (syntect highlighting + theme/scrollbar CSS
+    // + body shell) to the cross-platform `code_view_html` builder so the
+    // wry-based Windows code view (§14.5 of the parity audit) produces
+    // bit-identical output.
+    let complete_page = crate::components::viewer::code_view_html::build_full_page(
+        html_source,
+        theme_mode,
+        editor_bg,
+        editor_fg,
+        scrollbar_thumb,
+        scrollbar_track,
+    )?;
 
     log::debug!(
-        "[webkit6] Generated HTML page: {} bytes, bg={}, fg={}",
-        complete_page.len(),
-        bg_color,
-        fg_color
+        "[webkit6] Generated code-view HTML page: {} bytes",
+        complete_page.len()
     );
-    log::debug!(
-        "[webkit6] Highlighted HTML length: {} bytes",
-        highlighted_html.len()
-    );
-    log::debug!(
-        "[webkit6] Highlighted HTML preview: {}",
-        &highlighted_html.chars().take(200).collect::<String>()
-    );
-    log::debug!("[webkit6] Syntect CSS length: {} bytes", syntect_css.len());
-
-    // Debug: Write HTML to temporary file for inspection
-    if let Err(e) = std::fs::write("/tmp/marco_code_view_debug.html", &complete_page) {
-        log::warn!("[webkit6] Failed to write debug HTML: {}", e);
-    } else {
-        log::debug!("[webkit6] Debug HTML written to /tmp/marco_code_view_debug.html");
-    }
 
     // Create WebView
     let webview = WebView::new();
@@ -612,7 +442,7 @@ pub fn create_html_source_viewer_webview(
     );
     load_html_when_ready(
         &webview,
-        complete_page.clone(),
+        complete_page,
         base_uri.map(|s| s.to_string()),
     );
 
@@ -639,8 +469,6 @@ pub fn update_code_view_smooth(
     scrollbar_thumb: Option<&str>,
     scrollbar_track: Option<&str>,
 ) -> Result<(), String> {
-    use crate::logic::syntax_highlighter::{generate_css_with_global, global_syntax_highlighter};
-
     // If the WebView isn't currently mapped (visible), don't try to update it yet.
     // We'll apply the update once it becomes mapped.
     if !webview.is_mapped() {
@@ -714,123 +542,21 @@ pub fn update_code_view_smooth(
         return Ok(());
     }
 
-    // Normalize theme mode
-    let normalized_theme = if theme_mode.contains("dark") {
-        "dark"
-    } else {
-        "light"
-    };
-
     log::debug!(
-        "[webkit6] Smooth updating code view with theme: {} (normalized: {})",
+        "[webkit6] Smooth updating code view with theme: {}",
+        theme_mode
+    );
+
+    // Build the JS payload via the shared cross-platform builder so wry
+    // (Windows) and webkit6 (Linux) issue identical updates.
+    let js_code = crate::components::viewer::code_view_html::build_smooth_update_js(
+        html_source,
         theme_mode,
-        normalized_theme
-    );
-
-    // Handle empty HTML
-    let display_html = if html_source.is_empty() {
-        "<!-- No content yet -->"
-    } else {
-        html_source
-    };
-
-    // Initialize and get CSS
-    global_syntax_highlighter()
-        .map_err(|e| format!("Failed to initialize syntax highlighter: {}", e))?;
-
-    let syntect_css = generate_css_with_global(normalized_theme)
-        .map_err(|e| format!("Failed to generate CSS: {}", e))?;
-
-    // Highlight HTML
-    let highlighted_html = SYNTAX_HIGHLIGHTER.with(|highlighter| {
-        let h = highlighter.borrow();
-        let syntax_highlighter = h
-            .as_ref()
-            .ok_or_else(|| "Syntax highlighter not initialized".to_string())?;
-
-        syntax_highlighter
-            .highlight_to_html(display_html, "html", normalized_theme)
-            .map_err(|e| format!("Highlighting failed: {}", e))
-    })?;
-
-    // Escape for JavaScript
-    let escaped_html = highlighted_html
-        .replace('\\', "\\\\")
-        .replace('\'', "\\'")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r");
-
-    let escaped_css = syntect_css
-        .replace('\\', "\\\\")
-        .replace('\'', "\\'")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r");
-
-    // Determine colors for theme - use editor colors if provided, otherwise use defaults
-    let (bg_color, fg_color) = if let (Some(bg), Some(fg)) = (editor_bg, editor_fg) {
-        (bg, fg)
-    } else if normalized_theme == "dark" {
-        ("#2b303b", "#c0c5ce")
-    } else {
-        ("#fdf6e3", "#657b83")
-    };
-
-    // Generate webkit scrollbar CSS
-    let scrollbar_css = if let (Some(thumb), Some(track)) = (scrollbar_thumb, scrollbar_track) {
-        crate::components::viewer::css_utils::webkit_scrollbar_css(thumb, track)
-    } else {
-        String::new()
-    };
-
-    let escaped_scrollbar_css = scrollbar_css
-        .replace('\\', "\\\\")
-        .replace('\'', "\\'")
-        .replace('\n', "\\n")
-        .replace('\r', "\\r");
-
-    // JavaScript to update content and theme
-    let js_code = format!(
-        r#"
-        (function() {{
-            try {{
-                // Update body colors
-                document.body.style.background = '{}';
-                document.body.style.color = '{}';
-                
-                // Update syntect CSS
-                var styleEl = document.getElementById('marco-syntect-style');
-                if (!styleEl) {{
-                    styleEl = document.createElement('style');
-                    styleEl.id = 'marco-syntect-style';
-                    document.head.appendChild(styleEl);
-                }}
-                styleEl.textContent = '{}';
-                
-                // Update scrollbar CSS
-                var scrollbarStyleEl = document.getElementById('marco-scrollbar-style');
-                if (!scrollbarStyleEl) {{
-                    scrollbarStyleEl = document.createElement('style');
-                    scrollbarStyleEl.id = 'marco-scrollbar-style';
-                    document.head.appendChild(scrollbarStyleEl);
-                }}
-                scrollbarStyleEl.textContent = '{}';
-                
-                // Update code content
-                var codeEl = document.querySelector('pre code');
-                if (codeEl) {{
-                    var scrollTop = window.scrollY;
-                    codeEl.innerHTML = '{}';
-                    window.scrollTo(0, scrollTop);
-                }} else {{
-                    console.error('Code element not found');
-                }}
-            }} catch(e) {{
-                console.error('Update failed:', e);
-            }}
-        }})();
-        "#,
-        bg_color, fg_color, escaped_css, escaped_scrollbar_css, escaped_html
-    );
+        editor_bg,
+        editor_fg,
+        scrollbar_thumb,
+        scrollbar_track,
+    )?;
 
     let webview_clone = webview.clone();
     glib::idle_add_local(move || {
@@ -849,9 +575,6 @@ pub fn update_code_view_smooth(
 
     Ok(())
 }
-
-// Import SYNTAX_HIGHLIGHTER for use in create_html_source_viewer_webview
-use crate::logic::syntax_highlighter::SYNTAX_HIGHLIGHTER;
 
 /// Helper function to determine if a URI is external (should open in system browser)
 /// or internal (should be handled by WebView).
