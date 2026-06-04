@@ -50,13 +50,9 @@ fn run_once_when_mapped(webview: &WebView, f: impl FnOnce(WebView) + 'static) {
 /// **Retry budget**: [`allocation_wait::DEFAULT_MAX_RETRIES`] × 16 ms ≈ 4.8 s.
 pub fn load_html_when_ready(webview: &WebView, html: String, base_uri: Option<String>) {
     let webview_for_load = webview.clone();
-    allocation_wait::run_when_allocated(
-        webview,
-        allocation_wait::DEFAULT_MAX_RETRIES,
-        move || {
-            webview_for_load.load_html(&html, base_uri.as_deref());
-        },
-    );
+    allocation_wait::run_when_allocated(webview, allocation_wait::DEFAULT_MAX_RETRIES, move || {
+        webview_for_load.load_html(&html, base_uri.as_deref());
+    });
 }
 
 /// Parse a hex color string (e.g., "#2b303b") into a gtk4::gdk::RGBA struct.
@@ -440,11 +436,7 @@ pub fn create_html_source_viewer_webview(
         "[webkit6] Scheduling code view WebView initial load: {} bytes",
         complete_page.len()
     );
-    load_html_when_ready(
-        &webview,
-        complete_page,
-        base_uri.map(|s| s.to_string()),
-    );
+    load_html_when_ready(&webview, complete_page, base_uri.map(|s| s.to_string()));
 
     // Setup link handling for external/internal links
     setup_link_handling(&webview);

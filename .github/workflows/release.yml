@@ -276,6 +276,28 @@ jobs:
 
             > Marco and Polo are built on top of the [`marco-core`](https://crates.io/crates/marco-core) crate, which is developed and released independently in its [own repository](https://github.com/Ranrar/marco-core).
 
+            ### Highlights
+
+            **`marco-core` is now a standalone crate**
+            The parser, AST, HTML renderer, and editor-intelligence features have been extracted into the [`marco-core`](https://crates.io/crates/marco-core) crate, published independently on crates.io and maintained in its [own repository](https://github.com/Ranrar/marco-core). Both Marco and Polo now consume it as a pinned dependency. No user-visible behavior change — this lays the groundwork for other tools to build on the same engine.
+
+            **Polo redesign**
+            Polo received a significant visual and feature overhaul. A new icon toolbar (Open, Open in Marco, Toggle TOC, Print, Light/Dark toggle) sits below the titlebar. A Table of Contents side panel auto-populates from document headings and lets you jump to any section with a single click. File → Open Recent lets you reopen documents without navigating the file chooser. File → Print (Ctrl+P) opens the native print dialog on both Linux and Windows.
+
+            **Rendering progress overlay for large files**
+            Both Marco and Polo now show a "Rendering…" overlay with an indeterminate progress bar while large documents are loading. The indicator stays visible until the preview has fully painted, so long opens no longer look like a frozen window. It adapts to the active light/dark theme.
+
+            ### What's new in Marco
+
+            - Multi-layer parse and render cache (HTML, AST, section, TOC, diagnostics) backed by Moka TinyLFU — frequently edited sections are served from cache without re-parsing.
+            - Section-based incremental preview rendering: only changed sections are patched into the DOM; full-page rebuilds happen only on the first render of a document.
+            - Localization expanded: Lists and Mention insert dialogs are now fully translatable; German (`de`) locale updated. Language changes now apply at runtime to menus, toolbar, footer, dialogs, and titlebar tooltips without a restart.
+
+            ### What's new in Polo
+
+            - File-based logging, matching Marco's logger — daily log files under `log/YYYYMM/YYMMDD.log`.
+            - CSS theming rewritten as a programmatic Rust generator aligned with Marco's palette, keeping light and dark mode colors consistent across both apps.
+
             ### Changelogs
             - [Marco ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco.md)
             - [Polo ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/polo.md)

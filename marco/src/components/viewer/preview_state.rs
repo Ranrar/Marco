@@ -270,10 +270,8 @@ mod tests {
     #[test]
     fn smoke_test_parse_snapshot_payload_accepts_partial() {
         // Forward-compatible: unknown fields ignored, missing fields default.
-        let p = parse_snapshot_payload(
-            r#"{"scroll_y": 200, "unknown_future_field": true}"#,
-        )
-        .expect("parse");
+        let p = parse_snapshot_payload(r#"{"scroll_y": 200, "unknown_future_field": true}"#)
+            .expect("parse");
         assert_eq!(p.scroll_y, 200.0);
         assert_eq!(p.scroll_x, 0.0);
         assert!(p.open_details.is_empty());

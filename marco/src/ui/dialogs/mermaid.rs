@@ -415,8 +415,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
         // dialog no longer needs to downcast or fall back to a `Label` when
         // the parent is a plain `gtk4::Window`. The `Option` wrapper is kept
         // so downstream `if let Some(surface) = ...` patterns still compile.
-        let wv =
-            crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
+        let wv = crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
         let (_, rgba) = preview_bg_for_theme(&theme_state.borrow());
         wv.set_background_color_rgba(&rgba);
         let widget = wv.widget();

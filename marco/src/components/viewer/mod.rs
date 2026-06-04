@@ -32,10 +32,10 @@ pub mod allocation_wait; // Cross-platform widget allocation/map polling helper
 pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
 pub mod code_view_html; // Cross-platform HTML / JS builders for the code-view preview
 pub mod export_pipeline; // Unified Export & Print Pipeline (skeleton — Phase 1, no callers)
-pub mod preview_state; // Cross-platform preview state snapshot/restore primitive (§14.3)
 pub mod layout_controller; // Split controller + webview location tracking
 pub mod loading_overlay; // Centered indeterminate loading bar overlayed on the preview
 pub mod pagedjs; // Embedded paged.js polyfill for page view simulation
+pub mod preview_state; // Cross-platform preview state snapshot/restore primitive (§14.3)
 #[cfg(target_os = "linux")]
 pub mod print_driver; // Print dialog and PDF export driver (Linux: WebKit6)
 pub mod renderer; // Markdown rendering coordinator (cross-platform via `backend`)

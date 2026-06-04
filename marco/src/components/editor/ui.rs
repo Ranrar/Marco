@@ -34,15 +34,15 @@ use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS, SCROLL_RESTORE_JS};
 #[cfg(target_os = "windows")]
 use crate::components::viewer::javascript::{HOVER_REPORT_JS, WIN_ZOOM_BAR_HTML};
-#[cfg(target_os = "windows")]
-use gio;
-#[cfg(target_os = "windows")]
-use glib;
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
 #[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
+#[cfg(target_os = "windows")]
+use gio;
+#[cfg(target_os = "windows")]
+use glib;
 use gtk4::prelude::*;
 use gtk4::Paned;
 use marco_core::RenderOptions; // New parser API
@@ -1657,8 +1657,11 @@ paned > separator {{
             let page_view_active = current_page_view_enabled;
 
             let first_load = *is_initial_load.borrow();
-            let force_full_reload =
-                first_load || css_changed || doc_path_changed || page_view_changed || page_view_active;
+            let force_full_reload = first_load
+                || css_changed
+                || doc_path_changed
+                || page_view_changed
+                || page_view_active;
 
             // Content-hash dedup: if no reload trigger and the buffer text hasn't
             // changed since the last render, skip the work entirely (cursor

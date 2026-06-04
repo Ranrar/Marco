@@ -363,7 +363,11 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // Set background color to prevent flash during loading: match the HTML theme
     // background so no dark/light mismatch is visible if the HWND appears before
     // the page finishes painting.
-    let bg_hex = if current_theme_mode == "dark" { "#1e1e1e" } else { "#ffffff" };
+    let bg_hex = if current_theme_mode == "dark" {
+        "#1e1e1e"
+    } else {
+        "#ffffff"
+    };
     if let Some(rgba) = parse_hex_to_rgba(bg_hex) {
         webview.set_background_color_rgba(&rgba);
     }

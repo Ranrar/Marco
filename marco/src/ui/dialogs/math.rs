@@ -545,8 +545,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         // need to fall back to a `Label`. We keep the `Option` wrapper here so
         // downstream code that already uses `if let Some(surface) = ...` keeps
         // compiling untouched.
-        let webview =
-            crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
+        let webview = crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
         let (_, rgba) = preview_background_for_theme(&theme_class_state.borrow());
         webview.set_background_color_rgba(&rgba);
         let widget = webview.widget();

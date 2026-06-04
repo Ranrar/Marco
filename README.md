@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/RTL_%2B_Unicode-Ready-blue?style=for-the-badge&logo=translate&logoColor=white" alt="RTL and Unicode Ready" />
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Version-0.23.2-blue?style=for-the-badge" alt="Version 0.23.2" />
+  <img src="https://img.shields.io/badge/Version-0.24.0-blue?style=for-the-badge" alt="Version 0.24.0" />
   <a href="https://crates.io/crates/marco-core"><img src="https://img.shields.io/crates/v/marco-core?style=for-the-badge&label=marco-core&logo=rust" alt="marco-core on crates.io" /></a>
 </p>
 

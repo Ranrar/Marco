@@ -201,8 +201,7 @@ impl PlatformWebView {
         // loading — preventing the white-GTK-widget-behind-invisible-HWND flash.
         container.add_css_class("marco-preview-bg");
         let bg_css_provider = Rc::new(gtk4::CssProvider::new());
-        bg_css_provider
-            .load_from_data(".marco-preview-bg { background-color: #1e1e1e; }");
+        bg_css_provider.load_from_data(".marco-preview-bg { background-color: #1e1e1e; }");
         if let Some(display) = gtk4::gdk::Display::default() {
             gtk4::style_context_add_provider_for_display(
                 &display,
@@ -432,8 +431,7 @@ impl PlatformWebView {
                 let alloc = self.container.allocation();
                 let _ = view.set_bounds(wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        -32000.0,
-                        -32000.0,
+                        -32000.0, -32000.0,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
                         alloc.width().max(100) as f64,
@@ -516,10 +514,7 @@ impl PlatformWebView {
                 if let Some(view) = me.inner.borrow().as_ref() {
                     let url = format!("{}?v={}", CONTENT_URL_RELOAD_BASE, me.load_version.get());
                     if let Err(e) = view.load_url(&url) {
-                        log::error!(
-                            "Failed to reload wry WebView via custom protocol: {}",
-                            e
-                        );
+                        log::error!("Failed to reload wry WebView via custom protocol: {}", e);
                     }
                     return;
                 }
@@ -563,8 +558,7 @@ impl PlatformWebView {
         let rect = if self.is_offscreen_for_loading.get() {
             wry::Rect {
                 position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    -32000.0,
-                    -32000.0,
+                    -32000.0, -32000.0,
                 )),
                 size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
                     alloc.width().max(100) as f64,
@@ -933,7 +927,9 @@ impl PlatformWebView {
         }
 
         // Fallback when the WebView is not initialized yet — nothing to do.
-        log::warn!("[wry] trigger_print_dialog: print dialog requested before WebView is ready; ignoring");
+        log::warn!(
+            "[wry] trigger_print_dialog: print dialog requested before WebView is ready; ignoring"
+        );
     }
 
     /// Export the current page contents to a PDF using WebView2's native

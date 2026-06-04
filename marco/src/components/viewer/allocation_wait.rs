@@ -117,10 +117,7 @@ where
 
     // Fast path: already allocated. Run synchronously to avoid a 16 ms delay
     // on every refresh in the common case.
-    if widget.is_realized()
-        && widget.allocated_width() > 1
-        && widget.allocated_height() > 1
-    {
+    if widget.is_realized() && widget.allocated_width() > 1 && widget.allocated_height() > 1 {
         f();
         return;
     }

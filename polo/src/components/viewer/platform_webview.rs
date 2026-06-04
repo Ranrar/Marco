@@ -34,7 +34,8 @@ pub struct PlatformWebView {
     #[cfg(target_os = "windows")]
     gtk_window: gtk4::ApplicationWindow,
     #[cfg(target_os = "windows")]
-    navigation_handler: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>,
+    navigation_handler:
+        std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>,
     #[cfg(target_os = "windows")]
     load_finished_handler: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn()>>>>,
     /// When `true` the tick callback keeps the wry HWND at −32000,−32000 so
@@ -246,8 +247,7 @@ const POLO_CONTENT_URL_RELOAD: &str = "http://polo-preview.localhost/";
 /// Updated before every `load_url` call so the protocol handler always
 /// returns the latest rendered HTML.
 #[cfg(target_os = "windows")]
-static POLO_HTML: std::sync::OnceLock<std::sync::Mutex<Vec<u8>>> =
-    std::sync::OnceLock::new();
+static POLO_HTML: std::sync::OnceLock<std::sync::Mutex<Vec<u8>>> = std::sync::OnceLock::new();
 
 #[cfg(target_os = "windows")]
 fn polo_html() -> &'static std::sync::Mutex<Vec<u8>> {
@@ -315,8 +315,7 @@ impl PlatformWebView {
         // loading — preventing the white-GTK-widget-behind-invisible-HWND flash.
         container.add_css_class("polo-preview-bg");
         let bg_css_provider = std::rc::Rc::new(gtk4::CssProvider::new());
-        bg_css_provider
-            .load_from_data(".polo-preview-bg { background-color: #1e1e1e; }");
+        bg_css_provider.load_from_data(".polo-preview-bg { background-color: #1e1e1e; }");
         if let Some(display) = gtk4::gdk::Display::default() {
             gtk4::style_context_add_provider_for_display(
                 &display,
@@ -347,15 +346,17 @@ impl PlatformWebView {
                     // and no reflow/white-flash occurs when the HWND is restored.
                     let (w, h) = if is_offscreen_tick.get() {
                         let alloc = container.allocation();
-                        (alloc.width().max(100) as f64, alloc.height().max(100) as f64)
+                        (
+                            alloc.width().max(100) as f64,
+                            alloc.height().max(100) as f64,
+                        )
                     } else {
                         // Container not mapped (e.g. tab hidden): use minimal size.
                         (1.0, 1.0)
                     };
                     let _ = view.set_bounds(wry::Rect {
                         position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                            -32000.0,
-                            -32000.0,
+                            -32000.0, -32000.0,
                         )),
                         size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
                     });
@@ -482,8 +483,7 @@ impl PlatformWebView {
             let alloc = self.container.allocation();
             wry::Rect {
                 position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    -32000.0,
-                    -32000.0,
+                    -32000.0, -32000.0,
                 )),
                 size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
                     alloc.width().max(100) as f64,
@@ -497,10 +497,14 @@ impl PlatformWebView {
             } else {
                 (14.0, 12.0)
             };
-            let origin_in_window = match self.container.translate_coordinates(&self.gtk_window, 0.0, 0.0) {
-                Some((x, y)) => (x, y),
-                None => (alloc.x() as f64, alloc.y() as f64),
-            };
+            let origin_in_window =
+                match self
+                    .container
+                    .translate_coordinates(&self.gtk_window, 0.0, 0.0)
+                {
+                    Some((x, y)) => (x, y),
+                    None => (alloc.x() as f64, alloc.y() as f64),
+                };
             wry::Rect {
                 position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                     origin_in_window.0 + offset_x - 1.0,
@@ -595,8 +599,7 @@ impl PlatformWebView {
                 let alloc = self.container.allocation();
                 let _ = view.set_bounds(wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        -32000.0,
-                        -32000.0,
+                        -32000.0, -32000.0,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
                         alloc.width().max(100) as f64,
@@ -683,9 +686,7 @@ fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
 #[cfg(target_os = "windows")]
 fn wry_navigation_handler(
     uri: &str,
-    on_local_md: &std::rc::Rc<
-        std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>,
-    >,
+    on_local_md: &std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>,
 ) -> bool {
     let uri_lower = uri.to_lowercase();
 

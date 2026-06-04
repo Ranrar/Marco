@@ -39,7 +39,6 @@
 // module scope rather than peppering every item with attributes.
 #![allow(dead_code)]
 
-
 /// User-facing search options shared between backends.
 ///
 /// Mirrors the fields the marco search UI actually exposes today. Regex /
