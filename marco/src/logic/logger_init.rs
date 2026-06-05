@@ -77,8 +77,9 @@ pub fn init_logging(settings_manager: &Arc<SettingsManager>) {
         } else {
             // Disable file logger: drop max level to Off; the registered logger
             // remains installed (the `log` crate only allows one set_logger call).
-            log::set_max_level(log::LevelFilter::Off);
+            // Log the message *before* setting Off so it actually reaches the file.
             log::info!("File logger disabled via settings listener");
+            log::set_max_level(log::LevelFilter::Off);
         }
     });
 }

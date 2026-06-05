@@ -746,10 +746,13 @@ fn wry_navigation_handler(
 /// Open a URL in the default system browser on Windows.
 #[cfg(target_os = "windows")]
 fn wry_open_external_url(url: &str) {
-    // `cmd /c start "" <url>` is the idiomatic Windows way to open a URL.
-    // The empty-string first argument is the window title required by `start`.
-    if let Err(e) = std::process::Command::new("cmd")
-        .args(["/c", "start", "", url])
+    // Use `rundll32 url.dll,FileProtocolHandler <url>` instead of
+    // `cmd /c start` to avoid shell-metacharacter injection.  rundll32
+    // passes the URL as a discrete argument without involving cmd.exe,
+    // so characters like `&`, `|`, or `>` in a crafted URL cannot be
+    // interpreted as shell commands.
+    if let Err(e) = std::process::Command::new("rundll32")
+        .args(["url.dll,FileProtocolHandler", url])
         .spawn()
     {
         log::warn!("[polo] Failed to open external link '{}': {}", url, e);

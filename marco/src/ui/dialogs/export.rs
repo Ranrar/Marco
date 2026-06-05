@@ -643,7 +643,7 @@ async fn show_save_dialog_for_format(
             Some(title),
             Some(_parent),
             FileChooserAction::Save,
-            Some("Save"),
+            Some(translations.dialog.save_button.as_str()),
             Some(t.cancel_button.as_str()),
         );
         native.set_current_name(suggested);

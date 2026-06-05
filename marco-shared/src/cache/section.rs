@@ -254,6 +254,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "wall-clock timing; run explicitly with --ignored on capable hardware"]
     fn smoke_stresstest_scale() {
         // Simulate a 1250-heading document and verify splitting is fast
         let doc = make_doc(1250);

@@ -41,8 +41,12 @@ fn hash_options(opts: &RenderOptions) -> u64 {
 pub struct ParserCache {
     ast_cache: moka::sync::Cache<u64, Arc<marco_core::Document>>,
     html_cache: moka::sync::Cache<(u64, u64), Arc<String>>,
-    /// Key: (section_content_hash, section_index, options_hash)
-    section_html_cache: moka::sync::Cache<(u64, usize, u64), Arc<String>>,
+    /// Key: (section_content_hash, options_hash)
+    ///
+    /// Note: `section.index` is intentionally excluded so that inserting or
+    /// removing a section near the top of a document does not invalidate
+    /// cache entries for later sections whose content is unchanged.
+    section_html_cache: moka::sync::Cache<(u64, u64), Arc<String>>,
     /// Key: content_hash → extracted TOC entries.
     toc_cache: moka::sync::Cache<u64, Arc<Vec<marco_core::intelligence::toc::TocEntry>>>,
     /// Key: content_hash → all diagnostics (unfiltered; callers apply their own severity filter).
@@ -127,7 +131,7 @@ impl ParserCache {
         let mut batch_misses: u64 = 0;
 
         for section in sections {
-            let key = (section.content_hash, section.index, options_hash);
+            let key = (section.content_hash, options_hash);
 
             let html_arc = if let Some(cached) = self.section_html_cache.get(&key) {
                 batch_hits += 1;

@@ -40,13 +40,15 @@ mod components;
 
 use components::css::load_css_from_path;
 use components::menu::create_custom_titlebar;
-use components::toc_panel::create_toc_panel;
+use components::toc_panel::{create_toc_panel, TocPanelHandle};
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::platform_webview::PlatformWebView;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
 use marco_shared::paths::PoloPaths;
+use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 const APP_ID: &str = "io.github.ranrar.Polo";
@@ -373,6 +375,8 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     }
 
     // Wire link policy: external links open in browser, local .md links prompt to reload.
+    // Use a shared slot so the callback can update the TOC once it is created below.
+    let toc_for_links: Rc<RefCell<Option<TocPanelHandle>>> = Rc::new(RefCell::new(None));
     {
         let webview_for_links = webview.clone();
         let window_for_links = window.clone();
@@ -380,6 +384,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         let settings_for_links = settings_manager.clone();
         let asset_root_for_links = polo_paths.asset_root().to_path_buf();
         let current_file_path_for_links = current_file_path.clone();
+        let toc_for_links = toc_for_links.clone();
 
         webview.setup_link_policy(move |path, _fragment| {
             let filename = std::path::Path::new(&path)
@@ -395,6 +400,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
             let current_file_path = current_file_path_for_links.clone();
             let path_for_open = path.clone();
             let fname_for_open = filename.clone();
+            let toc_for_open = toc_for_links.clone();
 
             components::dialog::show_open_local_file_dialog(
                 &window_for_links,
@@ -411,6 +417,14 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
                         &settings,
                         &asset_root,
                     );
+                    // Update the TOC for the newly-loaded file.
+                    if let Ok(text) = marco_shared::cache::cached::read_to_string(
+                        std::path::Path::new(&path_for_open),
+                    ) {
+                        if let Some(h) = toc_for_open.borrow().as_ref() {
+                            h.update_from_text_async(text);
+                        }
+                    }
                 },
             );
         });
@@ -418,6 +432,8 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
 
     // Create TOC panel (wraps webview in a Paned)
     let (toc_paned, toc_handle) = create_toc_panel(&webview);
+    // Fill the shared slot so the link-policy callback can update the TOC.
+    *toc_for_links.borrow_mut() = Some(toc_handle.clone());
     // Wrap the WebView in a loading-overlay so we can show an indeterminate
     // progress bar (centered, GTK-themed) while files are being parsed and
     // rendered.  The overlay itself becomes the Paned's end child; the

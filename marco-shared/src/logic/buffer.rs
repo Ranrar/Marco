@@ -611,7 +611,7 @@ impl RecentFiles {
         if let Err(e) = self.settings_manager.update_settings(|settings| {
             settings.add_recent_file(path);
         }) {
-            eprintln!("[RecentFile] Failed to save recent file: {}", e);
+            eprintln!("[RecentFiles] Failed to save recent file: {}", e);
         }
     }
 
@@ -629,7 +629,7 @@ impl RecentFiles {
         if let Err(e) = self.settings_manager.update_settings(|settings| {
             settings.clear_recent_files();
         }) {
-            eprintln!("[RecentFile] Failed to clear recent files: {}", e);
+            eprintln!("[RecentFiles] Failed to clear recent files: {}", e);
         }
     }
 }

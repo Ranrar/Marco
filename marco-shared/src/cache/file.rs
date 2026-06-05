@@ -92,7 +92,15 @@ impl FileCache {
         let key = Self::canonical(path);
 
         // Fast path: read mtime, check against cached value.
-        let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok()?;
+        let modified = match std::fs::metadata(path).and_then(|m| m.modified()) {
+            Ok(t) => t,
+            Err(_) => {
+                // File was deleted or became unreadable — evict any stale entry
+                // so the slot can be reused once the file exists again.
+                self.inner.remove(&key);
+                return None;
+            }
+        };
 
         if let Some(entry) = self.inner.get(&key) {
             if entry.modified == modified {

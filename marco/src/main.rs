@@ -2814,10 +2814,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         move |_| {
             log::debug!("Window destroyed, cleaning up settings thread");
             settings_pool_rc.borrow_mut().shutdown();
-
-            // Clean up global resources
-            crate::components::editor::editor_manager::shutdown_editor_manager();
-            marco_shared::cache::shutdown_global_cache();
+            // Global caches are cleaned up in the post-app.run() shutdown path
+            // to avoid tearing them down when only one of several windows closes.
         }
     });
 

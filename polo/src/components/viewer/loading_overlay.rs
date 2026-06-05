@@ -1,8 +1,9 @@
 //! Indeterminate loading-progress overlay shown on top of the preview WebView.
 //!
 //! Wraps an arbitrary GTK widget in a [`gtk4::Overlay`] and centers a
-//! [`gtk4::ProgressBar`] above it.  The bar uses the default GTK theme so it
-//! automatically follows the user's light/dark mode without any custom CSS.
+//! [`gtk4::ProgressBar`] above it.  A small amount of app-scoped CSS
+//! (`FRAME_CSS`) is injected so the frame and progress fill match Polo's
+//! light/dark theme classes automatically.
 //!
 //! The overlay is driven from a single thread-local handle: call
 //! [`set_global`] once when the preview widget is constructed, then

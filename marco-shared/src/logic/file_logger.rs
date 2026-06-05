@@ -7,8 +7,12 @@
 //! parse pipeline down through log I/O.
 //!
 //! Records with a target starting with `marco_core` are silently dropped.
-//! Everything else is written to `<exe_dir>/log/YYYYMM/YYMMDD.log` so logs
-//! always live next to the executable on both Linux and Windows.
+//! Everything else is written under the per-user cache directory:
+//! - Linux: `~/.cache/<app>/logs/YYYYMM/YYMMDD.log`
+//! - Windows: `%LOCALAPPDATA%\<app>\logs\YYYYMM\YYMMDD.log`
+//!
+//! Falls back to `./log/YYYYMM/YYMMDD.log` when the OS cache path cannot
+//! be resolved (e.g. in development or test runs).
 //!
 //! The logger is always installed on the first `init` call regardless of
 //! whether file logging is enabled. Subsequent calls only flip the global
@@ -137,15 +141,36 @@ impl Log for AppFileLogger {
     }
 }
 
-/// Standardised log root: `<exe_dir>/log` on both Linux and Windows.
+/// Resolve the log root directory.
 ///
-/// Falls back to `<cwd>/log` if the executable path cannot be resolved.
+/// Uses the per-user OS cache directory so logs are always writable,
+/// even in installed packages where the executable directory is read-only:
+/// - Linux: `$XDG_CACHE_HOME/<app>/logs` → `~/.cache/<app>/logs`
+/// - Windows: `%LOCALAPPDATA%\<app>\logs`
+///
+/// Falls back to `./log` if the OS cache path cannot be resolved.
 fn resolve_log_root() -> PathBuf {
-    if let Ok(exe) = std::env::current_exe() {
-        if let Some(parent) = exe.parent() {
-            return parent.join("log");
+    #[cfg(target_os = "linux")]
+    {
+        let base = std::env::var("XDG_CACHE_HOME")
+            .ok()
+            .map(PathBuf::from)
+            .or_else(|| {
+                std::env::var("HOME")
+                    .ok()
+                    .map(|h| PathBuf::from(h).join(".cache"))
+            });
+        if let Some(cache) = base {
+            return cache.join("marco").join("logs");
         }
     }
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(local_app_data) = std::env::var("LOCALAPPDATA").ok().map(PathBuf::from) {
+            return local_app_data.join("marco").join("logs");
+        }
+    }
+    // Fallback for dev mode / unknown OS
     std::env::current_dir()
         .map(|d| d.join("log"))
         .unwrap_or_else(|_| PathBuf::from("log"))
