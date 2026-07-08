@@ -24,7 +24,6 @@
 use crate::components::dialog::show_open_file_dialog;
 use crate::components::toc_panel::TocPanelHandle;
 use crate::components::utils::apply_gtk_theme_preference;
-use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{
@@ -32,6 +31,7 @@ use gtk4::{
     HeaderBar, Image, Label, Orientation, Picture, Popover, Separator, WindowHandle,
 };
 use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 use marco_shared::logic::swanson::SettingsManager;
 use rsvg::{CairoRenderer, Loader};
 use std::cell::RefCell;
