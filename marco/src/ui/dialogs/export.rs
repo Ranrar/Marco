@@ -125,9 +125,12 @@ pub async fn show_export_dialog(
         vec![
             ("Academic".to_string(), "academic.css".to_string()),
             ("Github".to_string(), "github.css".to_string()),
+            ("Gruvbox".to_string(), "gruvbox.css".to_string()),
             ("Marco".to_string(), "marco.css".to_string()),
-            ("Minimal".to_string(), "minimal.css".to_string()),
             ("Neutral".to_string(), "neutral.css".to_string()),
+            ("Nord".to_string(), "nord.css".to_string()),
+            ("Sepia".to_string(), "sepia.css".to_string()),
+            ("Solarized".to_string(), "solarized.css".to_string()),
         ]
     } else {
         themes.to_vec()

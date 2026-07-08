@@ -1,0 +1,176 @@
+/* Sepia - Warm, eye-comfort reading theme
+ * Reduced blue light for comfortable long-form reading.
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
+ */
+
+:root {
+  /* ── Theme metadata ── */
+  --theme-name: 'Sepia';
+  --theme-author: 'Generic sepia/reading-mode';
+  --theme-license: 'N/A';
+  --theme-description: 'Warm, eye-comfort reading theme (generic sepia/reading-mode convention; cf. ZYinMD/sepia)';
+
+  /* ── Typography ── */
+  --body-font: 'Georgia', 'Palatino', 'Palatino Linotype', 'Book Antiqua', serif;
+  --code-font: 'Courier New', Courier, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
+  --body-font-size: 17px;
+  --body-line-height: 1.7;
+  --body-max-width: 100%;
+  --body-padding: 2rem;
+
+  /* ── Text colours (light defaults) ── */
+  --text-color: #5b4636;
+  --text-secondary: #8a7360;
+  --text-muted: #ab9a89;
+  --heading-color: #704214;
+  --heading-gradient-end: #a0522d;
+  --strong-color: #5b4636;
+  --link-color: #a0522d;
+  --link-hover: #c06a3d;
+
+  /* ── Backgrounds ── */
+  --bg-color: #f4ecd8;
+  --bg-secondary: #ede0c8;
+  --bg-code: #e8dac0;
+  --bg-pre: #ede0c8;
+
+  /* ── Borders ── */
+  --border-color: #dccba8;
+  --border-light: #ede0c8;
+  --border-strong: #b8a47e;
+
+  /* ── Components ── */
+  --blockquote-bg: #ede0c8;
+  --blockquote-border: #a0522d;
+  --blockquote-text: #6b5643;
+  --table-border: #dccba8;
+  --table-header-bg: #704214;
+  --table-header-color: #f4ecd8;
+  --table-stripe-bg: #f0e4cc;
+  --mark-bg: #e8c97a;
+  --mark-color: #4a3423;
+  --admonition-bg: #f0e4cc;
+  --admonition-border: #dccba8;
+  --note-bg: #e4e4cc;
+  --tip-bg: #e2e8c6;
+  --important-bg: #eadfd0;
+  --warning-bg: #f3e3b8;
+  --caution-bg: #efd8c4;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #f4ecd8;
+  --pagedjs-page-color: #5b4636;
+
+  /* ── TOC ── */
+  --toc-header-color: #a0522d;
+  --toc-header-border: #dccba8;
+  --toc-link-color: #5b4636;
+  --toc-link-hover-bg: #ede0c8;
+  --toc-link-hover-color: #a0522d;
+  --toc-link-active-bg: #e0cba0;
+  --toc-link-active-color: #704214;
+  --toc-bg: #f0e4cc;
+  --toc-border: #dccba8;
+  --toc-shadow: rgba(74, 52, 35, 0.12);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-light {
+  --text-color: #5b4636;
+  --text-secondary: #8a7360;
+  --text-muted: #ab9a89;
+  --heading-color: #704214;
+  --heading-gradient-end: #a0522d;
+  --strong-color: #5b4636;
+  --link-color: #a0522d;
+  --link-hover: #c06a3d;
+  --bg-color: #f4ecd8;
+  --bg-secondary: #ede0c8;
+  --bg-code: #e8dac0;
+  --bg-pre: #ede0c8;
+  --border-color: #dccba8;
+  --border-light: #ede0c8;
+  --border-strong: #b8a47e;
+  --blockquote-bg: #ede0c8;
+  --blockquote-border: #a0522d;
+  --blockquote-text: #6b5643;
+  --table-border: #dccba8;
+  --table-header-bg: #704214;
+  --table-header-color: #f4ecd8;
+  --table-stripe-bg: #f0e4cc;
+  --mark-bg: #e8c97a;
+  --mark-color: #4a3423;
+  --admonition-bg: #f0e4cc;
+  --admonition-border: #dccba8;
+  --note-bg: #e4e4cc;
+  --tip-bg: #e2e8c6;
+  --important-bg: #eadfd0;
+  --warning-bg: #f3e3b8;
+  --caution-bg: #efd8c4;
+  --pagedjs-page-bg: #f4ecd8;
+  --pagedjs-page-color: #5b4636;
+  --toc-header-color: #a0522d;
+  --toc-header-border: #dccba8;
+  --toc-link-color: #5b4636;
+  --toc-link-hover-bg: #ede0c8;
+  --toc-link-hover-color: #a0522d;
+  --toc-link-active-bg: #e0cba0;
+  --toc-link-active-color: #704214;
+  --toc-bg: #f0e4cc;
+  --toc-border: #dccba8;
+  --toc-shadow: rgba(74, 52, 35, 0.12);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-dark {
+  --text-color: #d8c9a8;
+  --text-secondary: #b8a47e;
+  --text-muted: #93815f;
+  --heading-color: #e8b87a;
+  --heading-gradient-end: #d68f4a;
+  --strong-color: #d8c9a8;
+  --link-color: #d68f4a;
+  --link-hover: #e8a860;
+  --bg-color: #2b2416;
+  --bg-secondary: #362d1d;
+  --bg-code: #362d1d;
+  --bg-pre: #241d12;
+  --border-color: #4a3f2a;
+  --border-light: #362d1d;
+  --border-strong: #6b5c3e;
+  --blockquote-bg: #362d1d;
+  --blockquote-border: #d68f4a;
+  --blockquote-text: #b8a47e;
+  --table-border: #4a3f2a;
+  --table-header-bg: #3f3420;
+  --table-header-color: #e8dab8;
+  --table-stripe-bg: #2f2717;
+  --mark-bg: #c99a3e;
+  --mark-color: #241d12;
+  --admonition-bg: #362d1d;
+  --admonition-border: #4a3f2a;
+  --note-bg: #2c2e1c;
+  --tip-bg: #2a311c;
+  --important-bg: #332a22;
+  --warning-bg: #3a3018;
+  --caution-bg: #362518;
+  --pagedjs-page-bg: #2b2416;
+  --pagedjs-page-color: #d8c9a8;
+  --toc-header-color: #d68f4a;
+  --toc-header-border: #4a3f2a;
+  --toc-link-color: #d8c9a8;
+  --toc-link-hover-bg: #362d1d;
+  --toc-link-hover-color: #d68f4a;
+  --toc-link-active-bg: #4a3f2a;
+  --toc-link-active-color: #e8b87a;
+  --toc-bg: #241d12;
+  --toc-border: #4a3f2a;
+  --toc-shadow: rgba(0, 0, 0, 0.35);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}

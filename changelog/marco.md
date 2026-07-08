@@ -7,6 +7,31 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
+## [0.24.1] - 2026-07-08
+
+**Uses:** Core 1.2.0
+
+### Added
+- Four new HTML preview themes: **Nord** (arctic/frost palette), **Gruvbox** (warm retro palette), **Solarized** (Ethan Schoonover's precision colour scheme), and **Sepia** (warm, eye-comfort reading theme). All appear automatically in Settings → Appearance → HTML Preview Theme and in the Export dialog's theme picker.
+- Theme metadata support: preview theme CSS files can now declare `--theme-name`, `--theme-author`, `--theme-license`, `--theme-version`, and `--theme-description` in `:root`, parsed via `marco-core` 1.2.0's new `parse_theme_metadata`. The theme picker displays `--theme-name` when present, falling back to a filename-derived label otherwise.
+- All preview themes are now sorted alphabetically by display name in the Settings and Export theme dropdowns, instead of following arbitrary filesystem read order.
+
+### Changed
+- Updated to `marco-core` 1.2.0.
+- `github.css` recoloured to match GitHub's current Primer palette (verified against the live `sindresorhus/github-markdown-css` extraction): unified text colour, updated border and secondary-text tones in both light and dark mode.
+- All HTML preview themes now use `--body-max-width: 100%` instead of a fixed pixel cap, so preview content is no longer artificially width-constrained.
+- Consolidated the overlapping `neutral` / `minimal` / `academic` preview themes down to `neutral` and `academic`, since they had nearly identical colour tokens and differed mainly in font choice.
+
+### Fixed
+- Corrected a stale doc comment in every preview theme CSS file that pointed to a nonexistent local `core/src/render/base_css.rs` path; it now correctly references the external `marco-core` crate.
+- Removed a dangling reference to the deleted `minimal.css` theme from the Export dialog's fallback theme list.
+- Fixed unreadable code blocks in light mode for the `academic`, `gruvbox`, `nord`, and `sepia` themes: plain (unhighlighted) code fences rendered dark text on a near-identical dark background (contrast as low as 1.0:1) because `--bg-pre` was set to a dark colour while `--text-color` stayed dark too. Code block backgrounds in these themes are now light in light mode.
+- Fixed the same class of contrast issue in `solarized.css`'s light-mode code blocks, and darkened its `--mark-color` and `--blockquote-text` tokens (custom additions not part of the original Solarized spec) to meet accessible contrast.
+- Fixed `neutral.css`'s table-of-contents sidebar, which was still using leftover colours from an old GitHub palette (in both light and dark mode) instead of its own blue/grey palette.
+
+### Removed
+- Removed the `minimal` HTML preview theme (redundant with `academic` and the new `sepia` theme).
+
 ## [0.24.0] - 2026-06-04
 
 **Uses:** Core 1.1.0

@@ -28,6 +28,151 @@ This repo includes two VS Code workspace files. Use the one that matches your **
 
 > Note: We intentionally avoid a "Windows GNU cross-compile from Linux" workspace because GTK/Glib dependencies require a full cross sysroot + `pkg-config` setup. If you point Rust Analyzer at `x86_64-pc-windows-gnu` on Linux you will likely see `glib-sys` / `pkg-config` cross-compilation errors and cascading "can't find crate ..." diagnostics.
 
+## Environment setup
+
+Quick, reliable steps to get a local dev build running on Linux and Windows.
+
+### 1. Clone and enter the repo
+
+```bash
+git clone https://github.com/<your-user>/marco.git
+cd marco
+```
+
+### 2. Rust toolchain
+
+```bash
+rustup show
+```
+
+This repo pins Rust in `rust-toolchain.toml`. If needed, install/update:
+
+```bash
+rustup update
+```
+
+### 3. Open the right VS Code workspace
+
+See [Dev workspaces (VS Code)](#dev-workspaces-vs-code) above — use `marco-linux.code-workspace` on Linux and `marco-windows.code-workspace` on Windows.
+
+### Linux dev setup
+
+Install dependencies (Debian/Ubuntu):
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  python3 build-essential pkg-config \
+  libgtk-4-dev libgtksourceview-5-dev libwebkitgtk-6.0-dev libfontconfig-dev \
+  dpkg-dev fakeroot gzip
+```
+
+Build and run:
+
+```bash
+cargo run -p marco
+```
+
+Common checks:
+
+```bash
+cargo fmt
+cargo clippy --workspace --all-targets
+cargo test --workspace
+```
+
+Optional package build:
+
+```bash
+bash build/linux/build_deb.sh --no-bump
+```
+
+### Windows dev setup (MSYS2 UCRT64)
+
+Important: the Windows build flow in this repo uses MSYS2 UCRT64 + pkg-config.
+
+Install [MSYS2](https://www.msys2.org/), then open the "MSYS2 UCRT64" shell and install required packages:
+
+```bash
+pacman -Syu
+pacman -S --needed \
+  mingw-w64-ucrt-x86_64-gtk4 \
+  mingw-w64-ucrt-x86_64-gtksourceview5 \
+  mingw-w64-ucrt-x86_64-librsvg \
+  mingw-w64-ucrt-x86_64-cairo \
+  mingw-w64-ucrt-x86_64-gdk-pixbuf2 \
+  mingw-w64-ucrt-x86_64-pkg-config \
+  mingw-w64-ucrt-x86_64-gcc \
+  mingw-w64-ucrt-x86_64-binutils
+```
+
+Install the Rust GNU target (PowerShell or bash):
+
+```bash
+rustup target add x86_64-pc-windows-gnu
+```
+
+If running from PowerShell, set env vars for the current session:
+
+```powershell
+$env:PKG_CONFIG_PATH = "C:\msys64\ucrt64\lib\pkgconfig"
+$env:PATH = "C:\msys64\ucrt64\bin;C:\msys64\usr\bin;$env:PATH"
+```
+
+Verify tool availability:
+
+```bash
+pkg-config --version
+rustup target list --installed
+```
+
+Build and run:
+
+```bash
+cargo run -p marco
+```
+
+If you still hit linker/pkg-config issues, run the repo helper script:
+
+```powershell
+.\build\windows\test_ci_locally.ps1
+```
+
+Portable package build:
+
+```powershell
+.\build\windows\build_portable.ps1
+```
+
+### First troubleshooting checklist
+
+If build fails on Windows with "pkg-config not found":
+
+1. Confirm you installed `mingw-w64-ucrt-x86_64-pkg-config` in MSYS2 UCRT64.
+2. Confirm `C:\msys64\ucrt64\bin` is on `PATH` in the shell where you run `cargo`.
+3. Confirm `PKG_CONFIG_PATH` points to `C:\msys64\ucrt64\lib\pkgconfig`.
+4. Reopen the terminal after changing `PATH`.
+
+If build fails on Linux with missing GTK/WebKit headers:
+
+1. Reinstall the distro packages listed above.
+2. Run: `pkg-config --modversion gtk4`
+
+### Daily commands
+
+```bash
+cargo fmt
+cargo clippy --workspace --all-targets
+cargo test --workspace
+```
+
+Run app binaries:
+
+```bash
+cargo run -p marco
+cargo run -p polo
+```
+
 ## Code style and expectations
 
 - Keep UI code in `marco/src/components/` and `marco/src/ui/`.
@@ -134,10 +279,30 @@ File locations used during development:
 
 ## Adding a theme
 
-1. Add CSS files under `marco-shared/src/assets/themes/`
-2. Place editor style schemes under `marco-shared/src/assets/themes/editor/`.
-3. Place view style schemes under `marco-shared/src/assets/themes/html_viever/`
-4. Update the theme manager to include your new theme.
+Both HTML preview themes and editor style schemes are **auto-discovered** by scanning their asset folder — there is no registry/list in code to update by hand.
+
+### HTML preview themes (Markdown rendering)
+
+1. Add a token-only CSS file under `marco-shared/src/assets/themes/html_viever/` (see any existing theme, e.g. `neutral.css`, for the full set of `--*` tokens to define, plus `.theme-light` / `.theme-dark` overrides).
+2. Declare theme metadata in the `:root` block using the `--theme-*` custom properties supported by `marco-core` 1.2.0+'s `parse_theme_metadata` (`marco-core/src/render/theme_meta.rs`):
+   ```css
+   :root {
+     --theme-name: 'My Theme';
+     --theme-author: 'Your Name';
+     --theme-license: 'MIT';
+     --theme-version: '1.0.0';
+     --theme-description: 'One-line description of the look and intent';
+     /* ...colour/font tokens... */
+   }
+   ```
+   `--theme-name` is what the Settings and Export dialog dropdowns display; if omitted, the picker falls back to a title-cased version of the filename.
+3. That's it — `list_html_view_themes()` (`marco-shared/src/logic/loaders/theme_loader.rs`) picks up any `*.css` file in the folder automatically, in both the Settings appearance picker and the Export dialog.
+4. If the theme is a port of an existing named colour scheme (Nord, Gruvbox, Solarized, etc.), credit the original author/project and license in `--theme-author` / `--theme-license`, not yourself — reserve your own name for genuinely original Marco themes.
+
+### Editor style schemes (SourceView5 syntax highlighting)
+
+1. Add a GtkSourceView style-scheme XML file under `marco-shared/src/assets/themes/editor/`.
+2. `list_editor_style_schemes()` (same file) scans this folder automatically and prefers the scheme's own `name`/`_name` XML attribute for the display label, falling back to the filename.
 
 ## Quickstart & dev commands
 
@@ -177,8 +342,8 @@ The parser/renderer test suite lives in the [`marco-core`](https://github.com/Ra
 
 ## Troubleshooting
 
-- **GTK CSS errors**: Ensure you run from the repository root so relative theme paths resolve. Check `assets/themes/*` exists.
-- **Missing fonts or icons**: Confirm `assets/fonts/` and `assets/icons/` are present and that `crate::paths::find_asset_root()` (or `MarcoPaths::new()`) finds the repo asset path.
+- **GTK CSS errors**: Ensure you run from the repository root so relative theme paths resolve. Check `marco-shared/src/assets/themes/` exists.
+- **Missing icons**: Confirm `marco-shared/src/assets/icons/` is present and that `crate::paths::find_asset_root()` (or `MarcoPaths::new()`) finds the repo asset path.
 - **Preview not updating**: Verify the buffer change signal is firing and that the core parser is working correctly. Check the WebKit6 console for base URI issues with local images.
 - **Core parsing issues**: The Markdown engine lives in the external [`marco-core`](https://github.com/Ranrar/marco-core) crate. If markdown isn't rendering correctly, reproduce against `marco-core` directly and file the issue there.
 - **Local images not displaying**: Ensure WebKit6 security settings are enabled and DocumentBuffer is providing correct base URIs for file:// protocol access.
@@ -216,6 +381,7 @@ Reference README and asset locations for contributors working on components and 
 
 - [marco/src/components/ai/README.md](marco/src/components/ai/README.md) — AI component guidance and interface notes
 - [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
+- [documentation/language.md](documentation/language.md) — Localization provider contract and workflow
 - `marco/src/components/language/mod.rs` — Localization provider contract and loader implementation
 - [marco-shared/src/assets/language/language_matrix.md](marco-shared/src/assets/language/language_matrix.md) — language implementation matrix (coverage & contributors)
 

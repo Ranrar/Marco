@@ -7,6 +7,27 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
+## [0.24.1] - 2026-07-08
+
+**Uses:** Core 1.2.0
+
+### Added
+- Four new HTML preview themes shared with Marco: **Nord**, **Gruvbox**, **Solarized**, and **Sepia**. They appear in Polo's theme selection alongside the existing themes.
+
+### Changed
+- Updated to `marco-core` 1.2.0.
+- The shared `github` preview theme was recoloured to match GitHub's current Primer palette; documents rendered with this theme now use updated text, border, and secondary-text colours in both light and dark mode.
+- All HTML preview themes now use `--body-max-width: 100%` instead of a fixed pixel cap, so preview content is no longer artificially width-constrained.
+- Polo's theme menu now uses the same metadata-aware theme listing as Marco (`list_html_view_themes`), so it displays each theme's `--theme-name` (e.g. "GitHub" instead of "github") instead of a raw filename-derived label.
+
+### Fixed
+- Fixed unreadable code blocks in light mode for the `academic`, `gruvbox`, `nord`, `sepia`, and `solarized` themes, which affects Polo's rendering the same way it did Marco's since both share these theme files.
+- Fixed `neutral.css`'s table-of-contents sidebar colours, which were leftover values from an old GitHub palette instead of neutral's own palette.
+
+### Removed
+- Removed the `minimal` HTML preview theme (redundant with `academic` and the new `sepia` theme).
+- Removed the superseded `list_available_themes_from_path` helper in favor of the shared, metadata-aware `list_html_view_themes`.
+
 ## [0.24.0] - 2026-06-04
 
 **Uses:** Core 1.1.0
