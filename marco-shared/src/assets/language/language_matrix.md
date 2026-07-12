@@ -6,6 +6,10 @@ A concise overview of ISO 639-1 languages, showing implementation status and con
 - ✔ = Implemented (TOML exists)
 - (blank) = Not yet implemented
 - Author/Contributor = Name (with optional link)
+- Codes are ISO 639-1 (`en`, `de`, …). Macrolanguages with major script/dialect
+  splits are tracked as `{lang}-{REGION}` (ISO 3166-1 region subtag, BCP 47
+  style) instead of the bare code — e.g. `zh-CN` (Simplified) / `zh-TW`
+  (Traditional) rather than a single `zh`.
 
 Example:  
 `✔ | English | [John Doe](https://github.com/johndoe)`  
@@ -198,5 +202,4 @@ Example:
 | yi   | Yiddish |   |   |
 | yo   | Yoruba |   |   |
 | za   | Zhuang |   |   |
-| zh   | Chinese |   |   |
 | zu   | Zulu |   |   |

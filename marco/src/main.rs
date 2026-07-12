@@ -231,21 +231,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .language
         .and_then(|l| l.language)
         // "System Default" in settings means: detect OS language.
-        .or_else(marco_shared::paths::detect_system_locale_iso639_1)
+        .or_else(marco_shared::paths::detect_system_locale_bcp47)
         .unwrap_or_else(|| "en".to_string());
-    if let Err(e) = localization_manager.load_locale(&locale_code) {
-        log::warn!(
-            "Failed to load locale '{}': {}. Falling back to English.",
-            locale_code,
-            e
-        );
-
-        if locale_code != "en" {
-            if let Err(e) = localization_manager.load_locale("en") {
-                log::error!("Failed to load fallback locale 'en': {}", e);
-            }
-        }
-    }
+    localization_manager.load_locale_with_fallback(&locale_code);
     let translations = localization_manager.translations();
     let translations_rc = Rc::new(RefCell::new(translations.clone()));
     let menu_translations_rc = Rc::new(RefCell::new(translations.menu.clone()));
@@ -591,6 +579,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         &editor_buffer,
         bookmark_manager.clone(),
         file_operations_rc.clone(),
+        &translations_rc.borrow(),
     );
 
     // Keep bookmarks in sync with live line edits in the current document.
@@ -1080,7 +1069,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
         Rc::new(move |selected_code: Option<String>| {
             let locale_code = selected_code
-                .or_else(marco_shared::paths::detect_system_locale_iso639_1)
+                .or_else(marco_shared::paths::detect_system_locale_bcp47)
                 .unwrap_or_else(|| "en".to_string());
 
             let window_for_locale = window_for_language_handler.clone();
@@ -1110,18 +1099,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     }
                 };
 
-                if let Err(e) = localization_manager.load_locale(&locale_code) {
-                    log::warn!(
-                        "Failed to load locale '{}': {}. Falling back to English.",
-                        locale_code,
-                        e
-                    );
-                    if locale_code != "en" {
-                        if let Err(e) = localization_manager.load_locale("en") {
-                            log::error!("Failed to load fallback locale 'en': {}", e);
-                        }
-                    }
-                }
+                localization_manager.load_locale_with_fallback(&locale_code);
 
                 let new_translations = localization_manager.translations();
                 *translations_rc.borrow_mut() = new_translations.clone();
@@ -1329,6 +1307,12 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     &new_translations.footer,
                     is_insert,
                 );
+                crate::components::editor::ui::with_toc_panel(|h| {
+                    crate::ui::toc_panel::update_toc_panel_translations(
+                        h,
+                        &new_translations.footer,
+                    );
+                });
                 refresh_footer_snapshot(
                     &editor_buffer,
                     footer_labels_rc.clone(),
@@ -1797,6 +1781,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             let editor_buffer = editor_buffer.clone();
             let preview_theme_dir = preview_theme_dir.clone();
             let refresh_preview_rc = refresh_preview_rc.clone();
+            let translations_rc = translations_rc.clone();
             move |_, _| {
                 let window = window.clone();
                 let webview = webview.clone();
@@ -1805,6 +1790,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 let editor_buffer = editor_buffer.clone();
                 let preview_theme_dir = preview_theme_dir.clone();
                 let refresh_preview_rc = refresh_preview_rc.clone();
+                let translations_rc = translations_rc.clone();
                 glib::MainContext::default().spawn_local(async move {
                     // Derive the suggested filename stem from the open document.
                     let (doc_stem, doc_title) = {
@@ -1949,8 +1935,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             let exporting_dialog =
                                 crate::ui::dialogs::exporting::show_exporting_dialog(
                                     window.upcast_ref::<gtk4::Window>(),
-                                    "Exporting PDF…",
-                                    "Generating PDF, please wait…",
+                                    &translations_rc.borrow().messages.exporting_pdf,
+                                    &translations_rc.borrow().messages.generating_pdf,
+                                    &translations_rc.borrow().messages.export_phase,
                                 );
 
                             // Clone the live preview WebView for the backend.
@@ -1996,10 +1983,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                     // Bring Marco back to the foreground after the
                                     // PDF viewer / export tooling has stolen focus.
                                     window.present();
+                                    let (export_complete_title, export_complete_message) = {
+                                        let t = translations_rc.borrow();
+                                        (
+                                            t.messages.pdf_export_complete.clone(),
+                                            t.messages.pdf_export_success.clone(),
+                                        )
+                                    };
                                     let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
                                         &window,
-                                        "PDF Export Complete",
-                                        "Your PDF was exported successfully.",
+                                        &export_complete_title,
+                                        &export_complete_message,
                                         &settings.output_path,
                                     )
                                     .await;
@@ -2088,8 +2082,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             let exporting_dialog =
                                 crate::ui::dialogs::exporting::show_exporting_dialog(
                                     window.upcast_ref::<gtk4::Window>(),
-                                    "Exporting HTML…",
-                                    "Generating HTML, please wait…",
+                                    &translations_rc.borrow().messages.exporting_html,
+                                    &translations_rc.borrow().messages.generating_html,
+                                    &translations_rc.borrow().messages.export_phase,
                                 );
 
                             let request = ExportRequest {
@@ -2121,10 +2116,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                         settings.output_path.display()
                                     );
                                     window.present();
+                                    let (export_complete_title, export_complete_message) = {
+                                        let t = translations_rc.borrow();
+                                        (
+                                            t.messages.html_export_complete.clone(),
+                                            t.messages.html_export_success.clone(),
+                                        )
+                                    };
                                     let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
                                         &window,
-                                        "HTML Export Complete",
-                                        "Your HTML was exported successfully.",
+                                        &export_complete_title,
+                                        &export_complete_message,
                                         &settings.output_path,
                                     )
                                     .await;
@@ -2173,12 +2175,14 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             let settings_manager = settings_manager.clone();
             let editor_buffer = editor_buffer.clone();
             let preview_theme_dir = preview_theme_dir.clone();
+            let translations_rc = translations_rc.clone();
             move |_, _| {
                 let window = window.clone();
                 let file_operations_rc = file_operations_rc.clone();
                 let settings_manager = settings_manager.clone();
                 let editor_buffer = editor_buffer.clone();
                 let preview_theme_dir = preview_theme_dir.clone();
+                let translations_rc = translations_rc.clone();
                 glib::MainContext::default().spawn_local(async move {
                     // Derive the suggested filename stem from the open document.
                     let (doc_stem, doc_title) = {
@@ -2319,8 +2323,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             let exporting_dialog =
                                 crate::ui::dialogs::exporting::show_exporting_dialog(
                                     window.upcast_ref::<gtk4::Window>(),
-                                    "Exporting PDF…",
-                                    "Generating PDF, please wait…",
+                                    &translations_rc.borrow().messages.exporting_pdf,
+                                    &translations_rc.borrow().messages.generating_pdf,
+                                    &translations_rc.borrow().messages.export_phase,
                                 );
 
                             // Take a clone of the live primary preview WebView so
@@ -2385,10 +2390,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                         settings.output_path.display()
                                     );
                                     window.present();
+                                    let (export_complete_title, export_complete_message) = {
+                                        let t = translations_rc.borrow();
+                                        (
+                                            t.messages.pdf_export_complete.clone(),
+                                            t.messages.pdf_export_success.clone(),
+                                        )
+                                    };
                                     let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
                                         &window,
-                                        "PDF Export Complete",
-                                        "Your PDF was exported successfully.",
+                                        &export_complete_title,
+                                        &export_complete_message,
                                         &settings.output_path,
                                     )
                                     .await;
@@ -2429,8 +2441,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             let exporting_dialog =
                                 crate::ui::dialogs::exporting::show_exporting_dialog(
                                     window.upcast_ref::<gtk4::Window>(),
-                                    "Exporting HTML…",
-                                    "Generating HTML, please wait…",
+                                    &translations_rc.borrow().messages.exporting_html,
+                                    &translations_rc.borrow().messages.generating_html,
+                                    &translations_rc.borrow().messages.export_phase,
                                 );
 
                             let request = ExportRequest {
@@ -2462,10 +2475,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                         settings.output_path.display()
                                     );
                                     window.present();
+                                    let (export_complete_title, export_complete_message) = {
+                                        let t = translations_rc.borrow();
+                                        (
+                                            t.messages.html_export_complete.clone(),
+                                            t.messages.html_export_success.clone(),
+                                        )
+                                    };
                                     let action = crate::ui::dialogs::export_complete::show_export_complete_dialog(
                                         &window,
-                                        "HTML Export Complete",
-                                        "Your HTML was exported successfully.",
+                                        &export_complete_title,
+                                        &export_complete_message,
                                         &settings.output_path,
                                     )
                                     .await;

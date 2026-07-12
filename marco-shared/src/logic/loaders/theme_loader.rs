@@ -1,7 +1,28 @@
 //! List and label all application themes in src/assets/themes/
 use std::path::Path;
 
-/// List all *.css HTML view themes in the given folder, with user-friendly labels
+/// Derive a title-cased label from a theme filename, e.g. `github-classic.css` -> `Github Classic`.
+fn label_from_filename(fname: &str) -> String {
+    fname
+        .replace("-", " ")
+        .replace(".css", "")
+        .split_whitespace()
+        .map(|w| {
+            let mut c = w.chars();
+            match c.next() {
+                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
+                None => String::new(),
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// List all *.css HTML view themes in the given folder, with user-friendly labels.
+///
+/// Prefers the `--theme-name` custom property declared in the theme's CSS
+/// (see `marco_core::render::parse_theme_metadata`) over a filename-derived
+/// label, falling back to the filename when a theme declares no metadata.
 pub fn list_html_view_themes(theme_dir: &Path) -> Vec<ThemeEntry> {
     let mut entries = vec![];
     if let Ok(read_dir) = std::fs::read_dir(theme_dir) {
@@ -9,19 +30,10 @@ pub fn list_html_view_themes(theme_dir: &Path) -> Vec<ThemeEntry> {
             let path = entry.path();
             if path.extension().is_some_and(|ext| ext == "css") {
                 if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
-                    let label = fname
-                        .replace("-", " ")
-                        .replace(".css", "")
-                        .split_whitespace()
-                        .map(|w| {
-                            let mut c = w.chars();
-                            match c.next() {
-                                Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
-                                None => String::new(),
-                            }
-                        })
-                        .collect::<Vec<_>>()
-                        .join(" ");
+                    let label = std::fs::read_to_string(&path)
+                        .ok()
+                        .and_then(|css| marco_core::render::parse_theme_metadata(&css).name)
+                        .unwrap_or_else(|| label_from_filename(fname));
                     entries.push(ThemeEntry {
                         filename: fname.to_string(),
                         label,
@@ -30,6 +42,7 @@ pub fn list_html_view_themes(theme_dir: &Path) -> Vec<ThemeEntry> {
             }
         }
     }
+    entries.sort_by(|a, b| a.label.cmp(&b.label));
     entries
 }
 

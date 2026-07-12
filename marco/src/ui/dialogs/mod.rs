@@ -40,17 +40,13 @@ pub(crate) fn current_translations() -> crate::components::language::Translation
             marco_shared::logic::swanson::SettingsManager::initialize(paths.settings_file()).ok()
         })
         .and_then(|sm| sm.get_settings().language.and_then(|l| l.language))
-        .or_else(marco_shared::paths::detect_system_locale_iso639_1)
+        .or_else(marco_shared::paths::detect_system_locale_bcp47)
         .unwrap_or_else(|| "en".to_string());
 
+    // `new()` already loaded English during construction, so skip the
+    // reload when that's also the resolved locale.
     if locale_code != "en" {
-        if let Err(e) = manager.load_locale(&locale_code) {
-            log::warn!(
-                "current_translations: failed to load locale '{}': {}. Falling back to English.",
-                locale_code,
-                e
-            );
-        }
+        manager.load_locale_with_fallback(&locale_code);
     }
 
     manager.translations()

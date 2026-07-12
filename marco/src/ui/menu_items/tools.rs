@@ -16,9 +16,18 @@ pub fn populate_tools_menu(
 
     // ── View-mode section (radio-style, three explicit items) ──────────────
     let view_section = gio::Menu::new();
-    view_section.append(Some("Live preview"), Some("app.tools_view_live"));
-    view_section.append(Some("Print preview"), Some("app.tools_view_print"));
-    view_section.append(Some("Code"), Some("app.tools_view_code"));
+    view_section.append(
+        Some(&translations.messages.live_preview),
+        Some("app.tools_view_live"),
+    );
+    view_section.append(
+        Some(&translations.messages.print_preview_short),
+        Some("app.tools_view_print"),
+    );
+    view_section.append(
+        Some(&translations.messages.code_view_short),
+        Some("app.tools_view_code"),
+    );
     tools_menu.append_section(None, &view_section);
 
     let editor_toggles = gio::Menu::new();

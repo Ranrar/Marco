@@ -38,7 +38,10 @@ fn update_bookmarks_menu_actions(
 
     if !current_doc.is_empty() {
         for entry in &current_doc {
-            let line_label = format!("Line {}", entry.line + 1).replace('_', "__");
+            let line_label = menu_translations
+                .bookmark_line
+                .replace("{}", &(entry.line + 1).to_string())
+                .replace('_', "__");
             let action_name = format!("app.open_bookmark_{}", flattened.len());
             bookmarks_menu.append(Some(&line_label), Some(&action_name));
             flattened.push((entry.file_path.clone(), entry.line));

@@ -1,15 +1,22 @@
 /* Academic - Scholarly serif theme
  * Token-only file: colours, font, and layout variables.
- * All structural CSS lives in core/src/render/base_css.rs
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
  */
 
 :root {
+  /* ── Theme metadata ── */
+  --theme-name: 'Academic';
+  --theme-author: 'Kim Skov Rasmussen';
+  --theme-license: 'MIT';
+  --theme-version: '11';
+  --theme-description: 'Scholarly serif theme with Palatino type and navy/blue accents — formal styling for papers and manuals';
+
   /* ── Typography ── */
   --body-font: 'Palatino', 'Palatino Linotype', 'Palatino LT STD', 'Book Antiqua', Georgia, serif;
   --code-font: 'Courier New', Courier, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
   --body-font-size: 16px;
   --body-line-height: 1.6;
-  --body-max-width: 800px;
+  --body-max-width: 100%;
   --body-padding: 2rem;
 
   /* ── Text colours (light defaults) ── */
@@ -26,7 +33,7 @@
   --bg-color: #ffffff;
   --bg-secondary: #ecf0f1;
   --bg-code: #ecf0f1;
-  --bg-pre: #2c3e50;
+  --bg-pre: #f8f9fa;
 
   /* ── Borders ── */
   --border-color: #bdc3c7;
@@ -84,7 +91,7 @@
   --bg-color: #ffffff;
   --bg-secondary: #ecf0f1;
   --bg-code: #ecf0f1;
-  --bg-pre: #2c3e50;
+  --bg-pre: #f8f9fa;
   --border-color: #bdc3c7;
   --border-light: #ecf0f1;
   --border-strong: #34495e;

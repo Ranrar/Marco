@@ -1,0 +1,177 @@
+/* Nord - Arctic, north-bluish theme
+ * Based on the official Nord palette (nordtheme.com, MIT licensed).
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
+ */
+
+:root {
+  /* ── Theme metadata ── */
+  --theme-name: 'Nord';
+  --theme-author: 'Sven Greb';
+  --theme-license: 'MIT';
+  --theme-version: '0.2.0';
+  --theme-description: 'Arctic, north-bluish theme, ported from the official Nord palette (nordtheme.com)';
+
+  /* ── Typography ── */
+  --body-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --code-font: 'Fira Code', 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
+  --body-font-size: 16px;
+  --body-line-height: 1.6;
+  --body-max-width: 100%;
+  --body-padding: 2rem;
+
+  /* ── Text colours (light defaults) ── */
+  --text-color: #2e3440;
+  --text-secondary: #4c566a;
+  --text-muted: #7b88a1;
+  --heading-color: #5e81ac;
+  --heading-gradient-end: #81a1c1;
+  --strong-color: #2e3440;
+  --link-color: #5e81ac;
+  --link-hover: #81a1c1;
+
+  /* ── Backgrounds ── */
+  --bg-color: #eceff4;
+  --bg-secondary: #e5e9f0;
+  --bg-code: #d8dee9;
+  --bg-pre: #e5e9f0;
+
+  /* ── Borders ── */
+  --border-color: #d8dee9;
+  --border-light: #e5e9f0;
+  --border-strong: #4c566a;
+
+  /* ── Components ── */
+  --blockquote-bg: #e5e9f0;
+  --blockquote-border: #88c0d0;
+  --blockquote-text: #4c566a;
+  --table-border: #d8dee9;
+  --table-header-bg: #4c566a;
+  --table-header-color: #eceff4;
+  --table-stripe-bg: #e5e9f0;
+  --mark-bg: #ebcb8b;
+  --mark-color: #2e3440;
+  --admonition-bg: #e5e9f0;
+  --admonition-border: #d8dee9;
+  --note-bg: #e1e7f0;
+  --tip-bg: #e3eee7;
+  --important-bg: #ece5f0;
+  --warning-bg: #f5edd9;
+  --caution-bg: #f2e0e1;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #eceff4;
+  --pagedjs-page-color: #2e3440;
+
+  /* ── TOC ── */
+  --toc-header-color: #5e81ac;
+  --toc-header-border: #d8dee9;
+  --toc-link-color: #2e3440;
+  --toc-link-hover-bg: #e5e9f0;
+  --toc-link-hover-color: #5e81ac;
+  --toc-link-active-bg: #d8dee9;
+  --toc-link-active-color: #5e81ac;
+  --toc-bg: #e5e9f0;
+  --toc-border: #d8dee9;
+  --toc-shadow: rgba(46, 52, 64, 0.15);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-light {
+  --text-color: #2e3440;
+  --text-secondary: #4c566a;
+  --text-muted: #7b88a1;
+  --heading-color: #5e81ac;
+  --heading-gradient-end: #81a1c1;
+  --strong-color: #2e3440;
+  --link-color: #5e81ac;
+  --link-hover: #81a1c1;
+  --bg-color: #eceff4;
+  --bg-secondary: #e5e9f0;
+  --bg-code: #d8dee9;
+  --bg-pre: #e5e9f0;
+  --border-color: #d8dee9;
+  --border-light: #e5e9f0;
+  --border-strong: #4c566a;
+  --blockquote-bg: #e5e9f0;
+  --blockquote-border: #88c0d0;
+  --blockquote-text: #4c566a;
+  --table-border: #d8dee9;
+  --table-header-bg: #4c566a;
+  --table-header-color: #eceff4;
+  --table-stripe-bg: #e5e9f0;
+  --mark-bg: #ebcb8b;
+  --mark-color: #2e3440;
+  --admonition-bg: #e5e9f0;
+  --admonition-border: #d8dee9;
+  --note-bg: #e1e7f0;
+  --tip-bg: #e3eee7;
+  --important-bg: #ece5f0;
+  --warning-bg: #f5edd9;
+  --caution-bg: #f2e0e1;
+  --pagedjs-page-bg: #eceff4;
+  --pagedjs-page-color: #2e3440;
+  --toc-header-color: #5e81ac;
+  --toc-header-border: #d8dee9;
+  --toc-link-color: #2e3440;
+  --toc-link-hover-bg: #e5e9f0;
+  --toc-link-hover-color: #5e81ac;
+  --toc-link-active-bg: #d8dee9;
+  --toc-link-active-color: #5e81ac;
+  --toc-bg: #e5e9f0;
+  --toc-border: #d8dee9;
+  --toc-shadow: rgba(46, 52, 64, 0.15);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-dark {
+  --text-color: #eceff4;
+  --text-secondary: #d8dee9;
+  --text-muted: #9aa5b8;
+  --heading-color: #88c0d0;
+  --heading-gradient-end: #81a1c1;
+  --strong-color: #eceff4;
+  --link-color: #88c0d0;
+  --link-hover: #8fbcbb;
+  --bg-color: #2e3440;
+  --bg-secondary: #3b4252;
+  --bg-code: #3b4252;
+  --bg-pre: #3b4252;
+  --border-color: #4c566a;
+  --border-light: #434c5e;
+  --border-strong: #4c566a;
+  --blockquote-bg: #3b4252;
+  --blockquote-border: #88c0d0;
+  --blockquote-text: #d8dee9;
+  --table-border: #434c5e;
+  --table-header-bg: #434c5e;
+  --table-header-color: #eceff4;
+  --table-stripe-bg: #333a46;
+  --mark-bg: #ebcb8b;
+  --mark-color: #2e3440;
+  --admonition-bg: #3b4252;
+  --admonition-border: #4c566a;
+  --note-bg: #2e3b4e;
+  --tip-bg: #2a3b30;
+  --important-bg: #3a2e42;
+  --warning-bg: #3e3620;
+  --caution-bg: #3e2529;
+  --pagedjs-page-bg: #2e3440;
+  --pagedjs-page-color: #eceff4;
+  --toc-header-color: #88c0d0;
+  --toc-header-border: #434c5e;
+  --toc-link-color: #d8dee9;
+  --toc-link-hover-bg: #3b4252;
+  --toc-link-hover-color: #88c0d0;
+  --toc-link-active-bg: #434c5e;
+  --toc-link-active-color: #8fbcbb;
+  --toc-bg: #2e3440;
+  --toc-border: #434c5e;
+  --toc-shadow: rgba(0, 0, 0, 0.35);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}

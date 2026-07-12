@@ -60,16 +60,17 @@ pub enum ExportPhase {
 }
 
 impl ExportPhase {
-    /// Human-readable phase label for the progress UI.
-    pub fn label(self) -> &'static str {
+    /// Human-readable phase label for the progress UI, resolved from the
+    /// active locale.
+    pub fn label(self, t: &crate::components::language::ExportPhaseTranslations) -> &str {
         match self {
-            ExportPhase::Preparing => "Preparing…",
-            ExportPhase::Loading => "Loading paged.js…",
-            ExportPhase::Paginating => "Paginating pages…",
-            ExportPhase::ApplyingPrintCss => "Applying print styles…",
-            ExportPhase::WritingOutput => "Writing output…",
-            ExportPhase::RestoringPreview => "Restoring preview…",
-            ExportPhase::Done => "Done",
+            ExportPhase::Preparing => &t.preparing,
+            ExportPhase::Loading => &t.loading,
+            ExportPhase::Paginating => &t.paginating,
+            ExportPhase::ApplyingPrintCss => &t.applying_print_css,
+            ExportPhase::WritingOutput => &t.writing_output,
+            ExportPhase::RestoringPreview => &t.restoring_preview,
+            ExportPhase::Done => &t.done,
         }
     }
 
@@ -111,7 +112,8 @@ impl std::fmt::Display for ExportError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ExportError::Cancelled => write!(f, "Export cancelled by user"),
-            ExportError::Timeout(p) => write!(f, "Timed out during phase: {}", p.label()),
+            // Debug (not localized) representation — this is a log/error message, not UI text.
+            ExportError::Timeout(p) => write!(f, "Timed out during phase: {:?}", p),
             ExportError::Backend(msg) => write!(f, "Export backend error: {}", msg),
             ExportError::Io(msg) => write!(f, "I/O error during export: {}", msg),
             ExportError::EmptyOutput => write!(f, "Export produced an empty output file"),
@@ -1009,8 +1011,15 @@ mod tests {
 
     #[test]
     fn smoke_export_phase_labels_are_user_friendly() {
-        assert_eq!(ExportPhase::Loading.label(), "Loading paged.js…");
-        assert_eq!(ExportPhase::Paginating.label(), "Paginating pages…");
+        let t = crate::components::language::default_translations::load_default_translations();
+        assert_eq!(
+            ExportPhase::Loading.label(&t.messages.export_phase),
+            "Loading paged.js…"
+        );
+        assert_eq!(
+            ExportPhase::Paginating.label(&t.messages.export_phase),
+            "Paginating pages…"
+        );
         assert!(ExportPhase::ApplyingPrintCss.budget() <= Duration::from_secs(10));
     }
 

@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/RTL_%2B_Unicode-Ready-blue?style=for-the-badge&logo=translate&logoColor=white" alt="RTL and Unicode Ready" />
   <img src="https://img.shields.io/badge/Language-Rust-orange?style=for-the-badge&logo=rust&logoColor=white" alt="Written in Rust" />
   <img src="https://img.shields.io/github/license/Ranrar/Marco?style=for-the-badge" alt="License" />
-  <img src="https://img.shields.io/badge/Version-0.24.0-blue?style=for-the-badge" alt="Version 0.24.0" />
+  <img src="https://img.shields.io/badge/Version-0.24.1-blue?style=for-the-badge" alt="Version 0.24.1" />
   <a href="https://crates.io/crates/marco-core"><img src="https://img.shields.io/crates/v/marco-core?style=for-the-badge&label=marco-core&logo=rust" alt="marco-core on crates.io" /></a>
 </p>
 
@@ -210,7 +210,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 - [ ] Document presentation mode
 
 ### Advanced Features
-- [x] Language plugin system via. `marco-shared/src/assets/language/xx*.toml` files
+- [x] UI language plugin system — swappable translation files, with region-qualified variants (e.g. `zh-CN` / `zh-TW`) for macrolanguages that need them
 - [ ] Local AI-assisted tools: writing suggestions, grammar checking, content improvement
 - [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
 - [ ] Built in terminal to run code blocks in editor
@@ -238,35 +238,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 
 ## Contributing
 
-We welcome contributions of all sizes. Short workflow:
-
-1. Open an issue describing the change or bug you plan to address.
-2. Fork the repository and create a feature branch.
-3. Add tests where appropriate and keep changes small and focused.
-4. Run `cargo build` and `cargo test` locally.
-5. Open a pull request referencing the issue and describe the change.
-
-Code style & expectations:
-
-- Keep UI code in `marco/src/ui/` and shared, GTK-free application logic in `marco-shared/src/`. Pure parser/renderer logic lives in the external [`marco-core`](https://github.com/Ranrar/marco-core) crate.
-- Follow Rust idioms (use `Result<T, E>`, avoid panics in library code).
-- Add unit tests and integration tests in `tests/` when applicable.
-
-### High-value contributions
-
-If you'd like to make a high-impact contribution, consider one of these areas — open an issue first so we can coordinate:
-
-- Collaborative editing (Yjs / CRDT): add a `marco/src/components/collab/` backend that implements a `CollabBackend` trait and provide in-process tests for concurrent patches and cursor sync.
-- AI-assisted tools: add a `marco/src/components/ai/` interface for suggestions/edits; keep adapters off the UI thread and provide a small example implementation.
-
-### Component docs & assets
-
-Reference locations for contributors working on components and translations:
-
-- [marco/src/components/ai/README.md](marco/src/components/ai/README.md) — AI component guidance and interface notes
-- [marco/src/components/collab/README.md](marco/src/components/collab/README.md) — Collaboration integration notes and references
-- [documentation/language.md](documentation/language.md) — Localization provider contract and workflow
-- [marco-shared/src/assets/language/language_matrix.md](marco-shared/src/assets/language/language_matrix.md) — language implementation matrix
+We welcome contributions of all sizes. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, code style expectations, high-value contribution areas, and component/translation reference docs.
 
 ## AI-assisted development
 

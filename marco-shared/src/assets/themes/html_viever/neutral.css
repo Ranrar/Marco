@@ -1,15 +1,22 @@
 /* Neutral - Clean universal theme
  * Token-only file: colours, font, and layout variables.
- * All structural CSS lives in core/src/render/base_css.rs
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
  */
 
 :root {
+  /* ── Theme metadata ── */
+  --theme-name: 'Neutral';
+  --theme-author: 'Kim Skov Rasmussen';
+  --theme-license: 'MIT';
+  --theme-version: '11';
+  --theme-description: 'Clean, universal sans-serif theme with a calm blue accent — general-purpose default for docs and notes';
+
   /* ── Typography ── */
   --body-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   --code-font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
   --body-font-size: 16px;
   --body-line-height: 1.6;
-  --body-max-width: 800px;
+  --body-max-width: 100%;
   --body-padding: 2rem;
 
   /* ── Text colours (light defaults) ── */
@@ -56,15 +63,15 @@
   --pagedjs-page-color: #1a1a1a;
 
   /* ── TOC ── */
-  --toc-header-color: #0969da;
-  --toc-header-border: #d0d7de;
-  --toc-link-color: #24292f;
-  --toc-link-hover-bg: #f6f8fa;
-  --toc-link-hover-color: #0969da;
-  --toc-link-active-bg: #dbeafe;
-  --toc-link-active-color: #0550ae;
-  --toc-bg: #f8f9fa;
-  --toc-border: #d0d7de;
+  --toc-header-color: #0066cc;
+  --toc-header-border: #ddd;
+  --toc-link-color: #1a1a1a;
+  --toc-link-hover-bg: #f9f9f9;
+  --toc-link-hover-color: #0066cc;
+  --toc-link-active-bg: #d6e9fb;
+  --toc-link-active-color: #0052a3;
+  --toc-bg: #f9f9f9;
+  --toc-border: #ddd;
   --toc-shadow: rgba(0, 0, 0, 0.1);
 
   /* ── Sliders ── */
@@ -106,15 +113,15 @@
   --caution-bg: #fef2f2;
   --pagedjs-page-bg: #fff;
   --pagedjs-page-color: #1a1a1a;
-  --toc-header-color: #0969da;
-  --toc-header-border: #d0d7de;
-  --toc-link-color: #24292f;
-  --toc-link-hover-bg: #f6f8fa;
-  --toc-link-hover-color: #0969da;
-  --toc-link-active-bg: #dbeafe;
-  --toc-link-active-color: #0550ae;
-  --toc-bg: #f8f9fa;
-  --toc-border: #d0d7de;
+  --toc-header-color: #0066cc;
+  --toc-header-border: #ddd;
+  --toc-link-color: #1a1a1a;
+  --toc-link-hover-bg: #f9f9f9;
+  --toc-link-hover-color: #0066cc;
+  --toc-link-active-bg: #d6e9fb;
+  --toc-link-active-color: #0052a3;
+  --toc-bg: #f9f9f9;
+  --toc-border: #ddd;
   --toc-shadow: rgba(0, 0, 0, 0.1);
   --marco-sliders-bg: var(--bg-secondary);
   --marco-sliders-border: var(--border-color);
@@ -154,15 +161,15 @@
   --caution-bg: #200d0d;
   --pagedjs-page-bg: #1a1a1a;
   --pagedjs-page-color: #e1e1e1;
-  --toc-header-color: #58a6ff;
-  --toc-header-border: #30363d;
-  --toc-link-color: #c9d1d9;
-  --toc-link-hover-bg: #21262d;
-  --toc-link-hover-color: #58a6ff;
-  --toc-link-active-bg: #1f6feb;
-  --toc-link-active-color: #ffffff;
-  --toc-bg: #0d1117;
-  --toc-border: #30363d;
+  --toc-header-color: #4da6ff;
+  --toc-header-border: #333;
+  --toc-link-color: #e1e1e1;
+  --toc-link-hover-bg: #2a2a2a;
+  --toc-link-hover-color: #4da6ff;
+  --toc-link-active-bg: #1a3a5c;
+  --toc-link-active-color: #66b3ff;
+  --toc-bg: #1a1a1a;
+  --toc-border: #333;
   --toc-shadow: rgba(0, 0, 0, 0.3);
   --marco-sliders-bg: var(--bg-secondary);
   --marco-sliders-border: var(--border-color);

@@ -23,6 +23,7 @@ pub struct ApplicationTabCallbacks {
     pub on_text_direction_changed: Option<std::boxed::Box<dyn Fn(bool) + 'static>>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_application_tab(
     theme_manager: Rc<RefCell<crate::theme::ThemeManager>>,
     settings_path: PathBuf,
@@ -30,6 +31,7 @@ pub fn build_application_tab(
     callbacks: ApplicationTabCallbacks,
     appearance_translations: &SettingsAppearanceTranslations,
     layout_translations: &SettingsLayoutTranslations,
+    not_available_yet: &str,
     i18n: &SettingsI18nRegistry,
 ) -> (gtk4::Box, Rc<RefCell<SignalManager>>) {
     use gtk4::{
@@ -237,7 +239,7 @@ pub fn build_application_tab(
     ui_font_combo.set_selected(ui_font_index as u32);
     ui_font_combo.set_sensitive(false);
     ui_font_combo.add_css_class("marco-control-unavailable");
-    ui_font_combo.set_tooltip_text(Some("Not available yet"));
+    ui_font_combo.set_tooltip_text(Some(not_available_yet));
 
     if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone())
     {
@@ -268,7 +270,7 @@ pub fn build_application_tab(
         false,
     );
     ui_font_row.add_css_class("marco-settings-row-unavailable");
-    ui_font_row.set_tooltip_text(Some("Not available yet"));
+    ui_font_row.set_tooltip_text(Some(not_available_yet));
     container.append(&ui_font_row);
 
     // UI Font Size (unavailable placeholder)
@@ -284,7 +286,7 @@ pub fn build_application_tab(
     ui_font_size_spin.add_css_class("marco-spinbutton");
     ui_font_size_spin.set_sensitive(false);
     ui_font_size_spin.add_css_class("marco-control-unavailable");
-    ui_font_size_spin.set_tooltip_text(Some("Not available yet"));
+    ui_font_size_spin.set_tooltip_text(Some(not_available_yet));
 
     if let Ok(sm) = marco_shared::logic::swanson::SettingsManager::initialize(settings_path.clone())
     {
@@ -312,7 +314,7 @@ pub fn build_application_tab(
         false,
     );
     ui_font_size_row.add_css_class("marco-settings-row-unavailable");
-    ui_font_size_row.set_tooltip_text(Some("Not available yet"));
+    ui_font_size_row.set_tooltip_text(Some(not_available_yet));
     container.append(&ui_font_size_row);
 
     // ── Layout section ─────────────────────────────────────────────────────

@@ -104,6 +104,9 @@ pub(crate) fn load_default_translations() -> Translations {
             keyboard_shortcuts: "Keyboard Shortcuts".to_string(),
             diagnostics_reference: "Diagnostics Reference".to_string(),
             about: "About Marco".to_string(),
+            bookmark_line: "Line {}".to_string(),
+            format_table: "Format table".to_string(),
+            insert_update_toc: "Insert / Update TOC".to_string(),
         },
         toolbar: ToolbarTranslations {
             headings: "Headings".to_string(),
@@ -170,6 +173,11 @@ pub(crate) fn load_default_translations() -> Translations {
             ins: "INS".to_string(),
             ovr: "OVR".to_string(),
             encoding_utf8: "UTF-8".to_string(),
+            contents: "Contents".to_string(),
+            no_headings: "No headings".to_string(),
+            issues_prefix: "Issue".to_string(),
+            no_diagnostics: "No diagnostics".to_string(),
+            toc_tooltip: "Toggle Table of Contents panel".to_string(),
         },
         dialog: DialogTranslations {
             open_file: "Open File".to_string(),
@@ -350,6 +358,8 @@ pub(crate) fn load_default_translations() -> Translations {
                 tooltip_cancel: "Cancel and stay in the current document".to_string(),
                 tooltip_save_open: "Save the current document, then open the file".to_string(),
                 tooltip_open: "Open the file in the editor".to_string(),
+                unsaved_changes_message: "\"{document}\" has unsaved changes. Choose how to proceed:"
+                    .to_string(),
             },
             export: ExportDialogTranslations {
                 title: "Export Document".to_string(),
@@ -361,6 +371,8 @@ pub(crate) fn load_default_translations() -> Translations {
                 save_html_title: "Save HTML As…".to_string(),
                 filter_pdf: "PDF Documents".to_string(),
                 filter_html: "HTML Files".to_string(),
+                paper_size_locked_tooltip: "Locked when HTML paper size is set to None"
+                    .to_string(),
             },
             export_complete: ExportCompleteDialogTranslations {
                 close_button: "Close".to_string(),
@@ -371,6 +383,7 @@ pub(crate) fn load_default_translations() -> Translations {
         settings: SettingsTranslations {
             title: "Settings".to_string(),
             close: "Close".to_string(),
+            not_available_yet: "Not available yet".to_string(),
             tabs: SettingsTabsTranslations {
                 application: "Application".to_string(),
                 editor: "Editor".to_string(),
@@ -474,6 +487,8 @@ pub(crate) fn load_default_translations() -> Translations {
                 page_view_margin_description: "Page margin in millimetres applied to each page in page view mode.".to_string(),
                 page_view_page_numbers_label: "Show Page Numbers".to_string(),
                 page_view_page_numbers_description: "Display page numbers in the footer of each page when page view is active.".to_string(),
+                page_view_columns_label: "Pages per Row".to_string(),
+                page_view_columns_description: "Number of pages to display side by side in page view (1-4).".to_string(),
             },
             advanced: SettingsAdvancedTranslations {
                 telemetry_label: "Send Anonymous Usage Data".to_string(),
@@ -483,6 +498,7 @@ pub(crate) fn load_default_translations() -> Translations {
                 my_data_label: "My Data".to_string(),
                 my_data_description: "View the telemetry events queued locally before being sent to our analytics server.".to_string(),
                 my_data_button: "View My Data".to_string(),
+                my_data_body_text: "Telemetry functionality is currently disabled in Marco.\n\nThe 'My Data' viewer would normally show telemetry events tracked locally,\nbut telemetry tracking is not active.".to_string(),
             },
             debug: SettingsDebugTranslations {
                 debug_label: "Debug Mode".to_string(),
@@ -557,6 +573,11 @@ pub(crate) fn load_default_translations() -> Translations {
             window_minimize: "Minimize".to_string(),
             window_maximize_restore: "Maximize / Restore".to_string(),
             window_close: "Close".to_string(),
+            change_layout: "Change layout".to_string(),
+            layout_state_editor_only: "editor view only".to_string(),
+            layout_state_view_only: "preview view only".to_string(),
+            layout_state_editor_and_view_separate: "editor + view in separate window"
+                .to_string(),
         },
         messages: MessagesTranslations {
             file_saved: "File saved successfully".to_string(),
@@ -565,6 +586,34 @@ pub(crate) fn load_default_translations() -> Translations {
             error_opening_file: "Error opening file".to_string(),
             error_saving_file: "Error saving file".to_string(),
             untitled_document: "Untitled.md".to_string(),
+            about_section: "About".to_string(),
+            code_view_short: "Code".to_string(),
+            live_preview: "Live preview".to_string(),
+            print_preview_short: "Print preview".to_string(),
+            select_local_file: "Select Local File".to_string(),
+            theme_label: "Theme:".to_string(),
+            open_in_editor_prompt: "Open \"{filename}\" in the editor?".to_string(),
+            exporting_html: "Exporting HTML…".to_string(),
+            exporting_pdf: "Exporting PDF…".to_string(),
+            generating_html: "Generating HTML, please wait…".to_string(),
+            generating_pdf: "Generating PDF, please wait…".to_string(),
+            html_export_complete: "HTML Export Complete".to_string(),
+            pdf_export_complete: "PDF Export Complete".to_string(),
+            pdf_export_success: "Your PDF was exported successfully.".to_string(),
+            html_export_success: "Your HTML was exported successfully.".to_string(),
+            insert_row_above: "Insert Row Above".to_string(),
+            insert_row_below: "Insert Row Below".to_string(),
+            insert_column_left: "Insert Column Left".to_string(),
+            insert_column_right: "Insert Column Right".to_string(),
+            export_phase: ExportPhaseTranslations {
+                preparing: "Preparing…".to_string(),
+                loading: "Loading paged.js…".to_string(),
+                paginating: "Paginating pages…".to_string(),
+                applying_print_css: "Applying print styles…".to_string(),
+                writing_output: "Writing output…".to_string(),
+                restoring_preview: "Restoring preview…".to_string(),
+                done: "Done".to_string(),
+            },
         },
         search: SearchTranslations {
             title: "Search & Replace".to_string(),

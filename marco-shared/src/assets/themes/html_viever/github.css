@@ -1,24 +1,32 @@
-/* GitHub - GitHub-inspired theme
+/* GitHub - GitHub-inspired theme (current Primer palette)
+ * Colours verified against the live sindresorhus/github-markdown-css extraction
  * Token-only file: colours, font, and layout variables.
- * All structural CSS lives in core/src/render/base_css.rs
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
  */
 
 :root {
+  /* ── Theme metadata ── */
+  --theme-name: 'GitHub';
+  --theme-author: 'sindresorhus';
+  --theme-license: 'MIT';
+  --theme-version: '5.9.0';
+  --theme-description: 'GitHub-inspired theme (GitHub Primer palette), verified via sindresorhus/github-markdown-css';
+
   /* ── Typography ── */
   --body-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica', 'Arial', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --code-font: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
   --body-font-size: 16px;
   --body-line-height: 1.5;
-  --body-max-width: 880px;
+  --body-max-width: 100%;
   --body-padding: 2rem;
 
   /* ── Text colours (light defaults) ── */
-  --text-color: #24292f;
-  --text-secondary: #656d76;
-  --text-muted: #8c959f;
+  --text-color: #1f2328;
+  --text-secondary: #59636e;
+  --text-muted: #818b98;
   --heading-color: #1f2328;
   --heading-gradient-end: #1f2328;
-  --strong-color: #24292f;
+  --strong-color: #1f2328;
   --link-color: #0969da;
   --link-hover: #0550ae;
 
@@ -29,42 +37,42 @@
   --bg-pre: #f6f8fa;
 
   /* ── Borders ── */
-  --border-color: #d0d7de;
-  --border-light: #d1d9e0;
-  --border-strong: #8c959f;
+  --border-color: #d1d9e0;
+  --border-light: #eaeef2;
+  --border-strong: #818b98;
 
   /* ── Components ── */
   --blockquote-bg: transparent;
-  --blockquote-border: #d0d7de;
-  --blockquote-text: #656d76;
-  --table-border: #d0d7de;
+  --blockquote-border: #d1d9e0;
+  --blockquote-text: #59636e;
+  --table-border: #d1d9e0;
   --table-header-bg: #f6f8fa;
   --table-header-color: #1f2328;
-  --table-stripe-bg: rgba(175, 184, 193, 0.2);
+  --table-stripe-bg: rgba(129, 139, 152, 0.12);
   --mark-bg: #fff8c5;
-  --mark-color: #24292f;
+  --mark-color: #1f2328;
   --admonition-bg: #f6f8fa;
-  --admonition-border: #d0d7de;
+  --admonition-border: #d1d9e0;
   --note-bg: #ddf4ff;
-  --tip-bg: #dcffe4;
-  --important-bg: #eee8fd;
+  --tip-bg: #dafbe1;
+  --important-bg: #f6ebff;
   --warning-bg: #fff8c5;
   --caution-bg: #ffebe9;
 
   /* ── Paged view paper ── */
   --pagedjs-page-bg: #ffffff;
-  --pagedjs-page-color: #24292f;
+  --pagedjs-page-color: #1f2328;
 
   /* ── TOC ── */
   --toc-header-color: #0969da;
-  --toc-header-border: #d0d7de;
-  --toc-link-color: #24292f;
+  --toc-header-border: #d1d9e0;
+  --toc-link-color: #1f2328;
   --toc-link-hover-bg: #f6f8fa;
   --toc-link-hover-color: #0969da;
   --toc-link-active-bg: #dbeafe;
   --toc-link-active-color: #0550ae;
   --toc-bg: #f8f9fa;
-  --toc-border: #d0d7de;
+  --toc-border: #d1d9e0;
   --toc-shadow: rgba(0, 0, 0, 0.1);
 
   /* ── Sliders ── */
@@ -72,87 +80,87 @@
   --marco-sliders-border: var(--border-color);
 
   /* ── GitHub-specific: h1/h2 underline ── */
-  --h1h2-border-bottom: 1px solid #d0d7de;
+  --h1h2-border-bottom: 1px solid #d1d9e0;
   --h1h2-padding-bottom: 0.3em;
 }
 
 .theme-light {
-  --text-color: #24292f;
-  --text-secondary: #656d76;
-  --text-muted: #8c959f;
+  --text-color: #1f2328;
+  --text-secondary: #59636e;
+  --text-muted: #818b98;
   --heading-color: #1f2328;
   --heading-gradient-end: #1f2328;
-  --strong-color: #24292f;
+  --strong-color: #1f2328;
   --link-color: #0969da;
   --link-hover: #0550ae;
   --bg-color: #ffffff;
   --bg-secondary: #f6f8fa;
   --bg-code: #f6f8fa;
   --bg-pre: #f6f8fa;
-  --border-color: #d0d7de;
-  --border-light: #d1d9e0;
-  --border-strong: #8c959f;
+  --border-color: #d1d9e0;
+  --border-light: #eaeef2;
+  --border-strong: #818b98;
   --blockquote-bg: transparent;
-  --blockquote-border: #d0d7de;
-  --blockquote-text: #656d76;
-  --table-border: #d0d7de;
+  --blockquote-border: #d1d9e0;
+  --blockquote-text: #59636e;
+  --table-border: #d1d9e0;
   --table-header-bg: #f6f8fa;
   --table-header-color: #1f2328;
-  --table-stripe-bg: rgba(175, 184, 193, 0.2);
+  --table-stripe-bg: rgba(129, 139, 152, 0.12);
   --mark-bg: #fff8c5;
-  --mark-color: #24292f;
+  --mark-color: #1f2328;
   --admonition-bg: #f6f8fa;
-  --admonition-border: #d0d7de;
+  --admonition-border: #d1d9e0;
   --note-bg: #ddf4ff;
-  --tip-bg: #dcffe4;
-  --important-bg: #eee8fd;
+  --tip-bg: #dafbe1;
+  --important-bg: #f6ebff;
   --warning-bg: #fff8c5;
   --caution-bg: #ffebe9;
   --pagedjs-page-bg: #ffffff;
-  --pagedjs-page-color: #24292f;
+  --pagedjs-page-color: #1f2328;
   --toc-header-color: #0969da;
-  --toc-header-border: #d0d7de;
-  --toc-link-color: #24292f;
+  --toc-header-border: #d1d9e0;
+  --toc-link-color: #1f2328;
   --toc-link-hover-bg: #f6f8fa;
   --toc-link-hover-color: #0969da;
   --toc-link-active-bg: #dbeafe;
   --toc-link-active-color: #0550ae;
   --toc-bg: #f8f9fa;
-  --toc-border: #d0d7de;
+  --toc-border: #d1d9e0;
   --toc-shadow: rgba(0, 0, 0, 0.1);
   --marco-sliders-bg: var(--bg-secondary);
   --marco-sliders-border: var(--border-color);
-  --h1h2-border-bottom: 1px solid #d0d7de;
+  --h1h2-border-bottom: 1px solid #d1d9e0;
   --h1h2-padding-bottom: 0.3em;
 }
 
 .theme-dark {
   --text-color: #f0f6fc;
-  --text-secondary: #8b949e;
-  --text-muted: #6e7681;
+  --text-secondary: #9198a1;
+  --text-muted: #7d8590;
   --heading-color: #f0f6fc;
   --heading-gradient-end: #f0f6fc;
   --strong-color: #f0f6fc;
-  --link-color: #58a6ff;
+  --link-color: #4493f8;
   --link-hover: #79c0ff;
   --bg-color: #0d1117;
-  --bg-secondary: #161b22;
-  --bg-code: #161b22;
-  --bg-pre: #161b22;
-  --border-color: #30363d;
-  --border-light: #21262d;
-  --border-strong: #6e7681;
+  --bg-secondary: #151b23;
+  --bg-code: #151b23;
+  --bg-pre: #151b23;
+  --border-color: #3d444d;
+  --border-light: #2d333b;
+  --border-strong: #7d8590;
   --blockquote-bg: transparent;
-  --blockquote-border: #30363d;
-  --blockquote-text: #8b949e;
-  --table-border: #30363d;
-  --table-header-bg: #161b22;
+  --blockquote-border: #3d444d;
+  --blockquote-text: #9198a1;
+  --table-border: #3d444d;
+  --table-header-bg: #151b23;
   --table-header-color: #f0f6fc;
-  --table-stripe-bg: rgba(110, 118, 129, 0.1);
+  --table-stripe-bg: rgba(145, 152, 161, 0.1);
   --mark-bg: #ffd33d;
-  --mark-color: #24292f;
-  --admonition-bg: #161b22;
-  --admonition-border: #30363d;
+  --mark-color: #1f2328;
+  --admonition-bg: #151b23;
+  --admonition-border: #3d444d;
   --note-bg: #031d2e;
   --tip-bg: #0a1f14;
   --important-bg: #160e30;
@@ -160,19 +168,19 @@
   --caution-bg: #160302;
   --pagedjs-page-bg: #0d1117;
   --pagedjs-page-color: #f0f6fc;
-  --toc-header-color: #58a6ff;
-  --toc-header-border: #30363d;
+  --toc-header-color: #4493f8;
+  --toc-header-border: #3d444d;
   --toc-link-color: #f0f6fc;
-  --toc-link-hover-bg: #21262d;
-  --toc-link-hover-color: #58a6ff;
+  --toc-link-hover-bg: #2d333b;
+  --toc-link-hover-color: #4493f8;
   --toc-link-active-bg: #1f6feb;
   --toc-link-active-color: #ffffff;
   --toc-bg: #0d1117;
-  --toc-border: #30363d;
+  --toc-border: #3d444d;
   --toc-shadow: rgba(0, 0, 0, 0.3);
   --marco-sliders-bg: var(--bg-secondary);
   --marco-sliders-border: var(--border-color);
-  --h1h2-border-bottom: 1px solid #30363d;
+  --h1h2-border-bottom: 1px solid #3d444d;
   --h1h2-padding-bottom: 0.3em;
 }
 

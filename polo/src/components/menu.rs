@@ -23,7 +23,7 @@
 
 use crate::components::dialog::show_open_file_dialog;
 use crate::components::toc_panel::TocPanelHandle;
-use crate::components::utils::{apply_gtk_theme_preference, list_available_themes_from_path};
+use crate::components::utils::apply_gtk_theme_preference;
 use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{
@@ -31,6 +31,7 @@ use gtk4::{
     HeaderBar, Image, Label, Orientation, Picture, Popover, Separator, WindowHandle,
 };
 use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
+use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 use marco_shared::logic::swanson::SettingsManager;
 use rsvg::{CairoRenderer, Loader};
 use std::cell::RefCell;
@@ -588,14 +589,14 @@ fn build_view_popover_content(
             .unwrap_or_else(|| "marco.css".to_string())
     };
 
-    // List available themes
-    let themes = list_available_themes_from_path(asset_root);
-    for theme_name in &themes {
-        let current_stem = current_theme.trim_end_matches(".css");
-        let display = if current_stem == theme_name.as_str() {
-            format!("✓  {}", theme_name)
+    // List available themes (label prefers each theme's `--theme-name` metadata,
+    // falling back to a filename-derived label; see list_html_view_themes).
+    let themes = list_html_view_themes(&asset_root.join("themes/html_viever"));
+    for theme_entry in &themes {
+        let display = if current_theme == theme_entry.filename {
+            format!("✓  {}", theme_entry.label)
         } else {
-            format!("    {}", theme_name)
+            format!("    {}", theme_entry.label)
         };
         let theme_btn = menu_btn(&display);
         theme_btn.add_css_class("polo-theme-item");
@@ -606,7 +607,7 @@ fn build_view_popover_content(
         let webview_clone = webview.clone();
         let cfp_clone = current_file_path.clone();
         let asset_root_buf = asset_root.to_path_buf();
-        let theme_filename = format!("{}.css", theme_name);
+        let theme_filename = theme_entry.filename.clone();
 
         theme_btn.connect_clicked(move |_| {
             popover_clone.popdown();

@@ -1,9 +1,16 @@
 /* Marco - Astro/Space theme
  * Token-only file: colours, font, and layout variables.
- * All structural CSS lives in core/src/render/base_css.rs
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
  */
 
 :root {
+  /* ── Theme metadata ── */
+  --theme-name: 'Marco';
+  --theme-author: 'Kim Skov Rasmussen';
+  --theme-license: 'MIT';
+  --theme-version: '12';
+  --theme-description: 'Signature Astro/Space theme — purple-to-pink gradient headings and links, the app default preview look';
+
   /* ── Typography ── */
   --body-font: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   --code-font: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', 'Source Code Pro', monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;

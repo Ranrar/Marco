@@ -11,6 +11,7 @@
 //! bookmark label ("Add Bookmark" / "Remove Bookmark") is updated by
 //! replacing the item in a dedicated mutable `gio::Menu` section.
 
+use crate::components::language::Translations;
 use gtk4::{gdk, gio, prelude::*, PopoverMenuFlags, TextBuffer};
 use std::{cell::RefCell, rc::Rc};
 
@@ -262,7 +263,7 @@ impl CtxActions {
 
 /// Build the complete menu model.  `bookmark_section` is kept as a live
 /// reference so its contents can be updated before each popup.
-fn build_model(bookmark_section: &gio::Menu) -> gio::Menu {
+fn build_model(bookmark_section: &gio::Menu, translations: &Translations) -> gio::Menu {
     let root = gio::Menu::new();
 
     // History
@@ -295,16 +296,28 @@ fn build_model(bookmark_section: &gio::Menu) -> gio::Menu {
     table.append_item(&item("Format Table", CTX_FORMAT_TABLE));
 
     let rows = gio::Menu::new();
-    rows.append_item(&item("Insert Row Above", CTX_INSERT_ROW_ABOVE));
-    rows.append_item(&item("Insert Row Below", CTX_INSERT_ROW_BELOW));
+    rows.append_item(&item(
+        &translations.messages.insert_row_above,
+        CTX_INSERT_ROW_ABOVE,
+    ));
+    rows.append_item(&item(
+        &translations.messages.insert_row_below,
+        CTX_INSERT_ROW_BELOW,
+    ));
     rows.append_item(&item("Delete Row", CTX_DELETE_ROW));
     rows.append_item(&item("Move Row Up", CTX_MOVE_ROW_UP));
     rows.append_item(&item("Move Row Down", CTX_MOVE_ROW_DOWN));
     table.append_submenu(Some("Rows"), &rows);
 
     let cols = gio::Menu::new();
-    cols.append_item(&item("Insert Column Left", CTX_INSERT_COL_LEFT));
-    cols.append_item(&item("Insert Column Right", CTX_INSERT_COL_RIGHT));
+    cols.append_item(&item(
+        &translations.messages.insert_column_left,
+        CTX_INSERT_COL_LEFT,
+    ));
+    cols.append_item(&item(
+        &translations.messages.insert_column_right,
+        CTX_INSERT_COL_RIGHT,
+    ));
     cols.append_item(&item("Delete Column", CTX_DELETE_COL));
     cols.append_item(&item("Move Column Left", CTX_MOVE_COL_LEFT));
     cols.append_item(&item("Move Column Right", CTX_MOVE_COL_RIGHT));
@@ -339,6 +352,7 @@ pub fn setup_editor_context_menu(
     editor_buffer: &sourceview5::Buffer,
     bookmark_manager: Rc<BookmarkManager>,
     file_operations_rc: Rc<RefCell<FileOperations>>,
+    translations: &Translations,
 ) {
     // Create and register all actions.
     let actions = Rc::new(CtxActions::new());
@@ -520,7 +534,7 @@ pub fn setup_editor_context_menu(
     //
     // PopoverMenuFlags::NESTED makes each submenu appear as a floating panel
     // anchored to its parent item — GTK handles all positioning internally.
-    let model = build_model(&actions.bookmark_section);
+    let model = build_model(&actions.bookmark_section, translations);
     let popover = gtk4::PopoverMenu::from_model_full(&model, PopoverMenuFlags::NESTED);
     let popover_base: gtk4::Popover = popover.clone().upcast();
     popover.set_parent(editor_source_view);

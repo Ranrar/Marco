@@ -30,6 +30,7 @@ pub struct ExportingDialog {
     window: Window,
     pulse_source: Option<glib::SourceId>,
     phase_label: Label,
+    phase_translations: crate::components::language::ExportPhaseTranslations,
     cancel_token: CancelToken,
 }
 
@@ -40,11 +41,13 @@ pub struct ExportingDialog {
 /// alive.
 pub struct ExportDialogReporter {
     phase_label: Label,
+    phase_translations: crate::components::language::ExportPhaseTranslations,
 }
 
 impl ProgressReporter for ExportDialogReporter {
     fn set_phase(&self, phase: ExportPhase) {
-        self.phase_label.set_text(phase.label());
+        self.phase_label
+            .set_text(phase.label(&self.phase_translations));
     }
 }
 
@@ -53,6 +56,7 @@ impl ExportingDialog {
     pub fn reporter(&self) -> ExportDialogReporter {
         ExportDialogReporter {
             phase_label: self.phase_label.clone(),
+            phase_translations: self.phase_translations.clone(),
         }
     }
 
@@ -80,6 +84,9 @@ impl ExportingDialog {
 /// * `title`   - text shown in the custom titlebar (e.g. `"Exporting PDF…"`).
 /// * `message` - body label shown above the progress bar
 ///   (e.g. `"Generating PDF, please wait…"`).
+/// * `phase_translations` - translated phase labels ("Preparing…", "Writing
+///   output…", etc.), rendered as the pipeline advances via
+///   [`ExportDialogReporter::set_phase`].
 ///
 /// The returned [`ExportingDialog`] keeps the GTK [`Window`] alive; the
 /// caller must invoke [`ExportingDialog::close`] to dismiss it.
@@ -91,6 +98,7 @@ pub fn show_exporting_dialog<W: IsA<Window>>(
     parent: &W,
     title: &str,
     message: &str,
+    phase_translations: &crate::components::language::ExportPhaseTranslations,
 ) -> ExportingDialog {
     // ── Cancel token shared between the X/ESC handler and run_export ──────
     let cancel_token = CancelToken::new();
@@ -181,7 +189,7 @@ pub fn show_exporting_dialog<W: IsA<Window>>(
     vbox.append(&primary);
 
     // Secondary phase label — updated by ExportDialogReporter::set_phase.
-    let phase_label = Label::new(Some(ExportPhase::Preparing.label()));
+    let phase_label = Label::new(Some(ExportPhase::Preparing.label(phase_translations)));
     phase_label.add_css_class("marco-dialog-description");
     phase_label.set_halign(Align::Start);
     phase_label.set_xalign(0.0);
@@ -213,6 +221,7 @@ pub fn show_exporting_dialog<W: IsA<Window>>(
         window: dialog,
         pulse_source: Some(pulse_source),
         phase_label,
+        phase_translations: phase_translations.clone(),
         cancel_token,
     }
 }

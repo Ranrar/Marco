@@ -1,12 +1,12 @@
 {
   "linux": {
-    "marco-shared": "0.24.0",
-    "marco": "0.24.0",
-    "polo": "0.24.0"
+    "marco-shared": "0.24.2",
+    "marco": "0.24.2",
+    "polo": "0.24.2"
   },
   "windows": {
-    "marco-shared": "0.24.0",
-    "marco": "0.24.0",
-    "polo": "0.24.0"
+    "marco-shared": "0.24.2",
+    "marco": "0.24.2",
+    "polo": "0.24.2"
   }
 }

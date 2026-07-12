@@ -17,6 +17,7 @@ use crate::components::language::{SettingsAdvancedTranslations, Translations};
 pub fn build_advanced_tab(
     settings_path: &str,
     translations: &SettingsAdvancedTranslations,
+    not_available_yet: &str,
     i18n: &SettingsI18nRegistry,
 ) -> GtkBox {
     // Initialize SettingsManager for this tab
@@ -56,7 +57,7 @@ pub fn build_advanced_tab(
     telemetry_switch.set_active(current_telemetry_enabled);
     telemetry_switch.set_sensitive(false);
     telemetry_switch.add_css_class("marco-control-unavailable");
-    telemetry_switch.set_tooltip_text(Some("Not available yet"));
+    telemetry_switch.set_tooltip_text(Some(not_available_yet));
 
     // Connect telemetry toggle to save settings (numbed - no actual telemetry provider interaction)
     if let Some(settings_manager_clone) = settings_manager_opt.clone() {
@@ -99,7 +100,7 @@ pub fn build_advanced_tab(
         true, // First row
     );
     telemetry_row.add_css_class("marco-settings-row-unavailable");
-    telemetry_row.set_tooltip_text(Some("Not available yet"));
+    telemetry_row.set_tooltip_text(Some(not_available_yet));
     container.append(&telemetry_row);
 
     // Note: telemetry is disabled
@@ -243,11 +244,9 @@ fn show_my_data_dialog(parent: Option<&gtk4::Window>, _i18n: &SettingsI18nRegist
     content.set_valign(Align::Fill);
 
     // Info label
-    let info_text = "Telemetry functionality is currently disabled in Marco.\n\n\
-        The 'My Data' viewer would normally show telemetry events tracked locally,\n\
-        but telemetry tracking is not active.";
+    let translations = crate::ui::dialogs::current_translations();
     let info_label = Label::builder()
-        .label(info_text)
+        .label(&translations.settings.advanced.my_data_body_text)
         .wrap(true)
         .xalign(0.0)
         .build();
@@ -286,6 +285,7 @@ mod tests {
             as fn(
                 &str,
                 &super::SettingsAdvancedTranslations,
+                &str,
                 &super::SettingsI18nRegistry,
             ) -> gtk4::Box;
         let _ = _fn_ptr;

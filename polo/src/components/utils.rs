@@ -109,33 +109,6 @@ pub fn get_theme_mode(settings_manager: &Arc<SettingsManager>) -> String {
     }
 }
 
-/// List available HTML preview themes from assets directory
-///
-/// # Arguments
-/// * `asset_root` - The asset root directory path
-///
-/// **Note**: Prefer using `SharedPaths::list_preview_themes()` from the new paths API.
-pub fn list_available_themes_from_path(asset_root: &std::path::Path) -> Vec<String> {
-    let themes_dir = asset_root.join("themes/html_viever");
-
-    let mut themes = Vec::new();
-
-    if let Ok(entries) = std::fs::read_dir(&themes_dir) {
-        for entry in entries.flatten() {
-            if let Some(filename) = entry.file_name().to_str() {
-                if filename.ends_with(".css") {
-                    // Remove the .css extension for display
-                    let theme_name = filename.trim_end_matches(".css").to_string();
-                    themes.push(theme_name);
-                }
-            }
-        }
-    }
-
-    themes.sort();
-    themes
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -218,6 +191,7 @@ mod tests {
 
     #[test]
     fn smoke_test_list_available_themes() {
+        use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
         use marco_shared::paths::{workspace_root, PathProvider, PoloPaths};
         use std::path::PathBuf;
 
@@ -230,26 +204,26 @@ mod tests {
             PathBuf::from("marco-shared/src/assets") // Fallback for test environment
         };
 
-        let themes = list_available_themes_from_path(&asset_root);
+        let themes = list_html_view_themes(&asset_root.join("themes/html_viever"));
 
         // Note: Themes may not be available in dev/test environment
         // They are copied during build by build.rs
         println!("Found {} themes", themes.len());
 
-        // Themes should NOT include .css extension
         for theme in &themes {
             assert!(
-                !theme.ends_with(".css"),
-                "Theme '{}' should not include .css extension",
-                theme
+                theme.filename.ends_with(".css"),
+                "Theme filename '{}' should include the .css extension",
+                theme.filename
             );
-            assert!(!theme.is_empty(), "Theme name should not be empty");
+            assert!(!theme.label.is_empty(), "Theme label should not be empty");
         }
 
-        // Should be sorted
-        let mut sorted_themes = themes.clone();
-        sorted_themes.sort();
-        assert_eq!(themes, sorted_themes, "Themes should be sorted");
+        // Should be sorted by label
+        let mut sorted_labels: Vec<&str> = themes.iter().map(|t| t.label.as_str()).collect();
+        sorted_labels.sort();
+        let labels: Vec<&str> = themes.iter().map(|t| t.label.as_str()).collect();
+        assert_eq!(labels, sorted_labels, "Themes should be sorted by label");
     }
 
     #[test]

@@ -1,4 +1,4 @@
-use marco_shared::logic::layoutstate::{layout_state_label, LayoutState};
+use marco_shared::logic::layoutstate::LayoutState;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
@@ -24,6 +24,20 @@ type RebuildPopover = Rc<RefCell<Option<RebuildCallback>>>;
 type WeakRebuildPopover = Weak<RefCell<Option<RebuildCallback>>>;
 
 const HOVER_SWITCH_DELAY_MS: u64 = 140;
+
+/// Human-readable tooltip for the layout-switcher button's *current* state
+/// (what clicking it will do next). Translated variant of the mapping that
+/// used to live as `layout_state_label` in `marco-shared`'s GTK-free
+/// `layoutstate` module — moved here because the translated strings live in
+/// this crate.
+fn layout_state_tooltip(state: LayoutState, t: &Translations) -> &str {
+    match state {
+        LayoutState::DualView => &t.titlebar.change_layout,
+        LayoutState::EditorOnly => &t.titlebar.layout_state_editor_only,
+        LayoutState::ViewOnly => &t.titlebar.layout_state_view_only,
+        LayoutState::EditorAndViewSeparate => &t.titlebar.layout_state_editor_and_view_separate,
+    }
+}
 
 #[derive(Clone)]
 struct HoverMenuSwitchState {
@@ -1028,7 +1042,10 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Track the split position when in DualView mode
     let previous_split_position = Rc::new(RefCell::new(0i32));
     // Set initial tooltip to the human-readable current layout label
-    layout_menu_btn.set_tooltip_text(Some(layout_state_label(*layout_state.borrow())));
+    layout_menu_btn.set_tooltip_text(Some(layout_state_tooltip(
+        *layout_state.borrow(),
+        translations,
+    )));
 
     // Use SVG layout switcher icon
     let layout_icon_color: std::borrow::Cow<'static, str> =
@@ -1653,10 +1670,17 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     let btn2_for_state = btn2.clone();
     let btn3_for_state = btn3.clone();
     let btn4_for_state = btn4.clone();
+    // Snapshot of the active locale's strings at titlebar-construction time.
+    // The layout-switcher tooltip only gets rebuilt when the user actually
+    // switches layout (not on a pure language switch), so this can go stale
+    // until the next layout change — same limitation the previous hardcoded
+    // (always-English) `layout_state_label` had, just narrower now.
+    let translations_for_rebuild = translations.clone();
     *rebuild_popover.borrow_mut() = Some(Box::new(move || {
         let state = *layout_state_clone2.borrow();
         // Update the layout button tooltip to reflect the current state
-        layout_menu_btn_for_rebuild.set_tooltip_text(Some(layout_state_label(state)));
+        layout_menu_btn_for_rebuild
+            .set_tooltip_text(Some(layout_state_tooltip(state, &translations_for_rebuild)));
         let popover_box = GtkBox::new(Orientation::Horizontal, 6);
         popover_box.set_margin_top(8);
         popover_box.set_margin_bottom(8);

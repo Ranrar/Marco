@@ -125,9 +125,12 @@ pub async fn show_export_dialog(
         vec![
             ("Academic".to_string(), "academic.css".to_string()),
             ("Github".to_string(), "github.css".to_string()),
+            ("Gruvbox".to_string(), "gruvbox.css".to_string()),
             ("Marco".to_string(), "marco.css".to_string()),
-            ("Minimal".to_string(), "minimal.css".to_string()),
             ("Neutral".to_string(), "neutral.css".to_string()),
+            ("Nord".to_string(), "nord.css".to_string()),
+            ("Sepia".to_string(), "sepia.css".to_string()),
+            ("Solarized".to_string(), "solarized.css".to_string()),
         ]
     } else {
         themes.to_vec()
@@ -212,7 +215,10 @@ pub async fn show_export_dialog(
     theme_dropdown.set_selected(init_theme_idx);
     theme_dropdown.set_hexpand(true);
     theme_dropdown.set_width_request(CONTROL_WIDTH_PX);
-    vbox.append(&build_setting_row("Theme:", &theme_dropdown));
+    vbox.append(&build_setting_row(
+        &translations.messages.theme_label,
+        &theme_dropdown,
+    ));
 
     // Mode row (Light / Dark)
     let mode_expr =
@@ -317,6 +323,7 @@ pub async fn show_export_dialog(
         let od = orient_dropdown.clone();
         let ms = margin_spin.clone();
         let pn = page_num_check.clone();
+        let paper_size_locked_tooltip = t.paper_size_locked_tooltip.clone();
         move |is_pdf: bool, paper: &str| {
             let active = is_pdf || !paper.eq_ignore_ascii_case("none");
             od.set_sensitive(active);
@@ -332,7 +339,7 @@ pub async fn show_export_dialog(
                 od.add_css_class("marco-control-unavailable");
                 ms.add_css_class("marco-control-unavailable");
                 pn.add_css_class("marco-control-unavailable");
-                pn.set_tooltip_text(Some("Locked when HTML paper size is set to None"));
+                pn.set_tooltip_text(Some(&paper_size_locked_tooltip));
             }
         }
     };
