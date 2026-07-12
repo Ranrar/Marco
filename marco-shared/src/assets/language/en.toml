@@ -101,6 +101,9 @@ walkthrough = "Walkthrough"
 keyboard_shortcuts = "Keyboard Shortcuts"
 diagnostics_reference = "Diagnostics Reference"
 about = "About Marco"
+bookmark_line = "Line {}"
+format_table = "Format table"
+insert_update_toc = "Insert / Update TOC"
 
 [toolbar]
 headings = "Headings"
@@ -167,6 +170,11 @@ characters = "Characters"
 ins = "INS"
 ovr = "OVR"
 encoding_utf8 = "UTF-8"
+contents = "Contents"
+no_headings = "No headings"
+issues_prefix = "Issue"
+no_diagnostics = "No diagnostics"
+toc_tooltip = "Toggle Table of Contents panel"
 
 [dialog]
 open_file = "Open File"
@@ -347,6 +355,7 @@ tooltip_discard = "Discard unsaved changes and open the file"
 tooltip_cancel = "Cancel and stay in the current document"
 tooltip_save_open = "Save the current document, then open the file"
 tooltip_open = "Open the file in the editor"
+unsaved_changes_message = "\"{document}\" has unsaved changes. Choose how to proceed:"
 
 [dialog.export]
 title = "Export Document"
@@ -358,6 +367,7 @@ save_pdf_title = "Save PDF As…"
 save_html_title = "Save HTML As…"
 filter_pdf = "PDF Documents"
 filter_html = "HTML Files"
+paper_size_locked_tooltip = "Locked when HTML paper size is set to None"
 
 [dialog.export_complete]
 close_button = "Close"
@@ -367,6 +377,7 @@ open_document = "Open document"
 [settings]
 title = "Settings"
 close = "Close"
+not_available_yet = "Not available yet"
 
 [settings.tabs]
 application = "Application"
@@ -465,6 +476,8 @@ page_view_margin_label = "Page Margin (mm)"
 page_view_margin_description = "Page margin in millimetres applied to each page in page view mode."
 page_view_page_numbers_label = "Show Page Numbers"
 page_view_page_numbers_description = "Display page numbers in the footer of each page when page view is active."
+page_view_columns_label = "Pages per Row"
+page_view_columns_description = "Number of pages to display side by side in page view (1-4)."
 
 [settings.advanced]
 telemetry_label = "Send Anonymous Usage Data"
@@ -474,6 +487,7 @@ log_to_file_description = "Enable file logging for troubleshooting."
 my_data_label = "My Data"
 my_data_description = "View the telemetry events queued locally before being sent to our analytics server."
 my_data_button = "View My Data"
+my_data_body_text = "Telemetry functionality is currently disabled in Marco.\n\nThe 'My Data' viewer would normally show telemetry events tracked locally,\nbut telemetry tracking is not active."
 
 [settings.debug]
 debug_label = "Debug Mode"
@@ -506,6 +520,10 @@ layout_restore_split = "Restore default split view"
 window_minimize = "Minimize"
 window_maximize_restore = "Maximize / Restore"
 window_close = "Close"
+change_layout = "Change layout"
+layout_state_editor_only = "editor view only"
+layout_state_view_only = "preview view only"
+layout_state_editor_and_view_separate = "editor + view in separate window"
 
 [messages]
 file_saved = "File saved successfully"
@@ -514,6 +532,34 @@ export_complete = "Export completed"
 error_opening_file = "Error opening file"
 error_saving_file = "Error saving file"
 untitled_document = "Untitled.md"
+about_section = "About"
+code_view_short = "Code"
+live_preview = "Live preview"
+print_preview_short = "Print preview"
+select_local_file = "Select Local File"
+theme_label = "Theme:"
+open_in_editor_prompt = "Open \"{filename}\" in the editor?"
+exporting_html = "Exporting HTML…"
+exporting_pdf = "Exporting PDF…"
+generating_html = "Generating HTML, please wait…"
+generating_pdf = "Generating PDF, please wait…"
+html_export_complete = "HTML Export Complete"
+pdf_export_complete = "PDF Export Complete"
+pdf_export_success = "Your PDF was exported successfully."
+html_export_success = "Your HTML was exported successfully."
+insert_row_above = "Insert Row Above"
+insert_row_below = "Insert Row Below"
+insert_column_left = "Insert Column Left"
+insert_column_right = "Insert Column Right"
+
+[messages.export_phase]
+preparing = "Preparing…"
+loading = "Loading paged.js…"
+paginating = "Paginating pages…"
+applying_print_css = "Applying print styles…"
+writing_output = "Writing output…"
+restoring_preview = "Restoring preview…"
+done = "Done"
 
 [search]
 title = "Search & Replace"

@@ -324,8 +324,8 @@ pub fn build_print_preview_tab(
         i18n,
         "Pages per Row",
         "Number of pages to display side by side in page view (1-4).",
-        Rc::new(|t: &Translations| t.settings.layout.page_view_page_numbers_label.clone()),
-        Rc::new(|t: &Translations| t.settings.layout.page_view_page_numbers_description.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.page_view_columns_label.clone()),
+        Rc::new(|t: &Translations| t.settings.layout.page_view_columns_description.clone()),
         &cols_spin,
         false,
     );

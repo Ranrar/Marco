@@ -180,6 +180,9 @@ pub struct MenuTranslations {
     pub keyboard_shortcuts: String,
     pub diagnostics_reference: String,
     pub about: String,
+    pub bookmark_line: String,
+    pub format_table: String,
+    pub insert_update_toc: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -259,6 +262,11 @@ pub struct FooterTranslations {
     pub ins: String,
     pub ovr: String,
     pub encoding_utf8: String,
+    pub contents: String,
+    pub no_headings: String,
+    pub issues_prefix: String,
+    pub no_diagnostics: String,
+    pub toc_tooltip: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -475,6 +483,7 @@ pub struct OpenLocalFileDialogTranslations {
     pub tooltip_cancel: String,
     pub tooltip_save_open: String,
     pub tooltip_open: String,
+    pub unsaved_changes_message: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -488,6 +497,7 @@ pub struct ExportDialogTranslations {
     pub save_html_title: String,
     pub filter_pdf: String,
     pub filter_html: String,
+    pub paper_size_locked_tooltip: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -501,6 +511,7 @@ pub struct ExportCompleteDialogTranslations {
 pub struct SettingsTranslations {
     pub title: String,
     pub close: String,
+    pub not_available_yet: String,
     pub tabs: SettingsTabsTranslations,
     pub language: SettingsLanguageTranslations,
     pub editor: SettingsEditorTranslations,
@@ -619,6 +630,8 @@ pub struct SettingsLayoutTranslations {
     pub page_view_margin_description: String,
     pub page_view_page_numbers_label: String,
     pub page_view_page_numbers_description: String,
+    pub page_view_columns_label: String,
+    pub page_view_columns_description: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -630,6 +643,7 @@ pub struct SettingsAdvancedTranslations {
     pub my_data_label: String,
     pub my_data_description: String,
     pub my_data_button: String,
+    pub my_data_body_text: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -666,6 +680,10 @@ pub struct TitlebarTranslations {
     pub window_minimize: String,
     pub window_maximize_restore: String,
     pub window_close: String,
+    pub change_layout: String,
+    pub layout_state_editor_only: String,
+    pub layout_state_view_only: String,
+    pub layout_state_editor_and_view_separate: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -676,6 +694,37 @@ pub struct MessagesTranslations {
     pub error_opening_file: String,
     pub error_saving_file: String,
     pub untitled_document: String,
+    pub about_section: String,
+    pub code_view_short: String,
+    pub live_preview: String,
+    pub print_preview_short: String,
+    pub select_local_file: String,
+    pub theme_label: String,
+    pub open_in_editor_prompt: String,
+    pub exporting_html: String,
+    pub exporting_pdf: String,
+    pub generating_html: String,
+    pub generating_pdf: String,
+    pub html_export_complete: String,
+    pub pdf_export_complete: String,
+    pub pdf_export_success: String,
+    pub html_export_success: String,
+    pub insert_row_above: String,
+    pub insert_row_below: String,
+    pub insert_column_left: String,
+    pub insert_column_right: String,
+    pub export_phase: ExportPhaseTranslations,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExportPhaseTranslations {
+    pub preparing: String,
+    pub loading: String,
+    pub paginating: String,
+    pub applying_print_css: String,
+    pub writing_output: String,
+    pub restoring_preview: String,
+    pub done: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -725,7 +774,7 @@ impl std::fmt::Display for LocalizationError {
             LocalizationError::InvalidLocaleCode(code) => {
                 write!(
                     f,
-                    "Invalid locale code '{}' (must be ISO 639-1: 2 letters)",
+                    "Invalid locale code '{}' (must be ISO 639-1, e.g. 'en', optionally with an ISO 3166-1 region subtag, e.g. 'zh-CN')",
                     code
                 )
             }
@@ -745,6 +794,23 @@ impl From<std::io::Error> for LocalizationError {
 impl From<toml::de::Error> for LocalizationError {
     fn from(error: toml::de::Error) -> Self {
         LocalizationError::Parse(error)
+    }
+}
+
+/// Validate a locale code against the naming scheme accepted for
+/// `assets/language/*.toml` files: either a bare ISO 639-1 language code
+/// (`en`, `da`) or that code plus an ISO 3166-1 alpha-2 region subtag
+/// (`zh-CN`, `zh-TW`), matching the BCP 47 convention used to disambiguate
+/// regional script/dialect variants for macrolanguages like Chinese.
+fn is_valid_locale_code(locale: &str) -> bool {
+    match locale.split_once('-') {
+        None => locale.len() == 2 && locale.chars().all(|c| c.is_ascii_lowercase()),
+        Some((lang, region)) => {
+            lang.len() == 2
+                && lang.chars().all(|c| c.is_ascii_lowercase())
+                && region.len() == 2
+                && region.chars().all(|c| c.is_ascii_uppercase())
+        }
     }
 }
 
@@ -796,6 +862,42 @@ impl SimpleLocalizationManager {
         self.current_locale.read().unwrap().clone()
     }
 
+    /// Load `locale`, cascading through fallbacks so a language switch never
+    /// leaves the UI without translations:
+    /// 1. Try `locale` as given (may be region-qualified, e.g. `zh-CN`).
+    /// 2. If that fails and `locale` carries a region subtag, retry with
+    ///    just the bare language part (e.g. `zh`) — this is what lets a
+    ///    detected `zh-HK` (no matching file) still land on `zh` if that
+    ///    exists.
+    /// 3. If that also fails (and step 2 didn't already try it), fall back
+    ///    to English.
+    ///
+    /// Every step is logged.
+    pub fn load_locale_with_fallback(&self, locale: &str) {
+        if self.load_locale(locale).is_ok() {
+            return;
+        }
+        log::warn!("Failed to load locale '{}'. Trying fallback.", locale);
+
+        let bare_lang = locale.split_once('-').map(|(lang, _)| lang);
+        if let Some(lang) = bare_lang {
+            match self.load_locale(lang) {
+                Ok(()) => return,
+                Err(e) => log::warn!("Failed to load fallback locale '{}': {}.", lang, e),
+            }
+        }
+
+        // Skip if step 2 already tried "en" (bare_lang == Some("en")), so we
+        // always make exactly one attempt at the final fallback rather than
+        // sometimes zero (when `locale` was "en" itself) or two (when
+        // `locale` was e.g. "en-GB").
+        if bare_lang != Some("en") {
+            if let Err(e) = self.load_locale("en") {
+                log::error!("Failed to load fallback locale 'en': {}", e);
+            }
+        }
+    }
+
     fn load_available_locale_infos(assets_path: &Path) -> Vec<LocaleInfo> {
         let mut infos = Vec::new();
 
@@ -835,8 +937,9 @@ impl SimpleLocalizationManager {
                 if let Some(filename) = entry.file_name().to_str() {
                     if filename.ends_with(".toml") && !filename.starts_with('.') {
                         if let Some(locale) = filename.strip_suffix(".toml") {
-                            // Validate ISO 639-1 format (2 letters)
-                            if locale.len() == 2 && locale.chars().all(|c| c.is_ascii_lowercase()) {
+                            // Validate locale code (ISO 639-1, optionally with an
+                            // ISO 3166-1 region subtag, e.g. `zh-CN`).
+                            if is_valid_locale_code(locale) {
                                 locales.push(locale.to_string());
                             }
                         }
@@ -1179,6 +1282,21 @@ impl SimpleLocalizationManager {
                     &fallback.menu.diagnostics_reference,
                 ),
                 about: Self::get_string(value, &["menu", "about"], &fallback.menu.about),
+                bookmark_line: Self::get_string(
+                    value,
+                    &["menu", "bookmark_line"],
+                    &fallback.menu.bookmark_line,
+                ),
+                format_table: Self::get_string(
+                    value,
+                    &["menu", "format_table"],
+                    &fallback.menu.format_table,
+                ),
+                insert_update_toc: Self::get_string(
+                    value,
+                    &["menu", "insert_update_toc"],
+                    &fallback.menu.insert_update_toc,
+                ),
             },
             toolbar: ToolbarTranslations {
                 headings: Self::get_string(
@@ -1392,6 +1510,31 @@ impl SimpleLocalizationManager {
                     value,
                     &["footer", "encoding_utf8"],
                     &fallback.footer.encoding_utf8,
+                ),
+                contents: Self::get_string(
+                    value,
+                    &["footer", "contents"],
+                    &fallback.footer.contents,
+                ),
+                no_headings: Self::get_string(
+                    value,
+                    &["footer", "no_headings"],
+                    &fallback.footer.no_headings,
+                ),
+                issues_prefix: Self::get_string(
+                    value,
+                    &["footer", "issues_prefix"],
+                    &fallback.footer.issues_prefix,
+                ),
+                no_diagnostics: Self::get_string(
+                    value,
+                    &["footer", "no_diagnostics"],
+                    &fallback.footer.no_diagnostics,
+                ),
+                toc_tooltip: Self::get_string(
+                    value,
+                    &["footer", "toc_tooltip"],
+                    &fallback.footer.toc_tooltip,
                 ),
             },
             dialog: DialogTranslations {
@@ -2204,6 +2347,11 @@ impl SimpleLocalizationManager {
                         &["dialog", "open_local_file", "tooltip_open"],
                         &fallback.dialog.open_local_file.tooltip_open,
                     ),
+                    unsaved_changes_message: Self::get_string(
+                        value,
+                        &["dialog", "open_local_file", "unsaved_changes_message"],
+                        &fallback.dialog.open_local_file.unsaved_changes_message,
+                    ),
                 },
                 export: ExportDialogTranslations {
                     title: Self::get_string(
@@ -2251,6 +2399,11 @@ impl SimpleLocalizationManager {
                         &["dialog", "export", "filter_html"],
                         &fallback.dialog.export.filter_html,
                     ),
+                    paper_size_locked_tooltip: Self::get_string(
+                        value,
+                        &["dialog", "export", "paper_size_locked_tooltip"],
+                        &fallback.dialog.export.paper_size_locked_tooltip,
+                    ),
                 },
                 export_complete: ExportCompleteDialogTranslations {
                     close_button: Self::get_string(
@@ -2273,6 +2426,11 @@ impl SimpleLocalizationManager {
             settings: SettingsTranslations {
                 title: Self::get_string(value, &["settings", "title"], &fallback.settings.title),
                 close: Self::get_string(value, &["settings", "close"], &fallback.settings.close),
+                not_available_yet: Self::get_string(
+                    value,
+                    &["settings", "not_available_yet"],
+                    &fallback.settings.not_available_yet,
+                ),
                 tabs: SettingsTabsTranslations {
                     application: Self::get_string(
                         value,
@@ -2728,6 +2886,16 @@ impl SimpleLocalizationManager {
                         &["settings", "layout", "page_view_page_numbers_description"],
                         &fallback.settings.layout.page_view_page_numbers_description,
                     ),
+                    page_view_columns_label: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_columns_label"],
+                        &fallback.settings.layout.page_view_columns_label,
+                    ),
+                    page_view_columns_description: Self::get_string(
+                        value,
+                        &["settings", "layout", "page_view_columns_description"],
+                        &fallback.settings.layout.page_view_columns_description,
+                    ),
                 },
                 advanced: SettingsAdvancedTranslations {
                     telemetry_label: Self::get_string(
@@ -2764,6 +2932,11 @@ impl SimpleLocalizationManager {
                         value,
                         &["settings", "advanced", "my_data_button"],
                         &fallback.settings.advanced.my_data_button,
+                    ),
+                    my_data_body_text: Self::get_string(
+                        value,
+                        &["settings", "advanced", "my_data_body_text"],
+                        &fallback.settings.advanced.my_data_body_text,
                     ),
                 },
                 debug: SettingsDebugTranslations {
@@ -3073,6 +3246,26 @@ impl SimpleLocalizationManager {
                     &["titlebar", "window_close"],
                     &fallback.titlebar.window_close,
                 ),
+                change_layout: Self::get_string(
+                    value,
+                    &["titlebar", "change_layout"],
+                    &fallback.titlebar.change_layout,
+                ),
+                layout_state_editor_only: Self::get_string(
+                    value,
+                    &["titlebar", "layout_state_editor_only"],
+                    &fallback.titlebar.layout_state_editor_only,
+                ),
+                layout_state_view_only: Self::get_string(
+                    value,
+                    &["titlebar", "layout_state_view_only"],
+                    &fallback.titlebar.layout_state_view_only,
+                ),
+                layout_state_editor_and_view_separate: Self::get_string(
+                    value,
+                    &["titlebar", "layout_state_editor_and_view_separate"],
+                    &fallback.titlebar.layout_state_editor_and_view_separate,
+                ),
             },
             messages: MessagesTranslations {
                 file_saved: Self::get_string(
@@ -3105,6 +3298,138 @@ impl SimpleLocalizationManager {
                     &["messages", "untitled_document"],
                     &fallback.messages.untitled_document,
                 ),
+                about_section: Self::get_string(
+                    value,
+                    &["messages", "about_section"],
+                    &fallback.messages.about_section,
+                ),
+                code_view_short: Self::get_string(
+                    value,
+                    &["messages", "code_view_short"],
+                    &fallback.messages.code_view_short,
+                ),
+                live_preview: Self::get_string(
+                    value,
+                    &["messages", "live_preview"],
+                    &fallback.messages.live_preview,
+                ),
+                print_preview_short: Self::get_string(
+                    value,
+                    &["messages", "print_preview_short"],
+                    &fallback.messages.print_preview_short,
+                ),
+                select_local_file: Self::get_string(
+                    value,
+                    &["messages", "select_local_file"],
+                    &fallback.messages.select_local_file,
+                ),
+                theme_label: Self::get_string(
+                    value,
+                    &["messages", "theme_label"],
+                    &fallback.messages.theme_label,
+                ),
+                open_in_editor_prompt: Self::get_string(
+                    value,
+                    &["messages", "open_in_editor_prompt"],
+                    &fallback.messages.open_in_editor_prompt,
+                ),
+                exporting_html: Self::get_string(
+                    value,
+                    &["messages", "exporting_html"],
+                    &fallback.messages.exporting_html,
+                ),
+                exporting_pdf: Self::get_string(
+                    value,
+                    &["messages", "exporting_pdf"],
+                    &fallback.messages.exporting_pdf,
+                ),
+                generating_html: Self::get_string(
+                    value,
+                    &["messages", "generating_html"],
+                    &fallback.messages.generating_html,
+                ),
+                generating_pdf: Self::get_string(
+                    value,
+                    &["messages", "generating_pdf"],
+                    &fallback.messages.generating_pdf,
+                ),
+                html_export_complete: Self::get_string(
+                    value,
+                    &["messages", "html_export_complete"],
+                    &fallback.messages.html_export_complete,
+                ),
+                pdf_export_complete: Self::get_string(
+                    value,
+                    &["messages", "pdf_export_complete"],
+                    &fallback.messages.pdf_export_complete,
+                ),
+                pdf_export_success: Self::get_string(
+                    value,
+                    &["messages", "pdf_export_success"],
+                    &fallback.messages.pdf_export_success,
+                ),
+                html_export_success: Self::get_string(
+                    value,
+                    &["messages", "html_export_success"],
+                    &fallback.messages.html_export_success,
+                ),
+                insert_row_above: Self::get_string(
+                    value,
+                    &["messages", "insert_row_above"],
+                    &fallback.messages.insert_row_above,
+                ),
+                insert_row_below: Self::get_string(
+                    value,
+                    &["messages", "insert_row_below"],
+                    &fallback.messages.insert_row_below,
+                ),
+                insert_column_left: Self::get_string(
+                    value,
+                    &["messages", "insert_column_left"],
+                    &fallback.messages.insert_column_left,
+                ),
+                insert_column_right: Self::get_string(
+                    value,
+                    &["messages", "insert_column_right"],
+                    &fallback.messages.insert_column_right,
+                ),
+                export_phase: ExportPhaseTranslations {
+                    preparing: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "preparing"],
+                        &fallback.messages.export_phase.preparing,
+                    ),
+                    loading: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "loading"],
+                        &fallback.messages.export_phase.loading,
+                    ),
+                    paginating: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "paginating"],
+                        &fallback.messages.export_phase.paginating,
+                    ),
+                    applying_print_css: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "applying_print_css"],
+                        &fallback.messages.export_phase.applying_print_css,
+                    ),
+                    writing_output: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "writing_output"],
+                        &fallback.messages.export_phase.writing_output,
+                    ),
+                    restoring_preview: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "restoring_preview"],
+                        &fallback.messages.export_phase.restoring_preview,
+                    ),
+                    done: Self::get_string(
+                        value,
+                        &["messages", "export_phase", "done"],
+                        &fallback.messages.export_phase.done,
+                    ),
+                },
             },
             search: SearchTranslations {
                 title: Self::get_string(value, &["search", "title"], &fallback.search.title),
@@ -3195,8 +3520,9 @@ impl SimpleLocalizationManager {
 
 impl LocalizationProvider for SimpleLocalizationManager {
     fn load_locale(&self, locale: &str) -> Result<(), LocalizationError> {
-        // Validate ISO 639-1 format (must be 2 lowercase letters)
-        if locale.len() != 2 || !locale.chars().all(|c| c.is_ascii_lowercase()) {
+        // Validate locale code (ISO 639-1, optionally with an ISO 3166-1
+        // region subtag, e.g. `zh-CN`).
+        if !is_valid_locale_code(locale) {
             return Err(LocalizationError::InvalidLocaleCode(locale.to_string()));
         }
 
@@ -3268,6 +3594,10 @@ mod tests {
         assert!(manager.load_locale("e").is_err()); // Too short
         assert!(manager.load_locale("E1").is_err()); // Not all letters
         assert!(manager.load_locale("EN").is_err()); // Uppercase
+        assert!(manager.load_locale("zh-cn").is_err()); // Region must be uppercase
+        assert!(manager.load_locale("zh_CN").is_err()); // Underscore, not hyphen
+        assert!(manager.load_locale("zho-CN").is_err()); // 3-letter language part
+        assert!(manager.load_locale("zh-CHN").is_err()); // 3-letter region part
     }
 
     #[test]
@@ -3290,6 +3620,30 @@ mod tests {
     }
 
     #[test]
+    fn smoke_test_load_locale_with_fallback() {
+        let manager = match SimpleLocalizationManager::new() {
+            Ok(m) => m,
+            Err(_) => {
+                println!("Skipping: assets not available in test environment");
+                return;
+            }
+        };
+
+        // A locale with no matching file (region-qualified or not) lands on
+        // English rather than leaving the manager on whatever was loaded
+        // before.
+        manager.load_locale_with_fallback("zz-XX");
+        assert_eq!(manager.current_locale(), "en");
+
+        manager.load_locale_with_fallback("zz");
+        assert_eq!(manager.current_locale(), "en");
+
+        // A directly-loadable locale doesn't fall through at all.
+        manager.load_locale_with_fallback("en");
+        assert_eq!(manager.current_locale(), "en");
+    }
+
+    #[test]
     fn smoke_test_default_translations() {
         // Test that default translations can be created without file I/O
         let t = SimpleLocalizationManager::load_default_translations();
@@ -3304,23 +3658,28 @@ mod tests {
 
     #[test]
     fn smoke_test_locale_code_validation() {
-        // Test the locale code validation logic without requiring file system access
-        let is_valid = |code: &str| -> bool {
-            code.len() == 2 && code.chars().all(|c| c.is_ascii_lowercase())
-        };
+        // Bare ISO 639-1 codes
+        assert!(is_valid_locale_code("en"));
+        assert!(is_valid_locale_code("da"));
+        assert!(is_valid_locale_code("de"));
+        assert!(is_valid_locale_code("fr"));
 
-        // Valid codes
-        assert!(is_valid("en"));
-        assert!(is_valid("da"));
-        assert!(is_valid("de"));
-        assert!(is_valid("fr"));
+        assert!(!is_valid_locale_code("eng")); // Too long
+        assert!(!is_valid_locale_code("e")); // Too short
+        assert!(!is_valid_locale_code("EN")); // Uppercase
+        assert!(!is_valid_locale_code("e1")); // Contains digit
+        assert!(!is_valid_locale_code("e-")); // Contains special char
 
-        // Invalid codes
-        assert!(!is_valid("eng")); // Too long
-        assert!(!is_valid("e")); // Too short
-        assert!(!is_valid("EN")); // Uppercase
-        assert!(!is_valid("e1")); // Contains digit
-        assert!(!is_valid("e-")); // Contains special char
+        // ISO 639-1 + ISO 3166-1 region subtag (BCP 47 style)
+        assert!(is_valid_locale_code("zh-CN"));
+        assert!(is_valid_locale_code("zh-TW"));
+
+        assert!(!is_valid_locale_code("zh-cn")); // Region must be uppercase
+        assert!(!is_valid_locale_code("ZH-CN")); // Language must be lowercase
+        assert!(!is_valid_locale_code("zh_CN")); // Underscore, not hyphen
+        assert!(!is_valid_locale_code("zho-CN")); // 3-letter language part
+        assert!(!is_valid_locale_code("zh-CHN")); // 3-letter region part
+        assert!(!is_valid_locale_code("zh-1N")); // Region contains digit
     }
 
     #[test]
@@ -3339,5 +3698,142 @@ file = "Fichier"
         assert_eq!(translations.menu.edit, fallback.menu.edit);
         assert_eq!(translations.toolbar.bold, fallback.toolbar.bold);
         assert_eq!(translations.footer.row, fallback.footer.row);
+    }
+
+    /// Loads a value for every newly-added key (from a distinct-from-default
+    /// TOML fixture) to catch a typo'd `get_string` key path — which would
+    /// otherwise silently fall back to the (identical-looking) English
+    /// default and go unnoticed.
+    #[test]
+    fn smoke_test_newly_added_keys_load_from_toml() {
+        let fallback = SimpleLocalizationManager::load_default_translations();
+        let toml = r#"
+[menu]
+bookmark_line = "XLine {}"
+format_table = "XFormat table"
+insert_update_toc = "XInsert / Update TOC"
+
+[footer]
+contents = "XContents"
+no_headings = "XNo headings"
+issues_prefix = "XIssue"
+no_diagnostics = "XNo diagnostics"
+toc_tooltip = "XToggle TOC"
+
+[dialog.open_local_file]
+unsaved_changes_message = "X{document} unsaved"
+
+[dialog.export]
+paper_size_locked_tooltip = "XLocked"
+
+[settings]
+not_available_yet = "XNot available"
+
+[settings.layout]
+page_view_columns_label = "XPages per Row"
+page_view_columns_description = "XColumns desc"
+
+[settings.advanced]
+my_data_body_text = "XBody text"
+
+[titlebar]
+change_layout = "XChange layout"
+layout_state_editor_only = "Xeditor only"
+layout_state_view_only = "Xview only"
+layout_state_editor_and_view_separate = "Xseparate"
+
+[messages]
+about_section = "XAbout"
+code_view_short = "XCode"
+live_preview = "XLive preview"
+print_preview_short = "XPrint preview"
+select_local_file = "XSelect Local File"
+theme_label = "XTheme:"
+open_in_editor_prompt = "XOpen {filename}?"
+exporting_html = "XExporting HTML"
+exporting_pdf = "XExporting PDF"
+generating_html = "XGenerating HTML"
+generating_pdf = "XGenerating PDF"
+html_export_complete = "XHTML done"
+pdf_export_complete = "XPDF done"
+pdf_export_success = "XPDF ok"
+html_export_success = "XHTML ok"
+insert_row_above = "XRow above"
+insert_row_below = "XRow below"
+insert_column_left = "XColumn left"
+insert_column_right = "XColumn right"
+
+[messages.export_phase]
+preparing = "XPreparing"
+loading = "XLoading"
+paginating = "XPaginating"
+applying_print_css = "XApplying"
+writing_output = "XWriting"
+restoring_preview = "XRestoring"
+done = "XDone"
+"#;
+
+        let value: toml::Value = toml::from_str(toml).expect("valid toml");
+        let t = SimpleLocalizationManager::load_translations_from_value(&value, &fallback);
+
+        assert_eq!(t.menu.bookmark_line, "XLine {}");
+        assert_eq!(t.menu.format_table, "XFormat table");
+        assert_eq!(t.menu.insert_update_toc, "XInsert / Update TOC");
+
+        assert_eq!(t.footer.contents, "XContents");
+        assert_eq!(t.footer.no_headings, "XNo headings");
+        assert_eq!(t.footer.issues_prefix, "XIssue");
+        assert_eq!(t.footer.no_diagnostics, "XNo diagnostics");
+        assert_eq!(t.footer.toc_tooltip, "XToggle TOC");
+
+        assert_eq!(
+            t.dialog.open_local_file.unsaved_changes_message,
+            "X{document} unsaved"
+        );
+        assert_eq!(t.dialog.export.paper_size_locked_tooltip, "XLocked");
+
+        assert_eq!(t.settings.not_available_yet, "XNot available");
+        assert_eq!(t.settings.layout.page_view_columns_label, "XPages per Row");
+        assert_eq!(
+            t.settings.layout.page_view_columns_description,
+            "XColumns desc"
+        );
+        assert_eq!(t.settings.advanced.my_data_body_text, "XBody text");
+
+        assert_eq!(t.titlebar.change_layout, "XChange layout");
+        assert_eq!(t.titlebar.layout_state_editor_only, "Xeditor only");
+        assert_eq!(t.titlebar.layout_state_view_only, "Xview only");
+        assert_eq!(
+            t.titlebar.layout_state_editor_and_view_separate,
+            "Xseparate"
+        );
+
+        assert_eq!(t.messages.about_section, "XAbout");
+        assert_eq!(t.messages.code_view_short, "XCode");
+        assert_eq!(t.messages.live_preview, "XLive preview");
+        assert_eq!(t.messages.print_preview_short, "XPrint preview");
+        assert_eq!(t.messages.select_local_file, "XSelect Local File");
+        assert_eq!(t.messages.theme_label, "XTheme:");
+        assert_eq!(t.messages.open_in_editor_prompt, "XOpen {filename}?");
+        assert_eq!(t.messages.exporting_html, "XExporting HTML");
+        assert_eq!(t.messages.exporting_pdf, "XExporting PDF");
+        assert_eq!(t.messages.generating_html, "XGenerating HTML");
+        assert_eq!(t.messages.generating_pdf, "XGenerating PDF");
+        assert_eq!(t.messages.html_export_complete, "XHTML done");
+        assert_eq!(t.messages.pdf_export_complete, "XPDF done");
+        assert_eq!(t.messages.pdf_export_success, "XPDF ok");
+        assert_eq!(t.messages.html_export_success, "XHTML ok");
+        assert_eq!(t.messages.insert_row_above, "XRow above");
+        assert_eq!(t.messages.insert_row_below, "XRow below");
+        assert_eq!(t.messages.insert_column_left, "XColumn left");
+        assert_eq!(t.messages.insert_column_right, "XColumn right");
+
+        assert_eq!(t.messages.export_phase.preparing, "XPreparing");
+        assert_eq!(t.messages.export_phase.loading, "XLoading");
+        assert_eq!(t.messages.export_phase.paginating, "XPaginating");
+        assert_eq!(t.messages.export_phase.applying_print_css, "XApplying");
+        assert_eq!(t.messages.export_phase.writing_output, "XWriting");
+        assert_eq!(t.messages.export_phase.restoring_preview, "XRestoring");
+        assert_eq!(t.messages.export_phase.done, "XDone");
     }
 }

@@ -108,7 +108,10 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
     vbox.add_css_class("marco-dialog-content");
 
     // Primary message
-    let primary_text = format!("Open \"{}\" in the editor?", filename);
+    let primary_text = translations
+        .messages
+        .open_in_editor_prompt
+        .replace("{filename}", filename);
     let primary = Label::new(Some(&primary_text));
     primary.add_css_class("marco-dialog-title");
     primary.set_halign(Align::Start);
@@ -119,10 +122,7 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
 
     // Secondary message — only when there are unsaved changes
     if has_unsaved {
-        let secondary_text = format!(
-            "\"{}\" has unsaved changes. Choose how to proceed:",
-            current_doc
-        );
+        let secondary_text = t.unsaved_changes_message.replace("{document}", current_doc);
         let secondary = Label::new(Some(&secondary_text));
         secondary.add_css_class("marco-dialog-message");
         secondary.set_halign(Align::Start);

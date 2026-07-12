@@ -210,7 +210,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 - [ ] Document presentation mode
 
 ### Advanced Features
-- [x] Language plugin system via. `marco-shared/src/assets/language/xx*.toml` files
+- [x] UI language plugin system — swappable translation files, with region-qualified variants (e.g. `zh-CN` / `zh-TW`) for macrolanguages that need them
 - [ ] Local AI-assisted tools: writing suggestions, grammar checking, content improvement
 - [ ] Collaborative editing (Yjs/CRDT): shared document model, multi-cursor, presence awareness
 - [ ] Built in terminal to run code blocks in editor

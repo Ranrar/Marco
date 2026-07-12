@@ -16,18 +16,12 @@
 //! ## Usage
 //! - The current `LayoutState` is typically stored in a shared `Rc<RefCell<LayoutState>>` and updated in response to user actions (menu, buttons).
 //! - UI components observe the state and update their visibility/layout accordingly.
-//! - Use `layout_state_label(state)` to get a human-readable description for logging, tooltips, or debugging.
-//!
-//! ## Example
-//! ```no_run
-//! use marco_shared::logic::layoutstate::{LayoutState, layout_state_label};
-//! let state = LayoutState::DualView;
-//! println!("Current layout: {}", layout_state_label(state));
-//! ```
+//! - Human-readable labels for each state (used for tooltips) are translated,
+//!   so they live in the `marco` crate's `menu.rs` (`layout_state_tooltip`)
+//!   rather than here — this module stays GTK- and translation-free.
 //!
 //! ## Design Notes
 //! - Enum variants are exhaustive and should be extended if new layout modes are added.
-//! - The label function provides clear, user-facing descriptions for each mode.
 //! - This module should not contain direct UI logic—only state and helpers.
 /// LayoutState represents the current layout mode of the application.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -36,14 +30,4 @@ pub enum LayoutState {
     EditorOnly,            // B: Editor only
     ViewOnly,              // C: View only
     EditorAndViewSeparate, // D: Editor + view in separate window
-}
-
-/// Converts a LayoutState to a human-readable string label.
-pub fn layout_state_label(state: LayoutState) -> &'static str {
-    match state {
-        LayoutState::DualView => "Change layout",
-        LayoutState::EditorOnly => "editor view only",
-        LayoutState::ViewOnly => "preview view only",
-        LayoutState::EditorAndViewSeparate => "editor + view in separate window",
-    }
 }

@@ -7,6 +7,24 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
+## [Unreleased]
+
+## [0.24.2] - 2026-07-12
+
+**Uses:** Core 1.2.0
+
+### Added
+- Locale files may now use a region-qualified code (`{lang}-{REGION}`, e.g. `zh-CN` / `zh-TW`) alongside the existing bare ISO 639-1 codes, so macrolanguages with major script/dialect splits — starting with Chinese — can ship distinct Simplified/Traditional translations instead of being forced into a single code.
+- System-locale auto-detection ("System Default" in Settings → Language) now preserves the region subtag when the OS/environment reports one (e.g. `zh_CN` → `zh-CN`, including Windows' `zh-Hans-CN` / `zh-Hant-TW` forms), so it can auto-select a region-qualified locale on first launch instead of only ever resolving to the bare language.
+- ~40 UI strings that were previously hardcoded in English — regardless of the selected language — are now translatable: the context menu's row/column insert items, the Modules and Format-table menu entries, the TOC panel header and empty state, footer issue count and diagnostics text, the TOC toggle tooltip, several View-menu items, export progress dialog text (including all pipeline phase labels), the "Select Local File" picker title, the export theme label and paper-size tooltip, the open-local-file confirmation dialog, print-preview's page-columns setting, the layout-switcher tooltip, and a few Settings/Advanced strings.
+
+### Fixed
+- The "Pages per Row" row in print-preview settings was reading the wrong translation keys and would silently show "Show Page Numbers" label/description text regardless of locale.
+- The Modules menu's Table / Tab block / Slider deck / Mermaid / Admonition items were hardcoded in English even though matching, already-translated keys existed for them — the menu just never read them.
+
+### Changed
+- Loading a locale now cascades through fallbacks instead of jumping straight to English: a region-qualified code that has no matching file (e.g. a detected `zh-HK`) falls back to its bare language (`zh`) before falling back to English.
+
 ## [0.24.1] - 2026-07-08
 
 **Uses:** Core 1.2.0

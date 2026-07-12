@@ -12,7 +12,7 @@ Quick integration notes
 
 References
 
-- Language component: `../language/README.md` — language schemas and AST validation should be compatible with collab updates; ensure schema-aware merge behavior if required.
+- Localization: [language.md](language.md) — language schemas and AST validation should be compatible with collab updates; ensure schema-aware merge behavior if required.
 
 Testing
 

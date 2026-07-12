@@ -2,19 +2,37 @@ use crate::components::language::Translations;
 use gtk4::gio;
 use gtk4::prelude::*;
 
-pub fn populate_modules_menu(modules_menu: &gio::Menu, _translations: &Translations) {
+pub fn populate_modules_menu(modules_menu: &gio::Menu, translations: &Translations) {
     modules_menu.remove_all();
 
     let modules = gio::Menu::new();
-    modules.append(Some("Table"), Some("app.insert_table"));
-    modules.append(Some("Format table"), Some("app.format_table"));
-    modules.append(Some("Tab block"), Some("app.insert_tab_block"));
-    modules.append(Some("Slider deck"), Some("app.insert_slideshow"));
-    modules.append(Some("Mermaid"), Some("app.insert_mermaid"));
-    modules.append(Some("Admonition"), Some("app.format_insert_admonition"));
+    modules.append(Some(&translations.toolbar.table), Some("app.insert_table"));
+    modules.append(
+        Some(&translations.menu.format_table),
+        Some("app.format_table"),
+    );
+    modules.append(
+        Some(&translations.toolbar.tab_block),
+        Some("app.insert_tab_block"),
+    );
+    modules.append(
+        Some(&translations.toolbar.slider_deck),
+        Some("app.insert_slideshow"),
+    );
+    modules.append(
+        Some(&translations.toolbar.mermaid),
+        Some("app.insert_mermaid"),
+    );
+    modules.append(
+        Some(&translations.toolbar.admonition),
+        Some("app.format_insert_admonition"),
+    );
 
     let navigation = gio::Menu::new();
-    navigation.append(Some("Insert / Update TOC"), Some("app.insert_update_toc"));
+    navigation.append(
+        Some(&translations.menu.insert_update_toc),
+        Some("app.insert_update_toc"),
+    );
 
     modules_menu.append_section(None, &modules);
     modules_menu.append_section(None, &navigation);

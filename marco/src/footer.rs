@@ -126,6 +126,9 @@ pub struct FooterLabels {
     pub ins_label: RefCell<String>,
     pub ovr_label: RefCell<String>,
     pub encoding_label: RefCell<String>,
+    pub issues_prefix_label: RefCell<String>,
+    pub no_diagnostics_label: RefCell<String>,
+    pub toc_toggle_button: Button,
 }
 
 fn severity_rank(severity: &marco_core::intelligence::DiagnosticSeverity) -> u8 {
@@ -566,10 +569,8 @@ pub fn update_warning_count(labels: &FooterLabels, warnings: usize) {
 
 pub fn update_issue_count(labels: &FooterLabels, total: usize) {
     *labels.diagnostics_total.borrow_mut() = total;
-    set_label_text(
-        &labels.diagnostics_trigger_label,
-        format!("Issue: {}", total),
-    );
+    let text = format!("{}: {}", labels.issues_prefix_label.borrow(), total);
+    set_label_text(&labels.diagnostics_trigger_label, text);
 }
 
 /// Show a hovered link URL in the footer spacer area.
@@ -670,7 +671,7 @@ fn render_diagnostics_panel(labels: &FooterLabels) {
     });
 
     if items.is_empty() {
-        let empty = Label::new(Some("No diagnostics"));
+        let empty = Label::new(Some(&labels.no_diagnostics_label.borrow()));
         empty.add_css_class("footer-issue-empty");
         labels.diagnostics_list.append(&empty);
         return;
@@ -730,9 +731,18 @@ pub fn update_footer_translations(
     *labels.ins_label.borrow_mut() = translations.ins.clone();
     *labels.ovr_label.borrow_mut() = translations.ovr.clone();
     *labels.encoding_label.borrow_mut() = translations.encoding_utf8.clone();
+    *labels.issues_prefix_label.borrow_mut() = translations.issues_prefix.clone();
+    *labels.no_diagnostics_label.borrow_mut() = translations.no_diagnostics.clone();
+    labels
+        .toc_toggle_button
+        .set_tooltip_text(Some(&translations.toc_tooltip));
 
     update_encoding(labels, &translations.encoding_utf8);
     update_insert_mode(labels, is_insert);
+    update_issue_count(labels, *labels.diagnostics_total.borrow());
+    if labels.diagnostics_items.borrow().is_empty() {
+        render_diagnostics_panel(labels);
+    }
 }
 
 /// Apply a FooterUpdate snapshot to the labels. Must be called on main context.
@@ -848,7 +858,7 @@ pub fn create_footer(
 
     let (toc_stub_button, _toc_stub_label) =
         create_footer_status_button("TOC", ToolbarIcon::Toc, 8.0);
-    toc_stub_button.set_tooltip_text(Some("Toggle Table of Contents panel"));
+    toc_stub_button.set_tooltip_text(Some(&translations.toc_tooltip));
     toc_stub_button.connect_clicked(|_| {
         crate::components::editor::ui::with_toc_panel(|h| h.toggle());
     });
@@ -980,7 +990,7 @@ pub fn create_footer(
     let diagnostics_list = ListBox::new();
     diagnostics_list.add_css_class("footer-issue-list");
     diagnostics_list.set_selection_mode(gtk4::SelectionMode::None);
-    diagnostics_list.append(&Label::new(Some("No diagnostics")));
+    diagnostics_list.append(&Label::new(Some(&translations.no_diagnostics)));
     diagnostics_scrolled.set_child(Some(&diagnostics_list));
 
     let diagnostics_content = Box::new(Orientation::Vertical, 8);
@@ -1025,6 +1035,9 @@ pub fn create_footer(
         ins_label: RefCell::new(translations.ins.clone()),
         ovr_label: RefCell::new(translations.ovr.clone()),
         encoding_label: RefCell::new(translations.encoding_utf8.clone()),
+        issues_prefix_label: RefCell::new(translations.issues_prefix.clone()),
+        no_diagnostics_label: RefCell::new(translations.no_diagnostics.clone()),
+        toc_toggle_button: toc_stub_button,
     });
 
     {

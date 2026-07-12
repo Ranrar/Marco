@@ -136,6 +136,8 @@ pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> Inst
     InstallLocation::UserLocal
 }
 
+/// Returns the raw locale name reported by Windows (e.g. `en-US`, `zh-CN`,
+/// `zh-Hans-CN`), unnormalized — the caller extracts language/region from it.
 pub(crate) fn detect_locale_from_platform() -> Option<String> {
     // LOCALE_NAME_MAX_LENGTH is 85.
     const LOCALE_NAME_MAX_LENGTH: usize = 85;
@@ -156,8 +158,7 @@ pub(crate) fn detect_locale_from_platform() -> Option<String> {
             &buf[..len]
         };
 
-        let locale = String::from_utf16_lossy(slice);
-        super::normalize_to_iso639_1(&locale)
+        Some(String::from_utf16_lossy(slice))
     }
 }
 

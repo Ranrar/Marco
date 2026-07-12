@@ -39,6 +39,7 @@ const MAX_PANEL_WIDTH: i32 = 400;
 #[derive(Clone)]
 pub struct TocPanelHandle {
     panel_box: gtk4::Box,
+    header: gtk4::Label,
     list_box: gtk4::Box,
     paned: gtk4::Paned,
     visible: Rc<Cell<bool>>,
@@ -48,6 +49,22 @@ pub struct TocPanelHandle {
     widest_entry_px: Rc<Cell<i32>>,
     /// Saved buffer reference and view reference for navigation callbacks.
     source_view: sourceview5::View,
+    /// Cached translation of the "No headings" empty-state label, updated by
+    /// [`update_toc_panel_translations`] and read on every [`Self::rebuild`].
+    no_headings_label: Rc<std::cell::RefCell<String>>,
+}
+
+/// Apply the current UI language to the TOC panel header and re-render the
+/// empty state (if currently shown) so it reflects the new language too.
+pub fn update_toc_panel_translations(
+    handle: &TocPanelHandle,
+    footer_translations: &crate::components::language::FooterTranslations,
+) {
+    handle.header.set_label(&footer_translations.contents);
+    *handle.no_headings_label.borrow_mut() = footer_translations.no_headings.clone();
+    if handle.visible.get() {
+        handle.rebuild_from_buffer();
+    }
 }
 
 impl TocPanelHandle {
@@ -123,7 +140,7 @@ impl TocPanelHandle {
         let filtered: Vec<&TocEntry> = entries.iter().filter(|e| e.level <= max_depth).collect();
 
         if filtered.is_empty() {
-            let empty_label = gtk4::Label::new(Some("No headings"));
+            let empty_label = gtk4::Label::new(Some(&self.no_headings_label.borrow()));
             empty_label.set_halign(gtk4::Align::Start);
             empty_label.add_css_class("toc-panel-empty");
             self.list_box.append(&empty_label);
@@ -317,12 +334,14 @@ pub fn create_toc_panel(source_view: &sourceview5::View) -> (gtk4::Paned, TocPan
 
     let handle = TocPanelHandle {
         panel_box,
+        header,
         list_box,
         paned: paned.clone(),
         visible: Rc::new(Cell::new(false)),
         depth: Rc::new(Cell::new(3)),
         widest_entry_px: Rc::new(Cell::new(0)),
         source_view: source_view.clone(),
+        no_headings_label: Rc::new(std::cell::RefCell::new("No headings".to_string())),
     };
 
     (paned, handle)

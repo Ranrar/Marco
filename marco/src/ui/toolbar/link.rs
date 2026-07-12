@@ -1368,8 +1368,9 @@ fn normalize_reference_id(raw: &str) -> Option<String> {
 
 #[cfg(target_os = "linux")]
 async fn pick_local_file(parent_window: &gtk4::Window) -> Option<PathBuf> {
+    let translations = crate::ui::dialogs::current_translations();
     let dialog = FileChooserNative::new(
-        Some("Select Local File"),
+        Some(&translations.messages.select_local_file),
         Some(parent_window),
         FileChooserAction::Open,
         Some("_Open"),

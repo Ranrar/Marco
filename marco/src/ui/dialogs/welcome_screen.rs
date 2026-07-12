@@ -22,7 +22,7 @@ use crate::components::language::{LocalizationProvider, SimpleLocalizationManage
 fn effective_locale_code(selected_code: Option<&str>) -> String {
     selected_code
         .map(|s| s.to_string())
-        .or_else(marco_shared::paths::detect_system_locale_iso639_1)
+        .or_else(marco_shared::paths::detect_system_locale_bcp47)
         .unwrap_or_else(|| "en".to_string())
 }
 
@@ -155,21 +155,7 @@ pub fn show_welcome_screen(
     let localization_manager = Rc::new(localization_manager);
 
     let initial_locale_code = effective_locale_code(initial_language_setting.as_deref());
-    if let Err(e) = localization_manager.load_locale(&initial_locale_code) {
-        log::warn!(
-            "Welcome assistant: failed to load locale '{}': {}. Falling back to English.",
-            initial_locale_code,
-            e
-        );
-        if initial_locale_code != "en" {
-            if let Err(e) = localization_manager.load_locale("en") {
-                log::error!(
-                    "Welcome assistant: failed to load fallback locale 'en': {}",
-                    e
-                );
-            }
-        }
-    }
+    localization_manager.load_locale_with_fallback(&initial_locale_code);
 
     let translations = localization_manager.translations();
 
@@ -948,21 +934,7 @@ pub fn show_welcome_screen(
                 let selected_code = current_language_setting_rc.borrow().clone();
 
                 let locale_code = effective_locale_code(selected_code.as_deref());
-                if let Err(e) = localization_manager.load_locale(&locale_code) {
-                    log::warn!(
-                        "Welcome assistant: failed to load locale '{}': {}. Falling back to English.",
-                        locale_code,
-                        e
-                    );
-                    if locale_code != "en" {
-                        if let Err(e) = localization_manager.load_locale("en") {
-                            log::error!(
-                                "Welcome assistant: failed to load fallback locale 'en': {}",
-                                e
-                            );
-                        }
-                    }
-                }
+                localization_manager.load_locale_with_fallback(&locale_code);
 
                 let new_translations = localization_manager.translations();
                 is_applying_translations.set(true);

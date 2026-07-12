@@ -87,13 +87,16 @@ pub fn detect_portable_mode() -> Option<PathBuf> {
     platform::detect_portable_mode()
 }
 
-/// Detect the system locale and return an ISO 639-1 (two-letter) language code.
+/// Detect the system locale as a BCP-47-ish tag: a bare ISO 639-1 code
+/// (`en`), or that code plus an ISO 3166-1 region subtag (`zh-CN`) when the
+/// OS/environment reports one.
 ///
-/// Marco translation files are stored as `assets/language/{code}.toml`.
+/// Marco translation files are stored as `assets/language/{code}.toml`,
+/// where `{code}` may itself be region-qualified (e.g. `zh-CN.toml`).
 ///
 /// Returns `None` if no useful locale can be detected.
-pub fn detect_system_locale_iso639_1() -> Option<String> {
-    platform::detect_system_locale_iso639_1()
+pub fn detect_system_locale_bcp47() -> Option<String> {
+    platform::detect_system_locale_bcp47()
 }
 
 /// Detect the current installation location for the *asset bundle*.

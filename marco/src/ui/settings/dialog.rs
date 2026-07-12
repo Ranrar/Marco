@@ -479,6 +479,7 @@ fn create_dialog_impl(
         application_callbacks,
         &translations.settings.appearance,
         &translations.settings.layout,
+        &translations.settings.not_available_yet,
         &settings_i18n,
     );
     stack.add_titled(
@@ -542,6 +543,7 @@ fn create_dialog_impl(
     let advanced_tab = tabs::advanced::build_advanced_tab(
         settings_path.to_str().unwrap(),
         &translations.settings.advanced,
+        &translations.settings.not_available_yet,
         &settings_i18n,
     );
     stack.add_titled(
