@@ -19,6 +19,8 @@ Example:
 |------|-----------|-------------|--------------------|
 | en   | English | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
 | de   | German | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
+| zh-CN | Chinese (Simplified) | ✔ | [kadidalax](https://github.com/kadidalax) |
+| zh-TW | Chinese (Traditional) | ✔ | [kadidalax](https://github.com/kadidalax) |
 
 ## Not yet translated
 | Code | Language | Implemented | Author/Contributor |
