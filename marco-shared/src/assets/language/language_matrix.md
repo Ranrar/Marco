@@ -21,6 +21,7 @@ Example:
 | de   | German | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
 | zh-CN | Chinese (Simplified) | ✔ | [kadidalax](https://github.com/kadidalax) |
 | zh-TW | Chinese (Traditional) | ✔ | [kadidalax](https://github.com/kadidalax) |
+| hu   | Hungarian | ✔ | [Czeglédy Péter](https://github.com/peterczegledy) |
 
 ## Not yet translated
 | Code | Language | Implemented | Author/Contributor |
@@ -83,7 +84,6 @@ Example:
 | ho   | Hiri Motu |   |   |
 | hr   | Croatian |   |   |
 | ht   | Haitian Creole |   |   |
-| hu   | Hungarian |   |   |
 | hy   | Armenian |   |   |
 | hz   | Herero |   |   |
 | ia   | Interlingua |   |   |
