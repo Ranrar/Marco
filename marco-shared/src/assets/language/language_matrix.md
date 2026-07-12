@@ -19,6 +19,7 @@ Example:
 |------|-----------|-------------|--------------------|
 | en   | English | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
 | de   | German | ✔ | [Kim Skov Rasmussen](https://github.com/ranrar) |
+| hu   | Hungarian | ✔ | [Czeglédy Péter](https://github.com/peterczegledy)  |
 
 ## Not yet translated
 | Code | Language | Implemented | Author/Contributor |
@@ -81,7 +82,6 @@ Example:
 | ho   | Hiri Motu |   |   |
 | hr   | Croatian |   |   |
 | ht   | Haitian Creole |   |   |
-| hu   | Hungarian |   |   |
 | hy   | Armenian |   |   |
 | hz   | Herero |   |   |
 | ia   | Interlingua |   |   |
