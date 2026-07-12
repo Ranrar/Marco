@@ -355,7 +355,7 @@ tooltip_discard = "放棄未儲存的更改并開啟檔案"
 tooltip_cancel = "取消并留在當前文件"
 tooltip_save_open = "儲存當前文件，然后開啟檔案"
 tooltip_open = "在編輯器中開啟檔案"
-
+unsaved_changes_message = "「{document}」有未儲存的變更。請選擇後續操作："
 [dialog.export]
 title = "匯出文件"
 pdf_radio = "PDF"
@@ -366,7 +366,7 @@ save_pdf_title = "PDF 另存新檔…"
 save_html_title = "HTML 另存新檔…"
 filter_pdf = "PDF 文件"
 filter_html = "HTML 檔案"
-
+paper_size_locked_tooltip = "當 HTML 紙張尺寸設為「無」時鎖定"
 [dialog.export_complete]
 close_button = "關閉"
 open_folder = "開啟資料夾"
@@ -375,7 +375,7 @@ open_document = "開啟文件"
 [settings]
 title = "設定"
 close = "關閉"
-
+not_available_yet = "暫不可用"
 [settings.tabs]
 application = "應用程式"
 editor = "編輯器"
@@ -484,6 +484,7 @@ log_to_file_description = "啟用檔案日志以便排查問題。"
 my_data_label = "我的資料"
 my_data_description = "檢視發送到分析伺服器前在本地排隊的遙測事件。"
 my_data_button = "檢視我的資料"
+my_data_body_text = "Marco 目前已停用遙測功能。\n\n「我的資料」檢視器通常會顯示本機追蹤的遙測事件，\n但遙測追蹤目前未啟用。"
 
 [settings.debug]
 debug_label = "調試模式"
@@ -518,6 +519,9 @@ window_maximize_restore = "最大化／還原"
 window_close = "關閉"
 
 change_layout = "變更版面配置"
+layout_state_editor_only = "僅編輯器檢視"
+layout_state_view_only = "僅預覽檢視"
+layout_state_editor_and_view_separate = "編輯器與預覽分窗顯示"
 [messages]
 file_saved = "檔案已成功儲存"
 file_opened = "檔案已開啟"
@@ -541,6 +545,10 @@ insert_column_right = "在右側插入欄"
 select_local_file = "選擇本機檔案"
 theme_label = "主題："
 about_section = "關於"
+generating_html = "正在產生 HTML，請稍候…"
+generating_pdf = "正在產生 PDF，請稍候…"
+pdf_export_success = "PDF 已成功匯出。"
+html_export_success = "HTML 已成功匯出。"
 [search]
 title = "尋找與取代"
 close_tooltip = "關閉"
@@ -595,3 +603,12 @@ feature_privacy_title = "隱私優先"
 feature_privacy_description = "不使用云同步，文件始終保留在您的設備上"
 feature_markdown_title = "擴展 Markdown"
 feature_markdown_description = "支持表格、腳注、工作清單等功能"
+
+[messages.export_phase]
+preparing = "正在準備…"
+loading = "正在載入 paged.js…"
+paginating = "正在分頁…"
+applying_print_css = "正在套用列印樣式…"
+writing_output = "正在寫入輸出…"
+restoring_preview = "正在還原預覽…"
+done = "完成"

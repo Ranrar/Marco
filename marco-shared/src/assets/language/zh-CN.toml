@@ -352,7 +352,7 @@ tooltip_discard = "放弃未保存更改并打开文件"
 tooltip_cancel = "取消并留在当前文档"
 tooltip_save_open = "保存当前文档后打开文件"
 tooltip_open = "在编辑器中打开文件"
-
+unsaved_changes_message = "“{document}”有未保存的更改。请选择如何继续："
 [dialog.export]
 title = "导出文档"
 pdf_radio = "PDF"
@@ -363,7 +363,7 @@ save_pdf_title = "PDF 另存为…"
 save_html_title = "HTML 另存为…"
 filter_pdf = "PDF 文档"
 filter_html = "HTML 文件"
-
+paper_size_locked_tooltip = "当 HTML 纸张大小设为“无”时锁定"
 [dialog.export_complete]
 close_button = "关闭"
 open_folder = "打开文件夹"
@@ -372,7 +372,7 @@ open_document = "打开文档"
 [settings]
 title = "设置"
 close = "关闭"
-
+not_available_yet = "暂不可用"
 [settings.tabs]
 application = "应用"
 editor = "编辑器"
@@ -477,6 +477,7 @@ log_to_file_description = "启用文件日志以便排查问题。"
 my_data_label = "我的数据"
 my_data_description = "查看本地排队、尚未发送到分析服务器的遥测事件。"
 my_data_button = "查看我的数据"
+my_data_body_text = "Marco 当前已禁用遥测功能。\n\n“我的数据”查看器通常会显示本地跟踪的遥测事件，\n但遥测跟踪目前未启用。"
 
 [settings.debug]
 debug_label = "调试模式"
@@ -510,6 +511,9 @@ layout_restore_split = "恢复分栏视图"
 window_minimize = "最小化"
 window_maximize_restore = "最大化/还原"
 window_close = "关闭"
+layout_state_editor_only = "仅编辑器视图"
+layout_state_view_only = "仅预览视图"
+layout_state_editor_and_view_separate = "编辑器与预览分窗显示"
 [messages]
 file_saved = "文件已保存"
 file_opened = "文件已打开"
@@ -532,7 +536,10 @@ insert_column_right = "在右侧插入列"
 select_local_file = "选择本地文件"
 theme_label = "主题："
 about_section = "说明"
-
+generating_html = "正在生成 HTML，请稍候…"
+generating_pdf = "正在生成 PDF，请稍候…"
+pdf_export_success = "PDF 已成功导出。"
+html_export_success = "HTML 已成功导出。"
 [search]
 title = "查找与替换"
 close_tooltip = "关闭"
@@ -584,3 +591,12 @@ feature_privacy_title = "隐私优先"
 feature_privacy_description = "无云同步，文档保留在本地"
 feature_markdown_title = "扩展 Markdown"
 feature_markdown_description = "表格、脚注、任务列表等"
+
+[messages.export_phase]
+preparing = "正在准备…"
+loading = "正在加载 paged.js…"
+paginating = "正在分页…"
+applying_print_css = "正在应用打印样式…"
+writing_output = "正在写入输出…"
+restoring_preview = "正在恢复预览…"
+done = "完成"
