@@ -739,7 +739,8 @@ pub fn update_footer_translations(
 
     update_encoding(labels, &translations.encoding_utf8);
     update_insert_mode(labels, is_insert);
-    update_issue_count(labels, *labels.diagnostics_total.borrow());
+    let diagnostics_total = *labels.diagnostics_total.borrow();
+    update_issue_count(labels, diagnostics_total);
     if labels.diagnostics_items.borrow().is_empty() {
         render_diagnostics_panel(labels);
     }
