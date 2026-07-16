@@ -32,7 +32,7 @@ use crate::components::editor::display_config::extract_xml_color_value;
 use crate::components::editor::sourceview::render_editor_with_view;
 use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{
-    wheel_js, HOVER_REPORT_JS, SCROLL_REPORT_JS, SCROLL_RESTORE_JS, WIN_ZOOM_BAR_HTML,
+    wheel_js, HOVER_REPORT_JS, SCROLL_REPORT_JS, SCROLL_RESTORE_JS, ZOOM_BAR_HTML,
 };
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
@@ -551,7 +551,7 @@ pub fn create_editor_with_preview_and_buffer(
     // (`marco_hover:`) and the in-page zoom toolbar handles `marco_zoom:`
     // actions on both platforms.
     wheel_with_report.push_str(HOVER_REPORT_JS);
-    wheel_with_report.push_str(WIN_ZOOM_BAR_HTML);
+    wheel_with_report.push_str(ZOOM_BAR_HTML);
     let wheel_js_rc = Rc::new(wheel_with_report);
 
     // Extract some theme colors from editor theme XML
@@ -2076,15 +2076,47 @@ paned > separator {{
     );
     let overlay = split_indicator.widget().clone();
 
-    // ── Zoom overlay bar (bottom-right of the preview split) ───────────────
-    // Create the floating zoom control bar and add it to the same gtk4::Overlay
-    // that wraps the paned.  The zoom-changed callback in editor_manager keeps
-    // the label in sync with keyboard shortcuts as well.
-    let _zoom_bar = crate::ui::zoom_overlay::create_zoom_bar(
-        &overlay,
-        &paned,
-        intelligence_settings_manager.clone(),
-    );
+    // ── Zoom bar hover-reveal (native GTK motion tracking) ─────────────────
+    // The in-page zoom bar (`ZOOM_BAR_HTML`) shows itself fine on its own
+    // `mousemove`, but DOM `mouseleave`/`mouseout` don't reliably fire when
+    // the pointer moves from the webview onto this sibling native widget
+    // (the editor pane) — the embedded webview handles its own input once
+    // the cursor is over different native surface. GTK's own motion
+    // tracking on this overlay (same technique the removed
+    // `marco/src/ui/zoom_overlay.rs` used for its native bar) reliably knows
+    // when the cursor leaves the preview half, and pushes that into the
+    // page via `evaluate_script`.
+    {
+        let webview_for_hover = webview_rc_opt.as_ref().expect("webview_rc not set").clone();
+        let paned_for_hover = paned.clone();
+        let was_in_preview = Rc::new(Cell::new(false));
+        let motion = gtk4::EventControllerMotion::new();
+        let webview_motion = webview_for_hover.clone();
+        let was_in_preview_motion = was_in_preview.clone();
+        let paned_motion = paned_for_hover.clone();
+        motion.connect_motion(move |_, x, _| {
+            let now_in_preview = x > paned_motion.position() as f64;
+            if now_in_preview != was_in_preview_motion.get() {
+                was_in_preview_motion.set(now_in_preview);
+                let js = if now_in_preview {
+                    "if (window.__marcoZoomBarShow) window.__marcoZoomBarShow();"
+                } else {
+                    "if (window.__marcoZoomBarHide) window.__marcoZoomBarHide();"
+                };
+                webview_motion.borrow().evaluate_script(js);
+            }
+        });
+        let was_in_preview_leave = was_in_preview.clone();
+        motion.connect_leave(move |_| {
+            if was_in_preview_leave.get() {
+                was_in_preview_leave.set(false);
+                webview_for_hover
+                    .borrow()
+                    .evaluate_script("if (window.__marcoZoomBarHide) window.__marcoZoomBarHide();");
+            }
+        });
+        overlay.add_controller(motion);
+    }
 
     // Wrap the entire editor+preview paned in the TOC sidebar paned.
     // Placing it here (outside the inner split) means the TOC panel is visible

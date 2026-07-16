@@ -276,9 +276,10 @@ Remaining `#[cfg(target_os = ...)]` splits are **strategy- or OS-specific,
 not backend selection**:
 
 - Detached preview window: Linux reparents the live webview
-  (`webkit6_detached_window` + `reparenting`), Windows rebuilds from the
-  recorded preview HTML (`wry_detached_window`, §14.3). Candidate for a
-  future merge via wry's `reparent` APIs — needs Windows testing.
+  (`detached_window_linux` + `reparenting`), Windows rebuilds from the
+  recorded preview HTML (`detached_window_windows`, §14.3). **Not** a
+  candidate for a `wry` `reparent`-API merge — investigated 2026-07-16, see
+  `WRY_FORK_GAPS.md` §7.
 - Print/PDF: WebKit `PrintOperation` (Linux) vs WebView2 COM
   `ShowPrintUI`/`PrintToPdf` (Windows); dispatched from shared actions.
 - The `export` action in `main.rs` is still one large cfg'd pair (both sides

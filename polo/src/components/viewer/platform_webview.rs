@@ -4,14 +4,18 @@
 //!
 //! - **Linux**: the fork's WebKitGTK backend is a native GTK4 widget —
 //!   `WebViewBuilderExtUnix::build_gtk` appends it into `self.container` at
-//!   construction time. HTML with a base URI loads through the
-//!   `WebViewExtUnix::webview()` escape hatch (`webkit load_html(html, base)`),
-//!   because wry's portable `load_html` cannot carry a base URI for relative
-//!   `file://` assets.
+//!   construction time.
 //! - **Windows**: WebView2 embedded as a child Win32 window (HWND from the GDK
-//!   surface), built lazily on the first load. HTML is served through a custom
-//!   protocol to bypass WebView2's ~2 MB `NavigateToString` limit, and a tick
-//!   callback keeps the HWND aligned with the GTK container.
+//!   surface), built lazily on the first load, and a tick callback keeps the
+//!   HWND aligned with the GTK container.
+//!
+//! HTML is served through a custom protocol (`polo-preview://localhost/…`) on
+//! **both** platforms — this bypasses WebView2's ~2 MB `NavigateToString`
+//! content limit (which would otherwise silently drop large markdown files),
+//! and relative asset paths (`<img src="./x.png">`) resolve against the
+//! document's own URL via ordinary URL relative-resolution — no `<base>` tag
+//! and no base URI is ever passed to a WebKit/WebView2 API. See
+//! [`build_document_url`] for the URL shape.
 //!
 //! Navigation policy (external links → system browser, local `.md` links →
 //! callback) and page-load notification are a single code path on both
@@ -40,9 +44,9 @@ pub struct PlatformWebView {
     /// on Linux the overlay stacks above the webview widget natively).
     #[allow(dead_code)] // Only read by the Windows tick callback.
     is_offscreen_for_loading: std::rc::Rc<std::cell::Cell<bool>>,
-    /// Monotonically increasing counter appended to reload URLs as `?v=N`
-    /// so WebView2 never serves a cached response for the custom protocol.
-    #[cfg(target_os = "windows")]
+    /// Monotonically increasing counter appended to the document URL as
+    /// `&v=N` so neither backend serves a cached response for the custom
+    /// protocol.
     load_version: std::rc::Rc<std::cell::Cell<u64>>,
     /// GTK CSS provider used to paint the container background to match the
     /// WebView background colour, preventing a white flash during loading.
@@ -194,7 +198,6 @@ impl PlatformWebView {
             navigation_handler,
             load_finished_handler,
             is_offscreen_for_loading,
-            #[cfg(target_os = "windows")]
             load_version: std::rc::Rc::new(std::cell::Cell::new(0u64)),
             bg_css_provider,
         };
@@ -209,12 +212,18 @@ impl PlatformWebView {
     }
 
     /// Build the wry WebView as a native GTK child of `self.container` (Linux).
+    ///
+    /// Built blank (no real content — `polo_html()` is still empty at this
+    /// point); the first [`Self::load_html_with_base`] call navigates it to
+    /// the actual document.
     #[cfg(target_os = "linux")]
     fn build_webview_gtk(&self) -> Result<(), String> {
         use wry::{WebViewBuilderExtUnix, WebViewExtUnix};
 
         let builder = wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
+            .with_url(build_document_url(None, 0))
+            .with_custom_protocol(POLO_SCHEME.to_string(), polo_protocol_handler)
             .with_navigation_handler({
                 let nav_handler = self.navigation_handler.clone();
                 move |uri: String| wry_navigation_handler(&uri, &nav_handler)
@@ -237,7 +246,12 @@ impl PlatformWebView {
         {
             use webkit6::prelude::*;
             let wk = view.webview();
-            // Mirror the historical webkit6 configuration.
+            // Mirror the historical webkit6 configuration. The primary load
+            // path no longer uses file:// URLs at all (assets are served
+            // through the custom protocol), but these flags still matter for
+            // explicit `file://` links written directly in Markdown, which
+            // bypass the document's base entirely and hit WebKit's native
+            // file:// loader.
             if let Some(settings) = WebViewExt::settings(&wk) {
                 settings.set_allow_file_access_from_file_urls(true);
                 settings.set_allow_universal_access_from_file_urls(true);
@@ -284,150 +298,134 @@ impl PlatformWebView {
         self.bg_css_provider.load_from_data(&css_data);
     }
 
-    #[cfg(target_os = "linux")]
+    /// Load `html` into the preview, with an optional base directory
+    /// (`base_uri`, `file:///abs/dir/`-shaped) so relative asset references
+    /// resolve against it. Both HTML and any local assets are served through
+    /// the `polo-preview://` custom protocol — see [`build_document_url`].
     pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
-        // WebKit natively supports a base URI on load_html — go through the
-        // fork's escape hatch. Defer to the next event-loop idle so the
-        // loading overlay gets one frame to paint first (parity with the
-        // historical webkit6 behaviour).
-        let inner = self.inner.clone();
-        let html = html.to_string();
-        let base = base_uri.map(|b| b.to_string());
-        gtk4::glib::idle_add_local_once(move || {
-            if let Some(view) = inner.borrow().as_ref() {
-                use wry::WebViewExtUnix;
-                webkit6::prelude::WebViewExt::load_html(&view.webview(), &html, base.as_deref());
-            } else {
-                log::error!("[polo] load_html_with_base: WebView not built");
-            }
-        });
-    }
-
-    #[cfg(target_os = "windows")]
-    pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
-        let final_html = if let Some(base) = base_uri {
-            inject_base_href(html, base)
-        } else {
-            html.to_string()
-        };
-
-        // Store HTML for the custom protocol handler.
-        // Using a custom protocol instead of `load_html` / `NavigateToString`
-        // bypasses WebView2's ~2 MB content limit that silently drops large
-        // markdown files, leaving polo in a permanent loading state.
+        // Store the raw HTML (no `<base>` injection needed — the document's
+        // own URL already encodes its directory) so the custom-protocol
+        // handler can serve it. Using a custom protocol instead of
+        // `load_html` / `NavigateToString` also bypasses WebView2's ~2 MB
+        // content limit that would otherwise silently drop large markdown
+        // files.
         if let Ok(mut guard) = polo_html().lock() {
-            *guard = final_html.into_bytes();
+            *guard = html.as_bytes().to_vec();
         } else {
             log::error!("[polo] polo_html mutex poisoned — cannot update HTML");
             return;
         }
 
-        // Increment load version so each reload URL is unique (busts WebView2 cache).
         let v = self.load_version.get().wrapping_add(1);
         self.load_version.set(v);
-        let reload_url = format!("{}?v={}", POLO_CONTENT_URL_RELOAD, v);
+        let doc_url = build_document_url(base_uri, v);
 
-        if self.inner.borrow().is_some() {
-            // Defer to the next event-loop idle: this gives the loading
-            // overlay one frame to paint before WebView2 starts replacing
-            // the current page.
+        #[cfg(target_os = "linux")]
+        {
+            // The webview is always already built (created eagerly in
+            // `new()`). Defer to the next event-loop idle so the loading
+            // overlay gets one frame to paint first (parity with the
+            // historical webkit6 behaviour).
             let inner = self.inner.clone();
             gtk4::glib::idle_add_local_once(move || {
                 if let Some(view) = inner.borrow().as_ref() {
-                    if let Err(e) = view.load_url(&reload_url) {
-                        log::error!("[polo] Failed to reload via custom protocol: {}", e);
-                    }
+                    navigate(view, &doc_url);
+                } else {
+                    log::error!("[polo] load_html_with_base: WebView not built");
                 }
             });
-            return;
         }
 
-        // First load: build the WebView now.
-        // Build the WebView off-screen if a loading operation is in progress
-        // so the GTK loading-overlay frame stays visible until the page loads.
-        let rect = if self.is_offscreen_for_loading.get() {
-            let alloc = self.container.allocation();
-            wry::Rect {
-                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    -32000.0, -32000.0,
-                )),
-                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                    alloc.width().max(100) as f64,
-                    alloc.height().max(100) as f64,
-                )),
+        #[cfg(target_os = "windows")]
+        {
+            if self.inner.borrow().is_some() {
+                // Defer to the next event-loop idle: this gives the loading
+                // overlay one frame to paint before WebView2 starts replacing
+                // the current page.
+                let inner = self.inner.clone();
+                gtk4::glib::idle_add_local_once(move || {
+                    if let Some(view) = inner.borrow().as_ref() {
+                        navigate(view, &doc_url);
+                    }
+                });
+                return;
             }
-        } else {
-            let alloc = self.container.allocation();
-            let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
-                (0.0, 0.0)
+
+            // First load: build the WebView now.
+            // Build the WebView off-screen if a loading operation is in progress
+            // so the GTK loading-overlay frame stays visible until the page loads.
+            let rect = if self.is_offscreen_for_loading.get() {
+                let alloc = self.container.allocation();
+                wry::Rect {
+                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                        -32000.0, -32000.0,
+                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width().max(100) as f64,
+                        alloc.height().max(100) as f64,
+                    )),
+                }
             } else {
-                (14.0, 12.0)
+                let alloc = self.container.allocation();
+                let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
+                    (0.0, 0.0)
+                } else {
+                    (14.0, 12.0)
+                };
+                let origin_in_window =
+                    match self
+                        .container
+                        .translate_coordinates(&self.gtk_window, 0.0, 0.0)
+                    {
+                        Some((x, y)) => (x, y),
+                        None => (alloc.x() as f64, alloc.y() as f64),
+                    };
+                wry::Rect {
+                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                        origin_in_window.0 + offset_x - 1.0,
+                        origin_in_window.1 + offset_y,
+                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width().max(100) as f64 + 1.0,
+                        alloc.height().max(100) as f64,
+                    )),
+                }
             };
-            let origin_in_window =
-                match self
-                    .container
-                    .translate_coordinates(&self.gtk_window, 0.0, 0.0)
-                {
-                    Some((x, y)) => (x, y),
-                    None => (alloc.x() as f64, alloc.y() as f64),
-                };
-            wry::Rect {
-                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    origin_in_window.0 + offset_x - 1.0,
-                    origin_in_window.1 + offset_y,
-                )),
-                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                    alloc.width().max(100) as f64 + 1.0,
-                    alloc.height().max(100) as f64,
-                )),
+
+            // Configure WebView2 to use data directory (portable mode friendly)
+            // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
+            let data_dir = marco_shared::paths::user_data_dir().join("webview");
+            if let Err(e) = std::fs::create_dir_all(&data_dir) {
+                log::warn!("Failed to create WebView2 data directory: {}", e);
             }
-        };
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
 
-        // Configure WebView2 to use data directory (portable mode friendly)
-        // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = marco_shared::paths::user_data_dir().join("webview");
-        if let Err(e) = std::fs::create_dir_all(&data_dir) {
-            log::warn!("Failed to create WebView2 data directory: {}", e);
-        }
-        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
-
-        match wry::WebViewBuilder::new()
-            .with_background_color(self.bg_color.get())
-            .with_bounds(rect)
-            // Navigate to custom protocol URL instead of loading HTML directly.
-            // This avoids WebView2's ~2 MB NavigateToString limit for large files.
-            .with_url(POLO_CONTENT_URL_BUILDER)
-            .with_custom_protocol(POLO_SCHEME.to_string(), |_id, _req| {
-                let body = match polo_html().lock() {
-                    Ok(guard) => guard.clone(),
-                    Err(_) => b"<html><body>Content unavailable</body></html>".to_vec(),
-                };
-                wry::http::Response::builder()
-                    .header("Content-Type", "text/html; charset=utf-8")
-                    .header("Access-Control-Allow-Origin", "*")
-                    .body(std::borrow::Cow::Owned(body))
-                    .unwrap()
-            })
-            .with_navigation_handler({
-                let nav_handler = self.navigation_handler.clone();
-                move |uri: String| wry_navigation_handler(&uri, &nav_handler)
-            })
-            .with_on_page_load_handler({
-                let load_handler = self.load_finished_handler.clone();
-                move |event, _url: String| {
-                    if matches!(event, wry::PageLoadEvent::Finished) {
-                        if let Some(f) = load_handler.borrow().as_ref() {
-                            f();
+            match wry::WebViewBuilder::new()
+                .with_background_color(self.bg_color.get())
+                .with_bounds(rect)
+                .with_url(&doc_url)
+                .with_custom_protocol(POLO_SCHEME.to_string(), polo_protocol_handler)
+                .with_navigation_handler({
+                    let nav_handler = self.navigation_handler.clone();
+                    move |uri: String| wry_navigation_handler(&uri, &nav_handler)
+                })
+                .with_on_page_load_handler({
+                    let load_handler = self.load_finished_handler.clone();
+                    move |event, _url: String| {
+                        if matches!(event, wry::PageLoadEvent::Finished) {
+                            if let Some(f) = load_handler.borrow().as_ref() {
+                                f();
+                            }
                         }
                     }
+                })
+                .build_as_child(&*self.parent_handle)
+            {
+                Ok(view) => {
+                    *self.inner.borrow_mut() = Some(view);
                 }
-            })
-            .build_as_child(&*self.parent_handle)
-        {
-            Ok(view) => {
-                *self.inner.borrow_mut() = Some(view);
+                Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
             }
-            Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
         }
     }
 
@@ -549,34 +547,251 @@ impl PlatformWebView {
     }
 }
 
-/// Custom protocol scheme used to serve HTML content to polo's WebView2.
-///
-/// Using a custom protocol instead of `load_html` / `NavigateToString`
-/// bypasses WebView2's ~2 MB content limit, which would silently drop large
-/// markdown files and leave polo in a permanent loading state.
-#[cfg(target_os = "windows")]
+/// Custom protocol scheme used to serve preview HTML and its local assets on
+/// both platforms. On Windows, wry maps this to `http://polo-preview.localhost/`
+/// at build time — this also bypasses WebView2's ~2 MB `NavigateToString`
+/// content limit, which would otherwise silently drop large markdown files.
+/// Linux (WebKitGTK) needs no such translation — the scheme is used as-is.
 const POLO_SCHEME: &str = "polo-preview";
 
-/// URL passed to `with_url()` in the WebViewBuilder.  wry transforms this to
-/// `http://polo-preview.localhost/` internally at build time.
-#[cfg(target_os = "windows")]
-const POLO_CONTENT_URL_BUILDER: &str = "polo-preview://localhost/";
+/// Authority (host) component of every `polo-preview://` URL. Fixed at
+/// `"localhost"` — polo has exactly one `PlatformWebView` per process (single
+/// global HTML store, see [`polo_html`]), so the URL doesn't need to carry
+/// per-instance routing information, and Windows's
+/// `polo-preview://localhost/` → `http://polo-preview.localhost/` translation
+/// is only proven to work with this exact authority.
+const POLO_AUTHORITY: &str = "localhost";
 
-/// Base for versioned reload URLs (`?v=N`). Must be the already-transformed
-/// HTTP form because wry's scheme rewrite only runs during `build()`, not
-/// on subsequent `load_url()` calls.
+/// Authority used for `WebView::load_url()` calls on Windows *after* the
+/// initial build. wry's `polo-preview://localhost/` → `http://…` URI
+/// workaround only runs at build time, not on `load_url()`, so reload
+/// navigations must use the already-translated HTTP form directly —
+/// otherwise the navigation silently fails.
 #[cfg(target_os = "windows")]
-const POLO_CONTENT_URL_RELOAD: &str = "http://polo-preview.localhost/";
+const POLO_CONTENT_URL_RELOAD_AUTHORITY: &str = "http://polo-preview.localhost";
+
+/// Query-string marker identifying a request as "serve the cached top-level
+/// document" rather than a local asset. See [`build_document_url`].
+const DOC_MARKER_QUERY: &str = "marco_doc=1";
+
+/// Build the `polo-preview://` URL for the top-level preview document.
+///
+/// `base_uri`, when present, is the `file:///abs/dir/`-shaped string already
+/// produced by `rendering::compute_base_uri` — its directory portion becomes
+/// the URL path, percent-encoded segment by segment. Relative asset
+/// references in the loaded HTML then resolve, via ordinary URL
+/// relative-resolution (no `<base>` tag involved), to
+/// `polo-preview://localhost/<same-dir>/<asset>` — served by
+/// [`polo_protocol_handler`], which reads that path directly off disk.
+/// `version` busts any cache the webview backend keeps for the scheme.
+fn build_document_url(base_uri: Option<&str>, version: u64) -> String {
+    let dir_path = base_uri
+        .and_then(|b| b.strip_prefix("file://"))
+        .unwrap_or("");
+    let encoded_dir = percent_encode_path(dir_path);
+    format!(
+        "{}://{}{}?{}&v={}",
+        POLO_SCHEME, POLO_AUTHORITY, encoded_dir, DOC_MARKER_QUERY, version
+    )
+}
+
+/// Percent-encode a filesystem path for use as a URL path, preserving `/` as
+/// the segment separator. Encodes every byte outside the URL "unreserved"
+/// set (letters, digits, `-_.~`) individually, so multi-byte UTF-8 sequences
+/// round-trip correctly through [`percent_decode_path`] regardless of
+/// codepoint.
+fn percent_encode_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                out.push(byte as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    out
+}
+
+/// Percent-decode a URL path back into a filesystem path. Decodes into a
+/// byte buffer first, then interprets it as UTF-8 lossily — a malformed
+/// sequence degrades gracefully instead of panicking.
+fn percent_decode_path(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(h), Some(l)) = (
+                (bytes[i + 1] as char).to_digit(16),
+                (bytes[i + 2] as char).to_digit(16),
+            ) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Convert a percent-decoded, always-`/`-prefixed URL path into a native
+/// filesystem path. No-op on Linux (Unix paths are already `/`-rooted). On
+/// Windows, a URL path built from a `C:/Users/…`-shaped base carries an
+/// extra leading `/` (mirroring the `file:///C:/…` convention used by
+/// `rendering::compute_base_uri`) that must be stripped before the string is
+/// a valid Windows path.
+fn url_path_to_fs_path(url_path: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        let bytes = url_path.as_bytes();
+        if bytes.len() >= 3
+            && bytes[0] == b'/'
+            && bytes[1].is_ascii_alphabetic()
+            && bytes[2] == b':'
+        {
+            return url_path[1..].to_string();
+        }
+    }
+    url_path.to_string()
+}
+
+/// Best-effort `Content-Type` for a served local asset, by extension. Falls
+/// back to `application/octet-stream` for anything outside this deliberately
+/// short list — the realistic set of images Markdown embeds.
+fn mime_type_for_path(path: &str) -> &'static str {
+    let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        _ => "application/octet-stream",
+    }
+}
+
+/// `with_custom_protocol` handler shared by both platforms' build sites.
+/// Bare `fn` rather than a closure — polo's single-viewer design needs no
+/// per-instance capture, since the HTML store is one process-wide global
+/// ([`polo_html`]), not per-instance.
+fn polo_protocol_handler(
+    _webview_id: wry::WebViewId,
+    req: wry::http::Request<Vec<u8>>,
+) -> wry::http::Response<std::borrow::Cow<'static, [u8]>> {
+    let is_doc = req
+        .uri()
+        .query()
+        .map(|q| q.split('&').any(|kv| kv == "marco_doc=1"))
+        .unwrap_or(false);
+
+    if is_doc {
+        let body = match polo_html().lock() {
+            Ok(guard) => guard.clone(),
+            Err(_) => b"<html><body>Content unavailable</body></html>".to_vec(),
+        };
+        return wry::http::Response::builder()
+            .header("Content-Type", "text/html; charset=utf-8")
+            .header("Access-Control-Allow-Origin", "*")
+            .body(std::borrow::Cow::Owned(body))
+            .unwrap();
+    }
+
+    let fs_path = url_path_to_fs_path(&percent_decode_path(req.uri().path()));
+    match std::fs::read(&fs_path) {
+        Ok(bytes) => wry::http::Response::builder()
+            .header("Content-Type", mime_type_for_path(&fs_path))
+            .header("Access-Control-Allow-Origin", "*")
+            .body(std::borrow::Cow::Owned(bytes))
+            .unwrap(),
+        Err(e) => {
+            log::debug!(
+                "[polo] custom protocol: failed to read local asset '{}': {}",
+                fs_path,
+                e
+            );
+            wry::http::Response::builder()
+                .status(404)
+                .body(std::borrow::Cow::Owned(Vec::new()))
+                .unwrap()
+        }
+    }
+}
+
+/// Navigate an already-built webview to `doc_url`. On Windows this uses the
+/// already-HTTP-translated authority (`load_url` doesn't apply wry's
+/// build-time scheme translation); on Linux the `polo-preview://` URL is
+/// used as-is.
+fn navigate(view: &wry::WebView, doc_url: &str) {
+    #[cfg(target_os = "windows")]
+    let target = doc_url.replacen(
+        &format!("{}://{}", POLO_SCHEME, POLO_AUTHORITY),
+        POLO_CONTENT_URL_RELOAD_AUTHORITY,
+        1,
+    );
+    #[cfg(target_os = "linux")]
+    let target = doc_url.to_string();
+
+    if let Err(e) = view.load_url(&target) {
+        log::error!("[polo] Failed to load preview document: {}", e);
+    }
+}
 
 /// In-memory HTML store for polo's single custom-protocol WebView.
 /// Updated before every `load_url` call so the protocol handler always
 /// returns the latest rendered HTML.
-#[cfg(target_os = "windows")]
 static POLO_HTML: std::sync::OnceLock<std::sync::Mutex<Vec<u8>>> = std::sync::OnceLock::new();
 
-#[cfg(target_os = "windows")]
 fn polo_html() -> &'static std::sync::Mutex<Vec<u8>> {
     POLO_HTML.get_or_init(|| std::sync::Mutex::new(Vec::new()))
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use super::*;
+
+    #[test]
+    fn smoke_build_document_url_no_base() {
+        let url = build_document_url(None, 3);
+        assert_eq!(url, "polo-preview://localhost?marco_doc=1&v=3");
+    }
+
+    #[test]
+    fn smoke_build_document_url_with_base() {
+        let url = build_document_url(Some("file:///home/user/docs/"), 1);
+        assert_eq!(
+            url,
+            "polo-preview://localhost/home/user/docs/?marco_doc=1&v=1"
+        );
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_ascii() {
+        let original = "/home/user/my docs/a-b_c.d~e/img.png";
+        let encoded = percent_encode_path(original);
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_unicode() {
+        let original = "/home/user/dossiers/résumé 日本語/img.png";
+        let encoded = percent_encode_path(original);
+        assert!(!encoded.contains(' '));
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_mime_type_for_path_known_and_unknown() {
+        assert_eq!(mime_type_for_path("/x/img.PNG"), "image/png");
+        assert_eq!(
+            mime_type_for_path("/x/data.bin"),
+            "application/octet-stream"
+        );
+    }
 }
 
 /// Open the WebView2 *system* print dialog.
@@ -714,22 +929,4 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.display)
     }
-}
-
-#[cfg(target_os = "windows")]
-fn inject_base_href(html: &str, base: &str) -> String {
-    if html.contains("<base") {
-        return html.to_string();
-    }
-
-    if let Some(idx) = html.find("<head>") {
-        let mut result = String::with_capacity(html.len() + base.len() + 32);
-        result.push_str(&html[..idx + 6]);
-        result.push_str(&format!("<base href=\"{}\">", base));
-        result.push_str(&html[idx + 6..]);
-        return result;
-    }
-
-    // Fallback: prepend base tag
-    format!("<base href=\"{}\">{}", base, html)
 }

@@ -60,7 +60,6 @@ pub mod settings;
 pub mod syntax;
 pub mod textfield;
 pub mod toolbar;
-pub mod zoom_bar;
 
 use gtk4::{gdk::Display, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION};
 
@@ -119,9 +118,6 @@ pub fn generate_marco_css() -> String {
 
     // Toolbar insertion popovers (marco-link-popover)
     css.push_str(&popover::generate_css());
-
-    // Preview zoom overlay bar
-    css.push_str(&zoom_bar::generate_css());
 
     css
 }

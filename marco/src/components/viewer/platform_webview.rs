@@ -4,13 +4,18 @@
 //!
 //! - **Linux**: the fork's WebKitGTK backend is a native GTK4 widget —
 //!   `WebViewBuilderExtUnix::build_gtk` appends it into `self.container`.
-//!   HTML with a base URI is loaded through the `WebViewExtUnix::webview()`
-//!   escape hatch (`webkit load_html(html, base)`), because wry's portable
-//!   `load_html` cannot carry a base URI for relative `file://` assets.
 //! - **Windows**: WebView2 embedded as a child Win32 window (HWND obtained
-//!   from the GDK surface). HTML is served through a custom protocol so the
-//!   IPC `Source` URL is never empty (a wry/WebView2 panic otherwise), and a
-//!   tick callback keeps the HWND aligned with the GTK container.
+//!   from the GDK surface), and a tick callback keeps the HWND aligned with
+//!   the GTK container.
+//!
+//! HTML is served through a custom protocol (`marco-preview://localhost/…`)
+//! on **both** platforms, so the IPC `Source` URL is never empty (a
+//! wry/WebView2 panic otherwise) and relative asset paths
+//! (`<img src="./x.png">`) resolve against the document's own URL via
+//! ordinary URL relative-resolution — no `<base>` tag and no base URI is
+//! ever passed to a WebKit/WebView2 API. See [`build_document_url`] for the
+//! URL shape and the `with_custom_protocol` handler installed in
+//! [`PlatformWebView::build_initial_webview`] for how it's served.
 //!
 //! Everything above construction/loading — IPC routing, scroll-sync, hover,
 //! find, state snapshots, smooth content updates — is a single code path.
@@ -67,10 +72,9 @@ type StateSnapshotCallbackCell = Rc<RefCell<Option<StateSnapshotCallback>>>;
 type ReadyCallback = Rc<dyn Fn()>;
 type ReadyCallbackCell = Rc<RefCell<Option<ReadyCallback>>>;
 
-/// HTML + optional base URI queued while the Linux webview's deferred first
-/// build is pending (see [`PlatformWebView::load_html_with_base`]).
-#[cfg(target_os = "linux")]
-type PendingLoadCell = Rc<RefCell<Option<(String, Option<String>)>>>;
+/// Document URL queued while the webview's deferred first build is pending
+/// (see [`PlatformWebView::load_html_with_base`]).
+type PendingLoadCell = Rc<RefCell<Option<String>>>;
 
 /// Monotonic counter for assigning unique IDs to each PlatformWebView instance.
 static WEBVIEW_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -122,25 +126,197 @@ impl Drop for BgCssGuard {
     }
 }
 
-/// Custom protocol scheme name used for serving HTML content.
-/// On Windows, wry maps this to `http://marco-preview.localhost/` so the
-/// IPC `Source` URL is never empty (which would otherwise cause a panic in
-/// wry 0.55 when using `NavigateToString`).
-#[cfg(target_os = "windows")]
+/// Custom protocol scheme used to serve preview HTML and its local assets on
+/// both platforms. On Windows, wry maps this to `http://marco-preview.localhost/`
+/// at build time so the IPC `Source` URL is never empty (which would
+/// otherwise cause a panic in wry when using `NavigateToString`). Linux
+/// (WebKitGTK) needs no such translation — the scheme is used as-is.
 const CUSTOM_SCHEME: &str = "marco-preview";
 
-/// URL used only for the initial WebViewBuilder `.with_url()` call.
-/// wry applies the custom-protocol workaround during `build()`, translating
-/// `marco-preview://localhost/` → `http://marco-preview.localhost/`.
-#[cfg(target_os = "windows")]
-const CONTENT_URL_BUILDER: &str = "marco-preview://localhost/";
+/// Authority (host) component of every `marco-preview://` URL. Fixed at
+/// `"localhost"` rather than a per-webview identifier: each `PlatformWebView`
+/// registers its own `with_custom_protocol` closure (capturing its own id
+/// directly, see [`PlatformWebView::build_initial_webview`]), so the URL
+/// itself doesn't need to carry per-webview routing information — and
+/// Windows's `marco-preview://localhost/` → `http://marco-preview.localhost/`
+/// translation is only proven to work with this exact authority.
+const CUSTOM_AUTHORITY: &str = "localhost";
 
-/// URL used for subsequent `WebView::load_url()` calls.
-/// wry's URI workaround is NOT applied by `load_url` — it only runs at build time —
-/// so we must use the already-transformed HTTP form directly, otherwise
-/// `Navigate("marco-preview://localhost/")` silently fails and the page never refreshes.
+/// Authority used for `WebView::load_url()` calls on Windows *after* the
+/// initial build. wry's `marco-preview://localhost/` → `http://…` URI
+/// workaround only runs at build time, not on `load_url()`, so reload
+/// navigations must use the already-translated HTTP form directly —
+/// otherwise the navigation silently fails.
 #[cfg(target_os = "windows")]
-const CONTENT_URL_RELOAD_BASE: &str = "http://marco-preview.localhost/";
+const CONTENT_URL_RELOAD_AUTHORITY: &str = "http://marco-preview.localhost";
+
+/// Query-string marker identifying a request as "serve the cached top-level
+/// document" rather than a local asset. See [`build_document_url`].
+const DOC_MARKER_QUERY: &str = "marco_doc=1";
+
+/// Build the `marco-preview://` URL for the top-level preview document.
+///
+/// `base_uri`, when present, is the `file:///abs/dir/`-shaped string already
+/// produced by `preview_helpers::generate_base_uri_from_path` (or polo's
+/// equivalent) — its directory portion becomes the URL path, percent-encoded
+/// segment by segment. Relative asset references in the loaded HTML then
+/// resolve, via ordinary URL relative-resolution (no `<base>` tag involved),
+/// to `marco-preview://localhost/<same-dir>/<asset>` — served by the
+/// `with_custom_protocol` closure installed in
+/// [`PlatformWebView::build_initial_webview`], which reads that path
+/// directly off disk. `version` busts any cache the webview backend keeps
+/// for the scheme.
+fn build_document_url(base_uri: Option<&str>, version: u64) -> String {
+    let dir_path = base_uri
+        .and_then(|b| b.strip_prefix("file://"))
+        .unwrap_or("");
+    let encoded_dir = percent_encode_path(dir_path);
+    format!(
+        "{}://{}{}?{}&v={}",
+        CUSTOM_SCHEME, CUSTOM_AUTHORITY, encoded_dir, DOC_MARKER_QUERY, version
+    )
+}
+
+/// Percent-encode a filesystem path for use as a URL path, preserving `/` as
+/// the segment separator. Encodes every byte outside the URL "unreserved"
+/// set (letters, digits, `-_.~`) individually, so multi-byte UTF-8 sequences
+/// round-trip correctly through [`percent_decode_path`] regardless of
+/// codepoint.
+fn percent_encode_path(path: &str) -> String {
+    let mut out = String::with_capacity(path.len());
+    for byte in path.bytes() {
+        match byte {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'/' => {
+                out.push(byte as char)
+            }
+            _ => out.push_str(&format!("%{:02X}", byte)),
+        }
+    }
+    out
+}
+
+/// Percent-decode a URL path back into a filesystem path. Decodes into a
+/// byte buffer first, then interprets it as UTF-8 lossily — a malformed
+/// sequence degrades gracefully instead of panicking.
+fn percent_decode_path(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(h), Some(l)) = (
+                (bytes[i + 1] as char).to_digit(16),
+                (bytes[i + 2] as char).to_digit(16),
+            ) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// Convert a percent-decoded, always-`/`-prefixed URL path into a native
+/// filesystem path. No-op on Linux (Unix paths are already `/`-rooted). On
+/// Windows, a URL path built from a `C:/Users/…`-shaped base carries an
+/// extra leading `/` (mirroring the `file:///C:/…` convention used by
+/// `generate_base_uri_from_path`) that must be stripped before the string is
+/// a valid Windows path.
+fn url_path_to_fs_path(url_path: &str) -> String {
+    #[cfg(target_os = "windows")]
+    {
+        let bytes = url_path.as_bytes();
+        if bytes.len() >= 3
+            && bytes[0] == b'/'
+            && bytes[1].is_ascii_alphabetic()
+            && bytes[2] == b':'
+        {
+            return url_path[1..].to_string();
+        }
+    }
+    url_path.to_string()
+}
+
+/// Best-effort `Content-Type` for a served local asset, by extension. Falls
+/// back to `application/octet-stream` for anything outside this deliberately
+/// short list — the realistic set of images Markdown embeds.
+fn mime_type_for_path(path: &str) -> &'static str {
+    let ext = path.rsplit('.').next().unwrap_or("").to_ascii_lowercase();
+    match ext.as_str() {
+        "png" => "image/png",
+        "jpg" | "jpeg" => "image/jpeg",
+        "gif" => "image/gif",
+        "svg" => "image/svg+xml",
+        "webp" => "image/webp",
+        "bmp" => "image/bmp",
+        "ico" => "image/x-icon",
+        _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use super::*;
+
+    #[test]
+    fn smoke_build_document_url_no_base() {
+        let url = build_document_url(None, 3);
+        assert_eq!(url, "marco-preview://localhost?marco_doc=1&v=3");
+    }
+
+    #[test]
+    fn smoke_build_document_url_with_base() {
+        let url = build_document_url(Some("file:///home/user/docs/"), 1);
+        assert_eq!(
+            url,
+            "marco-preview://localhost/home/user/docs/?marco_doc=1&v=1"
+        );
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_ascii() {
+        let original = "/home/user/my docs/a-b_c.d~e/img.png";
+        let encoded = percent_encode_path(original);
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_unicode() {
+        let original = "/home/user/dossiers/résumé 日本語/img.png";
+        let encoded = percent_encode_path(original);
+        assert!(!encoded.contains(' '));
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_percent_encode_preserves_slash() {
+        let encoded = percent_encode_path("/a/b/c");
+        assert_eq!(encoded, "/a/b/c");
+    }
+
+    #[test]
+    fn smoke_mime_type_for_path_known_and_unknown() {
+        assert_eq!(mime_type_for_path("/x/img.PNG"), "image/png");
+        assert_eq!(mime_type_for_path("/x/img.jpeg"), "image/jpeg");
+        assert_eq!(
+            mime_type_for_path("/x/data.bin"),
+            "application/octet-stream"
+        );
+        assert_eq!(mime_type_for_path("/x/noext"), "application/octet-stream");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn smoke_url_path_to_fs_path_linux_passthrough() {
+        assert_eq!(
+            url_path_to_fs_path("/home/user/img.png"),
+            "/home/user/img.png"
+        );
+    }
+}
 
 /// Cross-platform PlatformWebView wrapper
 #[derive(Clone)]
@@ -150,13 +326,12 @@ pub struct PlatformWebView {
     /// [`IdGuard::drop`]. Only the Windows custom-protocol path reads the id.
     #[allow(dead_code)]
     id_guard: Rc<IdGuard>,
-    /// Monotonically increasing counter appended to the reload URL as `?v=N`.
-    /// Each increment produces a unique URL so WebView2 cannot serve a cached response.
-    #[cfg(target_os = "windows")]
+    /// Monotonically increasing counter appended to the document URL as
+    /// `&v=N`. Each increment produces a unique URL so neither backend can
+    /// serve a cached response for the custom-protocol scheme.
     load_version: Rc<std::cell::Cell<u64>>,
-    /// HTML + base URI waiting for the deferred first build (Linux). Once the
-    /// webview exists, loads go straight through the webkit escape hatch.
-    #[cfg(target_os = "linux")]
+    /// Document URL waiting for the deferred first build. Once the webview
+    /// exists, loads go straight through `WebView::load_url`.
     pending_load: PendingLoadCell,
     pub inner: std::rc::Rc<std::cell::RefCell<Option<wry::WebView>>>,
     pub container: gtk4::Box,
@@ -221,7 +396,6 @@ impl PlatformWebView {
 
         // Assign a unique ID to this instance
         let id = WEBVIEW_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
-        #[cfg(target_os = "windows")]
         let load_version: Rc<std::cell::Cell<u64>> = Rc::new(std::cell::Cell::new(0));
 
         // Default fallback container & state
@@ -382,9 +556,7 @@ impl PlatformWebView {
 
         Self {
             id_guard: Rc::new(IdGuard(id)),
-            #[cfg(target_os = "windows")]
             load_version,
-            #[cfg(target_os = "linux")]
             pending_load: Rc::new(RefCell::new(None)),
             inner: webview,
             container,
@@ -533,106 +705,68 @@ impl PlatformWebView {
         self.bg_css_provider.provider.load_from_data(&css_data);
     }
 
+    /// Load `html` into the preview, with an optional base directory
+    /// (`base_uri`, `file:///abs/dir/`-shaped) so relative asset references
+    /// resolve against it. Both HTML and any local assets are served through
+    /// the `marco-preview://` custom protocol — see [`build_document_url`].
     pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
-        #[cfg(target_os = "linux")]
-        {
-            // WebKit natively supports a base URI on load_html — go through
-            // the fork's escape hatch, which is the only load path that can
-            // resolve relative file:// assets (wry's portable load_html
-            // always passes base = None).
-            if let Some(view) = self.inner.borrow().as_ref() {
-                use wry::WebViewExtUnix;
-                webkit6::prelude::WebViewExt::load_html(&view.webview(), html, base_uri);
-                return;
-            }
+        let v = self.load_version.get().wrapping_add(1);
+        self.load_version.set(v);
 
-            // Defer first-time creation until the GTK container is mapped and
-            // allocated, mirroring the Windows path (~4.8 s budget, 60 fps).
-            // Only the newest pending content is kept.
-            *self.pending_load.borrow_mut() =
-                Some((html.to_string(), base_uri.map(str::to_string)));
-            let me = self.clone();
-            crate::components::viewer::allocation_wait::run_when_allocated(
-                &self.container,
-                crate::components::viewer::allocation_wait::DEFAULT_MAX_RETRIES,
-                move || {
-                    // A previous deferred load may have already built the
-                    // webview — just flush the newest pending content.
-                    if me.inner.borrow().is_some() {
-                        let pending = me.pending_load.borrow_mut().take();
-                        if let (Some((html, base)), Some(view)) =
-                            (pending, me.inner.borrow().as_ref())
-                        {
-                            use wry::WebViewExtUnix;
-                            webkit6::prelude::WebViewExt::load_html(
-                                &view.webview(),
-                                &html,
-                                base.as_deref(),
-                            );
-                        }
-                        return;
-                    }
-                    me.build_initial_webview();
-                },
-            );
-        }
-
-        #[cfg(target_os = "windows")]
-        self.load_html_with_base_windows(html, base_uri);
-    }
-
-    #[cfg(target_os = "windows")]
-    fn load_html_with_base_windows(&self, html: &str, base_uri: Option<&str>) {
-        let final_html = if let Some(base) = base_uri {
-            inject_base_href(html, base)
-        } else {
-            html.to_string()
-        };
-
-        // Store HTML so the custom protocol handler can serve it.
-        // Using NavigateToString (wry's load_html) leaves WebView2's Source URL
-        // empty, which causes a panic in wry's IPC handler when any JS IPC
-        // message fires.  By storing the HTML here and navigating to a custom
-        // protocol URL instead, the Source URL is always a non-empty valid URI.
+        // Store the raw HTML (no `<base>` injection needed — the document's
+        // own URL already encodes its directory) so the custom-protocol
+        // handler can serve it.
         html_map()
             .lock()
             .unwrap()
-            .insert(self.id_guard.0, final_html.into_bytes());
+            .insert(self.id_guard.0, html.as_bytes().to_vec());
 
-        // Increment load version so each reload URL is unique (busts WebView2 cache).
-        let v = self.load_version.get().wrapping_add(1);
-        self.load_version.set(v);
-        let reload_url = format!("{}?v={}", CONTENT_URL_RELOAD_BASE, v);
+        let doc_url = build_document_url(base_uri, v);
 
         if let Some(view) = self.inner.borrow().as_ref() {
-            if let Err(e) = view.load_url(&reload_url) {
-                log::error!("Failed to reload wry WebView via custom protocol: {}", e);
-            }
+            self.navigate(view, &doc_url);
             return;
         }
 
         // Defer first-time creation until the GTK container is mapped *and*
-        // has a non-trivial allocation. This is the wry counterpart of the
-        // Linux `load_html_when_ready` polling loop (~4.8 s budget, 60 fps).
-        // Without this, WebView2 is built against an `allocated_width <= 1`
-        // container and renders at a wrong size until the next tick callback.
+        // has a non-trivial allocation (~4.8 s budget, 60 fps). Only the
+        // newest pending URL is kept.
+        *self.pending_load.borrow_mut() = Some(doc_url);
         let me = self.clone();
         crate::components::viewer::allocation_wait::run_when_allocated(
             &self.container,
             crate::components::viewer::allocation_wait::DEFAULT_MAX_RETRIES,
             move || {
-                // A previous deferred load may have already built the WebView —
-                // in that case just navigate it instead of building a second one.
+                // A previous deferred load may have already built the
+                // webview — just navigate it instead of building a second one.
                 if let Some(view) = me.inner.borrow().as_ref() {
-                    let url = format!("{}?v={}", CONTENT_URL_RELOAD_BASE, me.load_version.get());
-                    if let Err(e) = view.load_url(&url) {
-                        log::error!("Failed to reload wry WebView via custom protocol: {}", e);
+                    if let Some(url) = me.pending_load.borrow_mut().take() {
+                        me.navigate(view, &url);
                     }
                     return;
                 }
                 me.build_initial_webview();
             },
         );
+    }
+
+    /// Navigate an already-built webview to `doc_url`. On Windows this uses
+    /// the already-HTTP-translated authority (`load_url` doesn't apply
+    /// wry's build-time scheme translation); on Linux the `marco-preview://`
+    /// URL is used as-is.
+    fn navigate(&self, view: &wry::WebView, doc_url: &str) {
+        #[cfg(target_os = "windows")]
+        let target = doc_url.replacen(
+            &format!("{}://{}", CUSTOM_SCHEME, CUSTOM_AUTHORITY),
+            CONTENT_URL_RELOAD_AUTHORITY,
+            1,
+        );
+        #[cfg(target_os = "linux")]
+        let target = doc_url.to_string();
+
+        if let Err(e) = view.load_url(&target) {
+            log::error!("[wry] Failed to load preview document: {}", e);
+        }
     }
 
     /// Build the wry `WebView` for the first time — on Linux as a native GTK
@@ -645,6 +779,15 @@ impl PlatformWebView {
     /// Both preconditions are enforced by `load_html_with_base` via
     /// [`allocation_wait::run_when_allocated`].
     fn build_initial_webview(&self) {
+        // The document URL this build is for — set by `load_html_with_base`
+        // before deferring. Falls back to a bare "no document yet" URL if
+        // this is somehow called without a pending load.
+        let initial_url = self
+            .pending_load
+            .borrow()
+            .clone()
+            .unwrap_or_else(|| build_document_url(None, 0));
+
         #[cfg(target_os = "windows")]
         let rect = {
             let alloc = self.container.allocation();
@@ -711,28 +854,63 @@ impl PlatformWebView {
             rect
         };
 
-        let builder = wry::WebViewBuilder::new().with_background_color(self.bg_color.get());
-
-        #[cfg(target_os = "windows")]
-        let builder = builder
-            .with_bounds(rect)
-            .with_url(CONTENT_URL_BUILDER)
+        let builder = wry::WebViewBuilder::new()
+            .with_background_color(self.bg_color.get())
             .with_custom_protocol(CUSTOM_SCHEME.to_string(), {
                 let id = self.id_guard.0;
-                move |_webview_id, _req| {
-                    let html_bytes = html_map()
-                        .lock()
-                        .unwrap()
-                        .get(&id)
-                        .cloned()
-                        .unwrap_or_default();
-                    wry::http::Response::builder()
-                        .header("Content-Type", "text/html; charset=utf-8")
-                        .header("Access-Control-Allow-Origin", "*")
-                        .body(std::borrow::Cow::Owned(html_bytes))
-                        .unwrap()
+                move |_webview_id, req| {
+                    // The document request carries `?marco_doc=1&v=N` (see
+                    // `build_document_url`); everything else is a local asset
+                    // reference that resolved, via ordinary URL
+                    // relative-resolution, to a path under the document's
+                    // own directory (or an absolute path — both cases are
+                    // just "read this file").
+                    let is_doc = req
+                        .uri()
+                        .query()
+                        .map(|q| q.split('&').any(|kv| kv == "marco_doc=1"))
+                        .unwrap_or(false);
+
+                    if is_doc {
+                        let html_bytes = html_map()
+                            .lock()
+                            .unwrap()
+                            .get(&id)
+                            .cloned()
+                            .unwrap_or_default();
+                        return wry::http::Response::builder()
+                            .header("Content-Type", "text/html; charset=utf-8")
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(std::borrow::Cow::Owned(html_bytes))
+                            .unwrap();
+                    }
+
+                    let fs_path = url_path_to_fs_path(&percent_decode_path(req.uri().path()));
+                    match std::fs::read(&fs_path) {
+                        Ok(bytes) => wry::http::Response::builder()
+                            .header("Content-Type", mime_type_for_path(&fs_path))
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(std::borrow::Cow::Owned(bytes))
+                            .unwrap(),
+                        Err(e) => {
+                            log::debug!(
+                                "[wry] custom protocol: failed to read local asset '{}': {}",
+                                fs_path,
+                                e
+                            );
+                            wry::http::Response::builder()
+                                .status(404)
+                                .body(std::borrow::Cow::Owned(Vec::new()))
+                                .unwrap()
+                        }
+                    }
                 }
             });
+
+        #[cfg(target_os = "windows")]
+        let builder = builder.with_bounds(rect).with_url(&initial_url);
+        #[cfg(target_os = "linux")]
+        let builder = builder.with_url(&initial_url);
 
         let builder = builder
             .with_ipc_handler({
@@ -931,8 +1109,13 @@ impl PlatformWebView {
                     use webkit6::prelude::*;
                     use wry::WebViewExtUnix;
                     let wk = view.webview();
-                    // Mirror the historical webkit6 backend configuration:
-                    // relative file:// assets must load from file:// documents.
+                    // Mirror the historical webkit6 backend configuration.
+                    // The primary load path no longer uses file:// URLs at
+                    // all (assets are served through the custom protocol),
+                    // but these flags still matter for explicit `file://`
+                    // links written directly in Markdown, which bypass the
+                    // document's base entirely and hit WebKit's native
+                    // file:// loader.
                     if let Some(settings) = WebViewExt::settings(&wk) {
                         settings.set_allow_file_access_from_file_urls(true);
                         settings.set_allow_universal_access_from_file_urls(true);
@@ -942,11 +1125,10 @@ impl PlatformWebView {
                     // scrollbar stays on the physical right; content direction
                     // is handled via <body dir="rtl"> in the HTML.
                     gtk4::prelude::WidgetExt::set_direction(&wk, gtk4::TextDirection::Ltr);
-                    // Flush the HTML that triggered this deferred build.
-                    if let Some((html, base)) = self.pending_load.borrow_mut().take() {
-                        wk.load_html(&html, base.as_deref());
-                    }
                 }
+                // The initial document was already requested via
+                // `.with_url(&initial_url)` above — nothing left to flush.
+                self.pending_load.borrow_mut().take();
                 *self.inner.borrow_mut() = Some(view);
                 log::info!("wry WebView successfully created for initial load");
             }
@@ -1179,24 +1361,6 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.display)
     }
-}
-
-#[cfg(target_os = "windows")]
-fn inject_base_href(html: &str, base: &str) -> String {
-    if html.contains("<base") {
-        return html.to_string();
-    }
-
-    if let Some(idx) = html.find("<head>") {
-        let mut result = String::with_capacity(html.len() + base.len() + 32);
-        result.push_str(&html[..idx + 6]);
-        result.push_str(&format!("<base href=\"{}\">", base));
-        result.push_str(&html[idx + 6..]);
-        return result;
-    }
-
-    // Fallback: prepend base tag
-    format!("<base href=\"{}\">{}", base, html)
 }
 
 /// Returns true if a URI points to a local `.md` file (file:// scheme + .md extension).

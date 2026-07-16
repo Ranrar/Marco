@@ -263,12 +263,8 @@ thread_local! {
 }
 
 // Preview zoom level (0.5-3.0, default 1.0).  Applied via WebKit zoom-level property.
-type ZoomChangedCallback = RefCell<Option<Rc<dyn Fn(f64)>>>;
 thread_local! {
     static PREVIEW_ZOOM: Cell<f64> = const { Cell::new(1.0) };
-    /// Optional callback fired whenever the zoom level changes (e.g. to update the
-    /// zoom-bar overlay label). Stored as an `Rc` so GTK widgets can be captured.
-    static ZOOM_CHANGED_CALLBACK: ZoomChangedCallback = const { RefCell::new(None) };
 }
 
 /// Zoom step increment/decrement.
@@ -285,30 +281,13 @@ pub fn get_preview_zoom() -> f64 {
     PREVIEW_ZOOM.with(|c| c.get())
 }
 
-/// Register a callback to be invoked whenever the zoom level changes.
-/// Replaces any previously registered callback. Pass `None` to clear.
-pub fn set_zoom_changed_callback(cb: Option<Rc<dyn Fn(f64)>>) {
-    ZOOM_CHANGED_CALLBACK.with(|cell| {
-        *cell.borrow_mut() = cb;
-    });
-}
-
-/// Invoke the registered zoom-change callback with the new zoom level.
-fn fire_zoom_changed(zoom: f64) {
-    ZOOM_CHANGED_CALLBACK.with(|cell| {
-        if let Some(ref cb) = *cell.borrow() {
-            cb(zoom);
-        }
-    });
-}
-
 /// Set the current preview zoom level (clamped to ZOOM_MIN..=ZOOM_MAX).
 /// Also applies the zoom to the registered primary WebView immediately.
 pub fn set_preview_zoom(zoom: f64) {
     let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
     PREVIEW_ZOOM.with(|c| c.set(clamped));
     with_primary_preview_webview(|wv| {
-        // `__marcoApplyZoom` (defined in WIN_ZOOM_BAR_HTML) scales the page,
+        // `__marcoApplyZoom` (defined in ZOOM_BAR_HTML) scales the page,
         // counter-scales the in-page zoom toolbar so its buttons stay a
         // constant visual size, and updates the percent label.
         // Fallback to setting `style.zoom` directly in case the toolbar JS
@@ -318,7 +297,7 @@ pub fn set_preview_zoom(zoom: f64) {
             "if (typeof window.__marcoApplyZoom === 'function') {{ \
                  window.__marcoApplyZoom({zoom}); \
              }} else {{ \
-                 document.documentElement.style.zoom = '{zoom}'; \
+                 document.body.style.zoom = '{zoom}'; \
                  if (typeof window.__marcoSetZoomLabel === 'function') {{ \
                      window.__marcoSetZoomLabel({pct}); \
                  }} \
@@ -328,7 +307,6 @@ pub fn set_preview_zoom(zoom: f64) {
         );
         wv.evaluate_script(&js);
     });
-    fire_zoom_changed(clamped);
     log::debug!("[viewer] Preview zoom set to {:.1}", clamped);
 }
 
