@@ -39,10 +39,11 @@ gdk-pixbuf = "0.22.0"
 # Unified WebView dependency (both platforms)
 # gtk4-webkit6 fork of wry: Linux backend is GTK4 + WebKit6 (same webkit6/gtk4
 # crate versions as the rest of the workspace); Windows backend is WebView2.
-# The exact commit is pinned by Cargo.lock; bump with `cargo update -p wry`.
-wry = { git = "https://github.com/Ranrar/wry", branch = "gtk4-webkit6", default-features = false, features = ["os-webview", "protocol"] }
-# Direct webkit6 dep (Linux): raw WebKit APIs not exposed through wry
-# (print, find controller) — slimmed down as the migration progresses.
+# Pinned to an exact commit for reproducible builds (the branch moves); bump by
+# updating `rev` to the new fork commit.
+wry = { git = "https://github.com/Ranrar/wry", rev = "e00a02d58fbbf498446f2f493b94280a1809ce5b", default-features = false, features = ["os-webview", "protocol"] }
+# Direct webkit6 dep (Linux): raw WebKit APIs not exposed through wry —
+# `PrintOperation` (print/PDF) and `load_html(html, base_uri)`.
 webkit6 = "0.6.1"
 gdk4-win32 = "0.11.0"
 raw-window-handle = "0.6.2"

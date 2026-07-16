@@ -1,14 +1,15 @@
-//! JavaScript-based "find in preview" backend for Windows / `wry::WebView`.
+//! JavaScript-based "find in preview" engine (`MarcoFind`), used on both
+//! platforms since the webview unification.
 //!
-//! WebKit6 exposes a native `WebView::find_controller()` with built-in
-//! highlight, count, and forward/backward navigation. WebView2 / `wry` has no
-//! equivalent — Edge's only built-in primitive is the non-standard
-//! `window.find(query, caseSensitive, backwards, wrap, wholeWord, ...)` which
-//! returns a `bool`, can't count matches, and styles via the user's selection
-//! color rather than as proper highlights.
+//! Neither WebKitGTK nor WebView2 (via wry) exposes a find API rich enough to
+//! drive Marco's search UI directly — the closest primitive is the
+//! non-standard `window.find(query, caseSensitive, backwards, wrap,
+//! wholeWord, ...)`, which returns a `bool`, can't count matches, and styles
+//! via the user's selection color rather than as proper highlights. This
+//! module implements a real highlight/count/navigate engine in JS instead.
 //!
 //! This module implements the **Tier B + Tier C** strategy from §14.1 of the
-//! `webkit6_wry_parity_audit.md`:
+//! parity audit (previously `webkit6_wry_parity_audit.md`):
 //!
 //! * **Tier B — CSS Custom Highlight API.** All matches are computed in JS
 //!   via `document.createTreeWalker(...)` and registered with
@@ -34,39 +35,37 @@
 //! # Usage
 //!
 //! ```ignore
-//! use crate::components::viewer::wry_find;
+//! use crate::components::viewer::find_engine;
 //!
 //! // One-time install (after the WebView has loaded the document):
-//! wry_find::install(&platform_webview);
+//! find_engine::install(&platform_webview);
 //!
 //! // Search:
-//! wry_find::search(&platform_webview, "needle", wry_find::FindOptions {
+//! find_engine::search(&platform_webview, "needle", find_engine::FindOptions {
 //!     case_sensitive: false,
 //!     whole_word: false,
 //! });
 //!
 //! // Step through matches:
-//! wry_find::next(&platform_webview);
-//! wry_find::prev(&platform_webview);
+//! find_engine::next(&platform_webview);
+//! find_engine::prev(&platform_webview);
 //!
 //! // Clear highlights:
-//! wry_find::clear(&platform_webview);
+//! find_engine::clear(&platform_webview);
 //! ```
 
-// `install`, `search`, `next`, `prev`, `clear`, and `parse_report` are now
-// driven through the `FindBackend` trait (Step 6b — see
-// [`super::find_backend::WryFindBackend`]). `fallback_script` is still only
-// invoked by the primary engine's runtime feature-detect path inside the
-// injected JS, so keep its dead-code allow scoped to the function itself.
+// `fallback_script` is only invoked by the primary engine's runtime
+// feature-detect path inside the injected JS, so keep its dead-code allow
+// scoped to the function itself.
 
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
 
 /// User-facing search options forwarded to the JS engine.
 ///
-/// Mirrors the subset of `webkit6::FindOptions` that the marco search UI
-/// actually exposes (case sensitivity and whole-word). Regex / Markdown-only
-/// filtering happens in the editor buffer, not in the preview pane, and is
-/// therefore out of scope for this backend.
+/// Mirrors the subset of search options the marco search UI actually exposes
+/// (case sensitivity and whole-word). Regex / Markdown-only filtering happens
+/// in the editor buffer, not in the preview pane, and is therefore out of
+/// scope for this backend.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct FindOptions {
     /// Match case exactly. When `false`, both query and DOM text are
@@ -132,7 +131,7 @@ pub fn clear(webview: &PlatformWebView) {
 /// Parse a `marco_find:` IPC payload into a [`FindReport`].
 ///
 /// Returns `None` if the payload does not match the documented format
-/// `count=<N>,index=<K>`. Used by `wry_platform_webview::on_ipc_message`.
+/// `count=<N>,index=<K>`. Used by `platform_webview::on_ipc_message`.
 pub fn parse_report(payload: &str) -> Option<FindReport> {
     let mut total: Option<usize> = None;
     let mut active: Option<usize> = None;

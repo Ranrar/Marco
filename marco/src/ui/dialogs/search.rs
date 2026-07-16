@@ -25,7 +25,7 @@ use std::rc::Rc;
 
 use gtk4::Label;
 
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
 
 // Re-export public API from the search component
 pub use crate::components::search::{

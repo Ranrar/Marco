@@ -15,7 +15,7 @@ use katex::{
 use sourceview5::{Buffer, View};
 use std::sync::OnceLock;
 
-type PreviewSurface = crate::components::viewer::wry_platform_webview::PlatformWebView;
+type PreviewSurface = crate::components::viewer::platform_webview::PlatformWebView;
 
 static KATEX_CONTEXT: OnceLock<KatexContext> = OnceLock::new();
 
@@ -513,7 +513,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         // parents that are plain `Window`s (not `ApplicationWindow`) work
         // directly. The `Option` wrapper is historical; downstream code uses
         // `if let Some(surface) = ...`.
-        let webview = crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
+        let webview = crate::components::viewer::platform_webview::PlatformWebView::new(parent);
         let (_, rgba) = preview_background_for_theme(&theme_class_state.borrow());
         webview.set_background_color_rgba(&rgba);
         let widget = webview.widget();

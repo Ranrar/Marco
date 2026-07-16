@@ -350,12 +350,12 @@ check_dependencies() {
             print_success "GtkSourceView5 found ($(pkg-config --modversion gtksourceview-5))"
         fi
 
+        # The unified wry backend (gtk4-webkit6 fork) links webkitgtk-6.0 only;
+        # webkit2gtk-4.x (GTK3) does not satisfy it.
         if pkg-config --exists webkitgtk-6.0; then
             print_success "WebKitGTK 6.0 found ($(pkg-config --modversion webkitgtk-6.0))"
-        elif pkg-config --exists webkit2gtk-4.1; then
-            print_success "WebKit2GTK 4.1 found ($(pkg-config --modversion webkit2gtk-4.1))"
         else
-            print_error "WebKitGTK development files not found"
+            print_error "WebKitGTK 6.0 development files not found"
             missing_dev_deps+=("libwebkitgtk-6.0-dev")
         fi
 

@@ -1,4 +1,5 @@
-//! Detached preview window implementation that uses `wry` on Windows.
+//! Detached preview window — Windows strategy: rebuild from the recorded
+//! preview HTML rather than reparenting the live webview (§14.3).
 // Note: this module is conditionally compiled from `components::viewer::mod`.
 
 use gtk4::prelude::*;
@@ -6,8 +7,8 @@ use gtk4::{ApplicationWindow, Label, Orientation, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::components::viewer::wry;
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
+use crate::components::viewer::preview_helpers;
 
 /// Type alias for a shared, mutable callback function
 type CloseCallback = Rc<RefCell<Option<Box<dyn Fn()>>>>;
@@ -354,11 +355,11 @@ impl PreviewWindow {
     pub fn load_preview_content(&self) {
         // If we already have a platform webview, refresh content
         if let Some(ref pv) = *self.platform_webview.borrow() {
-            if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+            if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
                 .get_or_init(|| std::sync::Mutex::new(String::new()))
                 .lock()
             {
-                let base_uri = wry::get_latest_preview_base_uri();
+                let base_uri = preview_helpers::get_latest_preview_base_uri();
                 pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
             }
             return;
@@ -388,11 +389,11 @@ impl PreviewWindow {
             }
         }
 
-        if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+        if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
             .get_or_init(|| std::sync::Mutex::new(String::new()))
             .lock()
         {
-            let base_uri = wry::get_latest_preview_base_uri();
+            let base_uri = preview_helpers::get_latest_preview_base_uri();
             pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
         }
 
@@ -414,14 +415,14 @@ impl PreviewWindow {
                 crate::components::viewer::preview_state::take_latest_state()
             else {
                 log::debug!(
-                    "[wry_detached_window] no preview snapshot to restore on ready"
+                    "[detached_window_windows] no preview snapshot to restore on ready"
                 );
                 return;
             };
             match crate::components::viewer::preview_state::restore_script(&state) {
                 Ok(js) => {
                     log::debug!(
-                        "[wry_detached_window] restoring preview state (scroll_y={}, open_details={})",
+                        "[detached_window_windows] restoring preview state (scroll_y={}, open_details={})",
                         state.scroll_y,
                         state.open_details.len()
                     );
@@ -429,7 +430,7 @@ impl PreviewWindow {
                 }
                 Err(e) => {
                     log::warn!(
-                        "[wry_detached_window] failed to build restore script: {}",
+                        "[detached_window_windows] failed to build restore script: {}",
                         e
                     );
                 }
@@ -445,7 +446,7 @@ impl PreviewWindow {
             if pv_ref.inner.borrow().is_none() {
                 log::warn!("Embedded wry WebView not available; falling back to system browser");
                 // Persist the HTML to a temp file and open it
-                if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+                if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
                     .get_or_init(|| std::sync::Mutex::new(String::new()))
                     .lock()
                 {

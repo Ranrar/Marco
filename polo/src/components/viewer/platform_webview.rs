@@ -145,9 +145,9 @@ impl PlatformWebView {
                             (1.0, 1.0)
                         };
                         let _ = view.set_bounds(wry::Rect {
-                            position: wry::dpi::Position::Logical(
-                                wry::dpi::LogicalPosition::new(-32000.0, -32000.0),
-                            ),
+                            position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                                -32000.0, -32000.0,
+                            )),
                             size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
                         });
                         return gtk4::glib::ControlFlow::Continue;

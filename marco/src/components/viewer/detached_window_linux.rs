@@ -1,4 +1,4 @@
-//! Detached preview window implementation that uses `webkit6` on Linux.
+//! Detached preview window — Linux strategy: reparent the live webview.
 //!
 //! This module manages a separate GTK ApplicationWindow that hosts the reparented WebView
 //! for the EditorAndViewSeparate layout mode. The window provides a dedicated space for
@@ -451,7 +451,10 @@ impl PreviewWindow {
     /// let webview = webview_rc.borrow();
     /// preview_window.attach_webview(&webview);
     /// ```
-    pub fn attach_webview(&self, webview: &crate::components::viewer::preview_types::PlatformWebView) {
+    pub fn attach_webview(
+        &self,
+        webview: &crate::components::viewer::preview_types::PlatformWebView,
+    ) {
         log::debug!("Attaching WebView to preview window");
 
         // Reparent the unified wrapper's container widget (the webview

@@ -133,10 +133,10 @@ fn reparent_webview_to_main_window(
     webview_rc_opt: &Option<Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>>,
     split_opt: &Option<Paned>,
     #[cfg(target_os = "linux")] preview_window_opt: &Option<
-        Rc<RefCell<Option<crate::components::viewer::webkit6_detached_window::PreviewWindow>>>,
+        Rc<RefCell<Option<crate::components::viewer::detached_window_linux::PreviewWindow>>>,
     >,
     #[cfg(target_os = "windows")] preview_window_opt: &Option<
-        Rc<RefCell<Option<crate::components::viewer::wry_detached_window::PreviewWindow>>>,
+        Rc<RefCell<Option<crate::components::viewer::detached_window_windows::PreviewWindow>>>,
     >,
     tracker_opt: &Option<crate::components::viewer::layout_controller::WebViewLocationTracker>,
     guard_opt: &Option<crate::components::viewer::reparenting::ReparentGuard>,
@@ -931,9 +931,9 @@ use crate::components::viewer::layout_controller::{SplitController, WebViewLocat
 
 // Platform-specific type aliases so the TitlebarConfig structure can be compiled on all platforms
 #[cfg(target_os = "linux")]
-type PreviewWindowType = crate::components::viewer::webkit6_detached_window::PreviewWindow;
+type PreviewWindowType = crate::components::viewer::detached_window_linux::PreviewWindow;
 #[cfg(target_os = "windows")]
-type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
+type PreviewWindowType = crate::components::viewer::detached_window_windows::PreviewWindow;
 
 #[cfg(target_os = "linux")]
 type ReparentGuardType = crate::components::viewer::reparenting::ReparentGuard;
@@ -1384,7 +1384,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                     if preview_borrow.is_none() {
                         #[cfg(target_os = "linux")]
                         {
-                            use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+                            use crate::components::viewer::detached_window_linux::PreviewWindow;
                             if let Some(app) = window_clone.application() {
                                 let pw = PreviewWindow::new(&window_clone, &app);
                                 *preview_borrow = Some(pw);
@@ -1395,7 +1395,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
 
                         #[cfg(target_os = "windows")]
                         {
-                            use crate::components::viewer::wry_detached_window::PreviewWindow;
+                            use crate::components::viewer::detached_window_windows::PreviewWindow;
                             let pw = PreviewWindow::new(&window_clone);
                             *preview_borrow = Some(pw);
                         }

@@ -46,10 +46,10 @@ type HoverLinkCallback = Rc<dyn Fn(Option<String>)>;
 type HoverLinkCallbackCell = Rc<RefCell<Option<HoverLinkCallback>>>;
 
 /// Callback invoked when the in-page JS find engine (`MarcoFind`, see
-/// [`crate::components::viewer::wry_find`]) reports search results via
+/// [`crate::components::viewer::find_engine`]) reports search results via
 /// `marco_find:count=<N>,index=<K>` IPC. The payload is parsed into a
-/// [`crate::components::viewer::wry_find::FindReport`] before delivery.
-type FindReportCallback = Rc<dyn Fn(crate::components::viewer::wry_find::FindReport)>;
+/// [`crate::components::viewer::find_engine::FindReport`] before delivery.
+type FindReportCallback = Rc<dyn Fn(crate::components::viewer::find_engine::FindReport)>;
 type FindReportCallbackCell = Rc<RefCell<Option<FindReportCallback>>>;
 
 /// Callback invoked when the preview JS replies to a state-snapshot request
@@ -66,6 +66,11 @@ type StateSnapshotCallbackCell = Rc<RefCell<Option<StateSnapshotCallback>>>;
 /// `MarcoCorePreview.restoreState` (§14.3 of the parity audit).
 type ReadyCallback = Rc<dyn Fn()>;
 type ReadyCallbackCell = Rc<RefCell<Option<ReadyCallback>>>;
+
+/// HTML + optional base URI queued while the Linux webview's deferred first
+/// build is pending (see [`PlatformWebView::load_html_with_base`]).
+#[cfg(target_os = "linux")]
+type PendingLoadCell = Rc<RefCell<Option<(String, Option<String>)>>>;
 
 /// Monotonic counter for assigning unique IDs to each PlatformWebView instance.
 static WEBVIEW_ID_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -96,6 +101,24 @@ impl Drop for IdGuard {
             map.remove(&self.0);
         }
         log::trace!("[wry] WEBVIEW_HTML_MAP entry evicted for id={}", self.0);
+    }
+}
+
+/// RAII guard owning this instance's display-global background CSS provider.
+///
+/// Each `PlatformWebView` styles its container through a unique
+/// `.marco-preview-bg-<id>` class; when the last clone drops, the provider is
+/// removed from the display again so providers do not accumulate as webviews
+/// (editor tabs, dialogs, detached windows) come and go.
+struct BgCssGuard {
+    provider: gtk4::CssProvider,
+}
+
+impl Drop for BgCssGuard {
+    fn drop(&mut self) {
+        if let Some(display) = gtk4::gdk::Display::default() {
+            gtk4::style_context_remove_provider_for_display(&display, &self.provider);
+        }
     }
 }
 
@@ -134,7 +157,7 @@ pub struct PlatformWebView {
     /// HTML + base URI waiting for the deferred first build (Linux). Once the
     /// webview exists, loads go straight through the webkit escape hatch.
     #[cfg(target_os = "linux")]
-    pending_load: Rc<RefCell<Option<(String, Option<String>)>>>,
+    pending_load: PendingLoadCell,
     pub inner: std::rc::Rc<std::cell::RefCell<Option<wry::WebView>>>,
     pub container: gtk4::Box,
     #[cfg(target_os = "windows")]
@@ -171,8 +194,9 @@ pub struct PlatformWebView {
     is_offscreen_for_loading: Rc<std::cell::Cell<bool>>,
     /// GTK CSS provider used to paint the container background to match the
     /// WebView2 background colour, preventing a white flash while the HWND
-    /// is at −32000,−32000 during loading.
-    bg_css_provider: Rc<gtk4::CssProvider>,
+    /// is at −32000,−32000 during loading. Wrapped in a guard that removes
+    /// the provider from the display when the last clone drops.
+    bg_css_provider: Rc<BgCssGuard>,
 }
 
 impl PlatformWebView {
@@ -218,13 +242,18 @@ impl PlatformWebView {
         // Set up a GTK CSS provider so the container widget is painted with the
         // theme background colour while the WebView2 HWND is offscreen during
         // loading — preventing the white-GTK-widget-behind-invisible-HWND flash.
-        container.add_css_class("marco-preview-bg");
-        let bg_css_provider = Rc::new(gtk4::CssProvider::new());
-        bg_css_provider.load_from_data(".marco-preview-bg { background-color: #1e1e1e; }");
+        let bg_class = format!("marco-preview-bg-{}", id);
+        container.add_css_class(&bg_class);
+        let bg_css_provider = Rc::new(BgCssGuard {
+            provider: gtk4::CssProvider::new(),
+        });
+        bg_css_provider
+            .provider
+            .load_from_data(&format!(".{} {{ background-color: #1e1e1e; }}", bg_class));
         if let Some(display) = gtk4::gdk::Display::default() {
             gtk4::style_context_add_provider_for_display(
                 &display,
-                &*bg_css_provider,
+                &bg_css_provider.provider,
                 gtk4::STYLE_PROVIDER_PRIORITY_USER,
             );
         }
@@ -290,11 +319,11 @@ impl PlatformWebView {
         // and the layout system sizes it.
         #[cfg(target_os = "windows")]
         {
-        let webview_for_tick = webview.clone();
-        let container_weak = container.downgrade();
-        let window_weak = window.downgrade();
-        let is_offscreen_tick = is_offscreen_for_loading.clone();
-        container.add_tick_callback(move |_, _| {
+            let webview_for_tick = webview.clone();
+            let container_weak = container.downgrade();
+            let window_weak = window.downgrade();
+            let is_offscreen_tick = is_offscreen_for_loading.clone();
+            container.add_tick_callback(move |_, _| {
             if let (Some(container), Some(win), Some(view)) = (container_weak.upgrade(), window_weak.upgrade(), webview_for_tick.borrow().as_ref()) {
                 // When the GTK container is not mapped (e.g. the Stack switched to code_preview),
                 // or a loading operation is in progress, move the native Win32 WebView
@@ -391,14 +420,14 @@ impl PlatformWebView {
 
     /// Install a callback invoked when the in-page `MarcoFind` JS engine
     /// posts a `marco_find:count=<N>,index=<K>` IPC message. The payload is
-    /// parsed into a [`crate::components::viewer::wry_find::FindReport`]
+    /// parsed into a [`crate::components::viewer::find_engine::FindReport`]
     /// before delivery; malformed payloads are dropped.
     ///
-    /// Pair this with [`crate::components::viewer::wry_find::install`] and
+    /// Pair this with [`crate::components::viewer::find_engine::install`] and
     /// the `search` / `next` / `prev` / `clear` helpers.
     pub fn set_find_report_callback<F>(&self, callback: F)
     where
-        F: Fn(crate::components::viewer::wry_find::FindReport) + 'static,
+        F: Fn(crate::components::viewer::find_engine::FindReport) + 'static,
     {
         *self.find_report_callback.borrow_mut() = Some(Rc::new(callback));
     }
@@ -495,12 +524,13 @@ impl PlatformWebView {
         // Keep the GTK container background in sync so there is no white flash
         // while the WebView2 HWND is offscreen during loading.
         let css_data = format!(
-            ".marco-preview-bg {{ background-color: rgb({},{},{}); }}",
+            ".marco-preview-bg-{} {{ background-color: rgb({},{},{}); }}",
+            self.id_guard.0,
             (color.red() * 255.0) as u32,
             (color.green() * 255.0) as u32,
             (color.blue() * 255.0) as u32,
         );
-        self.bg_css_provider.load_from_data(&css_data);
+        self.bg_css_provider.provider.load_from_data(&css_data);
     }
 
     pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
@@ -545,7 +575,6 @@ impl PlatformWebView {
                     me.build_initial_webview();
                 },
             );
-            return;
         }
 
         #[cfg(target_os = "windows")]
@@ -618,68 +647,68 @@ impl PlatformWebView {
     fn build_initial_webview(&self) {
         #[cfg(target_os = "windows")]
         let rect = {
-        let alloc = self.container.allocation();
-        let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
-            (0.0, 0.0)
-        } else {
-            (16.0, 14.0)
-        };
-
-        // Translate container origin into window coordinate space so the initial
-        // creation uses correct coordinates on Windows.
-        let origin_in_window =
-            match self
-                .container
-                .translate_coordinates(&self.gtk_window, 0.0, 0.0)
-            {
-                Some((x, y)) => (x, y),
-                None => (alloc.x() as f64, alloc.y() as f64),
+            let alloc = self.container.allocation();
+            let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
+                (0.0, 0.0)
+            } else {
+                (16.0, 14.0)
             };
 
-        // Build the WebView off-screen if a loading operation is in progress
-        // so the GTK loading-overlay frame stays visible until the page loads.
-        // Use the actual container allocation size so WebView2 renders the HTML
-        // at the correct viewport dimensions — avoids a reflow/white-flash when
-        // the HWND is restored by the tick callback after page load completes.
-        let rect = if self.is_offscreen_for_loading.get() {
-            wry::Rect {
-                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    -32000.0, -32000.0,
-                )),
-                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                    alloc.width().max(100) as f64,
-                    alloc.height().max(100) as f64,
-                )),
-            }
-        } else {
-            // Allocation is guaranteed > 1 here by `run_when_allocated`.
-            wry::Rect {
-                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    origin_in_window.0 + offset_x - 1.0,
-                    origin_in_window.1 + offset_y,
-                )),
-                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                    alloc.width() as f64 + 1.0,
-                    alloc.height() as f64,
-                )),
-            }
-        };
+            // Translate container origin into window coordinate space so the initial
+            // creation uses correct coordinates on Windows.
+            let origin_in_window =
+                match self
+                    .container
+                    .translate_coordinates(&self.gtk_window, 0.0, 0.0)
+                {
+                    Some((x, y)) => (x, y),
+                    None => (alloc.x() as f64, alloc.y() as f64),
+                };
 
-        log::debug!("[wry] initial_create origin_in_window=({}, {}), alloc=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
+            // Build the WebView off-screen if a loading operation is in progress
+            // so the GTK loading-overlay frame stays visible until the page loads.
+            // Use the actual container allocation size so WebView2 renders the HTML
+            // at the correct viewport dimensions — avoids a reflow/white-flash when
+            // the HWND is restored by the tick callback after page load completes.
+            let rect = if self.is_offscreen_for_loading.get() {
+                wry::Rect {
+                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                        -32000.0, -32000.0,
+                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width().max(100) as f64,
+                        alloc.height().max(100) as f64,
+                    )),
+                }
+            } else {
+                // Allocation is guaranteed > 1 here by `run_when_allocated`.
+                wry::Rect {
+                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                        origin_in_window.0 + offset_x - 1.0,
+                        origin_in_window.1 + offset_y,
+                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width() as f64 + 1.0,
+                        alloc.height() as f64,
+                    )),
+                }
+            };
+
+            log::debug!("[wry] initial_create origin_in_window=({}, {}), alloc=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
             origin_in_window.0, origin_in_window.1, alloc.x(), alloc.y(),
             origin_in_window.0 + offset_x - 1.0, origin_in_window.1 + offset_y,
             alloc.width() + 1, alloc.height()
         );
 
-        // Configure WebView2 to use data directory (portable mode friendly)
-        // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = marco_shared::paths::user_data_dir().join("webview");
-        if let Err(e) = std::fs::create_dir_all(&data_dir) {
-            log::warn!("Failed to create WebView2 data directory: {}", e);
-        }
-        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
+            // Configure WebView2 to use data directory (portable mode friendly)
+            // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
+            let data_dir = marco_shared::paths::user_data_dir().join("webview");
+            if let Err(e) = std::fs::create_dir_all(&data_dir) {
+                log::warn!("Failed to create WebView2 data directory: {}", e);
+            }
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
 
-        rect
+            rect
         };
 
         let builder = wry::WebViewBuilder::new().with_background_color(self.bg_color.get());
@@ -749,7 +778,7 @@ impl PlatformWebView {
                     // ── find-in-preview reports ───────────────────────────
                     if let Some(payload) = msg.strip_prefix("marco_find:") {
                         if let Some(report) =
-                            crate::components::viewer::wry_find::parse_report(payload)
+                            crate::components::viewer::find_engine::parse_report(payload)
                         {
                             let cb_opt = find_cb.borrow().clone();
                             if let Some(cb) = cb_opt {
@@ -878,7 +907,7 @@ impl PlatformWebView {
                     }
                     if should_open_externally(&uri) {
                         log::debug!("[wry] intercept navigation to external URI: {}", uri);
-                        if let Err(e) = crate::components::viewer::wry::open_external_uri(&uri) {
+                        if let Err(e) = crate::components::viewer::preview_helpers::open_external_uri(&uri) {
                             log::warn!("[wry] failed to open external URI '{}': {}", uri, e);
                         }
                         return false;
@@ -936,7 +965,6 @@ impl PlatformWebView {
     /// Patch the live preview's `mc-content-container` in place via JavaScript,
     /// without reloading the page.
     ///
-    /// Mirrors `webkit6::update_html_content_smooth`:
     /// 1. Prefer `window.MarcoCorePreview.updateContent(html)` when the page's
     ///    preview bootstrap script has registered it (this preserves the
     ///    Mermaid/KaTeX/scroll caches).
@@ -947,10 +975,9 @@ impl PlatformWebView {
     /// quotes, backslashes, embedded `</script>` sequences and non-ASCII —
     /// becomes a safe JavaScript string literal without manual escaping.
     ///
-    /// If the underlying WebView2 has not been built yet (no preceding
+    /// If the underlying webview has not been built yet (no preceding
     /// [`Self::load_html_with_base`] call has succeeded), the update is
-    /// silently dropped — callers must always do a full load first, matching
-    /// the Linux contract documented on `webkit6::update_html_content_smooth`.
+    /// silently dropped — callers must always do a full load first.
     pub fn update_html_content_smooth(&self, content: &str) {
         // Without a live WebView2 there is nothing to patch. The caller is
         // expected to do a `load_html_with_base` first; smooth updates are a
@@ -1076,7 +1103,7 @@ impl PlatformWebView {
         let view = inner_borrow
             .as_ref()
             .ok_or_else(|| "WebView is not initialized yet".to_string())?;
-        crate::components::viewer::wry_print_to_pdf::print_to_pdf(
+        crate::components::viewer::print_driver_windows::print_to_pdf(
             view,
             output_path,
             paper,

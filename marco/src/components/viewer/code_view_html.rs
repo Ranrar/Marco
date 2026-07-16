@@ -4,7 +4,7 @@
 //! Markdown preview. On Linux it is hosted in a `webkit6::WebView`; on
 //! Windows the parity plan (§14.5 of `webkit6_wry_parity_audit.md`) calls
 //! for the same syntect-highlighted HTML document to be hosted in a
-//! `wry::WebView` via [`crate::components::viewer::wry_platform_webview::PlatformWebView`].
+//! `wry::WebView` via [`crate::components::viewer::platform_webview::PlatformWebView`].
 //!
 //! Both platforms must produce **bit-identical** HTML and JS payloads so the
 //! user experience is the same regardless of the underlying WebView engine.

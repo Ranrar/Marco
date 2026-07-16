@@ -248,9 +248,9 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                             CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
                                 if let Some(wv) = wv_ref.borrow().as_ref() {
                                     if direction > 0 {
-                                        crate::components::viewer::wry_find::next(wv);
+                                        crate::components::viewer::find_engine::next(wv);
                                     } else {
-                                        crate::components::viewer::wry_find::prev(wv);
+                                        crate::components::viewer::find_engine::prev(wv);
                                     }
                                 }
                             });

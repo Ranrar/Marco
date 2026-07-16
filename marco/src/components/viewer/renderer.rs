@@ -15,8 +15,8 @@
 //! # Cross-platform note
 //!
 //! The renderer is fully platform-agnostic — it dispatches all WebView I/O
-//! through [`crate::components::viewer::backend`], whose Linux/Windows
-//! implementations live in `webkit6`/`wry_platform_webview` respectively.
+//! through [`crate::components::viewer::backend`], which wraps the single
+//! cross-platform `platform_webview` module.
 //!
 //! Until the Windows refresh closure in `editor::ui` adopts this module
 //! (planned Step 4b of the webkit6→wry parity work), several public items

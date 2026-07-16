@@ -13,7 +13,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::time::Instant;
 
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
 
 /// Core scroll synchronization system with loop prevention and runtime control
 pub struct ScrollSynchronizer {
@@ -301,7 +301,6 @@ impl ScrollSynchronizer {
             "Bidirectional scroll synchronization established between ScrolledWindow and PlatformWebView"
         );
     }
-
 }
 
 impl Default for ScrollSynchronizer {

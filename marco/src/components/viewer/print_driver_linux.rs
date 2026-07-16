@@ -95,41 +95,41 @@ pub fn export_to_pdf<F>(
     use std::sync::Arc;
 
     with_webkit_view(webview, move |wk| {
-    let print_op = webkit6::PrintOperation::new(wk);
-    let settings = PrintSettings::new();
-    settings.set(PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
-    let uri = format!("file://{}", output_path.display());
-    settings.set(PRINT_SETTINGS_OUTPUT_URI, Some(&uri));
-    settings.set(PRINT_SETTINGS_PRINTER, Some("Print to File"));
+        let print_op = webkit6::PrintOperation::new(wk);
+        let settings = PrintSettings::new();
+        settings.set(PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
+        let uri = format!("file://{}", output_path.display());
+        settings.set(PRINT_SETTINGS_OUTPUT_URI, Some(&uri));
+        settings.set(PRINT_SETTINGS_PRINTER, Some("Print to File"));
 
-    // Set orientation in PrintSettings so the CUPS PDF backend (and WebKit's
-    // internal PS→PDF renderer) honours portrait / landscape.  Without this,
-    // only PageSetup carries the orientation and some backends ignore it.
-    if !orientation.is_empty() {
-        let page_orient = if orientation.eq_ignore_ascii_case("landscape") {
-            gtk4::PageOrientation::Landscape
-        } else {
-            gtk4::PageOrientation::Portrait
-        };
-        settings.set_orientation(page_orient);
-    }
-
-    print_op.set_print_settings(&settings);
-
-    // Apply a PageSetup with the correct paper size and zero printer margins.
-    // Without this, CUPS / the PS-to-PDF pipeline may add its own default
-    // margins on top of paged.js's already-correct layout margins.
-    if !paper.is_empty() {
-        if let Some(page_setup) = build_page_setup(paper, orientation) {
-            print_op.set_page_setup(&page_setup);
+        // Set orientation in PrintSettings so the CUPS PDF backend (and WebKit's
+        // internal PS→PDF renderer) honours portrait / landscape.  Without this,
+        // only PageSetup carries the orientation and some backends ignore it.
+        if !orientation.is_empty() {
+            let page_orient = if orientation.eq_ignore_ascii_case("landscape") {
+                gtk4::PageOrientation::Landscape
+            } else {
+                gtk4::PageOrientation::Portrait
+            };
+            settings.set_orientation(page_orient);
         }
-    }
 
-    let on_done = Arc::new(on_done);
-    let on_done_fail = Arc::clone(&on_done);
-    print_op.connect_finished(move |_| on_done(Ok(())));
-    print_op.connect_failed(move |_, err| on_done_fail(Err(err.to_string())));
-    print_op.print();
+        print_op.set_print_settings(&settings);
+
+        // Apply a PageSetup with the correct paper size and zero printer margins.
+        // Without this, CUPS / the PS-to-PDF pipeline may add its own default
+        // margins on top of paged.js's already-correct layout margins.
+        if !paper.is_empty() {
+            if let Some(page_setup) = build_page_setup(paper, orientation) {
+                print_op.set_page_setup(&page_setup);
+            }
+        }
+
+        let on_done = Arc::new(on_done);
+        let on_done_fail = Arc::clone(&on_done);
+        print_op.connect_finished(move |_| on_done(Ok(())));
+        print_op.connect_failed(move |_, err| on_done_fail(Err(err.to_string())));
+        print_op.print();
     });
 }
 

@@ -7,7 +7,7 @@ use std::path::Path;
 
 /// Platform preview webview type — the unified wry-based wrapper
 /// (Linux: GTK4/WebKit6 via the gtk4-webkit6 wry fork; Windows: WebView2).
-pub type PreviewWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
+pub type PreviewWebView = crate::components::viewer::platform_webview::PlatformWebView;
 
 pub fn wrap_html_document(
     body: &str,
@@ -58,7 +58,7 @@ pub fn wrap_html_document_paged(
 }
 
 pub fn generate_base_uri_from_path<P: AsRef<Path>>(document_path: P) -> Option<String> {
-    crate::components::viewer::wry::generate_base_uri_from_path(document_path)
+    crate::components::viewer::preview_helpers::generate_base_uri_from_path(document_path)
 }
 
 /// Load a full HTML document into the preview. Creation/loading is deferred
@@ -71,13 +71,15 @@ pub fn load_html_when_ready(webview: &PreviewWebView, html: String, base_uri: Op
 /// detached preview window can rebuild content without a live webview
 /// reference. Call whenever a full preview document is loaded.
 pub fn record_latest_preview(html: &str, base_uri: Option<&str>) {
-    if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
+    if let Ok(mut guard) = crate::components::viewer::preview_helpers::LATEST_PREVIEW_HTML
         .get_or_init(|| std::sync::Mutex::new(String::new()))
         .lock()
     {
         *guard = html.to_string();
     }
-    crate::components::viewer::wry::set_latest_preview_base_uri(base_uri.map(str::to_string));
+    crate::components::viewer::preview_helpers::set_latest_preview_base_uri(
+        base_uri.map(str::to_string),
+    );
 }
 
 /// Patch the live preview's `mc-content-container` in place via the JS

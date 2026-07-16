@@ -62,15 +62,15 @@
 // - If you prefer to remove the feature entirely, delete these files and update
 //   references in `menu.rs`, `main.rs`, and tests:
 //     - `marco/src/components/viewer/reparenting.rs`
-//     - `marco/src/components/viewer/webkit6_detached_window.rs`
+//     - `marco/src/components/viewer/detached_window_linux.rs`
 //     - related menu wiring in `marco/src/menu.rs`
 
-use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+use crate::components::viewer::detached_window_linux::PreviewWindow;
+use crate::components::viewer::preview_types::PlatformWebView;
 use gtk4::prelude::*;
 use gtk4::{Paned, Stack};
 use std::cell::Cell;
 use std::rc::Rc;
-use crate::components::viewer::preview_types::PlatformWebView;
 
 /// Guard to prevent concurrent reparenting operations
 ///

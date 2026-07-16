@@ -926,7 +926,7 @@ paned > separator {{
         // Unified construction: build the wry-based PlatformWebView preview.
         // Use test HTML for empty document to mirror Linux behaviour (welcome message)
         let initial_html_body_with_js = if initial_html_body.trim().is_empty() {
-            crate::components::viewer::wry::generate_test_html(&wheel_js_rc)
+            crate::components::viewer::preview_helpers::generate_test_html(&wheel_js_rc)
         } else {
             let mut s = initial_html_body.clone();
             s.push_str(&wheel_js_rc);
@@ -940,7 +940,7 @@ paned > separator {{
             .as_ref()
             .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()))
             .and_then(crate::components::viewer::backend::generate_base_uri_from_path);
-        crate::components::viewer::wry::set_latest_preview_base_uri(base_uri.clone());
+        crate::components::viewer::preview_helpers::set_latest_preview_base_uri(base_uri.clone());
 
         let full_html = crate::components::viewer::backend::wrap_html_document(
             &initial_html_body_with_js,
@@ -949,18 +949,17 @@ paned > separator {{
             None,
         );
 
-        if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
+        if let Ok(mut guard) = crate::components::viewer::preview_helpers::LATEST_PREVIEW_HTML
             .get_or_init(|| std::sync::Mutex::new(String::new()))
             .lock()
         {
             *guard = full_html.clone();
         }
 
-
         // Try to create a native Windows embedded WebView (wry). PlatformWebView
         // will fallback to a placeholder container if it cannot obtain a Win32 handle.
         let platform_webview =
-            crate::components::viewer::wry_platform_webview::PlatformWebView::new(_window);
+            crate::components::viewer::platform_webview::PlatformWebView::new(_window);
 
         // Set initial WebView background to match the current theme mode so the
         // GTK container (visible while the HWND is offscreen during loading) shows
@@ -1010,20 +1009,17 @@ paned > separator {{
         let webview_rc = Rc::new(RefCell::new(platform_webview));
 
         // Create a syntax-highlighted code preview backed by its own
-        // `PlatformWebView` (Step 5b). Uses the shared `code_view_html`
-        // builders so the rendered output matches the webkit6 / Linux branch
-        // byte-for-byte.
-        let code_view_pv = crate::components::viewer::wry::create_html_source_viewer_webview(
-            _window,
-            &pretty_initial,
-            &theme_mode_for_wrap,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .expect("Failed to create Windows code preview widget");
+        // `PlatformWebView` (Step 5b), built from the shared `code_view_html`
+        // builders.
+        let code_view_pv =
+            crate::components::viewer::preview_helpers::create_html_source_viewer_webview(
+                _window,
+                &pretty_initial,
+                &theme_mode_for_wrap,
+                None,
+                crate::components::viewer::preview_helpers::CodeViewColors::default(),
+            )
+            .expect("Failed to create Windows code preview widget");
         let code_view_widget: gtk4::Widget = code_view_pv.widget();
         precreated_code_sw.set_child(Some(&code_view_widget));
         *code_view_webview.borrow_mut() = Some(code_view_pv);
@@ -1123,7 +1119,6 @@ paned > separator {{
 
     // Clone document_buffer for use in refresh closure (Linux only)
     let document_buffer_for_refresh = _document_buffer.as_ref().map(Rc::clone);
-
 
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
@@ -1488,14 +1483,16 @@ paned > separator {{
                 let fg_owned = editor_fg_for_code.borrow().clone();
                 let thumb = scrollbar_thumb_for_code.borrow().clone();
                 let track = scrollbar_track_for_code.borrow().clone();
-                if let Err(e) = crate::components::viewer::wry::update_code_view_smooth(
+                if let Err(e) = crate::components::viewer::preview_helpers::update_code_view_smooth(
                     pv,
                     &formatted_html,
                     &current_theme,
-                    bg_owned.as_deref(),
-                    fg_owned.as_deref(),
-                    Some(&thumb),
-                    Some(&track),
+                    crate::components::viewer::preview_helpers::CodeViewColors {
+                        editor_bg: bg_owned.as_deref(),
+                        editor_fg: fg_owned.as_deref(),
+                        scrollbar_thumb: Some(&thumb),
+                        scrollbar_track: Some(&track),
+                    },
                 ) {
                     log::warn!("[editor_ui] Failed to update code view: {}", e);
                 }
@@ -2071,7 +2068,6 @@ paned > separator {{
             preview_theme_timeout_clone.set(Some(id));
         }) as Box<dyn Fn(&str)>;
     }
-
 
     // Set up split percentage indicator with cascade prevention from split controller
     let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(

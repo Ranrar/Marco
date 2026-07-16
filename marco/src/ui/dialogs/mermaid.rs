@@ -15,7 +15,7 @@ use gtk4::{
 use sourceview5::{Buffer, View};
 use std::{cell::Cell, rc::Rc, time::Duration};
 
-type PreviewSurface = crate::components::viewer::wry_platform_webview::PlatformWebView;
+type PreviewSurface = crate::components::viewer::platform_webview::PlatformWebView;
 
 // ── Diagram types & templates ─────────────────────────────────────────────────
 
@@ -390,7 +390,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
         // dialog works with plain `gtk4::Window` parents directly. The
         // `Option` wrapper is historical; downstream code uses
         // `if let Some(surface) = ...`.
-        let wv = crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
+        let wv = crate::components::viewer::platform_webview::PlatformWebView::new(parent);
         let (_, rgba) = preview_bg_for_theme(&theme_state.borrow());
         wv.set_background_color_rgba(&rgba);
         let widget = wv.widget();

@@ -3,8 +3,6 @@
     windows_subsystem = "windows"
 )]
 
-#[cfg(target_os = "linux")]
-
 mod components;
 mod footer;
 mod logic;
@@ -702,7 +700,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // objects; on non-Linux we pass `None` so titlebar/menu code uses safe fallbacks.
     #[cfg(target_os = "linux")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
-        use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+        use crate::components::viewer::detached_window_linux::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
@@ -716,7 +714,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     #[cfg(target_os = "windows")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
-        use crate::components::viewer::wry_detached_window::PreviewWindow;
+        use crate::components::viewer::detached_window_windows::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = None::<()>;
@@ -750,7 +748,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // to another document), intercept it, show a styled confirmation dialog that is
     // also aware of unsaved changes, then open the file in the editor.
     {
-
         let file_ops_for_link = file_operations_rc.clone();
         let window_for_link = window.clone();
         let editor_buffer_for_link = editor_buffer.clone();
@@ -1609,7 +1606,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 // WebKit PrintOperation dialog on Linux, WebView2 system
                 // print UI on Windows.
                 #[cfg(target_os = "linux")]
-                crate::components::viewer::print_driver::trigger_print_dialog(
+                crate::components::viewer::print_driver_linux::trigger_print_dialog(
                     &wv,
                     Some(window.upcast_ref()),
                     &paper,
@@ -2200,7 +2197,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 use std::cell::RefCell;
                                 let slot: RefCell<
                                     Option<
-                                        crate::components::viewer::wry_platform_webview::PlatformWebView,
+                                        crate::components::viewer::platform_webview::PlatformWebView,
                                     >,
                                 > = RefCell::new(None);
                                 crate::components::editor::editor_manager::with_primary_preview_webview(
@@ -2217,7 +2214,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                     // the export document so restore_live_html can
                                     // reload it at the end of the pipeline.
                                     let saved_live_html =
-                                        crate::components::viewer::wry::get_latest_preview_html();
+                                        crate::components::viewer::preview_helpers::get_latest_preview_html();
                                     let backend = WindowsExportBackend::new(wv, saved_live_html);
                                     let request = ExportRequest {
                                         format: ExportFormat::Pdf,

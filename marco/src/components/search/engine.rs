@@ -276,11 +276,11 @@ pub fn perform_search(search_entry: &Entry, match_count_label: &Label, options: 
     // find engine (CSS Custom Highlight API with window.find() fallback).
     {
         use super::state::CURRENT_PLATFORM_WEBVIEW;
-        use crate::components::viewer::wry_find::{self, FindOptions};
+        use crate::components::viewer::find_engine::{self, FindOptions};
         CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
             if let Some(wv) = wv_ref.borrow().as_ref() {
-                wry_find::install(wv);
-                wry_find::search(
+                find_engine::install(wv);
+                find_engine::search(
                     wv,
                     &query,
                     FindOptions {

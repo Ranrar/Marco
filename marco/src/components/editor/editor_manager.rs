@@ -259,7 +259,7 @@ pub fn get_current_layout_state() -> marco_shared::logic::layoutstate::LayoutSta
 // Primary preview WebView handle — stored after the editor+viewer are created.
 // Used by the TOC panel to scroll the live preview to a heading anchor.
 thread_local! {
-    static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<crate::components::viewer::wry_platform_webview::PlatformWebView>> = const { RefCell::new(None) };
+    static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<crate::components::viewer::platform_webview::PlatformWebView>> = const { RefCell::new(None) };
 }
 
 // Preview zoom level (0.5-3.0, default 1.0).  Applied via WebKit zoom-level property.
@@ -334,7 +334,7 @@ pub fn set_preview_zoom(zoom: f64) {
 
 /// Register the primary preview WebView so other components can execute JavaScript in it.
 pub fn set_primary_preview_webview(
-    wv: &crate::components::viewer::wry_platform_webview::PlatformWebView,
+    wv: &crate::components::viewer::platform_webview::PlatformWebView,
 ) {
     PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
         *cell.borrow_mut() = Some(wv.clone());
@@ -343,7 +343,7 @@ pub fn set_primary_preview_webview(
 
 /// Execute `f` with the primary preview WebView if one has been registered.
 pub fn with_primary_preview_webview<
-    F: FnOnce(&crate::components::viewer::wry_platform_webview::PlatformWebView),
+    F: FnOnce(&crate::components::viewer::platform_webview::PlatformWebView),
 >(
     f: F,
 ) {

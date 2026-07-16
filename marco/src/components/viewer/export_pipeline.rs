@@ -734,7 +734,7 @@ impl PlatformExportBackend for LinuxExportBackend {
 
         Box::pin(async move {
             // Set document.title so WebKit's PDF backend uses the user-chosen
-            // title as PDF metadata. The legacy print_driver::inject_export_css
+            // title as PDF metadata. The legacy print_driver_linux::inject_export_css
             // bundled this with the CSS injection; the unified pipeline keeps
             // CSS injection cross-platform and applies the title separately.
             if !request.title.is_empty() {
@@ -750,7 +750,7 @@ impl PlatformExportBackend for LinuxExportBackend {
             // Bridge the on_done callback into a polled slot.
             let slot: Rc<RefCell<Option<Result<(), String>>>> = Rc::new(RefCell::new(None));
             let slot_write = slot.clone();
-            crate::components::viewer::print_driver::export_to_pdf(
+            crate::components::viewer::print_driver_linux::export_to_pdf(
                 &self.webview,
                 &request.output_path,
                 &request.paper,
@@ -781,7 +781,7 @@ impl PlatformExportBackend for LinuxExportBackend {
     fn restore_live_html(&self) -> Result<(), ExportError> {
         // Drop the dynamic export CSS first so the cached live HTML doesn't
         // re-paint with print styles before its own theme stylesheet wins.
-        crate::components::viewer::print_driver::remove_export_css(&self.webview);
+        crate::components::viewer::print_driver_linux::remove_export_css(&self.webview);
         if !self.did_load_export.get() {
             // Pipeline aborted before navigating away — nothing to restore.
             return Ok(());
@@ -886,7 +886,7 @@ impl PlatformExportBackend for WindowsExportBackend {
             // PrintToPdf call starts (which can be tens of seconds long for
             // large documents).
             //
-            // Threading note: `wry_print_to_pdf::print_to_pdf` is *synchronous*
+            // Threading note: `print_driver_windows::print_to_pdf` is *synchronous*
             // but uses `webview2_com::wait_with_pump`, which pumps the Win32
             // message queue. GTK on Windows is built on top of that same
             // queue, so glib timers / repaints continue to fire and the

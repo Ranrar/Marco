@@ -1,14 +1,12 @@
-//! wry-based preview helpers for Windows
-//!
-//! This module provides minimal, safe Windows implementations that mirror the
-//! `webkit6` API surface so the rest of the codebase can call the same functions.
-//!
-// Note: this module is conditionally compiled from `components::viewer::mod`.
+//! Shared preview helpers used on both platforms: the latest-rendered-HTML /
+//! base-URI cache (read by the detached-preview and Windows export-restore
+//! paths), the empty-editor welcome page, external-link opening, and the
+//! syntax-highlighted "code view" webview (construction + smooth updates).
 
 use gtk4::glib::object::IsA;
 use std::sync::{Mutex, OnceLock};
 
-use super::wry_platform_webview::PlatformWebView;
+use super::platform_webview::PlatformWebView;
 
 // Thread-safe global to store the latest preview HTML so detached preview
 // windows (and the Windows export restore path) can read it when they start.
@@ -86,12 +84,23 @@ pub(crate) fn generate_test_html(wheel_js: &str) -> String {
     html_with_js
 }
 
-/// Create a syntax-highlighted HTML source viewer backed by a wry / WebView2
-/// `PlatformWebView` (§14.5 of `webkit6_wry_parity_audit.md`, Step 5b).
+/// Editor-derived colors applied to the code-view page (§14.5, Step 5b).
 ///
-/// Mirrors [`super::webkit6::create_html_source_viewer_webview`] so both
-/// platforms render bit-identical output. The HTML page is built by the
-/// shared [`super::code_view_html::build_full_page`] helper (syntect-based
+/// All fields are optional CSS color strings; `None` falls back to the
+/// theme-mode defaults inside [`super::code_view_html`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CodeViewColors<'a> {
+    pub editor_bg: Option<&'a str>,
+    pub editor_fg: Option<&'a str>,
+    pub scrollbar_thumb: Option<&'a str>,
+    pub scrollbar_track: Option<&'a str>,
+}
+
+/// Create a syntax-highlighted HTML source viewer backed by a
+/// `PlatformWebView` (§14.5 of the parity audit, Step 5b).
+///
+/// The HTML page is built by the shared
+/// [`super::code_view_html::build_full_page`] helper (syntect-based
 /// highlighting + theme / scrollbar CSS + body shell), then loaded into a
 /// fresh `PlatformWebView` attached to `parent_window`.
 ///
@@ -104,10 +113,7 @@ pub fn create_html_source_viewer_webview(
     html_source: &str,
     theme_mode: &str,
     base_uri: Option<&str>,
-    editor_bg: Option<&str>,
-    editor_fg: Option<&str>,
-    scrollbar_thumb: Option<&str>,
-    scrollbar_track: Option<&str>,
+    colors: CodeViewColors<'_>,
 ) -> Result<PlatformWebView, String> {
     log::debug!(
         "[wry] Creating WebView-based code viewer with theme: {} (source: {} bytes)",
@@ -115,15 +121,13 @@ pub fn create_html_source_viewer_webview(
         html_source.len()
     );
 
-    // Same builder the Linux branch uses — keeps the highlighted HTML output
-    // identical across backends.
     let complete_page = crate::components::viewer::code_view_html::build_full_page(
         html_source,
         theme_mode,
-        editor_bg,
-        editor_fg,
-        scrollbar_thumb,
-        scrollbar_track,
+        colors.editor_bg,
+        colors.editor_fg,
+        colors.scrollbar_thumb,
+        colors.scrollbar_track,
     )?;
 
     log::debug!(
@@ -136,29 +140,25 @@ pub fn create_html_source_viewer_webview(
     Ok(pv)
 }
 
-/// Smooth update for the wry code-view WebView — mirrors
-/// [`super::webkit6::update_code_view_smooth`] (§14.5, Step 5b).
+/// Smooth update for the code-view WebView (§14.5, Step 5b).
 ///
 /// Builds the update script via [`super::code_view_html::build_smooth_update_js`]
-/// (shared with webkit6 so the JS payload is identical) and dispatches it
-/// through [`PlatformWebView::evaluate_script`]. No DOM full-reload occurs:
-/// only the highlighted code body and theme CSS are swapped.
+/// and dispatches it through [`PlatformWebView::evaluate_script`]. No DOM
+/// full-reload occurs: only the highlighted code body and theme CSS are
+/// swapped.
 pub fn update_code_view_smooth(
     pv: &PlatformWebView,
     html_source: &str,
     theme_mode: &str,
-    editor_bg: Option<&str>,
-    editor_fg: Option<&str>,
-    scrollbar_thumb: Option<&str>,
-    scrollbar_track: Option<&str>,
+    colors: CodeViewColors<'_>,
 ) -> Result<(), String> {
     let js_code = crate::components::viewer::code_view_html::build_smooth_update_js(
         html_source,
         theme_mode,
-        editor_bg,
-        editor_fg,
-        scrollbar_thumb,
-        scrollbar_track,
+        colors.editor_bg,
+        colors.editor_fg,
+        colors.scrollbar_thumb,
+        colors.scrollbar_track,
     )?;
 
     pv.evaluate_script(&js_code);
@@ -170,7 +170,7 @@ pub fn update_code_view_smooth(
 /// Mirrors `webkit6::sliders_play_all` so `MarcoCorePreview.sliders.playAll()`
 /// can be invoked uniformly across both backends (Gap #9 / §14.9).
 #[allow(dead_code)]
-pub fn sliders_play_all(webview: &super::wry_platform_webview::PlatformWebView) {
+pub fn sliders_play_all(webview: &super::platform_webview::PlatformWebView) {
     let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.playAll==='function'){window.MarcoCorePreview.sliders.playAll();}}catch(e){console.error('sliders_play_all error',e);}})();"#;
     webview.evaluate_script(js);
 }
@@ -179,7 +179,7 @@ pub fn sliders_play_all(webview: &super::wry_platform_webview::PlatformWebView) 
 ///
 /// Mirrors `webkit6::sliders_pause_all` (Gap #9 / §14.9).
 #[allow(dead_code)]
-pub fn sliders_pause_all(webview: &super::wry_platform_webview::PlatformWebView) {
+pub fn sliders_pause_all(webview: &super::platform_webview::PlatformWebView) {
     let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.pauseAll==='function'){window.MarcoCorePreview.sliders.pauseAll();}}catch(e){console.error('sliders_pause_all error',e);}})();"#;
     webview.evaluate_script(js);
 }

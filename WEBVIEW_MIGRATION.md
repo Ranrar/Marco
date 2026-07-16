@@ -262,8 +262,10 @@ leftover cfg'd module decls in `viewer/mod.rs`; fix stale module docs in
 
 ## 8. Outcome (2026-07-16, branch `unified-webviewer`)
 
-Implemented. `wry` (gtk4-webkit6 fork, locked to commit `ee1dc548`) is the
-single webview backend in both apps; `tao` deleted; `webkit6` remains a slim
+Implemented. `wry` (gtk4-webkit6 fork, pinned via `rev =` to commit
+`e00a02d5` — `ee1dc548` plus a fix for an IPC panic on `load_html` URIs,
+resolving Risk #5's reproducibility concern) is the single webview backend in
+both apps; `tao` deleted; `webkit6` remains a slim
 direct Linux dep for `PrintOperation` and the `load_html(html, base_uri)`
 escape hatch. `viewer/webkit6.rs` (~964 lines) deleted; dialogs, scroll-sync,
 find/search, hover, zoom, code view, export lifecycle, and the local-`.md`
@@ -285,3 +287,32 @@ not backend selection**:
 
 Verification still owed: a Windows CI build/run, and manual feature passes on
 both platforms (§ Phase 10 of the plan).
+
+### 8.1 Follow-up cleanup (2026-07-16)
+
+- `print_driver_windows.rs` + `wry_print_to_pdf.rs` merged into one file
+  (`print_driver_windows.rs`), matching the Linux `print_driver.rs` shape of
+  one file for both the dialog and PDF-export paths.
+- `find_backend.rs` deleted: it was a `FindBackend` trait scaffold wrapping
+  `wry_find.rs`'s functions 1:1 (originally meant to abstract over a Linux
+  `webkit6::FindController` implementation that the unification made
+  unnecessary). Nothing constructed it outside its own tests; callers already
+  used `wry_find::*` directly.
+
+### 8.2 Renames to drop stale backend-name prefixes (2026-07-16)
+
+Several files still carried `wry_`/`webkit6_` prefixes from the pre-unification
+dual-backend layout even though the code itself is now either fully
+cross-platform or split by OS strategy, not by backend. Renamed to match
+current reality (old name → new name):
+
+| Old | New | Why |
+|---|---|---|
+| `wry_platform_webview.rs` | `platform_webview.rs` | Cross-platform; matches `polo`'s file of the same purpose (this was the Phase 2 suggestion above). |
+| `wry.rs` | `preview_helpers.rs` | Cross-platform grab-bag (latest-HTML/base-URI cache, code-view webview, external-link opener) — never Windows-only. |
+| `wry_find.rs` | `find_engine.rs` | `MarcoFind` runs on both platforms since Phase 4; nothing "wry-specific" about it. |
+| `webkit6_detached_window.rs` | `detached_window_linux.rs` | Linux-only by *strategy* (reparents the live webview), not by backend — it doesn't call raw `webkit6::` APIs. |
+| `wry_detached_window.rs` | `detached_window_windows.rs` | Windows-only by *strategy* (rebuilds from recorded HTML, §14.3), not by backend. |
+| `print_driver.rs` | `print_driver_linux.rs` | Symmetry with `print_driver_windows.rs`. |
+
+`print_driver_windows.rs` was already correctly named and is unchanged.

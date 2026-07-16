@@ -8,7 +8,7 @@ use sourceview5::{Buffer, SearchContext, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
 
 /// Search options for controlling search behavior
 #[derive(Debug, Clone, Default)]
@@ -79,7 +79,7 @@ pub fn clear_search_highlighting() {
     // Clear find highlights in the WebView preview.
     CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
         if let Some(wv) = wv_ref.borrow().as_ref() {
-            crate::components::viewer::wry_find::clear(wv);
+            crate::components::viewer::find_engine::clear(wv);
         }
     });
 
