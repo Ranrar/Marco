@@ -31,18 +31,13 @@
 use crate::components::editor::display_config::extract_xml_color_value;
 use crate::components::editor::sourceview::render_editor_with_view;
 use crate::components::editor::utilities::AsyncExtensionManager;
-use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS, SCROLL_RESTORE_JS};
-#[cfg(target_os = "windows")]
-use crate::components::viewer::javascript::{HOVER_REPORT_JS, WIN_ZOOM_BAR_HTML};
+use crate::components::viewer::javascript::{
+    wheel_js, HOVER_REPORT_JS, SCROLL_REPORT_JS, SCROLL_RESTORE_JS, WIN_ZOOM_BAR_HTML,
+};
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
-#[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
-#[cfg(target_os = "windows")]
-use gio;
-#[cfg(target_os = "windows")]
-use glib;
 use gtk4::prelude::*;
 use gtk4::Paned;
 use marco_core::RenderOptions; // New parser API
@@ -552,15 +547,11 @@ pub fn create_editor_with_preview_and_buffer(
     let mut wheel_with_report = wheel_js.clone();
     wheel_with_report.push_str(SCROLL_REPORT_JS);
     wheel_with_report.push_str(SCROLL_RESTORE_JS);
-    // Windows-only: native wry/WebView2 lacks a hit-test signal for hovered
-    // links and the GTK zoom-bar overlay is hidden behind the WebView2 child
-    // window. Inject a JS bridge that posts hovered link URLs and an in-page
-    // zoom toolbar via IPC instead.
-    #[cfg(target_os = "windows")]
-    {
-        wheel_with_report.push_str(HOVER_REPORT_JS);
-        wheel_with_report.push_str(WIN_ZOOM_BAR_HTML);
-    }
+    // Unified hover + zoom bridges: hovered-link URLs are posted over IPC
+    // (`marco_hover:`) and the in-page zoom toolbar handles `marco_zoom:`
+    // actions on both platforms.
+    wheel_with_report.push_str(HOVER_REPORT_JS);
+    wheel_with_report.push_str(WIN_ZOOM_BAR_HTML);
     let wheel_js_rc = Rc::new(wheel_with_report);
 
     // Extract some theme colors from editor theme XML
@@ -881,10 +872,8 @@ paned > separator {{
         Rc::new(sw)
     };
 
-    #[cfg(target_os = "windows")]
     {
-        // On Windows we don't have WebKit scroll integration yet, but we can still
-        // synchronize the editor with the HTML code view (TextView) scroller.
+        // Synchronize the editor scroller with the HTML code view scroller.
         if let Some(global_sync) =
             crate::components::editor::editor_manager::get_global_scroll_synchronizer()
         {
@@ -904,8 +893,7 @@ paned > separator {{
         }
     }
 
-    #[cfg(target_os = "windows")]
-    let code_view_widget_for_windows: Rc<
+    let code_view_webview: Rc<
         RefCell<Option<crate::components::viewer::preview_types::PlatformWebView>>,
     > = Rc::new(RefCell::new(None));
 
@@ -932,129 +920,10 @@ paned > separator {{
         String::new()
     };
 
-    #[cfg(target_os = "linux")]
     let pretty_initial = pretty_print_html(&initial_html_body);
 
-    #[cfg(target_os = "linux")]
     {
-        // Build initial HTML for the WebView using the rendered markdown body and the
-        // wheel JS so the preview shows content immediately.
-        let mut initial_html_body_with_js = initial_html_body.clone();
-        initial_html_body_with_js.push_str(&wheel_js_rc);
-        // Use the CSS stored in css_rc (clone it) to avoid using the moved `css` value.
-        let css_clone = css_rc.borrow().clone();
-
-        // Get editor background color early for instant dark mode support (eliminates white flash)
-        let bg_init_preview = editor_bg_color.borrow().clone();
-        let bg_init_preview_ref = bg_init_preview.as_deref();
-
-        // LAYERED DEFENSE - Inject inline background style in HTML
-        let initial_html = crate::components::viewer::webkit6::wrap_html_document(
-            &initial_html_body_with_js,
-            &css_clone,
-            &theme_mode.borrow(),
-            bg_init_preview_ref, // Pass editor background color for inline style
-        );
-
-        // LAYERED DEFENSE - Set widget background + load HTML
-        let webview = crate::components::viewer::webkit6::create_html_viewer_with_base(
-            &initial_html,
-            None,                // No base URI needed yet
-            bg_init_preview_ref, // Pass editor background color for widget-level background
-        );
-        // Wrap WebView in Rc<RefCell<>> for shared ownership during reparenting
-        let webview_rc = Rc::new(RefCell::new(webview.clone()));
-
-        // Wire link-hover → footer: when the cursor enters a link in the preview,
-        // show its URL in the footer spacer area; clear it when the cursor leaves.
-        {
-            let labels_for_hover = Rc::clone(&labels);
-            crate::components::viewer::webkit6::setup_link_hover_status(
-                &webview,
-                move |url: Option<String>| {
-                    crate::footer::update_hovered_link(&labels_for_hover, url.as_deref());
-                },
-            );
-        }
-
-        // Initialize scroll synchronization between editor and preview
-        if let Some(global_sync) =
-            crate::components::editor::editor_manager::get_global_scroll_synchronizer()
-        {
-            // Setup bidirectional scroll sync between the editor ScrolledWindow and WebView
-            let webview_for_sync = webview.clone();
-            let editor_sw_for_sync = editor_scrolled_window.clone();
-
-            // Setup the bidirectional connection
-            global_sync.connect_scrolled_window_and_webview(&editor_sw_for_sync, &webview_for_sync);
-
-            log::debug!("Scroll synchronization initialized between editor and WebView preview");
-        } else {
-            log::warn!(
-            "Failed to initialize scroll synchronization: global scroll synchronizer not available"
-        );
-        }
-
-        let bg_init_owned = editor_bg_color.borrow().clone();
-        let fg_init_owned = editor_fg_color.borrow().clone();
-        let bg_init = bg_init_owned.as_deref();
-        let fg_init = fg_init_owned.as_deref();
-        let thumb_init = scrollbar_thumb_color.borrow().clone();
-        let track_init = scrollbar_track_color.borrow().clone();
-
-        // Create WebView-based code viewer with syntax highlighting
-        let current_theme_for_code = theme_mode_rc.borrow().clone();
-        let webview_code = crate::components::viewer::webkit6::create_html_source_viewer_webview(
-            &pretty_initial,
-            &current_theme_for_code,
-            None,              // No base URI needed for code view
-            bg_init,           // Pass editor background color
-            fg_init,           // Pass editor foreground color
-            Some(&thumb_init), // Pass scrollbar thumb color
-            Some(&track_init), // Pass scrollbar track color
-        )
-        .expect("Failed to create code viewer WebView");
-
-        // Wrap WebView into precreated ScrolledWindow for consistency
-        precreated_code_sw.set_child(Some(&webview_code));
-
-        let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
-            Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
-
-        // Wrap the WebView in a loading overlay so we can show a centered
-        // indeterminate progress bar while large files are parsed/rendered.
-        // The bar uses GTK's default theme so it follows light/dark mode
-        // automatically — no HTML/CSS involvement.
-        let loading_overlay =
-            crate::components::viewer::loading_overlay::LoadingOverlay::new(&webview);
-        crate::components::viewer::loading_overlay::set_global(loading_overlay.clone());
-
-        // Hide the overlay only when the WebView has actually finished
-        // painting the new page — load_html / load_html_when_ready merely
-        // *queue* the load, so hiding right after returning would dismiss
-        // the bar seconds before the new content replaces the old welcome
-        // HTML on screen.
-        {
-            use webkit6::prelude::WebViewExt;
-            webview.connect_load_changed(|_wv, event| {
-                if event == webkit6::LoadEvent::Finished {
-                    crate::components::viewer::loading_overlay::hide();
-                }
-            });
-        }
-
-        stack.add_named(loading_overlay.widget(), Some("html_preview"));
-        stack.add_named(precreated_code_sw.as_ref(), Some("code_preview"));
-        stack.set_visible_child(loading_overlay.widget());
-        paned.set_end_child(Some(&stack));
-
-        // Expose webview wrapper for reparenting/return
-        webview_rc_opt = Some(Rc::clone(&webview_rc));
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        // Windows (and other) fallback: create PlatformWebView (wry) where possible
+        // Unified construction: build the wry-based PlatformWebView preview.
         // Use test HTML for empty document to mirror Linux behaviour (welcome message)
         let initial_html_body_with_js = if initial_html_body.trim().is_empty() {
             crate::components::viewer::wry::generate_test_html(&wheel_js_rc)
@@ -1087,7 +956,6 @@ paned > separator {{
             *guard = full_html.clone();
         }
 
-        let pretty_initial = pretty_print_html(&initial_html_body_with_js);
 
         // Try to create a native Windows embedded WebView (wry). PlatformWebView
         // will fallback to a placeholder container if it cannot obtain a Win32 handle.
@@ -1158,7 +1026,7 @@ paned > separator {{
         .expect("Failed to create Windows code preview widget");
         let code_view_widget: gtk4::Widget = code_view_pv.widget();
         precreated_code_sw.set_child(Some(&code_view_widget));
-        *code_view_widget_for_windows.borrow_mut() = Some(code_view_pv);
+        *code_view_webview.borrow_mut() = Some(code_view_pv);
 
         let _precreated_code_sw_holder: Rc<RefCell<Option<Rc<gtk4::ScrolledWindow>>>> =
             Rc::new(RefCell::new(Some(precreated_code_sw.clone())));
@@ -1232,75 +1100,31 @@ paned > separator {{
         std::rc::Rc::new(RefCell::new(state))
     };
 
-    #[cfg(target_os = "linux")]
     let is_initial_load = Rc::new(RefCell::new(true)); // Track if this is the first load
-    #[cfg(target_os = "linux")]
     let last_css_hash = Rc::new(RefCell::new(0u64)); // Track CSS changes for theme updates
-    #[cfg(target_os = "linux")]
     let last_document_path = Rc::new(RefCell::new(None::<std::path::PathBuf>)); // Track document path changes
-    #[cfg(target_os = "linux")]
     let last_page_view_enabled = Rc::new(RefCell::new(false)); // Track page-view transitions (enable→disable needs full reload)
                                                                // Phase 8 Layer 1: content-hash guard — prevents re-rendering when the text
                                                                // hasn't actually changed (undo/redo, cursor moves, settings refreshes, etc.).
                                                                // Reset to 0 on new file open so the first render always fires.
-    #[cfg(target_os = "linux")]
     let last_preview_hash: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
     // Phase 9 differential section DOM updates: hashes from the previous section
     // render.  Empty = force a full rebuild on the next section render.
-    #[cfg(target_os = "linux")]
     let prev_section_hashes: Rc<RefCell<Vec<u64>>> = Rc::new(RefCell::new(Vec::new()));
     // Layer 2 — generation counter: every render request increments this.
     // When a render completes, it checks its captured generation against the
     // current value; if they differ, a newer request was made while it was
     // running (stale render) and the result is discarded.  On discard, the
     // content-hash guard is also reset so the next debounce fires a fresh render.
-    #[cfg(target_os = "linux")]
     let preview_generation: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
     // Layer 2 — at-most-1-in-flight guard: prevents multiple renders queued
     // concurrently on the thread pool for the same document.
-    #[cfg(target_os = "linux")]
     let preview_in_flight: Rc<Cell<bool>> = Rc::new(Cell::new(false));
 
     // Clone document_buffer for use in refresh closure (Linux only)
-    #[cfg(target_os = "linux")]
     let document_buffer_for_refresh = _document_buffer.as_ref().map(Rc::clone);
 
-    // Windows refresh-state cells (Step 4b / §14.4). Mirror a subset of the
-    // Linux state cells above. Used to decide between a full WebView reload
-    // (which navigates and may flash) and an in-place
-    // `update_html_content_smooth` patch (no navigation, scroll preserved).
-    //
-    // Full reload is required on:
-    //   * the first refresh,
-    //   * any CSS / theme change (the smooth path swaps body innerHTML but
-    //     leaves the `<html data-theme>` root attribute untouched),
-    //   * any document path change (clean slate for a new file),
-    //   * any page-view (paged.js) transition (DOM is restructured).
-    //
-    // Content-hash dedup lets the closure skip cheap no-op refreshes
-    // (cursor moves, settings refreshes, undo/redo to the same text).
-    #[cfg(target_os = "windows")]
-    let is_initial_load_win = Rc::new(RefCell::new(true));
-    #[cfg(target_os = "windows")]
-    let last_css_hash_win = Rc::new(RefCell::new(0u64));
-    #[cfg(target_os = "windows")]
-    let last_document_path_win = Rc::new(RefCell::new(None::<std::path::PathBuf>));
-    #[cfg(target_os = "windows")]
-    let last_page_view_enabled_win = Rc::new(RefCell::new(false));
-    #[cfg(target_os = "windows")]
-    let last_preview_hash_win: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
-    // Generation counter for Windows: incremented on every render entry so a
-    // render that finds the generation advanced (stale) can reset the hash guard
-    // and let the next debounce fire a fresh pass.
-    #[cfg(target_os = "windows")]
-    let preview_generation_win: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
-    // In-flight guard for Windows: set while a render is executing so a
-    // reentrant trigger (impossible on the GTK main thread, but defensive)
-    // is dropped rather than producing concurrent renders.
-    #[cfg(target_os = "windows")]
-    let preview_in_flight_win: Rc<Cell<bool>> = Rc::new(Cell::new(false));
 
-    #[cfg(target_os = "linux")]
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
@@ -1588,359 +1412,6 @@ paned > separator {{
         })
     };
 
-    #[cfg(target_os = "windows")]
-    let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
-        let buffer = Rc::clone(&buffer_rc);
-        let css = Rc::clone(&css_rc);
-        let code_view_widget_for_windows = Rc::clone(&code_view_widget_for_windows);
-        let html_opts = std::rc::Rc::clone(&html_opts_rc);
-        let wheel_js_local = wheel_js_for_refresh.clone();
-        let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
-        let page_view_capture = std::rc::Rc::clone(&page_view_rc);
-        // Capture the in-editor platform webview if present
-        let webview_for_preview = webview_rc_opt.clone();
-        let document_buffer_capture = _document_buffer.as_ref().map(Rc::clone);
-        // Step 4b: refresh-state cells for full-reload-vs-smooth-update decision.
-        let is_initial_load = Rc::clone(&is_initial_load_win);
-        let last_css_hash = Rc::clone(&last_css_hash_win);
-        let last_document_path = Rc::clone(&last_document_path_win);
-        let last_page_view_enabled = Rc::clone(&last_page_view_enabled_win);
-        let last_preview_hash = Rc::clone(&last_preview_hash_win);
-        // Gap #4: generation counter + in-flight guard (mirrors Linux behaviour).
-        let preview_generation = Rc::clone(&preview_generation_win);
-        let preview_in_flight = Rc::clone(&preview_in_flight_win);
-        std::rc::Rc::new(move || {
-            // In-flight guard: the GTK main thread is single-threaded, but if a
-            // stale timer or signal fires while a synchronous render is underway
-            // (e.g. from an inner gtk::main_iteration call), skip this entry.
-            if preview_in_flight.get() {
-                log::trace!("[preview-win] skip refresh: render already in flight");
-                return;
-            }
-            // Basic behaviour: re-render HTML into the code view (TextView) for preview
-            let text = buffer
-                .text(&buffer.start_iter(), &buffer.end_iter(), false)
-                .to_string();
-
-            let base_uri = document_buffer_capture
-                .as_ref()
-                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()))
-                .and_then(crate::components::viewer::wry::generate_base_uri_from_path);
-            crate::components::viewer::wry::set_latest_preview_base_uri(base_uri.clone());
-
-            // ---- Step 4b: compute reload-trigger booleans ----
-            // Any of these forces a full WebView navigation (load_html_with_base);
-            // otherwise we use update_html_content_smooth which keeps the page
-            // alive (no white flash, scroll preserved, MarcoCorePreview caches kept).
-            let current_doc_path: Option<std::path::PathBuf> = document_buffer_capture
-                .as_ref()
-                .and_then(|buf| buf.borrow().get_file_path().map(|p| p.to_path_buf()));
-            let doc_path_changed = {
-                let prev = last_document_path.borrow();
-                *prev != current_doc_path
-            };
-
-            let current_css_hash = {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                let mut hasher = DefaultHasher::new();
-                css.borrow().hash(&mut hasher);
-                hasher.finish()
-            };
-            let css_changed = current_css_hash != *last_css_hash.borrow();
-
-            let current_page_view_enabled = page_view_capture.borrow().enabled;
-            let page_view_changed = current_page_view_enabled != *last_page_view_enabled.borrow();
-            // Treat any page-view-active render as a full reload as well — paged.js
-            // restructures the DOM in a way that the smooth innerHTML swap cannot
-            // replicate (multi-column flow, page numbers, etc.).
-            let page_view_active = current_page_view_enabled;
-
-            let first_load = *is_initial_load.borrow();
-            let force_full_reload = first_load
-                || css_changed
-                || doc_path_changed
-                || page_view_changed
-                || page_view_active;
-
-            // Content-hash dedup: if no reload trigger and the buffer text hasn't
-            // changed since the last render, skip the work entirely (cursor
-            // moves, focus events, settings refreshes all become no-ops).
-            let current_content_hash = {
-                use std::collections::hash_map::DefaultHasher;
-                use std::hash::{Hash, Hasher};
-                let mut hasher = DefaultHasher::new();
-                text.hash(&mut hasher);
-                hasher.finish()
-            };
-            if !force_full_reload && current_content_hash == last_preview_hash.get() {
-                log::trace!("[preview-win] skip refresh: content unchanged, no reload triggers");
-                return;
-            }
-
-            // Update tracked state for the next call.
-            *is_initial_load.borrow_mut() = false;
-            *last_css_hash.borrow_mut() = current_css_hash;
-            *last_document_path.borrow_mut() = current_doc_path.clone();
-            *last_page_view_enabled.borrow_mut() = current_page_view_enabled;
-            last_preview_hash.set(current_content_hash);
-
-            // Increment the generation counter and arm the in-flight guard for
-            // this render pass. The guard prevents the same closure from running
-            // concurrently (impossible on the GTK main thread in normal use, but
-            // defensive against edge cases). The generation counter lets us detect
-            // if a newer request was queued while we were rendering and, if so,
-            // reset the content-hash guard so the next debounce re-renders.
-            let my_gen = preview_generation.get().wrapping_add(1);
-            preview_generation.set(my_gen);
-            preview_in_flight.set(true);
-
-            let use_smooth_update = !force_full_reload;
-            log::debug!(
-                "[preview-win] refresh: first={} css_changed={} doc_changed={} page_view_changed={} page_view_active={} → {}",
-                first_load,
-                css_changed,
-                doc_path_changed,
-                page_view_changed,
-                page_view_active,
-                if use_smooth_update { "smooth" } else { "full-reload" }
-            );
-
-            // Fast path: empty document — no parsing needed, immediately show
-            // the welcome HTML and release the in-flight guard.
-            if text.trim().is_empty() {
-                let html_body = crate::components::viewer::wry::generate_test_html(&wheel_js_local);
-                let combined_css = css.borrow().clone();
-                let theme_mode = theme_mode_for_preview.borrow().clone();
-                let page_view = page_view_capture.borrow().clone();
-                let full_html = if page_view.enabled {
-                    let page_opts = marco_core::render::PageViewOptions {
-                        paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                        paper: &page_view.paper,
-                        orientation: &page_view.orientation,
-                        margin_mm: page_view.margin_mm,
-                        show_page_numbers: page_view.show_page_numbers,
-                        wheel_js: &wheel_js_local,
-                        columns_per_row: page_view.columns_per_row,
-                        for_export: false,
-                        title: "",
-                        standalone_export: false,
-                    };
-                    crate::components::viewer::backend::wrap_html_document_paged(
-                        &html_body,
-                        &combined_css,
-                        &theme_mode,
-                        None,
-                        &page_opts,
-                    )
-                } else {
-                    crate::components::viewer::wry::wrap_html_document(
-                        &html_body,
-                        &combined_css,
-                        &theme_mode,
-                        None,
-                    )
-                };
-                crate::components::viewer::wry::set_latest_live_html(&full_html);
-
-                if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
-                    .get_or_init(|| std::sync::Mutex::new(String::new()))
-                    .lock()
-                {
-                    *guard = full_html.clone();
-                }
-
-                // Step 4b: on the welcome/empty branch we always full-reload.
-                if let Some(ref wv_rc) = webview_for_preview {
-                    if let Ok(wv) = wv_rc.try_borrow() {
-                        wv.load_html_with_base(&full_html, base_uri.as_deref());
-                    } else {
-                        log::debug!("In-editor webview borrow busy; skipping load");
-                    }
-                } else {
-                    log::debug!(
-                        "No embedded webview available; stored welcome HTML for detached preview"
-                    );
-                }
-
-                let formatted = pretty_print_html(&html_body);
-                if let Some(ref pv) = *code_view_widget_for_windows.borrow() {
-                    let _ = crate::components::viewer::wry::update_code_view_smooth(
-                        pv,
-                        &formatted,
-                        &theme_mode_for_preview.borrow(),
-                        None,
-                        None,
-                        None,
-                        None,
-                    );
-                }
-
-                preview_in_flight.set(false);
-                if preview_generation.get() != my_gen {
-                    last_preview_hash.set(0);
-                }
-                return;
-            }
-
-            // Slow path: non-empty document — offload parsing to a thread-pool
-            // worker so the GTK main thread (and its event loop) stays responsive
-            // while large files are being rendered.
-            //
-            // `glib::spawn_future_local` schedules the async block on the GTK
-            // main thread, so all Rc<…> values remain accessible.  The inner
-            // `gio::spawn_blocking` dispatches only Send-safe owned data to the
-            // thread pool.
-
-            // Clone Rc handles — these stay on the main thread.
-            let css_a = Rc::clone(&css);
-            let theme_a = Rc::clone(&theme_mode_for_preview);
-            let page_view_a = Rc::clone(&page_view_capture);
-            let wheel_js_a = Rc::clone(&wheel_js_local);
-            let webview_a = webview_for_preview.clone();
-            let code_view_a = Rc::clone(&code_view_widget_for_windows);
-            let flight_a = Rc::clone(&preview_in_flight);
-            let gen_a = Rc::clone(&preview_generation);
-            let hash_a = Rc::clone(&last_preview_hash);
-
-            // Owned, Send values captured by the thread-pool closure.
-            let text_bg = text.clone();
-            let html_opts_bg = (*html_opts).clone();
-            let base_uri_a = base_uri.clone();
-
-            glib::spawn_future_local(async move {
-                // --- thread pool: parse + render (may be slow for large files) ---
-                let html_body = gio::spawn_blocking(move || {
-                    match marco_shared::cache::global_parser_cache()
-                        .render_with_cache(&text_bg, html_opts_bg)
-                    {
-                        Ok(html) => html,
-                        Err(e) => format!("Error rendering HTML: {}", e),
-                    }
-                })
-                .await
-                .unwrap_or_default();
-
-                // --- back on GTK main thread ---
-
-                let formatted = pretty_print_html(&html_body);
-
-                // Store a clean live HTML snapshot (no wheel JS) for export.
-                {
-                    let combined_css = css_a.borrow().clone();
-                    let theme_mode = theme_a.borrow().clone();
-                    let page_view = page_view_a.borrow().clone();
-                    let live_html = if page_view.enabled {
-                        let page_opts = marco_core::render::PageViewOptions {
-                            paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                            paper: &page_view.paper,
-                            orientation: &page_view.orientation,
-                            margin_mm: page_view.margin_mm,
-                            show_page_numbers: page_view.show_page_numbers,
-                            wheel_js: "",
-                            columns_per_row: page_view.columns_per_row,
-                            for_export: false,
-                            title: "",
-                            standalone_export: false,
-                        };
-                        crate::components::viewer::backend::wrap_html_document_paged(
-                            &html_body,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                            &page_opts,
-                        )
-                    } else {
-                        crate::components::viewer::wry::wrap_html_document(
-                            &html_body,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                        )
-                    };
-                    crate::components::viewer::wry::set_latest_live_html(&live_html);
-                }
-
-                // Build the full HTML (with wheel JS) for WebView and detached windows.
-                let full_html = {
-                    let mut html_with_js = html_body.clone();
-                    html_with_js.push_str(&*wheel_js_a);
-                    let combined_css = css_a.borrow().clone();
-                    let theme_mode = theme_a.borrow().clone();
-                    let page_view = page_view_a.borrow().clone();
-                    if page_view.enabled {
-                        let page_opts = marco_core::render::PageViewOptions {
-                            paged_js_source: crate::components::viewer::pagedjs::PAGED_POLYFILL_JS,
-                            paper: &page_view.paper,
-                            orientation: &page_view.orientation,
-                            margin_mm: page_view.margin_mm,
-                            show_page_numbers: page_view.show_page_numbers,
-                            wheel_js: &*wheel_js_a,
-                            columns_per_row: page_view.columns_per_row,
-                            for_export: false,
-                            title: "",
-                            standalone_export: false,
-                        };
-                        crate::components::viewer::backend::wrap_html_document_paged(
-                            &html_body,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                            &page_opts,
-                        )
-                    } else {
-                        crate::components::viewer::wry::wrap_html_document(
-                            &html_with_js,
-                            &combined_css,
-                            &theme_mode,
-                            None,
-                        )
-                    }
-                };
-
-                if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
-                    .get_or_init(|| std::sync::Mutex::new(String::new()))
-                    .lock()
-                {
-                    *guard = full_html.clone();
-                }
-
-                // Push HTML to the embedded WebView.
-                if let Some(ref wv_rc) = webview_a {
-                    if let Ok(wv) = wv_rc.try_borrow() {
-                        if use_smooth_update {
-                            wv.update_html_content_smooth(&full_html);
-                        } else {
-                            wv.load_html_with_base(&full_html, base_uri_a.as_deref());
-                        }
-                    } else {
-                        log::debug!("In-editor webview borrow busy; skipping load");
-                    }
-                }
-
-                // Update the code view.
-                if let Some(ref pv) = *code_view_a.borrow() {
-                    let _ = crate::components::viewer::wry::update_code_view_smooth(
-                        pv,
-                        &formatted,
-                        &theme_a.borrow(),
-                        None,
-                        None,
-                        None,
-                        None,
-                    );
-                }
-
-                flight_a.set(false);
-                if gen_a.get() != my_gen {
-                    hash_a.set(0);
-                }
-            });
-            // The sync closure returns immediately; the async block above finishes
-            // on the GTK main thread once the thread-pool render completes.
-        })
-    };
-
     // Trigger an initial preview refresh so the WebView shows content immediately.
     log::debug!("[preview] triggering initial refresh");
     refresh_preview_impl();
@@ -1951,20 +1422,13 @@ paned > separator {{
     // Function to update HTML code view with raw HTML
     let update_html_code_view = {
         let buffer_for_code = Rc::clone(&buffer_rc);
-        let precreated_code_sw_for_code = precreated_code_sw.clone();
         let html_opts_for_code = Rc::clone(&html_opts_rc);
         let theme_mode_for_code = Rc::clone(&theme_mode_rc);
 
-        #[cfg(target_os = "windows")]
-        let code_view_widget_for_windows = Rc::clone(&code_view_widget_for_windows);
-
-        #[cfg(target_os = "linux")]
+        let code_view_webview = Rc::clone(&code_view_webview);
         let editor_bg_for_code = Rc::clone(&editor_bg_color);
-        #[cfg(target_os = "linux")]
         let editor_fg_for_code = Rc::clone(&editor_fg_color);
-        #[cfg(target_os = "linux")]
         let scrollbar_thumb_for_code = Rc::clone(&scrollbar_thumb_color);
-        #[cfg(target_os = "linux")]
         let scrollbar_track_for_code = Rc::clone(&scrollbar_track_color);
         let last_code_view_theme = Rc::new(RefCell::new(String::new()));
 
@@ -2007,104 +1471,36 @@ paned > separator {{
 
             log::debug!("[editor_ui] Current theme: {}", current_theme);
 
-            // Update the code view
-            if let Some(sw_child) = precreated_code_sw_for_code.child() {
+            // Track theme changes (kept for logging parity).
+            let theme_changed = *last_code_view_theme.borrow() != current_theme;
+            if theme_changed {
                 log::debug!(
-                    "[editor_ui] Code view has child widget: {:?}",
-                    sw_child.type_()
+                    "[editor_ui] Theme changed: {} -> {}",
+                    last_code_view_theme.borrow(),
+                    current_theme
                 );
+                *last_code_view_theme.borrow_mut() = current_theme.clone();
+            }
 
-                // GTK ScrolledWindow may wrap widgets in a Viewport
-                // Try to get the actual widget (WebView or TextView)
-                let actual_widget = if sw_child.is::<gtk4::Viewport>() {
-                    log::debug!("[editor_ui] Child is Viewport, getting its child");
-                    if let Ok(viewport) = sw_child.downcast::<gtk4::Viewport>() {
-                        viewport.child()
-                    } else {
-                        None
-                    }
-                } else {
-                    Some(sw_child)
-                };
-
-                if let Some(widget) = actual_widget {
-                    let widget_type = widget.type_();
-                    log::debug!("[editor_ui] Actual widget type: {:?}", widget_type);
-
-                    // Get current theme and check if it changed
-                    let theme_changed = *last_code_view_theme.borrow() != current_theme;
-                    if theme_changed {
-                        log::debug!(
-                            "[editor_ui] Theme changed: {} -> {}",
-                            last_code_view_theme.borrow(),
-                            current_theme
-                        );
-                        *last_code_view_theme.borrow_mut() = current_theme.clone();
-                    }
-
-                    // Update WebView with smooth transition (Linux) or TextView content on other platforms
-                    #[cfg(target_os = "linux")]
-                    {
-                        if widget.is::<webkit6::WebView>() {
-                            log::debug!(
-                                "[editor_ui] Widget is WebView, updating with smooth transition"
-                            );
-
-                            if let Ok(webview) = widget.clone().downcast::<webkit6::WebView>() {
-                                // Get editor colors
-                                let bg_owned = editor_bg_for_code.borrow().clone();
-                                let fg_owned = editor_fg_for_code.borrow().clone();
-                                let bg = bg_owned.as_deref();
-                                let fg = fg_owned.as_deref();
-
-                                // Get scrollbar colors
-                                let thumb = scrollbar_thumb_for_code.borrow().clone();
-                                let track = scrollbar_track_for_code.borrow().clone();
-
-                                // Use smooth update to avoid flickering
-                                if let Err(e) =
-                                    crate::components::viewer::webkit6::update_code_view_smooth(
-                                        &webview,
-                                        &formatted_html,
-                                        &current_theme,
-                                        bg,
-                                        fg,
-                                        Some(&thumb),
-                                        Some(&track),
-                                    )
-                                {
-                                    log::error!("Failed to smooth update code view: {}", e);
-                                }
-                            }
-                        } else {
-                            log::warn!(
-                                "[editor_ui] Code view widget is not a WebView: {:?}",
-                                widget_type
-                            );
-                        }
-                    }
-
-                    #[cfg(target_os = "windows")]
-                    {
-                        if let Some(ref pv) = *code_view_widget_for_windows.borrow() {
-                            if let Err(e) = crate::components::viewer::wry::update_code_view_smooth(
-                                pv,
-                                &formatted_html,
-                                &current_theme,
-                                None,
-                                None,
-                                None,
-                                None,
-                            ) {
-                                log::warn!("[editor_ui] Failed to update Windows code view: {}", e);
-                            }
-                        }
-                    }
-                } else {
-                    log::warn!("[editor_ui] No actual widget found in code view");
+            // Update the code view through its PlatformWebView (both platforms).
+            if let Some(ref pv) = *code_view_webview.borrow() {
+                let bg_owned = editor_bg_for_code.borrow().clone();
+                let fg_owned = editor_fg_for_code.borrow().clone();
+                let thumb = scrollbar_thumb_for_code.borrow().clone();
+                let track = scrollbar_track_for_code.borrow().clone();
+                if let Err(e) = crate::components::viewer::wry::update_code_view_smooth(
+                    pv,
+                    &formatted_html,
+                    &current_theme,
+                    bg_owned.as_deref(),
+                    fg_owned.as_deref(),
+                    Some(&thumb),
+                    Some(&track),
+                ) {
+                    log::warn!("[editor_ui] Failed to update code view: {}", e);
                 }
             } else {
-                log::warn!("[editor_ui] Code view has no child widget");
+                log::warn!("[editor_ui] Code view webview not initialized");
             }
         }) as Box<dyn Fn()>
     };
@@ -2440,11 +1836,9 @@ paned > separator {{
         }
     }) as Box<dyn Fn(&str)>;
 
-    // Preview theme updater (Linux sets a real implementation; other platforms use a no-op)
+    // Preview theme updater (unified wry backend)
     let update_preview_theme: Box<dyn Fn(&str)>;
 
-    // Clones for preview theme updater (Linux-only implementation overrides the default)
-    #[cfg(target_os = "linux")]
     {
         let theme_manager_for_preview = Rc::clone(&theme_manager);
         let css_rc_for_preview = Rc::clone(&css_rc);
@@ -2452,6 +1846,7 @@ paned > separator {{
         // the correct code path (including paged.js when page view is active).
         let refresh_impl_for_theme = std::rc::Rc::clone(&refresh_preview_impl);
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
+        let webview_rc_for_theme = webview_rc_opt.as_ref().expect("webview_rc not set").clone();
         let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
         let editor_bg_color_for_preview = Rc::clone(&editor_bg_color);
         let editor_fg_color_for_preview = Rc::clone(&editor_fg_color);
@@ -2641,6 +2036,17 @@ paned > separator {{
             let new_theme_mode = theme_manager_for_preview
                 .borrow()
                 .preview_theme_mode_from_scheme(scheme_id);
+            // Keep the webview background colour in sync to reduce white/flash
+            // artifacts during the debounced full reload below.
+            let is_dark = new_theme_mode.eq_ignore_ascii_case("dark");
+            let rgba = if is_dark {
+                gtk4::gdk::RGBA::new(30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0)
+            } else {
+                gtk4::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
+            };
+            if let Ok(wv) = webview_rc_for_theme.try_borrow() {
+                wv.set_background_color_rgba(&rgba);
+            }
             *theme_mode_for_preview.borrow_mut() = new_theme_mode;
 
             // debounce reloads to avoid rapid successive full-document reloads which cause blinking
@@ -2666,120 +2072,6 @@ paned > separator {{
         }) as Box<dyn Fn(&str)>;
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        let theme_manager_for_preview = Rc::clone(&theme_manager);
-        let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
-        let refresh_for_preview = std::rc::Rc::clone(&refresh_preview_impl);
-        let update_code_for_preview = Rc::clone(&update_html_code_view_rc);
-        let css_rc_for_preview = Rc::clone(&css_rc);
-        let scrollbar_thumb_for_preview = Rc::clone(&scrollbar_thumb_color);
-        let scrollbar_track_for_preview = Rc::clone(&scrollbar_track_color);
-        let editor_dir_for_preview = theme_manager.borrow().editor_theme_dir.clone();
-
-        let webview_rc: Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>> =
-            webview_rc_opt.as_ref().expect("webview_rc not set").clone();
-
-        update_preview_theme = Box::new(move |scheme_id: &str| {
-            let new_theme_mode = theme_manager_for_preview
-                .borrow()
-                .preview_theme_mode_from_scheme(scheme_id);
-
-            *theme_mode_for_preview.borrow_mut() = new_theme_mode.clone();
-
-            // Keep WebView2 background in sync to reduce white/flash artifacts.
-            let is_dark = new_theme_mode.eq_ignore_ascii_case("dark");
-            let rgba = if is_dark {
-                gtk4::gdk::RGBA::new(30.0 / 255.0, 30.0 / 255.0, 30.0 / 255.0, 1.0)
-            } else {
-                gtk4::gdk::RGBA::new(1.0, 1.0, 1.0, 1.0)
-            };
-
-            if let Ok(wv) = webview_rc.try_borrow() {
-                wv.set_background_color_rgba(&rgba);
-            }
-
-            // Extract updated scrollbar colors from the new editor theme scheme
-            // and update the HTML preview CSS so the WebView scrollbar changes too.
-            if editor_dir_for_preview.exists() && editor_dir_for_preview.is_dir() {
-                if let Ok(entries) = std::fs::read_dir(&editor_dir_for_preview) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path
-                            .extension()
-                            .and_then(|s| s.to_str())
-                            .map(|s| s.eq_ignore_ascii_case("xml"))
-                            .unwrap_or(false)
-                        {
-                            if let Ok(contents) = std::fs::read_to_string(&path) {
-                                let id_search = format!("id=\"{}\"", scheme_id);
-                                if contents.contains(&id_search) {
-                                    if let Some(v) =
-                                        extract_xml_color_value(&contents, "scrollbar-thumb")
-                                    {
-                                        *scrollbar_thumb_for_preview.borrow_mut() = v;
-                                    }
-                                    if let Some(v) =
-                                        extract_xml_color_value(&contents, "scrollbar-track")
-                                    {
-                                        *scrollbar_track_for_preview.borrow_mut() = v;
-                                    }
-
-                                    // Rebuild the embedded webkit scrollbar CSS in the preview CSS
-                                    // string so the next full HTML load carries the correct colors.
-                                    let new_thumb = scrollbar_thumb_for_preview.borrow().clone();
-                                    let new_track = scrollbar_track_for_preview.borrow().clone();
-                                    let new_webkit_css =
-                                        webkit_scrollbar_css(&new_thumb, &new_track);
-                                    let mut updated_css = css_rc_for_preview.borrow().clone();
-                                    if let Some(pos) = updated_css.rfind("::-webkit-scrollbar") {
-                                        if let Some(start) = updated_css[..pos].rfind("\n/*") {
-                                            updated_css.truncate(start);
-                                        } else {
-                                            updated_css.truncate(pos);
-                                        }
-                                    }
-                                    updated_css.push('\n');
-                                    updated_css.push_str(&new_webkit_css);
-                                    *css_rc_for_preview.borrow_mut() = updated_css;
-
-                                    // Also update the GTK scrollbar CSS so native scrollbars match.
-                                    if let Some(display) = gtk4::gdk::Display::default() {
-                                        let gtk_css =
-                                            crate::components::viewer::css_utils::gtk_scrollbar_css(
-                                                &new_thumb, &new_track,
-                                            );
-                                        let provider = gtk4::CssProvider::new();
-                                        provider.load_from_data(&gtk_css);
-                                        gtk4::style_context_add_provider_for_display(
-                                            &display,
-                                            &provider,
-                                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
-                                        );
-                                        log::debug!(
-                                            "[win] Updated GTK scrollbar CSS: thumb={}, track={}",
-                                            new_thumb,
-                                            new_track
-                                        );
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Apply the new theme mode to the preview + source code view.
-            (refresh_for_preview)();
-            (update_code_for_preview)();
-        });
-    }
-
-    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
-    {
-        update_preview_theme = Box::new(|_s: &str| {});
-    }
 
     // Set up split percentage indicator with cascade prevention from split controller
     let split_indicator = setup_split_percentage_indicator_with_cascade_prevention(

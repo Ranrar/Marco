@@ -42,7 +42,6 @@ use gtk4::prelude::*;
 use gtk4::{ApplicationWindow, Picture, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use webkit6::WebView;
 
 /// Type alias for a shared, mutable callback function
 type CloseCallback = Rc<RefCell<Option<Box<dyn Fn()>>>>;
@@ -452,11 +451,15 @@ impl PreviewWindow {
     /// let webview = webview_rc.borrow();
     /// preview_window.attach_webview(&webview);
     /// ```
-    pub fn attach_webview(&self, webview: &WebView) {
+    pub fn attach_webview(&self, webview: &crate::components::viewer::preview_types::PlatformWebView) {
         log::debug!("Attaching WebView to preview window");
 
+        // Reparent the unified wrapper's container widget (the webview
+        // itself travels with it as a GTK child).
+        let widget = webview.widget();
+
         // Remove from current parent if any
-        if let Some(parent) = webview.parent() {
+        if let Some(parent) = widget.parent() {
             if let Some(paned) = parent.downcast_ref::<gtk4::Paned>() {
                 // Remove from paned
                 if paned.start_child().as_ref() == Some(&parent) {
@@ -472,7 +475,7 @@ impl PreviewWindow {
                 log::debug!("Removed WebView from ScrolledWindow");
             } else if let Some(stack) = parent.downcast_ref::<gtk4::Stack>() {
                 // Remove from stack
-                stack.remove(webview);
+                stack.remove(&widget);
                 log::debug!("Removed WebView from Stack");
             } else {
                 log::warn!("WebView parent is unknown type: {:?}", parent.type_());
@@ -480,7 +483,7 @@ impl PreviewWindow {
         }
 
         // Add to this window's container
-        self.container.set_child(Some(webview));
+        self.container.set_child(Some(&widget));
         log::info!("WebView attached to preview window");
     }
 
@@ -491,44 +494,25 @@ impl PreviewWindow {
     ///
     /// # Returns
     ///
-    /// * `Some(WebView)` - The detached WebView if one was present
-    /// * `None` - If no WebView was attached
-    ///
-    /// # Example
-    ///
-    /// ```no_run
-    /// if let Some(webview) = preview_window.detach_webview() {
-    ///     paned.set_end_child(Some(&webview));
-    /// }
-    /// ```
-    pub fn detach_webview(&self) -> Option<WebView> {
-        // ScrolledWindow wraps children in a Viewport, so we need to check for that
-        if let Some(child) = self.container.child() {
-            log::debug!("Container child type: {:?}", child.type_());
+    /// * `Some(Widget)` - The detached preview widget if one was present
+    /// * `None` - If nothing was attached
+    pub fn detach_webview(&self) -> Option<gtk4::Widget> {
+        let child = self.container.child()?;
+        log::debug!("Container child type: {:?}", child.type_());
 
-            // Try direct WebView (unlikely with ScrolledWindow)
-            if let Ok(webview) = child.clone().downcast::<WebView>() {
-                self.container.set_child(gtk4::Widget::NONE);
-                log::info!("WebView detached directly from preview window");
-                return Some(webview);
-            }
-
-            // Check if child is a Viewport containing the WebView
-            if let Ok(viewport) = child.downcast::<gtk4::Viewport>() {
-                if let Some(viewport_child) = viewport.child() {
-                    log::debug!("Viewport child type: {:?}", viewport_child.type_());
-                    if let Ok(webview) = viewport_child.downcast::<WebView>() {
-                        // Remove the entire ScrolledWindow child (which includes the Viewport)
-                        self.container.set_child(gtk4::Widget::NONE);
-                        log::info!("WebView detached from preview window (via Viewport)");
-                        return Some(webview);
-                    }
-                }
-            }
+        // ScrolledWindow wraps non-scrollable children in a Viewport — unwrap
+        // it so the returned widget is parentless and can be re-added directly.
+        if let Some(viewport) = child.downcast_ref::<gtk4::Viewport>() {
+            let inner = viewport.child();
+            viewport.set_child(gtk4::Widget::NONE);
+            self.container.set_child(gtk4::Widget::NONE);
+            log::info!("Preview widget detached from preview window (via Viewport)");
+            return inner;
         }
 
-        log::warn!("No WebView found to detach from preview window");
-        None
+        self.container.set_child(gtk4::Widget::NONE);
+        log::info!("Preview widget detached from preview window");
+        Some(child)
     }
 
     /// Show the preview window

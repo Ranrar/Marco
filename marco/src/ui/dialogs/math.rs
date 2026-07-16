@@ -15,13 +15,6 @@ use katex::{
 use sourceview5::{Buffer, View};
 use std::sync::OnceLock;
 
-#[cfg(target_os = "linux")]
-use webkit6::prelude::WebViewExt;
-
-#[cfg(target_os = "linux")]
-type PreviewSurface = webkit6::WebView;
-
-#[cfg(target_os = "windows")]
 type PreviewSurface = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 static KATEX_CONTEXT: OnceLock<KatexContext> = OnceLock::new();
@@ -44,14 +37,8 @@ fn is_debug_mode_enabled() -> bool {
     }
 }
 
-#[cfg(target_os = "linux")]
 fn preview_backend_label() -> &'static str {
-    "Preview backend: Linux WebKit"
-}
-
-#[cfg(target_os = "windows")]
-fn preview_backend_label() -> &'static str {
-    "Preview backend: Windows Wry"
+    "Preview backend: wry"
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -328,12 +315,6 @@ fn preview_text_color_for_theme(theme_class: &str) -> &'static str {
     }
 }
 
-#[cfg(target_os = "linux")]
-fn load_preview_document(surface: &PreviewSurface, html: String) {
-    crate::components::viewer::backend::load_html_when_ready(surface, html, None);
-}
-
-#[cfg(target_os = "windows")]
 fn load_preview_document(surface: &PreviewSurface, html: String) {
     surface.load_html_with_base(&html, None);
 }
@@ -527,24 +508,11 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         .build();
     preview_scroll.add_css_class("marco-textfield-scroll");
 
-    #[cfg(target_os = "linux")]
-    let preview_surface: std::rc::Rc<PreviewSurface> = {
-        let webview = webkit6::WebView::new();
-        webview.set_hexpand(true);
-        webview.set_vexpand(true);
-        let (_, rgba) = preview_background_for_theme(&theme_class_state.borrow());
-        webview.set_background_color(&rgba);
-        preview_scroll.set_child(Some(&webview));
-        std::rc::Rc::new(webview)
-    };
-
-    #[cfg(target_os = "windows")]
     let preview_surface: Option<std::rc::Rc<PreviewSurface>> = {
-        // `PlatformWebView::new` now accepts any `IsA<gtk4::Window>`, so dialog
-        // parents that are plain `Window`s (not `ApplicationWindow`) no longer
-        // need to fall back to a `Label`. We keep the `Option` wrapper here so
-        // downstream code that already uses `if let Some(surface) = ...` keeps
-        // compiling untouched.
+        // `PlatformWebView::new` accepts any `IsA<gtk4::Window>`, so dialog
+        // parents that are plain `Window`s (not `ApplicationWindow`) work
+        // directly. The `Option` wrapper is historical; downstream code uses
+        // `if let Some(surface) = ...`.
         let webview = crate::components::viewer::wry_platform_webview::PlatformWebView::new(parent);
         let (_, rgba) = preview_background_for_theme(&theme_class_state.borrow());
         webview.set_background_color_rgba(&rgba);
@@ -662,10 +630,6 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         let status_waiting_text = status_waiting_text.clone();
         let status_valid_text = status_valid_text.clone();
 
-        #[cfg(target_os = "linux")]
-        let preview_surface = preview_surface.clone();
-
-        #[cfg(target_os = "windows")]
         let preview_surface = preview_surface.clone();
 
         move || {
@@ -679,10 +643,6 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
                 status_label.set_text(&status_waiting_text);
                 insert_button.set_sensitive(false);
 
-                #[cfg(target_os = "linux")]
-                load_preview_document(&preview_surface, empty_preview_document(&theme_class));
-
-                #[cfg(target_os = "windows")]
                 if let Some(surface) = &preview_surface {
                     load_preview_document(surface, empty_preview_document(&theme_class));
                 }
@@ -702,10 +662,6 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
                     insert_button.set_sensitive(true);
 
                     if let Ok(html) = render_math_preview_document(&expr, mode, &theme_class) {
-                        #[cfg(target_os = "linux")]
-                        load_preview_document(&preview_surface, html);
-
-                        #[cfg(target_os = "windows")]
                         if let Some(surface) = &preview_surface {
                             load_preview_document(surface, html);
                         }
@@ -716,13 +672,6 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
                     // Keep insert enabled for power users who may want to insert incomplete math.
                     insert_button.set_sensitive(true);
 
-                    #[cfg(target_os = "linux")]
-                    load_preview_document(
-                        &preview_surface,
-                        error_preview_document(&theme_class, &err),
-                    );
-
-                    #[cfg(target_os = "windows")]
                     if let Some(surface) = &preview_surface {
                         load_preview_document(surface, error_preview_document(&theme_class, &err));
                     }
@@ -800,9 +749,6 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         let category_combo = category_combo.clone();
         let snippet_combo = snippet_combo.clone();
         let update_status = update_status.clone();
-        #[cfg(target_os = "linux")]
-        let preview_surface = preview_surface.clone();
-        #[cfg(target_os = "windows")]
         let preview_surface = preview_surface.clone();
 
         parent_widget.connect_notify_local(Some("css-classes"), move |widget, _| {
@@ -833,9 +779,6 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
             snippet_combo.add_css_class(next_theme);
 
             let (_, rgba) = preview_background_for_theme(next_theme);
-            #[cfg(target_os = "linux")]
-            preview_surface.set_background_color(&rgba);
-            #[cfg(target_os = "windows")]
             if let Some(surface) = &preview_surface {
                 surface.set_background_color_rgba(&rgba);
             }

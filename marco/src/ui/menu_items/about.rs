@@ -372,8 +372,9 @@ mod tests {
 
     #[test]
     fn smoke_test_about_dialog_creation() {
-        // GTK initialization required for dialog creation
-        if gtk4::is_initialized() {
+        // GTK objects may only be created on the thread that initialized GTK
+        // (another test may have initialized it on a different worker thread).
+        if gtk4::is_initialized_main_thread() {
             let window = gtk4::Window::new();
 
             // Should not panic

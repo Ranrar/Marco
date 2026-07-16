@@ -10,28 +10,17 @@ use std::sync::{Mutex, OnceLock};
 
 use super::wry_platform_webview::PlatformWebView;
 
-// Thread-safe global to store the latest preview HTML so detached preview windows
-// can read it when they start.
+// Thread-safe global to store the latest preview HTML so detached preview
+// windows (and the Windows export restore path) can read it when they start.
+// Written by `backend::record_latest_preview` on every full preview load.
 pub(crate) static LATEST_PREVIEW_HTML: OnceLock<Mutex<String>> = OnceLock::new();
 
-// Thread-safe global to store the latest clean live-preview HTML (no scroll-sync JS)
-// for "Save as HTML" export.
-pub(crate) static LATEST_LIVE_HTML: OnceLock<Mutex<String>> = OnceLock::new();
-
-fn latest_live_html_mutex() -> &'static Mutex<String> {
-    LATEST_LIVE_HTML.get_or_init(|| Mutex::new(String::new()))
-}
-
-/// Store the clean live-preview HTML (no wheel_js / scroll-report JS) for export.
-pub(crate) fn set_latest_live_html(html: &str) {
-    if let Ok(mut guard) = latest_live_html_mutex().lock() {
-        *guard = html.to_string();
-    }
-}
-
-/// Retrieve the clean live-preview HTML for "Save as HTML" export.
-pub fn get_latest_live_html() -> String {
-    latest_live_html_mutex()
+/// Retrieve the most recent full preview document recorded by
+/// [`crate::components::viewer::backend::record_latest_preview`].
+#[allow(dead_code)] // Read by Windows-only export/detached-window code.
+pub fn get_latest_preview_html() -> String {
+    LATEST_PREVIEW_HTML
+        .get_or_init(|| Mutex::new(String::new()))
         .lock()
         .ok()
         .map(|g| g.clone())
@@ -52,29 +41,9 @@ pub(crate) fn set_latest_preview_base_uri(base_uri: Option<String>) {
     }
 }
 
+#[allow(dead_code)] // Read by Windows-only detached-window code.
 pub(crate) fn get_latest_preview_base_uri() -> Option<String> {
     latest_base_uri_mutex().lock().ok().and_then(|g| g.clone())
-}
-
-/// Wraps HTML body into a full document (delegates to core renderer);
-/// kept for API compatibility.
-pub fn wrap_html_document(
-    body: &str,
-    css: &str,
-    theme_mode: &str,
-    background_color: Option<&str>,
-) -> String {
-    let html =
-        marco_core::render::wrap_preview_html_document(body, css, theme_mode, background_color);
-    // Always keep <html dir="ltr"> so the WebKit viewport scrollbar stays on the right,
-    // consistent with the editor/TOC scrollbar behaviour.  For RTL documents, inject
-    // dir="rtl" on <body> instead — content flows RTL while the scrollbar stays right.
-    let html = html.replacen("<html ", "<html dir=\"ltr\" ", 1);
-    if crate::logic::rtl::is_rtl_global() {
-        html.replacen("<body>", "<body dir=\"rtl\">", 1)
-    } else {
-        html
-    }
 }
 
 /// Generate a file:// base URI from a document path for resolving relative paths.
@@ -84,14 +53,20 @@ pub fn generate_base_uri_from_path<P: AsRef<std::path::Path>>(document_path: P) 
             .canonicalize()
             .unwrap_or_else(|_| parent_dir.to_path_buf());
 
-        // Windows file URIs must start with file:/// and use forward slashes.
-        // Also ensure a trailing slash so relative URLs resolve under the directory.
+        // File URIs use forward slashes and a trailing slash so relative URLs
+        // resolve under the directory. Unix absolute paths already start with
+        // '/' (file:///home/...); Windows drive paths need one added
+        // (file:///C:/...).
         let mut s = absolute_parent.to_string_lossy().replace('\\', "/");
         if !s.ends_with('/') {
             s.push('/');
         }
 
-        return Some(format!("file:///{}", s));
+        return if s.starts_with('/') {
+            Some(format!("file://{}", s))
+        } else {
+            Some(format!("file:///{}", s))
+        };
     }
     None
 }

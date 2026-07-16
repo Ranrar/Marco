@@ -21,7 +21,6 @@
 //! ```
 //!
 #[cfg(target_os = "linux")]
-use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 /// The `toc_paned` position (= panel width) is auto-sized to fit the widest
@@ -223,20 +222,6 @@ impl TocPanelHandle {
                             }})();"#,
                             slug = slug,
                         );
-                        #[cfg(target_os = "linux")]
-                        crate::components::editor::editor_manager::with_primary_preview_webview(
-                            |wv| {
-                                use webkit6::prelude::WebViewExt as _;
-                                wv.evaluate_javascript(
-                                    &js,
-                                    None,
-                                    None,
-                                    None::<&gio::Cancellable>,
-                                    |_| {},
-                                );
-                            },
-                        );
-                        #[cfg(target_os = "windows")]
                         crate::components::editor::editor_manager::with_primary_preview_webview(
                             |wv| {
                                 wv.evaluate_script(&js);

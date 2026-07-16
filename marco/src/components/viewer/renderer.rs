@@ -171,11 +171,13 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                 None,
                 &page_opts,
             );
+            backend::record_latest_preview(&html, base_uri.as_deref());
             backend::load_html_when_ready(&webview, html, base_uri);
         } else {
             let html_body_with_js = generate_test_html(wheel_js_str);
             let html =
                 backend::wrap_html_document(&html_body_with_js, &combined_css, &theme_mode, None);
+            backend::record_latest_preview(&html, base_uri.as_deref());
             backend::load_html_when_ready(&webview, html, base_uri);
         }
 
@@ -227,6 +229,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                         None,
                         &page_opts,
                     );
+                    backend::record_latest_preview(&html, base_uri.as_deref());
                     backend::load_html_when_ready(&webview, html, base_uri);
                 } else {
                     // Normal mode: wrap with wheel JS for scroll sync, then load.
@@ -238,6 +241,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                         &theme_mode,
                         None,
                     );
+                    backend::record_latest_preview(&html, base_uri.as_deref());
                     backend::load_html_when_ready(&webview, html, base_uri);
                 }
             }
@@ -585,6 +589,7 @@ pub fn refresh_preview_content_sections(
                             "try{sessionStorage.setItem('marco-scroll',String(Math.round(window.scrollY)));}catch(e){}",
                         );
                         let full_html = backend::wrap_html_document(&body, &css, &theme_mode, None);
+                        backend::record_latest_preview(&full_html, base_uri.as_deref());
                         backend::load_html_when_ready(&webview, full_html, base_uri);
                         on_complete(new_hashes);
                     }

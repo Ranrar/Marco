@@ -258,12 +258,6 @@ pub fn get_current_layout_state() -> marco_shared::logic::layoutstate::LayoutSta
 
 // Primary preview WebView handle — stored after the editor+viewer are created.
 // Used by the TOC panel to scroll the live preview to a heading anchor.
-#[cfg(target_os = "linux")]
-thread_local! {
-    static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<webkit6::WebView>> = const { RefCell::new(None) };
-}
-
-#[cfg(target_os = "windows")]
 thread_local! {
     static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<crate::components::viewer::wry_platform_webview::PlatformWebView>> = const { RefCell::new(None) };
 }
@@ -310,19 +304,6 @@ fn fire_zoom_changed(zoom: f64) {
 
 /// Set the current preview zoom level (clamped to ZOOM_MIN..=ZOOM_MAX).
 /// Also applies the zoom to the registered primary WebView immediately.
-#[cfg(target_os = "linux")]
-pub fn set_preview_zoom(zoom: f64) {
-    use webkit6::prelude::WebViewExt;
-    let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
-    PREVIEW_ZOOM.with(|c| c.set(clamped));
-    with_primary_preview_webview(|wv| {
-        wv.set_zoom_level(clamped);
-    });
-    fire_zoom_changed(clamped);
-    log::debug!("[viewer] Preview zoom set to {:.1}", clamped);
-}
-
-#[cfg(target_os = "windows")]
 pub fn set_preview_zoom(zoom: f64) {
     let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
     PREVIEW_ZOOM.with(|c| c.set(clamped));
@@ -352,14 +333,6 @@ pub fn set_preview_zoom(zoom: f64) {
 }
 
 /// Register the primary preview WebView so other components can execute JavaScript in it.
-#[cfg(target_os = "linux")]
-pub fn set_primary_preview_webview(wv: &webkit6::WebView) {
-    PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
-        *cell.borrow_mut() = Some(wv.clone());
-    });
-}
-
-#[cfg(target_os = "windows")]
 pub fn set_primary_preview_webview(
     wv: &crate::components::viewer::wry_platform_webview::PlatformWebView,
 ) {
@@ -369,16 +342,6 @@ pub fn set_primary_preview_webview(
 }
 
 /// Execute `f` with the primary preview WebView if one has been registered.
-#[cfg(target_os = "linux")]
-pub fn with_primary_preview_webview<F: FnOnce(&webkit6::WebView)>(f: F) {
-    PRIMARY_PREVIEW_WEBVIEW.with(|cell| {
-        if let Some(ref wv) = *cell.borrow() {
-            f(wv);
-        }
-    });
-}
-
-#[cfg(target_os = "windows")]
 pub fn with_primary_preview_webview<
     F: FnOnce(&crate::components::viewer::wry_platform_webview::PlatformWebView),
 >(
@@ -400,7 +363,7 @@ pub fn set_primary_editor_scrolled_window(sw: &ScrolledWindow) {
 }
 
 /// Get the primary editor ScrolledWindow if it has been registered.
-#[cfg(target_os = "windows")]
+#[allow(dead_code)] // Read by Windows-only detached-window code.
 pub fn get_primary_editor_scrolled_window() -> Option<ScrolledWindow> {
     PRIMARY_EDITOR_SCROLLED_WINDOW.with(|cell| cell.borrow().clone())
 }

@@ -1,8 +1,25 @@
-//! Print and PDF export driver (Linux / WebKit6 only).
+//! Print and PDF export driver (Linux only).
 //!
 //! Wraps `webkit6::PrintOperation` with helpers for native print dialogs and
-//! silent PDF export.  All functions must be called on the GTK main thread
+//! silent PDF export. The raw WebKit view is obtained from the unified
+//! [`PreviewWebView`] wrapper via the wry fork's `WebViewExtUnix::webview()`
+//! escape hatch. All functions must be called on the GTK main thread
 //! (`PrintOperation` is `!Send + !Sync`).
+
+use crate::components::viewer::backend::PreviewWebView;
+
+/// Run `f` with the raw `webkit6::WebView` behind the unified wrapper, or log
+/// and skip when the webview has not been built yet (no HTML loaded).
+fn with_webkit_view<F: FnOnce(&webkit6::WebView)>(webview: &PreviewWebView, f: F) {
+    let inner = webview.inner.borrow();
+    match inner.as_ref() {
+        Some(view) => {
+            use wry::WebViewExtUnix;
+            f(&view.webview());
+        }
+        None => log::warn!("[print] operation requested before WebView is ready; ignoring"),
+    }
+}
 
 /// Map a paged.js paper name to the GTK/CUPS PPD media name so `PageSetup`
 /// gets the correct physical dimensions.
@@ -32,7 +49,7 @@ pub fn make_print_export_css(paper: &str, orientation: &str, dark_mode: bool) ->
 /// dialog *and* injected into the print CSS so paged.js output maps cleanly
 /// to PDF pages.  The user can still change paper in the dialog.
 pub fn trigger_print_dialog(
-    webview: &webkit6::WebView,
+    webview: &PreviewWebView,
     parent: Option<&gtk4::Window>,
     paper: &str,
     orientation: &str,
@@ -41,17 +58,19 @@ pub fn trigger_print_dialog(
     // Inject print-clean CSS (no title override needed for the interactive dialog).
     inject_export_css(webview, paper, orientation, "", dark_mode);
 
-    let print_op = webkit6::PrintOperation::new(webview);
+    with_webkit_view(webview, |wk| {
+        let print_op = webkit6::PrintOperation::new(wk);
 
-    // Set a default PageSetup so the dialog opens pre-configured for the
-    // correct paper and zero printer margins (paged.js margins are visual).
-    if !paper.is_empty() {
-        if let Some(page_setup) = build_page_setup(paper, orientation) {
-            print_op.set_page_setup(&page_setup);
+        // Set a default PageSetup so the dialog opens pre-configured for the
+        // correct paper and zero printer margins (paged.js margins are visual).
+        if !paper.is_empty() {
+            if let Some(page_setup) = build_page_setup(paper, orientation) {
+                print_op.set_page_setup(&page_setup);
+            }
         }
-    }
 
-    let _ = print_op.run_dialog(parent);
+        let _ = print_op.run_dialog(parent);
+    });
     remove_export_css(webview);
 }
 
@@ -61,7 +80,7 @@ pub fn trigger_print_dialog(
 /// uses the same page dimensions.  Pass empty strings to skip paper setup
 /// (e.g. for plain non-paged content).
 pub fn export_to_pdf<F>(
-    webview: &webkit6::WebView,
+    webview: &PreviewWebView,
     output_path: &std::path::Path,
     paper: &str,
     orientation: &str,
@@ -75,7 +94,8 @@ pub fn export_to_pdf<F>(
     };
     use std::sync::Arc;
 
-    let print_op = webkit6::PrintOperation::new(webview);
+    with_webkit_view(webview, move |wk| {
+    let print_op = webkit6::PrintOperation::new(wk);
     let settings = PrintSettings::new();
     settings.set(PRINT_SETTINGS_OUTPUT_FILE_FORMAT, Some("pdf"));
     let uri = format!("file://{}", output_path.display());
@@ -110,6 +130,7 @@ pub fn export_to_pdf<F>(
     print_op.connect_finished(move |_| on_done(Ok(())));
     print_op.connect_failed(move |_, err| on_done_fail(Err(err.to_string())));
     print_op.print();
+    });
 }
 
 /// Build a [`gtk4::PageSetup`] with the given paper and zero printer margins.
@@ -142,7 +163,7 @@ fn build_page_setup(paper: &str, orientation: &str) -> Option<gtk4::PageSetup> {
 /// `paper` / `orientation` are forwarded to [`make_print_export_css`] so the
 /// `@page { size }` directive matches the paged.js layout.
 pub fn inject_export_css(
-    webview: &webkit6::WebView,
+    webview: &PreviewWebView,
     paper: &str,
     orientation: &str,
     title: &str,
@@ -185,7 +206,7 @@ pub fn inject_export_css(
 }
 
 /// Remove the dynamically injected export CSS element from the WebView.
-pub fn remove_export_css(webview: &webkit6::WebView) {
+pub fn remove_export_css(webview: &PreviewWebView) {
     use crate::components::viewer::backend::evaluate_javascript;
     evaluate_javascript(
         webview,

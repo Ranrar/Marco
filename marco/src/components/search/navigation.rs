@@ -6,9 +6,6 @@ use super::state::*;
 use gtk4::prelude::*;
 use log::debug;
 
-#[cfg(target_os = "linux")]
-use webkit6::prelude::WebViewExt;
-
 /// Find the position of the match at or immediately after the cursor
 /// Returns the 0-based index of the match position, or None if no match found
 pub(crate) fn find_position_from_cursor() -> Option<i32> {
@@ -244,9 +241,8 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                     move || {
                         navigate_to_current_position();
 
-                        // Windows: advance the active preview match in sync with
+                        // Advance the active preview match in sync with
                         // the editor navigation direction.
-                        #[cfg(target_os = "windows")]
                         {
                             use super::state::CURRENT_PLATFORM_WEBVIEW;
                             CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
@@ -400,84 +396,7 @@ fn scroll_to_match(match_iter: &gtk4::TextIter) {
     });
 }
 
-/// Sync HTML preview scroll to match the given position (if scroll sync is enabled)
-#[cfg(target_os = "linux")]
-fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
-    // Check if scroll sync is enabled globally
-    use crate::components::editor::editor_manager::get_global_scroll_synchronizer;
-    if let Some(sync) = get_global_scroll_synchronizer() {
-        // Only sync if scroll synchronization is actually enabled
-        if !sync.is_enabled() {
-            debug!("Scroll sync is disabled, skipping preview scroll sync");
-            return;
-        }
-        // Access the WebView to perform sync
-        CURRENT_WEBVIEW.with(|webview_ref| {
-            if let Some(webview) = webview_ref.borrow().as_ref() {
-                // Calculate the scroll percentage based on the match position
-                CURRENT_BUFFER.with(|buffer_ref| {
-                    if let Some(buffer) = buffer_ref.borrow().as_ref() {
-                        let total_lines = buffer.line_count();
-                        let match_line = match_iter.line();
-
-                        // Calculate approximate scroll percentage
-                        // Position the match at about 30% from the top (same as editor scroll)
-                        let scroll_percentage = if total_lines > 1 {
-                            (match_line as f64 / (total_lines - 1) as f64).clamp(0.0, 1.0)
-                        } else {
-                            0.0
-                        };
-
-                        // Use JavaScript to scroll the WebView to the corresponding position
-                        let js_code = format!(
-                            r#"
-                            (function() {{
-                                if (window.__scroll_sync_guard) return;
-                                window.__scroll_sync_guard = true;
-
-                                const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-                                const targetScroll = {} * maxScroll;
-
-                                // Adjust to position the target at 30% from top (like editor)
-                                const viewportHeight = window.innerHeight;
-                                const adjustedScroll = Math.max(0, targetScroll - viewportHeight * 0.3);
-
-                                window.scrollTo({{
-                                    top: adjustedScroll,
-                                    behavior: 'smooth'
-                                }});
-
-                                setTimeout(() => {{
-                                    window.__scroll_sync_guard = false;
-                                }}, 150);
-                            }})();
-                            "#,
-                            scroll_percentage
-                        );
-
-                        // webkit6 0.5.0 uses async futures - extract inner WebView
-                        let webview_inner = webview.borrow().clone();
-                        let js = js_code.clone();
-                        glib::spawn_future_local(async move {
-                            let _ = webview_inner.evaluate_javascript_future(&js, None, None).await;
-                        });
-
-                        debug!(
-                            "Synced HTML preview scroll to line {} ({:.1}%)",
-                            match_line + 1,
-                            scroll_percentage * 100.0
-                        );
-                    }
-                });
-            } else {
-                debug!("No WebView available for preview scroll sync");
-            }
-        });
-    }
-}
-
-/// Sync HTML preview scroll via JS on Windows (wry/WebView2)
-#[cfg(target_os = "windows")]
+/// Sync HTML preview scroll to the match position via the JS bridge.
 fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
     use super::state::{CURRENT_BUFFER, CURRENT_PLATFORM_WEBVIEW};
     use crate::components::editor::editor_manager::get_global_scroll_synchronizer;

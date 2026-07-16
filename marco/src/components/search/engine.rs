@@ -272,9 +272,8 @@ pub fn perform_search(search_entry: &Entry, match_count_label: &Label, options: 
         }
     });
 
-    // Windows: also highlight all matches in the WebView preview using the JS
+    // Also highlight all matches in the WebView preview using the JS
     // find engine (CSS Custom Highlight API with window.find() fallback).
-    #[cfg(target_os = "windows")]
     {
         use super::state::CURRENT_PLATFORM_WEBVIEW;
         use crate::components::viewer::wry_find::{self, FindOptions};

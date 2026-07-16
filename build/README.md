@@ -18,7 +18,7 @@ build/
 
 ## Platform-Specific Builds
 
-### Linux (webkit6)
+### Linux (wry / GTK4-WebKit6)
 ```bash
 # Build Debian package (includes compilation with explicit target)
 bash build/linux/build_deb.sh --no-bump
@@ -54,12 +54,12 @@ bash build/linux/build_deb.sh --no-bump
 ```
 Marco Core (Pure Rust)
         ↓
-Platform Abstraction Layer
+   wry (unified webview)
         ↓
    ┌────────┴────────┐
    ↓                 ↓
-webkit6          wry/WebView2
-(Linux)           (Windows)
+GTK4/WebKit6      WebView2
+  (Linux)         (Windows)
 ```
 
 ## Dependencies

@@ -680,36 +680,22 @@ impl PlatformExportBackend for LinuxExportBackend {
         phase: ExportPhase,
         cancel: &'a CancelToken,
     ) -> BoxFuture<'a, Result<LifecycleEvent, ExportError>> {
-        use glib::object::ObjectExt;
         use std::cell::RefCell;
         use std::rc::Rc;
         use std::time::Instant;
-        use webkit6::prelude::WebViewExt;
 
-        // Shared one-shot slot — the title-notify handler writes here.
+        // Shared one-shot slot: the `marco_export:*` IPC callback writes here,
+        // the poll loop reads. The lifecycle bridge posts every event over
+        // `window.ipc.postMessage`, which the unified wry wrapper delivers on
+        // Linux and Windows alike (`layout_done` covers the old
+        // `mc_paged_ready` title signal — the bridge emits it itself).
         let slot: Rc<RefCell<Option<LifecycleEvent>>> = Rc::new(RefCell::new(None));
         let slot_write = slot.clone();
-        // notify::title is the same channel `mc_paged_ready` already uses
-        // for the live preview; we filter both `marco_export:*` (new bridge)
-        // and `mc_paged_ready` as the paged-ready signal from marco-core v1.1.0.
-        let handler_id = self.webview.connect_notify_local(Some("title"), {
-            let slot_write = slot_write.clone();
-            move |wv: &webkit6::WebView, _| {
-                let Some(t) = wv.title() else { return };
-                let title = t.as_str();
-                let evt = if let Some(e) = LifecycleEvent::parse(title) {
-                    Some(e)
-                } else if title == "mc_paged_ready" {
-                    // Paged-ready signal from marco-core v1.1.0 — treated as LayoutDone.
-                    Some(LifecycleEvent::LayoutDone)
-                } else {
-                    None
-                };
-                if let Some(evt) = evt {
-                    let mut borrow = slot_write.borrow_mut();
-                    if borrow.is_none() {
-                        *borrow = Some(evt);
-                    }
+        self.webview.set_export_event_listener(move |msg: String| {
+            if let Some(evt) = LifecycleEvent::parse(&msg) {
+                let mut borrow = slot_write.borrow_mut();
+                if borrow.is_none() {
+                    *borrow = Some(evt);
                 }
             }
         });
@@ -720,22 +706,21 @@ impl PlatformExportBackend for LinuxExportBackend {
             // rationale; same trade-off applies here.
             let poll = Duration::from_millis(100);
 
-            let result = loop {
+            loop {
                 if cancel.is_cancelled() {
-                    break Err(ExportError::Cancelled);
+                    self.webview.clear_export_event_listener();
+                    return Err(ExportError::Cancelled);
                 }
                 if let Some(evt) = slot.borrow_mut().take() {
-                    break Ok(evt);
+                    self.webview.clear_export_event_listener();
+                    return Ok(evt);
                 }
                 if Instant::now() >= deadline {
-                    break Err(ExportError::Timeout(phase));
+                    self.webview.clear_export_event_listener();
+                    return Err(ExportError::Timeout(phase));
                 }
                 gtk4::glib::timeout_future(poll).await;
-            };
-
-            // Always disconnect to avoid stale signals from later page loads.
-            self.webview.disconnect(handler_id);
-            result
+            }
         })
     }
 

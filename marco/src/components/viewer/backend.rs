@@ -1,20 +1,12 @@
 //! Cross-platform preview backend helpers.
 //!
-//! This module provides a thin abstraction over the platform-specific preview
-//! implementations so higher-level code can avoid calling `webkit6`/`wry`
-//! modules directly.
+//! Thin veneer over the unified wry-based [`PreviewWebView`] so higher-level
+//! code has one stable API for loading, patching, and scripting the preview.
 
-#[cfg(target_os = "windows")]
 use std::path::Path;
 
-/// Platform preview webview type.
-///
-/// - Linux: `webkit6::WebView`
-/// - Windows: `wry_platform_webview::PlatformWebView`
-#[cfg(target_os = "linux")]
-pub type PreviewWebView = webkit6::WebView;
-
-#[cfg(target_os = "windows")]
+/// Platform preview webview type — the unified wry-based wrapper
+/// (Linux: GTK4/WebKit6 via the gtk4-webkit6 wry fork; Windows: WebView2).
 pub type PreviewWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 pub fn wrap_html_document(
@@ -65,48 +57,37 @@ pub fn wrap_html_document_paged(
     }
 }
 
-#[cfg(target_os = "windows")]
 pub fn generate_base_uri_from_path<P: AsRef<Path>>(document_path: P) -> Option<String> {
     crate::components::viewer::wry::generate_base_uri_from_path(document_path)
 }
 
-#[cfg(target_os = "linux")]
-pub fn load_html_when_ready(webview: &PreviewWebView, html: String, base_uri: Option<String>) {
-    crate::components::viewer::webkit6::load_html_when_ready(webview, html, base_uri)
-}
-
-#[cfg(target_os = "windows")]
+/// Load a full HTML document into the preview. Creation/loading is deferred
+/// internally until the webview's container is mapped and allocated.
 pub fn load_html_when_ready(webview: &PreviewWebView, html: String, base_uri: Option<String>) {
     webview.load_html_with_base(&html, base_uri.as_deref());
 }
 
-#[cfg(target_os = "linux")]
-pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
-    crate::components::viewer::webkit6::update_html_content_smooth(webview, content)
+/// Record the most recent full preview document (and its base URI) so the
+/// detached preview window can rebuild content without a live webview
+/// reference. Call whenever a full preview document is loaded.
+pub fn record_latest_preview(html: &str, base_uri: Option<&str>) {
+    if let Ok(mut guard) = crate::components::viewer::wry::LATEST_PREVIEW_HTML
+        .get_or_init(|| std::sync::Mutex::new(String::new()))
+        .lock()
+    {
+        *guard = html.to_string();
+    }
+    crate::components::viewer::wry::set_latest_preview_base_uri(base_uri.map(str::to_string));
 }
 
-/// Windows: patch the live preview's `mc-content-container` via the wry
-/// WebView's JS bridge, preserving scroll position. Mirrors the Linux helper —
-/// see [`crate::components::viewer::wry_platform_webview::PlatformWebView::update_html_content_smooth`].
-///
-/// `#[allow(dead_code)]` because the cross-platform `renderer` module is still
-/// Linux-gated (see Step 4 of the webkit6→wry parity plan). Once `renderer`
-/// dispatches via the `PreviewBackend` trait this attribute can be removed.
-#[cfg(target_os = "windows")]
-#[allow(dead_code)]
+/// Patch the live preview's `mc-content-container` in place via the JS
+/// bridge, preserving scroll position (no full reload, no white flash).
 pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     webview.update_html_content_smooth(content);
 }
 
 /// Evaluate a JavaScript snippet in the live preview webview.
 /// Used to update page-level attributes (e.g. `dir`) without a full reload.
-#[cfg(target_os = "linux")]
-pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
-    use webkit6::prelude::WebViewExt;
-    webview.evaluate_javascript(js, None, None, None::<&gtk4::gio::Cancellable>, |_| {});
-}
-
-#[cfg(target_os = "windows")]
 pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
     webview.evaluate_script(js);
 }

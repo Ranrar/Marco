@@ -6,8 +6,8 @@ Marco uses a Cargo workspace with three crates plus an external dependency:
 
 - **marco-core** — Pure Rust library with the nom-based parser, AST builder, HTML renderer, and language-intelligence features (highlights, diagnostics, completions, hover). **Lives in its own repository** ([Ranrar/marco-core](https://github.com/Ranrar/marco-core)) and is consumed from crates.io. The pinned version is declared in the workspace `Cargo.toml` under `[workspace.dependencies.marco-core]`.
 - **marco-shared** — Shared application logic: buffer management, settings, paths, file loaders, and layout state. Depends on `marco-core`. Located in `marco-shared/`. Also owns the centralized assets and the `build.rs` that copies them into `target/*/marco_assets/`.
-- **marco** — Full-featured GTK4 editor binary with SourceView5 text editing and WebKit6 preview. Depends on `marco-core` and `marco-shared`. Located in `marco/`.
-- **polo** — Lightweight viewer-only binary with WebKit6 preview but no text editing (no SourceView5). Depends on `marco-core` and `marco-shared`. Located in `polo/`.
+- **marco** — Full-featured GTK4 editor binary with SourceView5 text editing and a wry-based preview (GTK4/WebKit6 on Linux, WebView2 on Windows). Depends on `marco-core` and `marco-shared`. Located in `marco/`.
+- **polo** — Lightweight viewer-only binary with the same wry-based preview but no text editing (no SourceView5). Depends on `marco-core` and `marco-shared`. Located in `polo/`.
 
 Assets (themes, icons, settings, language files) live in `marco-shared/src/assets/`.
 
@@ -54,7 +54,7 @@ Marco uses a three-layer design:
   - Shared (GTK-free) app logic lives in `marco-shared/src/` (buffer, settings, paths, loaders).
   - UI-specific logic lives in `marco/src/logic/` (GTK-dependent signal management and menu handlers).
 
-The `marco-core` crate handles markdown parsing and HTML rendering using a nom-based parser. The editor is a split-pane composed of a SourceView-based text buffer and a WebKit6-based HTML preview. Changes in the buffer trigger live re-rendering: text is fed into `marco_core::parser::parse` to build an AST, which is then rendered to HTML by `marco_core::render::render`, with proper image path resolution applied by `marco-shared`/`marco`.
+The `marco-core` crate handles markdown parsing and HTML rendering using a nom-based parser. The editor is a split-pane composed of a SourceView-based text buffer and a wry-based HTML preview (single backend on both platforms). Changes in the buffer trigger live re-rendering: text is fed into `marco_core::parser::parse` to build an AST, which is then rendered to HTML by `marco_core::render::render`, with proper image path resolution applied by `marco-shared`/`marco`.
 
 ## Embedding & API (main integration points)
 
@@ -62,7 +62,7 @@ These functions are useful when embedding the editor widget or integrating with 
 
 - `create_editor_with_preview_and_buffer(preview_theme_filename, preview_theme_dir, theme_manager, theme_mode, document_buffer)`
   - Returns: `(Paned, WebView, css_rc, refresh_preview, update_editor_theme, update_preview_theme, buffer, insert_mode_state, set_view_mode)`
-  - Notes: Add the returned `Paned` to your window. Call `refresh_preview()` to re-render and `update_editor_theme(scheme_id)` / `update_preview_theme(scheme_id)` to change themes at runtime. The `document_buffer` parameter should be a `DocumentBuffer` for file path management and WebKit6 base URI support.
+  - Notes: Add the returned `Paned` to your window. Call `refresh_preview()` to re-render and `update_editor_theme(scheme_id)` / `update_preview_theme(scheme_id)` to change themes at runtime. The `document_buffer` parameter should be a `DocumentBuffer` for file path management and preview base-URI support.
 
 - `render_editor_with_view(style_scheme, font_family, font_size_pt)`
   - Returns: `(container, buffer, source_view)`

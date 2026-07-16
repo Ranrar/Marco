@@ -145,7 +145,7 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 - **SourceView5** (`sourceview5`) - Editor component with syntax highlighting and code-friendly text features.
   Powers the Markdown editing area (line numbers, search/replace, formatting aids).
 
-- **WebKit6 / WebView2** - HTML preview engine (`webkit6` on Linux, `wry`/WebView2 on Windows).
+- **wry** - Unified HTML preview engine on both platforms (the [gtk4-webkit6 fork](https://github.com/Ranrar/wry/tree/gtk4-webkit6): GTK4/WebKit6 on Linux, WebView2 on Windows).
   Renders live preview with local images, CSS themes, and scroll-sync interactions.
 
 - **nom** (`nom`) - Parser combinator library used for Marco's custom Markdown grammar.

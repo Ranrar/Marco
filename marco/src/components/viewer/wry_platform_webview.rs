@@ -1,11 +1,19 @@
-//! Windows-specific PlatformWebView using `wry` (WebView2) embedded as a child
-//! window inside the GTK `ApplicationWindow`.
+//! Cross-platform `PlatformWebView` built on the gtk4-webkit6 fork of `wry`.
 //!
-//! This mirrors the approach used in `polo` so Marco's preview can embed a
-//! `wry::WebView` on Windows (using Win32 HWND obtained from GDK surface) and
-//! avoid spawning a separate tao EventLoop thread.
-
-// Note: this module is conditionally compiled from `components::viewer::mod`.
+//! One wrapper, two embedding strategies:
+//!
+//! - **Linux**: the fork's WebKitGTK backend is a native GTK4 widget —
+//!   `WebViewBuilderExtUnix::build_gtk` appends it into `self.container`.
+//!   HTML with a base URI is loaded through the `WebViewExtUnix::webview()`
+//!   escape hatch (`webkit load_html(html, base)`), because wry's portable
+//!   `load_html` cannot carry a base URI for relative `file://` assets.
+//! - **Windows**: WebView2 embedded as a child Win32 window (HWND obtained
+//!   from the GDK surface). HTML is served through a custom protocol so the
+//!   IPC `Source` URL is never empty (a wry/WebView2 panic otherwise), and a
+//!   tick callback keeps the HWND aligned with the GTK container.
+//!
+//! Everything above construction/loading — IPC routing, scroll-sync, hover,
+//! find, state snapshots, smooth content updates — is a single code path.
 
 use gtk4::prelude::*;
 use std::cell::RefCell;
@@ -95,31 +103,41 @@ impl Drop for IdGuard {
 /// On Windows, wry maps this to `http://marco-preview.localhost/` so the
 /// IPC `Source` URL is never empty (which would otherwise cause a panic in
 /// wry 0.55 when using `NavigateToString`).
+#[cfg(target_os = "windows")]
 const CUSTOM_SCHEME: &str = "marco-preview";
 
 /// URL used only for the initial WebViewBuilder `.with_url()` call.
 /// wry applies the custom-protocol workaround during `build()`, translating
 /// `marco-preview://localhost/` → `http://marco-preview.localhost/`.
+#[cfg(target_os = "windows")]
 const CONTENT_URL_BUILDER: &str = "marco-preview://localhost/";
 
 /// URL used for subsequent `WebView::load_url()` calls.
 /// wry's URI workaround is NOT applied by `load_url` — it only runs at build time —
 /// so we must use the already-transformed HTTP form directly, otherwise
 /// `Navigate("marco-preview://localhost/")` silently fails and the page never refreshes.
+#[cfg(target_os = "windows")]
 const CONTENT_URL_RELOAD_BASE: &str = "http://marco-preview.localhost/";
 
-/// Windows PlatformWebView wrapper
+/// Cross-platform PlatformWebView wrapper
 #[derive(Clone)]
 pub struct PlatformWebView {
     /// Reference-counted RAII guard for this instance's `WEBVIEW_HTML_MAP`
     /// slot. The map entry is removed when the last clone is dropped — see
-    /// [`IdGuard::drop`]. Access the id directly via `self.id()`.
+    /// [`IdGuard::drop`]. Only the Windows custom-protocol path reads the id.
+    #[allow(dead_code)]
     id_guard: Rc<IdGuard>,
     /// Monotonically increasing counter appended to the reload URL as `?v=N`.
     /// Each increment produces a unique URL so WebView2 cannot serve a cached response.
+    #[cfg(target_os = "windows")]
     load_version: Rc<std::cell::Cell<u64>>,
+    /// HTML + base URI waiting for the deferred first build (Linux). Once the
+    /// webview exists, loads go straight through the webkit escape hatch.
+    #[cfg(target_os = "linux")]
+    pending_load: Rc<RefCell<Option<(String, Option<String>)>>>,
     pub inner: std::rc::Rc<std::cell::RefCell<Option<wry::WebView>>>,
     pub container: gtk4::Box,
+    #[cfg(target_os = "windows")]
     parent_handle: std::rc::Rc<ParentWindowHandle>,
     pub bg_color: std::rc::Rc<std::cell::Cell<(u8, u8, u8, u8)>>,
     /// Top-level GTK window hosting this preview. Stored as `gtk4::Window`
@@ -158,14 +176,14 @@ pub struct PlatformWebView {
 }
 
 impl PlatformWebView {
-    /// Construct a new Windows `PlatformWebView` parented to any GTK4 top-level
+    /// Construct a new `PlatformWebView` parented to any GTK4 top-level
     /// window (`ApplicationWindow`, plain `Window`, dialog `Window`, ...).
     ///
-    /// Previously this required `&gtk4::ApplicationWindow`, which forced dialog
-    /// hosts to downcast and fall back to a `Label` when the parent was a plain
-    /// `gtk4::Window`. Accepting `&impl IsA<gtk4::Window>` removes that
-    /// degraded path because `gtk4::Window` already implements `Native`, which
-    /// is what we actually need for `gdk_win32_surface_get_handle`.
+    /// On Linux the window handle is only kept for API parity — the webview
+    /// itself is built into `self.container` as a native GTK child. On
+    /// Windows the window's Win32 HWND hosts the WebView2 child window,
+    /// which is why this accepts `&impl IsA<gtk4::Window>` (`gtk4::Window`
+    /// implements `Native`, needed for `gdk_win32_surface_get_handle`).
     pub fn new(window: &impl IsA<gtk4::Window>) -> Self {
         use gtk4::prelude::WidgetExt;
 
@@ -179,6 +197,7 @@ impl PlatformWebView {
 
         // Assign a unique ID to this instance
         let id = WEBVIEW_ID_COUNTER.fetch_add(1, Ordering::Relaxed);
+        #[cfg(target_os = "windows")]
         let load_version: Rc<std::cell::Cell<u64>> = Rc::new(std::cell::Cell::new(0));
 
         // Default fallback container & state
@@ -211,6 +230,7 @@ impl PlatformWebView {
         }
 
         // Attempt to obtain parent HWND and parent_handle; on failure, keep inner None
+        #[cfg(target_os = "windows")]
         let parent_handle_rc = match (|| {
             // Get the GDK surface from the GTK window
             let surface = window.surface()?;
@@ -266,6 +286,10 @@ impl PlatformWebView {
         // Keep WebView bounds in sync with GTK container on every frame.
         // Use `compute_point` to translate container origin into the window's
         // coordinate system so positioning matches Win32 expectations.
+        // Linux needs none of this — the webview is a real GTK child widget
+        // and the layout system sizes it.
+        #[cfg(target_os = "windows")]
+        {
         let webview_for_tick = webview.clone();
         let container_weak = container.downgrade();
         let window_weak = window.downgrade();
@@ -325,12 +349,17 @@ impl PlatformWebView {
             }
             gtk4::glib::ControlFlow::Continue
         });
+        }
 
         Self {
             id_guard: Rc::new(IdGuard(id)),
+            #[cfg(target_os = "windows")]
             load_version,
+            #[cfg(target_os = "linux")]
+            pending_load: Rc::new(RefCell::new(None)),
             inner: webview,
             container,
+            #[cfg(target_os = "windows")]
             parent_handle: parent_handle_rc,
             bg_color,
             gtk_window: window.clone(),
@@ -424,8 +453,12 @@ impl PlatformWebView {
     /// offscreen hook that is wired up in `editor/ui.rs`.
     pub fn set_offscreen_for_loading(&self, offscreen: bool) {
         self.is_offscreen_for_loading.set(offscreen);
-        // Immediately push the HWND off-screen so we don't wait for the next
-        // tick-callback iteration (~16 ms) before the GTK overlay becomes visible.
+        // Linux: no-op beyond recording the flag — the loading overlay is a
+        // real GTK overlay above a real GTK webview widget, so nothing needs
+        // to move. Windows: immediately push the HWND off-screen so we don't
+        // wait for the next tick-callback iteration (~16 ms) before the GTK
+        // overlay becomes visible.
+        #[cfg(target_os = "windows")]
         if offscreen {
             if let Some(view) = self.inner.borrow().as_ref() {
                 let alloc = self.container.allocation();
@@ -471,6 +504,56 @@ impl PlatformWebView {
     }
 
     pub fn load_html_with_base(&self, html: &str, base_uri: Option<&str>) {
+        #[cfg(target_os = "linux")]
+        {
+            // WebKit natively supports a base URI on load_html — go through
+            // the fork's escape hatch, which is the only load path that can
+            // resolve relative file:// assets (wry's portable load_html
+            // always passes base = None).
+            if let Some(view) = self.inner.borrow().as_ref() {
+                use wry::WebViewExtUnix;
+                webkit6::prelude::WebViewExt::load_html(&view.webview(), html, base_uri);
+                return;
+            }
+
+            // Defer first-time creation until the GTK container is mapped and
+            // allocated, mirroring the Windows path (~4.8 s budget, 60 fps).
+            // Only the newest pending content is kept.
+            *self.pending_load.borrow_mut() =
+                Some((html.to_string(), base_uri.map(str::to_string)));
+            let me = self.clone();
+            crate::components::viewer::allocation_wait::run_when_allocated(
+                &self.container,
+                crate::components::viewer::allocation_wait::DEFAULT_MAX_RETRIES,
+                move || {
+                    // A previous deferred load may have already built the
+                    // webview — just flush the newest pending content.
+                    if me.inner.borrow().is_some() {
+                        let pending = me.pending_load.borrow_mut().take();
+                        if let (Some((html, base)), Some(view)) =
+                            (pending, me.inner.borrow().as_ref())
+                        {
+                            use wry::WebViewExtUnix;
+                            webkit6::prelude::WebViewExt::load_html(
+                                &view.webview(),
+                                &html,
+                                base.as_deref(),
+                            );
+                        }
+                        return;
+                    }
+                    me.build_initial_webview();
+                },
+            );
+            return;
+        }
+
+        #[cfg(target_os = "windows")]
+        self.load_html_with_base_windows(html, base_uri);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn load_html_with_base_windows(&self, html: &str, base_uri: Option<&str>) {
         let final_html = if let Some(base) = base_uri {
             inject_base_href(html, base)
         } else {
@@ -523,8 +606,9 @@ impl PlatformWebView {
         );
     }
 
-    /// Build the wry `WebView` for the first time and install it as a child
-    /// Win32 window inside `self.container`. Must only be called when:
+    /// Build the wry `WebView` for the first time — on Linux as a native GTK
+    /// child of `self.container` (`build_gtk`), on Windows as a child Win32
+    /// window inside it. Must only be called when:
     ///
     /// 1. `self.inner` is `None` (no existing WebView).
     /// 2. `self.container` is mapped and has `allocated_width/height > 1`.
@@ -532,6 +616,8 @@ impl PlatformWebView {
     /// Both preconditions are enforced by `load_html_with_base` via
     /// [`allocation_wait::run_when_allocated`].
     fn build_initial_webview(&self) {
+        #[cfg(target_os = "windows")]
+        let rect = {
         let alloc = self.container.allocation();
         let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
             (0.0, 0.0)
@@ -593,8 +679,13 @@ impl PlatformWebView {
         }
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
 
-        match wry::WebViewBuilder::new()
-            .with_background_color(self.bg_color.get())
+        rect
+        };
+
+        let builder = wry::WebViewBuilder::new().with_background_color(self.bg_color.get());
+
+        #[cfg(target_os = "windows")]
+        let builder = builder
             .with_bounds(rect)
             .with_url(CONTENT_URL_BUILDER)
             .with_custom_protocol(CUSTOM_SCHEME.to_string(), {
@@ -612,7 +703,9 @@ impl PlatformWebView {
                         .body(std::borrow::Cow::Owned(html_bytes))
                         .unwrap()
                 }
-            })
+            });
+
+        let builder = builder
             .with_ipc_handler({
                 let scroll_cb = self.scroll_report_callback.clone();
                 let export_cb = self.export_event_callback.clone();
@@ -749,9 +842,9 @@ impl PlatformWebView {
                         let inner = inner_for_print.clone();
                         gtk4::glib::MainContext::default().invoke_local(move || {
                             if let Some(view) = inner.borrow().as_ref() {
-                                if let Err(e) = show_system_print_ui(view) {
+                                if let Err(e) = native_print_dialog(view) {
                                     log::warn!(
-                                        "[wry] marco_print: ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                                        "[wry] marco_print: native print dialog failed ({}); falling back to wry view.print()",
                                         e
                                     );
                                     if let Err(e2) = view.print() {
@@ -792,12 +885,41 @@ impl PlatformWebView {
                     }
                     true
                 }
-            })
-            .build_as_child(&*self.parent_handle)
-        {
+            });
+
+        #[cfg(target_os = "windows")]
+        let built = builder.build_as_child(&*self.parent_handle);
+        #[cfg(target_os = "linux")]
+        let built = {
+            use wry::WebViewBuilderExtUnix;
+            builder.build_gtk(&self.container)
+        };
+
+        match built {
             Ok(view) => {
+                #[cfg(target_os = "linux")]
+                {
+                    use webkit6::prelude::*;
+                    use wry::WebViewExtUnix;
+                    let wk = view.webview();
+                    // Mirror the historical webkit6 backend configuration:
+                    // relative file:// assets must load from file:// documents.
+                    if let Some(settings) = WebViewExt::settings(&wk) {
+                        settings.set_allow_file_access_from_file_urls(true);
+                        settings.set_allow_universal_access_from_file_urls(true);
+                        settings.set_auto_load_images(true);
+                    }
+                    // Pin the widget direction to LTR so the WebKitGTK overlay
+                    // scrollbar stays on the physical right; content direction
+                    // is handled via <body dir="rtl"> in the HTML.
+                    gtk4::prelude::WidgetExt::set_direction(&wk, gtk4::TextDirection::Ltr);
+                    // Flush the HTML that triggered this deferred build.
+                    if let Some((html, base)) = self.pending_load.borrow_mut().take() {
+                        wk.load_html(&html, base.as_deref());
+                    }
+                }
                 *self.inner.borrow_mut() = Some(view);
-                log::info!("wry WebView successfully created as child for initial load");
+                log::info!("wry WebView successfully created for initial load");
             }
             Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
         }
@@ -902,15 +1024,16 @@ impl PlatformWebView {
     /// Trigger the browser print UI for the current page content.
     pub fn trigger_print_dialog(&self) {
         if let Some(view) = self.inner.borrow().as_ref() {
-            // Prefer the WebView2 native system print dialog (top-level Win32
-            // window owned by Marco) over wry's `view.print()`, which simply
-            // calls `window.print()` JS and renders the print preview *inside*
-            // the live preview area.
-            match show_system_print_ui(view) {
+            // Prefer the platform-native system print dialog: a WebKit
+            // PrintOperation dialog on Linux, and on Windows the WebView2
+            // system dialog (top-level Win32 window owned by Marco) rather
+            // than wry's `view.print()`, which simply calls `window.print()`
+            // JS and renders the print preview *inside* the live preview area.
+            match native_print_dialog(view) {
                 Ok(()) => return,
                 Err(e) => {
                     log::warn!(
-                        "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                        "native print dialog failed ({}); falling back to wry view.print()",
                         e
                     );
                 }
@@ -941,6 +1064,7 @@ impl PlatformWebView {
     ///
     /// Returns `Err` if the WebView is not initialized yet, the COM cast
     /// fails, or the PDF write does not succeed.
+    #[cfg(target_os = "windows")]
     pub fn print_to_pdf(
         &self,
         output_path: &std::path::Path,
@@ -962,6 +1086,21 @@ impl PlatformWebView {
     }
 }
 
+/// Open the platform-native print dialog for the current page.
+///
+/// - **Linux**: the fork's `print()` runs a WebKit `PrintOperation` dialog —
+///   the same native GTK dialog the old webkit6 backend used.
+/// - **Windows**: `ShowPrintUI(SYSTEM)` via WebView2 COM; call sites fall
+///   back to `view.print()` on older runtimes.
+fn native_print_dialog(view: &wry::WebView) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    return show_system_print_ui(view);
+    #[cfg(target_os = "linux")]
+    return view
+        .print()
+        .map_err(|e| format!("WebKit print dialog failed: {}", e));
+}
+
 /// Open the WebView2 *system* print dialog (top-level Win32 window owned by
 /// the host) instead of the in-WebView browser print preview that
 /// `wry::WebView::print()` triggers via `window.print()`.
@@ -970,6 +1109,7 @@ impl PlatformWebView {
 /// `ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)`.  Returns `Err` on
 /// older WebView2 runtimes that don't expose the v16 interface so the caller
 /// can fall back to the legacy path.
+#[cfg(target_os = "windows")]
 fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2_16, COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM,

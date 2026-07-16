@@ -23,12 +23,13 @@ librsvg = { workspace = true }
 cairo-rs = { workspace = true }
 gdk-pixbuf = { workspace = true }
 
+# Unified webview backend (gtk4-webkit6 wry fork on Linux, WebView2 on Windows)
+wry = { workspace = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wry = { workspace = true }
-tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
 rfd = "0.17.2"

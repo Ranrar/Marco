@@ -305,7 +305,9 @@ mod tests {
 
     #[test]
     fn smoke_test_titlebar_creation() {
-        if gtk4::is_initialized() {
+        // GTK objects may only be created on the thread that initialized GTK
+        // (another test may have initialized it on a different worker thread).
+        if gtk4::is_initialized_main_thread() {
             let window = Window::new();
             window.add_css_class("marco-theme-light");
 

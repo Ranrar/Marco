@@ -4,7 +4,6 @@
 )]
 
 #[cfg(target_os = "linux")]
-use webkit6::prelude::*;
 
 mod components;
 mod footer;
@@ -750,99 +749,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // When the user clicks a `file://...md` link in the preview (e.g. a relative link
     // to another document), intercept it, show a styled confirmation dialog that is
     // also aware of unsaved changes, then open the file in the editor.
-    #[cfg(target_os = "linux")]
     {
-        let file_ops_for_link = file_operations_rc.clone();
-        let window_for_link = window.clone();
-        let editor_buffer_for_link = editor_buffer.clone();
-        let dialog_translations_for_link = dialog_translations_rc.clone();
-        let title_label_for_link = title_label.clone();
-        let refresh_bookmarks_for_link = refresh_bookmark_marks.clone();
 
-        crate::components::viewer::webkit6::setup_local_file_link_handler(
-            &editor_webview.borrow(),
-            move |path, _fragment| {
-                let target_path = std::path::PathBuf::from(&path);
-                let filename = target_path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.clone());
-
-                let file_ops = file_ops_for_link.clone();
-                let window = window_for_link.clone();
-                let editor_buffer = editor_buffer_for_link.clone();
-                let dialog_translations_rc = dialog_translations_for_link.clone();
-                let title_label = title_label_for_link.clone();
-                let refresh_bookmark_marks = refresh_bookmarks_for_link.clone();
-
-                glib::MainContext::default().spawn_local(async move {
-                    // Check unsaved state before asking the user anything.
-                    let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
-                    let current_doc = file_ops.borrow().get_document_title();
-
-                    // Single styled dialog — handles both "open?" and "save first?" in one step.
-                    let gtk_window: &gtk4::Window = window.upcast_ref();
-                    let choice =
-                        crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
-                            gtk_window,
-                            &filename,
-                            has_unsaved,
-                            &current_doc,
-                        )
-                        .await;
-
-                    use crate::ui::dialogs::open_local_file::OpenLocalFileChoice;
-                    let save_decision = match choice {
-                        OpenLocalFileChoice::Cancel => return,
-                        OpenLocalFileChoice::Open | OpenLocalFileChoice::DiscardAndOpen => {
-                            crate::ui::menu_items::SaveChangesResult::Discard
-                        }
-                        OpenLocalFileChoice::SaveAndOpen => {
-                            crate::ui::menu_items::SaveChangesResult::Save
-                        }
-                    };
-
-                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
-                    let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                    let dialog_translations = dialog_translations_rc.borrow().clone();
-
-                    // Use an auto-decision callback so the internal save-changes prompt
-                    // inside open_file_by_path_from_rc_async is bypassed — the user has
-                    // already made their choice in the dialog above.
-                    let auto_cb = FileDialogs::auto_save_decision_callback(save_decision);
-                    let result = FileOperations::open_file_by_path_from_rc_async(
-                        &file_ops,
-                        &target_path,
-                        gtk_window,
-                        text_buffer,
-                        &dialog_translations,
-                        |w, doc_name, action| auto_cb(w, doc_name, action),
-                        |w, title, suggested| {
-                            FileDialogs::save_dialog_callback(dialog_translations.clone())(
-                                w, title, suggested,
-                            )
-                        },
-                    )
-                    .await;
-
-                    match result {
-                        Ok(_) => {
-                            title_label.set_text(&file_ops.borrow().get_document_title());
-                            refresh_bookmark_marks();
-                        }
-                        Err(e) => {
-                            log::warn!("[main] Failed to open linked file: {}", e);
-                        }
-                    }
-                    let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
-                });
-            },
-        );
-    }
-
-    // --- Local Markdown file link handler for the preview (Windows) ---
-    #[cfg(target_os = "windows")]
-    {
         let file_ops_for_link = file_operations_rc.clone();
         let window_for_link = window.clone();
         let editor_buffer_for_link = editor_buffer.clone();
@@ -1642,34 +1550,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
         let translations_rc = translations_rc.clone();
-        #[cfg(target_os = "linux")]
-        let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
-        #[cfg(target_os = "windows")]
-        let webview_win = editor_webview.clone();
+        let webview = editor_webview.clone();
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
-            #[cfg(target_os = "linux")]
-            {
-                use crate::ui::dialogs::search::show_search_window;
-                show_search_window(
-                    window.upcast_ref(),
-                    Rc::clone(&buffer),
-                    Rc::clone(&source_view),
-                    webview.clone(),
-                    &search_translations,
-                );
-            }
-            #[cfg(target_os = "windows")]
-            {
-                use crate::ui::dialogs::search::show_search_window_no_webview;
-                show_search_window_no_webview(
-                    window.upcast_ref(),
-                    Rc::clone(&buffer),
-                    Rc::clone(&source_view),
-                    webview_win.borrow().clone(),
-                    &search_translations,
-                );
-            }
+            use crate::ui::dialogs::search::show_search_window;
+            show_search_window(
+                window.upcast_ref(),
+                Rc::clone(&buffer),
+                Rc::clone(&source_view),
+                webview.borrow().clone(),
+                &search_translations,
+            );
         }
     });
     app.add_action(&search_action);
@@ -1689,7 +1580,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     );
 
     // Print action: opens the native GTK print dialog (Linux / WebKit6 only).
-    #[cfg(target_os = "linux")]
     {
         let print_action = gtk4::gio::SimpleAction::new("print", None);
         print_action.connect_activate({
@@ -1715,6 +1605,10 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     .unwrap_or("portrait")
                     .to_string();
                 let dark_mode = theme_mode.borrow().contains("dark");
+                // Same unified webview; only the print backend differs:
+                // WebKit PrintOperation dialog on Linux, WebView2 system
+                // print UI on Windows.
+                #[cfg(target_os = "linux")]
                 crate::components::viewer::print_driver::trigger_print_dialog(
                     &wv,
                     Some(window.upcast_ref()),
@@ -1722,44 +1616,16 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     &orientation,
                     dark_mode,
                 );
-            }
-        });
-        app.add_action(&print_action);
-        app.set_accels_for_action("app.print", &["<Control>p"]);
-    }
-
-    // Print action (Windows / wry): trigger WebView2 browser print UI.
-    #[cfg(target_os = "windows")]
-    {
-        let print_action = gtk4::gio::SimpleAction::new("print", None);
-        print_action.connect_activate({
-            let webview = editor_webview.clone();
-            let settings_manager = settings_manager.clone();
-            let theme_mode = theme_mode.clone();
-            move |_, _| {
-                let wv = webview.borrow();
-                // Read current page-view settings so the injected pre-print
-                // CSS matches the paged.js layout, mirroring the Linux path.
-                let s = settings_manager.get_settings();
-                let paper = s
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.page_view_paper.as_deref())
-                    .unwrap_or("A4")
-                    .to_string();
-                let orientation = s
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.page_view_orientation.as_deref())
-                    .unwrap_or("portrait")
-                    .to_string();
-                let dark_mode = theme_mode.borrow().contains("dark");
-                crate::components::viewer::print_driver_windows::trigger_print_dialog(
-                    &wv,
-                    &paper,
-                    &orientation,
-                    dark_mode,
-                );
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = &window;
+                    crate::components::viewer::print_driver_windows::trigger_print_dialog(
+                        &wv,
+                        &paper,
+                        &orientation,
+                        dark_mode,
+                    );
+                }
             }
         });
         app.add_action(&print_action);
@@ -2351,7 +2217,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                     // the export document so restore_live_html can
                                     // reload it at the end of the pipeline.
                                     let saved_live_html =
-                                        crate::components::viewer::wry::get_latest_live_html();
+                                        crate::components::viewer::wry::get_latest_preview_html();
                                     let backend = WindowsExportBackend::new(wv, saved_live_html);
                                     let request = ExportRequest {
                                         format: ExportFormat::Pdf,

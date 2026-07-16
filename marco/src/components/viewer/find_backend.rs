@@ -111,7 +111,6 @@ pub trait FindBackend {
 // Windows implementation
 // -------------------------------------------------------------------------
 
-#[cfg(target_os = "windows")]
 mod windows_impl {
     use super::{FindBackend, FindOptions, FindReport, FindReportCallback};
     use crate::components::viewer::wry_find;
@@ -175,81 +174,9 @@ mod windows_impl {
     }
 }
 
-#[cfg(target_os = "windows")]
 #[allow(unused_imports)] // Re-exported for the future search-window wiring.
 pub use windows_impl::WryFindBackend;
 
-// -------------------------------------------------------------------------
-// Linux implementation (placeholder)
-// -------------------------------------------------------------------------
-
-#[cfg(target_os = "linux")]
-mod linux_impl {
-    use super::{FindBackend, FindOptions, FindReport, FindReportCallback};
-    use std::cell::RefCell;
-    use std::rc::Rc;
-    use webkit6::WebView;
-
-    /// `FindBackend` placeholder for Linux. Holds a clone of the preview
-    /// `WebView` and stores the report callback, but does not yet drive
-    /// `webkit6::FindController` — that wiring lands when the search-window
-    /// UI starts exposing find-in-preview (tracked in §14.1 of the parity
-    /// audit). All methods are intentionally no-ops so the trait can be
-    /// constructed and stored today without changing user-visible behaviour.
-    pub struct WebKit6FindBackend {
-        _webview: WebView,
-        callback: Rc<RefCell<Option<FindReportCallback>>>,
-    }
-
-    impl WebKit6FindBackend {
-        pub fn new(webview: WebView) -> Self {
-            Self {
-                _webview: webview,
-                callback: Rc::new(RefCell::new(None)),
-            }
-        }
-    }
-
-    impl FindBackend for WebKit6FindBackend {
-        fn install(&self) {
-            // No-op: webkit6's FindController is always available on a live
-            // WebView; the upcoming UI wiring will obtain it on demand.
-        }
-
-        fn search(&self, _query: &str, _opts: FindOptions) {
-            // TODO(§14.1): translate `opts` into
-            // `webkit6::FindOptions::CASE_INSENSITIVE | AT_WORD_STARTS` and
-            // call `find_controller.search(query, opts, max_match_count)`.
-            // Emit a zero report so the trait contract is honoured.
-            if let Some(cb) = self.callback.borrow().as_ref() {
-                cb(FindReport::default());
-            }
-        }
-
-        fn next(&self) {
-            // TODO(§14.1): call `find_controller.search_next()`.
-        }
-
-        fn prev(&self) {
-            // TODO(§14.1): call `find_controller.search_previous()`.
-        }
-
-        fn clear(&self) {
-            // TODO(§14.1): call `find_controller.search_finish()`.
-            if let Some(cb) = self.callback.borrow().as_ref() {
-                cb(FindReport::default());
-            }
-        }
-
-        fn set_report_callback(&self, cb: FindReportCallback) {
-            *self.callback.borrow_mut() = Some(cb);
-        }
-    }
-}
-
-#[cfg(target_os = "linux")]
-#[allow(unused_imports)] // Re-exported for the future search-window wiring.
-pub use linux_impl::WebKit6FindBackend;
 
 // -------------------------------------------------------------------------
 // Tests

@@ -36,12 +36,14 @@ librsvg = "2"
 cairo-rs = "0.22.0"
 gdk-pixbuf = "0.22.0"
 
-# Platform-specific WebView dependencies
-# Linux: webkit6 (GTK4-native WebKit)
+# Unified WebView dependency (both platforms)
+# gtk4-webkit6 fork of wry: Linux backend is GTK4 + WebKit6 (same webkit6/gtk4
+# crate versions as the rest of the workspace); Windows backend is WebView2.
+# The exact commit is pinned by Cargo.lock; bump with `cargo update -p wry`.
+wry = { git = "https://github.com/Ranrar/wry", branch = "gtk4-webkit6", default-features = false, features = ["os-webview", "protocol"] }
+# Direct webkit6 dep (Linux): raw WebKit APIs not exposed through wry
+# (print, find controller) — slimmed down as the migration progresses.
 webkit6 = "0.6.1"
-# Windows: wry (cross-platform WebView wrapper)
-wry = { version = "0.55.0", default-features = false, features = ["os-webview", "protocol"] }
-tao = "0.35.0"
 gdk4-win32 = "0.11.0"
 raw-window-handle = "0.6.2"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }

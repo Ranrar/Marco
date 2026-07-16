@@ -5,8 +5,7 @@
 //!
 //! ## Entry Points
 //!
-//! - **Linux**: `show_search_window` - Full-featured search window with WebView integration
-//! - **Windows**: `show_search_window_no_webview` - Basic informational message
+//! - `show_search_window` - Search window with unified `PlatformWebView` preview sync
 //!
 //! ## Architecture
 //!
@@ -22,14 +21,10 @@ use crate::components::language::SearchTranslations;
 use gtk4::prelude::*;
 use gtk4::Window;
 use sourceview5::{Buffer, View};
-#[cfg(target_os = "linux")]
-use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(target_os = "windows")]
 use gtk4::Label;
 
-#[cfg(target_os = "windows")]
 use crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 // Re-export public API from the search component
@@ -37,41 +32,8 @@ pub use crate::components::search::{
     apply_enhanced_search_highlighting, clear_enhanced_search_highlighting, SearchOptions,
 };
 
-#[cfg(target_os = "linux")]
-use webkit6::WebView;
-
-/// Entry point for separate search window - shows search in a standalone window (Linux only)
-///
-/// Creates or reuses a singleton search window with full WebView integration for preview
-/// synchronization. The window is non-modal and allows interaction with the main application.
-#[cfg(target_os = "linux")]
+/// Entry point for the search window — search with unified WebView preview sync.
 pub fn show_search_window(
-    parent: &Window,
-    buffer: Rc<Buffer>,
-    source_view: Rc<View>,
-    webview: Rc<RefCell<WebView>>,
-    translations: &SearchTranslations,
-) {
-    // Initialize async manager for debouncing
-    crate::components::search::window::initialize_async_manager();
-
-    // Get or create the search window (singleton pattern)
-    let search_window = crate::components::search::window::get_or_create_search_window(
-        parent,
-        buffer,
-        source_view,
-        webview,
-        translations,
-    );
-
-    // Present the window and focus the search entry
-    search_window.present();
-    crate::components::search::window::focus_search_entry_in_window(&search_window);
-}
-
-/// Windows search window - provides search functionality with WebView preview sync
-#[cfg(target_os = "windows")]
-pub fn show_search_window_no_webview(
     parent: &Window,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
@@ -115,8 +77,7 @@ pub fn show_search_window_no_webview(
     window.present();
 }
 
-/// Create search window for Windows (without WebView)
-#[cfg(target_os = "windows")]
+/// Create the search window.
 fn create_windows_search_window(parent: &Window, translations: &SearchTranslations) -> Window {
     use crate::components::search::{ui::*, window::setup_window_behavior};
     use gtk4::{Align, Box as GtkBox, Orientation, WindowHandle};
@@ -268,7 +229,6 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
 }
 
 /// Window-control icon states (normal/hover/active)
-#[cfg(target_os = "windows")]
 #[derive(Clone, Copy, Debug)]
 enum WindowControlState {
     Normal,
@@ -278,7 +238,6 @@ enum WindowControlState {
 
 /// Render and apply a window-control SVG icon into a Picture, using the same palette
 /// colors as the main application window controls.
-#[cfg(target_os = "windows")]
 fn set_window_control_icon(
     pic: &gtk4::Picture,
     icon: marco_shared::logic::loaders::icon_loader::WindowIcon,
@@ -369,7 +328,6 @@ fn set_window_control_icon(
 }
 
 /// Create a close button that matches the main app's window control styling.
-#[cfg(target_os = "windows")]
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
@@ -501,17 +459,9 @@ mod tests {
         // Test passes if this compiles - functions are properly re-exported
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
-    fn smoke_test_linux_entry_point() {
-        // Verify the Linux entry point exists and is callable
+    fn smoke_test_entry_point() {
+        // Verify the unified entry point exists and is callable
         let _entry_point = show_search_window;
-    }
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn smoke_test_windows_entry_point() {
-        // Verify the Windows entry point exists and is callable
-        let _entry_point = show_search_window_no_webview;
     }
 }

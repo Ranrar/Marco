@@ -47,13 +47,14 @@ cairo-rs = { workspace = true }
 # Temp files for detached preview handling
 tempfile = { workspace = true }
 
+# Unified webview backend (gtk4-webkit6 wry fork on Linux, WebView2 on Windows)
+wry = { workspace = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
 glib-unix = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wry = { workspace = true }
-tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
 # Ctrl-C handler for graceful shutdown on Windows

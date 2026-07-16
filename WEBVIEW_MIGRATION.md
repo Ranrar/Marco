@@ -1,6 +1,6 @@
 # Webview Backend Unification: webkit6 + wry/WebView2 → wry (gtk4-webkit6 fork)
 
-**Status:** Planning — no code changes yet
+**Status:** Implemented on branch `unified-webviewer` (2026-07-16) — see §8 for outcome and follow-ups
 **Date:** 2026-07-14
 **Scope:** `marco`, `polo`, workspace `Cargo.toml`, CI, docs
 
@@ -259,3 +259,29 @@ leftover cfg'd module decls in `viewer/mod.rs`; fix stale module docs in
       still resolves WebView2 through wry.
 - [ ] `README.md`, `architecture.md`, and build docs describe a single
       wry-based preview engine.
+
+## 8. Outcome (2026-07-16, branch `unified-webviewer`)
+
+Implemented. `wry` (gtk4-webkit6 fork, locked to commit `ee1dc548`) is the
+single webview backend in both apps; `tao` deleted; `webkit6` remains a slim
+direct Linux dep for `PrintOperation` and the `load_html(html, base_uri)`
+escape hatch. `viewer/webkit6.rs` (~964 lines) deleted; dialogs, scroll-sync,
+find/search, hover, zoom, code view, export lifecycle, and the local-`.md`
+link handler are single code paths. Both apps build warning-free on Linux;
+`marco` 429/429 and `polo` 43/43 tests pass.
+
+Remaining `#[cfg(target_os = ...)]` splits are **strategy- or OS-specific,
+not backend selection**:
+
+- Detached preview window: Linux reparents the live webview
+  (`webkit6_detached_window` + `reparenting`), Windows rebuilds from the
+  recorded preview HTML (`wry_detached_window`, §14.3). Candidate for a
+  future merge via wry's `reparent` APIs — needs Windows testing.
+- Print/PDF: WebKit `PrintOperation` (Linux) vs WebView2 COM
+  `ShowPrintUI`/`PrintToPdf` (Windows); dispatched from shared actions.
+- The `export` action in `main.rs` is still one large cfg'd pair (both sides
+  already drive the unified `export_pipeline`) — follow-up cleanup.
+- Win32 HWND embedding, `rfd`/`ctrlc`, and file-dialog plumbing.
+
+Verification still owed: a Windows CI build/run, and manual feature passes on
+both platforms (§ Phase 10 of the plan).
