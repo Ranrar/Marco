@@ -32,6 +32,9 @@ pub use crate::components::search::{
     apply_enhanced_search_highlighting, clear_enhanced_search_highlighting, SearchOptions,
 };
 
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
 /// Entry point for the search window — search with unified WebView preview sync.
 pub fn show_search_window(
     parent: &Window,
@@ -150,12 +153,7 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
             });
 
             // Refresh the close icon in its normal state for the new theme
-            set_window_control_icon(
-                &close_pic,
-                marco_shared::logic::loaders::icon_loader::WindowIcon::Close,
-                parent_is_dark,
-                WindowControlState::Normal,
-            );
+            set_window_control_icon(&close_pic, SVG_CLOSE, parent_is_dark, WindowControlState::Normal);
         });
     }
 
@@ -240,14 +238,13 @@ enum WindowControlState {
 /// colors as the main application window controls.
 fn set_window_control_icon(
     pic: &gtk4::Picture,
-    icon: marco_shared::logic::loaders::icon_loader::WindowIcon,
+    icon: &str,
     is_dark: bool,
     state: WindowControlState,
 ) {
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     use gio;
     use gtk4::gdk;
-    use marco_shared::logic::loaders::icon_loader::window_icon_svg;
     use rsvg::{CairoRenderer, Loader};
 
     let color = match (is_dark, state) {
@@ -260,7 +257,7 @@ fn set_window_control_icon(
     };
 
     let icon_size = 8.0;
-    let svg = window_icon_svg(icon).replace("currentColor", color);
+    let svg = icon.replace("currentColor", color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
     let handle =
@@ -272,12 +269,13 @@ fn set_window_control_icon(
             }
         };
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (icon_size * render_scale) as i32;
 
     let mut surface =
@@ -331,11 +329,10 @@ fn set_window_control_icon(
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
-    use marco_shared::logic::loaders::icon_loader::WindowIcon;
 
     let pic = Picture::new();
     let is_dark = window.has_css_class("marco-theme-dark");
-    set_window_control_icon(&pic, WindowIcon::Close, is_dark, WindowControlState::Normal);
+    set_window_control_icon(&pic, SVG_CLOSE, is_dark, WindowControlState::Normal);
 
     let btn = Button::new();
     btn.set_child(Some(&pic));
@@ -363,7 +360,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
             let is_dark = win.has_css_class("marco-theme-dark");
             set_window_control_icon(
                 &pic_hover,
-                WindowIcon::Close,
+                SVG_CLOSE,
                 is_dark,
                 WindowControlState::Hover,
             );
@@ -378,7 +375,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
             let is_dark = win.has_css_class("marco-theme-dark");
             set_window_control_icon(
                 &pic_leave,
-                WindowIcon::Close,
+                SVG_CLOSE,
                 is_dark,
                 WindowControlState::Normal,
             );
@@ -395,7 +392,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
             let is_dark = win.has_css_class("marco-theme-dark");
             set_window_control_icon(
                 &pic_pressed,
-                WindowIcon::Close,
+                SVG_CLOSE,
                 is_dark,
                 WindowControlState::Active,
             );
@@ -410,7 +407,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
             let is_dark = win.has_css_class("marco-theme-dark");
             set_window_control_icon(
                 &pic_released,
-                WindowIcon::Close,
+                SVG_CLOSE,
                 is_dark,
                 WindowControlState::Hover,
             );

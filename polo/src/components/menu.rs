@@ -23,6 +23,7 @@
 
 use crate::components::dialog::show_open_file_dialog;
 use crate::components::toc_panel::TocPanelHandle;
+use crate::components::toolbar::{SVG_MOON, SVG_SUN};
 use crate::components::utils::apply_gtk_theme_preference;
 use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
@@ -30,7 +31,6 @@ use gtk4::{
     gdk, gio, prelude::*, Align, ApplicationWindow, Box as GtkBox, Button, EventControllerMotion,
     HeaderBar, Image, Label, Orientation, Picture, Popover, Separator, WindowHandle,
 };
-use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 use marco_shared::logic::swanson::SettingsManager;
 use rsvg::{CairoRenderer, Loader};
@@ -38,6 +38,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-minimize icon - Tabler Icons `icon-tabler-minus`
+const SVG_MINIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-maximize icon - Tabler Icons `icon-tabler-square`
+const SVG_MAXIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-restore icon - Tabler Icons `icon-tabler-squares` (overlapping squares)
+const SVG_RESTORE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8" vector-effect="non-scaling-stroke"/><path d="M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2" vector-effect="non-scaling-stroke"/></svg>"#;
 
 // ── Shared hover-switch state for the menu bar ────────────────────────────
 //
@@ -786,12 +800,8 @@ pub(crate) fn toggle_color_mode(
         } else {
             LIGHT_PALETTE.control_icon
         };
-        let icon = if is_dark {
-            WindowIcon::Sun
-        } else {
-            WindowIcon::Moon
-        };
-        let texture = render_svg_texture(window_icon_svg(icon), icon_color, icon_size);
+        let icon_svg = if is_dark { SVG_SUN } else { SVG_MOON };
+        let texture = render_svg_texture(icon_svg, icon_color, icon_size);
         pic.set_paintable(Some(&texture));
     }
 
@@ -827,13 +837,13 @@ pub(crate) fn render_svg_texture(svg: &str, color: &str, size: f64) -> gdk::Memo
         .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
         .expect("load SVG handle");
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (size * render_scale) as i32;
 
     let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
@@ -869,7 +879,7 @@ fn create_window_controls(
 
     fn make_svg_btn(
         window: &ApplicationWindow,
-        icon: WindowIcon,
+        icon: &'static str,
         tooltip: &str,
         icon_size: f64,
     ) -> Button {
@@ -893,7 +903,7 @@ fn create_window_controls(
         };
 
         let pic = Picture::new();
-        let texture = render_svg_texture(window_icon_svg(icon), normal_color, icon_size);
+        let texture = render_svg_texture(icon, normal_color, icon_size);
         pic.set_paintable(Some(&texture));
         pic.set_size_request(icon_size as i32, icon_size as i32);
         pic.set_can_shrink(false);
@@ -919,13 +929,13 @@ fn create_window_controls(
             let pic_enter = pic.clone();
             let hov = hover_color.to_string();
             motion.connect_enter(move |_, _, _| {
-                let t = render_svg_texture(window_icon_svg(icon), &hov, icon_size);
+                let t = render_svg_texture(icon, &hov, icon_size);
                 pic_enter.set_paintable(Some(&t));
             });
             let pic_leave = pic.clone();
             let nor = normal_color.to_string();
             motion.connect_leave(move |_| {
-                let t = render_svg_texture(window_icon_svg(icon), &nor, icon_size);
+                let t = render_svg_texture(icon, &nor, icon_size);
                 pic_leave.set_paintable(Some(&t));
             });
             btn.add_controller(motion);
@@ -934,13 +944,13 @@ fn create_window_controls(
             let pic_press = pic.clone();
             let act = active_color.to_string();
             gesture.connect_pressed(move |_, _, _, _| {
-                let t = render_svg_texture(window_icon_svg(icon), &act, icon_size);
+                let t = render_svg_texture(icon, &act, icon_size);
                 pic_press.set_paintable(Some(&t));
             });
             let pic_rel = pic.clone();
             let hov2 = hover_color.to_string();
             gesture.connect_released(move |_, _, _, _| {
-                let t = render_svg_texture(window_icon_svg(icon), &hov2, icon_size);
+                let t = render_svg_texture(icon, &hov2, icon_size);
                 pic_rel.set_paintable(Some(&t));
             });
             btn.add_controller(gesture);
@@ -949,8 +959,8 @@ fn create_window_controls(
         btn
     }
 
-    let btn_min = make_svg_btn(window, WindowIcon::Minimize, "Minimize", ICON_SIZE);
-    let btn_close = make_svg_btn(window, WindowIcon::Close, "Close", ICON_SIZE);
+    let btn_min = make_svg_btn(window, SVG_MINIMIZE, "Minimize", ICON_SIZE);
+    let btn_close = make_svg_btn(window, SVG_CLOSE, "Close", ICON_SIZE);
 
     // Maximize / restore toggle
     let is_dark = window.style_context().has_class("marco-theme-dark");
@@ -968,7 +978,7 @@ fn create_window_controls(
 
     {
         let t = render_svg_texture(
-            window_icon_svg(WindowIcon::Maximize),
+            SVG_MAXIMIZE,
             normal_color,
             ICON_SIZE,
         );
@@ -996,11 +1006,11 @@ fn create_window_controls(
         let btn_ref = btn_max.clone();
         window.connect_maximized_notify(move |w| {
             let icon = if w.is_maximized() {
-                WindowIcon::Restore
+                SVG_RESTORE
             } else {
-                WindowIcon::Maximize
+                SVG_MAXIMIZE
             };
-            let t = render_svg_texture(window_icon_svg(icon), &color, ICON_SIZE);
+            let t = render_svg_texture(icon, &color, ICON_SIZE);
             pic_ref.set_paintable(Some(&t));
             btn_ref.set_tooltip_text(Some(if w.is_maximized() {
                 "Restore"
@@ -1029,12 +1039,12 @@ fn create_window_controls(
         let pic_e = max_pic.clone();
         let hov = hover_color.clone();
         motion.connect_enter(move |_, _, _| {
-            let t = render_svg_texture(window_icon_svg(WindowIcon::Maximize), &hov, ICON_SIZE);
+            let t = render_svg_texture(SVG_MAXIMIZE, &hov, ICON_SIZE);
             pic_e.set_paintable(Some(&t));
         });
         let pic_l = max_pic.clone();
         motion.connect_leave(move |_| {
-            let t = render_svg_texture(window_icon_svg(WindowIcon::Maximize), &nor, ICON_SIZE);
+            let t = render_svg_texture(SVG_MAXIMIZE, &nor, ICON_SIZE);
             pic_l.set_paintable(Some(&t));
         });
         btn_max.add_controller(motion);
@@ -1043,13 +1053,13 @@ fn create_window_controls(
         let pic_p = max_pic.clone();
         let act = active_color;
         gesture.connect_pressed(move |_, _, _, _| {
-            let t = render_svg_texture(window_icon_svg(WindowIcon::Maximize), &act, ICON_SIZE);
+            let t = render_svg_texture(SVG_MAXIMIZE, &act, ICON_SIZE);
             pic_p.set_paintable(Some(&t));
         });
         let pic_r = max_pic.clone();
         gesture.connect_released(move |_, _, _, _| {
             let t = render_svg_texture(
-                window_icon_svg(WindowIcon::Maximize),
+                SVG_MAXIMIZE,
                 &hover_color,
                 ICON_SIZE,
             );

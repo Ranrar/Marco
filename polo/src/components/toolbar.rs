@@ -24,8 +24,8 @@ use crate::components::menu::{render_svg_texture, toggle_color_mode};
 use crate::components::toc_panel::TocPanelHandle;
 use crate::components::viewer::platform_webview::PlatformWebView;
 use gtk4::{prelude::*, Align, Box as GtkBox, Button, Orientation, Picture, Separator};
-use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use marco_shared::logic::swanson::SettingsManager;
+use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
@@ -42,6 +42,12 @@ const SVG_OPEN_EDITOR: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="
 
 /// Table-of-contents (stack-2) icon - Tabler Icons `icon-tabler-stack-2`
 const SVG_TOC: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 4l-8 4l8 4l8 -4l-8 -4"/><path d="M4 12l8 4l8 -4"/><path d="M4 16l8 4l8 -4"/></svg>"#;
+
+/// Sun icon (light mode) - Tabler Icons `icon-tabler-sun`
+pub(crate) const SVG_SUN: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0"/><path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/></svg>"#;
+
+/// Moon icon (dark mode) - Tabler Icons `icon-tabler-moon`
+pub(crate) const SVG_MOON: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454l0 .008"/></svg>"#;
 
 /// Logical icon size in pixels (will be rendered at 2× for HiDPI)
 const TOOLBAR_ICON_SIZE: f64 = 12.0;
@@ -222,19 +228,19 @@ fn make_mode_btn(
     } else {
         LIGHT_PALETTE.control_icon
     };
-    let icon_svg = window_icon_svg(if is_dark {
-        WindowIcon::Sun
-    } else {
-        WindowIcon::Moon
-    });
+    let icon_svg = if is_dark { SVG_SUN } else { SVG_MOON };
     let tooltip = if is_dark {
         "Switch to Light Mode"
     } else {
         "Switch to Dark Mode"
     };
 
-    // Build mode button without state-flags tracking (SVG changes on toggle).
-    let mode_btn = make_icon_btn_from_svg(window, icon_svg, tooltip, TOOLBAR_ICON_SIZE, false);
+    // Build the button through the shared helper so it gets the same
+    // hover/active mouseover styling as every other toolbar icon.
+    // `current_svg` lets the click handler below repoint those re-renders at
+    // the new icon shape once the mode has toggled.
+    let (mode_btn, current_svg) =
+        make_icon_btn_from_svg(window, icon_svg, tooltip, TOOLBAR_ICON_SIZE);
 
     // Override the initial color using the foreground palette color.
     if let Some(pic) = mode_btn.child().and_then(|c| c.downcast::<Picture>().ok()) {
@@ -266,6 +272,17 @@ fn make_mode_btn(
         );
         // Update tooltip to reflect new state
         // (toggle_color_mode already updated the picture)
+
+        // Keep the shared hover/active re-render path (see
+        // make_icon_btn_from_svg) in sync with the new icon shape.
+        let now_dark = sm
+            .get_settings()
+            .appearance
+            .as_ref()
+            .and_then(|a| a.editor_mode.as_ref())
+            .map(|m| m.contains("dark"))
+            .unwrap_or(false);
+        current_svg.set(if now_dark { SVG_SUN } else { SVG_MOON });
     });
 
     mode_btn
@@ -304,19 +321,25 @@ fn toolbar_color_for_flags(btn: &gtk4::Button, flags: gtk4::StateFlags) -> &'sta
 ///
 /// Icon color updates automatically on hover/active/normal via
 /// `connect_state_flags_changed` and on theme changes via `connect_map`.
-/// Pass `track_theme = false` for the mode-toggle button, whose SVG is managed
-/// separately by `toggle_color_mode`.
-fn make_icon_btn(window: &gtk4::ApplicationWindow, svg: &str, tooltip: &str, size: f64) -> Button {
-    make_icon_btn_from_svg(window, svg, tooltip, size, true)
-}
-
-fn make_icon_btn_from_svg(
+fn make_icon_btn(
     window: &gtk4::ApplicationWindow,
-    svg: &str,
+    svg: &'static str,
     tooltip: &str,
     size: f64,
-    track_theme: bool,
 ) -> Button {
+    make_icon_btn_from_svg(window, svg, tooltip, size).0
+}
+
+/// Like [`make_icon_btn`], but also returns a `Cell` holding the icon's
+/// current SVG source. Buttons whose icon shape can change after creation
+/// (the mode toggle) can update this cell so the hover/active/map re-renders
+/// below keep drawing the right shape instead of the one it was built with.
+fn make_icon_btn_from_svg(
+    window: &gtk4::ApplicationWindow,
+    svg: &'static str,
+    tooltip: &str,
+    size: f64,
+) -> (Button, Rc<Cell<&'static str>>) {
     use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
 
     let is_dark = window.style_context().has_class("marco-theme-dark");
@@ -345,47 +368,45 @@ fn make_icon_btn_from_svg(
     btn.set_height_request((size + 2.0) as i32);
     btn.add_css_class("polo-toolbar-btn");
 
-    let svg_owned = svg.to_string();
+    let current_svg = Rc::new(Cell::new(svg));
 
     // Recompute icon color whenever button state changes (hover / active / normal).
     // Guard with is_mapped() to avoid snapshotting before first allocation.
-    if track_theme {
-        let pic_state = pic.clone();
-        let s = svg_owned.clone();
-        let btn_ref = btn.clone();
-        btn.connect_state_flags_changed(move |btn, _| {
-            if btn.is_mapped() {
-                let flags = btn.state_flags();
-                let color = toolbar_color_for_flags(&btn_ref, flags);
-                let t = render_svg_texture(&s, color, size);
-                pic_state.set_paintable(Some(&t));
-            }
-        });
+    let pic_state = pic.clone();
+    let svg_state = current_svg.clone();
+    let btn_ref = btn.clone();
+    btn.connect_state_flags_changed(move |btn, _| {
+        if btn.is_mapped() {
+            let flags = btn.state_flags();
+            let color = toolbar_color_for_flags(&btn_ref, flags);
+            let t = render_svg_texture(svg_state.get(), color, size);
+            pic_state.set_paintable(Some(&t));
+        }
+    });
 
-        // Re-render after map so the root window's theme class is available.
-        let pic_map = pic.clone();
-        let s2 = svg_owned.clone();
-        let btn_ref2 = btn.clone();
-        btn.connect_map(move |_| {
-            let flags = btn_ref2.state_flags();
-            let color = toolbar_color_for_flags(&btn_ref2, flags);
-            let t = render_svg_texture(&s2, color, size);
-            pic_map.set_paintable(Some(&t));
-        });
+    // Re-render after map so the root window's theme class is available.
+    let pic_map = pic.clone();
+    let svg_map = current_svg.clone();
+    let btn_ref2 = btn.clone();
+    btn.connect_map(move |_| {
+        let flags = btn_ref2.state_flags();
+        let color = toolbar_color_for_flags(&btn_ref2, flags);
+        let t = render_svg_texture(svg_map.get(), color, size);
+        pic_map.set_paintable(Some(&t));
+    });
 
-        // Also sync after click activation.
-        let pic_click = pic.clone();
-        let s3 = svg_owned.clone();
-        let btn_ref3 = btn.clone();
-        btn.connect_clicked(move |_| {
-            let flags = btn_ref3.state_flags();
-            let color = toolbar_color_for_flags(&btn_ref3, flags);
-            let t = render_svg_texture(&s3, color, size);
-            pic_click.set_paintable(Some(&t));
-        });
-    }
+    // Also sync after click activation.
+    let pic_click = pic.clone();
+    let svg_click = current_svg.clone();
+    let btn_ref3 = btn.clone();
+    btn.connect_clicked(move |_| {
+        let flags = btn_ref3.state_flags();
+        let color = toolbar_color_for_flags(&btn_ref3, flags);
+        let t = render_svg_texture(svg_click.get(), color, size);
+        pic_click.set_paintable(Some(&t));
+    });
 
-    btn
+    (btn, current_svg)
 }
 
 /// Create a styled vertical separator for the toolbar.

@@ -345,7 +345,7 @@ use rsvg::{CairoRenderer, Loader};
 
 use crate::components::language::Translations;
 use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -429,13 +429,13 @@ fn render_toolbar_svg_icon(icon: ToolbarIcon, color: &str, icon_size: f64) -> gd
             }
         };
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (icon_size * render_scale) as i32;
 
     let mut surface =
@@ -527,13 +527,13 @@ fn render_toolbar_rect_svg(
             }
         };
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_w = (display_w * render_scale) as i32;
     let render_h = (display_h * render_scale) as i32;
 
@@ -733,9 +733,67 @@ fn render_composite_button_content(button: &Button, icon_paths: &str, label: &st
     }
 }
 
-fn connect_hover_popover(button: &Button, popover: &gtk4::Popover, audit_label: &'static str) {
+/// Coordinates the toolbar's dropdown popovers so hovering a different
+/// button closes whichever one is currently open immediately, instead of
+/// leaving it to its own independent delayed close.
+///
+/// Without this, hovering directly from one dropdown button to another can
+/// leave two popovers "grabbing" at once for the ~120ms of the old one's
+/// delayed close, which GDK rejects (`Tried to map a grabbing popup with a
+/// non-top most parent`) and leaves the new popover unclickable until it's
+/// re-triggered by another hover.
+#[derive(Clone, Default)]
+struct ToolbarDropdownGroup {
+    current: Rc<RefCell<Option<gtk4::Popover>>>,
+}
+
+impl ToolbarDropdownGroup {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Close whichever dropdown is currently open (if it isn't `popover`
+    /// itself) and record `popover` as the active one.
+    fn activate(&self, popover: &gtk4::Popover) {
+        // Must not hold the RefCell borrow across `popdown()`: GTK fires the
+        // popover's `closed` signal synchronously, which re-enters here via
+        // `on_closed` and would panic on a reentrant borrow.
+        let existing = self.current.borrow_mut().take();
+        if let Some(existing) = existing {
+            if &existing == popover {
+                *self.current.borrow_mut() = Some(existing);
+                return;
+            }
+            existing.popdown();
+        }
+        *self.current.borrow_mut() = Some(popover.clone());
+    }
+
+    /// Clear the tracked popover once it's actually closed (whether via
+    /// hover, autohide, or Escape), so a stale reference doesn't linger.
+    fn on_closed(&self, popover: &gtk4::Popover) {
+        let mut current = self.current.borrow_mut();
+        if current.as_ref() == Some(popover) {
+            *current = None;
+        }
+    }
+}
+
+fn connect_hover_popover(
+    button: &Button,
+    popover: &gtk4::Popover,
+    audit_label: &'static str,
+    group: &ToolbarDropdownGroup,
+) {
     let over_button = Rc::new(Cell::new(false));
     let over_popover = Rc::new(Cell::new(false));
+
+    {
+        let group = group.clone();
+        popover.connect_closed(move |p| {
+            group.on_closed(p);
+        });
+    }
 
     let schedule_close = {
         let over_button = over_button.clone();
@@ -758,12 +816,17 @@ fn connect_hover_popover(button: &Button, popover: &gtk4::Popover, audit_label: 
         let over_button = over_button.clone();
         let button = button.clone();
         let popover = popover.clone();
+        let group = group.clone();
         button_motion.connect_enter(move |_, _, _| {
             if crate::ui::popover_state::is_toolbar_interaction_blocked() {
                 return;
             }
 
             over_button.set(true);
+
+            // Close whichever sibling dropdown is open right away, before this
+            // one maps, so we never have two grabbing popups open at once.
+            group.activate(&popover);
 
             // Avoid GTK warnings such as:
             // "Trying to snapshot GtkGizmo ... without a current allocation".
@@ -853,6 +916,9 @@ fn create_toolbar_popover_row_button_with_helper(
 }
 
 pub fn create_toolbar_structure(translations: &Translations) -> Box {
+    // Coordinates hover hand-off between this toolbar's dropdown popovers.
+    let dropdown_group = ToolbarDropdownGroup::new();
+
     // Create basic toolbar structure with spacing between buttons
     let toolbar = Box::new(Orientation::Horizontal, 0); // tighter spacing inside groups
     toolbar.add_css_class("toolbar");
@@ -954,12 +1020,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &text_paragraph_poover_button,
         &block_type_popover,
         "block type dropdown",
+        &dropdown_group,
     );
     let popover_ref = block_type_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     text_paragraph_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&popover_ref);
         popover_ref.popup();
         trace!("audit: block type dropdown opened");
     });
@@ -1046,12 +1115,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &text_inline_poover_button,
         &text_inline_popover,
         "text inline dropdown",
+        &dropdown_group,
     );
     let text_inline_popover_ref = text_inline_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     text_inline_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&text_inline_popover_ref);
         text_inline_popover_ref.popup();
         trace!("audit: text inline dropdown opened");
     });
@@ -1128,12 +1200,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &inline_items_poover_button,
         &inline_items_popover,
         "inline items dropdown",
+        &dropdown_group,
     );
     let inline_items_popover_ref = inline_items_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     inline_items_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&inline_items_popover_ref);
         inline_items_popover_ref.popup();
         trace!("audit: inline items dropdown opened");
     });
@@ -1191,12 +1266,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &block_items_poover_button,
         &block_items_popover,
         "block items dropdown",
+        &dropdown_group,
     );
     let block_items_popover_ref = block_items_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     block_items_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&block_items_popover_ref);
         block_items_popover_ref.popup();
         trace!("audit: block items dropdown opened");
     });
@@ -1260,12 +1338,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &container_items_poover_button,
         &container_items_popover,
         "modules items dropdown",
+        &dropdown_group,
     );
     let container_items_popover_ref = container_items_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     container_items_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&container_items_popover_ref);
         container_items_popover_ref.popup();
         trace!("audit: modules items dropdown opened");
     });

@@ -43,6 +43,20 @@ use gtk4::{ApplicationWindow, Picture, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-minimize icon - Tabler Icons `icon-tabler-minus`
+const SVG_MINIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-maximize icon - Tabler Icons `icon-tabler-square`
+const SVG_MAXIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-restore icon - Tabler Icons `icon-tabler-squares` (overlapping squares)
+const SVG_RESTORE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8" vector-effect="non-scaling-stroke"/><path d="M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2" vector-effect="non-scaling-stroke"/></svg>"#;
+
 /// Type alias for a shared, mutable callback function
 type CloseCallback = Rc<RefCell<Option<Box<dyn Fn()>>>>;
 
@@ -191,23 +205,23 @@ impl PreviewWindow {
         use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
         use gio;
         use gtk4::gdk;
-        use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
         use rsvg::{CairoRenderer, Loader};
 
-        fn render_window_svg(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-            let svg = window_icon_svg(icon).replace("currentColor", color);
+        fn render_window_svg(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+            let svg = icon.replace("currentColor", color);
             let bytes = glib::Bytes::from_owned(svg.into_bytes());
             let stream = gio::MemoryInputStream::from_bytes(&bytes);
             let handle = Loader::new()
                 .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
                 .expect("load SVG handle");
 
-            let display_scale = gdk::Display::default()
-                .and_then(|d| d.monitors().item(0))
-                .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-                .map(|m| m.scale_factor() as f64)
-                .unwrap_or(1.0);
-            let render_scale = display_scale * 2.0;
+            // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+            // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+            // render scale from it makes icons render at inconsistent sizes across
+            // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+            // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+            // on both backends.
+            let render_scale = 2.0;
             let render_size = (icon_size * render_scale) as i32;
 
             let mut surface =
@@ -235,7 +249,7 @@ impl PreviewWindow {
         }
 
         // Helper to create a SVG-backed icon button with hover/press interactions
-        let svg_icon_button = |icon: WindowIcon, tooltip: &str| {
+        let svg_icon_button = |icon: &'static str, tooltip: &str| {
             let pic = Picture::new();
             let is_dark = window.has_css_class("marco-theme-dark");
             let color = if is_dark {
@@ -317,8 +331,8 @@ impl PreviewWindow {
 
         // Window control icons (SVG)
 
-        let btn_min = svg_icon_button(WindowIcon::Minimize, "Minimize");
-        let btn_close = svg_icon_button(WindowIcon::Close, "Close");
+        let btn_min = svg_icon_button(SVG_MINIMIZE, "Minimize");
+        let btn_close = svg_icon_button(SVG_CLOSE, "Close");
 
         log::debug!(
             "Created minimize button, visible: {}, sensitive: {}",
@@ -346,9 +360,9 @@ impl PreviewWindow {
             };
             move |is_maximized: bool, pic: &Picture| {
                 let icon = if is_maximized {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let tex = render_window_svg(icon, color, 8.0);
                 pic.set_paintable(Some(&tex));

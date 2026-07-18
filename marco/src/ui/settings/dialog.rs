@@ -10,6 +10,11 @@ use crate::ui::settings::tabs;
 
 use log::trace;
 
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
 pub struct Settings {
     pub theme: String,
     pub font_size: i32,
@@ -279,11 +284,10 @@ fn create_dialog_impl(
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     use gio;
     use gtk4::gdk;
-    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use rsvg::{CairoRenderer, Loader};
 
-    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-        let svg = window_icon_svg(icon).replace("currentColor", color);
+    fn render_svg_icon(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = icon.replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
@@ -303,13 +307,13 @@ fn create_dialog_impl(
                 }
             };
 
-        let display_scale = gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-
-        let render_scale = display_scale * 2.0;
+        // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+        // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+        // render scale from it makes icons render at inconsistent sizes across
+        // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+        // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+        // on both backends.
+        let render_scale = 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
         let mut surface =
@@ -339,7 +343,7 @@ fn create_dialog_impl(
 
     fn svg_icon_button(
         window: &Window,
-        icon: WindowIcon,
+        icon: &'static str,
         tooltip: &str,
         color: &str,
         icon_size: f64,
@@ -428,7 +432,7 @@ fn create_dialog_impl(
 
     let btn_close_titlebar = svg_icon_button(
         &window,
-        WindowIcon::Close,
+        SVG_CLOSE,
         &translations.settings.close,
         &icon_color,
         8.0,

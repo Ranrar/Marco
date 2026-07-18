@@ -14,6 +14,35 @@ use rsvg::{CairoRenderer, Loader};
 
 use crate::components::language::Translations;
 
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-minimize icon - Tabler Icons `icon-tabler-minus`
+const SVG_MINIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-maximize icon - Tabler Icons `icon-tabler-square`
+const SVG_MAXIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-restore icon - Tabler Icons `icon-tabler-squares` (overlapping squares)
+const SVG_RESTORE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8" vector-effect="non-scaling-stroke"/><path d="M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Layout-switcher icon - Tabler Icons `icon-tabler-layout-distribute-vertical` (columns glyph)
+const SVG_LAYOUT_SWITCHER: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v1a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -1"/><path d="M4 15a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v3a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -3"/><path d="M14 6a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2l0 -12"/></svg>"#;
+
+/// View-only layout icon - Tabler Icons `icon-tabler-browser`
+const SVG_VIEW_ONLY: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v10a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -10"/><path d="M7 10a2 2 0 1 0 4 0a2 2 0 1 0 -4 0"/><path d="M15 8l2 0"/><path d="M15 12l2 0"/><path d="M7 16l10 0"/></svg>"#;
+
+/// Editor-only layout icon - Tabler Icons `icon-tabler-file-text`
+const SVG_EDITOR_ONLY: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h10"/></svg>"#;
+
+/// Editor+detached-view layout icon - Tabler Icons `icon-tabler-arrow-up-right`
+const SVG_EDITOR_AND_VIEW_SEPARATE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 17a1 1 0 0 1 1 -1h3a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1l0 -3"/><path d="M4 12v-6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-6"/><path d="M12 8h4v4"/><path d="M16 8l-5 5"/></svg>"#;
+
+/// Dual-view (split editor/preview) layout icon - Tabler Icons `icon-tabler-layout-columns`
+const SVG_DUAL_VIEW: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12"/><path d="M12 4l0 16"/></svg>"#;
+
 /// Optional pre-open hook for the Tools popover, shared via Rc/RefCell.
 type ToolsPreOpenHook = std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>;
 use crate::ui::popover_state::RootPopoverState;
@@ -1056,19 +1085,20 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         };
     let layout_pic = Picture::new();
     let layout_texture = {
-        let svg = layout_icon_svg(LayoutIcon::LayoutSwitcherButton)
+        let svg = SVG_LAYOUT_SWITCHER
             .replace("currentColor", &layout_icon_color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
         let handle = Loader::new()
             .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
             .expect("load SVG handle");
-        let display_scale = gtk4::gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gtk4::gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-        let render_scale = display_scale * 2.0;
+        // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+        // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+        // render scale from it makes icons render at inconsistent sizes across
+        // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+        // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+        // on both backends.
+        let render_scale = 2.0;
         let render_size = (LAYOUT_ICON_SIZE_F * render_scale) as i32;
         let mut surface =
             cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
@@ -1112,7 +1142,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             LIGHT_PALETTE.control_icon_active.to_string()
         };
         let normal_color = layout_icon_color.clone().to_string();
-        let icon = LayoutIcon::LayoutSwitcherButton;
+        let icon = SVG_LAYOUT_SWITCHER;
 
         let motion_controller = gtk4::EventControllerMotion::new();
         let hover_color_enter = hover_color.clone();
@@ -1184,7 +1214,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Button 1: Close view (show only editor)
     let btn1 = svg_layout_button(
         window,
-        LayoutIcon::EditorOnly,
+        SVG_EDITOR_ONLY,
         &translations.titlebar.layout_editor_only,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
@@ -1226,7 +1256,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Button 2: Close editor (show only view)
     let btn2 = svg_layout_button(
         window,
-        LayoutIcon::ViewOnly,
+        SVG_VIEW_ONLY,
         &translations.titlebar.layout_view_only,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
@@ -1268,7 +1298,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Button 3: Open view in separate window
     let btn3 = svg_layout_button(
         window,
-        LayoutIcon::EditorAndViewSeparate,
+        SVG_EDITOR_AND_VIEW_SEPARATE,
         &translations.titlebar.layout_detach_view,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
@@ -1613,7 +1643,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Button 4: Restore default split view (pre-created)
     let btn4 = svg_layout_button(
         window,
-        LayoutIcon::DualView,
+        SVG_DUAL_VIEW,
         &translations.titlebar.layout_restore_split,
         base_icon_color,
         LAYOUT_ICON_SIZE_F,
@@ -1755,12 +1785,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     use gtk4::Label;
 
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-    use marco_shared::logic::loaders::icon_loader::{
-        layout_icon_svg, window_icon_svg, LayoutIcon, WindowIcon,
-    };
     // Helper: render an SVG icon into a GDK memory texture at high DPI for crisp icons
-    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-        let svg = window_icon_svg(icon).replace("currentColor", color);
+    fn render_svg_icon(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = icon.replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
@@ -1769,15 +1796,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
             .expect("load SVG handle");
 
-        // Get scale factor for HiDPI displays
-        let display_scale = gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-
-        // Render at 2x the display scale for extra sharpness (prevents pixelation)
-        let render_scale = display_scale * 2.0;
+        // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+        // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+        // render scale from it makes icons render at inconsistent sizes across
+        // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+        // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+        // on both backends.
+        let render_scale = 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
         let mut surface =
@@ -1806,9 +1831,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         )
     }
 
-    // Helper: render layout SVG icons (uses LayoutIcon) - same approach as render_svg_icon
-    fn render_layout_svg_icon(icon: LayoutIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-        let svg = layout_icon_svg(icon).replace("currentColor", color);
+    // Helper: render layout SVG icons - same approach as render_svg_icon
+    fn render_layout_svg_icon(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = icon.replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.as_bytes().to_vec());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
@@ -1830,13 +1855,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                 }
             };
 
-        let display_scale = gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-
-        let render_scale = display_scale * 2.0;
+        // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+        // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+        // render scale from it makes icons render at inconsistent sizes across
+        // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+        // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+        // on both backends.
+        let render_scale = 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
         let mut surface =
@@ -1867,7 +1892,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Helper to create a button with layout SVG icon and hover/active color changes
     fn svg_layout_button(
         window: &gtk4::ApplicationWindow,
-        icon: LayoutIcon,
+        icon: &'static str,
         tooltip: &str,
         color: &str,
         icon_size: f64,
@@ -1956,7 +1981,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Helper to create a button with SVG icon and hover/active color changes
     fn svg_icon_button(
         window: &gtk4::ApplicationWindow,
-        icon: WindowIcon,
+        icon: &'static str,
         tooltip: &str,
         color: &str,
         icon_size: f64,
@@ -2057,14 +2082,14 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
 
         let btn_min = svg_icon_button(
             window,
-            WindowIcon::Minimize,
+            SVG_MINIMIZE,
             &translations.titlebar.window_minimize,
             &icon_color,
             ICON_SIZE,
         );
         let btn_close = svg_icon_button(
             window,
-            WindowIcon::Close,
+            SVG_CLOSE,
             &translations.titlebar.window_close,
             &icon_color,
             ICON_SIZE,
@@ -2082,9 +2107,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             let color = icon_color.clone();
             move |is_maximized: bool, pic: &Picture| {
                 let icon = if is_maximized {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let texture = render_svg_icon(icon, &color, ICON_SIZE);
                 pic.set_paintable(Some(&texture));
@@ -2129,9 +2154,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             let window_hover_enter = window.clone();
             motion_controller.connect_enter(move |_ctrl, _x, _y| {
                 let icon = if window_hover_enter.is_maximized() {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let texture = render_svg_icon(icon, &hover_color_enter, ICON_SIZE);
                 pic_hover.set_paintable(Some(&texture));
@@ -2142,9 +2167,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             let window_hover_leave = window.clone();
             motion_controller.connect_leave(move |_ctrl| {
                 let icon = if window_hover_leave.is_maximized() {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let texture = render_svg_icon(icon, &normal_color_leave, ICON_SIZE);
                 pic_leave.set_paintable(Some(&texture));
@@ -2157,9 +2182,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             let window_pressed = window.clone();
             gesture.connect_pressed(move |_gesture, _n, _x, _y| {
                 let icon = if window_pressed.is_maximized() {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let texture = render_svg_icon(icon, &active_color_pressed, ICON_SIZE);
                 pic_pressed.set_paintable(Some(&texture));
@@ -2170,9 +2195,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
             let window_released = window.clone();
             gesture.connect_released(move |_gesture, _n, _x, _y| {
                 let icon = if window_released.is_maximized() {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let texture = render_svg_icon(icon, &hover_color_released, ICON_SIZE);
                 pic_released.set_paintable(Some(&texture));

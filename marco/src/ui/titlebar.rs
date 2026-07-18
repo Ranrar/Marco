@@ -6,12 +6,25 @@
 use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
 use gtk4::prelude::*;
 use gtk4::{gio, glib, Align, Button, HeaderBar, Label, Window};
-use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use rsvg::{CairoRenderer, Loader};
 
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-minimize icon - Tabler Icons `icon-tabler-minus`
+const SVG_MINIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-maximize icon - Tabler Icons `icon-tabler-square`
+const SVG_MAXIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-restore icon - Tabler Icons `icon-tabler-squares` (overlapping squares)
+const SVG_RESTORE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8" vector-effect="non-scaling-stroke"/><path d="M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2" vector-effect="non-scaling-stroke"/></svg>"#;
+
 /// Render an SVG icon to a GdkMemoryTexture
-fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gtk4::gdk::MemoryTexture {
-    let svg = window_icon_svg(icon).replace("currentColor", color);
+fn render_svg_icon(icon: &str, color: &str, icon_size: f64) -> gtk4::gdk::MemoryTexture {
+    let svg = icon.replace("currentColor", color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
@@ -32,13 +45,13 @@ fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gtk4::gdk::
             }
         };
 
-    let display_scale = gtk4::gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gtk4::gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (icon_size * render_scale) as i32;
 
     let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
@@ -68,7 +81,7 @@ fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gtk4::gdk::
 /// Create an SVG icon button with hover and click interactions
 fn create_svg_icon_button_with_picture(
     window: &Window,
-    icon: WindowIcon,
+    icon: &'static str,
     tooltip: &str,
     color: &str,
     icon_size: f64,
@@ -152,7 +165,7 @@ fn create_svg_icon_button_with_picture(
 /// Create a standalone SVG icon button without returning the picture handle
 fn create_svg_icon_button(
     window: &Window,
-    icon: WindowIcon,
+    icon: &'static str,
     tooltip: &str,
     color: &str,
     icon_size: f64,
@@ -243,7 +256,7 @@ pub fn create_custom_titlebar_with_buttons(
 
     if buttons.minimize {
         let button =
-            create_svg_icon_button(window, WindowIcon::Minimize, "Minimize", &icon_color, 8.0);
+            create_svg_icon_button(window, SVG_MINIMIZE, "Minimize", &icon_color, 8.0);
         let window_for_min = window.clone();
         button.connect_clicked(move |_| {
             window_for_min.minimize();
@@ -254,9 +267,9 @@ pub fn create_custom_titlebar_with_buttons(
 
     if buttons.maximize {
         let initial_icon = if window.is_maximized() {
-            WindowIcon::Restore
+            SVG_RESTORE
         } else {
-            WindowIcon::Maximize
+            SVG_MAXIMIZE
         };
         let (button, picture) =
             create_svg_icon_button_with_picture(window, initial_icon, "Maximize", &icon_color, 8.0);
@@ -273,9 +286,9 @@ pub fn create_custom_titlebar_with_buttons(
         let icon_color_for_notify = icon_color.to_string();
         window.connect_notify_local(Some("maximized"), move |win, _| {
             let icon = if win.is_maximized() {
-                WindowIcon::Restore
+                SVG_RESTORE
             } else {
-                WindowIcon::Maximize
+                SVG_MAXIMIZE
             };
             let texture = render_svg_icon(icon, &icon_color_for_notify, 8.0);
             picture_for_notify.set_paintable(Some(&texture));
@@ -286,7 +299,7 @@ pub fn create_custom_titlebar_with_buttons(
     }
 
     if buttons.close {
-        let button = create_svg_icon_button(window, WindowIcon::Close, "Close", &icon_color, 8.0);
+        let button = create_svg_icon_button(window, SVG_CLOSE, "Close", &icon_color, 8.0);
         headerbar.pack_end(&button);
         close_button = Some(button);
     }

@@ -57,6 +57,9 @@ use gtk4::{FileChooserAction, FileChooserDialog, FileFilter, ResponseType};
 #[cfg(target_os = "windows")]
 use rfd::FileDialog;
 
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
 struct OpenFileContext<'a> {
     window: &'a ApplicationWindow,
     webview: &'a PlatformWebView,
@@ -270,11 +273,10 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
     use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     use gio;
     use gtk4::gdk;
-    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use rsvg::{CairoRenderer, Loader};
 
-    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-        let svg = window_icon_svg(icon).replace("currentColor", color);
+    fn render_svg_icon(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = icon.replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
@@ -294,13 +296,13 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
                 }
             };
 
-        let display_scale = gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-
-        let render_scale = display_scale * 2.0;
+        // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+        // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+        // render scale from it makes icons render at inconsistent sizes across
+        // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+        // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+        // on both backends.
+        let render_scale = 2.0;
         let render_size = (icon_size * render_scale) as i32;
 
         let mut surface =
@@ -330,7 +332,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
 
     fn svg_icon_button(
         window: &Window,
-        icon: WindowIcon,
+        icon: &'static str,
         tooltip: &str,
         color: &str,
         icon_size: f64,
@@ -417,7 +419,7 @@ pub fn show_open_in_editor_dialog(window: &ApplicationWindow, file_path: &str) {
         std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
     };
 
-    let btn_close_titlebar = svg_icon_button(&dialog, WindowIcon::Close, "Close", &icon_color, 8.0);
+    let btn_close_titlebar = svg_icon_button(&dialog, SVG_CLOSE, "Close", &icon_color, 8.0);
 
     // Wire up close button
     let dialog_weak_for_close = dialog.downgrade();
@@ -571,11 +573,10 @@ where
     use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     use gio;
     use gtk4::gdk;
-    use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
     use rsvg::{CairoRenderer, Loader};
 
-    fn render_svg_icon(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-        let svg = window_icon_svg(icon).replace("currentColor", color);
+    fn render_svg_icon(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+        let svg = icon.replace("currentColor", color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
         let handle =
@@ -593,12 +594,13 @@ where
                     );
                 }
             };
-        let display_scale = gdk::Display::default()
-            .and_then(|d| d.monitors().item(0))
-            .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-            .map(|m| m.scale_factor() as f64)
-            .unwrap_or(1.0);
-        let render_scale = display_scale * 2.0;
+        // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+        // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+        // render scale from it makes icons render at inconsistent sizes across
+        // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+        // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+        // on both backends.
+        let render_scale = 2.0;
         let render_size = (icon_size * render_scale) as i32;
         let mut surface =
             cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
@@ -625,7 +627,7 @@ where
 
     fn svg_icon_button(
         window: &Window,
-        icon: WindowIcon,
+        icon: &'static str,
         tooltip: &str,
         color: &str,
         icon_size: f64,
@@ -704,7 +706,7 @@ where
         std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
     };
 
-    let btn_close_titlebar = svg_icon_button(&dialog, WindowIcon::Close, "Close", &icon_color, 8.0);
+    let btn_close_titlebar = svg_icon_button(&dialog, SVG_CLOSE, "Close", &icon_color, 8.0);
 
     let dialog_weak_close = dialog.downgrade();
     btn_close_titlebar.connect_clicked(move |_| {
