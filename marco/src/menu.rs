@@ -1085,8 +1085,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         };
     let layout_pic = Picture::new();
     let layout_texture = {
-        let svg = SVG_LAYOUT_SWITCHER
-            .replace("currentColor", &layout_icon_color);
+        let svg = SVG_LAYOUT_SWITCHER.replace("currentColor", &layout_icon_color);
         let bytes = glib::Bytes::from_owned(svg.into_bytes());
         let stream = gio::MemoryInputStream::from_bytes(&bytes);
         let handle = Loader::new()

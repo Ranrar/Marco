@@ -153,7 +153,12 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
             });
 
             // Refresh the close icon in its normal state for the new theme
-            set_window_control_icon(&close_pic, SVG_CLOSE, parent_is_dark, WindowControlState::Normal);
+            set_window_control_icon(
+                &close_pic,
+                SVG_CLOSE,
+                parent_is_dark,
+                WindowControlState::Normal,
+            );
         });
     }
 
@@ -358,12 +363,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_hover,
-                SVG_CLOSE,
-                is_dark,
-                WindowControlState::Hover,
-            );
+            set_window_control_icon(&pic_hover, SVG_CLOSE, is_dark, WindowControlState::Hover);
         });
 
         let pic_leave = pic.clone();
@@ -373,12 +373,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_leave,
-                SVG_CLOSE,
-                is_dark,
-                WindowControlState::Normal,
-            );
+            set_window_control_icon(&pic_leave, SVG_CLOSE, is_dark, WindowControlState::Normal);
         });
         btn.add_controller(motion_controller);
 
@@ -390,12 +385,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_pressed,
-                SVG_CLOSE,
-                is_dark,
-                WindowControlState::Active,
-            );
+            set_window_control_icon(&pic_pressed, SVG_CLOSE, is_dark, WindowControlState::Active);
         });
 
         let pic_released = pic.clone();
@@ -405,12 +395,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_released,
-                SVG_CLOSE,
-                is_dark,
-                WindowControlState::Hover,
-            );
+            set_window_control_icon(&pic_released, SVG_CLOSE, is_dark, WindowControlState::Hover);
         });
         btn.add_controller(gesture);
     }

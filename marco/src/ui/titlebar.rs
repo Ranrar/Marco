@@ -255,8 +255,7 @@ pub fn create_custom_titlebar_with_buttons(
     let mut close_button = None;
 
     if buttons.minimize {
-        let button =
-            create_svg_icon_button(window, SVG_MINIMIZE, "Minimize", &icon_color, 8.0);
+        let button = create_svg_icon_button(window, SVG_MINIMIZE, "Minimize", &icon_color, 8.0);
         let window_for_min = window.clone();
         button.connect_clicked(move |_| {
             window_for_min.minimize();

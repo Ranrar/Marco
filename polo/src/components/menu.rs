@@ -977,11 +977,7 @@ fn create_window_controls(
     max_pic.set_valign(Align::Center);
 
     {
-        let t = render_svg_texture(
-            SVG_MAXIMIZE,
-            normal_color,
-            ICON_SIZE,
-        );
+        let t = render_svg_texture(SVG_MAXIMIZE, normal_color, ICON_SIZE);
         max_pic.set_paintable(Some(&t));
     }
 
@@ -1058,11 +1054,7 @@ fn create_window_controls(
         });
         let pic_r = max_pic.clone();
         gesture.connect_released(move |_, _, _, _| {
-            let t = render_svg_texture(
-                SVG_MAXIMIZE,
-                &hover_color,
-                ICON_SIZE,
-            );
+            let t = render_svg_texture(SVG_MAXIMIZE, &hover_color, ICON_SIZE);
             pic_r.set_paintable(Some(&t));
         });
         btn_max.add_controller(gesture);
