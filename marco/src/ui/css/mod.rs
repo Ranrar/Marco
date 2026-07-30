@@ -139,7 +139,7 @@ pub fn load_css() {
         marco_css
     };
 
-    css_provider.load_from_data(&css_to_load);
+    css_provider.load_from_string(&css_to_load);
 
     if let Some(display) = Display::default() {
         gtk4::style_context_add_provider_for_display(

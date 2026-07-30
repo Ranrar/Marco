@@ -490,6 +490,15 @@ impl PreviewWindow {
                 // Remove from scrolled window
                 scrolled.set_child(gtk4::Widget::NONE);
                 log::debug!("Removed WebView from ScrolledWindow");
+            } else if let Some(overlay) = parent.downcast_ref::<gtk4::Overlay>() {
+                // The webview's immediate parent is normally the `LoadingOverlay`'s
+                // `gtk4::Overlay` wrapper (spinner chrome added around the webview),
+                // not the Stack directly. Unparent from it here or the subsequent
+                // `set_child` on this window's container hits a Gtk-CRITICAL (the
+                // widget still has a parent) and silently does nothing, leaving
+                // this preview window blank.
+                overlay.set_child(gtk4::Widget::NONE);
+                log::debug!("Removed WebView from LoadingOverlay's Overlay");
             } else if let Some(stack) = parent.downcast_ref::<gtk4::Stack>() {
                 // Remove from stack
                 stack.remove(&widget);
@@ -571,6 +580,22 @@ impl PreviewWindow {
 
     pub fn is_visible(&self) -> bool {
         *self.is_visible.borrow()
+    }
+
+    /// Sync this window's light/dark theme CSS class with the main window's.
+    ///
+    /// The theme class is otherwise only ever set once, at construction
+    /// time (see [`Self::new`]) — since this window is created lazily and
+    /// then reused across show/hide cycles, changing the app theme while it
+    /// already exists would otherwise leave its titlebar on the old theme.
+    pub fn sync_theme_class(&self, is_dark: bool) {
+        if is_dark {
+            self.window.remove_css_class("marco-theme-light");
+            self.window.add_css_class("marco-theme-dark");
+        } else {
+            self.window.remove_css_class("marco-theme-dark");
+            self.window.add_css_class("marco-theme-light");
+        }
     }
 
     /// Set a callback to be called when the window is closed

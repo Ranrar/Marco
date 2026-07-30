@@ -38,7 +38,7 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         color: {fg};
         border: 1px solid {border};
     }}
-    
+
     .{theme} tooltip > contents {{
         background: {bg};
         color: {fg};

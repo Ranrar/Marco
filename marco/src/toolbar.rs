@@ -832,16 +832,13 @@ fn connect_hover_popover(
             // "Trying to snapshot GtkGizmo ... without a current allocation".
             // Popover opening is deferred until both anchor button and popover parent
             // have a real allocation.
-            if !button.is_mapped()
-                || button.allocated_width() <= 1
-                || button.allocated_height() <= 1
-            {
+            if !button.is_mapped() || button.width() <= 1 || button.height() <= 1 {
                 let button_retry = button.clone();
                 let popover_retry = popover.clone();
                 glib::timeout_add_local_once(Duration::from_millis(16), move || {
                     if button_retry.is_mapped()
-                        && button_retry.allocated_width() > 1
-                        && button_retry.allocated_height() > 1
+                        && button_retry.width() > 1
+                        && button_retry.height() > 1
                     {
                         popover_retry.popup();
                     }

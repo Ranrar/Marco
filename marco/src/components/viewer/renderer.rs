@@ -555,6 +555,13 @@ pub fn refresh_preview_content_sections(
     if text.trim().is_empty() {
         let html_body_with_js = generate_test_html(&wheel_js);
         backend::update_html_content_smooth(&webview, &html_body_with_js);
+        // This is an in-place DOM patch, not a page navigation, so
+        // `marco_zoom:ready` (which normally hides the overlay after a full
+        // reload) will never fire for it — hide explicitly or the loading
+        // overlay shown by `file_operations::load_file_into_editor` hangs
+        // forever (and on Windows, parks the WebView2 HWND off-screen
+        // forever with it; see `PlatformWebView::set_offscreen_for_loading`).
+        crate::components::viewer::loading_overlay::hide();
         on_complete(Vec::new());
         return;
     }
@@ -597,6 +604,11 @@ pub fn refresh_preview_content_sections(
                         // Apply the cursor section immediately so the user sees
                         // their own edit reflected in the same frame.
                         backend::evaluate_javascript(&webview, &cursor_js);
+                        // A DOM patch, not a page navigation — no `marco_zoom:ready`
+                        // will follow, so hide any overlay left over from a prior
+                        // `loading_overlay::show()` (e.g. file open) now rather
+                        // than waiting for a signal that will never come.
+                        crate::components::viewer::loading_overlay::hide();
                         if let Some(rest) = rest_js {
                             // Defer on_complete until rest_js fires so in_flight
                             // stays true through both frames.  Without this, the
@@ -618,9 +630,13 @@ pub fn refresh_preview_content_sections(
                         // preserved and there is no white-flash.
                         log::debug!("[viewer] Section morph → {} sections", new_hashes.len());
                         backend::evaluate_javascript(&webview, &js);
+                        // Same as PrioritizedPatch above: in-place patch, no
+                        // navigation, so hide explicitly.
+                        crate::components::viewer::loading_overlay::hide();
                         on_complete(new_hashes);
                     }
                     SectionPayload::NoChange => {
+                        crate::components::viewer::loading_overlay::hide();
                         on_complete(new_hashes);
                     }
                 }
@@ -630,6 +646,10 @@ pub fn refresh_preview_content_sections(
                 // Always call on_complete so the in-flight guard is reset and
                 // prev_section_hashes is cleared, forcing a full rebuild on the
                 // next render instead of leaving the preview permanently frozen.
+                // Also hide any overlay left over from `loading_overlay::show()`
+                // (e.g. file open) — no navigation will occur to fire
+                // `marco_zoom:ready` and clear it otherwise.
+                crate::components::viewer::loading_overlay::hide();
                 on_complete(Vec::new());
             }
         });

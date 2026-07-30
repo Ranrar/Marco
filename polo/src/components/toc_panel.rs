@@ -14,17 +14,15 @@
 //! └── webview widget           ← end child (set by caller)
 //! ```
 
+use crate::components::sidebar_coordinator::{
+    SharedPanelWidth, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH,
+};
 use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 use marco_core::intelligence::toc::TocEntry;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-
-/// Minimum pixel width of the TOC panel.
-const MIN_PANEL_WIDTH: i32 = 150;
-/// Maximum pixel width of the TOC panel.
-const MAX_PANEL_WIDTH: i32 = 400;
 
 /// Handle that lets the rest of the app rebuild and toggle the TOC panel.
 #[derive(Clone)]
@@ -35,12 +33,21 @@ pub struct TocPanelHandle {
     visible: Rc<Cell<bool>>,
     /// Current maximum heading depth (1–6).
     pub depth: Rc<Cell<u8>>,
-    /// Pixel width of the widest entry (text + indent).
-    widest_entry_px: Rc<Cell<i32>>,
     /// Cached entries from the last file load.
     current_entries: Rc<RefCell<Vec<TocEntry>>>,
     /// WebView used to scroll the preview when a heading is clicked.
     webview: crate::components::viewer::platform_webview::PlatformWebView,
+    /// Shared with the file-tree panel — see [`SharedPanelWidth`].
+    manual_width: SharedPanelWidth,
+    /// Guards `paned`'s `notify::position` handler against mistaking our
+    /// *own* `set_position` calls (opening to the shared default/manual
+    /// width, or collapsing to 0 on hide) for a user drag. Held for the
+    /// *entire* show/hide transition — from before `panel_box`'s visibility
+    /// even changes through to after the deferred `set_position` call
+    /// completes — not just around the `set_position` call itself; see
+    /// [`TocPanelHandle::show`]'s doc comment for why the wider window
+    /// matters.
+    programmatic_resize: Rc<Cell<bool>>,
 }
 
 impl TocPanelHandle {
@@ -90,27 +97,49 @@ impl TocPanelHandle {
         });
     }
 
-    /// Show the panel (rebuilds from the last cached entries).
+    /// Show the panel (rebuilds from the last cached entries) at the shared
+    /// default width, or the shared manual width if the user has set one —
+    /// see `SharedPanelWidth`.
     pub fn show(&self) {
+        // Guard starts *before* the visibility flip below, not just around
+        // the `set_position` call further down: making a previously-hidden,
+        // 0-width start child visible forces GTK to immediately reconcile
+        // that against the panel's enforced minimum width, which can itself
+        // fire a `notify::position` for a transient, non-final value before
+        // our own deferred `set_position` call ever runs. If that transient
+        // notify isn't guarded too, it gets mistaken for a user drag and
+        // persisted into `SharedPanelWidth` — silently replacing the
+        // "standard" default with whatever that transient value was, so
+        // every *subsequent* open used it instead of the real default. That
+        // was the cause of a close/open cycle appearing to shrink the panel
+        // even though nothing was ever dragged.
+        self.programmatic_resize.set(true);
         self.panel_box.set_visible(true);
         self.visible.set(true);
         let borrowed = self.current_entries.borrow();
         self.rebuild(&borrowed, self.depth.get());
+        drop(borrowed);
+
+        let width = self
+            .manual_width
+            .get()
+            .unwrap_or(DEFAULT_SIDEBAR_WIDTH)
+            .max(MIN_SIDEBAR_WIDTH);
+        let paned = self.paned.clone();
+        let programmatic = self.programmatic_resize.clone();
+        glib::idle_add_local_once(move || {
+            paned.set_position(width);
+            programmatic.set(false);
+        });
     }
 
     /// Hide the panel.
     pub fn hide(&self) {
+        self.programmatic_resize.set(true);
         self.panel_box.set_visible(false);
         self.visible.set(false);
-    }
-
-    /// Toggle visibility.
-    pub fn toggle(&self) {
-        if self.visible.get() {
-            self.hide();
-        } else {
-            self.show();
-        }
+        self.paned.set_position(0);
+        self.programmatic_resize.set(false);
     }
 
     /// Rebuild the entry list from a slice of TOC entries.
@@ -131,20 +160,6 @@ impl TocPanelHandle {
         }
 
         let min_level = filtered.iter().map(|e| e.level).min().unwrap_or(1);
-
-        // Measure pixel widths with Pango to auto-size the panel.
-        let mut widest = 0i32;
-        {
-            let pango_ctx = self.list_box.pango_context();
-            for entry in &filtered {
-                let indent_px = ((entry.level - min_level) as i32) * 12;
-                let layout = gtk4::pango::Layout::new(&pango_ctx);
-                layout.set_text(&entry.text);
-                let (text_w, _) = layout.pixel_size();
-                widest = widest.max(text_w + indent_px);
-            }
-        }
-        self.widest_entry_px.set(widest);
 
         for entry in filtered {
             let indent_px = ((entry.level - min_level) as i32) * 12;
@@ -179,30 +194,24 @@ impl TocPanelHandle {
 
             self.list_box.append(&btn);
         }
-
-        // Auto-resize the paned position when the panel is visible.
-        if self.visible.get() {
-            let paned = self.paned.clone();
-            let extra = 36; // button padding + panel margins + header + separator
-            let width =
-                (self.widest_entry_px.get() + extra).clamp(MIN_PANEL_WIDTH, MAX_PANEL_WIDTH);
-            glib::idle_add_local_once(move || {
-                paned.set_position(width);
-            });
-        }
     }
 }
 
 /// Create the TOC sidebar paned and return the paned together with the handle.
 ///
+/// `manual_width` is shared with the file-tree panel — see
+/// [`SharedPanelWidth`] — so a user-driven resize of either panel overrides
+/// both from then on.
+///
 /// The caller sets the end child:
 /// ```ignore
-/// let (paned, toc) = create_toc_panel(&webview);
+/// let (paned, toc) = create_toc_panel(&webview, manual_width);
 /// paned.set_end_child(Some(&webview.widget()));
 /// window.set_child(Some(&paned));
 /// ```
 pub fn create_toc_panel(
     webview: &crate::components::viewer::platform_webview::PlatformWebView,
+    manual_width: SharedPanelWidth,
 ) -> (gtk4::Paned, TocPanelHandle) {
     let paned = gtk4::Paned::new(gtk4::Orientation::Horizontal);
     paned.set_position(0); // collapsed by default
@@ -211,12 +220,38 @@ pub fn create_toc_panel(
     paned.set_resize_start_child(false);
     paned.set_resize_end_child(true);
 
+    let programmatic_resize = Rc::new(Cell::new(false));
+    // Detect a genuine user drag (vs. our own programmatic sets above/below,
+    // all guarded by `programmatic_resize`) and remember it as the new
+    // shared manual width. Registered *after* the initial `set_position(0)`
+    // above so that call isn't mistaken for a user resize.
+    {
+        let manual_width = manual_width.clone();
+        let programmatic = programmatic_resize.clone();
+        paned.connect_notify_local(Some("position"), move |p, _| {
+            if programmatic.get() {
+                return;
+            }
+            let pos = p.position();
+            // Collapsed, or below the enforced floor — the latter should be
+            // unreachable via a real user drag (`shrink_start_child(false)`
+            // plus the panel's own width_request/CSS min-width), but a
+            // transient layout-driven notify has been observed to fire a
+            // sub-minimum value here; see `SharedPanelWidth`'s doc comment
+            // for why that must never get persisted.
+            if pos < MIN_SIDEBAR_WIDTH {
+                return;
+            }
+            manual_width.set(Some(pos));
+        });
+    }
+
     // ── TOC panel (start child) ───────────────────────────────────────────────
     let panel_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
     panel_box.set_visible(false);
     panel_box.set_hexpand(false);
     panel_box.set_vexpand(true);
-    panel_box.set_width_request(80);
+    panel_box.set_width_request(MIN_SIDEBAR_WIDTH);
     panel_box.add_css_class("toc-panel");
 
     let header = gtk4::Label::new(Some("Contents"));
@@ -256,9 +291,10 @@ pub fn create_toc_panel(
         paned: paned.clone(),
         visible: Rc::new(Cell::new(false)),
         depth: Rc::new(Cell::new(3)),
-        widest_entry_px: Rc::new(Cell::new(0)),
         current_entries: Rc::new(RefCell::new(Vec::new())),
         webview: webview.clone(),
+        manual_width,
+        programmatic_resize,
     };
 
     (paned, handle)
@@ -271,12 +307,15 @@ fn inject_toc_css() {
         return;
     }
 
+    // `.toc-panel`'s `min-width` below must match `MIN_SIDEBAR_WIDTH` — kept
+    // as a literal (not `format!`) since this whole block is a plain CSS
+    // string with no other substitutions.
     let css = r#"
 /* TOC Panel */
 .toc-panel {
     background: transparent;
     border-right: 1px solid alpha(currentColor, 0.15);
-    min-width: 80px;
+    min-width: 150px;
 }
 .marco-theme-light .toc-panel {
     background-color: #f0f2f4;
@@ -369,7 +408,7 @@ scrolledwindow.toc-panel-scroll scrollbar slider {
 "#;
 
     let provider = gtk4::CssProvider::new();
-    provider.load_from_data(css);
+    provider.load_from_string(css);
     if let Some(display) = gtk4::gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,

@@ -39,12 +39,14 @@
 mod components;
 
 use components::css::load_css_from_path;
+use components::file_tree_panel::create_file_tree_panel;
 use components::menu::create_custom_titlebar;
+use components::sidebar_coordinator::SidebarCoordinator;
 use components::toc_panel::{create_toc_panel, TocPanelHandle};
 use components::utils::{apply_gtk_theme_preference, parse_hex_to_rgba};
 use components::viewer::platform_webview::PlatformWebView;
 use components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
-use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow};
+use gtk4::{gio, glib, prelude::*, Application, ApplicationWindow, Label};
 use marco_shared::paths::PoloPaths;
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -374,9 +376,23 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         webview.set_background_color_rgba(&rgba);
     }
 
+    // Link-hover tooltip (shows the full address of the currently hovered
+    // preview link) is now entirely in-page HTML/CSS/JS — see
+    // `viewer::link_hover` and `viewer::javascript::HOVER_REPORT_JS`. No
+    // Rust-side wiring needed; a native `gtk4::Popover` used to be driven
+    // from here, but its own show/hide/reposition calls crashed the app on
+    // Windows at hover frequency (see `viewer::link_hover`'s module doc).
+
     // Wire link policy: external links open in browser, local .md links prompt to reload.
     // Use a shared slot so the callback can update the TOC once it is created below.
     let toc_for_links: Rc<RefCell<Option<TocPanelHandle>>> = Rc::new(RefCell::new(None));
+    // Late-bound slot for the custom titlebar's title Label (the only visible
+    // title text — Polo uses a client-side-decorated titlebar, so the native
+    // `window.set_title()` alone is never shown on screen). The titlebar is
+    // built after this closure and after the toolbar (see below), so both
+    // reach the real Label through this slot once `create_custom_titlebar`
+    // fills it in, instead of updating a throwaway one. Mirrors `toc_for_links`.
+    let title_label_for_header: Rc<RefCell<Option<Label>>> = Rc::new(RefCell::new(None));
     {
         let webview_for_links = webview.clone();
         let window_for_links = window.clone();
@@ -385,6 +401,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         let asset_root_for_links = polo_paths.asset_root().to_path_buf();
         let current_file_path_for_links = current_file_path.clone();
         let toc_for_links = toc_for_links.clone();
+        let title_label_for_links = title_label_for_header.clone();
 
         webview.setup_link_policy(move |path, _fragment| {
             let filename = std::path::Path::new(&path)
@@ -401,6 +418,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
             let path_for_open = path.clone();
             let fname_for_open = filename.clone();
             let toc_for_open = toc_for_links.clone();
+            let title_label_for_open = title_label_for_links.clone();
 
             components::dialog::show_open_local_file_dialog(
                 &window_for_links,
@@ -409,7 +427,11 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
                     if let Ok(mut guard) = current_file_path.write() {
                         *guard = Some(path_for_open.clone());
                     }
-                    window.set_title(Some(&format!("Polo - {}", fname_for_open)));
+                    let title_text = format!("Polo - {}", fname_for_open);
+                    window.set_title(Some(&title_text));
+                    if let Some(label) = title_label_for_open.borrow().as_ref() {
+                        label.set_text(&title_text);
+                    }
                     load_and_render_markdown(
                         &webview,
                         &path_for_open,
@@ -430,10 +452,36 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         });
     }
 
+    // Shared between the TOC and file-tree panels: once the user manually
+    // resizes either one's divider, both remember and reuse that exact
+    // width instead of falling back to their own default/auto-size, for as
+    // long as the app stays open (not persisted across restarts). See
+    // `sidebar_coordinator::SharedPanelWidth`.
+    let sidebar_manual_width: components::sidebar_coordinator::SharedPanelWidth =
+        Rc::new(std::cell::Cell::new(None));
+
     // Create TOC panel (wraps webview in a Paned)
-    let (toc_paned, toc_handle) = create_toc_panel(&webview);
+    let (toc_paned, toc_handle) = create_toc_panel(&webview, sidebar_manual_width.clone());
     // Fill the shared slot so the link-policy callback can update the TOC.
     *toc_for_links.borrow_mut() = Some(toc_handle.clone());
+
+    // Create the file-tree sidebar panel (wraps toc_paned in an outer
+    // Paned, so it sits to the left of TOC/webview — same nesting the
+    // original feature plan called for).
+    //
+    // Both platforms start in the panel's default Home root (a single
+    // expandable node for the user's home/profile directory — labeled
+    // "Home" on Linux, the username on Windows), with the panel's own
+    // Home/System switcher covering full-system browsing (`/` on Linux,
+    // enumerated drives on Windows) — see dir.md §3.
+    let (files_paned, file_tree_handle) =
+        create_file_tree_panel(None, sidebar_manual_width.clone());
+    files_paned.set_end_child(Some(&toc_paned));
+
+    // TOC and the file tree are mutually exclusive — both the toolbar
+    // buttons and the View menu items go through this coordinator instead
+    // of toggling either panel directly.
+    let sidebar = SidebarCoordinator::new(toc_handle.clone(), file_tree_handle.clone());
     // Wrap the WebView in a loading-overlay so we can show an indeterminate
     // progress bar (centered, GTK-themed) while files are being parsed and
     // rendered.  The overlay itself becomes the Paned's end child; the
@@ -477,6 +525,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         if let Ok(text) = marco_shared::cache::cached::read_to_string(std::path::Path::new(path)) {
             toc_handle.update_from_text_async(text);
         }
+        file_tree_handle.set_open_path(Some(std::path::PathBuf::from(path)));
     } else {
         // Show empty state with theme awareness
         show_empty_state_with_theme(&webview, &settings_manager);
@@ -486,30 +535,21 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // Build the icon toolbar FIRST so we can pass open_editor_btn to the titlebar.
     let asset_root = polo_paths.asset_root();
 
-    // Build the on-file-opened callback for the toolbar's Open button
-    let toc_handle_for_toolbar_open = toc_handle.clone();
-    #[allow(clippy::type_complexity)]
-    let toc_cb_for_toolbar: Option<std::rc::Rc<dyn Fn(&str) + 'static>> =
-        Some(std::rc::Rc::new(move |path: &str| {
-            if let Ok(text) =
-                marco_shared::cache::cached::read_to_string(std::path::Path::new(path))
-            {
-                toc_handle_for_toolbar_open.update_from_text_async(text);
-            }
-        }));
-
     let toolbar_state = components::toolbar::create_polo_toolbar(
         &window,
         webview.clone(),
         settings_manager.clone(),
         current_file_path.clone(),
         asset_root,
-        toc_handle.clone(),
-        toc_cb_for_toolbar,
+        sidebar.clone(),
     );
+    // Retain a clone before `create_custom_titlebar` below moves the
+    // original — needed again for the drag-and-drop and file-tree wiring
+    // further down.
+    let open_editor_btn_for_drop = toolbar_state.open_editor_btn.clone();
 
     // ── Titlebar (text menu bar) ──────────────────────────────────────────
-    let (titlebar_handle, _title_label) = create_custom_titlebar(
+    let (titlebar_handle, title_label) = create_custom_titlebar(
         &window,
         filename.as_deref().unwrap_or("Untitled"),
         &saved_theme,
@@ -518,15 +558,176 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         current_file_path.clone(),
         asset_root,
         Some(toc_handle.clone()),
+        Some(file_tree_handle.clone()),
+        sidebar.clone(),
         toolbar_state.open_editor_btn,
+        toolbar_state.open_find_bar,
     );
     window.set_titlebar(Some(&titlebar_handle));
+    // Fill the late-bound slot now that the real title Label exists, so the
+    // toolbar's Open button and the link-click-open callback (wired above,
+    // before the titlebar existed) both start updating the visible header.
+    *title_label_for_header.borrow_mut() = Some(title_label.clone());
+
+    // ── Drag and drop: open a markdown file dropped onto the preview ──────
+    // Wired directly on the webview via wry's native `DragDropEvent` support
+    // (`PlatformWebView::set_file_drop_handler`/`set_drag_hover_handler`),
+    // not a GTK-level `DropTarget` on the window — the webview is a native
+    // widget on Linux and a child HWND on Windows, either of which could
+    // otherwise swallow window-level drop events before a `DropTarget` ever
+    // saw them. wry's own handler works identically on both backends.
+    {
+        let webview_for_hover = webview.clone();
+        webview.set_drag_hover_handler(move |active| {
+            // Both the empty state and a rendered document carry the same
+            // shared drop overlay (see `viewer::drop_overlay`), so this one
+            // call drives the drag-and-drop visual regardless of which is
+            // currently showing.
+            webview_for_hover.set_dragging_state(active);
+        });
+    }
+    {
+        let window_for_drop = window.clone();
+        let webview_for_drop = webview.clone();
+        let settings_manager_for_drop = settings_manager.clone();
+        let current_file_path_for_drop = current_file_path.clone();
+        let title_label_for_drop = title_label.clone();
+        let asset_root_for_drop = polo_paths.asset_root().to_path_buf();
+        let toc_handle_for_drop = toc_handle.clone();
+        let open_editor_btn_for_drop = open_editor_btn_for_drop.clone();
+        let file_tree_handle_for_drop = file_tree_handle.clone();
+
+        webview.set_file_drop_handler(move |paths| {
+            // Accept the first markdown file among the dropped paths (a user
+            // might drop a folder + a file together, or several files at
+            // once) — everything else in the drop is silently ignored, same
+            // as `connect_open`'s existing `files.first()` handling for
+            // file-manager "Open With" drops.
+            let Some(path) = paths.into_iter().find(|p| {
+                p.extension().and_then(|e| e.to_str()).is_some_and(|e| {
+                    e.eq_ignore_ascii_case("md") || e.eq_ignore_ascii_case("markdown")
+                })
+            }) else {
+                log::info!("[polo] Drag-and-drop: no markdown file among dropped paths; ignoring");
+                return;
+            };
+
+            let toc_for_drop = toc_handle_for_drop.clone();
+            let on_file_opened = move |path_str: &str| {
+                if let Ok(text) =
+                    marco_shared::cache::cached::read_to_string(std::path::Path::new(path_str))
+                {
+                    toc_for_drop.update_from_text_async(text);
+                }
+            };
+
+            components::dialog::open_file_and_update_state(
+                components::dialog::OpenFileContext {
+                    window: &window_for_drop,
+                    webview: &webview_for_drop,
+                    settings_manager: &settings_manager_for_drop,
+                    current_file_path: &current_file_path_for_drop,
+                    open_editor_btn: &open_editor_btn_for_drop,
+                    title_label: &title_label_for_drop,
+                    asset_root: &asset_root_for_drop,
+                    file_tree_handle: Some(&file_tree_handle_for_drop),
+                },
+                path,
+                Some(&on_file_opened),
+            );
+        });
+    }
+
+    // ── Empty-state "Open File" button: the primary way to open a file from
+    // the welcome screen (the toolbar's own "Open file" button was removed —
+    // see `toolbar.rs`). The button lives inside the webview's rendered HTML
+    // (`viewer::empty_state`), so it can't call into Rust directly; it posts
+    // a `polo_open_file:` IPC message instead, which triggers the exact same
+    // file-picker dialog every other "Open" entry point uses.
+    {
+        let window_for_empty_open = window.clone();
+        let webview_for_empty_open = webview.clone();
+        let settings_manager_for_empty_open = settings_manager.clone();
+        let current_file_path_for_empty_open = current_file_path.clone();
+        let title_label_for_empty_open = title_label.clone();
+        let asset_root_for_empty_open = polo_paths.asset_root().to_path_buf();
+        let toc_handle_for_empty_open = toc_handle.clone();
+        let open_editor_btn_for_empty_open = open_editor_btn_for_drop.clone();
+        let file_tree_handle_for_empty_open = file_tree_handle.clone();
+
+        webview.set_open_file_click_handler(move || {
+            let toc_for_open = toc_handle_for_empty_open.clone();
+            let on_file_opened: Rc<dyn Fn(&str)> = Rc::new(move |path_str: &str| {
+                if let Ok(text) =
+                    marco_shared::cache::cached::read_to_string(std::path::Path::new(path_str))
+                {
+                    toc_for_open.update_from_text_async(text);
+                }
+            });
+
+            components::dialog::show_open_file_dialog(
+                &window_for_empty_open,
+                webview_for_empty_open.clone(),
+                settings_manager_for_empty_open.clone(),
+                current_file_path_for_empty_open.clone(),
+                &open_editor_btn_for_empty_open,
+                &title_label_for_empty_open,
+                &asset_root_for_empty_open,
+                Some(on_file_opened),
+                Some(file_tree_handle_for_empty_open.clone()),
+            );
+        });
+    }
+
+    // ── File-tree panel: open a clicked file through the shared pipeline ──
+    // Fills the late-bound callback slot (see `FileTreePanelHandle`'s doc
+    // comment) now that `open_editor_btn`/`title_label` exist. The panel
+    // itself, and the sidebar coordinator built on it, already exist and
+    // are wired into the toolbar/titlebar above — only the callback needed
+    // to wait this long.
+    {
+        let window_for_tree = window.clone();
+        let webview_for_tree = webview.clone();
+        let settings_manager_for_tree = settings_manager.clone();
+        let current_file_path_for_tree = current_file_path.clone();
+        let title_label_for_tree = title_label.clone();
+        let asset_root_for_tree = polo_paths.asset_root().to_path_buf();
+        let toc_handle_for_tree = toc_handle.clone();
+        let open_editor_btn_for_tree = open_editor_btn_for_drop.clone();
+        let file_tree_handle_for_tree = file_tree_handle.clone();
+
+        file_tree_handle.set_open_file_callback(Rc::new(move |path: &std::path::Path| {
+            let toc_for_open = toc_handle_for_tree.clone();
+            let on_file_opened = move |path_str: &str| {
+                if let Ok(text) =
+                    marco_shared::cache::cached::read_to_string(std::path::Path::new(path_str))
+                {
+                    toc_for_open.update_from_text_async(text);
+                }
+            };
+
+            components::dialog::open_file_and_update_state(
+                components::dialog::OpenFileContext {
+                    window: &window_for_tree,
+                    webview: &webview_for_tree,
+                    settings_manager: &settings_manager_for_tree,
+                    current_file_path: &current_file_path_for_tree,
+                    open_editor_btn: &open_editor_btn_for_tree,
+                    title_label: &title_label_for_tree,
+                    asset_root: &asset_root_for_tree,
+                    file_tree_handle: Some(&file_tree_handle_for_tree),
+                },
+                path.to_path_buf(),
+                Some(&on_file_opened),
+            );
+        }));
+    }
 
     // ── Main content layout ───────────────────────────────────────────────
     // Vertical box: toolbar (top) + paned content (fill)
     let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
     main_box.append(&toolbar_state.toolbar);
-    main_box.append(&toc_paned);
+    main_box.append(&files_paned);
 
     window.set_child(Some(&main_box));
 

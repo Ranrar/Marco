@@ -329,8 +329,22 @@ pub fn move_webview_to_main_window(
             // Save state in case we need to rollback
             let existing_child = stack.child_by_name("html_preview");
 
-            // Remove existing child if present
+            // The "html_preview" page is normally the `LoadingOverlay`'s
+            // `gtk4::Overlay` wrapper (spinner chrome), not the bare webview.
+            // Put the webview back as *its* child instead of replacing the
+            // Stack page outright, or the loading-spinner handle (still
+            // pointing at this exact Overlay) would be left dangling outside
+            // the widget tree, silently breaking the spinner on every future
+            // preview refresh.
             if let Some(ref child) = existing_child {
+                if let Some(overlay) = child.downcast_ref::<gtk4::Overlay>() {
+                    overlay.set_child(Some(webview));
+                    stack.set_visible_child_name("html_preview");
+                    log::info!(
+                        "WebView successfully reparented back into main window's LoadingOverlay"
+                    );
+                    return Ok(());
+                }
                 log::warn!("Stack already has child named 'html_preview', removing it first");
                 stack.remove(child);
             }

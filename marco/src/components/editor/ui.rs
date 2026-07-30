@@ -620,7 +620,7 @@ pub fn create_editor_with_preview_and_buffer(
         crate::components::viewer::css_utils::gtk_scrollbar_css(&initial_thumb, &initial_track);
     if let Some(display) = gtk4::gdk::Display::default() {
         let gtk_scroll_provider = gtk4::CssProvider::new();
-        gtk_scroll_provider.load_from_data(&gtk_scroll_css);
+        gtk_scroll_provider.load_from_string(&gtk_scroll_css);
         gtk4::style_context_add_provider_for_display(
             &display,
             &gtk_scroll_provider,
@@ -688,7 +688,7 @@ paned > separator {{
     if let Some(display) = gtk4::gdk::Display::default() {
         let initial_css = generate_dynamic_paned_css(false);
         let provider = gtk4::CssProvider::new();
-        provider.load_from_data(&initial_css);
+        provider.load_from_string(&initial_css);
         gtk4::style_context_add_provider_for_display(
             &display,
             &provider,
@@ -725,7 +725,7 @@ paned > separator {{
                 let css = generate_css_for_monitor(scrollbar_visible);
 
                 let provider = gtk4::CssProvider::new();
-                provider.load_from_data(&css);
+                provider.load_from_string(&css);
                 gtk4::style_context_add_provider_for_display(
                     &display,
                     &provider,
@@ -790,11 +790,14 @@ paned > separator {{
                     );
 
                     let css_provider = gtk4::CssProvider::new();
-                    css_provider.load_from_data(&css);
-                    source_view_for_callback.style_context().add_provider(
-                        &css_provider,
-                        gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION
-                    );
+                    css_provider.load_from_string(&css);
+                    if let Some(display) = gtk4::gdk::Display::default() {
+                        gtk4::style_context_add_provider_for_display(
+                            &display,
+                            &css_provider,
+                            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+                        );
+                    }
 
                     // Apply line wrapping
                     let wrap_mode = if new_settings.line_wrapping {
@@ -1042,6 +1045,22 @@ paned > separator {{
             let webview_for_hook = webview_rc.borrow().clone();
             loading_overlay.set_offscreen_hook(move |offscreen| {
                 webview_for_hook.set_offscreen_for_loading(offscreen);
+            });
+        }
+
+        // Hide the overlay on wry's own native "page finished loading"
+        // signal (`PlatformWebView::connect_load_finished`), not just the
+        // JS-driven `marco_zoom:ready` IPC message. The JS path depends on
+        // the in-page zoom-bar bootstrap script actually executing, which
+        // section-based incremental preview updates (`Morph` /
+        // `PrioritizedPatch` in `renderer.rs`) never trigger at all since
+        // they patch the DOM in place rather than navigating — this native
+        // hook is Polo's proven-working mechanism and fires unconditionally
+        // on every full document load, regardless of in-page JS.
+        {
+            let webview_for_load_finished = webview_rc.borrow().clone();
+            webview_for_load_finished.connect_load_finished(move || {
+                crate::components::viewer::loading_overlay::hide();
             });
         }
 
@@ -1936,7 +1955,7 @@ paned > separator {{
                                             bg, fg
                                         ));
                                         let provider = gtk4::CssProvider::new();
-                                        provider.load_from_data(&css_rules);
+                                        provider.load_from_string(&css_rules);
                                         gtk4::style_context_add_provider_for_display(
                                             &display,
                                             &provider,
@@ -1963,7 +1982,7 @@ paned > separator {{
                                                 &thumb, &track,
                                             );
                                         let provider = gtk4::CssProvider::new();
-                                        provider.load_from_data(&gtk_css);
+                                        provider.load_from_string(&gtk_css);
                                         gtk4::style_context_add_provider_for_display(
                                             &display,
                                             &provider,
@@ -2014,7 +2033,7 @@ paned > separator {{
                                         };
 
                                         let paned_provider = gtk4::CssProvider::new();
-                                        paned_provider.load_from_data(&paned_css);
+                                        paned_provider.load_from_string(&paned_css);
                                         gtk4::style_context_add_provider_for_display(
                                             &display,
                                             &paned_provider,

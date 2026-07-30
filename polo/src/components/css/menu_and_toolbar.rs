@@ -7,6 +7,15 @@
 //!
 //! ## Toolbar (`.polo-toolbar`)
 //! Horizontal icon toolbar with SVG icon buttons.
+//!
+//! ## Popover chrome (`.polo-menu-popover`)
+//! The File/View menu popover's `popover_bg`/`shadow` values (matching
+//! Marco's `popover.rs`) are computed once per theme in `generate_theme_css`.
+//! The preview's link-hover tooltip (`viewer::link_hover`) used to share
+//! these same values as a native GTK Popover, but is now plain HTML/CSS
+//! rendered inside the webview instead (see that module's doc comment for
+//! why) — it hardcodes the matching literals itself rather than pulling them
+//! from this GTK-CSS generator.
 
 use super::constants::*;
 
@@ -172,6 +181,40 @@ popover.polo-menu-popover > contents separator {
     opacity: 0.65;
     margin: 0 5px;
 }
+
+/* ── Polo Find-in-Page Bar (inline, inside the toolbar Revealer) ───────
+   Geometry mirrors Marco's .marco-search-entry/.marco-search-checkbox
+   (marco/src/ui/css/dialog.rs) — same entry height, font sizes, and
+   checkbox indicator size, adapted from a floating search window to an
+   inline toolbar bar. */
+
+.polo-search-bar {
+    padding: 0 2px;
+}
+
+.polo-search-entry {
+    min-width: 160px;
+    min-height: 22px;
+    padding: 2px 8px;
+    font-size: 12px;
+    border-radius: 4px;
+}
+
+.polo-search-match-label {
+    font-size: 11px;
+    min-width: 34px;
+    margin-right: 4px;
+}
+
+.polo-search-checkbox {
+    font-size: 12px;
+    margin: 0 2px;
+}
+
+.polo-search-checkbox check {
+    min-width: 13px;
+    min-height: 13px;
+}
 "#;
 
 /// Generate theme-specific CSS for menu bar and toolbar.
@@ -314,6 +357,63 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
 .{theme} .polo-toolbar-separator {{
     background: {toolbar_separator};
 }}
+
+/* ── {theme} ── Find-in-Page Bar (colors mirror Marco's themed
+   .marco-search-entry/.marco-search-checkbox in dialog.rs) */
+.{theme} .polo-search-entry,
+.{theme} entry.polo-search-entry {{
+    background: {window_bg};
+    color: {fg};
+    border: 1px solid {toolbar_border};
+    border-radius: 4px;
+    outline: none;
+    caret-color: {fg};
+    box-shadow: none;
+}}
+
+.{theme} .polo-search-entry:hover,
+.{theme} entry.polo-search-entry:hover {{
+    border-color: {border_hover};
+}}
+
+.{theme} .polo-search-entry:focus,
+.{theme} .polo-search-entry:focus-within,
+.{theme} entry.polo-search-entry:focus {{
+    background: {window_bg};
+    border-color: {border_hover};
+    outline: none;
+    caret-color: {fg};
+    box-shadow: none;
+}}
+
+.{theme} .polo-search-match-label {{
+    color: {fg};
+    opacity: 0.7;
+}}
+
+.{theme} .polo-search-checkbox {{
+    color: {toolbar_button};
+}}
+
+.{theme} .polo-search-checkbox:hover {{
+    color: {toolbar_button_hover};
+}}
+
+.{theme} .polo-search-checkbox check {{
+    background: {check_bg};
+    border: 1px solid {toolbar_border};
+    border-radius: 3px;
+}}
+
+.{theme} .polo-search-checkbox check:checked {{
+    background: {border_hover};
+    border-color: {border_hover};
+    color: #ffffff;
+}}
+
+.{theme} .polo-search-checkbox check:hover {{
+    border-color: {border_hover};
+}}
 "#,
         theme = theme_class,
         titlebar_bg = palette.titlebar_bg,
@@ -330,6 +430,9 @@ fn generate_theme_css(theme_class: &str, palette: &ColorPalette) -> String {
         toolbar_button_active = palette.toolbar_button_active,
         toolbar_separator = palette.toolbar_separator,
         menu_disabled = palette.menu_disabled,
+        window_bg = palette.window_bg,
+        border_hover = palette.border_hover,
+        check_bg = palette.popover_bg,
     )
 }
 

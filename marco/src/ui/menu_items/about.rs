@@ -116,7 +116,13 @@ fn create_link_button(
         let dialog_clone = dialog.clone();
         let url_owned = url.to_string();
         gesture.connect_released(move |_gesture, _n, _x, _y| {
-            gtk4::show_uri(Some(&dialog_clone), &url_owned, gtk4::gdk::CURRENT_TIME);
+            let dialog_clone = dialog_clone.clone();
+            let url_owned = url_owned.clone();
+            glib::MainContext::default().spawn_local(async move {
+                let _ = gtk4::UriLauncher::new(&url_owned)
+                    .launch_future(Some(&dialog_clone))
+                    .await;
+            });
         });
     }
     link_box.add_controller(gesture);

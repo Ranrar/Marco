@@ -1078,7 +1078,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
 
     // Use SVG layout switcher icon
     let layout_icon_color: std::borrow::Cow<'static, str> =
-        if window.style_context().has_class("marco-theme-dark") {
+        if window.has_css_class("marco-theme-dark") {
             std::borrow::Cow::from(DARK_PALETTE.control_icon)
         } else {
             std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
@@ -1129,7 +1129,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Add hover/active interaction to layout switcher to match window controls
     {
         let pic_hover = layout_pic.clone();
-        let is_dark = window.style_context().has_class("marco-theme-dark");
+        let is_dark = window.has_css_class("marco-theme-dark");
         let hover_color = if is_dark {
             DARK_PALETTE.control_icon_hover.to_string()
         } else {
@@ -1204,7 +1204,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
 
     // Pre-create layout popover buttons to avoid capturing non-'static `window` inside the rebuild closure
     const LAYOUT_ICON_SIZE_F: f64 = 14.0;
-    let base_icon_color: &'static str = if window.style_context().has_class("marco-theme-dark") {
+    let base_icon_color: &'static str = if window.has_css_class("marco-theme-dark") {
         DARK_PALETTE.control_icon
     } else {
         LIGHT_PALETTE.control_icon
@@ -1476,15 +1476,14 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                             let tracker_cb = webview_location_tracker_opt.clone();
                             let guard_cb = clone_reparent_guard(&reparent_guard_opt);
                             let weak_rebuild_cb = weak_rebuild_local.clone();
+                            let layout_state_cb = layout_state.clone();
+                            let previous_layout_state_cb = previous_layout_state_for_btn3.clone();
+                            let previous_split_position_cb = previous_split_position_for_btn3.clone();
+                            let split_controller_cb = split_controller_opt.clone();
 
                             pw.set_on_close_callback(move || {
-                                log::info!("Preview window closed by user - restoring preview to main window");
-                            });
-                            log::info!("Registered on_close callback for preview window");
-                            // Re-set the callback to perform the actual restore logic
-                            pw.set_on_close_callback(move || {
                                 use crate::components::viewer::layout_controller::WebViewLocation;
-                                log::info!("Preview window closed by user - restoring preview to main window (inner)");
+                                log::info!("Preview window closed by user - restoring preview to main window");
 
                                 // Try to reparent the webview back to the main window (safe for non-Linux)
                                 reparent_webview_to_main_window(
@@ -1500,6 +1499,30 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                                 if let Some(tracker) = &tracker_cb {
                                     tracker.set(WebViewLocation::MainWindow);
                                 }
+
+                                // Restore the layout mode active before switching to
+                                // EditorAndViewSeparate — mirrors the "click detach again
+                                // to toggle off" path above. Without this, closing the
+                                // window via its own [X] button left `layout_state` stuck
+                                // on EditorAndViewSeparate, so the split stayed locked at
+                                // 100% (editor fills the window) instead of returning to
+                                // DualView.
+                                let prev = *previous_layout_state_cb.borrow();
+                                *layout_state_cb.borrow_mut() = prev;
+
+                                if prev == LayoutState::DualView {
+                                    if let Some(ref split) = split_cb {
+                                        let pos = *previous_split_position_cb.borrow();
+                                        if pos > 0 {
+                                            split.set_position(pos);
+                                        }
+                                    }
+                                }
+
+                                if let Some(controller) = &split_controller_cb {
+                                    controller.set_mode(prev);
+                                }
+                                crate::components::editor::editor_manager::set_current_layout_state(prev);
 
                                 // Trigger a UI rebuild so the Stack visibility and tooltips update
                                 if let Some(rc) = weak_rebuild_cb.upgrade() {
@@ -1924,7 +1947,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         {
             let pic_hover = pic.clone();
             let normal_color = color.to_string();
-            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let is_dark = window.has_css_class("marco-theme-dark");
             let hover_color = if is_dark {
                 DARK_PALETTE.control_icon_hover.to_string()
             } else {
@@ -2012,7 +2035,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         {
             let pic_hover = pic.clone();
             let normal_color = color.to_string();
-            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let is_dark = window.has_css_class("marco-theme-dark");
             let hover_color = if is_dark {
                 DARK_PALETTE.control_icon_hover.to_string()
             } else {
@@ -2072,12 +2095,12 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
 
         // Use palette colors for window control icons (not hardcoded)
         // Use Polo-aligned palette control colors for the icon itself
-        let icon_color: std::borrow::Cow<'static, str> =
-            if window.style_context().has_class("marco-theme-dark") {
-                std::borrow::Cow::from(DARK_PALETTE.control_icon)
-            } else {
-                std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
-            };
+        let icon_color: std::borrow::Cow<'static, str> = if window.has_css_class("marco-theme-dark")
+        {
+            std::borrow::Cow::from(DARK_PALETTE.control_icon)
+        } else {
+            std::borrow::Cow::from(LIGHT_PALETTE.control_icon)
+        };
 
         let btn_min = svg_icon_button(
             window,
@@ -2134,7 +2157,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
 
         // Add hover/active color changes for maximize button
         {
-            let is_dark = window.style_context().has_class("marco-theme-dark");
+            let is_dark = window.has_css_class("marco-theme-dark");
             let hover_color = if is_dark {
                 DARK_PALETTE.control_icon_hover.to_string()
             } else {

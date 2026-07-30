@@ -441,7 +441,7 @@ scrolledwindow.toc-panel-scroll scrollbar slider {
 "#;
 
     let provider = gtk4::CssProvider::new();
-    provider.load_from_data(css);
+    provider.load_from_string(css);
     if let Some(display) = gtk4::gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,

@@ -90,7 +90,7 @@ fn ensure_frame_css() {
         }
         if let Some(display) = gtk4::gdk::Display::default() {
             let provider = gtk4::CssProvider::new();
-            provider.load_from_data(FRAME_CSS);
+            provider.load_from_string(FRAME_CSS);
             gtk4::style_context_add_provider_for_display(
                 &display,
                 &provider,

@@ -44,6 +44,41 @@ pub(crate) fn get_latest_preview_base_uri() -> Option<String> {
     latest_base_uri_mutex().lock().ok().and_then(|g| g.clone())
 }
 
+// Listener fired every time `record_latest_preview` updates the cache above.
+// Not `Send` (the registered closure captures GTK types), so a plain
+// thread-local is used — matches `loading_overlay`'s `GLOBAL` pattern.
+//
+// This exists for the Windows detached preview window
+// (`detached_window_windows::PreviewWindow`), which — unlike Linux's, which
+// reparents the *same live* webview and so needs no explicit refresh —
+// rebuilds its content from this cache in a *separate* `PlatformWebView`
+// instance (see its module doc comment, §14.3). Without this hook, an
+// already-open detached window never learns the cache changed (e.g. on a
+// theme switch, which forces a full-document rebuild on the main preview
+// but has no other way to reach a webview it doesn't own), so its content —
+// and, before this, its theme — appeared permanently stuck on whatever was
+// rendered when it was first opened.
+type RefreshListener = Box<dyn Fn()>;
+thread_local! {
+    static PREVIEW_REFRESHED_LISTENER: std::cell::RefCell<Option<RefreshListener>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Register `f` to run every time [`crate::components::viewer::backend::record_latest_preview`]
+/// updates the cached preview HTML/base URI. Replacing the listener overwrites the previous one.
+#[allow(dead_code)] // Registered by Windows-only detached-window code.
+pub fn set_preview_refreshed_listener(f: impl Fn() + 'static) {
+    PREVIEW_REFRESHED_LISTENER.with(|cell| *cell.borrow_mut() = Some(Box::new(f)));
+}
+
+pub(crate) fn notify_preview_refreshed() {
+    PREVIEW_REFRESHED_LISTENER.with(|cell| {
+        if let Some(f) = cell.borrow().as_ref() {
+            f();
+        }
+    });
+}
+
 /// Generate a file:// base URI from a document path for resolving relative paths.
 pub fn generate_base_uri_from_path<P: AsRef<std::path::Path>>(document_path: P) -> Option<String> {
     if let Some(parent_dir) = document_path.as_ref().parent() {
@@ -51,11 +86,27 @@ pub fn generate_base_uri_from_path<P: AsRef<std::path::Path>>(document_path: P) 
             .canonicalize()
             .unwrap_or_else(|_| parent_dir.to_path_buf());
 
+        // `canonicalize()` on Windows returns a verbatim path
+        // (`\\?\C:\...` or `\\?\UNC\server\share\...`); strip that prefix
+        // before converting to a URI, or the WebView backend rejects the
+        // resulting URL outright (the literal `\?` sequence doesn't survive
+        // percent-encoding into anything a URI parser accepts).
+        let raw = absolute_parent.to_string_lossy();
+        #[cfg(target_os = "windows")]
+        let raw = raw
+            .strip_prefix(r"\\?\UNC\")
+            .map(|rest| std::borrow::Cow::Owned(format!(r"\\{rest}")))
+            .unwrap_or_else(|| {
+                raw.strip_prefix(r"\\?\")
+                    .map(|rest| std::borrow::Cow::Owned(rest.to_string()))
+                    .unwrap_or(raw)
+            });
+
         // File URIs use forward slashes and a trailing slash so relative URLs
         // resolve under the directory. Unix absolute paths already start with
         // '/' (file:///home/...); Windows drive paths need one added
         // (file:///C:/...).
-        let mut s = absolute_parent.to_string_lossy().replace('\\', "/");
+        let mut s = raw.replace('\\', "/");
         if !s.ends_with('/') {
             s.push('/');
         }

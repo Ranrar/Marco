@@ -24,8 +24,29 @@
 use gtk4::prelude::*;
 
 type NavigationHandlerCell =
-    std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>;
+    std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn(String, Option<String>)>>>>;
 type LoadFinishedHandlerCell = std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn()>>>>;
+/// Fired once per completed drop, with every path the OS reported (filtering
+/// down to a markdown file, or rejecting the drop, is the caller's job — see
+/// `main.rs`).
+type FileDropCallbackCell =
+    std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn(Vec<std::path::PathBuf>)>>>>;
+/// `true` while a drag carrying files is over the webview (drives a "drop
+/// here" highlight), `false` once it leaves or completes.
+type DragHoverCallbackCell = std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn(bool)>>>>;
+/// Fired when the empty-state preview's "Open File" button (an HTML button
+/// inside the welcome page — see `viewer::empty_state`, since no native GTK
+/// widget can be embedded in rendered webview content) posts a
+/// `polo_open_file:` IPC message.
+type OpenFileClickCallbackCell = std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn()>>>>;
+/// Listener for the in-page `PoloFind` JS engine's `polo_find:count=<N>,index=<K>`
+/// IPC reports (see [`crate::components::viewer::find_engine`]). Drives the
+/// toolbar search bar's "K of N" indicator.
+type FindReportCallbackCell = std::rc::Rc<
+    std::cell::RefCell<
+        Option<std::rc::Rc<dyn Fn(crate::components::viewer::find_engine::FindReport)>>,
+    >,
+>;
 
 /// Unified WebView wrapper exposed to the rest of the codebase.
 #[derive(Clone)]
@@ -39,6 +60,22 @@ pub struct PlatformWebView {
     gtk_window: gtk4::ApplicationWindow,
     navigation_handler: NavigationHandlerCell,
     load_finished_handler: LoadFinishedHandlerCell,
+    /// Listener for wry's native `DragDropEvent::Drop`. Wired directly on the
+    /// webview via `with_drag_drop_handler` rather than a GTK-level
+    /// `DropTarget` on the window — the webview is a native widget on Linux
+    /// and a child HWND on Windows, either of which could otherwise swallow
+    /// drop events before a window-level `DropTarget` ever saw them. wry's
+    /// own handler works identically on both backends.
+    file_drop_callback: FileDropCallbackCell,
+    /// Listener for wry's `DragDropEvent::Enter`/`Over`/`Leave`, driving a
+    /// "drop here" highlight while a compatible drag is in progress.
+    drag_hover_callback: DragHoverCallbackCell,
+    /// Listener for the empty-state's `polo_open_file:` IPC message (its
+    /// "Open File" button). See [`Self::set_open_file_click_handler`].
+    open_file_click_callback: OpenFileClickCallbackCell,
+    /// Listener for `polo_find:count=N,index=K` IPC messages emitted by the
+    /// `PoloFind` JS engine. See [`Self::set_find_report_callback`].
+    find_report_callback: FindReportCallbackCell,
     /// When `true` the tick callback keeps the wry HWND at −32000,−32000 so
     /// the GTK loading-overlay frame is visible above it (Windows-only effect;
     /// on Linux the overlay stacks above the webview widget natively).
@@ -71,13 +108,21 @@ impl PlatformWebView {
             std::rc::Rc::new(std::cell::RefCell::new(None));
         let load_finished_handler: LoadFinishedHandlerCell =
             std::rc::Rc::new(std::cell::RefCell::new(None));
+        let file_drop_callback: FileDropCallbackCell =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+        let drag_hover_callback: DragHoverCallbackCell =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+        let open_file_click_callback: OpenFileClickCallbackCell =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+        let find_report_callback: FindReportCallbackCell =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
         let is_offscreen_for_loading = std::rc::Rc::new(std::cell::Cell::new(false));
 
         // Paint the container background to match the theme so there is no
         // white flash while the page is loading.
         container.add_css_class("polo-preview-bg");
         let bg_css_provider = std::rc::Rc::new(gtk4::CssProvider::new());
-        bg_css_provider.load_from_data(".polo-preview-bg { background-color: #1e1e1e; }");
+        bg_css_provider.load_from_string(".polo-preview-bg { background-color: #1e1e1e; }");
         if let Some(display) = gtk4::gdk::Display::default() {
             gtk4::style_context_add_provider_for_display(
                 &display,
@@ -140,10 +185,9 @@ impl PlatformWebView {
                     // off-screen so the GTK loading-overlay frame is visible.
                     if !container.is_mapped() || is_offscreen_tick.get() {
                         let (w, h) = if is_offscreen_tick.get() {
-                            let alloc = container.allocation();
                             (
-                                alloc.width().max(100) as f64,
-                                alloc.height().max(100) as f64,
+                                container.width().max(100) as f64,
+                                container.height().max(100) as f64,
                             )
                         } else {
                             (1.0, 1.0)
@@ -157,26 +201,28 @@ impl PlatformWebView {
                         return gtk4::glib::ControlFlow::Continue;
                     }
 
-                    let alloc = container.allocation();
                     let (offset_x, offset_y) = if win.is_maximized() {
                         (0.0, 0.0)
                     } else {
                         (14.0, 12.0)
                     };
 
-                    let origin_in_window = match container.translate_coordinates(&win, 0.0, 0.0) {
-                        Some((x, y)) => (x, y),
-                        None => (alloc.x() as f64, alloc.y() as f64),
+                    // Compute the container's position + size in window coordinates in a
+                    // single call (replaces the deprecated allocation()/translate_coordinates() pair).
+                    let bounds = container.compute_bounds(&win);
+                    let (origin_x, origin_y, width, height) = match &bounds {
+                        Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
+                        None => (0.0, 0.0, container.width() as f64, container.height() as f64),
                     };
 
                     let rect = wry::Rect {
                         position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                            origin_in_window.0 + offset_x - 1.0,
-                            origin_in_window.1 + offset_y,
+                            origin_x + offset_x - 1.0,
+                            origin_y + offset_y,
                         )),
                         size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                            alloc.width().max(1) as f64 + 1.0,
-                            alloc.height().max(1) as f64,
+                            width.max(1.0) + 1.0,
+                            height.max(1.0),
                         )),
                     };
                     if let Err(e) = view.set_bounds(rect) {
@@ -197,6 +243,10 @@ impl PlatformWebView {
             gtk_window: window.clone(),
             navigation_handler,
             load_finished_handler,
+            file_drop_callback,
+            drag_hover_callback,
+            open_file_click_callback,
+            find_report_callback,
             is_offscreen_for_loading,
             load_version: std::rc::Rc::new(std::cell::Cell::new(0u64)),
             bg_css_provider,
@@ -237,7 +287,23 @@ impl PlatformWebView {
                         }
                     }
                 }
-            });
+            })
+            .with_ipc_handler({
+                let open_file_cb = self.open_file_click_callback.clone();
+                let find_cb = self.find_report_callback.clone();
+                move |req: wry::http::Request<String>| {
+                    let msg = req.body().as_str();
+                    if msg == "polo_open_file:" {
+                        handle_open_file_click_ipc(&open_file_cb);
+                    } else if let Some(payload) = msg.strip_prefix("polo_find:") {
+                        handle_find_report_ipc(payload, &find_cb);
+                    }
+                }
+            })
+            .with_drag_drop_handler(make_drag_drop_handler(
+                self.file_drop_callback.clone(),
+                self.drag_hover_callback.clone(),
+            ));
 
         let view = builder
             .build_gtk(&self.container)
@@ -295,7 +361,7 @@ impl PlatformWebView {
             (color.green() * 255.0) as u32,
             (color.blue() * 255.0) as u32,
         );
-        self.bg_css_provider.load_from_data(&css_data);
+        self.bg_css_provider.load_from_string(&css_data);
     }
 
     /// Load `html` into the preview, with an optional base directory
@@ -355,39 +421,41 @@ impl PlatformWebView {
             // Build the WebView off-screen if a loading operation is in progress
             // so the GTK loading-overlay frame stays visible until the page loads.
             let rect = if self.is_offscreen_for_loading.get() {
-                let alloc = self.container.allocation();
                 wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                         -32000.0, -32000.0,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64,
-                        alloc.height().max(100) as f64,
+                        self.container.width().max(100) as f64,
+                        self.container.height().max(100) as f64,
                     )),
                 }
             } else {
-                let alloc = self.container.allocation();
                 let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
                     (0.0, 0.0)
                 } else {
                     (14.0, 12.0)
                 };
-                let origin_in_window =
-                    match self
-                        .container
-                        .translate_coordinates(&self.gtk_window, 0.0, 0.0)
-                    {
-                        Some((x, y)) => (x, y),
-                        None => (alloc.x() as f64, alloc.y() as f64),
-                    };
+                // Compute the container's position + size in window coordinates in a
+                // single call (replaces the deprecated allocation()/translate_coordinates() pair).
+                let bounds = self.container.compute_bounds(&self.gtk_window);
+                let (origin_x, origin_y, width, height) = match &bounds {
+                    Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
+                    None => (
+                        0.0,
+                        0.0,
+                        self.container.width() as f64,
+                        self.container.height() as f64,
+                    ),
+                };
                 wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        origin_in_window.0 + offset_x - 1.0,
-                        origin_in_window.1 + offset_y,
+                        origin_x + offset_x - 1.0,
+                        origin_y + offset_y,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64 + 1.0,
-                        alloc.height().max(100) as f64,
+                        width.max(100.0) + 1.0,
+                        height.max(100.0),
                     )),
                 }
             };
@@ -419,9 +487,26 @@ impl PlatformWebView {
                         }
                     }
                 })
+                .with_ipc_handler({
+                    let open_file_cb = self.open_file_click_callback.clone();
+                    let find_cb = self.find_report_callback.clone();
+                    move |req: wry::http::Request<String>| {
+                        let msg = req.body().as_str();
+                        if msg == "polo_open_file:" {
+                            handle_open_file_click_ipc(&open_file_cb);
+                        } else if let Some(payload) = msg.strip_prefix("polo_find:") {
+                            handle_find_report_ipc(payload, &find_cb);
+                        }
+                    }
+                })
+                .with_drag_drop_handler(make_drag_drop_handler(
+                    self.file_drop_callback.clone(),
+                    self.drag_hover_callback.clone(),
+                ))
                 .build_as_child(&*self.parent_handle)
             {
                 Ok(view) => {
+                    install_f5_reload_override(&view, &self.gtk_window);
                     *self.inner.borrow_mut() = Some(view);
                 }
                 Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
@@ -436,7 +521,7 @@ impl PlatformWebView {
     ///
     /// All other navigation (in-page anchors, resources) is passed through.
     pub fn setup_link_policy(&self, on_local_md: impl Fn(String, Option<String>) + 'static) {
-        *self.navigation_handler.borrow_mut() = Some(Box::new(on_local_md));
+        *self.navigation_handler.borrow_mut() = Some(std::rc::Rc::new(on_local_md));
     }
 
     /// Run `f` once each time the WebView finishes loading a page.
@@ -445,6 +530,42 @@ impl PlatformWebView {
     /// screen, rather than when the load was merely *queued*.
     pub fn connect_load_finished<F: Fn() + 'static>(&self, f: F) {
         *self.load_finished_handler.borrow_mut() = Some(Box::new(f));
+    }
+
+    /// Install a callback invoked once, with every path the OS reported,
+    /// when files are dropped onto the webview. Filtering down to a single
+    /// markdown file (or rejecting the drop) is the caller's job.
+    pub fn set_file_drop_handler<F: Fn(Vec<std::path::PathBuf>) + 'static>(&self, callback: F) {
+        *self.file_drop_callback.borrow_mut() = Some(std::rc::Rc::new(callback));
+    }
+
+    /// Install a callback invoked with `true` while a drag carrying files is
+    /// over the webview, and `false` once it leaves or completes — drives a
+    /// "drop here" highlight independent of whether the drop is ultimately
+    /// accepted.
+    pub fn set_drag_hover_handler<F: Fn(bool) + 'static>(&self, callback: F) {
+        *self.drag_hover_callback.borrow_mut() = Some(std::rc::Rc::new(callback));
+    }
+
+    /// Install a callback invoked when the empty-state's "Open File" button
+    /// is clicked (`polo_open_file:` IPC message — see
+    /// `viewer::empty_state`).
+    pub fn set_open_file_click_handler<F: Fn() + 'static>(&self, callback: F) {
+        *self.open_file_click_callback.borrow_mut() = Some(std::rc::Rc::new(callback));
+    }
+
+    /// Install a callback invoked when the in-page `PoloFind` JS engine posts
+    /// a `polo_find:count=<N>,index=<K>` IPC message. The payload is parsed
+    /// into a [`crate::components::viewer::find_engine::FindReport`] before
+    /// delivery.
+    ///
+    /// Pair this with [`crate::components::viewer::find_engine::install`]
+    /// and `search`/`next`/`prev`/`clear`.
+    pub fn set_find_report_callback<F>(&self, callback: F)
+    where
+        F: Fn(crate::components::viewer::find_engine::FindReport) + 'static,
+    {
+        *self.find_report_callback.borrow_mut() = Some(std::rc::Rc::new(callback));
     }
 
     /// Move the wry HWND off-screen (`offscreen = true`) so the GTK loading-
@@ -461,14 +582,13 @@ impl PlatformWebView {
         #[cfg(target_os = "windows")]
         if offscreen {
             if let Some(view) = self.inner.borrow().as_ref() {
-                let alloc = self.container.allocation();
                 let _ = view.set_bounds(wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                         -32000.0, -32000.0,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64,
-                        alloc.height().max(100) as f64,
+                        self.container.width().max(100) as f64,
+                        self.container.height().max(100) as f64,
                     )),
                 });
             }
@@ -482,6 +602,17 @@ impl PlatformWebView {
                 log::error!("JavaScript evaluation failed: {}", e);
             }
         }
+    }
+
+    /// Toggle the shared "drop file to open" overlay (see
+    /// `viewer::drop_overlay`) on whatever page is currently loaded. Both
+    /// the empty state and a rendered document carry the same overlay
+    /// markup/CSS, so this one call drives the drag-and-drop visual for
+    /// either without the caller needing to know which is showing.
+    pub fn set_dragging_state(&self, active: bool) {
+        self.evaluate_script(&format!(
+            "document.documentElement.classList.toggle('dragging', {active});"
+        ));
     }
 
     /// Open the native print dialog for the current page.
@@ -819,23 +950,216 @@ fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
     Ok(())
 }
 
+/// Suppress WebView2's own default F5-reload behavior and route it to
+/// Polo's own `win.polo-reload` action instead — the same action the
+/// File-menu "Reload" button already uses (`components::menu`). Without
+/// this, F5 while keyboard focus is inside the document area gets consumed
+/// by WebView2 itself (it's Chromium-based and, like any browser, treats F5
+/// as "reload the page" out of the box) *before* the keypress ever reaches
+/// GTK's window-level accelerator group — so the menu's `["F5"]` accelerator
+/// (`components::menu::build_file_popover`) never fires. WebView2's own
+/// reload just re-navigates to the exact same `polo-preview://` URL, which
+/// `polo_protocol_handler` serves from the same cached, unchanged HTML — no
+/// disk re-read, no TOC update, visually indistinguishable from nothing
+/// happening at all.
+///
+/// `AcceleratorKeyPressed` fires for every accelerator-eligible keypress
+/// (function keys, Ctrl/Alt combinations, …) *before* WebView2 applies its
+/// own default behavior for that key, regardless of
+/// `AreBrowserAcceleratorKeysEnabled` — that setting only controls whether
+/// the default behavior itself runs afterward if the event isn't marked
+/// handled. Marking it handled for `VK_F5` specifically, and only then,
+/// stops WebView2's own reload without touching
+/// `AreBrowserAcceleratorKeysEnabled` globally, which would also disable
+/// unrelated browser shortcuts (Ctrl+C, Ctrl+F, …) inside the preview.
+#[cfg(target_os = "windows")]
+fn install_f5_reload_override(view: &wry::WebView, window: &gtk4::ApplicationWindow) {
+    use webview2_com::AcceleratorKeyPressedEventHandler;
+    use windows::Win32::UI::Input::KeyboardAndMouse::VK_F5;
+    use wry::WebViewExtWindows;
+
+    let controller = view.controller();
+    let window = window.clone();
+    let handler = AcceleratorKeyPressedEventHandler::create(Box::new(move |_, args| {
+        let Some(args) = args else {
+            return Ok(());
+        };
+        let mut key = 0u32;
+        unsafe {
+            args.VirtualKey(&mut key)?;
+        }
+        if key == VK_F5.0 as u32 {
+            unsafe {
+                args.SetHandled(true)?;
+            }
+            // `window.add_action(&reload_action)` (components::menu) added
+            // this directly to the window's own action map, so it's
+            // activated by its bare name via `ActionGroupExt` — not the
+            // `"win."`-prefixed form `WidgetExt::activate_action` expects.
+            let _ = gtk4::prelude::ActionGroupExt::activate_action(&window, "polo-reload", None);
+        }
+        Ok(())
+    }));
+
+    let mut token: i64 = 0;
+    if let Err(e) = unsafe { controller.add_AcceleratorKeyPressed(&handler, &mut token) } {
+        log::warn!("[polo] Failed to install F5 reload override: {}", e);
+    }
+}
+
+/// Build the `wry::DragDropEvent` handler shared by both platforms' builder
+/// sites (`build_webview_gtk` on Linux, the first-build path in
+/// `load_html_with_base` on Windows).
+///
+/// Always returns `true` ("block the OS/webview's own default drop
+/// handling"): the rendered preview never contains `<input type="file">`
+/// forms, so there's nothing that default behavior would usefully preserve —
+/// and blocking it is what stops WebKit from trying to navigate to (or
+/// WebView2 from trying to open) the dropped file itself instead of Polo
+/// handling it.
+///
+/// Dispatches on the GTK main context via `invoke_local`, same defensive
+/// reasoning as `handle_open_file_click_ipc` below: wry callbacks aren't
+/// guaranteed to run on the GTK main thread on every backend.
+fn make_drag_drop_handler(
+    file_drop_cb: FileDropCallbackCell,
+    drag_hover_cb: DragHoverCallbackCell,
+) -> impl Fn(wry::DragDropEvent) -> bool {
+    move |event: wry::DragDropEvent| {
+        match event {
+            wry::DragDropEvent::Enter { .. } | wry::DragDropEvent::Over { .. } => {
+                if let Some(cb) = drag_hover_cb.borrow().clone() {
+                    gtk4::glib::MainContext::default().invoke_local(move || cb(true));
+                }
+            }
+            wry::DragDropEvent::Leave => {
+                if let Some(cb) = drag_hover_cb.borrow().clone() {
+                    gtk4::glib::MainContext::default().invoke_local(move || cb(false));
+                }
+            }
+            wry::DragDropEvent::Drop { paths, .. } => {
+                if let Some(cb) = drag_hover_cb.borrow().clone() {
+                    gtk4::glib::MainContext::default().invoke_local(move || cb(false));
+                }
+                if let Some(cb) = file_drop_cb.borrow().clone() {
+                    gtk4::glib::MainContext::default().invoke_local(move || cb(paths));
+                }
+            }
+            // `DragDropEvent` is `#[non_exhaustive]` and has a Linux-only
+            // `Start` variant (drag originating *from* the webview) that
+            // doesn't apply to opening files dropped *onto* it.
+            _ => {}
+        }
+        true
+    }
+}
+
+/// Dispatch a `polo_open_file:` IPC message (the empty-state's "Open File"
+/// button) to the installed [`PlatformWebView::set_open_file_click_handler`]
+/// callback on the GTK main context — `with_ipc_handler` closures run on
+/// wry's own thread on at least one platform, so GTK calls inside the
+/// callback must be marshalled back via `invoke_local` (same pattern as the
+/// `marco_hover:` handling in Marco's `platform_webview.rs`).
+fn handle_open_file_click_ipc(open_file_cb: &OpenFileClickCallbackCell) {
+    let cb_opt = open_file_cb.borrow().clone();
+    if let Some(cb) = cb_opt {
+        gtk4::glib::MainContext::default().invoke_local(move || cb());
+    }
+}
+
+/// Dispatch a `polo_find:` IPC payload (posted by the in-page `PoloFind` JS
+/// engine — see `viewer::find_engine`) to the installed
+/// [`PlatformWebView::set_find_report_callback`] callback, same
+/// `invoke_local` marshalling as [`handle_open_file_click_ipc`].
+fn handle_find_report_ipc(payload: &str, find_cb: &FindReportCallbackCell) {
+    let Some(report) = crate::components::viewer::find_engine::parse_report(payload) else {
+        log::debug!("[wry] malformed polo_find payload: {:?}", payload);
+        return;
+    };
+    let cb_opt = find_cb.borrow().clone();
+    if let Some(cb) = cb_opt {
+        gtk4::glib::MainContext::default().invoke_local(move || cb(report));
+    }
+}
+
 /// Decide whether a wry navigation should be allowed, and handle side effects.
 ///
 /// - External links (http/https/www/mailto) → open in system browser, deny navigation.
 /// - Local `.md` / `.markdown` file links → invoke the stored callback, deny navigation.
+///   Covers both absolute `file://` links (written directly in Markdown) and
+///   *relative* links — which resolve against the loaded document's own
+///   `polo-preview://`/`http://polo-preview.…` base URL (see
+///   [`build_document_url`]), not `file://`, since that's the scheme the
+///   document was actually loaded through.
 /// - Everything else (anchors, file resources, data URIs, about:blank) → allow.
 ///
 /// Returns `true` to allow the navigation, `false` to deny it.
 fn wry_navigation_handler(uri: &str, on_local_md: &NavigationHandlerCell) -> bool {
     let uri_lower = uri.to_lowercase();
 
-    // Allow polo custom-protocol navigation (internal content reloads on
-    // Windows). These are `http://polo-preview.localhost/?v=N` URLs produced
-    // by `load_html_with_base` and must NOT be treated as external links.
-    if uri_lower.starts_with("polo-preview:")
+    let is_polo_scheme = uri_lower.starts_with("polo-preview:")
         || uri_lower.starts_with("http://polo-preview.")
-        || uri_lower.starts_with("https://polo-preview.")
-    {
+        || uri_lower.starts_with("https://polo-preview.");
+
+    // Every `polo-preview:`/`http://polo-preview.…`/`https://polo-preview.…`
+    // navigation is resolved *entirely* in this branch, with its own
+    // `return` in every case — it must run, and finish, before the
+    // external-link check below, because a relative local-.md link resolves
+    // to an `http://`/`https://`-prefixed URL (the document's own base) that
+    // would otherwise also match that check's `starts_with("http:")` /
+    // `starts_with("https:")` and get shipped to the system browser instead.
+    if is_polo_scheme {
+        // The app's own internal content-reload navigations —
+        // `load_html_with_base`'s `navigate()` always targets a URL carrying
+        // the `marco_doc=1` marker ([`DOC_MARKER_QUERY`], see
+        // [`build_document_url`]), which a markdown-authored relative link
+        // never will: relative-URL resolution drops the base URL's query
+        // string entirely, it doesn't inherit it. Checking for the marker,
+        // not just the scheme, is what lets an ordinary relative link like
+        // `[Other](other.md)` — which *also* resolves to a
+        // `polo-preview://…`/`http://polo-preview.…` URL, since that's the
+        // document's own base — fall through to the local-.md-link handling
+        // below instead of being silently treated as an internal reload and
+        // mis-served as a raw file by [`polo_protocol_handler`].
+        let no_fragment = uri.split('#').next().unwrap_or(uri);
+        let is_internal_reload = no_fragment
+            .parse::<wry::http::Uri>()
+            .ok()
+            .and_then(|parsed| parsed.query().map(str::to_owned))
+            .map(|q| q.split('&').any(|kv| kv == DOC_MARKER_QUERY))
+            .unwrap_or(false);
+        if is_internal_reload {
+            return true;
+        }
+
+        // Local .md file link (relative, resolved against the document's
+        // own `polo-preview://`/`http://polo-preview.…` base) → decode its
+        // URL path back into a filesystem path the same way
+        // `polo_protocol_handler` does for local assets, invoke callback,
+        // deny navigation.
+        let path_part_lower = no_fragment
+            .to_lowercase()
+            .split('?')
+            .next()
+            .unwrap_or_default()
+            .to_string();
+        if path_part_lower.ends_with(".md") || path_part_lower.ends_with(".markdown") {
+            if let Ok(parsed) = no_fragment.parse::<wry::http::Uri>() {
+                let fs_path = url_path_to_fs_path(&percent_decode_path(parsed.path()));
+                let fragment = uri.split_once('#').and_then(|(_, f)| {
+                    if f.is_empty() {
+                        None
+                    } else {
+                        Some(f.to_string())
+                    }
+                });
+                dispatch_local_md(fs_path, fragment, on_local_md);
+                return false;
+            }
+        }
+
+        // Anything else on this scheme (in-page anchors, sub-resources) —
+        // let it navigate normally.
         return true;
     }
 
@@ -854,7 +1178,8 @@ fn wry_navigation_handler(uri: &str, on_local_md: &NavigationHandlerCell) -> boo
         return false;
     }
 
-    // Local .md file link → invoke callback, deny navigation.
+    // Local .md file link (absolute `file://`, written directly in
+    // Markdown) → invoke callback, deny navigation.
     if uri_lower.starts_with("file://") {
         let path_part = uri_lower.split('#').next().unwrap_or("");
         if path_part.ends_with(".md") || path_part.ends_with(".markdown") {
@@ -871,15 +1196,30 @@ fn wry_navigation_handler(uri: &str, on_local_md: &NavigationHandlerCell) -> boo
                 None => (without_scheme, None),
             };
             let path = raw_path.replace("%20", " ");
-            if let Some(handler) = on_local_md.borrow().as_ref() {
-                handler(path, fragment);
-            }
+            dispatch_local_md(path, fragment, on_local_md);
             return false;
         }
     }
 
     // Allow all other navigation (in-page anchors, resources, etc.).
     true
+}
+
+/// Marshal a resolved local-`.md`-link navigation onto the GTK main context
+/// and invoke the installed [`PlatformWebView::setup_link_policy`] callback.
+///
+/// wry navigation callbacks aren't guaranteed to run on the GTK main thread
+/// on every backend (WebView2 in particular), and `on_local_md` ends up
+/// calling straight into GTK (a confirmation dialog, window title, preview
+/// reload) — calling those off-thread crashes the process instead of just
+/// misbehaving. Same reasoning as `handle_open_file_click_ipc` above, and
+/// matches Marco's `with_navigation_handler` (see
+/// `marco/src/components/viewer/platform_webview.rs`).
+fn dispatch_local_md(path: String, fragment: Option<String>, on_local_md: &NavigationHandlerCell) {
+    let cb_opt = on_local_md.borrow().clone();
+    if let Some(handler) = cb_opt {
+        gtk4::glib::MainContext::default().invoke_local(move || handler(path, fragment));
+    }
 }
 
 /// Open a URL in the default system browser.

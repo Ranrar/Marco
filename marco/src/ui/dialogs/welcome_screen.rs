@@ -1,23 +1,37 @@
 //! Welcome Screen for First-Run Experience
 //!
-//! Shows a non-blocking welcome assistant with:
+//! Shows a non-blocking welcome window with:
 //! - Marco introduction and key features
 //! - Language selection (saved to settings)
 //! - Telemetry placeholder (disabled, not implemented yet)
 //!
 //! This window is non-blocking and shows while the main app continues running.
+//!
+//! Built on `gtk4::Stack` + `gtk4::StackSidebar` — the same pattern as the
+//! Settings dialog (`ui/settings/dialog.rs`) — rather than the deprecated
+//! `gtk4::Assistant`. `Assistant`'s own sidebar-based page switcher is
+//! internally a `GtkStackSidebar` already (an earlier version of this file
+//! had to reach into `Assistant`'s widget tree to find and CSS-tag it), so
+//! this is the same underlying widget without the deprecated wrapper, and it
+//! reuses the Settings dialog's `.marco-settings-*` CSS directly instead of
+//! maintaining a parallel copy.
 
 use gtk4::prelude::*;
 use gtk4::{
-    Align, Assistant, AssistantPageType, Box as GtkBox, Button, CenterBox, CheckButton, DropDown,
-    Expression, Label, Orientation, PolicyType, PropertyExpression, ScrolledWindow, StringList,
-    StringObject, Window,
+    Align, Box as GtkBox, Button, CheckButton, DropDown, Expression, Label, Orientation,
+    PolicyType, PropertyExpression, ScrolledWindow, Stack, StackSidebar, StringList, StringObject,
+    Window,
 };
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::components::language::{LocalizationProvider, SimpleLocalizationManager, Translations};
+
+/// Stack page names in navigation order — the single source of truth for
+/// back/next/finish logic. `Stack` has no `current_page()`/`n_pages()`
+/// equivalent of `Assistant`'s; position is tracked by page name instead.
+const PAGE_ORDER: &[&str] = &["info", "language", "appearance", "telemetry"];
 
 fn effective_locale_code(selected_code: Option<&str>) -> String {
     selected_code
@@ -28,44 +42,6 @@ fn effective_locale_code(selected_code: Option<&str>) -> String {
 
 fn escape_markup(s: &str) -> String {
     gtk4::glib::markup_escape_text(s).as_str().to_string()
-}
-
-fn find_first_stack_sidebar(root: &gtk4::Widget) -> Option<gtk4::StackSidebar> {
-    if let Ok(sidebar) = root.clone().downcast::<gtk4::StackSidebar>() {
-        return Some(sidebar);
-    }
-
-    let mut child = root.first_child();
-    while let Some(widget) = child {
-        if let Some(found) = find_first_stack_sidebar(&widget) {
-            return Some(found);
-        }
-        child = widget.next_sibling();
-    }
-
-    None
-}
-
-fn tag_native_assistant_sidebars(root: &gtk4::Widget) {
-    if root.has_css_class("sidebar") {
-        root.add_css_class("marco-settings-sidebar");
-        root.add_css_class("marco-welcome-sidebar");
-    }
-
-    let mut child = root.first_child();
-    while let Some(widget) = child {
-        tag_native_assistant_sidebars(&widget);
-        child = widget.next_sibling();
-    }
-}
-
-fn apply_welcome_sidebar_classes(assistant: &gtk4::Assistant) {
-    tag_native_assistant_sidebars(assistant.upcast_ref::<gtk4::Widget>());
-
-    if let Some(stack_sidebar) = find_first_stack_sidebar(assistant.upcast_ref::<gtk4::Widget>()) {
-        stack_sidebar.add_css_class("marco-settings-sidebar");
-        stack_sidebar.add_css_class("marco-welcome-sidebar");
-    }
 }
 
 fn infer_theme_class_from_settings(
@@ -100,7 +76,7 @@ pub fn show_welcome_screen(
     on_language_changed: Option<Box<dyn Fn(Option<String>) + 'static>>,
     on_theme_changed: Option<Box<dyn Fn(String) + 'static>>,
 ) -> bool {
-    log::info!("show_welcome_screen: Creating welcome assistant");
+    log::info!("show_welcome_screen: Creating welcome window");
 
     // Determine initial theme from parent (preferred), fallback to settings.
     let initial_theme_class = parent
@@ -139,13 +115,13 @@ pub fn show_welcome_screen(
     };
 
     // Load translations for the welcome screen.
-    // We keep a local manager so we can apply language changes live in this assistant.
+    // We keep a local manager so we can apply language changes live in this window.
     let localization_manager = match SimpleLocalizationManager::new() {
         Ok(m) => m,
         Err(e) => {
             // If assets are missing, showing the welcome screen isn't critical.
             log::warn!(
-                "Welcome assistant: failed to initialize localization manager: {}",
+                "Welcome screen: failed to initialize localization manager: {}",
                 e
             );
             return initial_telemetry_enabled;
@@ -159,36 +135,43 @@ pub fn show_welcome_screen(
 
     let translations = localization_manager.translations();
 
-    // Ensure action widgets render in the assistant action area.
-    // When GTK routes actions into a header bar, our custom titlebar can hide
-    // assistant navigation controls on some Linux setups.
-    #[allow(deprecated)]
-    let assistant = Assistant::builder().use_header_bar(0).build();
-    // Fixed size: keep the welcome flow visually stable and avoid scrollbars.
-    assistant.set_default_size(860, 720);
-    assistant.set_resizable(false);
-    assistant.set_modal(false); // Keep non-blocking behavior
-    assistant.set_hide_on_close(true);
+    let window = Window::builder()
+        .default_width(860)
+        .default_height(720)
+        .resizable(false)
+        .modal(false) // Keep non-blocking behavior
+        .build();
+    window.set_hide_on_close(true);
 
-    assistant.set_title(Some(&translations.welcome.window_title));
+    window.set_title(Some(&translations.welcome.window_title));
 
     // Custom Marco titlebar (consistent window controls and styling)
-    let (titlebar, titlebar_close_button) = crate::ui::titlebar::create_custom_titlebar(
-        assistant.upcast_ref(),
-        &translations.welcome.window_title,
-    );
-    assistant.set_titlebar(Some(&titlebar));
+    let (titlebar, titlebar_close_button) =
+        crate::ui::titlebar::create_custom_titlebar(&window, &translations.welcome.window_title);
+    window.set_titlebar(Some(&titlebar));
 
     // Apply dialog and theme CSS classes (reuses dialog.rs palette + typography)
-    assistant.add_css_class("marco-dialog");
-    assistant.add_css_class("marco-welcome-assistant");
-    assistant.add_css_class(initial_theme_class);
+    window.add_css_class("marco-dialog");
+    window.add_css_class(initial_theme_class);
 
     // If parent window is provided, set as transient to stay on top
     if let Some(parent_window) = parent {
-        assistant.set_transient_for(Some(parent_window));
-        assistant.set_destroy_with_parent(false);
+        window.set_transient_for(Some(parent_window));
+        window.set_destroy_with_parent(false);
     }
+
+    // Stack + StackSidebar for left-side page navigation — same widgets and
+    // CSS classes as the Settings dialog (`ui/settings/dialog.rs`).
+    let stack = Stack::new();
+    stack.add_css_class("marco-settings-stack");
+    stack.set_hexpand(true);
+    stack.set_vexpand(true);
+
+    let stack_sidebar = StackSidebar::new();
+    stack_sidebar.add_css_class("marco-settings-sidebar");
+    stack_sidebar.set_stack(&stack);
+    stack_sidebar.set_size_request(180, -1);
+    stack_sidebar.set_margin_end(8);
 
     // ---------------------------------------------------------------------
     // Page 1: Info (features)
@@ -285,10 +268,11 @@ pub fn show_welcome_screen(
         intro_box.append(&row);
     }
 
-    assistant.append_page(&intro_scrolled);
-    assistant.set_page_title(&intro_scrolled, &translations.welcome.page_info);
-    assistant.set_page_type(&intro_scrolled, AssistantPageType::Custom);
-    assistant.set_page_complete(&intro_scrolled, true);
+    stack.add_titled(
+        &intro_scrolled,
+        Some("info"),
+        &translations.welcome.page_info,
+    );
 
     // ---------------------------------------------------------------------
     // Page 2: Language selection
@@ -356,10 +340,11 @@ pub fn show_welcome_screen(
 
     language_box.append(&lang_dropdown);
 
-    assistant.append_page(&language_scrolled);
-    assistant.set_page_title(&language_scrolled, &translations.welcome.page_language);
-    assistant.set_page_type(&language_scrolled, AssistantPageType::Custom);
-    assistant.set_page_complete(&language_scrolled, true);
+    stack.add_titled(
+        &language_scrolled,
+        Some("language"),
+        &translations.welcome.page_language,
+    );
 
     // ---------------------------------------------------------------------
     // Page 3: Appearance (light / dark mode)
@@ -407,10 +392,11 @@ pub fn show_welcome_screen(
     theme_radio_box.append(&light_radio);
     theme_radio_box.append(&dark_radio);
 
-    assistant.append_page(&appearance_scrolled);
-    assistant.set_page_title(&appearance_scrolled, &translations.welcome.page_appearance);
-    assistant.set_page_type(&appearance_scrolled, AssistantPageType::Custom);
-    assistant.set_page_complete(&appearance_scrolled, true);
+    stack.add_titled(
+        &appearance_scrolled,
+        Some("appearance"),
+        &translations.welcome.page_appearance,
+    );
 
     // ---------------------------------------------------------------------
     // Page 4: Telemetry placeholder (disabled)
@@ -466,18 +452,15 @@ pub fn show_welcome_screen(
 
     telemetry_box.append(&telemetry_disabled_box);
 
-    assistant.append_page(&telemetry_scrolled);
-    assistant.set_page_title(&telemetry_scrolled, &translations.welcome.page_telemetry);
-    assistant.set_page_type(&telemetry_scrolled, AssistantPageType::Custom);
-    assistant.set_page_complete(&telemetry_scrolled, true);
+    stack.add_titled(
+        &telemetry_scrolled,
+        Some("telemetry"),
+        &translations.welcome.page_telemetry,
+    );
 
     // ---------------------------------------------------------------------
     // Action buttons (custom, no Cancel)
     // ---------------------------------------------------------------------
-    // Theme the assistant's built-in left sidebar like Settings.
-    // Internal assistant children can be created lazily, so we apply now and again after present.
-    apply_welcome_sidebar_classes(&assistant);
-
     let back_button = Button::with_label(&translations.welcome.back_button);
     back_button.add_css_class("marco-btn");
     back_button.add_css_class("marco-btn-yellow");
@@ -490,32 +473,64 @@ pub fn show_welcome_screen(
     finish_button.add_css_class("marco-btn");
     finish_button.add_css_class("marco-btn-blue");
 
-    let end_buttons = GtkBox::new(Orientation::Horizontal, 12);
-    end_buttons.append(&next_button);
-    end_buttons.append(&finish_button);
+    // Bottom action bar: same framed-footer treatment as the Settings
+    // dialog's close button (`ui/settings/dialog.rs`) — a spacer pushes the
+    // buttons to the right within a bordered footer frame. Back sits beside
+    // Next/Finish rather than pinned to the opposite side.
+    let action_frame = gtk4::Frame::new(None);
+    action_frame.add_css_class("marco-settings-close-frame");
+    action_frame.set_height_request(56);
+    action_frame.set_vexpand(false);
+    action_frame.set_margin_top(4);
 
-    let action_row = CenterBox::new();
-    action_row.set_hexpand(true);
-    action_row.set_start_widget(Some(&back_button));
-    action_row.set_end_widget(Some(&end_buttons));
+    let action_inner_box = GtkBox::new(Orientation::Horizontal, 12);
+    action_inner_box.set_margin_start(10);
+    action_inner_box.set_margin_end(10);
+    action_inner_box.set_margin_top(6);
+    action_inner_box.set_margin_bottom(6);
+    action_inner_box.set_halign(Align::Fill);
+    action_inner_box.set_valign(Align::Center);
 
-    #[allow(deprecated)]
-    assistant.add_action_widget(&action_row);
+    let action_spacer = GtkBox::new(Orientation::Horizontal, 0);
+    action_spacer.set_hexpand(true);
+
+    action_inner_box.append(&action_spacer);
+    action_inner_box.append(&back_button);
+    action_inner_box.append(&next_button);
+    action_inner_box.append(&finish_button);
+
+    action_frame.set_child(Some(&action_inner_box));
+
+    // Layout: sidebar + stack + action frame — same structure as the
+    // Settings dialog (`ui/settings/dialog.rs`), reusing its CSS classes.
+    let main_box = GtkBox::new(Orientation::Horizontal, 0);
+    main_box.add_css_class("marco-settings-main");
+    main_box.append(&stack_sidebar);
+    main_box.append(&stack);
+
+    let content_box = GtkBox::new(Orientation::Vertical, 0);
+    content_box.add_css_class("marco-settings-content");
+    content_box.append(&main_box);
+    content_box.append(&action_frame);
+
+    window.set_child(Some(&content_box));
 
     // Force deterministic initial state: start on first page and sync nav buttons.
-    assistant.set_current_page(0);
+    stack.set_visible_child_name("info");
 
     let sync_nav_buttons = {
         let back_button = back_button.clone();
         let next_button = next_button.clone();
         let finish_button = finish_button.clone();
-        move |assistant: &gtk4::Assistant| {
-            let current_page = assistant.current_page();
-            let n_pages = assistant.n_pages();
+        move |stack: &Stack| {
+            let current_index = stack
+                .visible_child_name()
+                .and_then(|name| PAGE_ORDER.iter().position(|&n| n == name.as_str()))
+                .unwrap_or(0);
 
-            back_button.set_visible(current_page > 0);
+            back_button.set_visible(current_index > 0);
 
-            if current_page >= 0 && current_page + 1 >= n_pages {
+            if current_index + 1 >= PAGE_ORDER.len() {
                 next_button.set_visible(false);
                 finish_button.set_visible(true);
             } else {
@@ -525,7 +540,7 @@ pub fn show_welcome_screen(
         }
     };
 
-    sync_nav_buttons(&assistant);
+    sync_nav_buttons(&stack);
 
     // ---------------------------------------------------------------------
     // Persistence helpers
@@ -545,7 +560,7 @@ pub fn show_welcome_screen(
             let selected_editor_mode = current_editor_mode_rc.borrow().clone();
 
             log::info!(
-                "Welcome assistant: queue saving preferences (language={:?}, theme={})",
+                "Welcome screen: queue saving preferences (language={:?}, theme={})",
                 selected_language,
                 selected_editor_mode
             );
@@ -558,9 +573,9 @@ pub fn show_welcome_screen(
                             Some(marco_shared::logic::swanson::TelemetrySettings::default());
                     }
                     if let Some(ref mut telemetry) = s.telemetry {
-                        // Showing the assistant counts as completing first-run.
+                        // Showing the welcome screen counts as completing first-run.
                         telemetry.first_run_dialog_shown = Some(true);
-                        // Telemetry is currently disabled in the welcome assistant.
+                        // Telemetry is currently disabled in the welcome screen.
                         // We intentionally do not change telemetry.enabled here.
                     }
 
@@ -590,8 +605,9 @@ pub fn show_welcome_screen(
     // Live UI translation updates
     // ---------------------------------------------------------------------
     let apply_translations = {
-        let assistant = assistant.clone();
+        let window = window.clone();
         let titlebar = titlebar.clone();
+        let stack = stack.clone();
 
         let intro_scrolled = intro_scrolled.clone();
         let language_scrolled = language_scrolled.clone();
@@ -626,7 +642,7 @@ pub fn show_welcome_screen(
         let language_string_list = language_string_list.clone();
 
         move |t: &Translations| {
-            assistant.set_title(Some(&t.welcome.window_title));
+            window.set_title(Some(&t.welcome.window_title));
 
             // Keep the custom titlebar label in sync with the window title.
             if let Some(title_widget) = titlebar.title_widget() {
@@ -635,10 +651,16 @@ pub fn show_welcome_screen(
                 }
             }
 
-            assistant.set_page_title(&intro_scrolled, &t.welcome.page_info);
-            assistant.set_page_title(&language_scrolled, &t.welcome.page_language);
-            assistant.set_page_title(&appearance_scrolled, &t.welcome.page_appearance);
-            assistant.set_page_title(&telemetry_scrolled, &t.welcome.page_telemetry);
+            stack.page(&intro_scrolled).set_title(&t.welcome.page_info);
+            stack
+                .page(&language_scrolled)
+                .set_title(&t.welcome.page_language);
+            stack
+                .page(&appearance_scrolled)
+                .set_title(&t.welcome.page_appearance);
+            stack
+                .page(&telemetry_scrolled)
+                .set_title(&t.welcome.page_telemetry);
 
             title_label.set_markup(&format!(
                 "<span size='xx-large' weight='bold'>{}</span>",
@@ -751,12 +773,12 @@ pub fn show_welcome_screen(
     }
 
     // ---------------------------------------------------------------------
-    // Signal handlers (navigation / escape / close-request / prepare)
+    // Signal handlers (navigation / escape / close-request)
     // ---------------------------------------------------------------------
-    // Keep welcome assistant theme in sync with parent while open.
+    // Keep welcome window theme in sync with parent while open.
     if let Some(parent_window) = parent {
         let parent_widget = parent_window.upcast_ref::<gtk4::Widget>().clone();
-        let assistant_for_theme = assistant.clone();
+        let window_for_theme = window.clone();
         let lang_dropdown_for_theme = lang_dropdown.clone();
         let telemetry_checkbox_for_theme = telemetry_checkbox.clone();
         let light_radio_for_theme = light_radio.clone();
@@ -778,9 +800,9 @@ pub fn show_welcome_screen(
                 *state = next_theme.to_string();
             }
 
-            assistant_for_theme.remove_css_class("marco-theme-dark");
-            assistant_for_theme.remove_css_class("marco-theme-light");
-            assistant_for_theme.add_css_class(next_theme);
+            window_for_theme.remove_css_class("marco-theme-dark");
+            window_for_theme.remove_css_class("marco-theme-light");
+            window_for_theme.add_css_class(next_theme);
 
             lang_dropdown_for_theme.remove_css_class("marco-theme-dark");
             lang_dropdown_for_theme.remove_css_class("marco-theme-light");
@@ -802,75 +824,89 @@ pub fn show_welcome_screen(
 
     // Titlebar close button should behave like window-manager close (X)
     {
-        let assistant = assistant.clone();
+        let window = window.clone();
         let queue_save_preferences = queue_save_preferences.clone();
         titlebar_close_button.connect_clicked(move |_| {
-            log::info!("Welcome assistant: titlebar close clicked");
+            log::info!("Welcome screen: titlebar close clicked");
             queue_save_preferences();
-            assistant.hide();
+            window.set_visible(false);
         });
     }
 
     // Navigation handlers
     {
-        let assistant = assistant.clone();
+        let stack = stack.clone();
         back_button.connect_clicked(move |_| {
-            let current = assistant.current_page();
-            if current > 0 {
-                assistant.set_current_page(current - 1);
+            let current_index = stack
+                .visible_child_name()
+                .and_then(|name| PAGE_ORDER.iter().position(|&n| n == name.as_str()))
+                .unwrap_or(0);
+            if current_index > 0 {
+                stack.set_visible_child_name(PAGE_ORDER[current_index - 1]);
             }
         });
     }
 
     {
-        let assistant = assistant.clone();
+        let stack = stack.clone();
         next_button.connect_clicked(move |_| {
-            let current = assistant.current_page();
-            let n_pages = assistant.n_pages();
-            if current >= 0 && current + 1 < n_pages {
-                assistant.set_current_page(current + 1);
+            let current_index = stack
+                .visible_child_name()
+                .and_then(|name| PAGE_ORDER.iter().position(|&n| n == name.as_str()))
+                .unwrap_or(0);
+            if current_index + 1 < PAGE_ORDER.len() {
+                stack.set_visible_child_name(PAGE_ORDER[current_index + 1]);
             }
         });
     }
 
     {
-        let assistant = assistant.clone();
+        let window = window.clone();
         let queue_save_preferences = queue_save_preferences.clone();
         finish_button.connect_clicked(move |_| {
-            log::info!("Welcome assistant: finish");
+            log::info!("Welcome screen: finish");
             // Close immediately, then persist asynchronously.
             queue_save_preferences();
-            assistant.hide();
+            window.set_visible(false);
         });
     }
 
     // Persist preferences even if the window is closed via window manager / Escape
     {
-        let assistant_for_close = assistant.clone();
+        let window_for_close = window.clone();
         let queue_save_preferences = queue_save_preferences.clone();
-        assistant.connect_close_request(move |_| {
-            log::info!("Welcome assistant: close-request");
+        window.connect_close_request(move |_| {
+            log::info!("Welcome screen: close-request");
             queue_save_preferences();
-            assistant_for_close.hide();
+            window_for_close.set_visible(false);
             gtk4::glib::Propagation::Stop
         });
     }
 
+    // Escape closes the window — Window has no built-in "escape" signal the
+    // way Assistant did, so this uses the same EventControllerKey idiom as
+    // the Settings dialog (`ui/settings/dialog.rs`).
     {
-        let assistant_for_escape = assistant.clone();
+        let window_for_escape = window.clone();
         let queue_save_preferences = queue_save_preferences.clone();
-        assistant.connect_escape(move |_| {
-            log::info!("Welcome assistant: escape");
-            queue_save_preferences();
-            assistant_for_escape.hide();
+        let key_controller = gtk4::EventControllerKey::new();
+        key_controller.connect_key_pressed(move |_controller, key, _code, _state| {
+            if key == gtk4::gdk::Key::Escape {
+                log::info!("Welcome screen: escape");
+                queue_save_preferences();
+                window_for_escape.set_visible(false);
+                gtk4::glib::Propagation::Stop
+            } else {
+                gtk4::glib::Propagation::Proceed
+            }
         });
+        window.add_controller(key_controller);
     }
 
-    assistant.connect_prepare({
+    stack.connect_visible_child_notify({
         let sync_nav_buttons = sync_nav_buttons.clone();
-        move |assistant, _page| {
-            apply_welcome_sidebar_classes(assistant);
-            sync_nav_buttons(assistant);
+        move |stack| {
+            sync_nav_buttons(stack);
         }
     });
 
@@ -957,7 +993,7 @@ pub fn show_welcome_screen(
         let queue_save_preferences = queue_save_preferences.clone();
 
         // Widgets that carry the theme CSS class
-        let assistant_for_radio = assistant.clone();
+        let window_for_radio = window.clone();
         let lang_dropdown_for_radio = lang_dropdown.clone();
         let telemetry_checkbox_for_radio = telemetry_checkbox.clone();
         let light_radio_for_radio = light_radio.clone();
@@ -981,7 +1017,7 @@ pub fn show_welcome_screen(
 
             // Apply CSS class to all themed widgets immediately
             for widget in [
-                assistant_for_radio.upcast_ref::<gtk4::Widget>(),
+                window_for_radio.upcast_ref::<gtk4::Widget>(),
                 lang_dropdown_for_radio.upcast_ref::<gtk4::Widget>(),
                 telemetry_checkbox_for_radio.upcast_ref::<gtk4::Widget>(),
                 light_radio_for_radio.upcast_ref::<gtk4::Widget>(),
@@ -999,17 +1035,10 @@ pub fn show_welcome_screen(
         });
     }
 
-    // Show the assistant
-    log::info!("show_welcome_screen: Presenting welcome assistant");
-    assistant.present();
-    assistant.present_with_time((gtk4::glib::monotonic_time() / 1000) as u32);
-
-    {
-        let assistant = assistant.clone();
-        gtk4::glib::idle_add_local_once(move || {
-            apply_welcome_sidebar_classes(&assistant);
-        });
-    }
+    // Show the window
+    log::info!("show_welcome_screen: Presenting welcome window");
+    window.present();
+    window.present_with_time((gtk4::glib::monotonic_time() / 1000) as u32);
 
     initial_telemetry_enabled
 }

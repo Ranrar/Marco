@@ -529,8 +529,8 @@ fn clamp_rect_to_editor(
     rect: gtk4::gdk::Rectangle,
     editor_view: &gtk4::TextView,
 ) -> gtk4::gdk::Rectangle {
-    let view_w = editor_view.allocated_width().max(1);
-    let view_h = editor_view.allocated_height().max(1);
+    let view_w = editor_view.width().max(1);
+    let view_h = editor_view.height().max(1);
     let w = rect.width().max(1);
     let h = rect.height().max(1);
 

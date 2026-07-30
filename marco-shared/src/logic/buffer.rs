@@ -443,7 +443,40 @@ impl DocumentBuffer {
     /// ```
     pub fn get_base_uri_for_webview(&self) -> Option<String> {
         let dir_path = self.get_directory_path()?;
-        Some(format!("file://{}/", dir_path.display()))
+        let absolute = dir_path
+            .canonicalize()
+            .unwrap_or_else(|_| dir_path.to_path_buf());
+
+        // `canonicalize()` on Windows returns a verbatim path
+        // (`\\?\C:\...` or `\\?\UNC\server\share\...`); strip that prefix,
+        // and convert backslashes to forward slashes, or the resulting
+        // `file://` URI is malformed (a bare `format!("file://{}", ...)`
+        // of a Windows path produces e.g. `file://C:\Users\...` — no `/`
+        // separating the authority from the path, and literal backslashes
+        // where a URI needs `/` segment separators). Every WebView backend
+        // this URI is ultimately handed to (see
+        // `platform_webview::build_document_url`) rejects that outright.
+        let raw = absolute.to_string_lossy();
+        #[cfg(target_os = "windows")]
+        let raw = raw
+            .strip_prefix(r"\\?\UNC\")
+            .map(|rest| std::borrow::Cow::Owned(format!(r"\\{rest}")))
+            .unwrap_or_else(|| {
+                raw.strip_prefix(r"\\?\")
+                    .map(|rest| std::borrow::Cow::Owned(rest.to_string()))
+                    .unwrap_or(raw)
+            });
+
+        let mut s = raw.replace('\\', "/");
+        if !s.ends_with('/') {
+            s.push('/');
+        }
+
+        Some(if s.starts_with('/') {
+            format!("file://{}", s)
+        } else {
+            format!("file:///{}", s)
+        })
     }
 
     /// Gets the full display title including modification indicator

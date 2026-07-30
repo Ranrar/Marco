@@ -102,13 +102,13 @@ fn html_escape(s: &str) -> String {
 fn compute_base_uri(file_path: &str) -> String {
     if let Ok(absolute_path) = Path::new(file_path).canonicalize() {
         if let Some(parent_dir) = absolute_path.parent() {
-            return format!("file://{}/", parent_dir.display());
+            return path_to_file_uri_dir(parent_dir);
         }
-        return format!("file://{}/", absolute_path.display());
+        return path_to_file_uri_dir(&absolute_path);
     }
     std::env::current_dir()
         .ok()
-        .map(|d| format!("file://{}/", d.display()))
+        .map(|d| path_to_file_uri_dir(&d))
         .unwrap_or_else(|| {
             log::warn!(
                 "Cannot determine base URI for file: {}, using file:/// root",
@@ -116,6 +116,40 @@ fn compute_base_uri(file_path: &str) -> String {
             );
             "file:///".to_string()
         })
+}
+
+/// Convert an absolute directory path into a `file://` base URI, with a
+/// trailing slash.
+///
+/// `Path::canonicalize()` on Windows returns verbatim (`\\?\C:\...`) paths
+/// with backslash separators; embedding that raw string after `file://`
+/// (as this used to do) produces a URI WebView2 rejects outright — no `/`
+/// separates the authority from the path, and the literal `\\?\` sequence
+/// percent-encodes to `%5C%5C%3F%5C` instead of a real path start. Strip the
+/// verbatim prefix and switch to forward slashes so the result is a URI a
+/// webview backend will actually accept.
+fn path_to_file_uri_dir(dir: &Path) -> String {
+    let raw = dir.to_string_lossy();
+    #[cfg(target_os = "windows")]
+    let raw = raw
+        .strip_prefix(r"\\?\UNC\")
+        .map(|rest| std::borrow::Cow::Owned(format!(r"\\{rest}")))
+        .unwrap_or_else(|| {
+            raw.strip_prefix(r"\\?\")
+                .map(|rest| std::borrow::Cow::Owned(rest.to_string()))
+                .unwrap_or(raw)
+        });
+
+    let mut normalized = raw.replace('\\', "/");
+    if !normalized.ends_with('/') {
+        normalized.push('/');
+    }
+
+    if normalized.starts_with('/') {
+        format!("file://{normalized}")
+    } else {
+        format!("file:///{normalized}")
+    }
 }
 
 /// Build a complete HTML document from markdown content.
@@ -140,7 +174,7 @@ fn build_html_from_content(
             let syntax_css = generate_syntax_highlighting_css(&theme_mode);
             let scrollbar_css = generate_webkit_scrollbar_css(&theme_mode);
 
-            let combined_css = if !syntax_css.is_empty() {
+            let mut combined_css = if !syntax_css.is_empty() {
                 format!(
                     "{}\n\n/* Syntax Highlighting CSS */\n{}\n\n/* Scrollbar Styling */\n{}",
                     theme_css, syntax_css, scrollbar_css
@@ -151,9 +185,40 @@ fn build_html_from_content(
                     theme_css, scrollbar_css
                 )
             };
+            // Shared "drop file to open" overlay CSS — see
+            // `viewer::drop_overlay` for why a loaded document carries the
+            // exact same markup/CSS the empty state does, instead of a
+            // separate native GTK panel.
+            combined_css.push_str("\n\n/* Drag-and-drop overlay */\n");
+            combined_css.push_str(crate::components::viewer::drop_overlay::CSS);
+            // In-page link-hover tooltip CSS — see `viewer::link_hover` for
+            // why this replaced a native GTK Popover.
+            combined_css.push_str("\n\n/* Link-hover tooltip */\n");
+            combined_css.push_str(crate::components::viewer::link_hover::CSS);
+
+            // Append the link-hover tooltip markup (see `viewer::link_hover`)
+            // and the shared drag-and-drop overlay markup (see
+            // `viewer::drop_overlay`) *before* the hover-tooltip driver JS
+            // (`viewer::javascript::HOVER_REPORT_JS`) — that script looks up
+            // the tooltip's elements by ID synchronously on load, so they
+            // must already exist in the DOM by the time it runs, the same
+            // reason it already runs after `html` so every link in the
+            // document exists first.
+            let html_with_js = format!(
+                "{}{}{}{}",
+                html,
+                crate::components::viewer::link_hover::html(),
+                crate::components::viewer::drop_overlay::html(),
+                crate::components::viewer::javascript::HOVER_REPORT_JS
+            );
 
             let theme_class = format!("theme-{}", theme_mode);
-            marco_core::render::wrap_preview_html_document(&html, &combined_css, &theme_class, None)
+            marco_core::render::wrap_preview_html_document(
+                &html_with_js,
+                &combined_css,
+                &theme_class,
+                None,
+            )
         }
         Err(e) => format!(
             r#"<!DOCTYPE html>

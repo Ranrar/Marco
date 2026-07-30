@@ -216,10 +216,41 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
     // Handle window close
     window.connect_close_request(move |_| {
         use crate::components::search::{
-            engine::clear_enhanced_search_highlighting, state::CACHED_SEARCH_WINDOW,
+            engine::clear_enhanced_search_highlighting,
+            state::{
+                ASYNC_MANAGER, CACHED_SEARCH_WINDOW, CURRENT_PLATFORM_WEBVIEW,
+                NAVIGATION_DEBOUNCE_TIMER,
+            },
         };
+        use crate::logic::signal_manager::safe_source_remove;
+
+        // Cancel any in-flight debounce timers first: the search window is
+        // only hidden (not destroyed, see CACHED_SEARCH_WINDOW), so a pending
+        // search or navigation timer would otherwise fire after close and
+        // repaint the preview highlight we're about to clear.
+        ASYNC_MANAGER.with(|manager_ref| {
+            if let Some(manager) = manager_ref.borrow_mut().as_mut() {
+                if let Some(timer_id) = manager.current_timer_id.take() {
+                    safe_source_remove(timer_id);
+                }
+            }
+        });
+        NAVIGATION_DEBOUNCE_TIMER.with(|timer_ref| {
+            if let Some(timer_id) = timer_ref.borrow_mut().take() {
+                safe_source_remove(timer_id);
+            }
+        });
 
         clear_enhanced_search_highlighting();
+
+        // clear_enhanced_search_highlighting only strips GtkSourceView buffer
+        // tags; the preview's MarcoFind highlights are a separate JS-side
+        // state that needs its own clear, or they persist after the window closes.
+        CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
+            if let Some(wv) = wv_ref.borrow().as_ref() {
+                crate::components::viewer::find_engine::clear(wv);
+            }
+        });
 
         CACHED_SEARCH_WINDOW.with(|cached| {
             *cached.borrow_mut() = None;

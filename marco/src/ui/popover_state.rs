@@ -1,4 +1,4 @@
-use gtk4::prelude::{PopoverExt, WidgetExt};
+use gtk4::prelude::{Cast, IsA, PopoverExt, WidgetExt};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -60,6 +60,24 @@ pub fn is_toolbar_interaction_blocked() -> bool {
             .map(|s| s.is_root_open())
             .unwrap_or(false)
     })
+}
+
+/// Close the nearest ancestor `Popover` of `widget`, if any.
+///
+/// Toolbar dropdown rows (e.g. Code/Footnote/Link/Image/Emoji) live inside a
+/// composite dropdown `Popover` (Blocks, Insert). Opening a second, unrelated
+/// `Popover` while that ancestor is still open and holding the pointer grab
+/// gets rejected by GTK ("Tried to map a grabbing popup with a non-top most
+/// parent"), so the ancestor must be closed first.
+pub fn close_ancestor_popover(widget: &impl IsA<gtk4::Widget>) {
+    let mut current = widget.clone().upcast::<gtk4::Widget>().parent();
+    while let Some(w) = current {
+        if let Ok(popover) = w.clone().downcast::<gtk4::Popover>() {
+            popover.popdown();
+            return;
+        }
+        current = w.parent();
+    }
 }
 
 /// Ensure popovers close with Escape and outside clicks consistently.

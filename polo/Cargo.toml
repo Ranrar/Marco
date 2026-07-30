@@ -14,6 +14,8 @@ marco-shared = { path = "../marco-shared" }
 
 # Utilities
 log = { workspace = true }
+dirs = { workspace = true }
+serde_json = { workspace = true }
 
 # UI dependencies (common)
 gtk4 = { workspace = true }
@@ -36,7 +38,7 @@ rfd = "0.17.2"
 # Native WebView2 system print dialog (ICoreWebView2_16::ShowPrintUI).
 # Same versions as marco; transitively pulled in by wry already.
 webview2-com = "0.38.2"
-windows = { version = "0.61", features = ["Win32_Foundation"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_FileSystem"] }
 windows-core = "0.61"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]

@@ -191,7 +191,7 @@ impl SplitController {
                 return;
             }
 
-            let width = paned.allocated_width();
+            let width = paned.width();
             if width <= 0 {
                 return;
             }
@@ -206,7 +206,7 @@ impl SplitController {
                     LayoutState::EditorOnly | LayoutState::EditorAndViewSeparate => {
                         // Keep at 100% (editor takes full width)
                         log::trace!("SplitController: Enforcing EditorOnly/EditorAndViewSeparate constraint - setting to 100%");
-                        let width = paned.allocated_width();
+                        let width = paned.width();
                         if width > 0 {
                             paned.set_position(width);
                         }
@@ -271,7 +271,7 @@ impl SplitController {
                 // Unlock split, allow 10-90% range
                 self.is_locked.set(false);
                 // Restore to default 50% position
-                let width = self.paned.allocated_width();
+                let width = self.paned.width();
                 if width > 0 {
                     self.paned.set_position(width / 2);
                 }
@@ -282,7 +282,7 @@ impl SplitController {
                 self.is_locked.set(true);
                 let paned = self.paned.clone();
                 glib::idle_add_local_once(move || {
-                    let width = paned.allocated_width();
+                    let width = paned.width();
                     if width > 0 {
                         paned.set_position(width);
                     }

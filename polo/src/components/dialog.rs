@@ -7,7 +7,7 @@
 //! ## File Operations
 //!
 //! - **`show_open_file_dialog`**: Platform-appropriate file picker for opening markdown files
-//!   - Linux: GTK `FileChooserDialog`
+//!   - Linux: GTK `FileDialog`
 //!   - Windows: native file dialog (via `rfd`)
 //!   - Filters for .md and .markdown files
 //!   - Remembers last opened directory
@@ -44,6 +44,7 @@
 //! - Marco launch failures show user-friendly error messages
 //! - Invalid paths are validated before attempting operations
 
+use crate::components::file_tree_panel::FileTreePanelHandle;
 use crate::components::viewer::{load_and_render_markdown, platform_webview::PlatformWebView};
 use gtk4::{prelude::*, Align, ApplicationWindow, Box, Button, Label, Orientation, Window};
 use marco_shared::logic::swanson::SettingsManager;
@@ -52,7 +53,7 @@ use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
 #[cfg(target_os = "linux")]
-use gtk4::{FileChooserAction, FileChooserDialog, FileFilter, ResponseType};
+use gtk4::{glib, FileFilter};
 
 #[cfg(target_os = "windows")]
 use rfd::FileDialog;
@@ -60,17 +61,32 @@ use rfd::FileDialog;
 /// Window-close icon - Tabler Icons `icon-tabler-x`
 const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
 
-struct OpenFileContext<'a> {
-    window: &'a ApplicationWindow,
-    webview: &'a PlatformWebView,
-    settings_manager: &'a Arc<SettingsManager>,
-    current_file_path: &'a Arc<RwLock<Option<String>>>,
-    open_editor_btn: &'a Button,
-    title_label: &'a Label,
-    asset_root: &'a std::path::Path,
+/// Shared context for [`open_file_and_update_state`] — every "open a file and
+/// bring the whole app UI in sync" call site (File→Open, toolbar Open,
+/// drag-and-drop) builds one of these and calls that function rather than
+/// re-implementing the render + title + recent-files bookkeeping locally.
+pub(crate) struct OpenFileContext<'a> {
+    pub(crate) window: &'a ApplicationWindow,
+    pub(crate) webview: &'a PlatformWebView,
+    pub(crate) settings_manager: &'a Arc<SettingsManager>,
+    pub(crate) current_file_path: &'a Arc<RwLock<Option<String>>>,
+    pub(crate) open_editor_btn: &'a Button,
+    pub(crate) title_label: &'a Label,
+    pub(crate) asset_root: &'a std::path::Path,
+    /// So the file-tree sidebar's `.open-file` marker and auto-reveal (see
+    /// `FileTreePanelHandle::set_open_path`) stay accurate no matter which
+    /// of the several "open a file" entry points was used — not just clicks
+    /// inside the tree itself. `None` only where no handle exists yet
+    /// (there isn't one currently, but keeps this future-proof/testable).
+    pub(crate) file_tree_handle: Option<&'a FileTreePanelHandle>,
 }
 
-fn open_file_and_update_state(
+/// Render `path`, then bring every piece of app state that reflects "the
+/// current file" in sync: `current_file_path`, the "Open in Editor" button,
+/// the visible titlebar `Label` (see `main.rs`'s `title_label_for_header` for
+/// why this — not just `window.set_title` — is what's actually on screen),
+/// and the recent-files/`last_opened_file` settings.
+pub(crate) fn open_file_and_update_state(
     ctx: OpenFileContext<'_>,
     path: PathBuf,
     on_file_opened: Option<&dyn Fn(&str)>,
@@ -91,6 +107,10 @@ fn open_file_and_update_state(
         ctx.settings_manager,
         ctx.asset_root,
     );
+
+    if let Some(tree) = ctx.file_tree_handle {
+        tree.set_open_path(Some(path.clone()));
+    }
 
     if let Some(cb) = on_file_opened {
         cb(&path_str);
@@ -132,72 +152,69 @@ pub fn show_open_file_dialog(
     title_label: &Label,
     asset_root: &std::path::Path,
     on_file_opened: Option<Rc<dyn Fn(&str) + 'static>>,
+    file_tree_handle: Option<FileTreePanelHandle>,
 ) {
     #[cfg(target_os = "linux")]
     {
         use gtk4::gio;
 
-        let dialog = FileChooserDialog::new(
-            Some("Open Markdown File"),
-            Some(window),
-            FileChooserAction::Open,
-            &[
-                ("Cancel", ResponseType::Cancel),
-                ("Open", ResponseType::Accept),
-            ],
-        );
-
         let filter = FileFilter::new();
         filter.set_name(Some("Markdown Files"));
         filter.add_pattern("*.md");
         filter.add_pattern("*.markdown");
-        dialog.add_filter(&filter);
 
         let filter_all = FileFilter::new();
         filter_all.set_name(Some("All Files"));
         filter_all.add_pattern("*");
-        dialog.add_filter(&filter_all);
+
+        let filters = gio::ListStore::new::<FileFilter>();
+        filters.append(&filter);
+        filters.append(&filter_all);
+
+        let file_dialog = gtk4::FileDialog::builder()
+            .title("Open Markdown File")
+            .accept_label("Open")
+            .filters(&filters)
+            .default_filter(&filter)
+            .build();
 
         let settings = settings_manager.get_settings();
         if let Some(polo) = &settings.polo {
             if let Some(ref last_file) = polo.last_opened_file {
                 if let Some(parent) = std::path::Path::new(last_file).parent() {
-                    let _ = dialog.set_current_folder(Some(&gio::File::for_path(parent)));
+                    file_dialog.set_initial_folder(Some(&gio::File::for_path(parent)));
                 }
             }
         }
 
         let window_weak = window.downgrade();
+        let window_for_dialog = window.clone();
         let open_editor_btn = open_editor_btn.clone();
         let title_label = title_label.clone();
         let asset_root_owned = asset_root.to_path_buf();
-        dialog.connect_response(move |dialog, response| {
-            if response == ResponseType::Accept {
-                if let Some(file) = dialog.file() {
-                    if let Some(path) = file.path() {
-                        if let Some(window) = window_weak.upgrade() {
-                            let ctx = OpenFileContext {
-                                window: &window,
-                                webview: &webview,
-                                settings_manager: &settings_manager,
-                                current_file_path: &current_file_path,
-                                open_editor_btn: &open_editor_btn,
-                                title_label: &title_label,
-                                asset_root: &asset_root_owned,
-                            };
-                            open_file_and_update_state(
-                                ctx,
-                                path,
-                                on_file_opened.as_ref().map(|rc| rc.as_ref()),
-                            );
-                        }
+        glib::MainContext::default().spawn_local(async move {
+            if let Ok(file) = file_dialog.open_future(Some(&window_for_dialog)).await {
+                if let Some(path) = file.path() {
+                    if let Some(window) = window_weak.upgrade() {
+                        let ctx = OpenFileContext {
+                            window: &window,
+                            webview: &webview,
+                            settings_manager: &settings_manager,
+                            current_file_path: &current_file_path,
+                            open_editor_btn: &open_editor_btn,
+                            title_label: &title_label,
+                            asset_root: &asset_root_owned,
+                            file_tree_handle: file_tree_handle.as_ref(),
+                        };
+                        open_file_and_update_state(
+                            ctx,
+                            path,
+                            on_file_opened.as_ref().map(|rc| rc.as_ref()),
+                        );
                     }
                 }
             }
-            dialog.close();
         });
-
-        dialog.present();
     }
 
     #[cfg(target_os = "windows")]
@@ -228,6 +245,7 @@ pub fn show_open_file_dialog(
                 open_editor_btn,
                 title_label,
                 asset_root,
+                file_tree_handle: file_tree_handle.as_ref(),
             };
             open_file_and_update_state(ctx, path, on_file_opened.as_ref().map(|rc| rc.as_ref()));
         }

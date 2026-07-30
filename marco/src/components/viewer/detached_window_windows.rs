@@ -56,7 +56,7 @@ impl PreviewWindow {
         window.set_hide_on_close(true);
 
         // Apply theme class for consistent styling
-        if parent_window.style_context().has_class("marco-theme-dark") {
+        if parent_window.has_css_class("marco-theme-dark") {
             window.add_css_class("marco-theme-dark");
         } else {
             window.add_css_class("marco-theme-light");
@@ -454,87 +454,101 @@ impl PreviewWindow {
         *self.platform_webview.borrow_mut() = Some(pv);
         log::info!("Created embedded PlatformWebView in preview window (attempted load)");
 
-        // If the embedded WebView failed to create (no WebView2 runtime), fall back
-        // to opening the persisted HTML in the system browser and notify the user.
-        if let Some(ref pv_ref) = *self.platform_webview.borrow() {
-            if pv_ref.inner.borrow().is_none() {
-                log::warn!("Embedded wry WebView not available; falling back to system browser");
-                // Persist the HTML to a temp file and open it
-                if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
-                    .get_or_init(|| std::sync::Mutex::new(String::new()))
-                    .lock()
-                {
-                    // Show the HTML source inside the preview window as a fallback, plus a button
-                    // to open it in the system browser. This keeps the user inside the app
-                    // while still providing a usable rendered experience via the browser.
-                    let vbox = gtk4::Box::new(Orientation::Vertical, 8);
-                    vbox.set_margin_top(8);
-                    vbox.set_margin_bottom(8);
-                    vbox.set_margin_start(8);
-                    vbox.set_margin_end(8);
-
-                    let label = Label::new(Some(
-                        "Embedded preview is not available (missing WebView2 runtime).",
-                    ));
-                    label.set_wrap(true);
-                    vbox.append(&label);
-
-                    // Text view with the generated HTML source for inspection
-                    let sw = ScrolledWindow::new();
-                    sw.set_hexpand(true);
-                    sw.set_vexpand(true);
-                    let tv = gtk4::TextView::new();
-                    tv.set_editable(false);
-                    tv.set_monospace(true);
-                    tv.buffer().set_text(&guard);
-                    sw.set_child(Some(&tv));
-                    vbox.append(&sw);
-
-                    // Add a button to open in system browser
-                    let ts = std::time::SystemTime::now()
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis();
-                    let file_name = format!("marco_preview_{}.html", ts);
-                    let mut file_path = std::env::temp_dir();
-                    file_path.push(&file_name);
-                    let file_url = if std::fs::write(&file_path, guard.as_bytes()).is_ok() {
-                        let s =
-                            format!("file:///{}", file_path.to_string_lossy().replace('\\', "/"));
-                        log::info!(
-                            "Persisted fallback preview HTML to: {}",
-                            file_path.display()
-                        );
-                        s
-                    } else {
-                        String::new()
-                    };
-
-                    let open_btn = gtk4::Button::with_label("Open in system browser");
-                    if !file_url.is_empty() {
-                        let file_url_clone = file_url.clone();
-                        open_btn.connect_clicked(move |_| {
-                            if let Err(e) = gio::AppInfo::launch_default_for_uri(
-                                &file_url_clone,
-                                None::<&gio::AppLaunchContext>,
-                            ) {
-                                log::error!(
-                                    "Failed to open fallback preview in system browser: {}",
-                                    e
-                                );
-                            }
-                        });
-                    } else {
-                        open_btn.set_sensitive(false);
-                    }
-                    vbox.append(&open_btn);
-
-                    self.container.set_child(Some(&vbox));
-                }
-            } else {
+        // Whether the embedded WebView actually failed to create (no WebView2
+        // runtime) can't be determined synchronously here: `load_html_with_base`
+        // defers the real construction until `self.container` is mapped *and*
+        // allocated (see `allocation_wait::run_when_allocated`), and at this
+        // point in `load_preview_content` the window hasn't even been
+        // `present()`ed yet (see `show()`, which calls this method first) —
+        // so `pv.inner` is unconditionally still `None` here regardless of
+        // whether WebView2 is actually available. Checking immediately made
+        // every detached-preview open show the "not available" fallback UI
+        // even though the embedded WebView works fine once given a chance to
+        // build. Defer the check instead, giving the deferred build a
+        // generous window to complete after the window is shown.
+        let container_for_check = self.container.clone();
+        let pw_for_check = Rc::clone(&self.platform_webview);
+        gtk4::glib::timeout_add_local_once(std::time::Duration::from_millis(500), move || {
+            let available = pw_for_check
+                .borrow()
+                .as_ref()
+                .map(|pv| pv.inner.borrow().is_some())
+                .unwrap_or(false);
+            if available {
                 log::info!("Embedded wry WebView available in preview window (rendering inline)");
+                return;
             }
-        }
+
+            log::warn!("Embedded wry WebView not available; falling back to system browser");
+            // Persist the HTML to a temp file and open it
+            if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
+                .get_or_init(|| std::sync::Mutex::new(String::new()))
+                .lock()
+            {
+                // Show the HTML source inside the preview window as a fallback, plus a button
+                // to open it in the system browser. This keeps the user inside the app
+                // while still providing a usable rendered experience via the browser.
+                let vbox = gtk4::Box::new(Orientation::Vertical, 8);
+                vbox.set_margin_top(8);
+                vbox.set_margin_bottom(8);
+                vbox.set_margin_start(8);
+                vbox.set_margin_end(8);
+
+                let label = Label::new(Some(
+                    "Embedded preview is not available (missing WebView2 runtime).",
+                ));
+                label.set_wrap(true);
+                vbox.append(&label);
+
+                // Text view with the generated HTML source for inspection
+                let sw = ScrolledWindow::new();
+                sw.set_hexpand(true);
+                sw.set_vexpand(true);
+                let tv = gtk4::TextView::new();
+                tv.set_editable(false);
+                tv.set_monospace(true);
+                tv.buffer().set_text(&guard);
+                sw.set_child(Some(&tv));
+                vbox.append(&sw);
+
+                // Add a button to open in system browser
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis();
+                let file_name = format!("marco_preview_{}.html", ts);
+                let mut file_path = std::env::temp_dir();
+                file_path.push(&file_name);
+                let file_url = if std::fs::write(&file_path, guard.as_bytes()).is_ok() {
+                    let s = format!("file:///{}", file_path.to_string_lossy().replace('\\', "/"));
+                    log::info!(
+                        "Persisted fallback preview HTML to: {}",
+                        file_path.display()
+                    );
+                    s
+                } else {
+                    String::new()
+                };
+
+                let open_btn = gtk4::Button::with_label("Open in system browser");
+                if !file_url.is_empty() {
+                    let file_url_clone = file_url.clone();
+                    open_btn.connect_clicked(move |_| {
+                        if let Err(e) = gio::AppInfo::launch_default_for_uri(
+                            &file_url_clone,
+                            None::<&gio::AppLaunchContext>,
+                        ) {
+                            log::error!("Failed to open fallback preview in system browser: {}", e);
+                        }
+                    });
+                } else {
+                    open_btn.set_sensitive(false);
+                }
+                vbox.append(&open_btn);
+
+                container_for_check.set_child(Some(&vbox));
+            }
+        });
     }
 
     /// Show the preview window. If no embedded webview exists, create it and
@@ -552,7 +566,7 @@ impl PreviewWindow {
     }
 
     pub fn hide(&self) {
-        self.window.hide();
+        self.window.set_visible(false);
         *self.is_visible.borrow_mut() = false;
         log::info!("Preview window hidden via hide() method");
 
@@ -576,5 +590,21 @@ impl PreviewWindow {
 
     pub fn is_visible(&self) -> bool {
         *self.is_visible.borrow()
+    }
+
+    /// Sync this window's light/dark theme CSS class with the main window's.
+    ///
+    /// The theme class is otherwise only ever set once, at construction
+    /// time (see [`Self::new`]) — since this window is created lazily and
+    /// then reused across show/hide cycles, changing the app theme while it
+    /// already exists would otherwise leave its titlebar on the old theme.
+    pub fn sync_theme_class(&self, is_dark: bool) {
+        if is_dark {
+            self.window.remove_css_class("marco-theme-light");
+            self.window.add_css_class("marco-theme-dark");
+        } else {
+            self.window.remove_css_class("marco-theme-dark");
+            self.window.add_css_class("marco-theme-light");
+        }
     }
 }

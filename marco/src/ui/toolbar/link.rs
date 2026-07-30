@@ -6,9 +6,6 @@ use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 
-#[cfg(target_os = "linux")]
-use gtk4::{FileChooserAction, FileChooserNative};
-
 const LINK_POPOVER_WIDTH: i32 = 280;
 const LINK_POPOVER_HORIZONTAL_SAFE_PADDING: i32 = 8;
 
@@ -29,10 +26,11 @@ pub fn connect_link_toolbar_action(
         let current_file_provider = current_file_provider.clone();
         let root_popover_state = root_popover_state.clone();
 
-        button.connect_clicked(move |_| {
+        button.connect_clicked(move |btn| {
             if root_popover_state.is_root_open() {
                 return;
             }
+            crate::ui::popover_state::close_ancestor_popover(btn);
             show_insert_link_popover(
                 editor_buffer.upcast_ref::<gtk4::TextBuffer>(),
                 editor_view.upcast_ref::<gtk4::TextView>(),
@@ -61,10 +59,11 @@ pub fn connect_reference_link_toolbar_action(
         let current_file_provider = current_file_provider.clone();
         let root_popover_state = root_popover_state.clone();
 
-        button.connect_clicked(move |_| {
+        button.connect_clicked(move |btn| {
             if root_popover_state.is_root_open() {
                 return;
             }
+            crate::ui::popover_state::close_ancestor_popover(btn);
             show_insert_reference_link_popover(
                 editor_buffer.upcast_ref::<gtk4::TextBuffer>(),
                 editor_view.upcast_ref::<gtk4::TextView>(),
@@ -92,10 +91,11 @@ pub fn connect_image_toolbar_action(
         let current_file_provider = current_file_provider.clone();
         let root_popover_state = root_popover_state.clone();
 
-        button.connect_clicked(move |_| {
+        button.connect_clicked(move |btn| {
             if root_popover_state.is_root_open() {
                 return;
             }
+            crate::ui::popover_state::close_ancestor_popover(btn);
             show_insert_image_popover(
                 editor_buffer.upcast_ref::<gtk4::TextBuffer>(),
                 editor_view.upcast_ref::<gtk4::TextView>(),
@@ -985,8 +985,8 @@ fn clamp_rect_to_editor(
     rect: gtk4::gdk::Rectangle,
     editor_view: &gtk4::TextView,
 ) -> gtk4::gdk::Rectangle {
-    let view_w = editor_view.allocated_width().max(1);
-    let view_h = editor_view.allocated_height().max(1);
+    let view_w = editor_view.width().max(1);
+    let view_h = editor_view.height().max(1);
     let w = rect.width().max(1);
     let h = rect.height().max(1);
 
@@ -1369,25 +1369,24 @@ fn normalize_reference_id(raw: &str) -> Option<String> {
 #[cfg(target_os = "linux")]
 async fn pick_local_file(parent_window: &gtk4::Window) -> Option<PathBuf> {
     let translations = crate::ui::dialogs::current_translations();
-    let dialog = FileChooserNative::new(
-        Some(&translations.messages.select_local_file),
-        Some(parent_window),
-        FileChooserAction::Open,
-        Some("_Open"),
-        Some("_Cancel"),
-    );
 
     let filter_all = gtk4::FileFilter::new();
     filter_all.set_name(Some("All files"));
     filter_all.add_pattern("*");
-    dialog.add_filter(&filter_all);
+    let filters = gtk4::gio::ListStore::new::<gtk4::FileFilter>();
+    filters.append(&filter_all);
 
-    let response = dialog.run_future().await;
-    if response == gtk4::ResponseType::Accept {
-        return dialog.file().and_then(|file| file.path());
-    }
+    let dialog = gtk4::FileDialog::builder()
+        .title(translations.messages.select_local_file.as_str())
+        .accept_label("_Open")
+        .filters(&filters)
+        .build();
 
-    None
+    dialog
+        .open_future(Some(parent_window))
+        .await
+        .ok()
+        .and_then(|file| file.path())
 }
 
 #[cfg(target_os = "windows")]

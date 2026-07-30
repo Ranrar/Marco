@@ -21,16 +21,28 @@ tempfile = "3.25.0"
 emojis = "0.8.0"
 fontconfig = "0.10.0"
 dirs = "6.0.0"
-htmlescape = "0.3.1"                              # HTML entity encoding/decoding
+htmlescape = "0.3.1"                 # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting (used by marco for theme CSS export)
 katex-rs = "0.2.3"                   # Pure Rust KaTeX math rendering (used by marco math dialog)
 
 # UI dependencies (GTK4 ecosystem)
-gtk4 = "0.11.2"
+# gtk4 0.11.4 moved the `Accessible` type's export behind the `v4_10` feature
+# gate (undocumented breaking change for what was nominally a patch release —
+# see gitlab.gnome.org/World/Rust/webkit6-rs/-/work_items/14). webkit6's
+# generated bindings still reference `gtk::Accessible` unconditionally with no
+# `v4_10` guard of their own (sourceview5 fixed the same bug in 0.11.1), so it
+# fails to compile unless `v4_10`+ is enabled on *our* gtk4 dependency instead
+# — features are unified across the whole build. `v4_12` covers that
+# transitively (v4_12 -> v4_10 -> v4_8) and is also needed directly for
+# `ListView::scroll_to` in polo's file-tree panel.
+# Pinned exactly (not a caret range) so a routine `cargo update` can't drift
+# onto a future release with the same kind of surprise again without it
+# being a deliberate version bump here.
+gtk4 = { version = "=0.11.4", features = ["v4_12"] }
 glib = "0.22.5"
 glib-unix = "0.22.0"
 gio = "0.22.5"
-sourceview5 = "0.11.0"
+sourceview5 = "0.11.1"
 dark-light = "2.0.0"
 librsvg = "2"
 cairo-rs = "0.22.0"
@@ -41,7 +53,7 @@ gdk-pixbuf = "0.22.0"
 # crate versions as the rest of the workspace); Windows backend is WebView2.
 # Pinned to an exact commit for reproducible builds (the branch moves); bump by
 # updating `rev` to the new fork commit.
-wry = { git = "https://github.com/Ranrar/wry", rev = "e00a02d58fbbf498446f2f493b94280a1809ce5b", default-features = false, features = ["os-webview", "protocol"] }
+wry = { git = "https://github.com/Ranrar/wry", rev = "9a41e6e80a1c503a1295716c2082e00ff56ddf10", default-features = false, features = ["os-webview", "protocol"] }
 # Direct webkit6 dep (Linux): raw WebKit APIs not exposed through wry —
 # `PrintOperation` (print/PDF) and `load_html(html, base_uri)`.
 webkit6 = "0.6.1"

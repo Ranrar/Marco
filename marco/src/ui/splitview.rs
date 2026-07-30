@@ -43,7 +43,7 @@ impl SplitPercentageIndicator {
 
         // Setup CSS styling
         let css_provider = CssProvider::new();
-        css_provider.load_from_data(
+        css_provider.load_from_string(
             ".split-percentage-indicator {
                 background-color: rgba(0, 0, 0, 0.7);
                 color: white;
@@ -56,8 +56,13 @@ impl SplitPercentageIndicator {
         );
 
         // Apply CSS to the label
-        let style_context = percentage_label.style_context();
-        style_context.add_provider(&css_provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+        if let Some(display) = gtk4::gdk::Display::default() {
+            gtk4::style_context_add_provider_for_display(
+                &display,
+                &css_provider,
+                gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        }
 
         // Set up the overlay structure
         overlay.set_child(Some(paned));
@@ -154,7 +159,7 @@ pub fn setup_split_percentage_indicator_with_cascade_prevention(
                 }
             }
 
-            let width = paned.allocated_width();
+            let width = paned.width();
             if width <= 0 {
                 return;
             }

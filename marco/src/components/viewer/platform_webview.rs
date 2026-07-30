@@ -34,6 +34,30 @@ use raw_window_handle::{
 #[cfg(target_os = "windows")]
 use std::num::NonZeroIsize;
 
+/// Debug-only diagnostic: log this process's current GDI/USER object handle
+/// counts. Windows enforces a per-process quota on both (10,000 by default);
+/// exhausting either produces exactly the class of generic, seemingly
+/// unrelated COM failures (`E_INVALIDARG`, "class not registered") observed
+/// from `ICoreWebView2::Navigate` here — logged around every build/reload
+/// attempt to test that theory directly instead of guessing further.
+#[cfg(target_os = "windows")]
+fn log_gui_resource_counts(context: &str) {
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, GetGuiResources, GR_GDIOBJECTS, GR_USEROBJECTS,
+    };
+    unsafe {
+        let h = GetCurrentProcess();
+        let gdi = GetGuiResources(h, GR_GDIOBJECTS);
+        let user = GetGuiResources(h, GR_USEROBJECTS);
+        log::debug!(
+            "[wry] GUI resource counts ({}): GDI objects={} USER objects={}",
+            context,
+            gdi,
+            user
+        );
+    }
+}
+
 type ScrollReportCallback = Rc<dyn Fn(f64)>;
 type ScrollReportCallbackCell = Rc<RefCell<Option<ScrollReportCallback>>>;
 
@@ -71,6 +95,16 @@ type StateSnapshotCallbackCell = Rc<RefCell<Option<StateSnapshotCallback>>>;
 /// `MarcoCorePreview.restoreState` (§14.3 of the parity audit).
 type ReadyCallback = Rc<dyn Fn()>;
 type ReadyCallbackCell = Rc<RefCell<Option<ReadyCallback>>>;
+
+/// Callback invoked from wry's own `with_on_page_load_handler` /
+/// `PageLoadEvent::Finished` — the WebView backend's *native* "this page has
+/// actually finished loading" signal, independent of any in-page JS running
+/// successfully. Polo (which does not exhibit Marco's Windows
+/// stuck-on-"Rendering…" bug) uses exactly this mechanism, on both
+/// platforms, as its only source of "hide the loading overlay" truth; see
+/// [`PlatformWebView::connect_load_finished`].
+type LoadFinishedCallback = Rc<dyn Fn()>;
+type LoadFinishedCallbackCell = Rc<RefCell<Option<LoadFinishedCallback>>>;
 
 /// Document URL queued while the webview's deferred first build is pending
 /// (see [`PlatformWebView::load_html_with_base`]).
@@ -364,6 +398,10 @@ pub struct PlatformWebView {
     /// *restoration*: the detached window installs a callback that, on
     /// ready, dispatches `restore_script(&take_latest_state())`.
     ready_callback: ReadyCallbackCell,
+    /// Listener for wry's native `PageLoadEvent::Finished`, fired by the
+    /// WebView backend itself regardless of in-page JS. See
+    /// [`Self::connect_load_finished`].
+    load_finished_callback: LoadFinishedCallbackCell,
     /// When `true` the tick callback keeps the wry HWND at −32000,−32000 so
     /// the GTK loading-overlay frame is visible above it.
     is_offscreen_for_loading: Rc<std::cell::Cell<bool>>,
@@ -411,6 +449,7 @@ impl PlatformWebView {
         let find_report_callback: FindReportCallbackCell = Rc::new(RefCell::new(None));
         let state_snapshot_callback: StateSnapshotCallbackCell = Rc::new(RefCell::new(None));
         let ready_callback: ReadyCallbackCell = Rc::new(RefCell::new(None));
+        let load_finished_callback: LoadFinishedCallbackCell = Rc::new(RefCell::new(None));
         let is_offscreen_for_loading = Rc::new(std::cell::Cell::new(false));
 
         // Set up a GTK CSS provider so the container widget is painted with the
@@ -423,7 +462,7 @@ impl PlatformWebView {
         });
         bg_css_provider
             .provider
-            .load_from_data(&format!(".{} {{ background-color: #1e1e1e; }}", bg_class));
+            .load_from_string(&format!(".{} {{ background-color: #1e1e1e; }}", bg_class));
         if let Some(display) = gtk4::gdk::Display::default() {
             gtk4::style_context_add_provider_for_display(
                 &display,
@@ -507,8 +546,7 @@ impl PlatformWebView {
                     // WebView2 renders the page at the correct viewport dimensions
                     // and no reflow/white-flash occurs when the HWND is restored.
                     let (w, h) = if is_offscreen_tick.get() {
-                        let alloc = container.allocation();
-                        (alloc.width().max(100) as f64, alloc.height().max(100) as f64)
+                        (container.width().max(100) as f64, container.height().max(100) as f64)
                     } else {
                         // Container not mapped (e.g. Stack switched to code view): use minimal size.
                         (1.0, 1.0)
@@ -523,27 +561,28 @@ impl PlatformWebView {
                     return gtk4::glib::ControlFlow::Continue;
                 }
 
-                let alloc = container.allocation();
                 let (offset_x, offset_y) = if win.is_maximized() { (0.0, 0.0) } else { (14.0, 12.0) };
 
-                // Compute the top-left of the container in window coordinates
-                let origin_in_window = match container.translate_coordinates(&win, 0.0, 0.0) {
-                    Some((x, y)) => (x, y),
-                    None => (alloc.x() as f64, alloc.y() as f64),
+                // Compute the container's position + size in window coordinates in a
+                // single call (replaces the deprecated allocation()/translate_coordinates() pair).
+                let bounds = container.compute_bounds(&win);
+                let (origin_x, origin_y, width, height) = match &bounds {
+                    Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
+                    None => (0.0, 0.0, container.width() as f64, container.height() as f64),
                 };
 
                 let rect = wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        origin_in_window.0 + offset_x - 1.0,
-                        origin_in_window.1 + offset_y,
+                        origin_x + offset_x - 1.0,
+                        origin_y + offset_y,
                     )),
-                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(alloc.width().max(1) as f64 + 1.0, alloc.height().max(1) as f64)),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(width.max(1.0) + 1.0, height.max(1.0))),
                 };
 
-                log::debug!("[wry] container origin_in_window=({}, {}), alloc=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
-                    origin_in_window.0, origin_in_window.1, alloc.x(), alloc.y(),
-                    origin_in_window.0 + offset_x - 1.0, origin_in_window.1 + offset_y,
-                    alloc.width().max(1) + 1, alloc.height().max(1)
+                log::debug!("[wry] container origin_in_window=({}, {}), size=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
+                    origin_x, origin_y, width, height,
+                    origin_x + offset_x - 1.0, origin_y + offset_y,
+                    width.max(1.0) + 1.0, height.max(1.0)
                 );
 
                 if let Err(e) = view.set_bounds(rect) {
@@ -571,6 +610,7 @@ impl PlatformWebView {
             find_report_callback,
             state_snapshot_callback,
             ready_callback,
+            load_finished_callback,
             is_offscreen_for_loading,
             bg_css_provider,
         }
@@ -646,6 +686,24 @@ impl PlatformWebView {
         *self.ready_callback.borrow_mut() = Some(Rc::new(callback));
     }
 
+    /// Run `f` every time wry's own `PageLoadEvent::Finished` fires for this
+    /// WebView — the backend's native "this page has actually finished
+    /// loading" signal (`with_on_page_load_handler`), independent of
+    /// whether any in-page JS ran at all.
+    ///
+    /// Use this instead of the `marco_zoom:ready` IPC round-trip for
+    /// anything that must reliably fire on every full-document load — e.g.
+    /// hiding the loading overlay / restoring the WebView2 HWND from its
+    /// off-screen loading position (see [`Self::set_offscreen_for_loading`]).
+    /// Polo's equivalent `PlatformWebView` uses exactly this mechanism (see
+    /// `polo::components::viewer::platform_webview::PlatformWebView::connect_load_finished`)
+    /// and does not exhibit the stuck-on-"Rendering…" failure mode that
+    /// motivated adding this to Marco. Replacing the callback overwrites
+    /// the previous one.
+    pub fn connect_load_finished<F: Fn() + 'static>(&self, f: F) {
+        *self.load_finished_callback.borrow_mut() = Some(Rc::new(f));
+    }
+
     /// Move the wry HWND off-screen (`offscreen = true`) so the GTK loading-
     /// overlay frame is visible during rendering, or restore it to its normal
     /// position (`offscreen = false`) once the page has loaded.
@@ -662,14 +720,13 @@ impl PlatformWebView {
         #[cfg(target_os = "windows")]
         if offscreen {
             if let Some(view) = self.inner.borrow().as_ref() {
-                let alloc = self.container.allocation();
                 let _ = view.set_bounds(wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                         -32000.0, -32000.0,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64,
-                        alloc.height().max(100) as f64,
+                        self.container.width().max(100) as f64,
+                        self.container.height().max(100) as f64,
                     )),
                 });
             }
@@ -702,7 +759,7 @@ impl PlatformWebView {
             (color.green() * 255.0) as u32,
             (color.blue() * 255.0) as u32,
         );
-        self.bg_css_provider.provider.load_from_data(&css_data);
+        self.bg_css_provider.provider.load_from_string(&css_data);
     }
 
     /// Load `html` into the preview, with an optional base directory
@@ -723,8 +780,24 @@ impl PlatformWebView {
 
         let doc_url = build_document_url(base_uri, v);
 
-        if let Some(view) = self.inner.borrow().as_ref() {
-            self.navigate(view, &doc_url);
+        if self.inner.borrow().is_some() {
+            // Defer the actual navigation to a fresh event-loop idle,
+            // decoupled from whatever call stack triggered this load (e.g.
+            // the section-renderer's own `idle_add_local_once` in
+            // `renderer.rs`). On Windows, calling `Navigate()` synchronously
+            // from within that nested context reproducibly failed with a
+            // WebView2 `E_INVALIDARG` (confirmed via logging — every
+            // reload attempt failed, 100% reproducible across many
+            // sessions); Polo's equivalent `PlatformWebView` (which does
+            // not exhibit this bug) always defers this same call through
+            // `idle_add_local_once`, so mirror that here instead of
+            // reusing the reload from inside the caller's stack frame.
+            // This also gives the loading overlay one frame to paint
+            // before WebView2 starts replacing the current page.
+            let me = self.clone();
+            gtk4::glib::idle_add_local_once(move || {
+                me.navigate(&doc_url);
+            });
             return;
         }
 
@@ -739,9 +812,9 @@ impl PlatformWebView {
             move || {
                 // A previous deferred load may have already built the
                 // webview — just navigate it instead of building a second one.
-                if let Some(view) = me.inner.borrow().as_ref() {
+                if me.inner.borrow().is_some() {
                     if let Some(url) = me.pending_load.borrow_mut().take() {
-                        me.navigate(view, &url);
+                        me.navigate(&url);
                     }
                     return;
                 }
@@ -753,8 +826,17 @@ impl PlatformWebView {
     /// Navigate an already-built webview to `doc_url`. On Windows this uses
     /// the already-HTTP-translated authority (`load_url` doesn't apply
     /// wry's build-time scheme translation); on Linux the `marco-preview://`
-    /// URL is used as-is.
-    fn navigate(&self, view: &wry::WebView, doc_url: &str) {
+    /// URL is used as-is. Callers (see [`Self::load_html_with_base`]) are
+    /// responsible for deferring this to a fresh event-loop idle on
+    /// Windows — calling it synchronously from a nested call stack has
+    /// reproducibly caused WebView2 to reject the navigation outright.
+    fn navigate(&self, doc_url: &str) {
+        let inner = self.inner.borrow();
+        let Some(view) = inner.as_ref() else {
+            log::warn!("[wry] navigate: called with no built WebView; ignoring");
+            return;
+        };
+
         #[cfg(target_os = "windows")]
         let target = doc_url.replacen(
             &format!("{}://{}", CUSTOM_SCHEME, CUSTOM_AUTHORITY),
@@ -764,8 +846,19 @@ impl PlatformWebView {
         #[cfg(target_os = "linux")]
         let target = doc_url.to_string();
 
+        log::debug!(
+            "[wry] navigate() thread={:?} target={:?}",
+            std::thread::current().id(),
+            target
+        );
+        #[cfg(target_os = "windows")]
+        log_gui_resource_counts("navigate, before load_url");
         if let Err(e) = view.load_url(&target) {
-            log::error!("[wry] Failed to load preview document: {}", e);
+            log::error!(
+                "[wry] Failed to load preview document: {} (debug: {:?})",
+                e,
+                e
+            );
         }
     }
 
@@ -788,29 +881,39 @@ impl PlatformWebView {
             .clone()
             .unwrap_or_else(|| build_document_url(None, 0));
 
+        log::debug!(
+            "[wry] build_initial_webview() thread={:?} url={:?}",
+            std::thread::current().id(),
+            initial_url
+        );
+        #[cfg(target_os = "windows")]
+        log_gui_resource_counts("build_initial_webview, entry");
+
         #[cfg(target_os = "windows")]
         let rect = {
-            let alloc = self.container.allocation();
             let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
                 (0.0, 0.0)
             } else {
                 (16.0, 14.0)
             };
 
-            // Translate container origin into window coordinate space so the initial
-            // creation uses correct coordinates on Windows.
-            let origin_in_window =
-                match self
-                    .container
-                    .translate_coordinates(&self.gtk_window, 0.0, 0.0)
-                {
-                    Some((x, y)) => (x, y),
-                    None => (alloc.x() as f64, alloc.y() as f64),
-                };
+            // Compute the container's position + size in window coordinate space in a
+            // single call (replaces the deprecated allocation()/translate_coordinates() pair)
+            // so the initial creation uses correct coordinates on Windows.
+            let bounds = self.container.compute_bounds(&self.gtk_window);
+            let (origin_x, origin_y, width, height) = match &bounds {
+                Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
+                None => (
+                    0.0,
+                    0.0,
+                    self.container.width() as f64,
+                    self.container.height() as f64,
+                ),
+            };
 
             // Build the WebView off-screen if a loading operation is in progress
             // so the GTK loading-overlay frame stays visible until the page loads.
-            // Use the actual container allocation size so WebView2 renders the HTML
+            // Use the actual container size so WebView2 renders the HTML
             // at the correct viewport dimensions — avoids a reflow/white-flash when
             // the HWND is restored by the tick callback after page load completes.
             let rect = if self.is_offscreen_for_loading.get() {
@@ -819,28 +922,28 @@ impl PlatformWebView {
                         -32000.0, -32000.0,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64,
-                        alloc.height().max(100) as f64,
+                        width.max(100.0),
+                        height.max(100.0),
                     )),
                 }
             } else {
                 // Allocation is guaranteed > 1 here by `run_when_allocated`.
                 wry::Rect {
                     position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        origin_in_window.0 + offset_x - 1.0,
-                        origin_in_window.1 + offset_y,
+                        origin_x + offset_x - 1.0,
+                        origin_y + offset_y,
                     )),
                     size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width() as f64 + 1.0,
-                        alloc.height() as f64,
+                        width + 1.0,
+                        height,
                     )),
                 }
             };
 
-            log::debug!("[wry] initial_create origin_in_window=({}, {}), alloc=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
-            origin_in_window.0, origin_in_window.1, alloc.x(), alloc.y(),
-            origin_in_window.0 + offset_x - 1.0, origin_in_window.1 + offset_y,
-            alloc.width() + 1, alloc.height()
+            log::debug!("[wry] initial_create origin_in_window=({}, {}), size=({}, {}), rect_pos=({}, {}), rect_size=({}, {})",
+            origin_x, origin_y, width, height,
+            origin_x + offset_x - 1.0, origin_y + offset_y,
+            width + 1.0, height
         );
 
             // Configure WebView2 to use data directory (portable mode friendly)
@@ -1092,6 +1195,22 @@ impl PlatformWebView {
                     }
                     true
                 }
+            })
+            .with_on_page_load_handler({
+                // wry's native "page finished loading" signal — see
+                // `connect_load_finished`'s doc comment for why this exists
+                // alongside the JS-driven `marco_zoom:ready` IPC message
+                // rather than replacing it: this fires reliably regardless
+                // of in-page JS, matching Polo's proven-working mechanism.
+                let load_finished_cb = self.load_finished_callback.clone();
+                move |event, _url: String| {
+                    if matches!(event, wry::PageLoadEvent::Finished) {
+                        let cb_opt = load_finished_cb.borrow().clone();
+                        if let Some(cb) = cb_opt {
+                            gtk4::glib::MainContext::default().invoke_local(move || cb());
+                        }
+                    }
+                }
             });
 
         #[cfg(target_os = "windows")]
@@ -1132,7 +1251,13 @@ impl PlatformWebView {
                 *self.inner.borrow_mut() = Some(view);
                 log::info!("wry WebView successfully created for initial load");
             }
-            Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
+            Err(e) => log::error!(
+                "Failed to build wry WebView for initial load: {} (debug: {:?}) thread={:?} url={:?}",
+                e,
+                e,
+                std::thread::current().id(),
+                initial_url
+            ),
         }
     }
 

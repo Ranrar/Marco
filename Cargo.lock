@@ -1616,9 +1616,9 @@ dependencies = [
 
 [[package]]
 name = "gtk4"
-version = "0.11.2"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25d47a7ca9ec6f50b5ace32eaaf11fe152c9bbc4f780a35e42c9b7fc5b046f9c"
+checksum = "98a0a0466484f64b07b5b8184d43fa46be78eb0b8e04ae4e179af31d770b76d9"
 dependencies = [
  "cairo-rs",
  "field-offset",
@@ -1649,9 +1649,9 @@ dependencies = [
 
 [[package]]
 name = "gtk4-sys"
-version = "0.11.2"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a25bd07084651c77bb6e7bce7d4cea8d9f98d210acee473e400a9106bc0ce50"
+checksum = "82b8f954786af0b1984425c4446b77f5ff6594346181316be3f850caab1c6f01"
 dependencies = [
  "cairo-sys-rs",
  "gdk-pixbuf-sys",
@@ -3125,6 +3125,7 @@ name = "polo"
 version = "0.24.2"
 dependencies = [
  "cairo-rs",
+ "dirs",
  "gdk-pixbuf",
  "gdk4-win32",
  "gio",
@@ -3136,6 +3137,7 @@ dependencies = [
  "marco-shared",
  "raw-window-handle",
  "rfd",
+ "serde_json",
  "webkit6",
  "webview2-com",
  "windows",
@@ -4001,9 +4003,9 @@ dependencies = [
 
 [[package]]
 name = "sourceview5"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "523d92c25045879b653b3b1233649cb3bb0050c37c0b7ccee4e2a8e9be7f17e4"
+checksum = "00452f1903ed75d5f3d5993d1f22e88c53eb01554cc1a3ea698ca9fe4fffc82e"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -5522,7 +5524,7 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 [[package]]
 name = "wry"
 version = "0.55.1"
-source = "git+https://github.com/Ranrar/wry?rev=e00a02d58fbbf498446f2f493b94280a1809ce5b#e00a02d58fbbf498446f2f493b94280a1809ce5b"
+source = "git+https://github.com/Ranrar/wry?rev=9a41e6e80a1c503a1295716c2082e00ff56ddf10#9a41e6e80a1c503a1295716c2082e00ff56ddf10"
 dependencies = [
  "base64",
  "block2",

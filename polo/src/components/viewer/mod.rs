@@ -36,7 +36,11 @@
 //! - **Error Display**: Shows user-friendly error messages in WebView
 //! - **Base URI**: Properly sets base path for relative image/link resolution
 
+pub mod drop_overlay;
 pub mod empty_state;
+pub mod find_engine;
+pub mod javascript;
+pub mod link_hover;
 pub mod loading_overlay;
 pub mod platform_webview;
 pub mod rendering;

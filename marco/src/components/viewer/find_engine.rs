@@ -205,10 +205,29 @@ fn install_script() -> &'static str {
         }
     }
 
+    function forceRepaint() {
+        // search/next/prev always follow their highlight change with
+        // scrollActiveIntoView(), whose scroll incidentally forces the
+        // compositor to flush the ::highlight() overlay layer. clear() has
+        // no such follow-up scroll, so on WebKitGTK (and some WebView2
+        // builds) the highlight removal isn't actually painted until some
+        // unrelated scroll/resize happens. Nudging opacity forces a
+        // synchronous repaint without a visible or scroll-position change.
+        var el = document.body || document.documentElement;
+        if (!el) return;
+        try {
+            var prev = el.style.opacity;
+            el.style.opacity = '0.999999';
+            void el.offsetHeight; // force synchronous layout/paint flush
+            el.style.opacity = prev;
+        } catch (e) {}
+    }
+
     function clearHighlights() {
         if (hasCssHighlights) {
             try { CSS.highlights.delete('marco-find'); } catch (e) {}
             try { CSS.highlights.delete('marco-find-active'); } catch (e) {}
+            forceRepaint();
         } else {
             try { window.getSelection().removeAllRanges(); } catch (e) {}
         }

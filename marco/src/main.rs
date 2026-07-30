@@ -719,12 +719,39 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = None::<()>;
         log::debug!("Initialized wry-based detached preview state for Windows");
+
+        // Keep an already-open detached preview window's content (and thus
+        // its theme) in sync with the main preview. Unlike Linux — which
+        // reparents the *same live* webview into the detached window, so it
+        // updates for free — Windows rebuilds the detached window's content
+        // from the `LATEST_PREVIEW_HTML`/`LATEST_PREVIEW_BASE_URI` cache in
+        // its own separate `PlatformWebView` (see
+        // `detached_window_windows`'s module doc, §14.3). Without this, a
+        // theme switch (or any other change that only reaches the main
+        // preview) never propagated to an already-open detached window.
+        {
+            let preview_window_opt_for_refresh = preview_window_opt.clone();
+            crate::components::viewer::preview_helpers::set_preview_refreshed_listener(move || {
+                if let Some(pw) = preview_window_opt_for_refresh.borrow().as_ref() {
+                    if pw.is_visible() {
+                        pw.load_preview_content();
+                    }
+                }
+            });
+        }
+
         (
             Some(preview_window_opt),
             Some(webview_location_tracker),
             reparent_guard,
         )
     };
+
+    // Kept for the theme-change callbacks below (registered after
+    // `preview_window_opt` is moved into `TitlebarConfig`) so a live theme
+    // switch can also sync the detached preview window's titlebar, not just
+    // the main window's.
+    let preview_window_opt_for_theme = preview_window_opt.clone();
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
     let (titlebar_handle, title_label, menu_state) =
@@ -1258,6 +1285,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let language_changed_handler = language_changed_handler.clone();
         let editor_source_view_for_rtl = editor_source_view.clone();
         let editor_webview_for_rtl = editor_webview.clone();
+        let preview_window_opt_for_theme = preview_window_opt_for_theme.clone();
         move |_, _| {
             use crate::ui::settings::dialog::show_settings_dialog;
 
@@ -1266,6 +1294,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 let update_editor = update_editor_theme_rc.clone();
                 let update_preview = update_preview_theme_rc.clone();
                 let window_for_theme = window.clone();
+                let preview_window_opt_for_theme = preview_window_opt_for_theme.clone();
                 Box::new(move |scheme_id: String| {
                     update_editor(&scheme_id);
                     update_preview(&scheme_id);
@@ -1279,6 +1308,16 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     // Update window - this automatically affects all child widgets via CSS cascade
                     window_for_theme.remove_css_class(old_class);
                     window_for_theme.add_css_class(&new_class);
+
+                    // The detached preview window is a separate top-level
+                    // window, not a descendant of `window_for_theme`, so the
+                    // CSS cascade above never reaches its titlebar — sync it
+                    // explicitly if it currently exists.
+                    if let Some(ref pw_opt) = preview_window_opt_for_theme {
+                        if let Some(ref pw) = *pw_opt.borrow() {
+                            pw.sync_theme_class(new_mode == "dark");
+                        }
+                    }
 
                     log::debug!("Switched CSS class from {} to {} (window and all descendants)", old_class, new_class);
                 }) as Box<dyn Fn(String) + 'static>
@@ -1365,7 +1404,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         // Check if widget is still valid before using
                         if let Some(split_paned) = split_paned_weak.upgrade() {
                             // Calculate the pixel position based on the current paned width
-                            let paned_width = split_paned.allocated_width();
+                            let paned_width = split_paned.width();
                             let new_position = if paned_width > 0 {
                                 (paned_width as f64 * ratio as f64 / 100.0) as i32
                             } else {
@@ -2739,7 +2778,18 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 let update_editor = update_editor_theme_rc.clone();
                 let update_preview = update_preview_theme_rc.clone();
                 let window_for_theme = window.clone();
+                let theme_manager = theme_manager.clone();
+                let settings_path = settings_path.clone();
                 move |editor_mode: String| {
+                    // Set the GTK-global dark-theme preference (Linux) the same
+                    // way the Settings dialog's Application tab does — without
+                    // this, only this window's own CSS class flips; anything
+                    // relying on GTK's native light/dark rendering elsewhere in
+                    // the application stays on the old theme.
+                    theme_manager
+                        .borrow_mut()
+                        .set_editor_scheme(&editor_mode, &settings_path);
+
                     update_editor(&editor_mode);
                     update_preview(&editor_mode);
 

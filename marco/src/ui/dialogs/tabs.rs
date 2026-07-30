@@ -392,6 +392,9 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         let selection = selection.clone();
         let refresh_ui_state = refresh_ui_state.clone();
         move |_factory, list_item| {
+            let list_item = list_item
+                .downcast_ref::<gtk4::ListItem>()
+                .expect("factory item is a ListItem");
             let row = Box::new(Orientation::Horizontal, 6);
             row.add_css_class("marco-tabs-row");
 
@@ -509,6 +512,9 @@ pub fn show_insert_tabs_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
     });
 
     tabs_factory.connect_bind(move |_factory, list_item| {
+        let list_item = list_item
+            .downcast_ref::<gtk4::ListItem>()
+            .expect("factory item is a ListItem");
         let Some(row_widget) = list_item.child() else {
             return;
         };

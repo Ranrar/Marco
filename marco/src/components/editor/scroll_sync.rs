@@ -79,8 +79,7 @@ impl ScrollSynchronizer {
 
     /// Check if a widget has proper allocation for rendering
     fn has_valid_allocation(widget: &impl IsA<gtk4::Widget>) -> bool {
-        let allocation = widget.allocation();
-        allocation.width() > 0 && allocation.height() > 0
+        widget.width() > 0 && widget.height() > 0
     }
 
     /// Set the scroll percentage of a ScrolledWindow with allocation check

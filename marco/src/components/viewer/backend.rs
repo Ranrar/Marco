@@ -80,6 +80,7 @@ pub fn record_latest_preview(html: &str, base_uri: Option<&str>) {
     crate::components::viewer::preview_helpers::set_latest_preview_base_uri(
         base_uri.map(str::to_string),
     );
+    crate::components::viewer::preview_helpers::notify_preview_refreshed();
 }
 
 /// Patch the live preview's `mc-content-container` in place via the JS

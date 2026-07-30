@@ -73,10 +73,14 @@ pub fn render_editor_with_view(
             error, section
         );
     });
-    font_provider.load_from_data(&css);
-    source_view
-        .style_context()
-        .add_provider(&font_provider, gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION);
+    font_provider.load_from_string(&css);
+    if let Some(display) = gtk4::gdk::Display::default() {
+        gtk4::style_context_add_provider_for_display(
+            &display,
+            &font_provider,
+            gtk4::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        );
+    }
 
     use sourceview5::BackgroundPatternType;
     source_view.set_background_pattern(BackgroundPatternType::None);
