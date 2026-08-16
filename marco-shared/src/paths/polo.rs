@@ -40,15 +40,17 @@ impl PoloPaths {
     /// Get Polo's config directory
     ///
     /// - Dev mode: workspace_root/tests/settings/
-    /// - Install mode: ~/.config/polo/
+    /// - Install mode: ~/.config/markdownviewer/ (Linux)
     pub fn config_dir(&self) -> PathBuf {
         if self.dev_mode {
             if let Some(workspace) = super::workspace_root() {
                 workspace.join("tests").join("settings")
             } else {
                 dirs::config_dir()
-                    .map(|c| c.join("polo"))
-                    .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("polo")))
+                    .map(|c| c.join(super::VIEWER_DIR_NAME))
+                    .or_else(|| {
+                        dirs::home_dir().map(|h| h.join(".config").join(super::VIEWER_DIR_NAME))
+                    })
                     .unwrap_or_else(|| {
                         if cfg!(target_os = "windows") {
                             PathBuf::from("C:\\Temp\\polo\\config")
@@ -59,8 +61,10 @@ impl PoloPaths {
             }
         } else {
             dirs::config_dir()
-                .map(|c| c.join("polo"))
-                .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("polo")))
+                .map(|c| c.join(super::VIEWER_DIR_NAME))
+                .or_else(|| {
+                    dirs::home_dir().map(|h| h.join(".config").join(super::VIEWER_DIR_NAME))
+                })
                 .unwrap_or_else(|| {
                     if cfg!(target_os = "windows") {
                         PathBuf::from("C:\\Temp\\polo\\config")
@@ -93,8 +97,11 @@ impl PoloPaths {
     /// Get Polo's user data directory
     pub fn user_data_dir(&self) -> PathBuf {
         dirs::data_local_dir()
-            .map(|d| d.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share").join("polo")))
+            .map(|d| d.join(super::VIEWER_DIR_NAME))
+            .or_else(|| {
+                dirs::home_dir()
+                    .map(|h| h.join(".local").join("share").join(super::VIEWER_DIR_NAME))
+            })
             .unwrap_or_else(|| {
                 if cfg!(target_os = "windows") {
                     PathBuf::from("C:\\Temp\\polo\\data")
@@ -107,8 +114,8 @@ impl PoloPaths {
     /// Get Polo's cache directory
     pub fn cache_dir(&self) -> PathBuf {
         dirs::cache_dir()
-            .map(|c| c.join("polo"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("polo")))
+            .map(|c| c.join(super::VIEWER_DIR_NAME))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join(super::VIEWER_DIR_NAME)))
             .unwrap_or_else(|| {
                 if cfg!(target_os = "windows") {
                     PathBuf::from("C:\\Temp\\polo\\cache")
@@ -170,9 +177,15 @@ mod tests {
             // In install mode, verify polo has separate directories from marco
             // In dev mode, directories are shared (tests/settings/)
             if !is_dev_mode() {
-                assert!(config.to_string_lossy().contains("polo"));
-                assert!(data.to_string_lossy().contains("polo"));
-                assert!(cache.to_string_lossy().contains("polo"));
+                assert!(config
+                    .to_string_lossy()
+                    .contains(crate::paths::VIEWER_DIR_NAME));
+                assert!(data
+                    .to_string_lossy()
+                    .contains(crate::paths::VIEWER_DIR_NAME));
+                assert!(cache
+                    .to_string_lossy()
+                    .contains(crate::paths::VIEWER_DIR_NAME));
             }
 
             println!("Polo config: {}", config.display());

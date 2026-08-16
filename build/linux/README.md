@@ -8,7 +8,7 @@ Debian package builder for Marco markdown editor.
 # Build package (compiles binaries and creates .deb)
 bash build/linux/build_deb.sh --no-bump
 
-# Output: build/installer/marco-suite_<version>_linux_amd64.deb
+# Output: build/installer/markdowncomposerandviewer_<version>_linux_amd64.deb
 ```
 
 ## Build Script
@@ -18,7 +18,7 @@ bash build/linux/build_deb.sh --no-bump
 2. Creates Debian package structure
 3. Installs binaries, assets, desktop files, icons, man pages
 4. Generates `.deb` package with `dpkg-deb`
-5. Outputs to `build/installer/marco-suite_<version>_linux_amd64.deb`
+5. Outputs to `build/installer/markdowncomposerandviewer_<version>_linux_amd64.deb`
 
 ## Usage
 
@@ -72,39 +72,59 @@ sudo apt-get install imagemagick
 
 ```
 /usr/bin/
-├── marco                          # Main editor binary
-└── polo                           # Viewer binary
+├── markdowncomposer               # Main editor binary
+└── markdownviewer                 # Viewer binary
 
 /usr/share/applications/
-├── marco.desktop
-└── polo.desktop
+├── markdowncomposer.desktop
+└── markdownviewer.desktop
 
 /usr/share/icons/hicolor/
 └── {16,24,32,48,64,96,128,160,192,256,512}x{size}/apps/
-    ├── marco.png
-    └── polo.png
+    ├── markdowncomposer.png
+    └── markdownviewer.png
 
 /usr/share/man/man1/
-├── marco.1.gz
-└── polo.1.gz
+├── markdowncomposer.1.gz
+└── markdownviewer.1.gz
 
-/usr/share/marco/doc/
+/usr/share/markdowncomposer/doc/
 ├── documentation/
 ├── README.md
 └── LICENSE
 ```
 
+> **Why `markdowncomposer` / `markdownviewer` and not `marco` / `polo`?**
+> `/usr/bin/marco`, `marco.desktop`, `marco.1`, `apps/marco.png` and
+> `/usr/share/marco/` are all owned by the unrelated MATE window manager
+> package `marco` in the Debian/Ubuntu archives. dpkg detects conflicts by
+> file path rather than package name, so those paths made this package
+> impossible to install on any MATE system regardless of it being named
+> `marco-suite` ([#41](https://github.com/Ranrar/Marco/issues/41)).
+> Per-user config, data and cache moved to `~/.config/markdowncomposer/`,
+> `~/.local/share/markdowncomposer/` and `~/.cache/markdowncomposer/` for the
+> same reason. **This is a breaking change with no migration** — settings under
+> the old `marco` directories are not read, and users must copy anything they
+> want to keep across by hand.
+>
+> `Conflicts`/`Replaces` would be wrong — a window manager and a markdown
+> editor are unrelated, and installing an editor must not remove someone's
+> window manager — so the installed artifacts are renamed instead. The
+> project, the crates and the running applications are all still called Marco
+> and Polo; only the installed file and directory names change. Polo is renamed
+> alongside for consistency, not because it collides.
+
 ## Installation
 
 ```bash
 # Install package
-sudo dpkg -i build/installer/marco-suite_<version>_linux_amd64.deb
+sudo dpkg -i build/installer/markdowncomposerandviewer_<version>_linux_amd64.deb
 
 # Fix missing dependencies (if any)
 sudo apt -f install
 
 # Uninstall
-sudo dpkg -r marco-suite
+sudo dpkg -r markdowncomposerandviewer
 ```
 
 ## CI/CD
@@ -169,13 +189,13 @@ bash build/linux/build_deb.sh --no-bump
 ### Package Won't Install
 ```bash
 # Check package contents
-dpkg-deb --contents build/installer/marco-suite_*.deb
+dpkg-deb --contents build/installer/markdowncomposerandviewer_*.deb
 
 # Check package info
-dpkg-deb --info build/installer/marco-suite_*.deb
+dpkg-deb --info build/installer/markdowncomposerandviewer_*.deb
 
 # Force install (not recommended)
-sudo dpkg -i --force-all build/installer/marco-suite_*.deb
+sudo dpkg -i --force-all build/installer/markdowncomposerandviewer_*.deb
 ```
 
 ## Desktop Files
@@ -192,7 +212,7 @@ Launch from:
 
 ## Package Metadata
 
-- **Package**: marco-suite
+- **Package**: markdowncomposerandviewer
 - **Section**: editors
 - **Priority**: optional
 - **Architecture**: amd64

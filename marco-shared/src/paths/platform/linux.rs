@@ -11,14 +11,18 @@ pub(crate) fn asset_root_candidates(exe_parent: &Path) -> Vec<PathBuf> {
 
     // User-local asset install (not the same as config; may or may not exist).
     if let Some(home) = dirs::home_dir() {
-        candidates.push(home.join(".local/share/marco"));
+        candidates.push(
+            home.join(".local")
+                .join("share")
+                .join(crate::paths::APP_DIR_NAME),
+        );
     }
 
     // System-local install
-    candidates.push(PathBuf::from("/usr/local/share/marco"));
+    candidates.push(PathBuf::from("/usr/local/share").join(crate::paths::APP_DIR_NAME));
 
     // System-global install (Debian package layout)
-    candidates.push(PathBuf::from("/usr/share/marco"));
+    candidates.push(PathBuf::from("/usr/share").join(crate::paths::APP_DIR_NAME));
 
     candidates
 }
@@ -30,9 +34,13 @@ pub(crate) fn config_dir() -> PathBuf {
     }
 
     dirs::config_dir()
-        .map(|c| c.join("marco"))
-        .or_else(|| dirs::home_dir().map(|h| h.join(".config").join("marco")))
-        .unwrap_or_else(|| PathBuf::from("/tmp/marco/config"))
+        .map(|c| c.join(crate::paths::APP_DIR_NAME))
+        .or_else(|| dirs::home_dir().map(|h| h.join(".config").join(crate::paths::APP_DIR_NAME)))
+        .unwrap_or_else(|| {
+            PathBuf::from("/tmp")
+                .join(crate::paths::APP_DIR_NAME)
+                .join("config")
+        })
 }
 
 pub(crate) fn user_data_dir() -> PathBuf {
@@ -42,9 +50,19 @@ pub(crate) fn user_data_dir() -> PathBuf {
     }
 
     dirs::data_local_dir()
-        .map(|d| d.join("marco"))
-        .or_else(|| dirs::home_dir().map(|h| h.join(".local").join("share").join("marco")))
-        .unwrap_or_else(|| PathBuf::from("/tmp/marco/data"))
+        .map(|d| d.join(crate::paths::APP_DIR_NAME))
+        .or_else(|| {
+            dirs::home_dir().map(|h| {
+                h.join(".local")
+                    .join("share")
+                    .join(crate::paths::APP_DIR_NAME)
+            })
+        })
+        .unwrap_or_else(|| {
+            PathBuf::from("/tmp")
+                .join(crate::paths::APP_DIR_NAME)
+                .join("data")
+        })
 }
 
 pub(crate) fn detect_portable_mode() -> Option<PathBuf> {
@@ -121,17 +139,20 @@ pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> Inst
     }
 
     if let Some(home) = dirs::home_dir() {
-        let user_local = home.join(".local/share/marco");
+        let user_local = home
+            .join(".local")
+            .join("share")
+            .join(crate::paths::APP_DIR_NAME);
         if asset_root.starts_with(&user_local) {
             return InstallLocation::UserLocal;
         }
     }
 
-    if asset_root.starts_with(Path::new("/usr/local/share/marco")) {
+    if asset_root.starts_with(Path::new("/usr/local/share").join(crate::paths::APP_DIR_NAME)) {
         return InstallLocation::SystemLocal;
     }
 
-    if asset_root.starts_with(Path::new("/usr/share/marco")) {
+    if asset_root.starts_with(Path::new("/usr/share").join(crate::paths::APP_DIR_NAME)) {
         return InstallLocation::SystemGlobal;
     }
 

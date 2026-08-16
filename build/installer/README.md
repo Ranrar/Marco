@@ -8,8 +8,8 @@ All packages are output directly to this directory:
 
 ```
 installer/
-├── marco-suite_VERSION_linux_amd64.deb     # Linux package
-└── marco-suite_VERSION_windows_amd64.zip   # Windows portable package
+├── markdown-composer-and-viewer_VERSION_linux_amd64.deb     # Linux package
+└── markdown-composer-and-viewer_VERSION_windows_amd64.zip   # Windows portable package
 ```
 
 ## Creating Installers
@@ -17,7 +17,7 @@ installer/
 ### Linux (.deb)
 ```bash
 bash build/linux/build_deb.sh --no-bump
-# Output: build/installer/marco-suite_VERSION_linux_amd64.deb
+# Output: build/installer/markdown-composer-and-viewer_VERSION_linux_amd64.deb
 ```
 
 ### Windows (.zip)
@@ -28,14 +28,14 @@ bash build/linux/build_deb.sh --no-bump
 # Skip build (use existing binaries):
 .\build\windows\build_portable.ps1 -SkipBuild
 
-# Output: build/installer/marco-suite_VERSION_windows_amd64.zip
+# Output: build/installer/markdown-composer-and-viewer_VERSION_windows_amd64.zip
 ```
 
 ## Installation
 
 ### Linux
 ```bash
-sudo dpkg -i build/installer/marco-suite_VERSION_linux_amd64.deb
+sudo dpkg -i build/installer/markdown-composer-and-viewer_VERSION_linux_amd64.deb
 # If dependencies are missing:
 sudo apt -f install
 ```
@@ -60,8 +60,8 @@ Both workflows:
 ## Naming Convention
 
 All packages follow this release naming pattern:
-- Linux: `marco-suite_<version>_linux_amd64.deb`
-- Windows: `marco-suite_<version>_windows_amd64.zip`
+- Linux: `markdown-composer-and-viewer_<version>_linux_amd64.deb`
+- Windows: `markdown-composer-and-viewer_<version>_windows_amd64.zip`
 
 Where `<version>` comes from `build/version.json` (platform-specific: `linux.marco` or `windows.marco`).
 

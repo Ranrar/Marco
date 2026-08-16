@@ -459,6 +459,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         })
     };
 
+    crate::toolbar::wire_undo_redo_focus(&toolbar_ref.borrow(), &editor_source_view);
+
     crate::ui::toolbar::connect_link_toolbar_action(
         &toolbar_ref.borrow(),
         &editor_buffer,

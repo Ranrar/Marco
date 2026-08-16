@@ -819,12 +819,24 @@ pub fn launch_marco(file_path: &str) -> Result<(), String> {
         .parent()
         .ok_or_else(|| "Failed to get polo directory".to_string())?;
 
-    let marco_path = polo_dir.join("marco");
+    // The installed executable name differs from the crate name on Linux (see
+    // `COMPOSER_EXE_NAME`), and a development build always produces `marco`.
+    // Try both, next to this binary first and then on PATH, so the button
+    // works from an installed package and from `cargo run` alike.
+    let candidates = [
+        marco_shared::paths::COMPOSER_EXE_NAME,
+        marco_shared::paths::COMPOSER_DEV_EXE_NAME,
+    ];
 
-    let command = if marco_path.exists() {
-        marco_path.to_string_lossy().to_string()
-    } else {
-        "marco".to_string() // Try PATH
+    let sibling = candidates
+        .iter()
+        .map(|name| polo_dir.join(name))
+        .find(|path| path.exists());
+
+    let command = match sibling {
+        Some(path) => path.to_string_lossy().to_string(),
+        // Nothing alongside us — fall back to PATH under the installed name.
+        None => marco_shared::paths::COMPOSER_EXE_NAME.to_string(),
     };
 
     Command::new(&command)

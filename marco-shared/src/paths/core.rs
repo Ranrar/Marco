@@ -90,9 +90,9 @@ pub fn is_dev_mode() -> bool {
 /// Search order:
 /// 1. Development mode: `target/{debug|release}/marco_assets/`
 ///    1b. Windows production: `executable_dir/assets/` (installer layout)
-/// 2. User install: `~/.local/share/marco/` (Linux) or `%LOCALAPPDATA%\Marco` (Windows)
-/// 3. System local: `/usr/local/share/marco/` (Linux) or `%PROGRAMFILES%\Marco` (Windows)
-/// 4. System global: `/usr/share/marco/` (Linux) or `%PROGRAMDATA%\Marco` (Windows)
+/// 2. User install: `~/.local/share/markdowncomposer/` (Linux) or `%LOCALAPPDATA%\Marco` (Windows)
+/// 3. System local: `/usr/local/share/markdowncomposer/` (Linux) or `%PROGRAMFILES%\Marco` (Windows)
+/// 4. System global: `/usr/share/markdowncomposer/` (Linux) or `%PROGRAMDATA%\Marco` (Windows)
 ///
 /// Returns the first existing directory found.
 pub fn find_asset_root() -> Result<PathBuf, AssetError> {

@@ -2302,7 +2302,7 @@ dependencies = [
 
 [[package]]
 name = "marco"
-version = "0.24.2"
+version = "0.25.0"
 dependencies = [
  "cairo-rs",
  "ctrlc",
@@ -2338,9 +2338,9 @@ dependencies = [
 
 [[package]]
 name = "marco-core"
-version = "1.3.0"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0a6d5c859ab550127ffeb24bde04e5e967f341026a3f784608aeb55c02c00d0"
+checksum = "8f00205aa875617819ebfee97e599e96352908b277f14c99c394a7678d86c2b6"
 dependencies = [
  "chrono",
  "dirs",
@@ -2361,7 +2361,7 @@ dependencies = [
 
 [[package]]
 name = "marco-shared"
-version = "0.24.2"
+version = "0.25.0"
 dependencies = [
  "blake3",
  "chrono",
@@ -3122,7 +3122,7 @@ checksum = "2f3a9f18d041e6d0e102a0a46750538147e5e8992d3b4873aaafee2520b00ce3"
 
 [[package]]
 name = "polo"
-version = "0.24.2"
+version = "0.25.0"
 dependencies = [
  "cairo-rs",
  "dirs",
@@ -4198,9 +4198,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tao-macros"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f4e16beb8b2ac17db28eab8bca40e62dbfbb34c0fcdc6d9826b11b7b5d047dfd"
+checksum = "5f7eeb6d99155545da6150a1795945f16ac9c178deb2a5f2e74d776107bd5849"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5523,8 +5523,8 @@ checksum = "1ffae5123b2d3fc086436f8834ae3ab053a283cfac8fe0a0b8eaae044768a4c4"
 
 [[package]]
 name = "wry"
-version = "0.55.1"
-source = "git+https://github.com/Ranrar/wry?rev=9a41e6e80a1c503a1295716c2082e00ff56ddf10#9a41e6e80a1c503a1295716c2082e00ff56ddf10"
+version = "0.56.1"
+source = "git+https://github.com/Ranrar/wry?rev=6328003336cb1b93bde710f73a4572c01f509f2d#6328003336cb1b93bde710f73a4572c01f509f2d"
 dependencies = [
  "base64",
  "block2",

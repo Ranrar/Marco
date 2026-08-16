@@ -23,7 +23,7 @@ build/
 # Build Debian package (includes compilation with explicit target)
 bash build/linux/build_deb.sh --no-bump
 
-# Output: build/installer/marco-suite_VERSION_linux_amd64.deb
+# Output: build/installer/markdown-composer-and-viewer_VERSION_linux_amd64.deb
 ```
 
 ### Windows (wry/WebView2)
@@ -34,7 +34,7 @@ bash build/linux/build_deb.sh --no-bump
 # Skip build (use existing binaries)
 .\build\windows\build_portable.ps1 -SkipBuild
 
-# Output: build/installer/marco-suite_VERSION_windows_amd64.zip
+# Output: build/installer/markdown-composer-and-viewer_VERSION_windows_amd64.zip
 ```
 
 ## Release Artifacts

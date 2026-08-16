@@ -513,7 +513,7 @@ pub(crate) fn load_default_translations() -> Translations {
                 log_label: "Program Log".to_string(),
                 log_description: "Write program logs to file for troubleshooting. Log files are stored in the application data directory.".to_string(),
                 log_checkbox: "Enable file logging".to_string(),
-                log_paths_template: "Resolved log directory: {resolved}\n\nDefault locations:\n• Windows: %LOCALAPPDATA%\\Marco\\logs\\<YYYYMM>\\<YYMMDD.log>\n• Linux: ~/.cache/marco/logs/<YYYYMM>/<YYMMDD.log>\n\nFallback (development): ./log/<YYYYMM>/<YYMMDD.log> (used when system cache dir is unavailable).\n\nNote: File logging can be enabled/disabled immediately from this dialog without restarting the app.".to_string(),
+                log_paths_template: "Resolved log directory: {resolved}\n\nDefault locations:\n• Windows: %LOCALAPPDATA%\\Marco\\logs\\<YYYYMM>\\<YYMMDD.log>\n• Linux: ~/.cache/markdowncomposer/logs/<YYYYMM>/<YYMMDD.log>\n\nFallback (development): ./log/<YYYYMM>/<YYMMDD.log> (used when system cache dir is unavailable).\n\nNote: File logging can be enabled/disabled immediately from this dialog without restarting the app.".to_string(),
                 log_size_template: "Total logs size: {size_mb:.2} MB".to_string(),
                 open_logs_button: "Open logs folder".to_string(),
                 delete_logs_button: "Delete logs".to_string(),

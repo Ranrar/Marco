@@ -42,7 +42,7 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 | Linux | Windows |
 |-------|---------|
 | Download the latest `.deb` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest | Download the latest `.zip` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest |
-| **Asset:** `marco-suite_<version>_linux_amd64.deb` | **Asset:** `marco-suite_<version>_windows_amd64.zip` |
+| **Asset:** `markdown-composer-and-viewer_<version>_linux_amd64.deb` | **Asset:** `markdown-composer-and-viewer_<version>_windows_amd64.zip` |
 | **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
 
 ## Use the parser as a library

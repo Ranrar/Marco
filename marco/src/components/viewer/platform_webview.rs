@@ -902,7 +902,12 @@ impl PlatformWebView {
             // so the initial creation uses correct coordinates on Windows.
             let bounds = self.container.compute_bounds(&self.gtk_window);
             let (origin_x, origin_y, width, height) = match &bounds {
-                Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
+                Some(b) => (
+                    b.x() as f64,
+                    b.y() as f64,
+                    b.width() as f64,
+                    b.height() as f64,
+                ),
                 None => (
                     0.0,
                     0.0,
@@ -933,10 +938,7 @@ impl PlatformWebView {
                         origin_x + offset_x - 1.0,
                         origin_y + offset_y,
                     )),
-                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        width + 1.0,
-                        height,
-                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(width + 1.0, height)),
                 }
             };
 

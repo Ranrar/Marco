@@ -3,6 +3,63 @@ pub fn set_toolbar_height(toolbar_box: &gtk4::Box, height: i32) {
     toolbar_box.set_height_request(height);
 }
 
+/// Depth-first search for a descendant `Button` carrying `css_class`.
+///
+/// Lifted to module scope so both the tooltip refresh and the undo/redo focus
+/// wiring can share one implementation.
+fn find_button_by_css_class(root: &gtk4::Widget, css_class: &str) -> Option<gtk4::Button> {
+    use gtk4::prelude::*;
+
+    if let Ok(button) = root.clone().downcast::<gtk4::Button>() {
+        if button.has_css_class(css_class) {
+            return Some(button);
+        }
+    }
+
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(found) = find_button_by_css_class(&widget, css_class) {
+            return Some(found);
+        }
+        child = widget.next_sibling();
+    }
+
+    None
+}
+
+/// Keep the caret in the editor when the undo/redo toolbar buttons are used.
+///
+/// The buttons are bound to `app.undo` / `app.redo` through `action-name`, so
+/// GTK's default click handling would move keyboard focus onto the button
+/// itself. Undo and redo are mid-typing operations — landing focus on a
+/// toolbar button means the user's next keystroke goes nowhere, and they have
+/// to click back into the text to carry on.
+///
+/// `set_focus_on_click(false)` stops the click from taking focus in the first
+/// place (so no focus ring flashes on the button), and the explicit
+/// `grab_focus` covers the case where focus was somewhere other than the
+/// editor when the button was pressed. The caret's position is held by the
+/// buffer, so returning focus alone puts the user back where they were.
+pub fn wire_undo_redo_focus(toolbar: &gtk4::Box, editor_view: &sourceview5::View) {
+    use gtk4::prelude::*;
+
+    for css_class in ["toolbar-btn-undo", "toolbar-btn-redo"] {
+        let Some(button) =
+            find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), css_class)
+        else {
+            log::debug!("[toolbar] {css_class} not found; skipping focus wiring");
+            continue;
+        };
+
+        button.set_focus_on_click(false);
+
+        let editor_view = editor_view.clone();
+        button.connect_clicked(move |_| {
+            editor_view.grab_focus();
+        });
+    }
+}
+
 /// Wire the gutter on/off toggle buttons (binary state for line numbers).
 ///
 /// The toolbar's first two children are expected to be the gutter-on and gutter-off
@@ -90,24 +147,6 @@ pub fn wire_gutter_toggle(
 pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translations) {
     use gtk4::prelude::*;
 
-    fn find_button_by_css_class(root: &gtk4::Widget, css_class: &str) -> Option<Button> {
-        if let Ok(button) = root.clone().downcast::<Button>() {
-            if button.has_css_class(css_class) {
-                return Some(button);
-            }
-        }
-
-        let mut child = root.first_child();
-        while let Some(widget) = child {
-            if let Some(found) = find_button_by_css_class(&widget, css_class) {
-                return Some(found);
-            }
-            child = widget.next_sibling();
-        }
-
-        None
-    }
-
     fn set_tooltip(toolbar: &gtk4::Box, css_class: &str, tooltip: &str) {
         if let Some(button) =
             find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), css_class)
@@ -148,6 +187,8 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
         "toolbar-headings-btn",
         &translations.toolbar.block_type,
     );
+    set_tooltip(toolbar, "toolbar-btn-undo", &translations.menu.undo);
+    set_tooltip(toolbar, "toolbar-btn-redo", &translations.menu.redo);
     set_tooltip(toolbar, "toolbar-btn-bold", &translations.toolbar.bold);
     set_tooltip(toolbar, "toolbar-btn-italic", &translations.toolbar.italic);
     set_tooltip(
@@ -391,7 +432,17 @@ fn is_dark_theme(widget: &gtk4::Widget) -> bool {
 
 fn toolbar_icon_color_for_flags(widget: &gtk4::Widget, flags: gtk4::StateFlags) -> &'static str {
     let dark = is_dark_theme(widget);
-    if flags.contains(gtk4::StateFlags::ACTIVE) {
+    // Unavailable is conveyed by the icon's own stroke colour, not by a
+    // background fill or a blanket opacity — see
+    // `generate_toolbar_buttons_disabled_css`. Checked first: an insensitive
+    // button can still carry PRELIGHT, and "greyed out" must win over "hovered".
+    if flags.contains(gtk4::StateFlags::INSENSITIVE) {
+        if dark {
+            DARK_PALETTE.toolbar_button_disabled
+        } else {
+            LIGHT_PALETTE.toolbar_button_disabled
+        }
+    } else if flags.contains(gtk4::StateFlags::ACTIVE) {
         if dark {
             DARK_PALETTE.control_icon_active
         } else {
@@ -945,6 +996,38 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     let sep0 = Separator::new(Orientation::Vertical);
     sep0.add_css_class("toolbar-separator");
     toolbar.append(&sep0);
+
+    // Undo / redo.
+    //
+    // Wired through `action-name` rather than `connect_clicked`: the
+    // `app.undo` / `app.redo` actions already exist (see
+    // `menu_items::edit::setup_undo_redo_actions`) and their enabled state is
+    // kept in sync with the buffer's history by `update_edit_action_states`.
+    // Binding the buttons to those actions makes GTK grey them out
+    // automatically when there is nothing to undo or redo, with no extra
+    // wiring to keep in step.
+    let undo_button = create_toolbar_icon_button(
+        ToolbarIcon::Undo,
+        &translations.menu.undo,
+        "toolbar-btn-undo",
+        TOOLBAR_ICON_SIZE,
+    );
+    undo_button.set_action_name(Some("app.undo"));
+    toolbar.append(&undo_button);
+
+    let redo_button = create_toolbar_icon_button(
+        ToolbarIcon::Redo,
+        &translations.menu.redo,
+        "toolbar-btn-redo",
+        TOOLBAR_ICON_SIZE,
+    );
+    redo_button.set_action_name(Some("app.redo"));
+    toolbar.append(&redo_button);
+
+    // Separator
+    let sep_history = Separator::new(Orientation::Vertical);
+    sep_history.add_css_class("toolbar-separator");
+    toolbar.append(&sep_history);
 
     // Block-type dropdown (Paragraph, Quote, Heading 1-6) — composite SVG button
     let text_paragraph_poover_button = create_toolbar_composite_dropdown_button(

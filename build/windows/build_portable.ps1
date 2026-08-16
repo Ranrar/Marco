@@ -51,7 +51,7 @@ EXAMPLES:
     .\build\windows\build_portable.ps1 -SkipBuild
 
 OUTPUT:
-    build\installer\marco-suite_<version>_windows_amd64.zip
+    build\installer\markdown-composer-and-viewer_<version>_windows_amd64.zip
 
 STRUCTURE:
     MarcoPortable/
@@ -415,7 +415,7 @@ if (-not (Test-Path $poloExe)) {
 }
 
 # Create staging directory
-$stagingName = "marco-suite_${version}_windows_amd64"
+$stagingName = "markdown-composer-and-viewer_${version}_windows_amd64"
 $stagingRoot = Join-Path $projectRoot "build\windows\temp\$stagingName"
 
 if (Test-Path $stagingRoot) {

@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           version="$(python3 -c 'import json;print(json.load(open("build/version.json"))["linux"]["marco"])')"
-          release_deb="build/installer/marco-suite_${version}_linux_amd64.deb"
+          release_deb="build/installer/markdown-composer-and-viewer_${version}_linux_amd64.deb"
 
           if [ ! -f "$release_deb" ]; then
             echo "ERROR: expected release artifact not found: $release_deb" >&2
@@ -158,7 +158,7 @@ jobs:
         shell: powershell
         run: |
           $version = (Get-Content build/version.json | ConvertFrom-Json).windows.marco
-          $releaseZip = "build/installer/marco-suite_${version}_windows_amd64.zip"
+          $releaseZip = "build/installer/markdown-composer-and-viewer_${version}_windows_amd64.zip"
 
           if (-not (Test-Path $releaseZip)) {
             Write-Error "Expected release artifact not found: $releaseZip"
@@ -304,8 +304,8 @@ jobs:
             - [marco-core changelog](https://github.com/Ranrar/marco-core/blob/main/CHANGELOG.md)
 
             ### Downloads
-            - **Linux**: `marco-suite_*_linux_amd64.deb`
-            - **Windows**: `marco-suite_*_windows_amd64.zip`
+            - **Linux**: `markdown-composer-and-viewer_*_linux_amd64.deb`
+            - **Windows**: `markdown-composer-and-viewer_*_windows_amd64.zip`
 
             If something feels off, [open an issue](https://github.com/Ranrar/Marco/issues/new) — feedback is always welcome.
 

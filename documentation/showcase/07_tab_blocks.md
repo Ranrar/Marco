@@ -86,15 +86,15 @@ Download the latest `.deb` from the [latest release](https://github.com/Ranrar/M
 
 ```bash
 # Download and install
-wget https://github.com/Ranrar/Marco/releases/latest/download/marco-suite_<version>_linux_amd64.deb
-sudo dpkg -i marco-suite_<version>_linux_amd64.deb
+wget https://github.com/Ranrar/Marco/releases/latest/download/markdown-composer-and-viewer_<version>_linux_amd64.deb
+sudo dpkg -i markdown-composer-and-viewer_<version>_linux_amd64.deb
 sudo apt-get install -f   # fix any dependency gaps
 ```
 
 @tab Windows
 Download the portable `.zip` from the [latest release](https://github.com/Ranrar/Marco/releases/latest):
 
-1. Download `marco-suite_<version>_windows_amd64.zip`
+1. Download `markdown-composer-and-viewer_<version>_windows_amd64.zip`
 2. Extract to any folder, e.g. `C:\Tools\Marco`
 3. Run `marco.exe` or `polo.exe`
 4. Settings are stored next to the executable (portable mode)

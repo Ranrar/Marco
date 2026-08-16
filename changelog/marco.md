@@ -9,6 +9,65 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-08-16
+
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-16._
+
+**Uses:** Core 1.3.1
+
+> **Breaking change (Linux only).** Every installed path and per-user
+> directory has been renamed to resolve the long-standing collision with the
+> unrelated MATE window manager package also called `marco`
+> ([#41](https://github.com/Ranrar/Marco/issues/41)). dpkg detects conflicts by
+> file path rather than package name, so the previous layout made the `.deb`
+> impossible to install on any MATE system. **There is no migration:** existing
+> settings under the old directories are not read. Copy anything you want to
+> keep across by hand.
+>
+> | | Before | After |
+> |---|---|---|
+> | Editor binary | `/usr/bin/marco` | `/usr/bin/markdowncomposer` |
+> | Viewer binary | `/usr/bin/polo` | `/usr/bin/markdownviewer` |
+> | Editor config / data / cache | `~/.config/marco/` etc. | `~/.config/markdowncomposer/` etc. |
+> | Viewer config / data / cache | `~/.config/polo/` etc. | `~/.config/markdownviewer/` etc. |
+> | Shared assets | `/usr/share/marco/` | `/usr/share/markdowncomposer/` |
+> | Download | `marco-suite_<version>_…` | `markdown-composer-and-viewer_<version>_…` |
+>
+> Desktop entries, man pages and icons are renamed to match. The applications
+> are still called Marco and Polo everywhere they are shown to you; only the
+> file and directory names change. Windows paths are unaffected.
+
+
+### Added
+- Undo and redo buttons in the toolbar, between the line-numbers toggle and the text-formatting group. They drive the existing `app.undo` / `app.redo` actions, so they grey out on their own when there is nothing to undo and stay in step with the Edit menu and Ctrl+Z / Ctrl+Y. _(2026-08-16)_
+- **Browse** in the Link, Reference link and Image popovers now works on a document that has never been saved. It was previously disabled, with no way to discover why — GTK4 delivers no pointer events to insensitive widgets, so the tooltip explaining it could never appear. With no document directory for a relative path to resolve against it inserts the file's absolute path; a saved document still gets a `./relative` one. _(2026-08-16)_
+- In-page find for the preview, implemented in JavaScript (`find_engine`) and driven from the existing search window. Supports case-sensitive and whole-word matching, highlights every hit in the rendered document, and reports a live "K of N" count back to the search UI. _(2026-07-16, 2026-07-30)_
+- Hovered links now show their full address in an in-page HTML/CSS tooltip instead of a native popover. Native tooltips are suppressed by moving `title` attributes onto data attributes, which also avoids a crash this triggered on Windows. _(2026-07-30)_
+- Shared drag-and-drop overlay for webview pages, so dropping a file onto the preview presents the same themed drop target on both platforms. _(2026-07-30)_
+- Toolbar colour-mode toggle now swaps its own icon to match the active light/dark theme. _(2026-07-18)_
+
+### Changed
+- Toolbar buttons now signal that they are unavailable by greying the icon itself, instead of filling in a background plate and dimming the whole button. _(2026-08-16)_
+- The Link, Reference link and Image popovers no longer close when you click outside them; use Escape, Cancel or Ok. They are no longer autohide popovers, because an autohide popover holds an input grab that blocks the modal file chooser behind **Browse** — the old workaround hid the popover and re-showed it afterwards, which is what lost it. A side benefit is that a stray click can no longer discard a half-filled form. _(2026-08-16)_
+- Updated to `marco-core` 1.3.1, and to the `gtk4-webkit6` fork of `wry` 0.56.1 (from 0.55.1). _(2026-08-16)_
+- **Unified webview backend.** Linux and Windows now share a single `PlatformWebView` built on the gtk4-webkit6 fork of `wry` — WebKitGTK as a native GTK4 widget on Linux, WebView2 as a child window on Windows. The separate Linux/Windows implementations of the preview, search window, detached preview window and print path have been collapsed into one code path, so behaviour no longer diverges between platforms. _(2026-07-16 – 2026-07-18)_
+- Preview HTML and its local assets are now served over a `marco-preview://` custom protocol on both platforms. Relative image references (`![alt](./pic.png)`) resolve through ordinary URL resolution against the document's own URL, so no `<base>` tag or backend-specific base-URI call is involved. _(2026-07-16)_
+- PDF export consolidated across platforms: the Windows path now goes through the same print driver structure as Linux, with paper size and margin handling aligned to the Linux implementation. _(2026-07-16)_
+- Window-control and toolbar SVG icons are now inline string constants rendered through a single `render_svg_icon` entry point, replacing the `WindowIcon` enum. Icons rasterise at a fixed supersample factor so they render consistently across display backends. _(2026-07-18)_
+- Updated to `marco-core` 1.3.0. _(2026-07-18)_
+- Slide-deck IDs are handled more robustly when generating deck markup. _(2026-07-18)_
+- Viewer modules renamed to say what they are rather than which backend they came from: `wry_platform_webview` → `platform_webview`, `wry_find` → `find_engine`, `wry.rs` → `preview_helpers`, `print_driver` → `print_driver_linux`, and the two detached-window modules to `detached_window_linux` / `detached_window_windows`. _(2026-07-16)_
+
+### Fixed
+- Choosing a file through **Browse** left the popover closed and the picked path nowhere to be seen, so the insert could never be completed. _(2026-08-16)_
+- After **Browse** filled in a local path, **Ok** went insensitive with no visible explanation: a local target makes the alt/label field mandatory, and it was empty. The field is now seeded from the chosen file's name and stays editable. _(2026-08-16)_
+- Using undo or redo from the toolbar left keyboard focus on the button, so the next keystroke went nowhere and you had to click back into the text. Focus now returns to the editor. _(2026-08-16)_
+- Dismissing one of the insert popovers could leave keyboard focus stranded inside the hidden popover, leaving the editor unable to accept typing while pointer-driven toolbar buttons still worked. _(2026-08-16)_
+
+### Removed
+- The `wry_print_to_pdf` module; its behaviour now lives directly in the Windows print driver. _(2026-07-16)_
+- `WEBVIEW_MIGRATION.md` and the accompanying gap-analysis document, which described work that is now finished. _(2026-07-18)_
+
 ## [0.24.2] - 2026-07-12
 
 **Uses:** Core 1.2.0

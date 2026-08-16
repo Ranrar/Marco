@@ -261,7 +261,7 @@ version = "2.0.0+build.123"
 #### Debian packaging (Linux)
 Debian packaging assets and scripts live in `build/linux/`.
 Primary entry point: `build/linux/build_deb.sh`
-    - Builds the workspace and produces a `.deb` (marco-suite package) using the versions from `build/version.json`.
+    - Builds the workspace and produces a `.deb` (markdown-composer-and-viewer package) using the versions from `build/version.json`.
     - Supports flags to control version bumping (for example, CI uses a no-bump mode so builds don't mutate versions).
 
 **Package naming policy:** the repo uses a fixed `amd64` suffix for produced package filenames.
@@ -274,7 +274,7 @@ Primary entry point: `build/windows/build_portable.ps1`
     - Creates a self-contained directory structure with `marco.exe`, `polo.exe`, `assets/`, and empty `config/` + `data/` folders for portable mode.
 
 **Package naming:** 
-- `marco-suite_<version>_windows_amd64.zip`
+- `markdown-composer-and-viewer_<version>_windows_amd64.zip`
 
 **Portable mode detection:** The Windows build automatically detects it's running in portable mode (writable directory next to the executable) and stores config/data locally instead of `%LOCALAPPDATA%`.
 

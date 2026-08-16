@@ -211,8 +211,18 @@ impl PlatformWebView {
                     // single call (replaces the deprecated allocation()/translate_coordinates() pair).
                     let bounds = container.compute_bounds(&win);
                     let (origin_x, origin_y, width, height) = match &bounds {
-                        Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
-                        None => (0.0, 0.0, container.width() as f64, container.height() as f64),
+                        Some(b) => (
+                            b.x() as f64,
+                            b.y() as f64,
+                            b.width() as f64,
+                            b.height() as f64,
+                        ),
+                        None => (
+                            0.0,
+                            0.0,
+                            container.width() as f64,
+                            container.height() as f64,
+                        ),
                     };
 
                     let rect = wry::Rect {
@@ -440,7 +450,12 @@ impl PlatformWebView {
                 // single call (replaces the deprecated allocation()/translate_coordinates() pair).
                 let bounds = self.container.compute_bounds(&self.gtk_window);
                 let (origin_x, origin_y, width, height) = match &bounds {
-                    Some(b) => (b.x() as f64, b.y() as f64, b.width() as f64, b.height() as f64),
+                    Some(b) => (
+                        b.x() as f64,
+                        b.y() as f64,
+                        b.width() as f64,
+                        b.height() as f64,
+                    ),
                     None => (
                         0.0,
                         0.0,

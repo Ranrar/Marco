@@ -7,6 +7,52 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
+## [Unreleased]
+
+## [0.25.0] - 2026-08-16
+
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-16._
+
+**Uses:** Core 1.3.1
+
+> **Breaking change (Linux only).** Every installed path and per-user
+> directory has been renamed to resolve the long-standing collision with the
+> unrelated MATE window manager package also called `marco`
+> ([#41](https://github.com/Ranrar/Marco/issues/41)). dpkg detects conflicts by
+> file path rather than package name, so the previous layout made the `.deb`
+> impossible to install on any MATE system. **There is no migration:** existing
+> settings under the old directories are not read. Copy anything you want to
+> keep across by hand.
+>
+> | | Before | After |
+> |---|---|---|
+> | Editor binary | `/usr/bin/marco` | `/usr/bin/markdowncomposer` |
+> | Viewer binary | `/usr/bin/polo` | `/usr/bin/markdownviewer` |
+> | Editor config / data / cache | `~/.config/marco/` etc. | `~/.config/markdowncomposer/` etc. |
+> | Viewer config / data / cache | `~/.config/polo/` etc. | `~/.config/markdownviewer/` etc. |
+> | Shared assets | `/usr/share/marco/` | `/usr/share/markdowncomposer/` |
+> | Download | `marco-suite_<version>_…` | `markdown-composer-and-viewer_<version>_…` |
+>
+> Desktop entries, man pages and icons are renamed to match. The applications
+> are still called Marco and Polo everywhere they are shown to you; only the
+> file and directory names change. Windows paths are unaffected.
+
+
+### Added
+- File tree side panel: browse the directory containing the open document, expand folders inline, and click any Markdown file to open it. Includes an incremental search field that filters the tree as you type. _(2026-07-30)_
+- Sidebar coordinator so the Table of Contents and the new file tree behave as one sidebar: opening either closes the other, and each toggle works independently, so the two panels can no longer fight over the same space. _(2026-07-30)_
+
+### Changed
+- Updated to `marco-core` 1.3.1, and to the `gtk4-webkit6` fork of `wry` 0.56.1 (from 0.55.1). _(2026-08-16)_
+- **Unified webview backend**, shared with Marco. Polo's preview is now the same `PlatformWebView` on both platforms — WebKitGTK as a native GTK4 widget on Linux, WebView2 as a child window on Windows — replacing the previous platform-specific implementations. _(2026-07-16 – 2026-07-18)_
+- Rendered HTML and local assets are served over a `polo-preview://` custom protocol on both platforms, so relative image paths in a document resolve the same way everywhere without a base-URI call. _(2026-07-16)_
+- Window-control, menu and toolbar SVG icons are now inline string constants rendered through the shared icon entry point, matching Marco's handling and rasterising at a fixed supersample factor for consistent output across display backends. _(2026-07-18)_
+- Menu and toolbar styling moved into a dedicated `menu_and_toolbar` CSS module. _(2026-07-30)_
+- Updated to `marco-core` 1.3.0. _(2026-07-18)_
+
+### Fixed
+- **Open in Marco** looked for an executable named `marco` next to Polo and then on `PATH`. Neither exists once installed under the new Linux names, so the button would have failed on a packaged install. It now tries the installed name and the development name, alongside the binary first and then on `PATH`. _(2026-08-16)_
+
 ## [0.24.1] - 2026-07-08
 
 **Uses:** Core 1.2.0

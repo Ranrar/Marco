@@ -114,7 +114,15 @@ pub fn show_insert_link_popover(
 ) {
     let popover = gtk4::Popover::new();
     popover.set_has_arrow(true);
-    popover.set_autohide(true);
+    // Deliberately NOT autohide. An autohide popover holds a seat grab, which
+    // blocks the modal file chooser that "Browse" opens — the old workaround
+    // was to pop the popover down and back up around the chooser, and that is
+    // unfixable by timing: GTK re-maps it while the toplevel is still
+    // inactive and dismisses it again a frame later, losing the user's input.
+    // Without autohide there is no grab, so the popover simply stays put
+    // across the whole round trip. Dismissal is via Cancel, Ok, or Escape
+    // (see `dismiss_on_escape`).
+    popover.set_autohide(false);
     popover.set_position(gtk4::PositionType::Bottom);
     popover.set_can_focus(true);
     popover.add_css_class("marco-link-popover");
@@ -177,52 +185,16 @@ pub fn show_insert_link_popover(
 
     popover.set_child(Some(&root));
 
-    {
-        let browse_button = browse_button.clone();
-        let url_entry = url_entry.clone();
-        let popover = popover.clone();
-        let parent_window = parent_window.clone();
-        let current_file_provider = current_file_provider.clone();
+    dismiss_on_escape(&popover);
+    return_focus_on_close(&popover, editor_view);
 
-        let can_browse = current_file_provider().is_some();
-        browse_button.set_sensitive(can_browse);
-        browse_button.set_tooltip_text(Some(if can_browse {
-            "Browse local file and insert path relative to current document"
-        } else {
-            "Save the current document first to insert a relative local path"
-        }));
-
-        browse_button.connect_clicked(move |_| {
-            let parent_window = parent_window.clone();
-            let url_entry = url_entry.clone();
-            let popover = popover.clone();
-            let current_file_provider = current_file_provider.clone();
-
-            popover.popdown();
-
-            glib::MainContext::default().spawn_local(async move {
-                let Some(selected_path) = pick_local_file(&parent_window).await else {
-                    popover.popup();
-                    url_entry.grab_focus();
-                    return;
-                };
-
-                let Some(current_file_path) = current_file_provider() else {
-                    popover.popup();
-                    url_entry.grab_focus();
-                    return;
-                };
-
-                let link_path = local_link_path_relative_to_current_file(
-                    selected_path.as_path(),
-                    current_file_path.as_path(),
-                );
-                url_entry.set_text(&link_path);
-                popover.popup();
-                url_entry.grab_focus();
-            });
-        });
-    }
+    wire_browse_button(
+        &browse_button,
+        &url_entry,
+        &label_entry,
+        parent_window,
+        current_file_provider.clone(),
+    );
 
     {
         let text_buffer = text_buffer.clone();
@@ -365,7 +337,15 @@ pub fn show_insert_reference_link_popover(
 ) {
     let popover = gtk4::Popover::new();
     popover.set_has_arrow(true);
-    popover.set_autohide(true);
+    // Deliberately NOT autohide. An autohide popover holds a seat grab, which
+    // blocks the modal file chooser that "Browse" opens — the old workaround
+    // was to pop the popover down and back up around the chooser, and that is
+    // unfixable by timing: GTK re-maps it while the toplevel is still
+    // inactive and dismisses it again a frame later, losing the user's input.
+    // Without autohide there is no grab, so the popover simply stays put
+    // across the whole round trip. Dismissal is via Cancel, Ok, or Escape
+    // (see `dismiss_on_escape`).
+    popover.set_autohide(false);
     popover.set_position(gtk4::PositionType::Bottom);
     popover.set_can_focus(true);
     popover.add_css_class("marco-link-popover");
@@ -428,52 +408,16 @@ pub fn show_insert_reference_link_popover(
 
     popover.set_child(Some(&root));
 
-    {
-        let browse_button = browse_button.clone();
-        let url_entry = url_entry.clone();
-        let popover = popover.clone();
-        let parent_window = parent_window.clone();
-        let current_file_provider = current_file_provider.clone();
+    dismiss_on_escape(&popover);
+    return_focus_on_close(&popover, editor_view);
 
-        let can_browse = current_file_provider().is_some();
-        browse_button.set_sensitive(can_browse);
-        browse_button.set_tooltip_text(Some(if can_browse {
-            "Browse local file and insert path relative to current document"
-        } else {
-            "Save the current document first to insert a relative local path"
-        }));
-
-        browse_button.connect_clicked(move |_| {
-            let parent_window = parent_window.clone();
-            let url_entry = url_entry.clone();
-            let popover = popover.clone();
-            let current_file_provider = current_file_provider.clone();
-
-            popover.popdown();
-
-            glib::MainContext::default().spawn_local(async move {
-                let Some(selected_path) = pick_local_file(&parent_window).await else {
-                    popover.popup();
-                    url_entry.grab_focus();
-                    return;
-                };
-
-                let Some(current_file_path) = current_file_provider() else {
-                    popover.popup();
-                    url_entry.grab_focus();
-                    return;
-                };
-
-                let link_path = local_link_path_relative_to_current_file(
-                    selected_path.as_path(),
-                    current_file_path.as_path(),
-                );
-                url_entry.set_text(&link_path);
-                popover.popup();
-                url_entry.grab_focus();
-            });
-        });
-    }
+    wire_browse_button(
+        &browse_button,
+        &url_entry,
+        &label_entry,
+        parent_window,
+        current_file_provider.clone(),
+    );
 
     {
         let text_buffer = text_buffer.clone();
@@ -616,7 +560,15 @@ pub fn show_insert_image_popover(
 ) {
     let popover = gtk4::Popover::new();
     popover.set_has_arrow(true);
-    popover.set_autohide(true);
+    // Deliberately NOT autohide. An autohide popover holds a seat grab, which
+    // blocks the modal file chooser that "Browse" opens — the old workaround
+    // was to pop the popover down and back up around the chooser, and that is
+    // unfixable by timing: GTK re-maps it while the toplevel is still
+    // inactive and dismisses it again a frame later, losing the user's input.
+    // Without autohide there is no grab, so the popover simply stays put
+    // across the whole round trip. Dismissal is via Cancel, Ok, or Escape
+    // (see `dismiss_on_escape`).
+    popover.set_autohide(false);
     popover.set_position(gtk4::PositionType::Bottom);
     popover.set_can_focus(true);
     popover.add_css_class("marco-link-popover");
@@ -679,52 +631,16 @@ pub fn show_insert_image_popover(
 
     popover.set_child(Some(&root));
 
-    {
-        let browse_button = browse_button.clone();
-        let url_entry = url_entry.clone();
-        let popover = popover.clone();
-        let parent_window = parent_window.clone();
-        let current_file_provider = current_file_provider.clone();
+    dismiss_on_escape(&popover);
+    return_focus_on_close(&popover, editor_view);
 
-        let can_browse = current_file_provider().is_some();
-        browse_button.set_sensitive(can_browse);
-        browse_button.set_tooltip_text(Some(if can_browse {
-            "Browse local file and insert path relative to current document"
-        } else {
-            "Save the current document first to insert a relative local path"
-        }));
-
-        browse_button.connect_clicked(move |_| {
-            let parent_window = parent_window.clone();
-            let url_entry = url_entry.clone();
-            let popover = popover.clone();
-            let current_file_provider = current_file_provider.clone();
-
-            popover.popdown();
-
-            glib::MainContext::default().spawn_local(async move {
-                let Some(selected_path) = pick_local_file(&parent_window).await else {
-                    popover.popup();
-                    url_entry.grab_focus();
-                    return;
-                };
-
-                let Some(current_file_path) = current_file_provider() else {
-                    popover.popup();
-                    url_entry.grab_focus();
-                    return;
-                };
-
-                let image_path = local_link_path_relative_to_current_file(
-                    selected_path.as_path(),
-                    current_file_path.as_path(),
-                );
-                url_entry.set_text(&image_path);
-                popover.popup();
-                url_entry.grab_focus();
-            });
-        });
-    }
+    wire_browse_button(
+        &browse_button,
+        &url_entry,
+        &label_entry,
+        parent_window,
+        current_file_provider.clone(),
+    );
 
     {
         let text_buffer = text_buffer.clone();
@@ -1400,6 +1316,117 @@ async fn pick_local_file(_parent_window: &gtk4::Window) -> Option<PathBuf> {
         .map(|file| file.path().to_path_buf())
 }
 
+/// Wire a popover's "Browse" button: pick a local file, then write its path
+/// into `url_entry`. Shared by the link, reference-link and image popovers,
+/// which differ only in the surrounding fields.
+///
+/// The button stays sensitive whether or not the document has been saved.
+/// Disabling it for an unsaved document removes the feature with no way to
+/// explain why: GTK4 does not deliver pointer events to insensitive widgets,
+/// so the tooltip stating the reason can never be shown. Instead the inserted
+/// path adapts — see [`local_link_path_for_document`].
+fn wire_browse_button(
+    browse_button: &gtk4::Button,
+    url_entry: &gtk4::Entry,
+    // Alt text for images, link text for links.
+    label_entry: &gtk4::Entry,
+    parent_window: &gtk4::Window,
+    current_file_provider: Rc<dyn Fn() -> Option<PathBuf>>,
+) {
+    browse_button.set_tooltip_text(Some(if current_file_provider().is_some() {
+        "Browse local file and insert path relative to current document"
+    } else {
+        "Browse local file and insert its absolute path (save the document first for a relative path)"
+    }));
+
+    let url_entry = url_entry.clone();
+    let label_entry = label_entry.clone();
+    let parent_window = parent_window.clone();
+
+    browse_button.connect_clicked(move |_| {
+        let parent_window = parent_window.clone();
+        let url_entry = url_entry.clone();
+        let label_entry = label_entry.clone();
+        let current_file_provider = current_file_provider.clone();
+
+        // The popover stays open across the chooser — it holds no grab to get
+        // in the way, and the user's half-filled fields survive untouched.
+        glib::MainContext::default().spawn_local(async move {
+            let Some(selected_path) = pick_local_file(&parent_window).await else {
+                log::debug!("[toolbar/link] browse cancelled");
+                return;
+            };
+            log::debug!("[toolbar/link] browse picked {:?}", selected_path);
+
+            let path = local_link_path_for_document(
+                selected_path.as_path(),
+                current_file_provider().as_deref(),
+            );
+            url_entry.set_text(&path);
+
+            // A browsed local path makes the label/alt field mandatory (see
+            // `update_local_label_requirement_ui_with_placeholders`), which
+            // would otherwise leave Ok insensitive with no visible reason —
+            // the user picks a file and the dialog looks dead. Seed it from the
+            // file name; it stays fully editable.
+            if label_entry.text().trim().is_empty() {
+                if let Some(stem) = selected_path.file_stem().and_then(|s| s.to_str()) {
+                    label_entry.set_text(stem);
+                }
+            }
+
+            url_entry.grab_focus();
+        });
+    });
+}
+
+/// Close `popover` on Escape.
+///
+/// These popovers do not autohide, so clicking away no longer dismisses them.
+/// Escape is the keyboard counterpart to the explicit Cancel button — without
+/// it a popover opened by accident could only be closed with the mouse.
+fn dismiss_on_escape(popover: &gtk4::Popover) {
+    let key = gtk4::EventControllerKey::new();
+    let popover_for_key = popover.clone();
+    key.connect_key_pressed(move |_, key, _, _| {
+        if key == gtk4::gdk::Key::Escape {
+            popover_for_key.popdown();
+            return glib::Propagation::Stop;
+        }
+        glib::Propagation::Proceed
+    });
+    popover.add_controller(key);
+}
+
+/// Hand keyboard focus back to the editor whenever `popover` closes.
+///
+/// These popovers are created with `set_parent(editor_view)` and stay in the
+/// widget tree after dismissal, so the toplevel's focus can be left pointing at
+/// an entry inside a hidden popover. The editor then refuses keyboard input
+/// while toolbar buttons — which act on pointer clicks rather than focus — keep
+/// responding, so the window looks half-frozen rather than plainly broken.
+fn return_focus_on_close(popover: &gtk4::Popover, editor_view: &gtk4::TextView) {
+    let editor_view = editor_view.clone();
+    popover.connect_closed(move |_| {
+        editor_view.grab_focus();
+    });
+}
+
+/// Path to write into a popover's URL field for a browsed local file.
+///
+/// Relative to the current document when there is one. An unsaved document has
+/// no directory for a relative path to resolve against, so the absolute path is
+/// used instead — it still renders, and re-browsing after a save produces the
+/// relative form.
+fn local_link_path_for_document(target_path: &Path, current_file_path: Option<&Path>) -> String {
+    match current_file_path {
+        Some(current_file_path) => {
+            local_link_path_relative_to_current_file(target_path, current_file_path)
+        }
+        None => path_to_markdown_link(target_path),
+    }
+}
+
 fn local_link_path_relative_to_current_file(
     target_path: &Path,
     current_file_path: &Path,
@@ -1806,6 +1833,24 @@ mod tests {
 
         let link = local_link_path_relative_to_current_file(target, current);
         assert_eq!(link, "../image.png");
+    }
+
+    #[test]
+    fn smoke_test_unsaved_document_browses_to_absolute_path() {
+        let target = Path::new("/docs/image.png");
+
+        let link = local_link_path_for_document(target, None);
+        assert_eq!(link, "/docs/image.png");
+        assert!(is_local_link_target(&link));
+    }
+
+    #[test]
+    fn smoke_test_saved_document_still_browses_to_relative_path() {
+        let target = Path::new("/docs/image.png");
+        let current = Path::new("/docs/current.md");
+
+        let link = local_link_path_for_document(target, Some(current));
+        assert_eq!(link, "./image.png");
     }
 
     #[test]

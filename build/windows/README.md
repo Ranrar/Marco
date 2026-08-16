@@ -59,10 +59,10 @@
 - `target\windows\x86_64-pc-windows-msvc\release\marco.exe`
 
 ### Portable Package
-- `build\installer\marco-suite_<version>_windows_amd64.zip`
+- `build\installer\markdown-composer-and-viewer_<version>_windows_amd64.zip`
 
 ### Installer
-- `build\installer\marco-suite_installer_<version>_amd64.exe`
+- `build\installer\markdown-composer-and-viewer_installer_<version>_amd64.exe`
 
 ## Required Software
 
@@ -156,4 +156,4 @@ See [README.md](README.md) for detailed documentation.
 ## Release Artifacts
 
 
-- Portable artifacts use versioned release naming: `marco-suite_<version>_windows_amd64.zip`.
+- Portable artifacts use versioned release naming: `markdown-composer-and-viewer_<version>_windows_amd64.zip`.
