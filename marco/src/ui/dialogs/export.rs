@@ -637,7 +637,7 @@ async fn show_save_dialog_for_format(
         {
             p.set_extension(ext);
         }
-        return Some(p);
+        Some(p)
     }
 
     #[cfg(not(target_os = "windows"))]

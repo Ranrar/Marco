@@ -594,6 +594,8 @@ pub struct SettingsAppearanceTranslations {
     pub color_mode_description: String,
     pub color_mode_light: String,
     pub color_mode_dark: String,
+    /// Colour-mode option that follows the operating system.
+    pub color_mode_system: String,
     pub custom_css_label: String,
     pub custom_css_description: String,
     pub custom_css_button: String,
@@ -2715,6 +2717,11 @@ impl SimpleLocalizationManager {
                         value,
                         &["settings", "appearance", "color_mode_dark"],
                         &fallback.settings.appearance.color_mode_dark,
+                    ),
+                    color_mode_system: Self::get_string(
+                        value,
+                        &["settings", "appearance", "color_mode_system"],
+                        &fallback.settings.appearance.color_mode_system,
                     ),
                     custom_css_label: Self::get_string(
                         value,

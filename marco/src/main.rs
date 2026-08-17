@@ -271,6 +271,27 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     )));
     // Pass settings struct to modules as needed
 
+    // When the colour mode is "system", ask the OS now and store the answer in
+    // `editor_mode` before anything reads it. Every consumer below — the CSS
+    // class, the editor scheme, the preview, and Polo on its next launch —
+    // then sees a concrete scheme and needs to know nothing about the OS.
+    {
+        let color_mode = theme_manager.borrow().current_color_mode();
+        if color_mode == crate::theme::COLOR_MODE_SYSTEM {
+            let current_is_dark = theme_manager.borrow().current_is_dark();
+            let scheme_id = crate::theme::scheme_id_for_color_mode(&color_mode, current_is_dark);
+            if scheme_id.contains("dark") != current_is_dark {
+                log::info!("[main] following OS colour scheme at startup: {scheme_id}");
+                theme_manager
+                    .borrow_mut()
+                    .set_editor_scheme(scheme_id, &settings_path);
+            }
+        }
+        // Unconditional: GTK starts every process light regardless of what we
+        // saved last time, so this has to run even when nothing changed.
+        theme_manager.borrow().sync_platform_theme_preference();
+    }
+
     // Add theme-specific CSS class based on current mode (for runtime GTK UI switching)
     let current_theme_mode = {
         let settings = settings_manager.get_settings();
@@ -962,6 +983,84 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     let update_editor_theme_rc = Rc::new(update_editor_theme);
     let update_preview_theme_rc = Rc::new(update_preview_theme);
 
+    // Everything that has to change when the theme changes, in one place.
+    //
+    // Three callers need the identical sequence — the Settings dialog, the
+    // welcome screen, and the OS-change watcher — and a theme switch that
+    // updates only some of these is immediately visible as a half-themed
+    // window, so they share this rather than each repeating it.
+    let apply_theme_scheme: Rc<dyn Fn(&str)> = {
+        let update_editor = update_editor_theme_rc.clone();
+        let update_preview = update_preview_theme_rc.clone();
+        let window_for_theme = window.clone();
+        let preview_window_opt_for_theme = preview_window_opt_for_theme.clone();
+        Rc::new(move |scheme_id: &str| {
+            update_editor(scheme_id);
+            update_preview(scheme_id);
+
+            let is_dark = scheme_id.contains("dark");
+            // Toggle the window CSS class for runtime GTK UI theme switching;
+            // this cascades to all descendants (toolbar, footer, menu, …).
+            let (new_class, old_class) = if is_dark {
+                ("marco-theme-dark", "marco-theme-light")
+            } else {
+                ("marco-theme-light", "marco-theme-dark")
+            };
+            window_for_theme.remove_css_class(old_class);
+            window_for_theme.add_css_class(new_class);
+
+            // The detached preview window is a separate top-level window, not
+            // a descendant of `window_for_theme`, so the cascade above never
+            // reaches its titlebar — sync it explicitly if it exists.
+            if let Some(ref pw_opt) = preview_window_opt_for_theme {
+                if let Some(ref pw) = *pw_opt.borrow() {
+                    pw.sync_theme_class(is_dark);
+                }
+            }
+
+            log::debug!("[main] applied theme scheme '{scheme_id}' ({new_class})");
+        })
+    };
+
+    // Follow the OS light/dark setting while "system default" is selected.
+    //
+    // The watcher runs regardless of the current preference so that switching
+    // to "system default" starts tracking without a restart; it checks the
+    // preference on each change and does nothing unless it is still "system".
+    // Kept alive for the lifetime of the window — dropping it stops the
+    // watcher — and `None` on a platform that cannot report changes.
+    let system_theme_watcher = {
+        let theme_manager = theme_manager.clone();
+        let settings_path = settings_path.clone();
+        let apply_theme_scheme = apply_theme_scheme.clone();
+        let refresh_preview_rc = refresh_preview_rc.clone();
+        crate::theme::watch_system_color_mode(move |is_dark| {
+            if theme_manager.borrow().current_color_mode() != crate::theme::COLOR_MODE_SYSTEM {
+                return;
+            }
+            let scheme_id = crate::theme::scheme_id_for_dark(is_dark);
+            if theme_manager.borrow().current_is_dark() == is_dark {
+                return;
+            }
+            theme_manager
+                .borrow_mut()
+                .set_editor_scheme(scheme_id, &settings_path);
+            apply_theme_scheme(scheme_id);
+            (refresh_preview_rc.borrow())();
+        })
+    };
+
+    // `build_ui` returns while the window lives on, so an ordinary local would
+    // drop the watcher immediately. Hand it to a handler on the window instead,
+    // which ties its lifetime to the window's.
+    if let Some(watcher) = system_theme_watcher {
+        window.connect_destroy(move |_| {
+            // The closure owning `watcher` is what keeps it alive; this only
+            // makes the capture explicit.
+            let _ = &watcher;
+        });
+    }
+
     // Helper to persist view mode in settings.ron without blocking the UI
     // Uses the dedicated settings thread pool to avoid orphaned threads
     let save_view_mode = {
@@ -1293,48 +1392,20 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let available_locale_infos_rc = available_locale_infos_rc.clone();
         let preview_css_rc = preview_css_rc.clone();
         let refresh_preview_rc = refresh_preview_rc.clone();
-        let update_editor_theme_rc = update_editor_theme_rc.clone();
-        let update_preview_theme_rc = update_preview_theme_rc.clone();
+        let apply_theme_scheme = apply_theme_scheme.clone();
         let set_view_mode_rc = set_view_mode_rc.clone();
         let save_view_mode = save_view_mode.clone();
         let language_changed_handler = language_changed_handler.clone();
         let editor_source_view_for_rtl = editor_source_view.clone();
         let editor_webview_for_rtl = editor_webview.clone();
-        let preview_window_opt_for_theme = preview_window_opt_for_theme.clone();
         move |_, _| {
             use crate::ui::settings::dialog::show_settings_dialog;
 
             // Create editor theme callback that updates both editor and preview
             let editor_callback = {
-                let update_editor = update_editor_theme_rc.clone();
-                let update_preview = update_preview_theme_rc.clone();
-                let window_for_theme = window.clone();
-                let preview_window_opt_for_theme = preview_window_opt_for_theme.clone();
+                let apply_theme_scheme = apply_theme_scheme.clone();
                 Box::new(move |scheme_id: String| {
-                    update_editor(&scheme_id);
-                    update_preview(&scheme_id);
-
-                    // Toggle window CSS class for runtime GTK UI theme switching
-                    // This cascades to all descendants (toolbar, footer, menu, etc.)
-                    let new_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
-                    let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
-                    let new_class = format!("marco-theme-{}", new_mode);
-
-                    // Update window - this automatically affects all child widgets via CSS cascade
-                    window_for_theme.remove_css_class(old_class);
-                    window_for_theme.add_css_class(&new_class);
-
-                    // The detached preview window is a separate top-level
-                    // window, not a descendant of `window_for_theme`, so the
-                    // CSS cascade above never reaches its titlebar — sync it
-                    // explicitly if it currently exists.
-                    if let Some(ref pw_opt) = preview_window_opt_for_theme {
-                        if let Some(ref pw) = *pw_opt.borrow() {
-                            pw.sync_theme_class(new_mode == "dark");
-                        }
-                    }
-
-                    log::debug!("Switched CSS class from {} to {} (window and all descendants)", old_class, new_class);
+                    apply_theme_scheme(&scheme_id);
                 }) as Box<dyn Fn(String) + 'static>
             };
 
@@ -2790,37 +2861,31 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 }
             })),
             Some(Box::new({
-                let update_editor = update_editor_theme_rc.clone();
-                let update_preview = update_preview_theme_rc.clone();
-                let window_for_theme = window.clone();
+                let apply_theme_scheme = apply_theme_scheme.clone();
                 let theme_manager = theme_manager.clone();
                 let settings_path = settings_path.clone();
                 move |editor_mode: String| {
-                    // Set the GTK-global dark-theme preference (Linux) the same
-                    // way the Settings dialog's Application tab does — without
-                    // this, only this window's own CSS class flips; anything
-                    // relying on GTK's native light/dark rendering elsewhere in
-                    // the application stays on the old theme.
-                    theme_manager
-                        .borrow_mut()
-                        .set_editor_scheme(&editor_mode, &settings_path);
-
-                    update_editor(&editor_mode);
-                    update_preview(&editor_mode);
-
-                    let new_mode = if editor_mode.contains("dark") {
-                        "dark"
+                    // The welcome screen offers an explicit light/dark choice,
+                    // so record it as the colour-mode preference too — leaving
+                    // it on "system" would let the OS override the pick moments
+                    // later.
+                    let color_mode = if editor_mode.contains("dark") {
+                        crate::theme::COLOR_MODE_DARK
                     } else {
-                        "light"
+                        crate::theme::COLOR_MODE_LIGHT
                     };
-                    let old_class = if new_mode == "dark" {
-                        "marco-theme-light"
-                    } else {
-                        "marco-theme-dark"
-                    };
-                    let new_class = format!("marco-theme-{}", new_mode);
-                    window_for_theme.remove_css_class(old_class);
-                    window_for_theme.add_css_class(&new_class);
+                    {
+                        // Set the GTK-global dark-theme preference (Linux) the
+                        // same way the Settings dialog's Application tab does —
+                        // without this, only this window's own CSS class flips;
+                        // anything relying on GTK's native light/dark rendering
+                        // elsewhere in the application stays on the old theme.
+                        let mut mgr = theme_manager.borrow_mut();
+                        mgr.set_color_mode(color_mode);
+                        mgr.set_editor_scheme(&editor_mode, &settings_path);
+                    }
+
+                    apply_theme_scheme(&editor_mode);
                 }
             })),
         );

@@ -254,12 +254,12 @@ pub fn print_to_pdf(
         // Background colors / images are part of the visual fidelity users
         // expect from "Export to PDF" — paged.js page backgrounds rely on it.
         settings
-            .SetShouldPrintBackgrounds(true.into())
+            .SetShouldPrintBackgrounds(true)
             .map_err(|e| format!("SetShouldPrintBackgrounds failed: {}", e))?;
         // We render our own page numbers via paged.js, so disable the
         // browser-injected header/footer.
         settings
-            .SetShouldPrintHeaderAndFooter(false.into())
+            .SetShouldPrintHeaderAndFooter(false)
             .map_err(|e| format!("SetShouldPrintHeaderAndFooter failed: {}", e))?;
     }
 
@@ -300,8 +300,7 @@ pub fn print_to_pdf(
     // internally pumps until the callback returns, so by this point `rx`
     // should have a value waiting.
     rx.recv()
-        .map_err(|_| "PrintToPdf completion channel closed unexpectedly".to_string())?
-        .map_err(|e| e)?;
+        .map_err(|_| "PrintToPdf completion channel closed unexpectedly".to_string())??;
 
     // Sanity-check the file exists and is non-empty.
     match std::fs::metadata(&abs_path) {

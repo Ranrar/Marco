@@ -447,9 +447,12 @@ pub(crate) fn load_default_translations() -> Translations {
                 toolbar_svg_text_label: "Toolbar SVG Button Text".to_string(),
                 toolbar_svg_text_description: "Show or hide labels in composite toolbar SVG buttons (off = icon only).".to_string(),
                 color_mode_label: "Light/Dark Mode".to_string(),
-                color_mode_description: "Choose between light or dark user interface.".to_string(),
+                color_mode_description:
+                    "Choose a light or dark user interface, or follow the operating system."
+                        .to_string(),
                 color_mode_light: "light".to_string(),
                 color_mode_dark: "dark".to_string(),
+                color_mode_system: "system default".to_string(),
                 custom_css_label: "Custom CSS for Preview".to_string(),
                 custom_css_description: "Add your own custom CSS to override the preview style.".to_string(),
                 custom_css_button: "Open CSS Themes Folder".to_string(),

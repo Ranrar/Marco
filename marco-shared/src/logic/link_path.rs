@@ -208,9 +208,7 @@ fn strip_file_scheme(target: &str) -> &str {
 /// `?query` suffix. Generated paths percent-encode `#` and `?`, so the first
 /// literal occurrence is always the real separator.
 pub fn split_suffix(target: &str) -> (&str, &str) {
-    let cut = target
-        .find(['#', '?'])
-        .unwrap_or(target.len());
+    let cut = target.find(['#', '?']).unwrap_or(target.len());
     (&target[..cut], &target[cut..])
 }
 
@@ -225,10 +223,7 @@ fn normalize(path: &Path) -> PathBuf {
             Component::ParentDir => {
                 // Only pop a real directory name; `..` above a root or after
                 // another `..` has to be kept verbatim.
-                let pops = matches!(
-                    out.components().next_back(),
-                    Some(Component::Normal(_))
-                );
+                let pops = matches!(out.components().next_back(), Some(Component::Normal(_)));
                 if pops {
                     out.pop();
                 } else {
@@ -925,7 +920,10 @@ mod tests {
     fn smoke_classifies_every_target_kind() {
         assert_eq!(classify("/home/kim/a.png"), TargetKind::LocalAbsolute);
         assert_eq!(classify("C:/Users/Kim/a.png"), TargetKind::LocalAbsolute);
-        assert_eq!(classify("file:///home/kim/a.png"), TargetKind::LocalAbsolute);
+        assert_eq!(
+            classify("file:///home/kim/a.png"),
+            TargetKind::LocalAbsolute
+        );
         assert_eq!(classify("../Pictures/a.png"), TargetKind::LocalRelative);
         assert_eq!(classify("a.png"), TargetKind::LocalRelative);
         assert_eq!(classify("https://example.com/a.png"), TargetKind::Remote);
@@ -936,14 +934,23 @@ mod tests {
 
     #[test]
     fn smoke_resolves_relative_target_against_document_dir() {
-        let reference = LinkReference::parse("../Pictures/test.png", Some(Path::new("/home/kim/Documents")));
-        assert_eq!(reference.resolved_path, Some(p("/home/kim/Pictures/test.png")));
+        let reference = LinkReference::parse(
+            "../Pictures/test.png",
+            Some(Path::new("/home/kim/Documents")),
+        );
+        assert_eq!(
+            reference.resolved_path,
+            Some(p("/home/kim/Pictures/test.png"))
+        );
     }
 
     #[test]
     fn smoke_absolute_target_resolves_without_document_dir() {
         let reference = LinkReference::parse("/home/kim/Pictures/test.png", None);
-        assert_eq!(reference.resolved_path, Some(p("/home/kim/Pictures/test.png")));
+        assert_eq!(
+            reference.resolved_path,
+            Some(p("/home/kim/Pictures/test.png"))
+        );
     }
 
     #[test]
@@ -956,18 +963,21 @@ mod tests {
     #[test]
     fn smoke_remote_and_data_targets_never_resolve() {
         assert_eq!(
-            LinkReference::parse("https://example.com/a.png", Some(Path::new("/docs"))).resolved_path,
+            LinkReference::parse("https://example.com/a.png", Some(Path::new("/docs")))
+                .resolved_path,
             None
         );
         assert_eq!(
-            LinkReference::parse("data:image/png;base64,AAA", Some(Path::new("/docs"))).resolved_path,
+            LinkReference::parse("data:image/png;base64,AAA", Some(Path::new("/docs")))
+                .resolved_path,
             None
         );
     }
 
     #[test]
     fn smoke_fragment_is_split_from_the_filesystem_path() {
-        let reference = LinkReference::parse("../Images/test.png#something", Some(Path::new("/docs/sub")));
+        let reference =
+            LinkReference::parse("../Images/test.png#something", Some(Path::new("/docs/sub")));
         assert_eq!(reference.resolved_path, Some(p("/docs/Images/test.png")));
         assert_eq!(reference.suffix(), "#something");
     }
@@ -1131,10 +1141,7 @@ mod tests {
     fn smoke_rebase_converts_absolute_path_on_first_save() {
         let md = "![test](/home/kim/Pictures/test.png)\n";
         let edits = plan_path_rebase(md, None, Path::new("/home/kim/Documents/test.md"));
-        assert_eq!(
-            apply_edits(md, &edits),
-            "![test](../Pictures/test.png)\n"
-        );
+        assert_eq!(apply_edits(md, &edits), "![test](../Pictures/test.png)\n");
     }
 
     #[test]
@@ -1192,7 +1199,10 @@ mod tests {
         let edits = plan_path_rebase(md, None, Path::new("/x/doc.md"));
         assert_eq!(edits.len(), 2);
         assert!(edits[0].start < edits[1].start);
-        assert_eq!(apply_edits(md, &edits), "![a](./1.png)\n\n![b](./y/2.png)\n");
+        assert_eq!(
+            apply_edits(md, &edits),
+            "![a](./1.png)\n\n![b](./y/2.png)\n"
+        );
     }
 
     #[test]
@@ -1244,13 +1254,14 @@ mod tests {
                 .iter()
                 .map(|m| m.markdown_path.as_str())
                 .collect::<Vec<_>>(),
-            vec!["./files/gone.md", "./files/missing.png", "./files/gone-too.md"]
+            vec![
+                "./files/gone.md",
+                "./files/missing.png",
+                "./files/gone-too.md"
+            ]
         );
         // The span covers exactly the destination token, ready to underline.
-        assert_eq!(
-            &md[missing[0].start..missing[0].end],
-            "./files/gone.md"
-        );
+        assert_eq!(&md[missing[0].start..missing[0].end], "./files/gone.md");
         // A broken link and a broken image are reported differently, so the
         // syntax each came from has to survive the scan.
         assert_eq!(

@@ -162,8 +162,10 @@ pub fn refresh_footer_snapshot(
                     // Diagnostics are cached too — same content_hash → immediate return.
                     let cached_diags = marco_shared::cache::global_parser_cache()
                         .get_or_compute_diagnostics_for_doc(&doc, content_hash);
-                    let mut diagnostics: Vec<EditorDiagnostic> =
-                        cached_diags.iter().map(EditorDiagnostic::from_core).collect();
+                    let mut diagnostics: Vec<EditorDiagnostic> = cached_diags
+                        .iter()
+                        .map(EditorDiagnostic::from_core)
+                        .collect();
                     // Marco's own filesystem-aware checks, which the parser
                     // cannot make — see `components::editor::diagnostics`.
                     diagnostics.extend(missing_link_target_diagnostics(

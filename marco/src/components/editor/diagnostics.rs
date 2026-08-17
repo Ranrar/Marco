@@ -126,7 +126,10 @@ mod tests {
         assert_eq!(d.severity, DiagnosticSeverity::Warning);
         assert_eq!(d.span.start.line, 3);
         assert_eq!(d.span.start.column, 8);
-        assert_eq!(&text[d.span.start.offset..d.span.end.offset], "./missing.md");
+        assert_eq!(
+            &text[d.span.start.offset..d.span.end.offset],
+            "./missing.md"
+        );
         assert!(d.message.contains("./missing.md"));
         // Title, explanation and fix all come from the shared catalog rather
         // than from strings kept here.

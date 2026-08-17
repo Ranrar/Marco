@@ -41,6 +41,7 @@ glib = { workspace = true }
 gio = { workspace = true }
 sourceview5 = { workspace = true }
 dark-light = { workspace = true }
+async-channel = { workspace = true }
 # SVG rendering and Cairo required for high-quality window control icons
 librsvg = { workspace = true }
 cairo-rs = { workspace = true }

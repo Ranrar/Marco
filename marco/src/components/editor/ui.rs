@@ -459,8 +459,7 @@ pub fn create_editor_with_preview_and_buffer(
     // SourceView5 native hover provider.
     // Uses the built-in GtkSourceHover infrastructure instead of a custom
     // EventControllerMotion + Popover approach.
-    let current_diagnostics: Rc<RefCell<Vec<EditorDiagnostic>>> =
-        Rc::new(RefCell::new(Vec::new()));
+    let current_diagnostics: Rc<RefCell<Vec<EditorDiagnostic>>> = Rc::new(RefCell::new(Vec::new()));
 
     {
         let hover = source_view.hover();

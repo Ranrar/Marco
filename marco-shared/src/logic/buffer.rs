@@ -20,9 +20,7 @@ fn active_document_dir_cell() -> &'static Mutex<Option<PathBuf>> {
 
 /// Record the directory of the document now loaded in the editor.
 fn set_active_document_dir(file_path: Option<&Path>) {
-    let dir = file_path
-        .and_then(Path::parent)
-        .map(Path::to_path_buf);
+    let dir = file_path.and_then(Path::parent).map(Path::to_path_buf);
     if let Ok(mut guard) = active_document_dir_cell().lock() {
         *guard = dir;
     }

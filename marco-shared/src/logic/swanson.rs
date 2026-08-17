@@ -355,6 +355,7 @@ impl Settings {
             // Common settings (shared between Marco and Polo)
             appearance: Some(AppearanceSettings {
                 editor_mode: Some("marco-light".to_string()),
+                color_mode: Some("light".to_string()),
                 preview_theme: Some("marco.css".to_string()),
                 toolbar_svg_button_text: Some(false),
                 ui_font_size: Some(11),
@@ -745,7 +746,17 @@ pub struct DiagnosticsFilterSettings {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppearanceSettings {
+    /// The style scheme actually in use: `"marco-light"` or `"marco-dark"`.
+    ///
+    /// Always a concrete scheme, never `"system"` — when [`Self::color_mode`]
+    /// is `"system"` this holds whatever the OS last reported. Everything that
+    /// renders (including Polo, which does not follow the OS itself) reads
+    /// this field and needs an answer it can use directly.
     pub editor_mode: Option<String>,
+    /// What the user asked for: `"light"`, `"dark"`, or `"system"` to follow
+    /// the OS. `None` in a settings file written before this option existed —
+    /// treat it as whatever `editor_mode` says.
+    pub color_mode: Option<String>,
     pub preview_theme: Option<String>,
     /// Show text inside composite SVG toolbar buttons (false=icon-only, true=icon+text)
     pub toolbar_svg_button_text: Option<bool>,

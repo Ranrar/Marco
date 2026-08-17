@@ -1011,7 +1011,7 @@ fn install_f5_reload_override(view: &wry::WebView, window: &gtk4::ApplicationWin
             // this directly to the window's own action map, so it's
             // activated by its bare name via `ActionGroupExt` — not the
             // `"win."`-prefixed form `WidgetExt::activate_action` expects.
-            let _ = gtk4::prelude::ActionGroupExt::activate_action(&window, "polo-reload", None);
+            gtk4::prelude::ActionGroupExt::activate_action(&window, "polo-reload", None);
         }
         Ok(())
     }));
