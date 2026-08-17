@@ -9,11 +9,11 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
-## [0.25.0] - 2026-08-16
+## [0.25.0] - 2026-08-17
 
-_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-16._
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-17._
 
-**Uses:** Core 1.3.1
+**Uses:** Core 1.3.2
 
 > **Breaking change (Linux only).** Every installed path and per-user
 > directory has been renamed to resolve the long-standing collision with the
@@ -39,6 +39,9 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 
 
 ### Added
+- **Dead link and image detection.** Every local link, image and link-definition destination is resolved against the document's own directory and checked against the filesystem. A destination with nothing at it is reported as a warning — underlined in the editor, listed in the footer issues panel, and explained on hover — as `MD206` for a broken link and `MD404` for a broken image. Remote URLs are never fetched (that would mean a network request per keystroke), `#fragments` point inside the rendered document rather than at a file, and an unsaved document is not judged at all, because a relative path has no directory to resolve against until it is saved. _(2026-08-17)_
+- Clicking a link whose target is missing now says so, naming the path it looked for, instead of opening a confirmation dialog whose only possible outcome was a blank page. _(2026-08-17)_
+- **Save As rebases local paths.** Saving a document to a new location rewrites every local link, image and link-definition path so it still points at the same file: the absolute paths an unsaved document carries become relative ones, and a document moved elsewhere gets its relative paths recomputed. The editor is updated to match what was written, as a single undoable action. Remote URLs, data URIs, in-document anchors and paths that cannot be resolved are left exactly as you wrote them. _(2026-08-17)_
 - Undo and redo buttons in the toolbar, between the line-numbers toggle and the text-formatting group. They drive the existing `app.undo` / `app.redo` actions, so they grey out on their own when there is nothing to undo and stay in step with the Edit menu and Ctrl+Z / Ctrl+Y. _(2026-08-16)_
 - **Browse** in the Link, Reference link and Image popovers now works on a document that has never been saved. It was previously disabled, with no way to discover why — GTK4 delivers no pointer events to insensitive widgets, so the tooltip explaining it could never appear. With no document directory for a relative path to resolve against it inserts the file's absolute path; a saved document still gets a `./relative` one. _(2026-08-16)_
 - In-page find for the preview, implemented in JavaScript (`find_engine`) and driven from the existing search window. Supports case-sensitive and whole-word matching, highlights every hit in the rendered document, and reports a live "K of N" count back to the search UI. _(2026-07-16, 2026-07-30)_
@@ -47,6 +50,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 - Toolbar colour-mode toggle now swaps its own icon to match the active light/dark theme. _(2026-07-18)_
 
 ### Changed
+- Link and image path handling — classification, relative/absolute conversion, percent-encoding, `#fragment` splitting and Windows drive-path detection — now lives in one shared module (`marco-shared::logic::link_path`) used by the toolbar popovers, Save As and the new diagnostics, replacing three separate partial implementations that disagreed on edge cases. _(2026-08-17)_
 - Toolbar buttons now signal that they are unavailable by greying the icon itself, instead of filling in a background plate and dimming the whole button. _(2026-08-16)_
 - The Link, Reference link and Image popovers no longer close when you click outside them; use Escape, Cancel or Ok. They are no longer autohide popovers, because an autohide popover holds an input grab that blocks the modal file chooser behind **Browse** — the old workaround hid the popover and re-showed it afterwards, which is what lost it. A side benefit is that a stray click can no longer discard a half-filled form. _(2026-08-16)_
 - Updated to `marco-core` 1.3.1, and to the `gtk4-webkit6` fork of `wry` 0.56.1 (from 0.55.1). _(2026-08-16)_
@@ -59,6 +63,9 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 - Viewer modules renamed to say what they are rather than which backend they came from: `wry_platform_webview` → `platform_webview`, `wry_find` → `find_engine`, `wry.rs` → `preview_helpers`, `print_driver` → `print_driver_linux`, and the two detached-window modules to `detached_window_linux` / `detached_window_windows`. _(2026-07-16)_
 
 ### Fixed
+- Clicking a relative link in the preview loaded the raw Markdown as a blank page instead of opening the file in the editor. Preview documents are served over the `marco-preview://` protocol, so a relative link resolves against *that* origin, but only `file://` links were being recognised as local. _(2026-08-17)_
+- Links to files with non-ASCII names (e.g. `unicode-✓.md`) could not be opened: the percent-escapes such a name arrives as were decoded one byte at a time rather than as UTF-8, producing a path that does not exist. _(2026-08-17)_
+- On Windows, images in an unsaved document did not render in the preview. An unsaved document stores image paths as absolute (`C:/Users/…/pic.png`), and a URL parser reads the leading `C:` as a scheme. Applies to both first render and incremental updates. _(2026-08-17)_
 - Choosing a file through **Browse** left the popover closed and the picked path nowhere to be seen, so the insert could never be completed. _(2026-08-16)_
 - After **Browse** filled in a local path, **Ok** went insensitive with no visible explanation: a local target makes the alt/label field mandatory, and it was empty. The field is now seeded from the chosen file's name and stays editable. _(2026-08-16)_
 - Using undo or redo from the toolbar left keyboard focus on the button, so the next keystroke went nowhere and you had to click back into the text. Focus now returns to the editor. _(2026-08-16)_

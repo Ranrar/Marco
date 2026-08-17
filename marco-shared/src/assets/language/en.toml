@@ -356,6 +356,10 @@ tooltip_cancel = "Cancel and stay in the current document"
 tooltip_save_open = "Save the current document, then open the file"
 tooltip_open = "Open the file in the editor"
 unsaved_changes_message = "\"{document}\" has unsaved changes. Choose how to proceed:"
+close_button = "Close"
+tooltip_close = "Close and stay in the current document"
+missing_target_message = "\"{filename}\" was not found."
+missing_target_detail = "The link points at:\n{path}"
 
 [dialog.export]
 title = "Export Document"

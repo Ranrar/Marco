@@ -1,7 +1,41 @@
 use crate::cache::{cached, global_cache};
 use crate::logic::swanson::SettingsManager;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, OnceLock};
+
+/// Directory of the document currently loaded in the editor, or `None` while
+/// the document is unsaved.
+///
+/// Relative link and image destinations only mean something relative to this
+/// directory, so the work that resolves them — link rebasing on Save As,
+/// the missing-target diagnostic — needs it. It lives here, updated by the
+/// same four places that change [`DocumentBuffer::file_path`], because those
+/// consumers run far from any `DocumentBuffer` handle (a background
+/// diagnostics worker, the footer) and threading one through every layer
+/// between would be worse than a single well-known cell.
+fn active_document_dir_cell() -> &'static Mutex<Option<PathBuf>> {
+    static CELL: OnceLock<Mutex<Option<PathBuf>>> = OnceLock::new();
+    CELL.get_or_init(|| Mutex::new(None))
+}
+
+/// Record the directory of the document now loaded in the editor.
+fn set_active_document_dir(file_path: Option<&Path>) {
+    let dir = file_path
+        .and_then(Path::parent)
+        .map(Path::to_path_buf);
+    if let Ok(mut guard) = active_document_dir_cell().lock() {
+        *guard = dir;
+    }
+}
+
+/// The directory of the document currently loaded in the editor, or `None`
+/// for a document that has never been saved.
+pub fn active_document_dir() -> Option<PathBuf> {
+    active_document_dir_cell()
+        .lock()
+        .ok()
+        .and_then(|guard| guard.clone())
+}
 
 /// Manages document buffer state including file path, modification status, and content
 ///
@@ -40,6 +74,7 @@ impl DocumentBuffer {
     /// assert!(!buffer.is_modified);
     /// ```
     pub fn new_untitled() -> Self {
+        set_active_document_dir(None);
         Self {
             file_path: None,
             is_modified: false,
@@ -80,6 +115,8 @@ impl DocumentBuffer {
             .and_then(|name| name.to_str())
             .unwrap_or("Unknown")
             .to_string();
+
+        set_active_document_dir(Some(path));
 
         let buffer = Self {
             file_path: Some(path.to_path_buf()),
@@ -259,6 +296,7 @@ impl DocumentBuffer {
         let content_size = content.len();
         self.file_path = Some(path.clone());
         self.display_name = display_name;
+        set_active_document_dir(Some(&path));
 
         log::info!(
             "Saved file as: {} ({} bytes) with cached operations - now tracking as open document",
@@ -522,6 +560,7 @@ impl DocumentBuffer {
         self.file_path = None;
         self.is_modified = false;
         self.display_name = "Untitled.md".to_string();
+        set_active_document_dir(None);
 
         if had_file {
             log::info!("Document reset to untitled state - closed file association");

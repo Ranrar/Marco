@@ -4,12 +4,20 @@
 use crate::components::language::{DialogTranslations, MenuTranslations};
 use gtk4::{gio, glib, prelude::*};
 use log::trace;
+use marco_shared::logic::link_path;
 use marco_shared::logic::{DocumentBuffer, RecentFiles};
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
 use std::result::Result;
 use std::sync::Arc;
+
+/// GTK text buffers address text by character offset; the link-path planner
+/// works in byte offsets. Convert one to the other against the same snapshot
+/// of the text the offsets came from.
+fn char_offset_for_byte(text: &str, byte_offset: usize) -> i32 {
+    text[..byte_offset.min(text.len())].chars().count() as i32
+}
 
 // Type aliases to simplify complex callback signatures
 type OpenDialogCallback = Arc<
@@ -293,7 +301,7 @@ impl FileOperations {
                         )
                         .await?;
                         if let Some(save_path) = file_path {
-                            let content = self.get_editor_content(editor_buffer);
+                            let content = self.content_for_save_as(editor_buffer, &save_path);
                             self.buffer
                                 .borrow_mut()
                                 .save_as_content(&save_path, &content)?;
@@ -514,7 +522,7 @@ impl FileOperations {
                         )
                         .await?;
                         if let Some(path) = file_path {
-                            let content = self.get_editor_content(editor_buffer);
+                            let content = self.content_for_save_as(editor_buffer, &path);
                             self.buffer.borrow_mut().save_as_content(&path, &content)?;
                             self.buffer.borrow_mut().set_baseline(&content);
                             self.add_recent_file(&path);
@@ -605,7 +613,7 @@ impl FileOperations {
                         )
                         .await?;
                         if let Some(path) = file_path {
-                            let content = self.get_editor_content(editor_buffer);
+                            let content = self.content_for_save_as(editor_buffer, &path);
                             self.buffer.borrow_mut().save_as_content(&path, &content)?;
                             self.buffer.borrow_mut().set_baseline(&content);
                             self.add_recent_file(&path);
@@ -667,11 +675,7 @@ impl FileOperations {
         )
         .await?;
         if let Some(path) = file_path {
-            let start_iter = editor_buffer.start_iter();
-            let end_iter = editor_buffer.end_iter();
-            let content = editor_buffer
-                .text(&start_iter, &end_iter, false)
-                .to_string();
+            let content = self.content_for_save_as(editor_buffer, &path);
             self.buffer.borrow_mut().save_as_content(&path, &content)?;
             self.buffer.borrow_mut().set_baseline(&content);
             self.add_recent_file(&path);
@@ -739,11 +743,7 @@ impl FileOperations {
                         )
                         .await?;
                         if let Some(path) = file_path {
-                            let start_iter = editor_buffer.start_iter();
-                            let end_iter = editor_buffer.end_iter();
-                            let content = editor_buffer
-                                .text(&start_iter, &end_iter, false)
-                                .to_string();
+                            let content = self.content_for_save_as(editor_buffer, &path);
                             self.buffer.borrow_mut().save_as_content(&path, &content)?;
                             self.add_recent_file(&path);
                             app.quit();
@@ -806,6 +806,58 @@ impl FileOperations {
         editor_buffer
             .text(&start_iter, &end_iter, false)
             .to_string()
+    }
+
+    /// The content to write when the document is about to live at `new_path`,
+    /// with every local link, image and link-definition path rebased onto the
+    /// new location.
+    ///
+    /// An unsaved document holds absolute paths (it had no directory for
+    /// a relative path to resolve against); a document being moved by Save As
+    /// holds paths relative to where it *used* to be. Both are resolved to the
+    /// physical file and re-expressed relative to `new_path`, so the same
+    /// file stays referenced. Remote URLs, data URIs, in-document anchors and
+    /// unresolvable references are left exactly as the user wrote them.
+    ///
+    /// The editor buffer is updated in place with the same edits — as one
+    /// undoable action, and without disturbing the rest of the document — so
+    /// what the user sees matches what was written to disk.
+    fn content_for_save_as(&self, editor_buffer: &gtk4::TextBuffer, new_path: &Path) -> String {
+        let content = self.get_editor_content(editor_buffer);
+        let old_path = self
+            .buffer
+            .borrow()
+            .get_file_path()
+            .map(std::path::Path::to_path_buf);
+
+        let edits = link_path::plan_path_rebase(&content, old_path.as_deref(), new_path);
+        if edits.is_empty() {
+            return content;
+        }
+
+        log::debug!(
+            "[FileOps] rebasing {} local path(s) for new document location '{}'",
+            edits.len(),
+            new_path.display()
+        );
+
+        *self.programmatic_buffer_update.borrow_mut() = true;
+        editor_buffer.begin_user_action();
+        // Back to front: each edit's byte offsets refer to the original text,
+        // and applying in reverse keeps the earlier ones valid.
+        for edit in edits.iter().rev() {
+            let start = char_offset_for_byte(&content, edit.start);
+            let end = char_offset_for_byte(&content, edit.end);
+            let mut start_iter = editor_buffer.iter_at_offset(start);
+            let mut end_iter = editor_buffer.iter_at_offset(end);
+            editor_buffer.delete(&mut start_iter, &mut end_iter);
+            let mut insert_iter = editor_buffer.iter_at_offset(start);
+            editor_buffer.insert(&mut insert_iter, &edit.replacement);
+        }
+        editor_buffer.end_user_action();
+        *self.programmatic_buffer_update.borrow_mut() = false;
+
+        link_path::apply_edits(&content, &edits)
     }
 
     /// Load an initial file on application startup (for command line arguments)

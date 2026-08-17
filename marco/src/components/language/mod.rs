@@ -484,6 +484,13 @@ pub struct OpenLocalFileDialogTranslations {
     pub tooltip_save_open: String,
     pub tooltip_open: String,
     pub unsaved_changes_message: String,
+    /// Label of the only button shown when the link's target is missing.
+    pub close_button: String,
+    /// Headline shown when the link's target does not exist. `{filename}`.
+    pub missing_target_message: String,
+    /// Detail line naming the path that was looked for. `{path}`.
+    pub missing_target_detail: String,
+    pub tooltip_close: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2351,6 +2358,26 @@ impl SimpleLocalizationManager {
                         value,
                         &["dialog", "open_local_file", "unsaved_changes_message"],
                         &fallback.dialog.open_local_file.unsaved_changes_message,
+                    ),
+                    close_button: Self::get_string(
+                        value,
+                        &["dialog", "open_local_file", "close_button"],
+                        &fallback.dialog.open_local_file.close_button,
+                    ),
+                    missing_target_message: Self::get_string(
+                        value,
+                        &["dialog", "open_local_file", "missing_target_message"],
+                        &fallback.dialog.open_local_file.missing_target_message,
+                    ),
+                    missing_target_detail: Self::get_string(
+                        value,
+                        &["dialog", "open_local_file", "missing_target_detail"],
+                        &fallback.dialog.open_local_file.missing_target_detail,
+                    ),
+                    tooltip_close: Self::get_string(
+                        value,
+                        &["dialog", "open_local_file", "tooltip_close"],
+                        &fallback.dialog.open_local_file.tooltip_close,
                     ),
                 },
                 export: ExportDialogTranslations {

@@ -28,6 +28,7 @@
 // When adding Windows support, `create_editor_with_preview_and_buffer()`
 // will need conditional compilation for WebView creation.
 
+use crate::components::editor::diagnostics::EditorDiagnostic;
 use crate::components::editor::display_config::extract_xml_color_value;
 use crate::components::editor::sourceview::render_editor_with_view;
 use crate::components::editor::utilities::AsyncExtensionManager;
@@ -118,19 +119,19 @@ pub(crate) fn split_hover_content(raw: &str) -> (String, String) {
 }
 
 pub(crate) fn diagnostic_at_offset(
-    diagnostics: &[marco_core::intelligence::Diagnostic],
+    diagnostics: &[EditorDiagnostic],
     byte_offset: usize,
-) -> Option<marco_core::intelligence::Diagnostic> {
+) -> Option<EditorDiagnostic> {
     diagnostics
         .iter()
         .filter(|d| d.span.start.offset <= byte_offset && byte_offset < d.span.end.offset)
         // Narrowest span wins (most specific diagnostic)
-        .min_by_key(|d| d.span.end.offset.saturating_sub(d.span.start.offset))
+        .min_by_key(|d| d.span_len())
         .cloned()
 }
 
 pub(crate) fn diagnostic_hover_markup(
-    diagnostic: &marco_core::intelligence::Diagnostic,
+    diagnostic: &EditorDiagnostic,
 ) -> (String, String, (usize, usize, String)) {
     let severity = match diagnostic.severity {
         marco_core::intelligence::DiagnosticSeverity::Error => "Error",
@@ -139,18 +140,15 @@ pub(crate) fn diagnostic_hover_markup(
         marco_core::intelligence::DiagnosticSeverity::Hint => "Hint",
     };
 
-    let title_text = diagnostic
-        .title_resolved()
-        .unwrap_or(diagnostic.message.as_str());
-    let title = format!("{}: {}", severity, title_text);
+    let title = format!("{}: {}", severity, diagnostic.title);
 
-    let mut body_lines = vec![format!("Code: {}", diagnostic.code_id())];
-    if let Some(description) = diagnostic.description_resolved() {
+    let mut body_lines = vec![format!("Code: {}", diagnostic.code)];
+    if let Some(description) = diagnostic.description.as_deref() {
         if !description.trim().is_empty() {
             body_lines.push(format!("About: {}", description));
         }
     }
-    body_lines.push(format!("Fix: {}", diagnostic.fix_suggestion_resolved()));
+    body_lines.push(format!("Fix: {}", diagnostic.fix_suggestion));
 
     let body = body_lines.join("\n");
     let signature = (
@@ -461,7 +459,7 @@ pub fn create_editor_with_preview_and_buffer(
     // SourceView5 native hover provider.
     // Uses the built-in GtkSourceHover infrastructure instead of a custom
     // EventControllerMotion + Popover approach.
-    let current_diagnostics: Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>> =
+    let current_diagnostics: Rc<RefCell<Vec<EditorDiagnostic>>> =
         Rc::new(RefCell::new(Vec::new()));
 
     {
@@ -1603,6 +1601,10 @@ paned > separator {{
             let current_diagnostics_for_async = Rc::clone(&current_diagnostics);
             let resolve_settings_for_async = Rc::clone(&resolve_settings);
 
+            // The document's directory is read here, on the main thread, so the
+            // worker below can resolve relative link targets against it.
+            let document_dir = marco_shared::logic::buffer::active_document_dir();
+
             glib::spawn_future_local(async move {
                 let result = gio::spawn_blocking(move || {
                     let src = current_text;
@@ -1619,7 +1621,19 @@ paned > separator {{
                             // if footer or a previous intelligence run already computed them.
                             let cached_diags = marco_shared::cache::global_parser_cache()
                                 .get_or_compute_diagnostics_for_doc(&doc, content_hash);
-                            Ok((highlights, (*cached_diags).clone()))
+                            let mut diagnostics: Vec<EditorDiagnostic> =
+                                cached_diags.iter().map(EditorDiagnostic::from_core).collect();
+                            // Marco's own checks run alongside the parser's — see
+                            // `components::editor::diagnostics`. Not cached by
+                            // content hash: the same text becomes correct the
+                            // moment the missing file appears on disk.
+                            diagnostics.extend(
+                                crate::components::editor::diagnostics::missing_link_target_diagnostics(
+                                    &src,
+                                    document_dir.as_deref(),
+                                ),
+                            );
+                            Ok((highlights, diagnostics))
                         }
                         Err(e) => Err(e.to_string()),
                     }
@@ -1656,11 +1670,10 @@ paned > separator {{
                         Ok(Ok((highlights, diagnostics))) => {
                             let rs = resolve_settings_for_async();
 
-                            let filtered_diagnostics: Vec<marco_core::intelligence::Diagnostic> =
-                                diagnostics
-                                    .into_iter()
-                                    .filter(|d| diagnostic_severity_enabled(&d.severity, rs))
-                                    .collect();
+                            let filtered_diagnostics: Vec<EditorDiagnostic> = diagnostics
+                                .into_iter()
+                                .filter(|d| diagnostic_severity_enabled(&d.severity, rs))
+                                .collect();
 
                             log::debug!(
                                 "Computed {} intelligence highlights and {} diagnostics",
@@ -2202,8 +2215,8 @@ mod tests {
         start: usize,
         end: usize,
         message: &str,
-    ) -> marco_core::intelligence::Diagnostic {
-        marco_core::intelligence::Diagnostic {
+    ) -> EditorDiagnostic {
+        EditorDiagnostic::from_core(&marco_core::intelligence::Diagnostic {
             code,
             span: marco_core::parser::Span {
                 start: marco_core::parser::Position {
@@ -2219,7 +2232,7 @@ mod tests {
             },
             severity,
             message: message.to_string(),
-        }
+        })
     }
 
     #[test]
@@ -2270,7 +2283,7 @@ mod tests {
         let (title, body, signature) = diagnostic_hover_markup(&diag);
         assert!(title.contains("Error"));
         assert!(title.contains("Empty image URL"));
-        assert!(body.contains(&format!("Code: {}", diag.code_id())));
+        assert!(body.contains(&format!("Code: {}", diag.code)));
         assert!(body.contains("About:"));
         assert!(body.contains("Fix:"));
         assert_eq!(signature.0, 20);

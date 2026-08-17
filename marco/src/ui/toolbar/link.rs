@@ -2,8 +2,9 @@
 //! Opens a compact popover near the editor cursor to collect URL + optional link metadata.
 
 use gtk4::prelude::*;
+use marco_shared::logic::link_path;
 use std::collections::HashSet;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 const LINK_POPOVER_WIDTH: i32 = 280;
@@ -1416,97 +1417,10 @@ fn return_focus_on_close(popover: &gtk4::Popover, editor_view: &gtk4::TextView) 
 ///
 /// Relative to the current document when there is one. An unsaved document has
 /// no directory for a relative path to resolve against, so the absolute path is
-/// used instead — it still renders, and re-browsing after a save produces the
-/// relative form.
+/// used instead — it still renders, and the first save rewrites it to the
+/// relative form (see [`marco_shared::logic::link_path::plan_path_rebase`]).
 fn local_link_path_for_document(target_path: &Path, current_file_path: Option<&Path>) -> String {
-    match current_file_path {
-        Some(current_file_path) => {
-            local_link_path_relative_to_current_file(target_path, current_file_path)
-        }
-        None => path_to_markdown_link(target_path),
-    }
-}
-
-fn local_link_path_relative_to_current_file(
-    target_path: &Path,
-    current_file_path: &Path,
-) -> String {
-    let base_dir = current_file_path.parent().unwrap_or_else(|| Path::new("."));
-
-    if let Some(relative) = diff_paths_portable(target_path, base_dir) {
-        return ensure_explicit_relative_prefix(&path_to_markdown_link(relative.as_path()));
-    }
-
-    log::warn!(
-        "[toolbar/link] Could not compute relative path from '{}' to '{}'; falling back to absolute path",
-        base_dir.display(),
-        target_path.display()
-    );
-
-    path_to_markdown_link(target_path)
-}
-
-fn path_to_markdown_link(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
-}
-
-fn ensure_explicit_relative_prefix(path: &str) -> String {
-    if path.starts_with("./") || path.starts_with("../") {
-        return path.to_string();
-    }
-
-    if path.is_empty() {
-        "./".to_string()
-    } else {
-        format!("./{path}")
-    }
-}
-
-fn diff_paths_portable(path: &Path, base: &Path) -> Option<PathBuf> {
-    let path_components: Vec<Component<'_>> = path.components().collect();
-    let base_components: Vec<Component<'_>> = base.components().collect();
-
-    let mut common_len = 0usize;
-    let shared_len = path_components.len().min(base_components.len());
-    while common_len < shared_len
-        && components_equal(path_components[common_len], base_components[common_len])
-    {
-        common_len += 1;
-    }
-
-    if path.is_absolute() && base.is_absolute() && common_len == 0 {
-        return None;
-    }
-
-    let mut relative = PathBuf::new();
-
-    for component in &base_components[common_len..] {
-        if matches!(component, Component::Normal(_)) {
-            relative.push("..");
-        }
-    }
-
-    for component in &path_components[common_len..] {
-        relative.push(component.as_os_str());
-    }
-
-    if relative.as_os_str().is_empty() {
-        Some(PathBuf::from("."))
-    } else {
-        Some(relative)
-    }
-}
-
-#[cfg(target_os = "windows")]
-fn components_equal(left: Component<'_>, right: Component<'_>) -> bool {
-    left.as_os_str()
-        .to_string_lossy()
-        .eq_ignore_ascii_case(&right.as_os_str().to_string_lossy())
-}
-
-#[cfg(target_os = "linux")]
-fn components_equal(left: Component<'_>, right: Component<'_>) -> bool {
-    left == right
+    link_path::markdown_path_for_file(target_path, current_file_path.and_then(Path::parent))
 }
 
 fn insertion_bounds(text_buffer: &gtk4::TextBuffer) -> (gtk4::TextIter, gtk4::TextIter) {
@@ -1653,13 +1567,7 @@ fn is_local_link_target(url: &str) -> bool {
         || trimmed.contains('\\')
 }
 
-fn is_windows_drive_path(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 3
-        && bytes[0].is_ascii_alphabetic()
-        && bytes[1] == b':'
-        && (bytes[2] == b'/' || bytes[2] == b'\\')
-}
+use marco_shared::logic::link_path::is_windows_drive_path;
 
 fn find_button_by_css_class(root: &gtk4::Widget, css_class: &str) -> Option<gtk4::Button> {
     if let Ok(button) = root.clone().downcast::<gtk4::Button>() {
@@ -1822,7 +1730,7 @@ mod tests {
         let current = Path::new("/docs/current.md");
         let target = Path::new("/docs/image.png");
 
-        let link = local_link_path_relative_to_current_file(target, current);
+        let link = local_link_path_for_document(target, Some(current));
         assert_eq!(link, "./image.png");
     }
 
@@ -1831,7 +1739,7 @@ mod tests {
         let current = Path::new("/docs/nested/current.md");
         let target = Path::new("/docs/image.png");
 
-        let link = local_link_path_relative_to_current_file(target, current);
+        let link = local_link_path_for_document(target, Some(current));
         assert_eq!(link, "../image.png");
     }
 

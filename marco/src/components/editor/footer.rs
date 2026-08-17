@@ -20,6 +20,7 @@
 //! wire_footer_updates(&buffer, labels, insert_mode_state);
 //! ```
 
+use crate::components::editor::diagnostics::{missing_link_target_diagnostics, EditorDiagnostic};
 use crate::footer::{FooterDiagnosticItem, FooterLabels, FooterUpdate};
 use crate::logic::signal_manager::safe_source_remove;
 use gtk4::glib;
@@ -129,6 +130,10 @@ pub fn refresh_footer_snapshot(
     let is_insert = *insert_mode_state.borrow();
 
     // ── Step 2: offload parse + diagnostics to a thread-pool worker ────────
+    // The document's directory is read here, on the main thread, so the worker
+    // can resolve relative link targets against it.
+    let document_dir = marco_shared::logic::buffer::active_document_dir();
+
     glib::spawn_future_local(async move {
         let offset_usize = offset.max(0) as usize;
         let compute = gtk4::gio::spawn_blocking(move || {
@@ -157,7 +162,16 @@ pub fn refresh_footer_snapshot(
                     // Diagnostics are cached too — same content_hash → immediate return.
                     let cached_diags = marco_shared::cache::global_parser_cache()
                         .get_or_compute_diagnostics_for_doc(&doc, content_hash);
-                    let errors = cached_diags
+                    let mut diagnostics: Vec<EditorDiagnostic> =
+                        cached_diags.iter().map(EditorDiagnostic::from_core).collect();
+                    // Marco's own filesystem-aware checks, which the parser
+                    // cannot make — see `components::editor::diagnostics`.
+                    diagnostics.extend(missing_link_target_diagnostics(
+                        &text,
+                        document_dir.as_deref(),
+                    ));
+
+                    let errors = diagnostics
                         .iter()
                         .filter(|d| {
                             matches!(
@@ -166,7 +180,7 @@ pub fn refresh_footer_snapshot(
                             )
                         })
                         .count();
-                    let warnings = cached_diags
+                    let warnings = diagnostics
                         .iter()
                         .filter(|d| {
                             matches!(
@@ -175,15 +189,15 @@ pub fn refresh_footer_snapshot(
                             )
                         })
                         .count();
-                    let items = cached_diags
+                    let items = diagnostics
                         .iter()
                         .map(|d| FooterDiagnosticItem {
                             severity: d.severity,
-                            code: d.code_id().to_string(),
+                            code: d.code.clone(),
                             line: d.span.start.line,
                             column: d.span.start.column,
                             message: d.message.clone(),
-                            fix_suggestion: d.fix_suggestion_resolved().into_owned(),
+                            fix_suggestion: d.fix_suggestion.clone(),
                         })
                         .collect();
                     (errors, warnings, items)

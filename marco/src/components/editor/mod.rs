@@ -3,6 +3,7 @@
 //! This module contains the editor UI components and supporting functionality:
 //!
 //! - `debounce` - Trailing-edge debouncing for GTK signal handlers
+//! - `diagnostics` - Displayable diagnostic type shared by underlines, hover and footer
 //! - `display_config` - Font configuration and display settings
 //! - `ui` - Main editor UI construction with preview integration
 //! - `editor_manager` - Editor state management and lifecycle coordination
@@ -14,6 +15,7 @@
 
 pub mod contextmenu;
 pub mod debounce;
+pub mod diagnostics;
 pub mod display_config;
 pub mod editor_manager;
 pub mod footer;

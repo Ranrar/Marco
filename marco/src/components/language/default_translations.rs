@@ -360,6 +360,10 @@ pub(crate) fn load_default_translations() -> Translations {
                 tooltip_open: "Open the file in the editor".to_string(),
                 unsaved_changes_message: "\"{document}\" has unsaved changes. Choose how to proceed:"
                     .to_string(),
+                close_button: "Close".to_string(),
+                missing_target_message: "\"{filename}\" was not found.".to_string(),
+                missing_target_detail: "The link points at:\n{path}".to_string(),
+                tooltip_close: "Close and stay in the current document".to_string(),
             },
             export: ExportDialogTranslations {
                 title: "Export Document".to_string(),

@@ -345,6 +345,16 @@ fn compute_section_payload(
         }
     };
 
+    // Section HTML reaches the preview as a DOM patch rather than a page load,
+    // so it bypasses the equivalent pass in `load_html_with_base` and has to
+    // make its own image srcs URL-safe. Borrows on every platform but Windows.
+    let html_arcs: Vec<std::borrow::Cow<'_, str>> = html_arcs
+        .iter()
+        .map(|arc| {
+            crate::components::viewer::platform_webview::make_local_srcs_url_safe(arc.as_str())
+        })
+        .collect();
+
     // Full rebuild on first render (no DOM to patch yet).
     if prev_hashes.is_empty() {
         let cap = html_arcs.iter().map(|a| a.len()).sum::<usize>()
@@ -356,7 +366,7 @@ fn compute_section_payload(
             body.push_str("<div id=\"mc-s-");
             body.push_str(&i.to_string());
             body.push_str("\">");
-            body.push_str(arc.as_str());
+            body.push_str(arc.as_ref());
             body.push_str("</div>\n");
         }
         body.push_str(wheel_js);
@@ -437,7 +447,7 @@ fn compute_section_payload(
         // of the first suffix section, or is null if no suffix).
         for (new_idx, html_arc) in html_arcs[prefix_len..new_suffix_start].iter().enumerate() {
             let new_idx = prefix_len + new_idx;
-            let html = escape_for_js_string(html_arc.as_str());
+            let html = escape_for_js_string(html_arc.as_ref());
             js.push_str("var _n=document.createElement('div');");
             js.push_str(&format!("_n.id='mc-s-{}';", new_idx));
             js.push_str(&format!("_n.innerHTML='{}';", html));
@@ -473,7 +483,7 @@ fn compute_section_payload(
             js.push_str("[\"mc-s-");
             js.push_str(&i.to_string());
             js.push_str("\",\'");
-            js.push_str(&escape_for_js_string(html_arcs[i].as_str()));
+            js.push_str(&escape_for_js_string(html_arcs[i].as_ref()));
             js.push_str("\']");
         }
         js.push_str("];for(var i=0;i<us.length;i++){");

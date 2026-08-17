@@ -291,9 +291,79 @@ fn mime_type_for_path(path: &str) -> &'static str {
     }
 }
 
+/// Make Windows drive-absolute asset references resolvable as URLs.
+///
+/// An unsaved document stores its images as absolute paths (it has no
+/// directory to make them relative to), which on Windows means
+/// `src="C:/Users/Kim/Pictures/a.png"` — and a URL parser reads the leading
+/// `C:` as a one-letter scheme, so the image never loads. Prefixing a `/`
+/// turns it into a path on the preview document's own origin, which the
+/// custom-protocol handler maps straight back to `C:/…` via
+/// [`url_path_to_fs_path`].
+///
+/// POSIX absolute paths (`/home/kim/a.png`) already are URL paths and need
+/// nothing, which is why this is a no-op off Windows.
+///
+/// Applying it twice is harmless — `/C:/…` is no longer a drive path — so
+/// every producer of preview HTML can call it without coordinating.
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn make_local_srcs_url_safe(html: &str) -> std::borrow::Cow<'_, str> {
+    std::borrow::Cow::Borrowed(html)
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn make_local_srcs_url_safe(html: &str) -> std::borrow::Cow<'_, str> {
+    const NEEDLE: &str = "src=\"";
+
+    if !html.contains(NEEDLE) {
+        return std::borrow::Cow::Borrowed(html);
+    }
+
+    let mut out: Option<String> = None;
+    let mut cursor = 0usize;
+    while let Some(found) = html[cursor..].find(NEEDLE) {
+        let value_start = cursor + found + NEEDLE.len();
+        if marco_shared::logic::link_path::is_windows_drive_path(&html[value_start..]) {
+            let buffer = out.get_or_insert_with(|| String::with_capacity(html.len() + 16));
+            buffer.push_str(&html[cursor..value_start]);
+            buffer.push('/');
+        } else if let Some(buffer) = out.as_mut() {
+            buffer.push_str(&html[cursor..value_start]);
+        }
+        cursor = value_start;
+    }
+
+    match out {
+        Some(mut buffer) => {
+            buffer.push_str(&html[cursor..]);
+            std::borrow::Cow::Owned(buffer)
+        }
+        None => std::borrow::Cow::Borrowed(html),
+    }
+}
+
 #[cfg(test)]
 mod protocol_tests {
     use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn smoke_drive_absolute_src_gets_a_leading_slash() {
+        let html = r#"<img src="C:/Users/Kim/a.png"><img src="./b.png">"#;
+        assert_eq!(
+            make_local_srcs_url_safe(html),
+            r#"<img src="/C:/Users/Kim/a.png"><img src="./b.png">"#
+        );
+    }
+
+    #[test]
+    fn smoke_html_without_drive_paths_is_not_copied() {
+        let html = r#"<img src="./a.png"><img src="https://example.com/b.png">"#;
+        assert!(matches!(
+            make_local_srcs_url_safe(html),
+            std::borrow::Cow::Borrowed(_)
+        ));
+    }
 
     #[test]
     fn smoke_build_document_url_no_base() {
@@ -349,6 +419,53 @@ mod protocol_tests {
             url_path_to_fs_path("/home/user/img.png"),
             "/home/user/img.png"
         );
+    }
+
+    #[test]
+    fn smoke_md_links_are_local_on_every_document_origin() {
+        // A relative link resolves against the custom-protocol document URL,
+        // not against `file://`.
+        assert!(is_local_md_uri("marco-preview://localhost/docs/a.md"));
+        assert!(is_local_md_uri("http://marco-preview.localhost/docs/a.md"));
+        assert!(is_local_md_uri("file:///docs/a.md"));
+        assert!(is_local_md_uri("file:///docs/a.MD#heading"));
+        assert!(is_local_md_uri("marco-preview://localhost/d/a.md?x=1"));
+    }
+
+    #[test]
+    fn smoke_non_md_and_remote_uris_are_not_local_md() {
+        assert!(!is_local_md_uri("https://example.com/docs/a.md"));
+        assert!(!is_local_md_uri("marco-preview://localhost/docs/a.png"));
+        // Shares a prefix with the origin without being one.
+        assert!(!is_local_md_uri("marco-preview://localhostile/a.md"));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn smoke_unicode_filename_decodes_to_the_real_path() {
+        // `✓` is three UTF-8 bytes, so it arrives as three escapes that only
+        // together form one codepoint.
+        let (path, fragment) = extract_path_and_fragment_from_file_uri(
+            "marco-preview://localhost/docs/files/unicode-%E2%9C%93.md",
+        );
+        assert_eq!(path, "/docs/files/unicode-✓.md");
+        assert_eq!(fragment, None);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn smoke_path_extraction_keeps_fragment_and_drops_query() {
+        let (path, fragment) =
+            extract_path_and_fragment_from_file_uri("file:///docs/a%20b.md?v=2#sec");
+        assert_eq!(path, "/docs/a b.md");
+        assert_eq!(fragment.as_deref(), Some("sec"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn smoke_windows_drive_path_loses_the_url_leading_slash() {
+        let (path, _) = extract_path_and_fragment_from_file_uri("file:///C:/docs/a.md");
+        assert_eq!(path, "C:/docs/a.md");
     }
 }
 
@@ -773,6 +890,8 @@ impl PlatformWebView {
         // Store the raw HTML (no `<base>` injection needed — the document's
         // own URL already encodes its directory) so the custom-protocol
         // handler can serve it.
+        let html = &*make_local_srcs_url_safe(html);
+
         html_map()
             .lock()
             .unwrap()
@@ -1298,6 +1417,10 @@ impl PlatformWebView {
             return;
         }
 
+        // A DOM patch skips the page load, so make image srcs URL-safe here
+        // too (no-op off Windows, and idempotent).
+        let content = &*make_local_srcs_url_safe(content);
+
         // JSON-encode the HTML body so it embeds safely as a JS string literal.
         let json_content = match serde_json::to_string(content) {
             Ok(s) => s,
@@ -1490,23 +1613,58 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     }
 }
 
-/// Returns true if a URI points to a local `.md` file (file:// scheme + .md extension).
-fn is_local_md_uri(uri: &str) -> bool {
+/// The `scheme://authority` prefixes a preview document can be served from,
+/// and therefore the ones a relative `.md` link in the preview resolves
+/// against. `file://` is included for links written as absolute `file:` URIs
+/// directly in the Markdown; the rest are the custom-protocol origins used by
+/// [`build_document_url`] (and, on Windows, wry's HTTP translation of it).
+const LOCAL_DOCUMENT_ORIGINS: [&str; 4] = [
+    "file://",
+    "marco-preview://localhost",
+    "http://marco-preview.localhost",
+    "https://marco-preview.localhost",
+];
+
+/// The URL path of `uri` when it is served from one of
+/// [`LOCAL_DOCUMENT_ORIGINS`], still percent-encoded and still carrying any
+/// `?query` / `#fragment`.
+///
+/// The preview document is loaded over the `marco-preview://` custom protocol,
+/// so a relative link resolves against *that* origin rather than `file://` —
+/// matching only `file://` here would let every relative `.md` link navigate
+/// the preview to the raw Markdown bytes (a blank page) instead of opening the
+/// file in the editor.
+fn local_document_path(uri: &str) -> Option<&str> {
     let lower = uri.to_ascii_lowercase();
-    if !lower.starts_with("file://") {
-        return false;
+    let origin = LOCAL_DOCUMENT_ORIGINS
+        .iter()
+        .find(|origin| lower.starts_with(*origin))?;
+    let rest = &uri[origin.len()..];
+    // A path is always `/`-rooted; anything else (`marco-preview://localhostX`)
+    // only shares a prefix with the origin by accident.
+    match rest {
+        "" => Some(""),
+        _ if rest.starts_with('/') => Some(rest),
+        _ => None,
     }
-    // Strip fragment before checking extension
-    let without_fragment = lower.split('#').next().unwrap_or(&lower);
-    // Strip query before checking extension
+}
+
+/// Returns true if a URI points to a local `.md` file — one served from a
+/// preview-document origin, with a `.md` extension.
+fn is_local_md_uri(uri: &str) -> bool {
+    let Some(path) = local_document_path(uri) else {
+        return false;
+    };
+    // Strip fragment and query before checking the extension.
+    let without_fragment = path.split('#').next().unwrap_or(path);
     let without_query = without_fragment
         .split('?')
         .next()
         .unwrap_or(without_fragment);
-    without_query.ends_with(".md")
+    without_query.to_ascii_lowercase().ends_with(".md")
 }
 
-/// Extract (path_string, optional_fragment) from a `file://` URI.
+/// Extract (path_string, optional_fragment) from a local-document URI.
 /// Returns the decoded filesystem path and the URL fragment if present.
 fn extract_path_and_fragment_from_file_uri(uri: &str) -> (String, Option<String>) {
     // Split off the fragment
@@ -1517,37 +1675,19 @@ fn extract_path_and_fragment_from_file_uri(uri: &str) -> (String, Option<String>
         (uri, None)
     };
 
-    // Strip "file://" prefix
-    let path_raw = uri_no_frag.strip_prefix("file://").unwrap_or(uri_no_frag);
+    // Strip the origin, falling back to the whole string for a URI that is
+    // already a bare path.
+    let path_raw = local_document_path(uri_no_frag).unwrap_or(uri_no_frag);
     // Strip query string
     let path_raw = path_raw.split('?').next().unwrap_or(path_raw);
 
-    // URL-decode percent-encoding using stdlib (no extra dependency needed)
-    let path_decoded = percent_decode(path_raw);
+    // Percent-decode into bytes and read them back as UTF-8: a non-ASCII
+    // character in the filename arrives as several `%XX` escapes that only
+    // together form one codepoint, so decoding them one byte at a time would
+    // produce a path that does not exist.
+    let path_decoded = url_path_to_fs_path(&percent_decode_path(path_raw));
 
     (path_decoded, fragment)
-}
-
-/// Simple percent-decoder for file URIs (handles %20, %23, etc.)
-fn percent_decode(s: &str) -> String {
-    let bytes = s.as_bytes();
-    let mut out = String::with_capacity(s.len());
-    let mut i = 0;
-    while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let (Some(h), Some(l)) = (
-                char::from(bytes[i + 1]).to_digit(16),
-                char::from(bytes[i + 2]).to_digit(16),
-            ) {
-                out.push(char::from((h * 16 + l) as u8));
-                i += 3;
-                continue;
-            }
-        }
-        out.push(char::from(bytes[i]));
-        i += 1;
-    }
-    out
 }
 
 fn should_open_externally(uri: &str) -> bool {

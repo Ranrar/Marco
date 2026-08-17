@@ -802,6 +802,18 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
                     let current_doc = file_ops.borrow().get_document_title();
 
+                    // A link can outlive the file it points at. Check before
+                    // asking anything: the dialog then reports the dead link
+                    // rather than offering an Open that could only fail.
+                    let missing_target = (!target_path.exists())
+                        .then(|| target_path.display().to_string());
+                    if missing_target.is_some() {
+                        log::info!(
+                            "[main] linked file does not exist: {}",
+                            target_path.display()
+                        );
+                    }
+
                     let gtk_window: &gtk4::Window = window.upcast_ref();
                     let choice =
                         crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
@@ -809,6 +821,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             &filename,
                             has_unsaved,
                             &current_doc,
+                            missing_target.as_deref(),
                         )
                         .await;
 

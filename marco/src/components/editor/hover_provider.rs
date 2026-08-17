@@ -4,6 +4,7 @@
 //! `GtkSourceHoverProvider` GObject subclass that integrates with SourceView5's
 //! built-in hover infrastructure.
 
+use crate::components::editor::diagnostics::EditorDiagnostic;
 use crate::components::editor::ui::{
     diagnostic_at_offset, diagnostic_hover_markup, split_hover_content, RuntimeIntelligenceSettings,
 };
@@ -78,7 +79,7 @@ mod imp {
     #[derive(Default)]
     pub struct MarcoHoverProvider {
         pub(super) diagnostics:
-            RefCell<Option<Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>>>,
+            RefCell<Option<Rc<RefCell<Vec<EditorDiagnostic>>>>>,
         pub(super) settings_fn: RefCell<Option<Rc<dyn Fn() -> RuntimeIntelligenceSettings>>>,
         // ── Popover widget refs ────────────────────────────────────────────────
         pub(super) hover_popover: RefCell<Option<gtk4::Popover>>,
@@ -498,7 +499,7 @@ glib::wrapper! {
 impl MarcoHoverProvider {
     /// Create a new hover provider wired to shared diagnostic state and settings.
     pub(crate) fn new(
-        diagnostics: Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>,
+        diagnostics: Rc<RefCell<Vec<EditorDiagnostic>>>,
         settings_fn: Rc<dyn Fn() -> RuntimeIntelligenceSettings>,
     ) -> Self {
         let obj: Self = glib::Object::new();
