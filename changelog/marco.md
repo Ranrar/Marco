@@ -9,9 +9,9 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
-## [0.25.0] - 2026-08-17
+## [0.25.0] - 2026-08-18
 
-_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-17._
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-18._
 
 **Uses:** Core 1.3.2
 
@@ -39,6 +39,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 
 
 ### Added
+- **Windows installer.** Releases now ship a `_setup.exe` alongside the portable zip, built with Inno Setup. It installs per user by default, so it needs no administrator rights, and can be run elevated for an all-users install instead. It creates Start Menu entries for Marco and Polo, offers optional desktop shortcuts, and registers a proper uninstaller. The portable zip is unchanged and remains the right choice if you want everything to live in one folder you can carry around. _(2026-08-18)_
 - **"System default" colour mode.** Settings → Appearance → Light/Dark Mode gains a third option that follows the operating system, and follows it *live* — flipping your desktop between light and dark reskins Marco as it happens, without a restart. On Linux this reads the XDG Desktop Portal's `color-scheme` preference (the same key GNOME, KDE and Flatpak sandboxes publish); on Windows it reads `AppsUseLightTheme` and watches the registry key for changes. A desktop that exposes neither still resolves correctly at startup, it just stops tracking afterwards. _(2026-08-17)_
 - **Dead link and image detection.** Every local link, image and link-definition destination is resolved against the document's own directory and checked against the filesystem. A destination with nothing at it is reported as a warning — underlined in the editor, listed in the footer issues panel, and explained on hover — as `MD206` for a broken link and `MD404` for a broken image. Remote URLs are never fetched (that would mean a network request per keystroke), `#fragments` point inside the rendered document rather than at a file, and an unsaved document is not judged at all, because a relative path has no directory to resolve against until it is saved. _(2026-08-17)_
 - Clicking a link whose target is missing now says so, naming the path it looked for, instead of opening a confirmation dialog whose only possible outcome was a blank page. _(2026-08-17)_
@@ -65,6 +66,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 - Viewer modules renamed to say what they are rather than which backend they came from: `wry_platform_webview` → `platform_webview`, `wry_find` → `find_engine`, `wry.rs` → `preview_helpers`, `print_driver` → `print_driver_linux`, and the two detached-window modules to `detached_window_linux` / `detached_window_windows`. _(2026-07-16)_
 
 ### Fixed
+- **Windows: an installed copy no longer keeps its settings inside the install directory.** Portable mode is detected by looking for a `config/` folder next to the executable, and failing that, by checking whether that directory is writable at all. A per-user install lands under your own profile, which is writable by definition, so every installed copy was being mistaken for a portable one — settings, themes and recent files went into the install folder and were deleted on uninstall. The check now recognises the uninstaller that an installed copy always has next to it, and treats such a copy as installed, storing settings in `%APPDATA%\marco` as intended. _(2026-08-18)_
 - On Linux, starting Marco in dark mode left GTK's own rendering — file choosers, native menus, anything not covered by Marco's CSS — in light theme until you changed the theme once. The GTK dark preference was only ever set on a theme *change*, never at startup. _(2026-08-17)_
 - Clicking a relative link in the preview loaded the raw Markdown as a blank page instead of opening the file in the editor. Preview documents are served over the `marco-preview://` protocol, so a relative link resolves against *that* origin, but only `file://` links were being recognised as local. _(2026-08-17)_
 - Links to files with non-ASCII names (e.g. `unicode-✓.md`) could not be opened: the percent-escapes such a name arrives as were decoded one byte at a time rather than as UTF-8, producing a path that does not exist. _(2026-08-17)_

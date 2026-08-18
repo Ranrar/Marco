@@ -79,7 +79,7 @@ jobs:
           retention-days: 1
 
   build-windows:
-    name: Build Windows portable
+    name: Build Windows portable + installer
     runs-on: windows-latest
     permissions:
       contents: write
@@ -97,6 +97,10 @@ jobs:
 
       - name: Install GNU target
         run: rustup target add x86_64-pc-windows-gnu
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
 
       - name: Setup MSYS2 with GTK4
         uses: msys2/setup-msys2@v2
@@ -147,6 +151,14 @@ jobs:
           windres --version
           pwsh -NoProfile -ExecutionPolicy Bypass -File build/windows/build_portable.ps1 -Msys2Root "$msys2"
 
+      - name: Build Inno Setup installer
+        shell: powershell
+        run: |
+          $msys2 = "${{ steps.msys2.outputs.msys2-location }}"
+          # Reuses the binaries build_portable.ps1 just built above -- no need
+          # to compile marco/polo a second time in the same job.
+          pwsh -NoProfile -ExecutionPolicy Bypass -File build/windows/build_installer.ps1 -Msys2Root "$msys2" -SkipBuild
+
       - name: List produced artifacts
         shell: powershell
         run: |
@@ -159,6 +171,7 @@ jobs:
         run: |
           $version = (Get-Content build/version.json | ConvertFrom-Json).windows.marco
           $releaseZip = "build/installer/markdown-composer-and-viewer_${version}_windows_amd64.zip"
+          $releaseExe = "build/installer/markdown-composer-and-viewer_${version}_windows_amd64_setup.exe"
 
           if (-not (Test-Path $releaseZip)) {
             Write-Error "Expected release artifact not found: $releaseZip"
@@ -167,14 +180,29 @@ jobs:
             exit 1
           }
 
+          if (-not (Test-Path $releaseExe)) {
+            Write-Error "Expected installer artifact not found: $releaseExe"
+            Write-Host "Available EXE files:"
+            Get-ChildItem -Path "build/installer/" -Filter "*.exe" -Recurse
+            exit 1
+          }
+
           # Output for GitHub Actions
           "release_zip=$releaseZip" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "release_exe=$releaseExe" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Upload Windows artifact
+      - name: Upload Windows portable artifact
         uses: actions/upload-artifact@v7
         with:
           name: windows-zip
           path: ${{ steps.prep.outputs.release_zip }}
+          retention-days: 1
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-installer
+          path: ${{ steps.prep.outputs.release_exe }}
           retention-days: 1
 
   release:
@@ -231,10 +259,16 @@ jobs:
           name: linux-deb
           path: artifacts/
 
-      - name: Download Windows artifact
+      - name: Download Windows portable artifact
         uses: actions/download-artifact@v8
         with:
           name: windows-zip
+          path: artifacts/
+
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-installer
           path: artifacts/
 
       - name: List downloaded artifacts
@@ -256,6 +290,10 @@ jobs:
             echo "ERROR: No .zip file found in artifacts/" >&2
             exit 1
           fi
+          if [ ! -f artifacts/*.exe ]; then
+            echo "ERROR: No .exe file found in artifacts/" >&2
+            exit 1
+          fi
           echo "✓ All required artifacts present"
 
       - name: Create release
@@ -263,51 +301,33 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ steps.version.outputs.tag }}
-          name: Marco Suite ${{ steps.version.outputs.version }}
+          name: Markdown composer and viewer ${{ steps.version.outputs.version }}
           prerelease: false
           allowUpdates: false
           artifactErrorsFailBuild: true
           commit: ${{ github.sha }}
-          artifacts: "artifacts/*.deb,artifacts/*.zip"
+          artifacts: "artifacts/*.deb,artifacts/*.zip,artifacts/*.exe"
           body: |
-            ## Marco Suite ${{ steps.version.outputs.version }}
+            **Marco** is a Markdown editor with live preview. **Polo** is its companion
+            viewer. Both run natively on Linux and Windows.
 
-            See the per-app changelogs below for the full list of user-visible changes in this release.
+            ### What changed
+            - [Marco — editor](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco.md)
+            - [Polo — viewer](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/polo.md)
+            - [marco-core](https://github.com/Ranrar/marco-core/blob/main/CHANGELOG.md)
 
-            > Marco and Polo are built on top of the [`marco-core`](https://crates.io/crates/marco-core) crate, which is developed and released independently in its [own repository](https://github.com/Ranrar/marco-core).
+            ### Install
 
-            ### Highlights
+            **Linux (Debian/Ubuntu)** — download the `.deb` below, then:
 
-            **`marco-core` is now a standalone crate**
-            The parser, AST, HTML renderer, and editor-intelligence features have been extracted into the [`marco-core`](https://crates.io/crates/marco-core) crate, published independently on crates.io and maintained in its [own repository](https://github.com/Ranrar/marco-core). Both Marco and Polo now consume it as a pinned dependency. No user-visible behavior change — this lays the groundwork for other tools to build on the same engine.
+            ```sh
+            sudo apt install ./markdown-composer-and-viewer_*_linux_amd64.deb
+            ```
 
-            **Polo redesign**
-            Polo received a significant visual and feature overhaul. A new icon toolbar (Open, Open in Marco, Toggle TOC, Print, Light/Dark toggle) sits below the titlebar. A Table of Contents side panel auto-populates from document headings and lets you jump to any section with a single click. File → Open Recent lets you reopen documents without navigating the file chooser. File → Print (Ctrl+P) opens the native print dialog on both Linux and Windows.
+            **Windows** — run the `_setup.exe` installer, or unpack the `.zip` for a
+            portable copy that needs no installation.
 
-            **Rendering progress overlay for large files**
-            Both Marco and Polo now show a "Rendering…" overlay with an indeterminate progress bar while large documents are loading. The indicator stays visible until the preview has fully painted, so long opens no longer look like a frozen window. It adapts to the active light/dark theme.
+            Something feels off? [Open an issue](https://github.com/Ranrar/Marco/issues/new) — feedback is always welcome.
 
-            ### What's new in Marco
-
-            - Multi-layer parse and render cache (HTML, AST, section, TOC, diagnostics) backed by Moka TinyLFU — frequently edited sections are served from cache without re-parsing.
-            - Section-based incremental preview rendering: only changed sections are patched into the DOM; full-page rebuilds happen only on the first render of a document.
-            - Localization expanded: Lists and Mention insert dialogs are now fully translatable; German (`de`) locale updated. Language changes now apply at runtime to menus, toolbar, footer, dialogs, and titlebar tooltips without a restart.
-
-            ### What's new in Polo
-
-            - File-based logging, matching Marco's logger — daily log files under `log/YYYYMM/YYMMDD.log`.
-            - CSS theming rewritten as a programmatic Rust generator aligned with Marco's palette, keeping light and dark mode colors consistent across both apps.
-
-            ### Changelogs
-            - [Marco ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/marco.md)
-            - [Polo ${{ steps.version.outputs.version }}](https://github.com/Ranrar/Marco/blob/v${{ steps.version.outputs.version }}/changelog/polo.md)
-            - [marco-core changelog](https://github.com/Ranrar/marco-core/blob/main/CHANGELOG.md)
-
-            ### Downloads
-            - **Linux**: `markdown-composer-and-viewer_*_linux_amd64.deb`
-            - **Windows**: `markdown-composer-and-viewer_*_windows_amd64.zip`
-
-            If something feels off, [open an issue](https://github.com/Ranrar/Marco/issues/new) — feedback is always welcome.
-
-            Commit: ${{ github.sha }}
-            Built: ${{ github.run_id }}
+            ---
+            Commit `${{ github.sha }}` · build `${{ github.run_id }}`

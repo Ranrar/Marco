@@ -9,9 +9,9 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
-## [0.25.0] - 2026-08-16
+## [0.25.0] - 2026-08-18
 
-_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-16._
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-18._
 
 **Uses:** Core 1.3.1
 
@@ -39,6 +39,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 
 
 ### Added
+- **Windows installer.** The new `_setup.exe` installs Polo along with Marco, adds a Start Menu entry for each, offers optional desktop shortcuts, and registers an uninstaller. It installs per user by default and needs no administrator rights. The portable zip still ships too, unchanged. _(2026-08-18)_
 - File tree side panel: browse the directory containing the open document, expand folders inline, and click any Markdown file to open it. Includes an incremental search field that filters the tree as you type. _(2026-07-30)_
 - Sidebar coordinator so the Table of Contents and the new file tree behave as one sidebar: opening either closes the other, and each toggle works independently, so the two panels can no longer fight over the same space. _(2026-07-30)_
 
@@ -51,6 +52,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 - Updated to `marco-core` 1.3.0. _(2026-07-18)_
 
 ### Fixed
+- **Windows: an installed copy no longer keeps its settings inside the install directory.** Shared with Marco: a per-user install lives somewhere writable by the installing user, which the portable-mode check mistook for a portable copy, so Polo's settings and recent files were written into the install folder and removed on uninstall. An installed copy is now recognised as such and stores its settings in `%APPDATA%\marco`, the directory both apps share on Windows. _(2026-08-18)_
 - **Open in Marco** looked for an executable named `marco` next to Polo and then on `PATH`. Neither exists once installed under the new Linux names, so the button would have failed on a packaged install. It now tries the installed name and the development name, alongside the binary first and then on `PATH`. _(2026-08-16)_
 
 ## [0.24.1] - 2026-07-08

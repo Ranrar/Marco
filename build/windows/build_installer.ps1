@@ -1,0 +1,555 @@
+# Windows Inno Setup Installer Build Script
+# Creates a setup.exe for Marco and Polo with Inno Setup.
+#
+# Self-contained: builds the binaries and stages assets/runtime DLLs itself
+# (mirroring what build_portable.ps1 does for the portable zip), but does
+# NOT call build_portable.ps1 and does NOT produce a zip -- the portable
+# package is a separate artifact built by its own script.
+
+param(
+    [switch]$Release = $true,
+    [switch]$SkipBuild,
+    [string]$Msys2Root = "C:\\msys64",
+    [string]$IsccPath = "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe",
+    [switch]$KeepStaging,
+    [Alias('h')]
+    [switch]$Help
+)
+
+$ErrorActionPreference = 'Stop'
+
+# This script is intended to run on Windows.
+# Running it via `pwsh` on Linux will attempt a Linux→Windows cross-compilation,
+# which requires a full Windows GTK/GLib sysroot + cross pkg-config setup.
+$runningOnWindows = $false
+if (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) {
+    # PowerShell 6+ defines $IsWindows/$IsLinux/$IsMacOS automatic variables.
+    $runningOnWindows = [bool]$IsWindows
+} else {
+    # Windows PowerShell 5.1 does not define $IsWindows and only runs on Windows.
+    # Use a conservative fallback to avoid false failures.
+    $runningOnWindows = ($env:OS -eq 'Windows_NT') -or ($PSVersionTable.PSEdition -eq 'Desktop')
+}
+
+if (-not $runningOnWindows) {
+    Write-Error "This script must be run on Windows. You appear to be running PowerShell on a non-Windows OS, which is not supported for building the Windows GTK binaries. Use a Windows machine/VM or the GitHub Actions windows-latest release workflow."
+    exit 1
+}
+
+if ($Help) {
+    Write-Host @"
+Marco Windows Inno Setup Installer Build Script
+
+Creates a setup.exe installer for Marco and Polo. Builds the binaries and
+stages assets/runtime DLLs itself (same staging build_portable.ps1 does for
+the portable zip), then compiles build\windows\installer.iss with Inno
+Setup against that staged tree. Does not touch build_portable.ps1 and does
+not produce a zip -- that is a separate artifact built by its own script.
+
+USAGE:
+    .\build\windows\build_installer.ps1 [OPTIONS]
+
+OPTIONS:
+    -Release     Use release build (default: true)
+    -SkipBuild   Skip building binaries (use existing ones in target\windows\...)
+    -Msys2Root   Path to MSYS2 install (default: C:\msys64)
+    -IsccPath    Path to Inno Setup's ISCC.exe
+                 (default: C:\Program Files (x86)\Inno Setup 6\ISCC.exe)
+    -KeepStaging Don't delete the staging directory afterward
+                 (build\windows\temp\<name>\) -- useful for inspecting
+                 what actually went into the installer.
+    -Help, -h    Show this help message
+
+EXAMPLES:
+    # Build binaries and create the installer (default)
+    .\build\windows\build_installer.ps1
+
+    # Reuse already-built binaries (e.g. from a prior build_portable.ps1 run)
+    .\build\windows\build_installer.ps1 -SkipBuild
+
+OUTPUT:
+    build\installer\markdown-composer-and-viewer_<version>_windows_amd64_setup.exe
+
+NOTE: config\ and data\ are intentionally excluded from the installer
+      (unlike the portable zip) -- see build\windows\installer.iss and
+      .dev\new_fun\inno.md for why.
+"@
+    exit 0
+}
+
+Write-Host "=====================================" -ForegroundColor Cyan
+Write-Host "Marco Inno Setup Installer Build" -ForegroundColor Cyan
+Write-Host "=====================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Resolve project root from script location so it works from CI and manual runs
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Resolve-Path (Join-Path $scriptDir "..\..")
+
+if (-not (Test-Path (Join-Path $projectRoot "Cargo.toml"))) {
+    Write-Error "ERROR: Could not locate project root (Cargo.toml) from script path: $scriptDir"
+    exit 1
+}
+
+Set-Location $projectRoot
+
+# Get version from version.json
+$versionFile = Join-Path $projectRoot 'build\version.json'
+if (Test-Path $versionFile) {
+    $json = Get-Content $versionFile -Raw | ConvertFrom-Json
+    $version = $json.windows.marco
+    Write-Host "Version: $version" -ForegroundColor Cyan
+} else {
+    $version = "0.0.0"
+    Write-Warning "Could not find build/version.json; using version: $version"
+}
+
+# Setup paths
+$buildType = if ($Release) { "release" } else { "debug" }
+$targetDir = Join-Path $projectRoot "target\windows\x86_64-pc-windows-gnu\$buildType"
+$marcoExe = Join-Path $targetDir "marco.exe"
+$poloExe = Join-Path $targetDir "polo.exe"
+
+Write-Host "Build configuration:" -ForegroundColor Cyan
+Write-Host "  Build type: $buildType" -ForegroundColor Gray
+Write-Host "  Target dir: $targetDir" -ForegroundColor Gray
+Write-Host ""
+
+function Assert-Msys2Ucrt64 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    if (-not (Test-Path $Root)) {
+        Write-Host "ERROR: MSYS2 is not installed at: $Root" -ForegroundColor Red
+        Write-Host "Please install MSYS2 from: https://www.msys2.org/" -ForegroundColor Yellow
+        Write-Host "Then (in an MSYS2 UCRT64 shell) run:" -ForegroundColor Yellow
+        Write-Host "  pacman -Syu" -ForegroundColor Yellow
+        Write-Host "  pacman -S --needed mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-gtksourceview5 mingw-w64-ucrt-x86_64-librsvg mingw-w64-ucrt-x86_64-cairo mingw-w64-ucrt-x86_64-gdk-pixbuf2 mingw-w64-ucrt-x86_64-pkg-config mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-binutils" -ForegroundColor Yellow
+        throw "MSYS2 not found"
+    }
+
+    $pkgConfigExe = Join-Path $Root "ucrt64\\bin\\pkg-config.exe"
+    $pkgConfExe = Join-Path $Root "ucrt64\\bin\\pkgconf.exe"
+    $usrPkgConfigExe = Join-Path $Root "usr\\bin\\pkg-config.exe"
+
+    if (-not (Test-Path $pkgConfigExe) -and -not (Test-Path $pkgConfExe) -and -not (Test-Path $usrPkgConfigExe)) {
+        Write-Host "ERROR: MSYS2 pkg-config (or pkgconf) not found under: $Root" -ForegroundColor Red
+        Write-Host "Tried:" -ForegroundColor Yellow
+        Write-Host "  $pkgConfigExe" -ForegroundColor Yellow
+        Write-Host "  $pkgConfExe" -ForegroundColor Yellow
+        Write-Host "  $usrPkgConfigExe" -ForegroundColor Yellow
+        Write-Host "Install the required MSYS2 packages (see above) and re-run." -ForegroundColor Yellow
+        throw "pkg-config missing"
+    }
+}
+
+function Assert-InnoSetup {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path $Path)) {
+        Write-Host "ERROR: Inno Setup compiler (ISCC.exe) not found at: $Path" -ForegroundColor Red
+        Write-Host "Install Inno Setup 6 from: https://jrsoftware.org/isdl.php" -ForegroundColor Yellow
+        Write-Host "Or pass its location explicitly: -IsccPath ""C:\path\to\ISCC.exe""" -ForegroundColor Yellow
+        throw "Inno Setup not found"
+    }
+}
+
+function Copy-Msys2GtkRuntime {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string[]]$EntryBinaries
+    )
+
+    $ucrtBin = Join-Path $Root "ucrt64\\bin"
+    $usrBin = Join-Path $Root "usr\\bin"
+
+    $objdumpExe = Join-Path $ucrtBin "objdump.exe"
+    if (-not (Test-Path $objdumpExe)) {
+        throw "MSYS2 binutils not found (expected $objdumpExe). Install mingw-w64-ucrt-x86_64-binutils."
+    }
+
+    $ignoreDlls = @(
+        # Windows system DLLs
+        "KERNEL32.DLL", "USER32.DLL", "GDI32.DLL", "ADVAPI32.DLL", "SHELL32.DLL", "OLE32.DLL",
+        "OLEAUT32.DLL", "COMDLG32.DLL", "COMCTL32.DLL", "WS2_32.DLL", "IPHLPAPI.DLL",
+        "CRYPT32.DLL", "SETUPAPI.DLL", "SHLWAPI.DLL", "VERSION.DLL", "WINMM.DLL",
+        "IMM32.DLL", "UXTHEME.DLL", "DWMAPI.DLL", "UCRTBASE.DLL", "MSVCRT.DLL",
+        "VCRUNTIME140.DLL", "VCRUNTIME140_1.DLL", "MSVCP140.DLL",
+        "D3D11.DLL", "DXGI.DLL", "DWRITE.DLL", "D2D1.DLL", "WINHTTP.DLL", "BCRYPT.DLL",
+        "NTDLL.DLL"
+    ) | ForEach-Object { $_.ToUpperInvariant() }
+
+    function Get-DllImports {
+        param([Parameter(Mandatory = $true)][string]$File)
+
+        $out = & $objdumpExe -p $File 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "objdump failed for: $File"
+        }
+
+        $dlls = @()
+        foreach ($line in $out) {
+            if ($line -match 'DLL Name:\s*(.+)$') {
+                $name = $Matches[1].Trim()
+                if ($name) {
+                    $dlls += $name
+                }
+            }
+        }
+        return $dlls | Sort-Object -Unique
+    }
+
+    function Resolve-Dll {
+        param([Parameter(Mandatory = $true)][string]$DllName)
+
+        $candidate1 = Join-Path $ucrtBin $DllName
+        if (Test-Path $candidate1) { return $candidate1 }
+
+        $candidate2 = Join-Path $usrBin $DllName
+        if (Test-Path $candidate2) { return $candidate2 }
+
+        return $null
+    }
+
+    $queue = [System.Collections.Generic.Queue[string]]::new()
+    $visited = [System.Collections.Generic.HashSet[string]]::new()
+    $copySet = [System.Collections.Generic.Dictionary[string, string]]::new()
+
+    foreach ($bin in $EntryBinaries) {
+        if ($bin -and (Test-Path $bin)) {
+            $queue.Enqueue($bin)
+        }
+    }
+
+    # Also seed the scan with GDK Pixbuf loader plugins so their transitive
+    # dependencies (e.g. librsvg-2-2.dll required by libpixbufloader-svg.dll)
+    # are discovered and bundled. Without this, Windows falls back to any
+    # librsvg on PATH (e.g. from Inkscape), which is a different ABI and causes
+    # "Entry Point Not Found" errors at startup.
+    $pixbufLoaderScanDir = Join-Path $Root "ucrt64\lib\gdk-pixbuf-2.0\2.10.0\loaders"
+    if (Test-Path $pixbufLoaderScanDir) {
+        Get-ChildItem -Path $pixbufLoaderScanDir -Filter "*.dll" | ForEach-Object {
+            $queue.Enqueue($_.FullName)
+        }
+    }
+
+    while ($queue.Count -gt 0) {
+        $current = $queue.Dequeue()
+        if (-not $visited.Add($current)) {
+            continue
+        }
+
+        $imports = Get-DllImports -File $current
+        foreach ($dll in $imports) {
+            $upper = $dll.ToUpperInvariant()
+            if ($ignoreDlls -contains $upper) {
+                continue
+            }
+
+            $resolved = Resolve-Dll -DllName $dll
+            if (-not $resolved) {
+                continue
+            }
+
+            if (-not $copySet.ContainsKey($upper)) {
+                $copySet[$upper] = $resolved
+                $queue.Enqueue($resolved)
+            }
+        }
+    }
+
+    if ($copySet.Count -eq 0) {
+        Write-Warning "No MSYS2 runtime DLLs were discovered to copy. The binaries may still rely on MSYS2 being on PATH."
+        return
+    }
+
+    Write-Host "  Copying MSYS2 runtime DLLs..." -ForegroundColor Gray
+    foreach ($src in ($copySet.Values | Sort-Object -Unique)) {
+        $dest = Join-Path $StagingRoot ([System.IO.Path]::GetFileName($src))
+        Copy-Item -Path $src -Destination $dest -Force
+    }
+    Write-Host "    + Runtime DLLs: $($copySet.Count)" -ForegroundColor Green
+
+    # GLib schemas (required for many GTK/GSettings lookups)
+    $schemaSrcDir = Join-Path $Root "ucrt64\\share\\glib-2.0\\schemas"
+    $schemaFile = Join-Path $schemaSrcDir "gschemas.compiled"
+    if (Test-Path $schemaFile) {
+        $schemaDestDir = Join-Path $StagingRoot "share\\glib-2.0\\schemas"
+        New-Item -ItemType Directory -Path $schemaDestDir -Force | Out-Null
+        Copy-Item -Path $schemaFile -Destination (Join-Path $schemaDestDir "gschemas.compiled") -Force
+        Write-Host "    + GLib schemas (gschemas.compiled)" -ForegroundColor Green
+    } else {
+        Write-Warning "GLib schemas not found at: $schemaFile"
+    }
+
+    # GDK Pixbuf loaders (needed for images/SVGs depending on usage)
+    $pixbufLoaderSrcDir = Join-Path $Root "ucrt64\\lib\\gdk-pixbuf-2.0\\2.10.0\\loaders"
+    $pixbufCacheSrc = Join-Path $Root "ucrt64\\lib\\gdk-pixbuf-2.0\\2.10.0\\loaders.cache"
+    if (Test-Path $pixbufLoaderSrcDir) {
+        $pixbufLoaderDestDir = Join-Path $StagingRoot "lib\\gdk-pixbuf-2.0\\2.10.0\\loaders"
+        New-Item -ItemType Directory -Path $pixbufLoaderDestDir -Force | Out-Null
+        Copy-Item -Path (Join-Path $pixbufLoaderSrcDir "*.dll") -Destination $pixbufLoaderDestDir -Force -ErrorAction SilentlyContinue
+        if (Test-Path $pixbufCacheSrc) {
+            $pixbufCacheDestDir = Join-Path $StagingRoot "lib\\gdk-pixbuf-2.0\\2.10.0"
+            New-Item -ItemType Directory -Path $pixbufCacheDestDir -Force | Out-Null
+            Copy-Item -Path $pixbufCacheSrc -Destination (Join-Path $pixbufCacheDestDir "loaders.cache") -Force
+        }
+        Write-Host "    + GDK Pixbuf loaders" -ForegroundColor Green
+    }
+}
+
+function Copy-WebView2Loader {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$BuildType,
+
+        [Parameter(Mandatory = $true)]
+        [string]$StagingRoot
+    )
+
+    # wry/WebView2 needs WebView2Loader.dll next to the executable.
+    # The webview2-com-sys crate provides redistributable loader DLLs in its build output.
+    $buildOutRoot = Join-Path $ProjectRoot "target\\windows\\x86_64-pc-windows-gnu\\$BuildType\\build"
+    if (-not (Test-Path $buildOutRoot)) {
+        Write-Warning "WebView2 build output directory not found: $buildOutRoot"
+        return
+    }
+
+    $candidates = Get-ChildItem -Path $buildOutRoot -Recurse -Filter "WebView2Loader.dll" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -match '\\out\\x64\\WebView2Loader\.dll$' } |
+        Sort-Object LastWriteTime -Descending
+
+    if (-not $candidates -or $candidates.Count -eq 0) {
+        Write-Warning "WebView2Loader.dll (x64) not found under: $buildOutRoot"
+        return
+    }
+
+    $src = $candidates[0].FullName
+    $dest = Join-Path $StagingRoot "WebView2Loader.dll"
+    Copy-Item -Path $src -Destination $dest -Force
+    Write-Host "    + WebView2Loader.dll" -ForegroundColor Green
+}
+
+function Ensure-GnuTargetInstalled {
+    $installedTargets = & rustup target list --installed
+    if ($installedTargets -notcontains "x86_64-pc-windows-gnu") {
+        Write-Host "Installing Rust target x86_64-pc-windows-gnu..." -ForegroundColor Yellow
+        & rustup target add x86_64-pc-windows-gnu
+    }
+}
+
+function Set-Msys2Ucrt64Env {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Root
+    )
+
+    $env:PKG_CONFIG_ALLOW_CROSS = "1"
+    $env:PKG_CONFIG_PATH = (Join-Path $Root "ucrt64\\lib\\pkgconfig")
+    $env:PATH = "$(Join-Path $Root 'ucrt64\\bin');$(Join-Path $Root 'usr\\bin');$env:PATH"
+
+    # Prefer an explicit PKG_CONFIG to avoid relying on shim names.
+    # In MSYS2 UCRT64, the implementation is often `pkgconf.exe`.
+    $candidatePkgConfig = @(
+        (Join-Path $Root "ucrt64\\bin\\pkg-config.exe"),
+        (Join-Path $Root "ucrt64\\bin\\pkgconf.exe"),
+        (Join-Path $Root "usr\\bin\\pkg-config.exe")
+    ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+    if ($candidatePkgConfig) {
+        $env:PKG_CONFIG = $candidatePkgConfig
+    }
+}
+
+Write-Host "[1/5] Checking Inno Setup..." -ForegroundColor Cyan
+Assert-InnoSetup -Path $IsccPath
+Write-Host "  OK ISCC.exe found: $IsccPath" -ForegroundColor Green
+
+# Build binaries (or skip if requested)
+Write-Host ""
+Write-Host "[2/5] Building binaries..." -ForegroundColor Cyan
+
+if ($SkipBuild) {
+    Write-Host "  Skipping build (using existing binaries)" -ForegroundColor Yellow
+
+    if (-not (Test-Path $marcoExe)) {
+        Write-Error "Marco binary not found at: $marcoExe"
+        Write-Error "Run without -SkipBuild to build binaries"
+        exit 1
+    }
+
+    if (-not (Test-Path $poloExe)) {
+        Write-Warning "Polo binary not found at: $poloExe"
+        Write-Warning "Installer will only include marco.exe"
+    }
+} else {
+    Write-Host "  Building Marco and Polo (release, workspace)..." -ForegroundColor Gray
+
+    # This build uses the GNU target to interop with MSYS2-provided GTK/GLib.
+    Assert-Msys2Ucrt64 -Root $Msys2Root
+    Ensure-GnuTargetInstalled
+    Set-Msys2Ucrt64Env -Root $Msys2Root
+
+    Write-Host "  Using MSYS2 root: $Msys2Root" -ForegroundColor Gray
+    Write-Host "  PKG_CONFIG_PATH: $env:PKG_CONFIG_PATH" -ForegroundColor Gray
+
+    $buildArgs = @('build', '--workspace', '--target', 'x86_64-pc-windows-gnu', '--target-dir', 'target/windows')
+    if ($Release) {
+        $buildArgs += '--release'
+    }
+
+    & cargo @buildArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "Build failed"
+        exit 1
+    }
+
+    if (-not (Test-Path $marcoExe)) {
+        Write-Error "Build succeeded but marco.exe not found at: $marcoExe"
+        exit 1
+    }
+
+    Write-Host "  OK Build complete" -ForegroundColor Green
+}
+
+# Verify binaries
+if (-not (Test-Path $marcoExe)) {
+    Write-Error "Marco binary not found: $marcoExe"
+    exit 1
+}
+
+if (-not (Test-Path $poloExe)) {
+    Write-Warning "Polo binary not found - will be excluded from the installer"
+    $poloExe = $null
+}
+
+# Create staging directory
+$stagingName = "markdown-composer-and-viewer_${version}_windows_amd64"
+$tempRoot = Join-Path $projectRoot "build\windows\temp"
+$stagingRoot = Join-Path $tempRoot $stagingName
+
+if (Test-Path $stagingRoot) {
+    Write-Host "Cleaning existing staging directory..." -ForegroundColor Yellow
+    Remove-Item $stagingRoot -Recurse -Force
+}
+
+Write-Host ""
+Write-Host "[3/5] Staging binaries/assets/runtime..." -ForegroundColor Cyan
+New-Item -ItemType Directory -Path $stagingRoot -Force | Out-Null
+
+# Copy binaries
+Write-Host "  Copying binaries..." -ForegroundColor Gray
+Copy-Item -Path $marcoExe -Destination $stagingRoot -Force
+Write-Host "    + marco.exe" -ForegroundColor Green
+
+if ($poloExe -and (Test-Path $poloExe)) {
+    Copy-Item -Path $poloExe -Destination $stagingRoot -Force
+    Write-Host "    + polo.exe" -ForegroundColor Green
+}
+
+# Copy assets directory
+Write-Host "  Copying assets..." -ForegroundColor Gray
+$assetsSource = Join-Path $projectRoot "marco-shared\src\assets"
+if (-not (Test-Path $assetsSource)) {
+    Write-Error "Assets directory not found at: $assetsSource"
+    exit 1
+}
+
+$assetsDest = Join-Path $stagingRoot "assets"
+Copy-Item -Path $assetsSource -Destination $stagingRoot -Recurse -Force
+
+# Remove settings_org.ron from assets (users should have clean config)
+$settingsOrg = Join-Path $assetsDest "settings_org.ron"
+if (Test-Path $settingsOrg) {
+    Remove-Item $settingsOrg -Force
+}
+
+Write-Host "    + assets/ (icons, themes, languages)" -ForegroundColor Green
+
+# Bundle WebView2Loader.dll (required by wry/WebView2 on Windows)
+Write-Host "  Bundling WebView2 loader..." -ForegroundColor Gray
+Copy-WebView2Loader -ProjectRoot $projectRoot -BuildType $buildType -StagingRoot $stagingRoot
+
+# Bundle MSYS2 GTK runtime so the installer runs on machines without MSYS2.
+Write-Host "  Bundling GTK/GLib runtime (MSYS2 UCRT64)..." -ForegroundColor Gray
+try {
+    Assert-Msys2Ucrt64 -Root $Msys2Root
+    Copy-Msys2GtkRuntime -Root $Msys2Root -StagingRoot $stagingRoot -EntryBinaries @(
+        (Join-Path $stagingRoot "marco.exe"),
+        (Join-Path $stagingRoot "polo.exe")
+    )
+} catch {
+    Write-Warning "Could not bundle MSYS2 runtime: $($_.Exception.Message)"
+    Write-Warning "The installed app may require MSYS2 UCRT64 bin on PATH (e.g. C:\\msys64\\ucrt64\\bin)."
+}
+
+# NOTE: intentionally NOT creating config/, data/, README.txt or MANIFEST.txt
+# here -- those are portable-package-only artifacts (see build_portable.ps1).
+# A writable <exe_dir>\config would make detect_portable_mode() in
+# marco-shared/src/paths/platform/windows.rs treat an installed copy as
+# portable. See .dev/new_fun/inno.md for the full writeup.
+
+Write-Host "  OK Staging tree ready: $stagingRoot" -ForegroundColor Green
+
+# Compile the installer.
+Write-Host ""
+Write-Host "[4/5] Compiling installer with Inno Setup..." -ForegroundColor Cyan
+$issScript = Join-Path $scriptDir "installer.iss"
+$outputDir = Join-Path $projectRoot "build\installer"
+if (-not (Test-Path $outputDir)) {
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+}
+
+& $IsccPath "/DAppVersion=$version" "/DStagingDir=$stagingRoot" "/DOutputDir=$outputDir" $issScript
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "ISCC.exe failed (exit $LASTEXITCODE)"
+    exit 1
+}
+
+$setupExe = Join-Path $outputDir "${stagingName}_setup.exe"
+if (-not (Test-Path $setupExe)) {
+    Write-Error "Expected installer not found: $setupExe"
+    exit 1
+}
+
+# Cleanup staging directory (unless asked to keep it)
+Write-Host ""
+Write-Host "[5/5] Cleaning up..." -ForegroundColor Cyan
+if ($KeepStaging) {
+    Write-Host "  Keeping staging directory (-KeepStaging): $stagingRoot" -ForegroundColor Yellow
+} else {
+    Remove-Item $tempRoot -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "  + Removed staging directory" -ForegroundColor Green
+}
+
+# Summary
+$size = (Get-Item $setupExe).Length / 1MB
+Write-Host ""
+Write-Host "=====================================" -ForegroundColor Green
+Write-Host "Installer Created!" -ForegroundColor Green
+Write-Host "=====================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "Installer: $setupExe" -ForegroundColor Cyan
+Write-Host "Size: $([math]::Round($size, 2)) MB" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "To test:" -ForegroundColor Yellow
+Write-Host "  Run the .exe directly for the interactive wizard, or:" -ForegroundColor Gray
+Write-Host "  `"$setupExe`" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -ForegroundColor Gray
+Write-Host "  (silent install; run without admin rights to test the per-user path)" -ForegroundColor Gray
+Write-Host ""
+
+exit 0

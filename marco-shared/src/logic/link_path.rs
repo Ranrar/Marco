@@ -945,11 +945,22 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn smoke_absolute_target_resolves_without_document_dir() {
         let reference = LinkReference::parse("/home/kim/Pictures/test.png", None);
         assert_eq!(
             reference.resolved_path,
             Some(p("/home/kim/Pictures/test.png"))
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_absolute_target_resolves_without_document_dir() {
+        let reference = LinkReference::parse(r"C:\Users\Kim\Pictures\test.png", None);
+        assert_eq!(
+            reference.resolved_path,
+            Some(p(r"C:\Users\Kim\Pictures\test.png"))
         );
     }
 
@@ -1100,6 +1111,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn smoke_rebase_rewrites_links_images_and_definitions_together() {
         let md = "\
 ![i](/home/kim/Pictures/a.png)
@@ -1108,6 +1120,27 @@ mod tests {
 [remote](https://example.com/x)
 ";
         let edits = plan_path_rebase(md, None, Path::new("/home/kim/Documents/doc.md"));
+        assert_eq!(
+            apply_edits(md, &edits),
+            "\
+![i](../Pictures/a.png)
+[notes](./notes.md)
+[ref]: ../Pictures/b.png \"Cap\"
+[remote](https://example.com/x)
+"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_rewrites_links_images_and_definitions_together() {
+        let md = "\
+![i](C:/Users/Kim/Pictures/a.png)
+[notes](C:/Users/Kim/Documents/notes.md)
+[ref]: C:/Users/Kim/Pictures/b.png \"Cap\"
+[remote](https://example.com/x)
+";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\Users\Kim\Documents\doc.md"));
         assert_eq!(
             apply_edits(md, &edits),
             "\
@@ -1138,9 +1171,18 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn smoke_rebase_converts_absolute_path_on_first_save() {
         let md = "![test](/home/kim/Pictures/test.png)\n";
         let edits = plan_path_rebase(md, None, Path::new("/home/kim/Documents/test.md"));
+        assert_eq!(apply_edits(md, &edits), "![test](../Pictures/test.png)\n");
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_converts_absolute_path_on_first_save() {
+        let md = "![test](C:/Users/Kim/Pictures/test.png)\n";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\Users\Kim\Documents\test.md"));
         assert_eq!(apply_edits(md, &edits), "![test](../Pictures/test.png)\n");
     }
 
@@ -1166,6 +1208,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn smoke_rebase_keeps_reference_to_a_deleted_image() {
         let md = "![gone](/home/kim/Pictures/deleted.png)\n";
         let edits = plan_path_rebase(md, None, Path::new("/home/kim/test.md"));
@@ -1173,9 +1216,29 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_keeps_reference_to_a_deleted_image() {
+        let md = "![gone](C:/Users/Kim/Pictures/deleted.png)\n";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\Users\Kim\test.md"));
+        assert_eq!(apply_edits(md, &edits), "![gone](./Pictures/deleted.png)\n");
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn smoke_rebase_preserves_the_fragment() {
         let md = "![t](/docs/Images/test.png#something)\n";
         let edits = plan_path_rebase(md, None, Path::new("/docs/test.md"));
+        assert_eq!(
+            apply_edits(md, &edits),
+            "![t](./Images/test.png#something)\n"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_preserves_the_fragment() {
+        let md = "![t](C:/docs/Images/test.png#something)\n";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\docs\test.md"));
         assert_eq!(
             apply_edits(md, &edits),
             "![t](./Images/test.png#something)\n"
@@ -1194,6 +1257,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn smoke_rebase_rewrites_multiple_images_in_order() {
         let md = "![a](/x/1.png)\n\n![b](/x/y/2.png)\n";
         let edits = plan_path_rebase(md, None, Path::new("/x/doc.md"));
@@ -1206,9 +1270,34 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_rewrites_multiple_images_in_order() {
+        let md = "![a](C:/x/1.png)\n\n![b](C:/x/y/2.png)\n";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\x\doc.md"));
+        assert_eq!(edits.len(), 2);
+        assert!(edits[0].start < edits[1].start);
+        assert_eq!(
+            apply_edits(md, &edits),
+            "![a](./1.png)\n\n![b](./y/2.png)\n"
+        );
+    }
+
+    #[test]
+    #[cfg(unix)]
     fn smoke_rebase_replaces_the_whole_angle_bracketed_destination() {
         let md = "![t](</home/kim/My Pictures/a.png> \"title\")\n";
         let edits = plan_path_rebase(md, None, Path::new("/home/kim/Documents/t.md"));
+        assert_eq!(
+            apply_edits(md, &edits),
+            "![t](../My%20Pictures/a.png \"title\")\n"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_replaces_the_whole_angle_bracketed_destination() {
+        let md = "![t](<C:/Users/Kim/My Pictures/a.png> \"title\")\n";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\Users\Kim\Documents\t.md"));
         assert_eq!(
             apply_edits(md, &edits),
             "![t](../My%20Pictures/a.png \"title\")\n"
@@ -1225,12 +1314,24 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn smoke_rebase_skips_images_inside_a_fenced_block() {
         let md = "```\n![x](/home/kim/a.png)\n```\n![y](/home/kim/b.png)\n";
         let edits = plan_path_rebase(md, None, Path::new("/home/kim/t.md"));
         assert_eq!(
             apply_edits(md, &edits),
             "```\n![x](/home/kim/a.png)\n```\n![y](./b.png)\n"
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn smoke_windows_rebase_skips_images_inside_a_fenced_block() {
+        let md = "```\n![x](C:/Users/Kim/a.png)\n```\n![y](C:/Users/Kim/b.png)\n";
+        let edits = plan_path_rebase(md, None, Path::new(r"C:\Users\Kim\t.md"));
+        assert_eq!(
+            apply_edits(md, &edits),
+            "```\n![x](C:/Users/Kim/a.png)\n```\n![y](./b.png)\n"
         );
     }
 
