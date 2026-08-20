@@ -188,7 +188,7 @@ pub const SCROLL_RESTORE_JS: &str = r#"<script>
 /// hit-test signal (Linux uses `webkit6::WebView::connect_mouse_target_changed`).
 /// Posts `marco_hover:<url>` when the cursor enters an `<a>` element with an
 /// href, and `marco_hover:` (empty payload) when it leaves.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub const HOVER_REPORT_JS: &str = r#"<script>
 (function(){
     var current = null;
@@ -234,7 +234,7 @@ pub const HOVER_REPORT_JS: &str = r#"<script>
 /// toolbar would normally scale together with the content. We counter-scale
 /// it via `transform: scale(1 / zoom)` from `window.__marcoApplyZoom` so the
 /// buttons remain a constant visual size at any zoom level.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub const WIN_ZOOM_BAR_HTML: &str = r#"<style>
 #marco-win-zoom{position:fixed;right:14px;bottom:14px;z-index:2147483647;
     display:flex;gap:4px;padding:4px 6px;border-radius:8px;

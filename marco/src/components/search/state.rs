@@ -11,7 +11,7 @@ use std::rc::Rc;
 #[cfg(target_os = "linux")]
 use webkit6::WebView;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 /// Search options for controlling search behavior
@@ -48,8 +48,8 @@ thread_local! {
     pub static CURRENT_SOURCE_VIEW: RefCell<Option<Rc<View>>> = const { RefCell::new(None) };
     #[cfg(target_os = "linux")]
     pub static CURRENT_WEBVIEW: RefCell<Option<Rc<RefCell<WebView>>>> = const { RefCell::new(None) };
-        #[cfg(target_os = "windows")]
-        pub static CURRENT_PLATFORM_WEBVIEW: RefCell<Option<PlatformWebView>> = const { RefCell::new(None) };
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    pub static CURRENT_PLATFORM_WEBVIEW: RefCell<Option<PlatformWebView>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     pub static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_ENTRY: RefCell<Option<Entry>> = const { RefCell::new(None) };
@@ -83,8 +83,8 @@ pub fn clear_search_highlighting() {
         *pos.borrow_mut() = None;
     });
 
-    // Windows: clear find highlights in the WebView preview.
-    #[cfg(target_os = "windows")]
+    // Windows/macOS: clear find highlights in the WebView preview.
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
         if let Some(wv) = wv_ref.borrow().as_ref() {
             crate::components::viewer::wry_find::clear(wv);

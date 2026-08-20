@@ -1,0 +1,179 @@
+/* Solarized - Precision colour scheme
+ * Based on Ethan Schoonover's official Solarized palette (MIT licensed).
+ * Accent hues (blue/cyan) stay constant between light and dark mode by design —
+ * only the base background/foreground pair swaps, per the original spec.
+ * Token-only file: colours, font, and layout variables.
+ * All structural CSS lives in the marco-core crate (external repo): src/render/base_css.rs
+ */
+
+:root {
+  /* ── Theme metadata ── */
+  --theme-name: 'Solarized';
+  --theme-author: 'Ethan Schoonover';
+  --theme-license: 'MIT';
+  --theme-version: '1.0.0beta2';
+  --theme-description: 'Precision colour scheme, ported from the official Solarized palette (altercation/solarized)';
+
+  /* ── Typography ── */
+  --body-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --code-font: 'Menlo', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace, 'Noto Sans Arabic', 'Noto Sans Hebrew', 'Noto Sans', Arial, sans-serif;
+  --body-font-size: 16px;
+  --body-line-height: 1.6;
+  --body-max-width: 100%;
+  --body-padding: 2rem;
+
+  /* ── Text colours (light defaults) ── */
+  --text-color: #657b83;
+  --text-secondary: #93a1a1;
+  --text-muted: #9fb0ac;
+  --heading-color: #268bd2;
+  --heading-gradient-end: #2aa198;
+  --strong-color: #586e75;
+  --link-color: #268bd2;
+  --link-hover: #2aa198;
+
+  /* ── Backgrounds ── */
+  --bg-color: #fdf6e3;
+  --bg-secondary: #eee8d5;
+  --bg-code: #eee8d5;
+  --bg-pre: #eee8d5;
+
+  /* ── Borders ── */
+  --border-color: #e4dfc8;
+  --border-light: #eee8d5;
+  --border-strong: #93a1a1;
+
+  /* ── Components ── */
+  --blockquote-bg: #eee8d5;
+  --blockquote-border: #2aa198;
+  --blockquote-text: #3a484d;
+  --table-border: #e4dfc8;
+  --table-header-bg: #073642;
+  --table-header-color: #fdf6e3;
+  --table-stripe-bg: #f5efdc;
+  --mark-bg: #f3e4b4;
+  --mark-color: #073642;
+  --admonition-bg: #eee8d5;
+  --admonition-border: #e4dfc8;
+  --note-bg: #e3eef2;
+  --tip-bg: #e5f0e3;
+  --important-bg: #ede6f2;
+  --warning-bg: #f5ead0;
+  --caution-bg: #f5e0da;
+
+  /* ── Paged view paper ── */
+  --pagedjs-page-bg: #fdf6e3;
+  --pagedjs-page-color: #657b83;
+
+  /* ── TOC ── */
+  --toc-header-color: #268bd2;
+  --toc-header-border: #e4dfc8;
+  --toc-link-color: #586e75;
+  --toc-link-hover-bg: #eee8d5;
+  --toc-link-hover-color: #268bd2;
+  --toc-link-active-bg: #e4dfc8;
+  --toc-link-active-color: #2aa198;
+  --toc-bg: #eee8d5;
+  --toc-border: #e4dfc8;
+  --toc-shadow: rgba(7, 54, 66, 0.12);
+
+  /* ── Sliders ── */
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-light {
+  --text-color: #657b83;
+  --text-secondary: #93a1a1;
+  --text-muted: #9fb0ac;
+  --heading-color: #268bd2;
+  --heading-gradient-end: #2aa198;
+  --strong-color: #586e75;
+  --link-color: #268bd2;
+  --link-hover: #2aa198;
+  --bg-color: #fdf6e3;
+  --bg-secondary: #eee8d5;
+  --bg-code: #eee8d5;
+  --bg-pre: #eee8d5;
+  --border-color: #e4dfc8;
+  --border-light: #eee8d5;
+  --border-strong: #93a1a1;
+  --blockquote-bg: #eee8d5;
+  --blockquote-border: #2aa198;
+  --blockquote-text: #3a484d;
+  --table-border: #e4dfc8;
+  --table-header-bg: #073642;
+  --table-header-color: #fdf6e3;
+  --table-stripe-bg: #f5efdc;
+  --mark-bg: #f3e4b4;
+  --mark-color: #073642;
+  --admonition-bg: #eee8d5;
+  --admonition-border: #e4dfc8;
+  --note-bg: #e3eef2;
+  --tip-bg: #e5f0e3;
+  --important-bg: #ede6f2;
+  --warning-bg: #f5ead0;
+  --caution-bg: #f5e0da;
+  --pagedjs-page-bg: #fdf6e3;
+  --pagedjs-page-color: #657b83;
+  --toc-header-color: #268bd2;
+  --toc-header-border: #e4dfc8;
+  --toc-link-color: #586e75;
+  --toc-link-hover-bg: #eee8d5;
+  --toc-link-hover-color: #268bd2;
+  --toc-link-active-bg: #e4dfc8;
+  --toc-link-active-color: #2aa198;
+  --toc-bg: #eee8d5;
+  --toc-border: #e4dfc8;
+  --toc-shadow: rgba(7, 54, 66, 0.12);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}
+
+.theme-dark {
+  --text-color: #839496;
+  --text-secondary: #93a1a1;
+  --text-muted: #6c8189;
+  --heading-color: #268bd2;
+  --heading-gradient-end: #2aa198;
+  --strong-color: #93a1a1;
+  --link-color: #268bd2;
+  --link-hover: #2aa198;
+  --bg-color: #002b36;
+  --bg-secondary: #073642;
+  --bg-code: #073642;
+  --bg-pre: #073642;
+  --border-color: #0b3b47;
+  --border-light: #073642;
+  --border-strong: #586e75;
+  --blockquote-bg: #073642;
+  --blockquote-border: #2aa198;
+  --blockquote-text: #93a1a1;
+  --table-border: #0b3b47;
+  --table-header-bg: #073642;
+  --table-header-color: #eee8d5;
+  --table-stripe-bg: #04303c;
+  --mark-bg: #b58900;
+  --mark-color: #002b36;
+  --admonition-bg: #073642;
+  --admonition-border: #0b3b47;
+  --note-bg: #082f3d;
+  --tip-bg: #0a3327;
+  --important-bg: #1e1a3d;
+  --warning-bg: #3a2e06;
+  --caution-bg: #3a1108;
+  --pagedjs-page-bg: #002b36;
+  --pagedjs-page-color: #839496;
+  --toc-header-color: #268bd2;
+  --toc-header-border: #0b3b47;
+  --toc-link-color: #93a1a1;
+  --toc-link-hover-bg: #073642;
+  --toc-link-hover-color: #268bd2;
+  --toc-link-active-bg: #0b3b47;
+  --toc-link-active-color: #2aa198;
+  --toc-bg: #002b36;
+  --toc-border: #0b3b47;
+  --toc-shadow: rgba(0, 0, 0, 0.4);
+  --marco-sliders-bg: var(--bg-secondary);
+  --marco-sliders-border: var(--border-color);
+}

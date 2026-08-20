@@ -225,7 +225,7 @@ fn reparent_webview_to_main_window(
 }
 
 // Non-Linux stub: try to ensure Stack shows the HTML preview and return false for reparenting
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn reparent_webview_to_main_window(
     _webview_rc_opt: &Option<
         Rc<RefCell<crate::components::viewer::preview_types::PlatformWebView>>,
@@ -263,7 +263,15 @@ fn create_menu_button(
     button.add_css_class("menu-button");
     button.set_has_frame(false);
 
-    // Create popover with the menu model
+    // Create popover with the menu model. On macOS these popovers are never
+    // shown (menus live in the global menu bar), but GtkPopoverMenu installs
+    // a GtkMenuTracker on its model eagerly, and the tracker reacts to every
+    // items-changed — crashing in gtk_widget_reposition_after when the
+    // popover has no parent in the window's widget tree. Bind a private copy
+    // so runtime mutations of the live menu never reach the tracker.
+    #[cfg(target_os = "macos")]
+    let popover = gtk4::PopoverMenu::from_model(Some(&copy_menu_model(menu)));
+    #[cfg(not(target_os = "macos"))]
     let popover = gtk4::PopoverMenu::from_model(Some(menu));
     let popover_base: gtk4::Popover = popover.clone().upcast();
     popover.add_css_class("marco-menu-popover");
@@ -614,6 +622,7 @@ fn create_tools_menu_button(
 }
 
 pub struct MenuBarState {
+    #[cfg(not(target_os = "macos"))]
     pub menu_bar: GtkBox,
     pub recent_menu: gio::Menu,
     pub bookmarks_menu: gio::Menu,
@@ -659,8 +668,11 @@ pub(crate) struct TitlebarWidgets {
     pub layout_btn_view_only: Button,
     pub layout_btn_detach: Button,
     pub layout_btn_restore: Button,
+    #[cfg(not(target_os = "macos"))]
     pub win_minimize_btn: Button,
+    #[cfg(not(target_os = "macos"))]
     pub win_maximize_btn: Button,
+    #[cfg(not(target_os = "macos"))]
     pub win_close_btn: Button,
 }
 
@@ -793,11 +805,14 @@ pub fn update_menu_translations(menu_state: &MenuBarState, translations: &Transl
             .set_tooltip_text(Some(&t.layout_detach_view));
         tb.layout_btn_restore
             .set_tooltip_text(Some(&t.layout_restore_split));
-        tb.win_minimize_btn
-            .set_tooltip_text(Some(&t.window_minimize));
-        tb.win_maximize_btn
-            .set_tooltip_text(Some(&t.window_maximize_restore));
-        tb.win_close_btn.set_tooltip_text(Some(&t.window_close));
+        #[cfg(not(target_os = "macos"))]
+        {
+            tb.win_minimize_btn
+                .set_tooltip_text(Some(&t.window_minimize));
+            tb.win_maximize_btn
+                .set_tooltip_text(Some(&t.window_maximize_restore));
+            tb.win_close_btn.set_tooltip_text(Some(&t.window_close));
+        }
     }
 }
 
@@ -894,6 +909,7 @@ pub fn main_menu_structure(
     menu_box.append(&help_btn);
 
     let menu_state = MenuBarState {
+        #[cfg(not(target_os = "macos"))]
         menu_bar: menu_box,
         recent_menu,
         file_menu,
@@ -927,17 +943,130 @@ pub fn main_menu_structure(
     menu_state
 }
 
+/// Deep-copy a `gio::MenuModel` into a fresh `gio::Menu`.
+///
+/// GTK's macOS menubar (GNSMenu) tracks every model installed via
+/// `set_menubar` and the quartz backend crashes with a NULL deref in
+/// `gtk_menu_section_box_insert_func` when a tracked model is mutated
+/// incrementally. The live models in `MenuBarState` are mutated at runtime
+/// (recent files, bookmarks, tools toggles), so the menubar must be built
+/// from private copies instead of references.
+#[cfg(target_os = "macos")]
+fn copy_menu_model<S: IsA<gio::MenuModel>>(src: &S) -> gio::Menu {
+    let dst = gio::Menu::new();
+    copy_menu_items(src, &dst);
+    dst
+}
+
+#[cfg(target_os = "macos")]
+fn copy_menu_items<S: IsA<gio::MenuModel>>(src: &S, dst: &gio::Menu) {
+    for i in 0..src.n_items() {
+        if let Some(section) = src.item_link(i, "section") {
+            let label = src
+                .item_attribute_value(i, "label", None)
+                .and_then(|v| v.str().map(|s| s.to_owned()));
+            dst.append_section(label.as_deref(), &copy_menu_model(&section));
+            continue;
+        }
+        let item = gio::MenuItem::new(None, None);
+        for attr in ["label", "action", "target", "badge"] {
+            if let Some(value) = src.item_attribute_value(i, attr, None) {
+                item.set_attribute_value(attr, Some(&value));
+            }
+        }
+        if let Some(submenu) = src.item_link(i, "submenu") {
+            item.set_submenu(Some(&copy_menu_model(&submenu)));
+        }
+        dst.append_item(&item);
+    }
+}
+
+/// Build the macOS global menu bar (top-left of the screen).
+///
+/// Every submenu is a deep copy of the live `gio::Menu` models in
+/// `menu_state`; the copies are rebuilt and reinstalled wholesale whenever
+/// the menubar needs to change (focus regain, language switch), because
+/// mutating a menubar-tracked model crashes the quartz backend. The
+/// layout-switcher actions (`win.layout-*`) are registered by
+/// `create_custom_titlebar`.
+#[cfg(target_os = "macos")]
+pub fn build_macos_menubar(menu_state: &MenuBarState, translations: &Translations) -> gio::Menu {
+    let menubar = gio::Menu::new();
+
+    // Application menu (shown with the app name at the far left)
+    let app_menu = gio::Menu::new();
+    app_menu.append(Some(&translations.menu.about), Some("app.about"));
+    app_menu.append(Some(&translations.menu.settings), Some("app.settings"));
+    app_menu.append(Some(&translations.menu.quit), Some("app.quit"));
+    menubar.append_submenu(Some("Marco"), &app_menu);
+
+    // View menu replaces the in-window layout switcher on macOS
+    let view_menu = gio::Menu::new();
+    view_menu.append(
+        Some(&translations.titlebar.layout_editor_only),
+        Some("win.layout-editor-only"),
+    );
+    view_menu.append(
+        Some(&translations.titlebar.layout_view_only),
+        Some("win.layout-view-only"),
+    );
+    view_menu.append(
+        Some(&translations.titlebar.layout_detach_view),
+        Some("win.layout-detach"),
+    );
+    view_menu.append(
+        Some(&translations.titlebar.layout_restore_split),
+        Some("win.layout-dual"),
+    );
+    menubar.append_submenu(Some(&translations.menu.view), &view_menu);
+
+    menubar.append_submenu(
+        Some(&translations.menu.file),
+        &copy_menu_model(&menu_state.file_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.edit),
+        &copy_menu_model(&menu_state.edit_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.inline),
+        &copy_menu_model(&menu_state.inline_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.blocks),
+        &copy_menu_model(&menu_state.blocks_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.modules),
+        &copy_menu_model(&menu_state.modules_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.tools),
+        &copy_menu_model(&menu_state.tools_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.bookmarks),
+        &copy_menu_model(&menu_state.bookmarks_menu),
+    );
+    menubar.append_submenu(
+        Some(&translations.menu.help),
+        &copy_menu_model(&menu_state.help_menu),
+    );
+
+    menubar
+}
+
 use crate::components::viewer::layout_controller::{SplitController, WebViewLocationTracker};
 
 // Platform-specific type aliases so the TitlebarConfig structure can be compiled on all platforms
 #[cfg(target_os = "linux")]
 type PreviewWindowType = crate::components::viewer::webkit6_detached_window::PreviewWindow;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
 
 #[cfg(target_os = "linux")]
 type ReparentGuardType = crate::components::viewer::reparenting::ReparentGuard;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 type ReparentGuardType = ();
 
 /// Configuration for creating the custom titlebar
@@ -978,7 +1107,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
         guard.clone()
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn clone_reparent_guard(guard: &Option<ReparentGuardType>) -> Option<ReparentGuardType> {
         *guard
     }
@@ -987,9 +1116,13 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     let handle = WindowHandle::new();
 
     // Use GTK4 HeaderBar for proper title centering
-    let headerbar = gtk4::HeaderBar::new();
-    headerbar.add_css_class("titlebar");
-    headerbar.set_show_title_buttons(false); // We'll add custom window controls
+    #[cfg(not(target_os = "macos"))]
+    let headerbar = {
+        let headerbar = gtk4::HeaderBar::new();
+        headerbar.add_css_class("titlebar");
+        headerbar.set_show_title_buttons(false); // We'll add custom window controls
+        headerbar
+    };
 
     // App icon (left) - uses dynamic asset directory path
     let icon_path = asset_root.join("icons/icon_64x64_marco.png");
@@ -1000,14 +1133,18 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     icon.set_margin_end(5);
     icon.set_valign(Align::Center);
     icon.set_tooltip_text(Some(&translations.titlebar.app_tooltip));
+    #[cfg(not(target_os = "macos"))]
     headerbar.pack_start(&icon);
 
-    // --- Menu bar (next to icon) ---
+    // --- Menu bar (next to icon; on macOS menus live in the global menu bar) ---
     let menu_state = main_menu_structure(translations, root_popover_state);
-    let menu_bar = menu_state.menu_bar.clone();
-    menu_bar.set_valign(Align::Center);
-    menu_bar.add_css_class("menubar");
-    headerbar.pack_start(&menu_bar);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let menu_bar = menu_state.menu_bar.clone();
+        menu_bar.set_valign(Align::Center);
+        menu_bar.add_css_class("menubar");
+        headerbar.pack_start(&menu_bar);
+    }
 
     // Centered document title label as custom title widget
     let title_label = Label::new(None);
@@ -1016,6 +1153,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     // Start with placeholder
     title_label.set_text(&translations.messages.untitled_document);
     // Set as title widget - HeaderBar will automatically center it
+    #[cfg(not(target_os = "macos"))]
     headerbar.set_title_widget(Some(&title_label));
 
     use gtk4::Image;
@@ -1393,7 +1531,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                             }
                         }
 
-                        #[cfg(target_os = "windows")]
+                        #[cfg(any(target_os = "windows", target_os = "macos"))]
                         {
                             use crate::components::viewer::wry_detached_window::PreviewWindow;
                             let pw = PreviewWindow::new(&window_clone);
@@ -1410,9 +1548,9 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
                                 // On Linux, PlatformWebView is a WebView
                                 pw.attach_webview(&wv);
                             }
-                            #[cfg(target_os = "windows")]
+                            #[cfg(any(target_os = "windows", target_os = "macos"))]
                             {
-                                // On Windows, true WebView reparenting is impossible
+                                // On Windows/macOS, true WebView reparenting is impossible
                                 // (the WebView2 child HWND is bound to its host for
                                 // life — see §14.3 of the parity audit). Before the
                                 // detached window builds its own WebView, ask the
@@ -2040,6 +2178,7 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     }
 
     // Create window control buttons (minimize, maximize/restore, close)
+    #[cfg(not(target_os = "macos"))]
     fn create_window_controls(
         window: &gtk4::ApplicationWindow,
         translations: &Translations,
@@ -2230,29 +2369,74 @@ pub fn create_custom_titlebar(config: TitlebarConfig) -> (WindowHandle, Label, M
     }
 
     // Create window controls (SVG-based) and add them to the headerbar
+    #[cfg(not(target_os = "macos"))]
     let (btn_min, btn_max_toggle, btn_close) = create_window_controls(window, translations);
 
     // Add controls to headerbar from right to left (pack_end order)
-    headerbar.pack_end(&btn_close); // Rightmost
-    headerbar.pack_end(&btn_max_toggle); // Middle
-    headerbar.pack_end(&btn_min); // Left of window controls
-                                  // Then add layout button (it will be to the left of window controls)
-    headerbar.pack_end(&layout_menu_btn); // Left of minimize button
+    #[cfg(not(target_os = "macos"))]
+    {
+        headerbar.pack_end(&btn_close); // Rightmost
+        headerbar.pack_end(&btn_max_toggle); // Middle
+        headerbar.pack_end(&btn_min); // Left of window controls
+                                      // Then add layout button (it will be to the left of window controls)
+        headerbar.pack_end(&layout_menu_btn); // Left of minimize button
+    }
 
     // Stash titlebar widgets so `update_menu_translations` can refresh their
     // translated tooltips when the user changes the UI language at runtime.
-    *menu_state.titlebar_widgets.borrow_mut() = Some(TitlebarWidgets {
-        app_icon: icon.clone(),
-        layout_btn_editor_only: btn1_for_state,
-        layout_btn_view_only: btn2_for_state,
-        layout_btn_detach: btn3_for_state,
-        layout_btn_restore: btn4_for_state,
-        win_minimize_btn: btn_min.clone(),
-        win_maximize_btn: btn_max_toggle.clone(),
-        win_close_btn: btn_close.clone(),
-    });
+    #[cfg(not(target_os = "macos"))]
+    {
+        *menu_state.titlebar_widgets.borrow_mut() = Some(TitlebarWidgets {
+            app_icon: icon.clone(),
+            layout_btn_editor_only: btn1_for_state,
+            layout_btn_view_only: btn2_for_state,
+            layout_btn_detach: btn3_for_state,
+            layout_btn_restore: btn4_for_state,
+            win_minimize_btn: btn_min.clone(),
+            win_maximize_btn: btn_max_toggle.clone(),
+            win_close_btn: btn_close.clone(),
+        });
+    }
 
     // Add the HeaderBar to the WindowHandle
-    handle.set_child(Some(&headerbar));
-    (handle, title_label, menu_state)
+    #[cfg(not(target_os = "macos"))]
+    {
+        handle.set_child(Some(&headerbar));
+        return (handle, title_label, menu_state);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // Native NSWindow title bar (traffic lights + centered document title).
+        // Menus live in the global macOS menu bar (`build_macos_menubar`), so
+        // there is no in-window menu row. The global View menu drives the
+        // existing layout buttons through window-scoped actions.
+        let register_layout_action = |name: &str, btn: &Button| {
+            if window.lookup_action(name).is_none() {
+                let action = gio::SimpleAction::new(name, None);
+                let btn = btn.clone();
+                action.connect_activate(move |_, _| {
+                    btn.emit_by_name::<()>("clicked", &[]);
+                });
+                window.add_action(&action);
+            }
+        };
+        register_layout_action("layout-editor-only", &btn1_for_state);
+        register_layout_action("layout-view-only", &btn2_for_state);
+        register_layout_action("layout-detach", &btn3_for_state);
+        register_layout_action("layout-dual", &btn4_for_state);
+
+        let _ = title_label.bind_property("label", window, "title");
+        window.set_title(Some(title_label.text().as_str()));
+        title_label.set_visible(false);
+
+        *menu_state.titlebar_widgets.borrow_mut() = Some(TitlebarWidgets {
+            app_icon: icon.clone(),
+            layout_btn_editor_only: btn1_for_state,
+            layout_btn_view_only: btn2_for_state,
+            layout_btn_detach: btn3_for_state,
+            layout_btn_restore: btn4_for_state,
+        });
+        (handle, title_label, menu_state)
+    }
 }

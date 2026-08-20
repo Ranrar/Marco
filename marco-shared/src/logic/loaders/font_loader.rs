@@ -56,6 +56,13 @@ impl FontLoader {
             // fetch a deterministic fallback list.
             Ok(Self {})
         }
+
+        #[cfg(target_os = "macos")]
+        {
+            // macOS: same as Windows — no fontconfig dependency, use the
+            // deterministic fallback list built from system monospace fonts.
+            Ok(Self {})
+        }
     }
 
     /// Initialize monospace font cache at startup (fast)
@@ -162,6 +169,30 @@ impl FontLoader {
             },
         ];
 
+        #[cfg(target_os = "macos")]
+        let fallback = vec![
+            FontFamily {
+                name: "SF Mono".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Menlo".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Monaco".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Courier New".to_string(),
+                is_monospace: true,
+            },
+            FontFamily {
+                name: "Monospace".to_string(),
+                is_monospace: true,
+            },
+        ];
+
         fallback
     }
 
@@ -260,6 +291,11 @@ impl FontLoader {
         {
             Ok(Self::fallback_monospace_fonts())
         }
+
+        #[cfg(target_os = "macos")]
+        {
+            Ok(Self::fallback_monospace_fonts())
+        }
     }
 
     /// Check if a font is monospace by its name or properties
@@ -333,6 +369,19 @@ impl Default for FontLoader {
 }
 
 #[cfg(target_os = "windows")]
+impl Default for FontLoader {
+    fn default() -> Self {
+        match Self::new() {
+            Ok(loader) => loader,
+            Err(e) => {
+                error!("Failed to create font loader: {}", e);
+                Self {}
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
 impl Default for FontLoader {
     fn default() -> Self {
         match Self::new() {
@@ -452,6 +501,15 @@ mod tests {
         #[cfg(target_os = "windows")]
         {
             assert!(font_names.contains(&"Consolas"), "Should include Consolas");
+            assert!(
+                font_names.contains(&"Courier New"),
+                "Should include Courier New"
+            );
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            assert!(font_names.contains(&"Menlo"), "Should include Menlo");
             assert!(
                 font_names.contains(&"Courier New"),
                 "Should include Courier New"

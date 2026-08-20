@@ -21,7 +21,7 @@ use webkit6::prelude::WebViewExt;
 #[cfg(target_os = "linux")]
 type PreviewSurface = webkit6::WebView;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 type PreviewSurface = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 static KATEX_CONTEXT: OnceLock<KatexContext> = OnceLock::new();
@@ -52,6 +52,11 @@ fn preview_backend_label() -> &'static str {
 #[cfg(target_os = "windows")]
 fn preview_backend_label() -> &'static str {
     "Preview backend: Windows Wry"
+}
+
+#[cfg(target_os = "macos")]
+fn preview_backend_label() -> &'static str {
+    "Preview backend: macOS Wry"
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -333,7 +338,7 @@ fn load_preview_document(surface: &PreviewSurface, html: String) {
     crate::components::viewer::backend::load_html_when_ready(surface, html, None);
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn load_preview_document(surface: &PreviewSurface, html: String) {
     surface.load_html_with_base(&html, None);
 }
@@ -538,7 +543,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         std::rc::Rc::new(webview)
     };
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let preview_surface: Option<std::rc::Rc<PreviewSurface>> = {
         // `PlatformWebView::new` now accepts any `IsA<gtk4::Window>`, so dialog
         // parents that are plain `Window`s (not `ApplicationWindow`) no longer
@@ -665,7 +670,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         #[cfg(target_os = "linux")]
         let preview_surface = preview_surface.clone();
 
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         let preview_surface = preview_surface.clone();
 
         move || {
@@ -682,7 +687,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
                 #[cfg(target_os = "linux")]
                 load_preview_document(&preview_surface, empty_preview_document(&theme_class));
 
-                #[cfg(target_os = "windows")]
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 if let Some(surface) = &preview_surface {
                     load_preview_document(surface, empty_preview_document(&theme_class));
                 }
@@ -705,7 +710,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
                         #[cfg(target_os = "linux")]
                         load_preview_document(&preview_surface, html);
 
-                        #[cfg(target_os = "windows")]
+                        #[cfg(any(target_os = "windows", target_os = "macos"))]
                         if let Some(surface) = &preview_surface {
                             load_preview_document(surface, html);
                         }
@@ -722,7 +727,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
                         error_preview_document(&theme_class, &err),
                     );
 
-                    #[cfg(target_os = "windows")]
+                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     if let Some(surface) = &preview_surface {
                         load_preview_document(surface, error_preview_document(&theme_class, &err));
                     }
@@ -802,7 +807,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
         let update_status = update_status.clone();
         #[cfg(target_os = "linux")]
         let preview_surface = preview_surface.clone();
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         let preview_surface = preview_surface.clone();
 
         parent_widget.connect_notify_local(Some("css-classes"), move |widget, _| {
@@ -835,7 +840,7 @@ pub fn show_insert_math_dialog(parent: &Window, editor_buffer: &Buffer, editor_v
             let (_, rgba) = preview_background_for_theme(next_theme);
             #[cfg(target_os = "linux")]
             preview_surface.set_background_color(&rgba);
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             if let Some(surface) = &preview_surface {
                 surface.set_background_color_rgba(&rgba);
             }

@@ -43,7 +43,11 @@ const SVG_OPEN_EDITOR: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="
 /// Table-of-contents (stack-2) icon - Tabler Icons `icon-tabler-stack-2`
 const SVG_TOC: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 4l-8 4l8 4l8 -4l-8 -4"/><path d="M4 12l8 4l8 -4"/><path d="M4 16l8 4l8 -4"/></svg>"#;
 
-/// Logical icon size in pixels (will be rendered at 2× for HiDPI)
+/// Logical icon size in pixels (will be rendered at 2× for HiDPI).
+/// macOS uses native ~16 px toolbar icons; other platforms keep 24 px.
+#[cfg(target_os = "macos")]
+const TOOLBAR_ICON_SIZE: f64 = 8.0;
+#[cfg(not(target_os = "macos"))]
 const TOOLBAR_ICON_SIZE: f64 = 12.0;
 
 // ── Public types ──────────────────────────────────────────────────────────

@@ -244,9 +244,9 @@ pub fn immediate_position_update_with_debounced_navigation(direction: i32, delay
                     move || {
                         navigate_to_current_position();
 
-                        // Windows: advance the active preview match in sync with
-                        // the editor navigation direction.
-                        #[cfg(target_os = "windows")]
+                        // Windows/macOS: advance the active preview match in
+                        // sync with the editor navigation direction.
+                        #[cfg(any(target_os = "windows", target_os = "macos"))]
                         {
                             use super::state::CURRENT_PLATFORM_WEBVIEW;
                             CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
@@ -476,8 +476,8 @@ fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
     }
 }
 
-/// Sync HTML preview scroll via JS on Windows (wry/WebView2)
-#[cfg(target_os = "windows")]
+/// Sync HTML preview scroll via JS on Windows/macOS (wry/WebView2 or WKWebView)
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn sync_html_preview_scroll(match_iter: &gtk4::TextIter) {
     use super::state::{CURRENT_BUFFER, CURRENT_PLATFORM_WEBVIEW};
     use crate::components::editor::editor_manager::get_global_scroll_synchronizer;

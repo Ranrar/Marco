@@ -44,19 +44,21 @@ pub mod reparenting;
 #[cfg(target_os = "linux")]
 pub mod webkit6_detached_window; // Separate preview window (Linux: WebKit6) // WebView reparenting utilities (Linux: GTK4/WebKit6)
 
-// Windows: wry-based detached preview and helpers
-#[cfg(target_os = "windows")]
+// Windows & macOS: wry-based detached preview and helpers
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod print_driver_windows;
-#[cfg(target_os = "windows")]
-pub mod wry; // Windows (wry/WebView2) minimal parity helpers
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+pub mod wry; // wry (WebView2 / WKWebView) minimal parity helpers
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub mod wry_detached_window; // Detached preview window using wry
-#[cfg(target_os = "windows")]
-pub mod wry_find; // Windows: JS-based find-in-preview engine (parity for webkit6 FindController)
-#[cfg(target_os = "windows")]
-pub mod wry_platform_webview; // Windows: embedded child WebView // Windows print driver (wry/WebView2)
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+pub mod wry_find; // JS-based find-in-preview engine (parity for webkit6 FindController)
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+pub mod wry_platform_webview; // Embedded child WebView (WebView2 / WKWebView)
 #[cfg(target_os = "windows")]
 pub mod wry_print_to_pdf; // Native WebView2 PrintToPdf (replaces headless Chromium)
+#[cfg(target_os = "macos")]
+pub mod wry_print_to_pdf_macos; // Native WKWebView createPDF (async capture)
 
 pub mod find_backend; // Cross-platform find-in-preview trait (§14.1, Step 6b)
 pub mod preview_types; // View mode enum (cross-platform)
@@ -73,7 +75,7 @@ use std::option::Option;
 // Platform-specific preview window type alias
 #[cfg(target_os = "linux")]
 pub type PreviewWindowType = crate::components::viewer::webkit6_detached_window::PreviewWindow;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
 
 pub fn open_preview_in_separate_window(
@@ -98,7 +100,7 @@ pub fn open_preview_in_separate_window(
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         use crate::components::viewer::wry_detached_window::PreviewWindow;
         let pw = PreviewWindow::new(parent_window);
@@ -109,7 +111,7 @@ pub fn open_preview_in_separate_window(
             // `preview_state::LATEST_PREVIEW_STATE` and the detached
             // window's `set_ready_callback` will restore it post-load.
             webview.request_state_snapshot();
-            // On Windows the detached window creates its own PlatformWebView
+            // The detached window creates its own PlatformWebView
             // internally; the editor's WebView cannot be reparented (§14.3).
             pw.load_preview_content();
         }

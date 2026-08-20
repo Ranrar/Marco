@@ -7,6 +7,8 @@ use std::path::{Path, PathBuf};
 
 #[cfg(target_os = "linux")]
 mod linux;
+#[cfg(target_os = "macos")]
+mod macos;
 #[cfg(target_os = "windows")]
 mod windows;
 
@@ -59,6 +61,11 @@ fn detect_from_platform() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         windows::detect_locale_from_platform()
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        macos::detect_locale_from_platform()
     }
 }
 
@@ -123,6 +130,11 @@ pub(crate) fn asset_root_candidates(exe_parent: &Path) -> Vec<PathBuf> {
     windows::asset_root_candidates(exe_parent)
 }
 
+#[cfg(target_os = "macos")]
+pub(crate) fn asset_root_candidates(exe_parent: &Path) -> Vec<PathBuf> {
+    macos::asset_root_candidates(exe_parent)
+}
+
 /// Return true if `path` looks like a real Marco/Polo asset bundle root.
 ///
 /// This is important because user-data directories may exist even when no bundled
@@ -144,6 +156,11 @@ pub(crate) fn config_dir() -> PathBuf {
     windows::config_dir()
 }
 
+#[cfg(target_os = "macos")]
+pub(crate) fn config_dir() -> PathBuf {
+    macos::config_dir()
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn user_data_dir() -> PathBuf {
     linux::user_data_dir()
@@ -152,6 +169,11 @@ pub(crate) fn user_data_dir() -> PathBuf {
 #[cfg(target_os = "windows")]
 pub(crate) fn user_data_dir() -> PathBuf {
     windows::user_data_dir()
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn user_data_dir() -> PathBuf {
+    macos::user_data_dir()
 }
 
 #[cfg(target_os = "linux")]
@@ -164,6 +186,11 @@ pub(crate) fn detect_portable_mode() -> Option<PathBuf> {
     windows::detect_portable_mode()
 }
 
+#[cfg(target_os = "macos")]
+pub(crate) fn detect_portable_mode() -> Option<PathBuf> {
+    macos::detect_portable_mode()
+}
+
 #[cfg(target_os = "linux")]
 pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> super::InstallLocation {
     linux::detect_install_location_from_asset_root(asset_root)
@@ -172,6 +199,11 @@ pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> supe
 #[cfg(target_os = "windows")]
 pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> super::InstallLocation {
     windows::detect_install_location_from_asset_root(asset_root)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn detect_install_location_from_asset_root(asset_root: &Path) -> super::InstallLocation {
+    macos::detect_install_location_from_asset_root(asset_root)
 }
 
 #[cfg(test)]

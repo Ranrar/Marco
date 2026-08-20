@@ -1,0 +1,95 @@
+[package]
+name = "marco-core"
+version = "1.2.0"
+edition = "2021"
+authors = ["Kim Skov Rasmussen"]
+description = "nom-based Markdown parser, HTML renderer, and intelligence features (highlights, diagnostics, completions) for the Marco editor."
+license = "MIT"
+rust-version = "1.94.1"
+repository = "https://github.com/Ranrar/marco-core"
+homepage = "https://github.com/Ranrar/marco-core"
+documentation = "https://docs.rs/marco-core"
+keywords = ["markdown", "parser", "commonmark", "renderer", "nom"]
+categories = ["parsing", "text-processing"]
+readme = "README.md"
+include = [
+    "src/**/*",
+    "tools/spec/*.json",
+    "tools/spec/README.md",
+    "Cargo.toml",
+    "Cargo.lock",
+    "README.md",
+    "LICENSE",
+]
+
+[features]
+default = [
+    "intelligence-highlights",
+    "intelligence-diagnostics",
+    "intelligence-completions",
+    "intelligence-hover",
+    "render-syntax-highlighting",
+    "render-math",
+    "render-diagrams",
+    "file-logger",
+]
+
+# Intelligence layer features — gate editor analysis code
+intelligence-highlights  = ["render-syntax-highlighting"]
+intelligence-diagnostics = []
+intelligence-completions = []
+intelligence-hover       = []
+
+# Render-time optional dependencies
+render-syntax-highlighting = ["dep:syntect"]
+render-math                = ["dep:katex-rs"]
+render-diagrams            = ["dep:mermaid-rs-renderer"]
+
+# Runtime utilities
+file-logger = []
+
+[dependencies]
+# Core parsing dependencies (nom-based)
+nom = "8.0.0"
+nom_locate = "5.0.0"
+
+# Serialization
+ron = "0.12.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+
+# Utilities
+log = "0.4.29"
+chrono = { version = "0.4.43", features = ["serde"] }
+tempfile = "3.25.0"
+dirs = "6.0.0"
+unicode-normalization = "0.1.25"
+htmlescape = "0.3.1"
+syntect = { version = "5.3.0", optional = true }
+emojis = "0.8.0"
+katex-rs = { version = "0.2.3", optional = true }
+mermaid-rs-renderer = { version = "0.2.1", default-features = false, optional = true }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fontconfig = "0.10.0"
+
+[dev-dependencies]
+serial_test = "3.3.1"
+
+[[test]]
+name = "extension_spec_it"
+path = "tools/tests/extension_spec_it.rs"
+
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+overflow-checks = true
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = "thin"
+codegen-units = 16
+strip = true
+panic = "abort"

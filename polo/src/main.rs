@@ -252,6 +252,7 @@ fn main() -> glib::ExitCode {
 fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::Rc<PoloPaths>) {
     use marco_shared::paths::PathProvider;
 
+
     // Initialize settings manager early
     let settings_path = polo_paths.settings_file();
 
@@ -276,6 +277,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // Load settings
     let settings = settings_manager.get_settings();
 
+
     // Get saved theme from COMMON appearance settings (shared with Marco)
     let saved_theme = settings
         .appearance
@@ -284,6 +286,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         .unwrap_or_else(|| "marco.css".to_string());
 
     log::debug!("Using theme from settings: {}", saved_theme);
+
 
     // Get saved window size from POLO-specific settings
     let (window_width, window_height) = if let Some(polo) = &settings.polo {
@@ -302,8 +305,10 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     let asset_root = polo_paths.asset_root();
     load_css_from_path(asset_root);
 
+
     // Apply GTK dark mode preference based on settings
     apply_gtk_theme_preference(&settings_manager);
+
 
     // Get filename for titlebar
     let filename = file_path.as_ref().and_then(|p| {
@@ -332,6 +337,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         .default_height(window_height as i32)
         .build();
     window.add_css_class("polo-window");
+
 
     // Add theme-specific CSS class based on current mode
     let current_theme_mode = {
@@ -387,6 +393,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         let toc_for_links = toc_for_links.clone();
 
         webview.setup_link_policy(move |path, _fragment| {
+
             let filename = std::path::Path::new(&path)
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
@@ -432,6 +439,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
 
     // Create TOC panel (wraps webview in a Paned)
     let (toc_paned, toc_handle) = create_toc_panel(&webview);
+
     // Fill the shared slot so the link-policy callback can update the TOC.
     *toc_for_links.borrow_mut() = Some(toc_handle.clone());
     // Wrap the WebView in a loading-overlay so we can show an indeterminate
@@ -444,8 +452,9 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // On Windows the wry HWND is a native child window and paints on top of all
     // GTK content, so the GTK progress frame is never visible while the WebView
     // is in its normal position.  Wire up the offscreen hook so that show()/hide()
-    // move the HWND out of the way while rendering and restore it when done.
-    #[cfg(target_os = "windows")]
+    // move the HWND out of the way (Windows) or hide the NSView (macOS) while
+    // rendering and restore it when done.
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let webview_for_hook = webview.clone();
         loading_overlay.set_offscreen_hook(move |offscreen| {
@@ -480,6 +489,7 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     } else {
         // Show empty state with theme awareness
         show_empty_state_with_theme(&webview, &settings_manager);
+
     }
 
     // ── Toolbar ───────────────────────────────────────────────────────────
@@ -520,15 +530,23 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
         Some(toc_handle.clone()),
         toolbar_state.open_editor_btn,
     );
+    // On macOS the native NSWindow title bar (traffic lights + centered title)
+    // is used and menus live in the global menu bar, so the titlebar handle
+    // (empty on macOS) is not attached.
+    #[cfg(not(target_os = "macos"))]
     window.set_titlebar(Some(&titlebar_handle));
+
 
     // ── Main content layout ───────────────────────────────────────────────
     // Vertical box: toolbar (top) + paned content (fill)
     let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+    #[cfg(target_os = "macos")]
+    let _ = &titlebar_handle;
     main_box.append(&toolbar_state.toolbar);
     main_box.append(&toc_paned);
 
     window.set_child(Some(&main_box));
+
 
     // Save window size changes to Polo-specific settings
     let settings_manager_width = settings_manager.clone();
@@ -609,4 +627,5 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
 
     // Present window
     window.present();
+
 }

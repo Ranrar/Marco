@@ -4,17 +4,18 @@
 //! implementations so higher-level code can avoid calling `webkit6`/`wry`
 //! modules directly.
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::path::Path;
 
 /// Platform preview webview type.
 ///
 /// - Linux: `webkit6::WebView`
-/// - Windows: `wry_platform_webview::PlatformWebView`
+/// - Windows: `wry_platform_webview::PlatformWebView` (WebView2)
+/// - macOS: `wry_platform_webview::PlatformWebView` (WKWebView)
 #[cfg(target_os = "linux")]
 pub type PreviewWebView = webkit6::WebView;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub type PreviewWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 pub fn wrap_html_document(
@@ -65,7 +66,7 @@ pub fn wrap_html_document_paged(
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn generate_base_uri_from_path<P: AsRef<Path>>(document_path: P) -> Option<String> {
     crate::components::viewer::wry::generate_base_uri_from_path(document_path)
 }
@@ -75,7 +76,7 @@ pub fn load_html_when_ready(webview: &PreviewWebView, html: String, base_uri: Op
     crate::components::viewer::webkit6::load_html_when_ready(webview, html, base_uri)
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn load_html_when_ready(webview: &PreviewWebView, html: String, base_uri: Option<String>) {
     webview.load_html_with_base(&html, base_uri.as_deref());
 }
@@ -85,14 +86,15 @@ pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     crate::components::viewer::webkit6::update_html_content_smooth(webview, content)
 }
 
-/// Windows: patch the live preview's `mc-content-container` via the wry
-/// WebView's JS bridge, preserving scroll position. Mirrors the Linux helper —
-/// see [`crate::components::viewer::wry_platform_webview::PlatformWebView::update_html_content_smooth`].
+/// Windows & macOS: patch the live preview's `mc-content-container` via the
+/// wry WebView's JS bridge, preserving scroll position. Mirrors the Linux
+/// helper — see
+/// [`crate::components::viewer::wry_platform_webview::PlatformWebView::update_html_content_smooth`].
 ///
 /// `#[allow(dead_code)]` because the cross-platform `renderer` module is still
 /// Linux-gated (see Step 4 of the webkit6→wry parity plan). Once `renderer`
 /// dispatches via the `PreviewBackend` trait this attribute can be removed.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[allow(dead_code)]
 pub fn update_html_content_smooth(webview: &PreviewWebView, content: &str) {
     webview.update_html_content_smooth(content);
@@ -106,7 +108,7 @@ pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
     webview.evaluate_javascript(js, None, None, None::<&gtk4::gio::Cancellable>, |_| {});
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn evaluate_javascript(webview: &PreviewWebView, js: &str) {
     webview.evaluate_script(js);
 }

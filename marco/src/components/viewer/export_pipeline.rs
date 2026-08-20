@@ -808,8 +808,8 @@ impl PlatformExportBackend for LinuxExportBackend {
     }
 }
 
-/// Windows (wry / WebView2) export backend.
-#[cfg(target_os = "windows")]
+/// Windows (wry / WebView2) and macOS (wry / WKWebView) export backend.
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub struct WindowsExportBackend {
     pub webview: PlatformWebView,
     pub saved_live_html: String,
@@ -819,7 +819,7 @@ pub struct WindowsExportBackend {
     did_load_export: std::cell::Cell<bool>,
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl WindowsExportBackend {
     pub fn new(webview: PlatformWebView, saved_live_html: String) -> Self {
         Self {
@@ -830,7 +830,7 @@ impl WindowsExportBackend {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl PlatformExportBackend for WindowsExportBackend {
     fn load_export_html(&self, html: &str, base_uri: Option<&str>) -> Result<(), ExportError> {
         self.webview.load_html_with_base(html, base_uri);
@@ -892,6 +892,9 @@ impl PlatformExportBackend for WindowsExportBackend {
         })
     }
 
+    /// WebView2: synchronous `PrintToPdf` that pumps the Win32 message queue
+    /// internally (blocking the main thread is fine).
+    #[cfg(target_os = "windows")]
     fn print_to_pdf<'a>(
         &'a self,
         request: &'a ExportRequest,
@@ -925,6 +928,55 @@ impl PlatformExportBackend for WindowsExportBackend {
                     request.margin_mm,
                 )
                 .map_err(ExportError::Backend)
+        })
+    }
+
+    /// WKWebView: `createPDF` is asynchronous and delivers its completion
+    /// block through the main run loop, so we must *not* block the main
+    /// thread. Poll the mpsc receiver from a glib timeout instead — the
+    /// main loop keeps pumping between polls, which is what lets the
+    /// completion block fire at all.
+    #[cfg(target_os = "macos")]
+    fn print_to_pdf<'a>(
+        &'a self,
+        request: &'a ExportRequest,
+    ) -> BoxFuture<'a, Result<(), ExportError>> {
+        use std::time::Instant;
+
+        Box::pin(async move {
+            // Yield once so GTK can repaint the dialog label before the
+            // capture starts (which can be tens of seconds long for large
+            // documents).
+            gtk4::glib::timeout_future(Duration::from_millis(50)).await;
+            if request.output_path.as_os_str().is_empty() {
+                return Err(ExportError::Io("empty output path".into()));
+            }
+
+            let rx = self
+                .webview
+                .start_print_to_pdf(&request.output_path)
+                .map_err(ExportError::Backend)?;
+
+            // WKWebView has no cancel API for createPDF; the pipeline cancel
+            // token is only checked before / after (same limitation as the
+            // Windows PrintToPdf path).
+            let deadline = Instant::now() + ExportPhase::WritingOutput.budget();
+            let poll = Duration::from_millis(100);
+            loop {
+                match rx.try_recv() {
+                    Ok(result) => return result.map_err(ExportError::Backend),
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        return Err(ExportError::Backend(
+                            "PDF capture channel closed without a result".to_string(),
+                        ));
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => {}
+                }
+                if Instant::now() >= deadline {
+                    return Err(ExportError::Timeout(ExportPhase::WritingOutput));
+                }
+                gtk4::glib::timeout_future(poll).await;
+            }
         })
     }
 

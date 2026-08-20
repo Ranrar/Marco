@@ -1,0 +1,581 @@
+[
+  {
+    "_comment": "Marco extension fixtures",
+    "_description": "Marco tab blocks, headerless tables, and inline footnotes",
+    "_usage": "Run with: cargo test --test extension_spec_conformance",
+    "_note": "Comment entries are ignored by the fixture loader"
+  },
+  {
+    "markdown": ":::tab\n@tab A\nHello\n\n@tab B\nWorld\n\n:::\n",
+    "html": "<div class=\"marco-tabs\">\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-0\" aria-label=\"A\" checked />\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-1\" aria-label=\"B\" />\n<div class=\"marco-tabs__tablist\">\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-0\">A</label>\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-1\">B</label>\n</div>\n<div class=\"marco-tabs__panels\">\n<div class=\"marco-tabs__panel\">\n<p>Hello</p>\n</div>\n<div class=\"marco-tabs__panel\">\n<p>World</p>\n</div>\n</div>\n</div>\n",
+    "example": 3201,
+    "start_line": 1,
+    "end_line": 8,
+    "section": "Marco tab block render"
+  },
+  {
+    "markdown": "|---|---|\n| a | b |\n| c | d |\n",
+    "html": "<table>\n<tbody>\n<tr><td>a</td><td>b</td></tr>\n<tr><td>c</td><td>d</td></tr>\n</tbody>\n</table>\n",
+    "example": 3202,
+    "start_line": 10,
+    "end_line": 12,
+    "section": "Marco headerless table"
+  },
+  {
+    "markdown": "Inline ^[note]\n",
+    "html": "<p>Inline <sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup></p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>note</p>\n</li>\n</ol>\n</section>\n",
+    "example": 3203,
+    "start_line": 14,
+    "end_line": 14,
+    "section": "Marco inline footnote"
+  },
+  {
+    "markdown": ":::tab\n@tab Outer\n\n:::tab\n@tab Inner\nInner\n\n:::\n\n:::\n",
+    "html": "<div class=\"marco-tabs\">\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-0\" aria-label=\"Outer\" checked />\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-1\" aria-label=\"Inner\" />\n<div class=\"marco-tabs__tablist\">\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-0\">Outer</label>\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-1\">Inner</label>\n</div>\n<div class=\"marco-tabs__panels\">\n<div class=\"marco-tabs__panel\">\n<p>:::tab</p>\n</div>\n<div class=\"marco-tabs__panel\">\n<p>Inner</p>\n</div>\n</div>\n</div>\n<p>:::</p>\n",
+    "example": 3204,
+    "start_line": 16,
+    "end_line": 24,
+    "section": "Marco nested tab markers treated as literal"
+  },
+  {
+    "markdown": "==hi==\n",
+    "html": "<p><mark>hi</mark></p>\n",
+    "example": 3205,
+    "start_line": 26,
+    "end_line": 26,
+    "section": "Marco inline mark"
+  },
+  {
+    "markdown": "~hi~\n",
+    "html": "<p><sub>hi</sub></p>\n",
+    "example": 3206,
+    "start_line": 28,
+    "end_line": 28,
+    "section": "Marco inline subscript (tilde)"
+  },
+  {
+    "markdown": "˅hi˅\n",
+    "html": "<p><sub>hi</sub></p>\n",
+    "example": 3207,
+    "start_line": 30,
+    "end_line": 30,
+    "section": "Marco inline subscript (arrow)"
+  },
+  {
+    "markdown": "^hi^\n",
+    "html": "<p><sup>hi</sup></p>\n",
+    "example": 3208,
+    "start_line": 32,
+    "end_line": 32,
+    "section": "Marco inline superscript"
+  },
+  {
+    "markdown": "--hi--\n",
+    "html": "<p><del>hi</del></p>\n",
+    "example": 3209,
+    "start_line": 34,
+    "end_line": 34,
+    "section": "Marco dash strikethrough"
+  },
+  {
+    "markdown": "Hi :rocket:!\n",
+    "html": "<p>Hi 🚀!</p>\n",
+    "example": 3210,
+    "start_line": 36,
+    "end_line": 36,
+    "section": "Marco emoji shortcode"
+  },
+  {
+    "markdown": "Hello @ranrar[github](Kim)!\n",
+    "html": "<p>Hello <a class=\"marco-mention marco-mention-github\" href=\"https://github.com/ranrar\">Kim</a>!</p>\n",
+    "example": 3211,
+    "start_line": 38,
+    "end_line": 38,
+    "section": "Marco platform mention (known platform)"
+  },
+  {
+    "markdown": "Hello @ranrar[unknown](Kim)!\n",
+    "html": "<p>Hello <span class=\"marco-mention marco-mention-unknown\">Kim</span>!</p>\n",
+    "example": 3212,
+    "start_line": 40,
+    "end_line": 40,
+    "section": "Marco platform mention (unknown platform)"
+  },
+  {
+    "markdown": "@slidestart:t5\nOne\n---\nTwo\n@slideend\n",
+    "html": "<div class=\"marco-sliders\" id=\"marco-sliders-0\" data-timer-seconds=\"5\"><div class=\"marco-sliders__viewport\"><section class=\"marco-sliders__slide is-active\" data-slide-index=\"0\">\n<p>One</p>\n</section>\n<section class=\"marco-sliders__slide\" data-slide-index=\"1\">\n<p>Two</p>\n</section>\n</div><div class=\"marco-sliders__controls\" aria-label=\"Slideshow controls\"><button class=\"marco-sliders__btn marco-sliders__btn--prev\" type=\"button\" data-action=\"prev\" aria-label=\"Previous slide\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-left\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M5 12l14 0\" /><path d=\"M5 12l4 4\" /><path d=\"M5 12l4 -4\" /></svg></button><button class=\"marco-sliders__btn marco-sliders__btn--toggle\" type=\"button\" data-action=\"toggle\" aria-label=\"Toggle autoplay\"><span class=\"marco-sliders__icon marco-sliders__icon--play\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-player-play\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M7 4v16l13 -8l-13 -8\" /></svg></span><span class=\"marco-sliders__icon marco-sliders__icon--pause\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-player-pause\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12\" /><path d=\"M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12\" /></svg></span></button><button class=\"marco-sliders__btn marco-sliders__btn--next\" type=\"button\" data-action=\"next\" aria-label=\"Next slide\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-right\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M5 12l14 0\" /><path d=\"M15 16l4 -4\" /><path d=\"M15 8l4 4\" /></svg></button></div><div class=\"marco-sliders__dots\" role=\"tablist\" aria-label=\"Slideshow navigation\"><button class=\"marco-sliders__dot is-active\" type=\"button\" data-action=\"goto\" data-index=\"0\" aria-label=\"Go to slide 1\" aria-selected=\"true\">\n<span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--inactive\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-point\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0\" /></svg></span><span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--active\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"icon icon-tabler icons-tabler-filled icon-tabler-point\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z\" /></svg></span></button><button class=\"marco-sliders__dot\" type=\"button\" data-action=\"goto\" data-index=\"1\" aria-label=\"Go to slide 2\">\n<span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--inactive\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-point\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0\" /></svg></span><span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--active\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"icon icon-tabler icons-tabler-filled icon-tabler-point\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z\" /></svg></span></button></div></div>\n",
+    "example": 3213,
+    "start_line": 42,
+    "end_line": 46,
+    "section": "Marco sliders"
+  },
+  {
+    "markdown": "Done [x]\n",
+    "html": "<p>Done <span class=\"marco-marco-marco-task-checkbox checked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-check\" style=\"stroke: var(--mc-task-accent); stroke-width: 2.0;\" d=\"M9 11l3 3l8 -8\" /><path class=\"marco-task-box\" style=\"stroke: var(--mc-task-primary);\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span></p>\n",
+    "example": 3214,
+    "start_line": 48,
+    "end_line": 48,
+    "section": "Marco inline task checkbox"
+  },
+  {
+    "_comment": "--- Edge cases: inline mark ---"
+  },
+  {
+    "markdown": "==hello world==\n",
+    "html": "<p><mark>hello world</mark></p>\n",
+    "example": 3215,
+    "start_line": 50,
+    "end_line": 50,
+    "section": "Marco inline mark (multi-word)"
+  },
+  {
+    "markdown": "====\n",
+    "html": "<p>====</p>\n",
+    "example": 3216,
+    "start_line": 52,
+    "end_line": 52,
+    "section": "Marco inline mark (empty delimiters not parsed)"
+  },
+  {
+    "markdown": "== not closed\n",
+    "html": "<p>== not closed</p>\n",
+    "example": 3217,
+    "start_line": 54,
+    "end_line": 54,
+    "section": "Marco inline mark (unclosed falls back to literal)"
+  },
+  {
+    "markdown": "==a==b==\n",
+    "html": "<p><mark>a</mark>b==</p>\n",
+    "example": 3218,
+    "start_line": 56,
+    "end_line": 56,
+    "section": "Marco inline mark (greedy first match, trailing delimiters are literal)"
+  },
+  {
+    "markdown": "==**bold** inside==\n",
+    "html": "<p><mark><strong>bold</strong> inside</mark></p>\n",
+    "example": 3219,
+    "start_line": 58,
+    "end_line": 58,
+    "section": "Marco inline mark (contains inline strong)"
+  },
+  {
+    "markdown": "==`code`==\n",
+    "html": "<p><mark><code>code</code></mark></p>\n",
+    "example": 3220,
+    "start_line": 60,
+    "end_line": 60,
+    "section": "Marco inline mark (code span inside is parsed)"
+  },
+  {
+    "_comment": "--- Edge cases: subscript (tilde) ---"
+  },
+  {
+    "markdown": "~a~b~\n",
+    "html": "<p><sub>a</sub>b~</p>\n",
+    "example": 3221,
+    "start_line": 62,
+    "end_line": 62,
+    "section": "Marco subscript tilde (greedy first match, trailing tilde is literal)"
+  },
+  {
+    "markdown": "~sub and more~\n",
+    "html": "<p><sub>sub and more</sub></p>\n",
+    "example": 3222,
+    "start_line": 64,
+    "end_line": 64,
+    "section": "Marco subscript tilde (multi-word)"
+  },
+  {
+    "_comment": "--- Edge cases: superscript ---"
+  },
+  {
+    "markdown": "^a^^b^\n",
+    "html": "<p><sup>a</sup><sup>b</sup></p>\n",
+    "example": 3223,
+    "start_line": 66,
+    "end_line": 66,
+    "section": "Marco superscript (adjacent pair parsed as two separate superscripts)"
+  },
+  {
+    "markdown": "^**bold**^\n",
+    "html": "<p><sup><strong>bold</strong></sup></p>\n",
+    "example": 3224,
+    "start_line": 68,
+    "end_line": 68,
+    "section": "Marco superscript (contains inline strong)"
+  },
+  {
+    "_comment": "--- Edge cases: dash strikethrough ---"
+  },
+  {
+    "markdown": "--a----b--\n",
+    "html": "<p><del>a</del><del>b</del></p>\n",
+    "example": 3225,
+    "start_line": 70,
+    "end_line": 70,
+    "section": "Marco dash strikethrough (adjacent pair parsed as two separate deletions)"
+  },
+  {
+    "markdown": "-- spaced --\n",
+    "html": "<p><del> spaced </del></p>\n",
+    "example": 3226,
+    "start_line": 72,
+    "end_line": 72,
+    "section": "Marco dash strikethrough (content with leading/trailing spaces)"
+  },
+  {
+    "markdown": "---triple---\n",
+    "html": "<p>-<del>triple</del>-</p>\n",
+    "example": 3227,
+    "start_line": 74,
+    "end_line": 74,
+    "section": "Marco dash strikethrough (triple dashes: outer dashes are literal)"
+  },
+  {
+    "markdown": "--hi\n",
+    "html": "<p>--hi</p>\n",
+    "example": 3228,
+    "start_line": 76,
+    "end_line": 76,
+    "section": "Marco dash strikethrough (unclosed falls back to literal)"
+  },
+  {
+    "_comment": "--- Edge cases: emoji shortcode ---"
+  },
+  {
+    "markdown": ":rocket: :thumbsup:\n",
+    "html": "<p>🚀 👍</p>\n",
+    "example": 3229,
+    "start_line": 78,
+    "end_line": 78,
+    "section": "Marco emoji shortcode (multiple shortcodes in one paragraph)"
+  },
+  {
+    "markdown": ":unknown_emoji:\n",
+    "html": "<p>:unknown_emoji:</p>\n",
+    "example": 3230,
+    "start_line": 80,
+    "end_line": 80,
+    "section": "Marco emoji shortcode (unknown name falls back to literal)"
+  },
+  {
+    "_comment": "--- Edge cases: platform mentions ---"
+  },
+  {
+    "markdown": "@user[twitter](User)\n",
+    "html": "<p><a class=\"marco-mention marco-mention-twitter\" href=\"https://twitter.com/user\">User</a></p>\n",
+    "example": 3231,
+    "start_line": 82,
+    "end_line": 82,
+    "section": "Marco platform mention (twitter)"
+  },
+  {
+    "markdown": "@user[gitlab](User)\n",
+    "html": "<p><a class=\"marco-mention marco-mention-gitlab\" href=\"https://gitlab.com/user\">User</a></p>\n",
+    "example": 3232,
+    "start_line": 84,
+    "end_line": 84,
+    "section": "Marco platform mention (gitlab)"
+  },
+  {
+    "_comment": "--- Edge cases: inline footnote ---"
+  },
+  {
+    "markdown": "First ^[one] and second ^[two]\n",
+    "html": "<p>First <sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup> and second <sup class=\"footnote-ref\"><a href=\"#fn2\" id=\"fnref2\">2</a></sup></p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>one</p>\n</li>\n<li id=\"fn2\"><p>two</p>\n</li>\n</ol>\n</section>\n",
+    "example": 3233,
+    "start_line": 86,
+    "end_line": 86,
+    "section": "Marco inline footnote (multiple in one paragraph)"
+  },
+  {
+    "markdown": "See ^[**important** note]\n",
+    "html": "<p>See <sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup></p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p><strong>important</strong> note</p>\n</li>\n</ol>\n</section>\n",
+    "example": 3234,
+    "start_line": 88,
+    "end_line": 88,
+    "section": "Marco inline footnote (inline markup inside note content)"
+  },
+  {
+    "_comment": "--- Edge cases: task checkbox ---"
+  },
+  {
+    "markdown": "Todo [ ]\n",
+    "html": "<p>Todo <span class=\"marco-marco-marco-task-checkbox unchecked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-box\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span></p>\n",
+    "example": 3235,
+    "start_line": 90,
+    "end_line": 90,
+    "section": "Marco inline task checkbox (unchecked [ ])"
+  },
+  {
+    "markdown": "Done [X]\n",
+    "html": "<p>Done <span class=\"marco-marco-marco-task-checkbox checked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-check\" style=\"stroke: var(--mc-task-accent); stroke-width: 2.0;\" d=\"M9 11l3 3l8 -8\" /><path class=\"marco-task-box\" style=\"stroke: var(--mc-task-primary);\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span></p>\n",
+    "example": 3236,
+    "start_line": 92,
+    "end_line": 92,
+    "section": "Marco inline task checkbox (checked uppercase [X])"
+  },
+  {
+    "markdown": "[x] done\n",
+    "html": "<p><span class=\"marco-marco-marco-task-checkbox checked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-check\" style=\"stroke: var(--mc-task-accent); stroke-width: 2.0;\" d=\"M9 11l3 3l8 -8\" /><path class=\"marco-task-box\" style=\"stroke: var(--mc-task-primary);\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span>done</p>\n",
+    "example": 3237,
+    "start_line": 94,
+    "end_line": 94,
+    "section": "Marco inline task checkbox (checkbox at start of paragraph)"
+  },
+  {
+    "markdown": "Item [-]\n",
+    "html": "<p>Item [-]</p>\n",
+    "example": 3238,
+    "start_line": 96,
+    "end_line": 96,
+    "section": "Marco inline task checkbox (unsupported marker [-] is literal)"
+  },
+  {
+    "_comment": "--- Edge cases: headerless table ---"
+  },
+  {
+    "markdown": "|---|\n| a |\n",
+    "html": "<table>\n<tbody>\n<tr><td>a</td></tr>\n</tbody>\n</table>\n",
+    "example": 3239,
+    "start_line": 98,
+    "end_line": 99,
+    "section": "Marco headerless table (single column)"
+  },
+  {
+    "markdown": "|---|---|---|\n| x | y | z |\n",
+    "html": "<table>\n<tbody>\n<tr><td>x</td><td>y</td><td>z</td></tr>\n</tbody>\n</table>\n",
+    "example": 3240,
+    "start_line": 101,
+    "end_line": 102,
+    "section": "Marco headerless table (three columns)"
+  },
+  {
+    "_comment": "--- Edge cases: tab block ---"
+  },
+  {
+    "markdown": ":::tab\n@tab A\nfoo\n\n@tab B\nbar\n\n@tab C\nbaz\n\n:::\n",
+    "html": "<div class=\"marco-tabs\">\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-0\" aria-label=\"A\" checked />\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-1\" aria-label=\"B\" />\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-2\" aria-label=\"C\" />\n<div class=\"marco-tabs__tablist\">\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-0\">A</label>\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-1\">B</label>\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-2\">C</label>\n</div>\n<div class=\"marco-tabs__panels\">\n<div class=\"marco-tabs__panel\">\n<p>foo</p>\n</div>\n<div class=\"marco-tabs__panel\">\n<p>bar</p>\n</div>\n<div class=\"marco-tabs__panel\">\n<p>baz</p>\n</div>\n</div>\n</div>\n",
+    "example": 3241,
+    "start_line": 104,
+    "end_line": 114,
+    "section": "Marco tab block (three tabs)"
+  },
+  {
+    "_comment": "--- Edge cases: mixed Marco inlines in one paragraph ---"
+  },
+  {
+    "markdown": "==x== and --y-- and ^z^\n",
+    "html": "<p><mark>x</mark> and <del>y</del> and <sup>z</sup></p>\n",
+    "example": 3242,
+    "start_line": 116,
+    "end_line": 116,
+    "section": "Marco mixed inlines (mark + dash strikethrough + superscript)"
+  },
+  {
+    "markdown": "A ==mark== B\n",
+    "html": "<p>A <mark>mark</mark> B</p>\n",
+    "example": 3243,
+    "section": "Mark"
+  },
+  {
+    "markdown": "==start== of line\n",
+    "html": "<p><mark>start</mark> of line</p>\n",
+    "example": 3244,
+    "section": "Mark"
+  },
+  {
+    "markdown": "end of ==line==\n",
+    "html": "<p>end of <mark>line</mark></p>\n",
+    "example": 3245,
+    "section": "Mark"
+  },
+  {
+    "markdown": "*==marked==*\n",
+    "html": "<p><em><mark>marked</mark></em></p>\n",
+    "example": 3246,
+    "section": "Mark"
+  },
+  {
+    "markdown": "**==marked==**\n",
+    "html": "<p><strong><mark>marked</mark></strong></p>\n",
+    "example": 3247,
+    "section": "Mark"
+  },
+  {
+    "markdown": "> ==mark==\n",
+    "html": "<blockquote>\n<p><mark>mark</mark></p>\n</blockquote>\n",
+    "example": 3248,
+    "section": "Mark"
+  },
+  {
+    "markdown": "- ==mark==\n",
+    "html": "<ul>\n<li><mark>mark</mark></li>\n</ul>\n",
+    "example": 3249,
+    "section": "Mark"
+  },
+  {
+    "markdown": "==Üïcodé==\n",
+    "html": "<p><mark>Üïcodé</mark></p>\n",
+    "example": 3250,
+    "section": "Mark"
+  },
+  {
+    "markdown": "==mark== then ==again==\n",
+    "html": "<p><mark>mark</mark> then <mark>again</mark></p>\n",
+    "example": 3251,
+    "section": "Mark"
+  },
+  {
+    "markdown": "H~2~O\n",
+    "html": "<p>H<sub>2</sub>O</p>\n",
+    "example": 3252,
+    "section": "Subscript (tilde)"
+  },
+  {
+    "markdown": "x~n~\n",
+    "html": "<p>x<sub>n</sub></p>\n",
+    "example": 3253,
+    "section": "Subscript (tilde)"
+  },
+  {
+    "markdown": "*~sub~*\n",
+    "html": "<p><em><sub>sub</sub></em></p>\n",
+    "example": 3254,
+    "section": "Subscript (tilde)"
+  },
+  {
+    "markdown": "~αβγ~\n",
+    "html": "<p><sub>αβγ</sub></p>\n",
+    "example": 3255,
+    "section": "Subscript (tilde)"
+  },
+  {
+    "markdown": "~sub~ then ~again~\n",
+    "html": "<p><sub>sub</sub> then <sub>again</sub></p>\n",
+    "example": 3256,
+    "section": "Subscript (tilde)"
+  },
+  {
+    "markdown": "CO˅2˅ gas\n",
+    "html": "<p>CO<sub>2</sub> gas</p>\n",
+    "example": 3257,
+    "section": "Subscript (arrow)"
+  },
+  {
+    "markdown": "x^2^\n",
+    "html": "<p>x<sup>2</sup></p>\n",
+    "example": 3258,
+    "section": "Superscript"
+  },
+  {
+    "markdown": "E=mc^2^\n",
+    "html": "<p>E=mc<sup>2</sup></p>\n",
+    "example": 3259,
+    "section": "Superscript"
+  },
+  {
+    "markdown": "*^sup^*\n",
+    "html": "<p><em><sup>sup</sup></em></p>\n",
+    "example": 3260,
+    "section": "Superscript"
+  },
+  {
+    "markdown": "^note1^ and ^note2^\n",
+    "html": "<p><sup>note1</sup> and <sup>note2</sup></p>\n",
+    "example": 3261,
+    "section": "Superscript"
+  },
+  {
+    "markdown": "text --del-- text\n",
+    "html": "<p>text <del>del</del> text</p>\n",
+    "example": 3262,
+    "section": "Dash strikethrough"
+  },
+  {
+    "markdown": "*--del--*\n",
+    "html": "<p><em><del>del</del></em></p>\n",
+    "example": 3263,
+    "section": "Dash strikethrough"
+  },
+  {
+    "markdown": "--first-- and --second--\n",
+    "html": "<p><del>first</del> and <del>second</del></p>\n",
+    "example": 3264,
+    "section": "Dash strikethrough"
+  },
+  {
+    "markdown": "Great :heart: day\n",
+    "html": "<p>Great ❤️ day</p>\n",
+    "example": 3265,
+    "section": "Emoji shortcode"
+  },
+  {
+    "markdown": "@alice[github](Alice) and @bob[github](Bob)\n",
+    "html": "<p><a class=\"marco-mention marco-mention-github\" href=\"https://github.com/alice\">Alice</a> and <a class=\"marco-mention marco-mention-github\" href=\"https://github.com/bob\">Bob</a></p>\n",
+    "example": 3266,
+    "section": "Platform mentions"
+  },
+  {
+    "markdown": "See @user[github](User) for details\n",
+    "html": "<p>See <a class=\"marco-mention marco-mention-github\" href=\"https://github.com/user\">User</a> for details</p>\n",
+    "example": 3267,
+    "section": "Platform mentions"
+  },
+  {
+    "markdown": "text^[note]\n",
+    "html": "<p>text<sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup></p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>note</p>\n</li>\n</ol>\n</section>\n",
+    "example": 3268,
+    "section": "Inline footnote"
+  },
+  {
+    "markdown": "- item ^[detail]\n",
+    "html": "<ul>\n<li>item <sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup></li>\n</ul>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>detail</p>\n</li>\n</ol>\n</section>\n",
+    "example": 3269,
+    "section": "Inline footnote"
+  },
+  {
+    "markdown": "==text ^[fn]==more\n",
+    "html": "<p><mark>text <sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup></mark>more</p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>fn</p>\n</li>\n</ol>\n</section>\n",
+    "example": 3270,
+    "section": "Inline footnote"
+  },
+  {
+    "markdown": "[ ] first [x] second\n",
+    "html": "<p><span class=\"marco-marco-marco-task-checkbox unchecked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-box\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span>first <span class=\"marco-marco-marco-task-checkbox checked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-check\" style=\"stroke: var(--mc-task-accent); stroke-width: 2.0;\" d=\"M9 11l3 3l8 -8\" /><path class=\"marco-task-box\" style=\"stroke: var(--mc-task-primary);\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span> second</p>\n",
+    "example": 3271,
+    "section": "Inline task checkbox"
+  },
+  {
+    "markdown": "|---|---|\n| a | b |\n| c | d |\n| e | f |\n",
+    "html": "<table>\n<tbody>\n<tr><td>a</td><td>b</td></tr>\n<tr><td>c</td><td>d</td></tr>\n<tr><td>e</td><td>f</td></tr>\n</tbody>\n</table>\n",
+    "example": 3272,
+    "section": "Headerless table"
+  },
+  {
+    "markdown": ":::tab\n@tab Only\nContent\n\n:::\n",
+    "html": "<div class=\"marco-tabs\">\n<input class=\"marco-tabs__radio\" type=\"radio\" name=\"marco-tabs-0\" id=\"marco-tabs-0-0\" aria-label=\"Only\" checked />\n<div class=\"marco-tabs__tablist\">\n<label class=\"marco-tabs__tab\" for=\"marco-tabs-0-0\">Only</label>\n</div>\n<div class=\"marco-tabs__panels\">\n<div class=\"marco-tabs__panel\">\n<p>Content</p>\n</div>\n</div>\n</div>\n",
+    "example": 3273,
+    "section": "Tab block"
+  },
+  {
+    "markdown": "@slidestart\nOnly slide\n@slideend\n",
+    "html": "<div class=\"marco-sliders\" id=\"marco-sliders-0\"><div class=\"marco-sliders__viewport\"><section class=\"marco-sliders__slide is-active\" data-slide-index=\"0\">\n<p>Only slide</p>\n</section>\n</div><div class=\"marco-sliders__controls\" aria-label=\"Slideshow controls\"><button class=\"marco-sliders__btn marco-sliders__btn--prev\" type=\"button\" data-action=\"prev\" aria-label=\"Previous slide\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-left\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M5 12l14 0\" /><path d=\"M5 12l4 4\" /><path d=\"M5 12l4 -4\" /></svg></button><button class=\"marco-sliders__btn marco-sliders__btn--toggle\" type=\"button\" data-action=\"toggle\" aria-label=\"Toggle autoplay\"><span class=\"marco-sliders__icon marco-sliders__icon--play\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-player-play\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M7 4v16l13 -8l-13 -8\" /></svg></span><span class=\"marco-sliders__icon marco-sliders__icon--pause\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-player-pause\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M6 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12\" /><path d=\"M14 6a1 1 0 0 1 1 -1h2a1 1 0 0 1 1 1v12a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1l0 -12\" /></svg></span></button><button class=\"marco-sliders__btn marco-sliders__btn--next\" type=\"button\" data-action=\"next\" aria-label=\"Next slide\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-arrow-narrow-right\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M5 12l14 0\" /><path d=\"M15 16l4 -4\" /><path d=\"M15 8l4 4\" /></svg></button></div><div class=\"marco-sliders__dots\" role=\"tablist\" aria-label=\"Slideshow navigation\"><button class=\"marco-sliders__dot is-active\" type=\"button\" data-action=\"goto\" data-index=\"0\" aria-label=\"Go to slide 1\" aria-selected=\"true\">\n<span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--inactive\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"icon icon-tabler icons-tabler-outline icon-tabler-point\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0\" /></svg></span><span class=\"marco-sliders__dot-icon marco-sliders__dot-icon--active\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"currentColor\" class=\"icon icon-tabler icons-tabler-filled icon-tabler-point\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M12 7a5 5 0 1 1 -4.995 5.217l-.005 -.217l.005 -.217a5 5 0 0 1 4.995 -4.783z\" /></svg></span></button></div></div>\n",
+    "example": 3274,
+    "section": "Sliders"
+  },
+  {
+    "markdown": "==mark== then ^sup^ then ~sub~\n",
+    "html": "<p><mark>mark</mark> then <sup>sup</sup> then <sub>sub</sub></p>\n",
+    "example": 3275,
+    "section": "Cross-extension precedence"
+  },
+  {
+    "markdown": "==text==^note^\n",
+    "html": "<p><mark>text</mark><sup>note</sup></p>\n",
+    "example": 3276,
+    "section": "Cross-extension precedence"
+  }
+]

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dark theme for Marco Editor
+  Based on DARK_PALETTE: background: "#1E1E1E", text: "#D4D4D4"
+  
+  IMPORTANT RESTRICTIONS:
+  - Only use HEX colors (e.g., #RRGGBB) - no color names, no rgb()
+  - Do NOT use: bold, italic, underline, strikethrough, or any font properties
+  - Background colors are ONLY for search highlighting - not for syntax highlighting
+  - LSP syntax highlighting will be implemented separately using GTK TextTags
+-->
+<style-scheme id="marco-dark" name="Marco Dark" version="1.0" kind="dark">
+  <author>Kim Skov Rasmussen</author>
+  <description>Dark theme with clean appearance</description>
+
+  <!-- Scrollbar styling for GTK editor matching webview preview -->
+  <color name="scrollbar-thumb"   value="#3A3F44"/>
+  <color name="scrollbar-track"   value="#252526"/>
+
+  <!-- Base text appearance -->
+  <style name="text"                  foreground="#D4D4D4" background="#1E1E1E"/>
+  <style name="selection"             foreground="#FFFFFF" background="#0078D4"/>
+  <style name="selection-unfocused"   background="#264F78"/>
+  <style name="cursor"                foreground="#79B8FF"/>
+  <style name="secondary-cursor"      foreground="#79B8FF"/>
+  <style name="current-line"          background="#2A2D2E"/>
+  
+  <!-- Line numbers and margin -->
+  <style name="line-numbers"          foreground="#858585" background="#2D2D30"/>
+  <style name="current-line-number"   foreground="#D4D4D4" background="#2A2D2E"/>
+  <style name="line-numbers-border"   background="#2D2D30"/>
+  
+  <!-- Brackets -->
+  <style name="bracket-match"         foreground="#79B8FF"/>
+  <style name="bracket-mismatch"      foreground="#F44747" background="#5A1D1D"/>
+  
+  <!-- Spaces and whitespace -->
+  <style name="draw-spaces"           foreground="#858585"/>
+  
+  <!-- Search highlighting (background colors allowed ONLY for search) -->
+  <style name="search-match"          foreground="#1E1E1E" background="#FFD700"/>
+  <style name="search-match-selected" foreground="#FFFFFF" background="#FF6B35"/>
+  
+  <!-- LSP Syntax Highlighting (colors only, no font properties) -->
+  <!-- LSP Syntax Highlighting moved to `syntaxdark.xml` and loaded only for syntax usage -->
+</style-scheme>

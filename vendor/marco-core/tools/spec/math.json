@@ -1,0 +1,88 @@
+[
+  {
+    "_comment": "Math extension fixtures",
+    "_description": "Inline/display math rendering and delimiter edge cases",
+    "_usage": "Run with: cargo test --test extension_spec_conformance",
+    "_note": "Comment entries are ignored by the fixture loader"
+  },
+  {
+    "markdown": "Inline $\\frac{a}{ $ test\n",
+    "html": "<p>Inline <code class=\"math-error\" title=\"Failed to render math\">\\frac{a}{ </code> test</p>\n",
+    "example": 3301,
+    "start_line": 1,
+    "end_line": 1,
+    "section": "Inline math invalid latex fallback"
+  },
+  {
+    "markdown": "```math\n\\frac{a}{\n```\n",
+    "html": "<pre class=\"math-error\" title=\"Failed to render math\">\\frac{a}{</pre>",
+    "example": 3302,
+    "start_line": 3,
+    "end_line": 5,
+    "section": "Fenced math invalid latex fallback"
+  },
+  {
+    "markdown": "$$x^2 + y^2 = z^2\n",
+    "html": "<p>$$x<sup>2 + y</sup>2 = z^2</p>\n",
+    "example": 3303,
+    "start_line": 7,
+    "end_line": 7,
+    "section": "Unclosed display delimiter edge case"
+  },
+  {
+    "markdown": "Price is \\$5 only\n",
+    "html": "<p>Price is $5 only</p>\n",
+    "example": 3304,
+    "start_line": 9,
+    "end_line": 9,
+    "section": "Escaped dollar is literal text"
+  },
+  {
+    "markdown": "The formula $E = mc^2$ is famous\n",
+    "html": "<p>The formula <span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>E</mi><mo>=</mo><mi>m</mi><msup><mi>c</mi><mn>2</mn></msup></mrow><annotation encoding=\"application/x-tex\">E = mc^2</annotation></semantics></math></span> is famous</p>\n",
+    "example": 3305,
+    "section": "Inline math"
+  },
+  {
+    "markdown": "$a$ and $b$\n",
+    "html": "<p><span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>a</mi></mrow><annotation encoding=\"application/x-tex\">a</annotation></semantics></math></span> and <span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>b</mi></mrow><annotation encoding=\"application/x-tex\">b</annotation></semantics></math></span></p>\n",
+    "example": 3306,
+    "section": "Inline math"
+  },
+  {
+    "markdown": "*$x$*\n",
+    "html": "<p><em><span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>x</mi></mrow><annotation encoding=\"application/x-tex\">x</annotation></semantics></math></span></em></p>\n",
+    "example": 3307,
+    "section": "Inline math"
+  },
+  {
+    "markdown": "> $x = 1$\n",
+    "html": "<blockquote>\n<p><span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><mi>x</mi><mo>=</mo><mn>1</mn></mrow><annotation encoding=\"application/x-tex\">x = 1</annotation></semantics></math></span></p>\n</blockquote>\n",
+    "example": 3308,
+    "section": "Inline math"
+  },
+  {
+    "markdown": "unclosed $x + y\n",
+    "html": "<p>unclosed $x + y</p>\n",
+    "example": 3309,
+    "section": "Inline math"
+  },
+  {
+    "markdown": "$$\nx^2 + y^2 = z^2\n$$\n",
+    "html": "<p><span class=\"katex-display\"><span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><semantics><mrow><msup><mi>x</mi><mn>2</mn></msup><mo>+</mo><msup><mi>y</mi><mn>2</mn></msup><mo>=</mo><msup><mi>z</mi><mn>2</mn></msup></mrow><annotation encoding=\"application/x-tex\">\nx^2 + y^2 = z^2\n</annotation></semantics></math></span></span></p>\n",
+    "example": 3310,
+    "section": "Display math"
+  },
+  {
+    "markdown": "Let $$a + b$$ be defined\n",
+    "html": "<p>Let <span class=\"katex-display\"><span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><semantics><mrow><mi>a</mi><mo>+</mo><mi>b</mi></mrow><annotation encoding=\"application/x-tex\">a + b</annotation></semantics></math></span></span> be defined</p>\n",
+    "example": 3311,
+    "section": "Display math"
+  },
+  {
+    "markdown": "```math\n\\frac{1}{2}\n```\n",
+    "html": "<span class=\"katex-display\"><span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\" display=\"block\"><semantics><mrow><mfrac><mn>1</mn><mn>2</mn></mfrac></mrow><annotation encoding=\"application/x-tex\">\\frac{1}{2}</annotation></semantics></math></span></span>",
+    "example": 3312,
+    "section": "Fenced math block"
+  }
+]

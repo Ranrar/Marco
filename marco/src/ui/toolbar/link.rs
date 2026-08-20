@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::path::{Component, Path, PathBuf};
 use std::rc::Rc;
 
-#[cfg(target_os = "linux")]
+#[cfg(not(target_os = "windows"))]
 use gtk4::{FileChooserAction, FileChooserNative};
 
 const LINK_POPOVER_WIDTH: i32 = 280;
@@ -1366,7 +1366,7 @@ fn normalize_reference_id(raw: &str) -> Option<String> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(not(target_os = "windows"))]
 async fn pick_local_file(parent_window: &gtk4::Window) -> Option<PathBuf> {
     let translations = crate::ui::dialogs::current_translations();
     let dialog = FileChooserNative::new(
@@ -1478,7 +1478,7 @@ fn components_equal(left: Component<'_>, right: Component<'_>) -> bool {
         .eq_ignore_ascii_case(&right.as_os_str().to_string_lossy())
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(not(target_os = "windows"))]
 fn components_equal(left: Component<'_>, right: Component<'_>) -> bool {
     left == right
 }

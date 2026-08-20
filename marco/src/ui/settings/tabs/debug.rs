@@ -206,9 +206,9 @@ pub fn build_debug_tab(
                 let s = abs.to_string_lossy().replace("\\", "/");
                 format!("file:///{}", s)
             }
-            #[cfg(target_os = "linux")]
+            #[cfg(not(target_os = "windows"))]
             {
-                // Abs path already begins with '/'
+                // Abs path already begins with '/' (Linux and macOS)
                 format!("file://{}", abs.to_string_lossy())
             }
         };

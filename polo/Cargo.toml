@@ -38,5 +38,15 @@ webview2-com = "0.38.2"
 windows = { version = "0.61", features = ["Win32_Foundation"] }
 windows-core = "0.61"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS preview backend: wry's WKWebView embedded as an NSView child of the
+# GTK (quartz backend) window.
+wry = { workspace = true }
+raw-window-handle = { workspace = true }
+gdk4-macos = { workspace = true }
+# `[nsWindow contentView]` access for the parent NSView (gdk4-macos only
+# exposes the NSWindow). Pinned to match wry 0.55.1's transitive objc2.
+objc2 = "0.6.4"
+
 [target.'cfg(target_os = "windows")'.build-dependencies]
 winres = "0.1"

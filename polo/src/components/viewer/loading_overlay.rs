@@ -113,7 +113,7 @@ pub struct LoadingOverlay {
     /// position.  This callback is called with `true` when [`show`] runs
     /// (move the HWND off-screen so the GTK frame is visible) and with
     /// `false` when [`hide`] runs (restore the HWND to its normal position).
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     offscreen_hook: RefCell<Option<Box<dyn Fn(bool)>>>,
 }
 
@@ -157,7 +157,7 @@ impl LoadingOverlay {
             frame,
             progress,
             pulse_id: RefCell::new(None),
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             offscreen_hook: RefCell::new(None),
         })
     }
@@ -175,7 +175,7 @@ impl LoadingOverlay {
         }
         self.progress.set_fraction(0.0);
         self.frame.set_visible(true);
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         if let Some(f) = self.offscreen_hook.borrow().as_ref() {
             f(true);
         }
@@ -198,7 +198,7 @@ impl LoadingOverlay {
             id.remove();
         }
         self.frame.set_visible(false);
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         if let Some(f) = self.offscreen_hook.borrow().as_ref() {
             f(false);
         }
@@ -208,7 +208,7 @@ impl LoadingOverlay {
     /// [`LoadingOverlay::show`]/[`LoadingOverlay::hide`] runs.  Use this to
     /// move the native wry HWND off-screen so the GTK progress-bar frame
     /// is visible during rendering, then restore it when the page is ready.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn set_offscreen_hook<F: Fn(bool) + 'static>(&self, f: F) {
         *self.offscreen_hook.borrow_mut() = Some(Box::new(f));
     }

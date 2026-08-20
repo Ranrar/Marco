@@ -32,16 +32,16 @@ use crate::components::editor::display_config::extract_xml_color_value;
 use crate::components::editor::sourceview::render_editor_with_view;
 use crate::components::editor::utilities::AsyncExtensionManager;
 use crate::components::viewer::javascript::{wheel_js, SCROLL_REPORT_JS, SCROLL_RESTORE_JS};
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use crate::components::viewer::javascript::{HOVER_REPORT_JS, WIN_ZOOM_BAR_HTML};
 use crate::components::viewer::preview_types::{EditorReturn, ViewMode};
 use crate::footer::FooterLabels;
 #[cfg(target_os = "linux")]
 use crate::logic::signal_manager::safe_source_remove;
 use crate::ui::splitview::setup_split_percentage_indicator_with_cascade_prevention;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use gio;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use glib;
 use gtk4::prelude::*;
 use gtk4::Paned;
@@ -556,7 +556,7 @@ pub fn create_editor_with_preview_and_buffer(
     // links and the GTK zoom-bar overlay is hidden behind the WebView2 child
     // window. Inject a JS bridge that posts hovered link URLs and an in-page
     // zoom toolbar via IPC instead.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         wheel_with_report.push_str(HOVER_REPORT_JS);
         wheel_with_report.push_str(WIN_ZOOM_BAR_HTML);
@@ -881,7 +881,7 @@ paned > separator {{
         Rc::new(sw)
     };
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         // On Windows we don't have WebKit scroll integration yet, but we can still
         // synchronize the editor with the HTML code view (TextView) scroller.
@@ -904,7 +904,7 @@ paned > separator {{
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let code_view_widget_for_windows: Rc<
         RefCell<Option<crate::components::viewer::preview_types::PlatformWebView>>,
     > = Rc::new(RefCell::new(None));
@@ -1052,7 +1052,7 @@ paned > separator {{
         webview_rc_opt = Some(Rc::clone(&webview_rc));
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         // Windows (and other) fallback: create PlatformWebView (wry) where possible
         // Use test HTML for empty document to mirror Linux behaviour (welcome message)
@@ -1173,7 +1173,7 @@ paned > separator {{
         // progress frame is never visible while the WebView is in its normal
         // position.  Wire up the offscreen hook so that show()/hide() move the
         // HWND out of the way while rendering and restore it when done.
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         {
             let webview_for_hook = webview_rc.borrow().clone();
             loading_overlay.set_offscreen_hook(move |offscreen| {
@@ -1279,25 +1279,25 @@ paned > separator {{
     //
     // Content-hash dedup lets the closure skip cheap no-op refreshes
     // (cursor moves, settings refreshes, undo/redo to the same text).
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let is_initial_load_win = Rc::new(RefCell::new(true));
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let last_css_hash_win = Rc::new(RefCell::new(0u64));
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let last_document_path_win = Rc::new(RefCell::new(None::<std::path::PathBuf>));
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let last_page_view_enabled_win = Rc::new(RefCell::new(false));
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let last_preview_hash_win: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
     // Generation counter for Windows: incremented on every render entry so a
     // render that finds the generation advanced (stale) can reset the hash guard
     // and let the next debounce fire a fresh pass.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let preview_generation_win: Rc<Cell<u64>> = Rc::new(Cell::new(0u64));
     // In-flight guard for Windows: set while a render is executing so a
     // reentrant trigger (impossible on the GTK main thread, but defensive)
     // is dropped rather than producing concurrent renders.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let preview_in_flight_win: Rc<Cell<bool>> = Rc::new(Cell::new(false));
 
     #[cfg(target_os = "linux")]
@@ -1588,7 +1588,7 @@ paned > separator {{
         })
     };
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let refresh_preview_impl: std::rc::Rc<dyn Fn()> = {
         let buffer = Rc::clone(&buffer_rc);
         let css = Rc::clone(&css_rc);
@@ -1955,7 +1955,7 @@ paned > separator {{
         let html_opts_for_code = Rc::clone(&html_opts_rc);
         let theme_mode_for_code = Rc::clone(&theme_mode_rc);
 
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         let code_view_widget_for_windows = Rc::clone(&code_view_widget_for_windows);
 
         #[cfg(target_os = "linux")]
@@ -2084,7 +2084,7 @@ paned > separator {{
                         }
                     }
 
-                    #[cfg(target_os = "windows")]
+                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     {
                         if let Some(ref pv) = *code_view_widget_for_windows.borrow() {
                             if let Err(e) = crate::components::viewer::wry::update_code_view_smooth(
@@ -2666,7 +2666,7 @@ paned > separator {{
         }) as Box<dyn Fn(&str)>;
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let theme_manager_for_preview = Rc::clone(&theme_manager);
         let theme_mode_for_preview = Rc::clone(&theme_mode_rc);
@@ -2776,7 +2776,7 @@ paned > separator {{
         });
     }
 
-    #[cfg(all(not(target_os = "linux"), not(target_os = "windows")))]
+    #[cfg(all(not(target_os = "linux"), not(target_os = "windows"), not(target_os = "macos")))]
     {
         update_preview_theme = Box::new(|_s: &str| {});
     }

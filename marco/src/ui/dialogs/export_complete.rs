@@ -253,6 +253,22 @@ pub fn open_path(path: &Path) {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        // `open` is the canonical launcher on macOS; it opens directories in
+        // Finder and files in their default application.
+        match std::process::Command::new("open").arg(path).spawn() {
+            Ok(_) => return,
+            Err(e) => {
+                log::warn!(
+                    "[ExportComplete] open {:?} failed: {}; falling back to gio",
+                    path,
+                    e
+                );
+            }
+        }
+    }
+
     let uri = gtk4::glib::filename_to_uri(path, None);
     let uri = match uri {
         Ok(u) => u,

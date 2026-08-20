@@ -1,0 +1,64 @@
+[
+  {
+    "_comment": "Diagram extension fixtures",
+    "_description": "Mermaid rendering and diagram-adjacent edge cases",
+    "_usage": "Run with: cargo test --test extension_spec_conformance",
+    "_note": "Comment entries are ignored by the fixture loader"
+  },
+  {
+    "markdown": "```mermaid\n\n```\n",
+    "html": "<pre class=\"mermaid-error\" title=\"Failed to render diagram: Empty Mermaid diagram\"><code></code></pre>\n",
+    "example": 3001,
+    "start_line": 1,
+    "end_line": 3,
+    "section": "Mermaid empty fenced block fallback"
+  },
+  {
+    "markdown": "~~~mermaid\n\n~~~\n",
+    "html": "<pre class=\"mermaid-error\" title=\"Failed to render diagram: Empty Mermaid diagram\"><code></code></pre>\n",
+    "example": 3002,
+    "start_line": 5,
+    "end_line": 7,
+    "section": "Mermaid empty tilde-fenced fallback"
+  },
+  {
+    "markdown": "```mmd\nA-->B\n```\n",
+    "html": "<div class=\"marco-code-block\"><button class=\"marco-copy-btn\" data-action=\"copy\" aria-label=\"Copy code\" title=\"Copy code\"><svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-copy'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666' /><path d='M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1' /></svg></button><pre data-language=\"Mermaid\"><code class=\"language-mmd\">A--&gt;B</code></pre></div>\n",
+    "example": 3003,
+    "start_line": 9,
+    "end_line": 11,
+    "section": "Non-mermaid fenced code remains code block"
+  },
+  {
+    "markdown": "```\nA-->B\n```\n",
+    "html": "<div class=\"marco-code-block\"><button class=\"marco-copy-btn\" data-action=\"copy\" aria-label=\"Copy code\" title=\"Copy code\"><svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-copy'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666' /><path d='M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1' /></svg></button><pre><code>A--&gt;B</code></pre></div>\n",
+    "example": 3004,
+    "start_line": 13,
+    "end_line": 15,
+    "section": "Plain fenced code is not a diagram"
+  },
+  {
+    "markdown": "```mermaid\n   \n```\n",
+    "html": "<pre class=\"mermaid-error\" title=\"Failed to render diagram: Empty Mermaid diagram\"><code>   </code></pre>\n",
+    "example": 3005,
+    "section": "Mermaid whitespace-only content fallback"
+  },
+  {
+    "markdown": "> ```mermaid\n> \n> ```\n",
+    "html": "<blockquote>\n<pre class=\"mermaid-error\" title=\"Failed to render diagram: Empty Mermaid diagram\"><code></code></pre>\n</blockquote>\n",
+    "example": 3006,
+    "section": "Mermaid empty block inside blockquote"
+  },
+  {
+    "markdown": "```mermaid-extra\nA-->B\n```\n",
+    "html": "<div class=\"marco-code-block\"><button class=\"marco-copy-btn\" data-action=\"copy\" aria-label=\"Copy code\" title=\"Copy code\"><svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-copy'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666' /><path d='M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1' /></svg></button><pre data-language=\"mermaid-extra\"><code class=\"language-mermaid-extra\">A--&gt;B</code></pre></div>\n",
+    "example": 3007,
+    "section": "Language prefix near-match is plain code block"
+  },
+  {
+    "markdown": "Some text.\n\n```\ncontent\n```\n",
+    "html": "<p>Some text.</p>\n<div class=\"marco-code-block\"><button class=\"marco-copy-btn\" data-action=\"copy\" aria-label=\"Copy code\" title=\"Copy code\"><svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1' stroke-linecap='round' stroke-linejoin='round' class='icon icon-tabler icons-tabler-outline icon-tabler-copy'><path stroke='none' d='M0 0h24v24H0z' fill='none'/><path d='M7 9.667a2.667 2.667 0 0 1 2.667 -2.667h8.666a2.667 2.667 0 0 1 2.667 2.667v8.666a2.667 2.667 0 0 1 -2.667 2.667h-8.666a2.667 2.667 0 0 1 -2.667 -2.667l0 -8.666' /><path d='M4.012 16.737a2.005 2.005 0 0 1 -1.012 -1.737v-10c0 -1.1 .9 -2 2 -2h10c.75 0 1.158 .385 1.5 1' /></svg></button><pre><code>content</code></pre></div>\n",
+    "example": 3008,
+    "section": "Non-diagram fenced block after paragraph"
+  }
+]

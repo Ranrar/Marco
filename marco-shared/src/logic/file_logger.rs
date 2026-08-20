@@ -170,6 +170,15 @@ fn resolve_log_root() -> PathBuf {
             return local_app_data.join("marco").join("logs");
         }
     }
+    #[cfg(target_os = "macos")]
+    {
+        let cache = std::env::var("HOME")
+            .ok()
+            .map(|h| PathBuf::from(h).join("Library").join("Caches"));
+        if let Some(cache) = cache {
+            return cache.join("marco").join("logs");
+        }
+    }
     // Fallback for dev mode / unknown OS
     std::env::current_dir()
         .map(|d| d.join("log"))

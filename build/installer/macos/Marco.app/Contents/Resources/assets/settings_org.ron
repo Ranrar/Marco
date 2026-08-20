@@ -1,0 +1,73 @@
+(
+    // === MARCO-SPECIFIC SETTINGS ===
+    editor: Some((
+        font: Some("Monospace"),
+        font_size: Some(12),
+        line_height: Some(1.0),
+        line_wrapping: Some(true),
+        show_invisibles: Some(false),
+        tabs_to_spaces: Some(false),
+        syntax_colors: Some(true),
+        diagnostics_underlines_enabled: Some(true),
+        markdown_hover_enabled: Some(true),
+        diagnostics_hover_enabled: Some(true),
+        table_auto_align: Some(true),
+        diagnostics_filter: Some((
+            errors: Some(true),
+            warnings: Some(true),
+            hints: Some(true),
+            infos: Some(true),
+        )),
+    )),
+    layout: Some((
+        view_mode: Some("HTML Preview"),
+        sync_scrolling: Some(true),
+        editor_view_split: None,
+        show_line_numbers: Some(true),
+        text_direction: None,
+        toc_depth: Some(3),
+        page_view_columns: Some(1),
+        preview_zoom: Some(1.0),
+    )),
+    window: Some((
+        width: Some(1000),
+        height: Some(800),
+        x: None,
+        y: None,
+        maximized: Some(false),
+        split_ratio: Some(40),
+    )),
+    files: Some((
+        recent_files: Some([
+        ]),
+        max_recent_files: None,
+    )),
+    active_schema: None,
+    schema_disabled: None,
+    
+    // === POLO-SPECIFIC SETTINGS ===
+    polo: Some((
+        window: Some((
+            width: Some(1000),
+            height: Some(800),
+            x: None,
+            y: None,
+            maximized: Some(false),
+        )),
+        last_opened_file: None,
+        auto_refresh: Some(false),
+        refresh_interval_ms: Some(1000),
+    )),
+    
+    // === COMMON SETTINGS (Shared between Marco and Polo) ===
+    appearance: Some((
+        editor_mode: Some(""),
+        preview_theme: Some("marco.css"),
+        toolbar_svg_button_text: Some(false),
+        ui_font: None,
+        ui_font_size: None,
+    )),
+    language: None,
+    debug: Some(false),
+    log_to_file: Some(false),
+)

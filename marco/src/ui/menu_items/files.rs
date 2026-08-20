@@ -5,7 +5,7 @@ use gtk4::{
     gio, prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
 };
 
-#[cfg(target_os = "linux")]
+#[cfg(not(target_os = "windows"))]
 use gtk4::{FileChooserAction, FileChooserNative};
 
 use std::future::Future;
@@ -175,7 +175,7 @@ impl FileDialogs {
     ///     println!("Selected file: {}", file_path.display());
     /// }
     /// ```no_run
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     pub async fn show_open_dialog<W: IsA<Window>>(
         parent: &W,
         title: &str,
@@ -283,7 +283,7 @@ impl FileDialogs {
     ///     println!("Save to: {}", file_path.display());
     /// }
     /// ```no_run
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     pub async fn show_save_dialog<W: IsA<Window>>(
         parent: &W,
         title: &str,

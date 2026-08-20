@@ -12,13 +12,13 @@ use gtk4::prelude::*;
 use log::debug;
 use std::cell::Cell;
 use std::rc::Rc;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::time::Instant;
 
 #[cfg(target_os = "linux")]
 use webkit6::prelude::*;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 /// Core scroll synchronization system with loop prevention and runtime control
@@ -72,7 +72,7 @@ impl ScrollSynchronizer {
             .set(depth.saturating_sub(1));
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn scroll_percentage(sw: &gtk4::ScrolledWindow) -> Option<f64> {
         let adj = sw.vadjustment();
         let upper = adj.upper();
@@ -113,7 +113,7 @@ impl ScrollSynchronizer {
     ///
     /// This is cross-platform and intended for syncing the editor pane with other
     /// GTK scrollable panes (for example the HTML code view TextView).
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn connect_scrolled_window_to_scrolled_window(
         &self,
         source_sw: &gtk4::ScrolledWindow,
@@ -170,7 +170,7 @@ impl ScrollSynchronizer {
     }
 
     /// Set up bidirectional sync between two ScrolledWindow widgets.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn connect_scrolled_windows_bidirectional(
         &self,
         a: &gtk4::ScrolledWindow,
@@ -185,7 +185,7 @@ impl ScrollSynchronizer {
     /// using JavaScript scrolling.
     ///
     /// This is Windows-only.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn connect_scrolled_window_to_platform_webview(
         &self,
         source_sw: &gtk4::ScrolledWindow,
@@ -272,7 +272,7 @@ impl ScrollSynchronizer {
     }
 
     /// Bidirectional editor<->preview scroll sync for Windows wry/WebView2.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn connect_scrolled_window_and_platform_webview(
         &self,
         editor_sw: &gtk4::ScrolledWindow,

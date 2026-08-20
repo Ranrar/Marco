@@ -28,8 +28,10 @@ use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
 use gtk4::{
     gdk, gio, prelude::*, Align, ApplicationWindow, Box as GtkBox, Button, EventControllerMotion,
-    HeaderBar, Image, Label, Orientation, Picture, Popover, Separator, WindowHandle,
+    Label, Orientation, Picture, Popover, Separator, WindowHandle,
 };
+#[cfg(not(target_os = "macos"))]
+use gtk4::{HeaderBar, Image};
 use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 use marco_shared::logic::swanson::SettingsManager;
@@ -152,21 +154,29 @@ pub fn create_custom_titlebar(
 ) -> (WindowHandle, Label) {
     let handle = WindowHandle::new();
 
-    let headerbar = HeaderBar::new();
-    headerbar.add_css_class("titlebar");
-    headerbar.add_css_class("polo-titlebar");
-    headerbar.set_show_title_buttons(false);
+    #[cfg(not(target_os = "macos"))]
+    let headerbar = {
+        let headerbar = HeaderBar::new();
+        headerbar.add_css_class("titlebar");
+        headerbar.add_css_class("polo-titlebar");
+        headerbar.set_show_title_buttons(false);
+        headerbar
+    };
 
     // ── App icon ──────────────────────────────────────────────────────────
-    let icon_path = asset_root.join("icons/icon_64x64_polo.png");
-    let icon = Image::from_file(&icon_path);
-    icon.set_pixel_size(16);
-    icon.set_halign(Align::Start);
-    icon.set_margin_start(5);
-    icon.set_margin_end(5);
-    icon.set_valign(Align::Center);
-    icon.set_tooltip_text(Some("Polo - Markdown Viewer"));
-    headerbar.pack_start(&icon);
+    #[cfg(not(target_os = "macos"))]
+    let icon = {
+        let icon_path = asset_root.join("icons/icon_64x64_polo.png");
+        let icon = Image::from_file(&icon_path);
+        icon.set_pixel_size(16);
+        icon.set_halign(Align::Start);
+        icon.set_margin_start(5);
+        icon.set_margin_end(5);
+        icon.set_valign(Align::Center);
+        icon.set_tooltip_text(Some("Polo - Markdown Viewer"));
+        headerbar.pack_start(&icon);
+        icon
+    };
 
     // ── Title label (center) ──────────────────────────────────────────────
     let title_text = if filename == "Untitled" {
@@ -178,6 +188,7 @@ pub fn create_custom_titlebar(
     title_label.set_valign(Align::Center);
     title_label.add_css_class("title-label");
     title_label.add_css_class("polo-title-label");
+    #[cfg(not(target_os = "macos"))]
     headerbar.set_title_widget(Some(&title_label));
 
     // ── Menu bar ──────────────────────────────────────────────────────────
@@ -193,7 +204,7 @@ pub fn create_custom_titlebar(
     file_btn.set_focusable(false);
     file_btn.set_has_frame(false);
 
-    let file_popover = build_file_popover(
+    let (_file_menu, _recent_menu, file_popover) = build_file_popover(
         window,
         webview.clone(),
         settings_manager.clone(),
@@ -312,16 +323,68 @@ pub fn create_custom_titlebar(
     }
     menu_bar.append(&view_btn);
 
+    #[cfg(not(target_os = "macos"))]
     headerbar.pack_start(&menu_bar);
 
     // ── Window controls (right) ───────────────────────────────────────────
-    let (btn_min, btn_max_toggle, btn_close) = create_window_controls(window, &settings_manager);
-    headerbar.pack_end(&btn_close);
-    headerbar.pack_end(&btn_max_toggle);
-    headerbar.pack_end(&btn_min);
+    #[cfg(not(target_os = "macos"))]
+    {
+        let (btn_min, btn_max_toggle, btn_close) =
+            create_window_controls(window, &settings_manager);
+        headerbar.pack_end(&btn_close);
+        headerbar.pack_end(&btn_max_toggle);
+        headerbar.pack_end(&btn_min);
 
-    handle.set_child(Some(&headerbar));
-    (handle, title_label)
+        handle.set_child(Some(&headerbar));
+        return (handle, title_label);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        // Native NSWindow title bar (traffic lights + centered title). Menus
+        // live in the global macOS menu bar, so there is no in-window menu row.
+        register_macos_about_action(window);
+        register_macos_view_actions(
+            window,
+            settings_manager.clone(),
+            webview.clone(),
+            current_file_path.clone(),
+            asset_root,
+            toc_handle.clone(),
+        );
+
+        // Build and install the global menu; rebuild it whenever the window
+        // regains focus so the Open Recent list stays current. The rebuild
+        // builds a wholly fresh model (never mutating a tracked one).
+        let rebuild_menubar = {
+            let window = window.clone();
+            let settings_manager = settings_manager.clone();
+            let asset_root_buf = asset_root.to_path_buf();
+            let toc = toc_handle.clone();
+            move || {
+                let menubar =
+                    build_macos_menubar(&settings_manager, &asset_root_buf, toc.clone());
+                if let Some(app) = window.application() {
+                    app.set_menubar(Some(&menubar));
+                }
+            }
+        };
+        rebuild_menubar();
+        {
+            let rebuild = rebuild_menubar.clone();
+            let w = window.clone();
+            w.connect_has_focus_notify(move |w| {
+                if w.has_focus() {
+                    rebuild();
+                }
+            });
+        }
+
+        let _ = title_label.bind_property("label", window, "title");
+        window.set_title(Some(title_label.text().as_str()));
+        title_label.set_visible(false);
+        (handle, title_label)
+    }
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────
@@ -349,6 +412,11 @@ fn menu_btn(text: &str) -> Button {
 //   win.polo-clear-recent     — clears the recent files list
 //   win.polo-quit             — closes the window
 
+/// Builds the File menu.
+///
+/// Returns `(file_menu, recent_menu, popover)`. The two `gio::Menu` models
+/// are returned so the macOS global menu bar can reuse them; on other
+/// platforms they are consumed via the popover only.
 #[allow(clippy::too_many_arguments)]
 fn build_file_popover(
     window: &ApplicationWindow,
@@ -360,7 +428,7 @@ fn build_file_popover(
     open_editor_btn: gtk4::Button,
     title_label: Label,
     _initial_theme: &str,
-) -> Popover {
+) -> (gio::Menu, gio::Menu, Popover) {
     use gtk4::glib;
 
     // ── GIO menu model ────────────────────────────────────────────────────
@@ -386,6 +454,14 @@ fn build_file_popover(
     file_menu.append_section(None, &quit_section);
 
     // ── PopoverMenu widget ────────────────────────────────────────────────
+    // On macOS the File menu lives in the global menu bar and this popover is
+    // never shown, but GtkPopoverMenu's tracker reacts to items-changed on
+    // its model even while unmapped and crashes (gtk_widget_reposition_after
+    // NULL deref) when the popover has no parent in the widget tree. Bind an
+    // empty, never-mutated model there instead of the live one.
+    #[cfg(target_os = "macos")]
+    let popover = gtk4::PopoverMenu::from_model(Some(&gio::Menu::new()));
+    #[cfg(not(target_os = "macos"))]
     let popover = gtk4::PopoverMenu::from_model(Some(&file_menu));
     popover.add_css_class("polo-menu-popover");
     popover.set_position(gtk4::PositionType::Bottom);
@@ -556,7 +632,193 @@ fn build_file_popover(
         }
     });
 
-    popover.upcast::<Popover>()
+    (file_menu, recent_menu, popover.upcast::<Popover>())
+}
+
+// ── macOS global menu bar ─────────────────────────────────────────────────
+//
+// On macOS Polo's menus live in the system menu bar at the top of the
+// screen. Every menubar rebuild creates fresh models — GTK's quartz backend
+// crashes on incremental mutation of menubar-tracked menus — so the File
+// menu is rebuilt from scratch and the View menu (themes, mode toggle, TOC
+// toggle) is regenerated from actions.
+
+/// Fill a (fresh, untracked) Open Recent submenu from the current settings.
+#[cfg(target_os = "macos")]
+fn populate_polo_recent_menu(recent_menu: &gio::Menu, settings_manager: &Arc<SettingsManager>) {
+    let recent_files = settings_manager.get_settings().get_polo_recent_files();
+    if recent_files.is_empty() {
+        recent_menu.append(Some("No recent files"), None);
+    } else {
+        for path in &recent_files {
+            let display = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .unwrap_or("Unknown")
+                .replace('_', "__"); // escape GTK mnemonic underscores
+            let item = gio::MenuItem::new(Some(&display), None);
+            item.set_action_and_target_value(
+                Some("win.polo-open-recent"),
+                Some(&path.to_string_lossy().as_ref().to_variant()),
+            );
+            recent_menu.append_item(&item);
+        }
+        let clear_section = gio::Menu::new();
+        clear_section.append(Some("Clear Recent Files"), Some("win.polo-clear-recent"));
+        recent_menu.append_section(None, &clear_section);
+    }
+}
+
+/// Register `win.polo-about`, which shows a minimal About dialog.
+#[cfg(target_os = "macos")]
+fn register_macos_about_action(window: &ApplicationWindow) {
+    if window.lookup_action("polo-about").is_none() {
+        let action = gio::SimpleAction::new("polo-about", None);
+        let window_weak = window.downgrade();
+        action.connect_activate(move |_, _| {
+            if let Some(w) = window_weak.upgrade() {
+                let dialog = gtk4::AboutDialog::builder()
+                    .program_name("Polo")
+                    .comments("Markdown viewer for Marco")
+                    .version(env!("CARGO_PKG_VERSION"))
+                    .build();
+                dialog.set_transient_for(Some(&w));
+                dialog.present();
+            }
+        });
+        window.add_action(&action);
+    }
+}
+
+/// Register the window actions backing the global View menu.
+#[cfg(target_os = "macos")]
+fn register_macos_view_actions(
+    window: &ApplicationWindow,
+    settings_manager: Arc<SettingsManager>,
+    webview: PlatformWebView,
+    current_file_path: Arc<RwLock<Option<String>>>,
+    asset_root: &std::path::Path,
+    toc_handle: Option<TocPanelHandle>,
+) {
+    use gtk4::glib;
+
+    // polo-set-theme: applies a preview theme (string parameter)
+    if window.lookup_action("polo-set-theme").is_none() {
+        let action = gio::SimpleAction::new("polo-set-theme", Some(glib::VariantTy::STRING));
+        let sm = settings_manager.clone();
+        let wv = webview.clone();
+        let cfp = current_file_path.clone();
+        let asset = asset_root.to_path_buf();
+        action.connect_activate(move |_, param| {
+            let theme = match param.and_then(|v| v.str().map(|s| s.to_owned())) {
+                Some(t) => t,
+                None => return,
+            };
+            let theme_to_save = theme.clone();
+            let _ = sm.update_settings(move |s| {
+                if s.appearance.is_none() {
+                    s.appearance =
+                        Some(marco_shared::logic::swanson::AppearanceSettings::default());
+                }
+                if let Some(ref mut a) = s.appearance {
+                    a.preview_theme = Some(theme_to_save.clone());
+                }
+            });
+            if let Ok(path_guard) = cfp.read() {
+                if let Some(ref path) = *path_guard {
+                    load_and_render_markdown(&wv, path, &theme, &sm, &asset);
+                } else {
+                    show_empty_state_with_theme(&wv, &sm);
+                }
+            }
+        });
+        window.add_action(&action);
+    }
+
+    // polo-toggle-mode: switches between the light and dark UI
+    if window.lookup_action("polo-toggle-mode").is_none() {
+        let action = gio::SimpleAction::new("polo-toggle-mode", None);
+        let w = window.clone();
+        let sm = settings_manager.clone();
+        let wv = webview.clone();
+        let cfp = current_file_path.clone();
+        let asset = asset_root.to_path_buf();
+        action.connect_activate(move |_, _| {
+            toggle_color_mode(&w, sm.clone(), wv.clone(), cfp.clone(), &asset, None);
+        });
+        window.add_action(&action);
+    }
+
+    // polo-toggle-toc: shows/hides the table of contents
+    if let Some(toc) = toc_handle {
+        if window.lookup_action("polo-toggle-toc").is_none() {
+            let action = gio::SimpleAction::new("polo-toggle-toc", None);
+            action.connect_activate(move |_, _| toc.toggle());
+            window.add_action(&action);
+        }
+    }
+}
+
+/// Build the macOS global menu bar model.
+///
+/// Everything is built fresh on every call: GTK's quartz backend crashes
+/// when a menubar-tracked `gio::Menu` is mutated incrementally
+/// (`gtk_menu_section_box_insert_func` NULL deref), so the menubar must
+/// never share models with the popover-backed menus used on other
+/// platforms, and rebuilds must replace the whole model wholesale.
+#[cfg(target_os = "macos")]
+fn build_macos_menubar(
+    settings_manager: &Arc<SettingsManager>,
+    asset_root: &std::path::Path,
+    toc_handle: Option<TocPanelHandle>,
+) -> gio::Menu {
+    let menubar = gio::Menu::new();
+
+    // Application menu (shown with the app name at the far left)
+    let app_menu = gio::Menu::new();
+    app_menu.append(Some("About Polo"), Some("win.polo-about"));
+    app_menu.append(Some("Quit Polo"), Some("win.polo-quit"));
+    menubar.append_submenu(Some("Polo"), &app_menu);
+
+    // File menu, rebuilt from scratch (mirrors the popover's structure)
+    let file_menu = gio::Menu::new();
+    let open_section = gio::Menu::new();
+    open_section.append(Some("Open..."), Some("win.polo-open-file"));
+    let recent_menu = gio::Menu::new();
+    populate_polo_recent_menu(&recent_menu, settings_manager);
+    let recent_item = gio::MenuItem::new(Some("Open Recent"), None);
+    recent_item.set_submenu(Some(&recent_menu));
+    open_section.append_item(&recent_item);
+    file_menu.append_section(None, &open_section);
+    let print_section = gio::Menu::new();
+    print_section.append(Some("Print\u{2026}"), Some("win.polo-print"));
+    file_menu.append_section(None, &print_section);
+    let quit_section = gio::Menu::new();
+    quit_section.append(Some("Quit"), Some("win.polo-quit"));
+    file_menu.append_section(None, &quit_section);
+    menubar.append_submenu(Some("File"), &file_menu);
+
+    // View menu: themes, mode toggle, TOC toggle
+    let view_menu = gio::Menu::new();
+    let themes = list_html_view_themes(&asset_root.join("themes/html_viever"));
+    for theme_entry in &themes {
+        let item = gio::MenuItem::new(Some(&theme_entry.label), None);
+        item.set_action_and_target_value(
+            Some("win.polo-set-theme"),
+            Some(&theme_entry.filename.as_str().to_variant()),
+        );
+        view_menu.append_item(&item);
+    }
+    view_menu.append(Some("Switch to Light/Dark Mode"), Some("win.polo-toggle-mode"));
+    if toc_handle.is_some() {
+        view_menu.append(
+            Some("Show/Hide Table of Contents"),
+            Some("win.polo-toggle-toc"),
+        );
+    }
+    menubar.append_submenu(Some("View"), &view_menu);
+
+    menubar
 }
 
 // ── View popover content (rebuilt on each show) ────────────────────────────
@@ -861,6 +1123,7 @@ pub(crate) fn render_svg_texture(svg: &str, color: &str, size: f64) -> gdk::Memo
 
 // ── Window controls ────────────────────────────────────────────────────────
 
+#[cfg(not(target_os = "macos"))]
 fn create_window_controls(
     window: &ApplicationWindow,
     _settings_manager: &Arc<SettingsManager>,

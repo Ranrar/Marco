@@ -1,0 +1,542 @@
+[
+  {
+    "markdown": "\\*not bold\\*",
+    "html": "<p>*not bold*</p>\n",
+    "example": 4001,
+    "section": "Backslash escape"
+  },
+  {
+    "markdown": "\\`not code\\`",
+    "html": "<p>`not code`</p>\n",
+    "example": 4002,
+    "section": "Backslash escape"
+  },
+  {
+    "markdown": "\\~\\~not strike\\~\\~",
+    "html": "<p>~~not strike~~</p>\n",
+    "example": 4003,
+    "section": "Backslash escape"
+  },
+  {
+    "markdown": "\\[not a link\\](url)",
+    "html": "<p>[not a link](url)</p>\n",
+    "example": 4004,
+    "section": "Backslash escape"
+  },
+  {
+    "markdown": "\\\\bold\\\\",
+    "html": "<p>\\bold\\</p>\n",
+    "example": 4005,
+    "section": "Backslash escape"
+  },
+  {
+    "markdown": "`~~code~~`",
+    "html": "<p><code>~~code~~</code></p>\n",
+    "example": 4006,
+    "section": "Code span priority"
+  },
+  {
+    "markdown": "`==code==`",
+    "html": "<p><code>==code==</code></p>\n",
+    "example": 4007,
+    "section": "Code span priority"
+  },
+  {
+    "markdown": "`**code**`",
+    "html": "<p><code>**code**</code></p>\n",
+    "example": 4008,
+    "section": "Code span priority"
+  },
+  {
+    "markdown": "`$x$`",
+    "html": "<p><code>$x$</code></p>\n",
+    "example": 4009,
+    "section": "Code span priority"
+  },
+  {
+    "markdown": "`[not a link](url)`",
+    "html": "<p><code>[not a link](url)</code></p>\n",
+    "example": 4010,
+    "section": "Code span priority"
+  },
+  {
+    "markdown": "***hello***",
+    "html": "<p><strong><em>hello</em></strong></p>\n",
+    "example": 4011,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "___hello___",
+    "html": "<p><strong><em>hello</em></strong></p>\n",
+    "example": 4012,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "**_mixed_**",
+    "html": "<p><strong><em>mixed</em></strong></p>\n",
+    "example": 4013,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "_**mixed**_",
+    "html": "<p><em><strong>mixed</strong></em></p>\n",
+    "example": 4014,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "**This is *nested* bold**",
+    "html": "<p><strong>This is <em>nested</em> bold</strong></p>\n",
+    "example": 4015,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "*This is **nested** italic*",
+    "html": "<p><em>This is <strong>nested</strong> italic</em></p>\n",
+    "example": 4016,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "***bold italic** then italic*",
+    "html": "<p><strong>*bold italic</strong> then italic*</p>\n",
+    "example": 4017,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "start *em and **strong** done* end",
+    "html": "<p>start <em>em and <strong>strong</strong> done</em> end</p>\n",
+    "example": 4018,
+    "section": "Bold and italic"
+  },
+  {
+    "markdown": "[**bold** link](https://example.com)",
+    "html": "<p><a href=\"https://example.com\"><strong>bold</strong> link</a></p>\n",
+    "example": 4019,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "[*italic* link](https://example.com)",
+    "html": "<p><a href=\"https://example.com\"><em>italic</em> link</a></p>\n",
+    "example": 4020,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "[see `func()`](https://example.com)",
+    "html": "<p><a href=\"https://example.com\">see <code>func()</code></a></p>\n",
+    "example": 4021,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "[~~gone~~ text](https://example.com)",
+    "html": "<p><a href=\"https://example.com\"><del>gone</del> text</a></p>\n",
+    "example": 4022,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "[==mark== text](https://example.com)",
+    "html": "<p><a href=\"https://example.com\"><mark>mark</mark> text</a></p>\n",
+    "example": 4023,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "[***wow***](https://example.com)",
+    "html": "<p><a href=\"https://example.com\"><strong><em>wow</em></strong></a></p>\n",
+    "example": 4024,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "[`code` and *em*](https://example.com)",
+    "html": "<p><a href=\"https://example.com\"><code>code</code> and <em>em</em></a></p>\n",
+    "example": 4025,
+    "section": "Inlines in link"
+  },
+  {
+    "markdown": "> **bold** and *italic*",
+    "html": "<blockquote>\n<p><strong>bold</strong> and <em>italic</em></p>\n</blockquote>\n",
+    "example": 4026,
+    "section": "Inlines in blockquote"
+  },
+  {
+    "markdown": "> `code` in quote",
+    "html": "<blockquote>\n<p><code>code</code> in quote</p>\n</blockquote>\n",
+    "example": 4027,
+    "section": "Inlines in blockquote"
+  },
+  {
+    "markdown": "> ~~strike~~ in quote",
+    "html": "<blockquote>\n<p><del>strike</del> in quote</p>\n</blockquote>\n",
+    "example": 4028,
+    "section": "Inlines in blockquote"
+  },
+  {
+    "markdown": "> ==mark== in quote",
+    "html": "<blockquote>\n<p><mark>mark</mark> in quote</p>\n</blockquote>\n",
+    "example": 4029,
+    "section": "Inlines in blockquote"
+  },
+  {
+    "markdown": "> [link](https://example.com) in quote",
+    "html": "<blockquote>\n<p><a href=\"https://example.com\">link</a> in quote</p>\n</blockquote>\n",
+    "example": 4030,
+    "section": "Inlines in blockquote"
+  },
+  {
+    "markdown": "# **Bold** heading",
+    "html": "<h1 id=\"bold-heading\"><a class=\"marco-heading-anchor\" href=\"#bold-heading\" aria-label=\"Link to this heading\">**Bold** heading</a></h1>\n",
+    "example": 4031,
+    "section": "Inlines in heading"
+  },
+  {
+    "markdown": "## *Italic* heading",
+    "html": "<h2 id=\"italic-heading\"><a class=\"marco-heading-anchor\" href=\"#italic-heading\" aria-label=\"Link to this heading\">*Italic* heading</a></h2>\n",
+    "example": 4032,
+    "section": "Inlines in heading"
+  },
+  {
+    "markdown": "### `code` heading",
+    "html": "<h3 id=\"code-heading\"><a class=\"marco-heading-anchor\" href=\"#code-heading\" aria-label=\"Link to this heading\">`code` heading</a></h3>\n",
+    "example": 4033,
+    "section": "Inlines in heading"
+  },
+  {
+    "markdown": "#### ~~strike~~ heading",
+    "html": "<h4 id=\"strike-heading\"><a class=\"marco-heading-anchor\" href=\"#strike-heading\" aria-label=\"Link to this heading\">~~strike~~ heading</a></h4>\n",
+    "example": 4034,
+    "section": "Inlines in heading"
+  },
+  {
+    "markdown": "##### ==mark== heading",
+    "html": "<h5 id=\"mark-heading\"><a class=\"marco-heading-anchor\" href=\"#mark-heading\" aria-label=\"Link to this heading\">==mark== heading</a></h5>\n",
+    "example": 4035,
+    "section": "Inlines in heading"
+  },
+  {
+    "markdown": "###### [link](https://x.com) heading",
+    "html": "<h6 id=\"link-https-x-com-heading\"><a class=\"marco-heading-anchor\" href=\"#link-https-x-com-heading\" aria-label=\"Link to this heading\">[link](https://x.com) heading</a></h6>\n",
+    "example": 4036,
+    "section": "Inlines in heading"
+  },
+  {
+    "markdown": "- **bold** item\n- *italic* item\n- `code` item",
+    "html": "<ul>\n<li><strong>bold</strong> item</li>\n<li><em>italic</em> item</li>\n<li><code>code</code> item</li>\n</ul>\n",
+    "example": 4037,
+    "section": "Lists with inlines"
+  },
+  {
+    "markdown": "1. **bold**\n2. *italic*\n3. ~~strike~~",
+    "html": "<ol>\n<li><strong>bold</strong></li>\n<li><em>italic</em></li>\n<li><del>strike</del></li>\n</ol>\n",
+    "example": 4038,
+    "section": "Lists with inlines"
+  },
+  {
+    "markdown": "- [ ] **important** task\n- [x] ~~done~~ task",
+    "html": "<ul>\n<li class=\"marco-task-list-item\"><span class=\"marco-marco-marco-task-checkbox unchecked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-box\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span><strong>important</strong> task</li>\n<li class=\"marco-task-list-item marco-task-list-item--checked\"><span class=\"marco-marco-marco-task-checkbox checked\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.25\" stroke-linecap=\"round\" stroke-linejoin=\"round\" class=\"marco-task-icon\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path class=\"marco-task-check\" style=\"stroke: var(--mc-task-accent); stroke-width: 2.0;\" d=\"M9 11l3 3l8 -8\" /><path class=\"marco-task-box\" style=\"stroke: var(--mc-task-primary);\" d=\"M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-14\" /></svg></span><del>done</del> task</li>\n</ul>\n",
+    "example": 4039,
+    "section": "Lists with inlines"
+  },
+  {
+    "markdown": "- item\n  - *nested* item\n  - **nested bold**",
+    "html": "<ul>\n<li>item<ul>\n<li><em>nested</em> item</li>\n<li><strong>nested bold</strong></li>\n</ul>\n</li>\n</ul>\n",
+    "example": 4040,
+    "section": "Lists with inlines"
+  },
+  {
+    "markdown": "| **H1** | *H2* |\n|---|---|\n| `code` | ~~del~~ |",
+    "html": "<table>\n<thead>\n<tr><th><strong>H1</strong></th><th><em>H2</em></th></tr>\n</thead>\n<tbody>\n<tr><td><code>code</code></td><td><del>del</del></td></tr>\n</tbody>\n</table>\n",
+    "example": 4041,
+    "section": "Table with inlines"
+  },
+  {
+    "markdown": "| [link](https://x.com) | ==mark== |\n|---|---|\n| a | b |",
+    "html": "<table>\n<thead>\n<tr><th><a href=\"https://x.com\">link</a></th><th><mark>mark</mark></th></tr>\n</thead>\n<tbody>\n<tr><td>a</td><td>b</td></tr>\n</tbody>\n</table>\n",
+    "example": 4042,
+    "section": "Table with inlines"
+  },
+  {
+    "markdown": "~~**bold strike**~~",
+    "html": "<p><del><strong>bold strike</strong></del></p>\n",
+    "example": 4043,
+    "section": "Strikethrough combinations"
+  },
+  {
+    "markdown": "~~*italic strike*~~",
+    "html": "<p><del><em>italic strike</em></del></p>\n",
+    "example": 4044,
+    "section": "Strikethrough combinations"
+  },
+  {
+    "markdown": "**~~bold strike~~**",
+    "html": "<p><strong><del>bold strike</del></strong></p>\n",
+    "example": 4045,
+    "section": "Strikethrough combinations"
+  },
+  {
+    "markdown": "*~~italic strike~~*",
+    "html": "<p><em><del>italic strike</del></em></p>\n",
+    "example": 4046,
+    "section": "Strikethrough combinations"
+  },
+  {
+    "markdown": "==**bold mark**==",
+    "html": "<p><mark><strong>bold mark</strong></mark></p>\n",
+    "example": 4047,
+    "section": "Mark combinations"
+  },
+  {
+    "markdown": "==*italic mark*==",
+    "html": "<p><mark><em>italic mark</em></mark></p>\n",
+    "example": 4048,
+    "section": "Mark combinations"
+  },
+  {
+    "markdown": "**==bold mark==**",
+    "html": "<p><strong><mark>bold mark</mark></strong></p>\n",
+    "example": 4049,
+    "section": "Mark combinations"
+  },
+  {
+    "markdown": "before ==highlight== after",
+    "html": "<p>before <mark>highlight</mark> after</p>\n",
+    "example": 4050,
+    "section": "Mark combinations"
+  },
+  {
+    "markdown": "E=mc^2^",
+    "html": "<p>E=mc<sup>2</sup></p>\n",
+    "example": 4051,
+    "section": "Superscript and subscript"
+  },
+  {
+    "markdown": "H~2~O",
+    "html": "<p>H<sub>2</sub>O</p>\n",
+    "example": 4052,
+    "section": "Superscript and subscript"
+  },
+  {
+    "markdown": "x^a+b^",
+    "html": "<p>x<sup>a+b</sup></p>\n",
+    "example": 4053,
+    "section": "Superscript and subscript"
+  },
+  {
+    "markdown": "**x^2^** and *y^3^*",
+    "html": "<p><strong>x<sup>2</sup></strong> and <em>y<sup>3</sup></em></p>\n",
+    "example": 4054,
+    "section": "Superscript and subscript"
+  },
+  {
+    "markdown": "CO~2~ is a ~gas~",
+    "html": "<p>CO<sub>2</sub> is a <sub>gas</sub></p>\n",
+    "example": 4055,
+    "section": "Superscript and subscript"
+  },
+  {
+    "markdown": "Hello :wave: world",
+    "html": "<p>Hello 👋 world</p>\n",
+    "example": 4056,
+    "section": "Emoji combinations"
+  },
+  {
+    "markdown": "**:fire:** strong",
+    "html": "<p><strong>🔥</strong> strong</p>\n",
+    "example": 4057,
+    "section": "Emoji combinations"
+  },
+  {
+    "markdown": ":tada: in [link](https://x.com)",
+    "html": "<p>🎉 in <a href=\"https://x.com\">link</a></p>\n",
+    "example": 4058,
+    "section": "Emoji combinations"
+  },
+  {
+    "markdown": "- :check_mark: done\n- :x: not done",
+    "html": "<ul>\n<li>:check_mark: done</li>\n<li>❌ not done</li>\n</ul>\n",
+    "example": 4059,
+    "section": "Emoji combinations"
+  },
+  {
+    "markdown": "@alice[github] reviewed this",
+    "html": "<p><a class=\"marco-mention marco-mention-github\" href=\"https://github.com/alice\">alice</a> reviewed this</p>\n",
+    "example": 4060,
+    "section": "Platform mentions"
+  },
+  {
+    "markdown": "Thanks **@bob[gitlab]** for the fix",
+    "html": "<p>Thanks <strong><a class=\"marco-mention marco-mention-gitlab\" href=\"https://gitlab.com/bob\">bob</a></strong> for the fix</p>\n",
+    "example": 4061,
+    "section": "Platform mentions"
+  },
+  {
+    "markdown": "See #42[github] for details",
+    "html": "<p>See #42[github] for details</p>\n",
+    "example": 4062,
+    "section": "Platform mentions"
+  },
+  {
+    "markdown": "Fixes #99[github] and #100[github]",
+    "html": "<p>Fixes #99[github] and #100[github]</p>\n",
+    "example": 4063,
+    "section": "Platform mentions"
+  },
+  {
+    "markdown": "A fact^[source here].",
+    "html": "<p>A fact<sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup>.</p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>source here</p>\n</li>\n</ol>\n</section>\n",
+    "example": 4064,
+    "section": "Inline footnotes"
+  },
+  {
+    "markdown": "See^[**bold** in footnote].",
+    "html": "<p>See<sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup>.</p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p><strong>bold</strong> in footnote</p>\n</li>\n</ol>\n</section>\n",
+    "example": 4065,
+    "section": "Inline footnotes"
+  },
+  {
+    "markdown": "Multiple^[first] and^[second].",
+    "html": "<p>Multiple<sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup> and<sup class=\"footnote-ref\"><a href=\"#fn2\" id=\"fnref2\">2</a></sup>.</p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p>first</p>\n</li>\n<li id=\"fn2\"><p>second</p>\n</li>\n</ol>\n</section>\n",
+    "example": 4066,
+    "section": "Inline footnotes"
+  },
+  {
+    "markdown": "See[^1] and[^2]\n\n[^1]: *italic* note\n[^2]: `code` note",
+    "html": "<p>See<sup class=\"footnote-ref\"><a href=\"#fn1\" id=\"fnref1\">1</a></sup> and<sup class=\"footnote-ref\"><a href=\"#fn2\" id=\"fnref2\">2</a></sup></p>\n<section class=\"footnotes\">\n<ol>\n<li id=\"fn1\"><p><em>italic</em> note</p>\n</li>\n<li id=\"fn2\"><p><code>code</code> note</p>\n</li>\n</ol>\n</section>\n",
+    "example": 4067,
+    "section": "GFM footnote rich"
+  },
+  {
+    "markdown": "> [!NOTE]\n> Simple note",
+    "html": "<div class=\"markdown-alert markdown-alert-note admonition admonition-note\">\n<p class=\"markdown-alert-title\"><span class=\"markdown-alert-icon\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0\" /><path d=\"M12 9h.01\" /><path d=\"M11 12h1v4h1\" /></svg></span>Note</p>\n<p>Simple note</p>\n</div>\n",
+    "example": 4068,
+    "section": "Admonition"
+  },
+  {
+    "markdown": "> [!WARNING]\n> **Bold** warning with `code`",
+    "html": "<div class=\"markdown-alert markdown-alert-warning admonition admonition-warning\">\n<p class=\"markdown-alert-title\"><span class=\"markdown-alert-icon\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0\" /><path d=\"M12 9h.01\" /><path d=\"M11 12h1v4h1\" /></svg></span>Warning</p>\n<p><strong>Bold</strong> warning with <code>code</code></p>\n</div>\n",
+    "example": 4069,
+    "section": "Admonition"
+  },
+  {
+    "markdown": "> [!TIP]\n> - item one\n> - item two",
+    "html": "<div class=\"markdown-alert markdown-alert-tip admonition admonition-tip\">\n<p class=\"markdown-alert-title\"><span class=\"markdown-alert-icon\" aria-hidden=\"true\"><svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.75\" stroke-linecap=\"round\" stroke-linejoin=\"round\" focusable=\"false\" aria-hidden=\"true\"><path stroke=\"none\" d=\"M0 0h24v24H0z\" fill=\"none\"/><path d=\"M15.02 19.52c-2.341 .736 -5 .606 -7.32 -.52l-4.7 1l1.3 -3.9c-2.324 -3.437 -1.426 -7.872 2.1 -10.374c3.526 -2.501 8.59 -2.296 11.845 .48c1.649 1.407 2.575 3.253 2.742 5.152\" /><path d=\"M19 22v.01\" /><path d=\"M19 19a2.003 2.003 0 0 0 .914 -3.782a1.98 1.98 0 0 0 -2.414 .483\" /></svg></span>Tip</p>\n<ul>\n<li>item one</li>\n<li>item two</li>\n</ul>\n</div>\n",
+    "example": 4070,
+    "section": "Admonition"
+  },
+  {
+    "markdown": "> outer\n>> inner",
+    "html": "<blockquote>\n<p>outer</p>\n<blockquote>\n<p>inner</p>\n</blockquote>\n</blockquote>\n",
+    "example": 4071,
+    "section": "Nested blockquote"
+  },
+  {
+    "markdown": "> # Heading in quote",
+    "html": "<blockquote>\n<h1 id=\"heading-in-quote\"><a class=\"marco-heading-anchor\" href=\"#heading-in-quote\" aria-label=\"Link to this heading\">Heading in quote</a></h1>\n</blockquote>\n",
+    "example": 4072,
+    "section": "Nested blockquote"
+  },
+  {
+    "markdown": "> - list\n> - in quote",
+    "html": "<blockquote>\n<ul>\n<li>list</li>\n<li>in quote</li>\n</ul>\n</blockquote>\n",
+    "example": 4073,
+    "section": "Nested blockquote"
+  },
+  {
+    "markdown": "foo_bar_baz",
+    "html": "<p>foo_bar_baz</p>\n",
+    "example": 4074,
+    "section": "Intraword underscore"
+  },
+  {
+    "markdown": "_leading_underscore",
+    "html": "<p><em>leading</em>underscore</p>\n",
+    "example": 4075,
+    "section": "Intraword underscore"
+  },
+  {
+    "markdown": "trailing_underscore_",
+    "html": "<p>trailing_underscore_</p>\n",
+    "example": 4076,
+    "section": "Intraword underscore"
+  },
+  {
+    "markdown": "HTTP_METHOD_GET",
+    "html": "<p>HTTP_METHOD_GET</p>\n",
+    "example": 4077,
+    "section": "Intraword underscore"
+  },
+  {
+    "markdown": "line one  \nline two",
+    "html": "<p>line one<br />\nline two</p>\n",
+    "example": 4078,
+    "section": "Line breaks"
+  },
+  {
+    "markdown": "line one\\\nline two",
+    "html": "<p>line one<br />\nline two</p>\n",
+    "example": 4079,
+    "section": "Line breaks"
+  },
+  {
+    "markdown": "line one\nline two",
+    "html": "<p>line one\nline two</p>\n",
+    "example": 4080,
+    "section": "Line breaks"
+  },
+  {
+    "markdown": "<https://example.com>",
+    "html": "<p><a href=\"https://example.com\">https://example.com</a></p>\n",
+    "example": 4081,
+    "section": "Autolink variants"
+  },
+  {
+    "markdown": "<user@example.com>",
+    "html": "<p><a href=\"mailto:user@example.com\">user@example.com</a></p>\n",
+    "example": 4082,
+    "section": "Autolink variants"
+  },
+  {
+    "markdown": "https://example.com in text",
+    "html": "<p><a href=\"https://example.com\">https://example.com</a> in text</p>\n",
+    "example": 4083,
+    "section": "Autolink variants"
+  },
+  {
+    "markdown": "See <https://example.com> and https://other.com",
+    "html": "<p>See <a href=\"https://example.com\">https://example.com</a> and <a href=\"https://other.com\">https://other.com</a></p>\n",
+    "example": 4084,
+    "section": "Autolink variants"
+  },
+  {
+    "markdown": "Term\n: definition",
+    "html": "<dl>\n<dt>Term</dt>\n<dd>\n<p>definition</p>\n</dd>\n</dl>\n",
+    "example": 4085,
+    "section": "Definition list"
+  },
+  {
+    "markdown": "**Term**\n: *italic* definition",
+    "html": "<dl>\n<dt><strong>Term</strong></dt>\n<dd>\n<p><em>italic</em> definition</p>\n</dd>\n</dl>\n",
+    "example": 4086,
+    "section": "Definition list"
+  },
+  {
+    "markdown": "Term\n: first\n: second",
+    "html": "<dl>\n<dt>Term</dt>\n<dd>\n<p>first</p>\n</dd>\n<dd>\n<p>second</p>\n</dd>\n</dl>\n",
+    "example": 4087,
+    "section": "Definition list"
+  },
+  {
+    "markdown": "Start **bold**, then *italic*, then `code`, then ~~strike~~, then ==mark==.",
+    "html": "<p>Start <strong>bold</strong>, then <em>italic</em>, then <code>code</code>, then <del>strike</del>, then <mark>mark</mark>.</p>\n",
+    "example": 4088,
+    "section": "Complex paragraph"
+  },
+  {
+    "markdown": "Math $x^2$ with **bold** and [link](https://x.com).",
+    "html": "<p>Math <span class=\"katex\"><math xmlns=\"http://www.w3.org/1998/Math/MathML\"><semantics><mrow><msup><mi>x</mi><mn>2</mn></msup></mrow><annotation encoding=\"application/x-tex\">x^2</annotation></semantics></math></span> with <strong>bold</strong> and <a href=\"https://x.com\">link</a>.</p>\n",
+    "example": 4089,
+    "section": "Complex paragraph"
+  },
+  {
+    "markdown": "An :emoji: and @user[github] in a **bold** paragraph.",
+    "html": "<p>An :emoji: and <a class=\"marco-mention marco-mention-github\" href=\"https://github.com/user\">user</a> in a <strong>bold</strong> paragraph.</p>\n",
+    "example": 4090,
+    "section": "Complex paragraph"
+  }
+]

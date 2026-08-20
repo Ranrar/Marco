@@ -49,6 +49,9 @@ tempfile = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
+
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+# Unix signal handling (SIGINT/SIGTERM); glib-unix works on Linux and macOS.
 glib-unix = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -67,6 +70,21 @@ rfd = "0.17.2"
 webview2-com = "0.38.2"
 windows = { version = "0.61", features = ["Win32_Foundation"] }
 windows-core = "0.61"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# macOS preview backend: wry's WKWebView embedded as an NSView child of the
+# GTK (quartz backend) window.
+wry = { workspace = true }
+raw-window-handle = { workspace = true }
+# NSView access for the GTK window (gdk_macos_surface_get_native_window).
+gdk4-macos = { workspace = true }
+# Silent PDF export via `-[WKWebView createPDFWithConfiguration:completionHandler:]`.
+# Versions pinned to match wry 0.55.1's transitive deps so the tree has a
+# single copy of objc2 / block2.
+objc2 = "0.6.4"
+objc2-foundation = { version = "0.3.2", features = ["NSData", "NSString"] }
+objc2-web-kit = { version = "0.3.2", features = ["WKPDFConfiguration", "block2"] }
+block2 = "0.6.2"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]
 embed-resource = "3.0"

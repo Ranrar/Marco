@@ -23,33 +23,38 @@ pub struct PlatformWebView {
     #[cfg(target_os = "linux")]
     inner: webkit6::WebView,
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     inner: std::rc::Rc<std::cell::RefCell<Option<wry::WebView>>>,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     container: gtk4::Box,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     parent_handle: std::rc::Rc<ParentWindowHandle>,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     bg_color: std::rc::Rc<std::cell::Cell<(u8, u8, u8, u8)>>,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     gtk_window: gtk4::ApplicationWindow,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     navigation_handler:
         std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>,
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     load_finished_handler: std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn()>>>>,
     /// When `true` the tick callback keeps the wry HWND at −32000,−32000 so
     /// the GTK loading-overlay frame is visible above it.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     is_offscreen_for_loading: std::rc::Rc<std::cell::Cell<bool>>,
+    /// Set while a deferred initial build is queued (or running) so repeated
+    /// `load_html_with_base` calls before the first allocation don't queue
+    /// duplicate builds.
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    build_pending: std::rc::Rc<std::cell::Cell<bool>>,
     /// Monotonically increasing counter appended to reload URLs as `?v=N`
     /// so WebView2 never serves a cached response for the custom protocol.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     load_version: std::rc::Rc<std::cell::Cell<u64>>,
     /// GTK CSS provider used to paint the container background to match the
     /// WebView2 background colour, preventing a white flash while the HWND
     /// is at −32000,−32000 during loading.
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     bg_css_provider: std::rc::Rc<gtk4::CssProvider>,
 }
 
@@ -229,71 +234,121 @@ impl PlatformWebView {
 /// Using a custom protocol instead of `load_html` / `NavigateToString`
 /// bypasses WebView2's ~2 MB content limit, which would silently drop large
 /// markdown files and leave polo in a permanent loading state.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 const POLO_SCHEME: &str = "polo-preview";
 
 /// URL passed to `with_url()` in the WebViewBuilder.  wry transforms this to
 /// `http://polo-preview.localhost/` internally at build time.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 const POLO_CONTENT_URL_BUILDER: &str = "polo-preview://localhost/";
 
 /// Base for versioned reload URLs (`?v=N`). Must be the already-transformed
 /// HTTP form because wry's scheme rewrite only runs during `build()`, not
 /// on subsequent `load_url()` calls.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 const POLO_CONTENT_URL_RELOAD: &str = "http://polo-preview.localhost/";
 
 /// In-memory HTML store for polo's single custom-protocol WebView.
 /// Updated before every `load_url` call so the protocol handler always
 /// returns the latest rendered HTML.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 static POLO_HTML: std::sync::OnceLock<std::sync::Mutex<Vec<u8>>> = std::sync::OnceLock::new();
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn polo_html() -> &'static std::sync::Mutex<Vec<u8>> {
     POLO_HTML.get_or_init(|| std::sync::Mutex::new(Vec::new()))
 }
 
-#[cfg(target_os = "windows")]
+/// Resolve the NSView to hand to wry as the WKWebView's parent on macOS.
+///
+/// `gdk_macos_surface_get_native_window()` (exposed as `MacosSurface::native`)
+/// returns the surface's NSWindow, not an NSView. wry's `build_as_child`
+/// expects an NSView, which is the window's `contentView` — an implementation
+/// detail that GTK may replace, so always re-fetch it right before building.
+#[cfg(target_os = "macos")]
+fn window_content_view(
+    window: &gtk4::ApplicationWindow,
+) -> Option<std::ptr::NonNull<std::ffi::c_void>> {
+    use objc2::runtime::AnyObject;
+    let surface = window.surface()?;
+    let macos_surface = surface.downcast_ref::<gdk4_macos::MacosSurface>()?;
+    let ns_window = macos_surface.native() as *mut AnyObject;
+    if ns_window.is_null() {
+        return None;
+    }
+    let content_view: *mut AnyObject = unsafe { objc2::msg_send![&*ns_window, contentView] };
+    std::ptr::NonNull::new(content_view.cast())
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl PlatformWebView {
     pub fn new(window: &gtk4::ApplicationWindow) -> Result<Self, String> {
         use gtk4::prelude::WidgetExt;
-        use raw_window_handle::{
-            RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
-        };
         use std::cell::RefCell;
-        use std::num::NonZeroIsize;
         use std::rc::Rc;
 
         // Ensure the GTK window is realized so a surface/handle exists
         WidgetExt::realize(window);
 
         // Get the GDK surface from the GTK window
+        #[cfg(target_os = "windows")]
         let surface = window
             .surface()
             .ok_or_else(|| "Failed to get GDK surface".to_string())?;
 
-        // Use gdk4-win32 to get the native Win32 HWND
-        use gdk4_win32::Win32Surface;
-        let win32_surface: &Win32Surface = surface
-            .downcast_ref()
-            .ok_or_else(|| "Failed to downcast to Win32Surface".to_string())?;
+        #[cfg(target_os = "windows")]
+        let parent_handle = {
+            use raw_window_handle::{
+                RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
+            };
+            use std::num::NonZeroIsize;
 
-        let hwnd_ptr = unsafe {
-            gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _)
+            // Use gdk4-win32 to get the native Win32 HWND
+            use gdk4_win32::Win32Surface;
+            let win32_surface: &Win32Surface = surface
+                .downcast_ref()
+                .ok_or_else(|| "Failed to downcast to Win32Surface".to_string())?;
+
+            let hwnd_ptr = unsafe {
+                gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _)
+            };
+            let hwnd =
+                NonZeroIsize::new(hwnd_ptr as isize).ok_or_else(|| "HWND is null".to_string())?;
+
+            let win_handle = Win32WindowHandle::new(hwnd);
+
+            let raw_window = RawWindowHandle::Win32(win_handle);
+            let raw_display = RawDisplayHandle::Windows(WindowsDisplayHandle::new());
+
+            ParentWindowHandle {
+                window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
+                display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(raw_display) },
+            }
         };
-        let hwnd =
-            NonZeroIsize::new(hwnd_ptr as isize).ok_or_else(|| "HWND is null".to_string())?;
 
-        let win_handle = Win32WindowHandle::new(hwnd);
+        #[cfg(target_os = "macos")]
+        let parent_handle = {
+            use raw_window_handle::{
+                AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
+            };
 
-        let raw_window = RawWindowHandle::Win32(win_handle);
-        let raw_display = RawDisplayHandle::Windows(WindowsDisplayHandle::new());
+            // `MacosSurface::native()` returns the surface's NSWindow (see
+            // `window_content_view`); wry's `build_as_child` needs the NSView
+            // it should parent the WKWebView into, which is the window's
+            // contentView.
+            let ns_view = window_content_view(window)
+                .ok_or_else(|| "NSView is null".to_string())?;
 
-        let parent_handle = ParentWindowHandle {
-            window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
-            display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(raw_display) },
+            let appkit_handle = AppKitWindowHandle::new(ns_view);
+            let raw_window = RawWindowHandle::AppKit(appkit_handle);
+            let raw_display = RawDisplayHandle::AppKit(AppKitDisplayHandle::new());
+
+            ParentWindowHandle {
+                window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
+                display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(raw_display) },
+            }
         };
+
         let parent_handle = std::rc::Rc::new(parent_handle);
 
         let container = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
@@ -308,6 +363,7 @@ impl PlatformWebView {
         let load_finished_handler =
             std::rc::Rc::new(std::cell::RefCell::new(None::<Box<dyn Fn()>>));
         let is_offscreen_for_loading = std::rc::Rc::new(std::cell::Cell::new(false));
+        let build_pending = std::rc::Rc::new(std::cell::Cell::new(false));
         let load_version = std::rc::Rc::new(std::cell::Cell::new(0u64));
 
         // Set up a GTK CSS provider so the container widget is painted with the
@@ -338,36 +394,50 @@ impl PlatformWebView {
                 webview_for_tick.borrow().as_ref(),
             ) {
                 // When the GTK container is not mapped, or a loading operation
-                // is in progress, move the native Win32 WebView off-screen so
-                // the GTK loading-overlay frame is visible.
+                // is in progress, hide the native WebView so the GTK
+                // loading-overlay frame is visible: Windows moves the HWND
+                // off-screen, macOS hides the NSView via `set_visible(false)`.
                 if !container.is_mapped() || is_offscreen_tick.get() {
-                    // When offscreen for loading, use the actual container size so
-                    // WebView2 renders the page at the correct viewport dimensions
-                    // and no reflow/white-flash occurs when the HWND is restored.
-                    let (w, h) = if is_offscreen_tick.get() {
-                        let alloc = container.allocation();
-                        (
-                            alloc.width().max(100) as f64,
-                            alloc.height().max(100) as f64,
-                        )
-                    } else {
-                        // Container not mapped (e.g. tab hidden): use minimal size.
-                        (1.0, 1.0)
-                    };
-                    let _ = view.set_bounds(wry::Rect {
-                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                            -32000.0, -32000.0,
-                        )),
-                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
-                    });
+                    #[cfg(target_os = "windows")]
+                    {
+                        // When offscreen for loading, use the actual container size so
+                        // WebView2 renders the page at the correct viewport dimensions
+                        // and no reflow/white-flash occurs when the HWND is restored.
+                        let (w, h) = if is_offscreen_tick.get() {
+                            let alloc = container.allocation();
+                            (
+                                alloc.width().max(100) as f64,
+                                alloc.height().max(100) as f64,
+                            )
+                        } else {
+                            // Container not mapped (e.g. tab hidden): use minimal size.
+                            (1.0, 1.0)
+                        };
+                        let _ = view.set_bounds(wry::Rect {
+                            position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                                -32000.0, -32000.0,
+                            )),
+                            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
+                        });
+                    }
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = view.set_visible(false);
+                    }
                     return gtk4::glib::ControlFlow::Continue;
                 }
 
                 let alloc = container.allocation();
+                #[cfg(target_os = "windows")]
                 let (offset_x, offset_y) = if win.is_maximized() {
                     (0.0, 0.0)
                 } else {
                     (14.0, 12.0)
+                };
+                #[cfg(target_os = "macos")]
+                let (offset_x, offset_y) = {
+                    let _ = &win;
+                    (0.0, 0.0)
                 };
 
                 // Translate the container origin into window coordinates so the
@@ -387,6 +457,14 @@ impl PlatformWebView {
                         alloc.height().max(1) as f64,
                     )),
                 };
+
+                #[cfg(target_os = "macos")]
+                {
+                    // The WKWebView may have been hidden while the container was
+                    // unmapped or during loading; restore visibility when mapped.
+                    let _ = view.set_visible(true);
+                }
+
                 if let Err(e) = view.set_bounds(rect) {
                     log::debug!("wry set_bounds failed: {}", e);
                 }
@@ -403,6 +481,7 @@ impl PlatformWebView {
             navigation_handler,
             load_finished_handler,
             is_offscreen_for_loading,
+            build_pending,
             load_version,
             bg_css_provider,
         })
@@ -474,56 +553,161 @@ impl PlatformWebView {
             return;
         }
 
-        // If the WebView is not ready yet (early call before the first allocation),
-        // store the HTML and load it after the widget is realized by forcing an
-        // initial creation now with a minimal rect.
-        // Build the WebView off-screen if a loading operation is in progress
-        // so the GTK loading-overlay frame stays visible until the page loads.
-        let rect = if self.is_offscreen_for_loading.get() {
-            let alloc = self.container.allocation();
-            wry::Rect {
-                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    -32000.0, -32000.0,
-                )),
-                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                    alloc.width().max(100) as f64,
-                    alloc.height().max(100) as f64,
-                )),
+        // If the WebView is not ready yet, defer its creation until the
+        // container is mapped and allocated a non-trivial size.  Building
+        // synchronously here — e.g. from the command-line handler before the
+        // window is presented — is fatal on macOS: wry reads
+        // `parentView.window` during creation (nil until the GTK window is
+        // presented, so wry panics), and GTK's quartz backend may replace the
+        // surface's NSView after `PlatformWebView::new` captured it (so wry
+        // objc_msgSends on freed memory).  Both are avoided by building once
+        // the widget is on screen and re-fetching the NSView at that moment.
+        if self.build_pending.replace(true) {
+            // A deferred build is already queued; the stored HTML is picked
+            // up by the custom-protocol handler when the initial page loads.
+            return;
+        }
+
+        let this = self.clone();
+        let mut tries = 0u32;
+        gtk4::glib::timeout_add_local(std::time::Duration::from_millis(16), move || {
+            if this.inner.borrow().is_some() {
+                this.build_pending.set(false);
+                return gtk4::glib::ControlFlow::Break;
             }
-        } else {
-            let alloc = self.container.allocation();
-            let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
-                (0.0, 0.0)
-            } else {
-                (14.0, 12.0)
-            };
-            let origin_in_window =
-                match self
-                    .container
-                    .translate_coordinates(&self.gtk_window, 0.0, 0.0)
-                {
-                    Some((x, y)) => (x, y),
-                    None => (alloc.x() as f64, alloc.y() as f64),
-                };
-            wry::Rect {
-                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                    origin_in_window.0 + offset_x - 1.0,
-                    origin_in_window.1 + offset_y,
-                )),
-                size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                    alloc.width().max(100) as f64 + 1.0,
-                    alloc.height().max(100) as f64,
-                )),
+            tries += 1;
+            if tries > 300 {
+                log::error!(
+                    "[polo] giving up waiting for container allocation — WebView not created"
+                );
+                this.build_pending.set(false);
+                return gtk4::glib::ControlFlow::Break;
+            }
+            let container = &this.container;
+            if !container.is_mapped() || !container.is_realized() {
+                return gtk4::glib::ControlFlow::Continue;
+            }
+            let alloc = container.allocation();
+            if alloc.width() <= 1 || alloc.height() <= 1 {
+                return gtk4::glib::ControlFlow::Continue;
+            }
+            this.build_initial_webview();
+            this.build_pending.set(false);
+            gtk4::glib::ControlFlow::Break
+        });
+    }
+
+    /// Create the wry WebView inside `self.container`.
+    ///
+    /// Must only be called once the container is mapped and allocated a
+    /// non-trivial size — `load_html_with_base` polls for that state before
+    /// invoking this.
+    fn build_initial_webview(&self) {
+        if self.inner.borrow().is_some() {
+            return;
+        }
+
+        let alloc = self.container.allocation();
+        let offscreen = self.is_offscreen_for_loading.get();
+        let rect = {
+            #[cfg(target_os = "windows")]
+            {
+                if offscreen {
+                    wry::Rect {
+                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                            -32000.0, -32000.0,
+                        )),
+                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                            alloc.width().max(100) as f64,
+                            alloc.height().max(100) as f64,
+                        )),
+                    }
+                } else {
+                    let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
+                        (0.0, 0.0)
+                    } else {
+                        (14.0, 12.0)
+                    };
+                    let origin_in_window =
+                        match self
+                            .container
+                            .translate_coordinates(&self.gtk_window, 0.0, 0.0)
+                        {
+                            Some((x, y)) => (x, y),
+                            None => (alloc.x() as f64, alloc.y() as f64),
+                        };
+                    wry::Rect {
+                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                            origin_in_window.0 + offset_x - 1.0,
+                            origin_in_window.1 + offset_y,
+                        )),
+                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                            alloc.width().max(100) as f64 + 1.0,
+                            alloc.height().max(100) as f64,
+                        )),
+                    }
+                }
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let origin_in_window =
+                    match self
+                        .container
+                        .translate_coordinates(&self.gtk_window, 0.0, 0.0)
+                    {
+                        Some((x, y)) => (x, y),
+                        None => (alloc.x() as f64, alloc.y() as f64),
+                    };
+                wry::Rect {
+                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                        origin_in_window.0 - 1.0,
+                        origin_in_window.1,
+                    )),
+                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                        alloc.width().max(100) as f64 + 1.0,
+                        alloc.height().max(100) as f64,
+                    )),
+                }
             }
         };
 
-        // Configure WebView2 to use data directory (portable mode friendly)
-        // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = marco_shared::paths::user_data_dir().join("webview");
-        if let Err(e) = std::fs::create_dir_all(&data_dir) {
-            log::warn!("Failed to create WebView2 data directory: {}", e);
+        #[cfg(target_os = "windows")]
+        {
+            // Configure WebView2 to use data directory (portable mode friendly)
+            // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
+            let data_dir = marco_shared::paths::user_data_dir().join("webview");
+            if let Err(e) = std::fs::create_dir_all(&data_dir) {
+                log::warn!("Failed to create WebView2 data directory: {}", e);
+            }
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
         }
-        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
+
+        // Re-fetch the live NSView right before building: `native()` yields
+        // the NSWindow, whose contentView GTK may replace between widget
+        // construction and the first map, which would leave the pointer
+        // cached in `PlatformWebView::new` stale (see `window_content_view`).
+        #[cfg(target_os = "macos")]
+        let parent_for_build = {
+            use raw_window_handle::{
+                AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
+            };
+            let mut fresh = (*self.parent_handle).clone();
+            if let Some(ns_view) = window_content_view(&self.gtk_window) {
+                let appkit_handle = AppKitWindowHandle::new(ns_view);
+                let raw_window = RawWindowHandle::AppKit(appkit_handle);
+                fresh = ParentWindowHandle {
+                    window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
+                    display: unsafe {
+                        raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::AppKit(
+                            AppKitDisplayHandle::new(),
+                        ))
+                    },
+                };
+            }
+            fresh
+        };
+        #[cfg(not(target_os = "macos"))]
+        let parent_for_build = (*self.parent_handle).clone();
 
         match wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
@@ -556,9 +740,13 @@ impl PlatformWebView {
                     }
                 }
             })
-            .build_as_child(&*self.parent_handle)
+            .build_as_child(&parent_for_build)
         {
             Ok(view) => {
+                #[cfg(target_os = "macos")]
+                if offscreen {
+                    let _ = view.set_visible(false);
+                }
                 *self.inner.borrow_mut() = Some(view);
             }
             Err(e) => log::error!("Failed to build wry WebView for initial load: {}", e),
@@ -584,28 +772,36 @@ impl PlatformWebView {
         *self.load_finished_handler.borrow_mut() = Some(Box::new(f));
     }
 
-    /// Move the wry HWND off-screen (`offscreen = true`) so the GTK loading-
-    /// overlay frame is visible during rendering, or restore it to its normal
-    /// position (`offscreen = false`) once the page has loaded.
+    /// Hide the native WebView (`offscreen = true`) so the GTK loading-overlay
+    /// frame is visible during rendering, or restore it to its normal state
+    /// (`offscreen = false`) once the page has loaded. Windows moves the HWND
+    /// off-screen; macOS hides the NSView via `set_visible(false)`.
     ///
     /// Called by the [`LoadingOverlay`](super::loading_overlay::LoadingOverlay)
     /// offscreen hook that is wired up in `main.rs`.
     pub fn set_offscreen_for_loading(&self, offscreen: bool) {
         self.is_offscreen_for_loading.set(offscreen);
-        // Immediately push the HWND off-screen so we don't wait for the next
+        // Immediately hide the native view so we don't wait for the next
         // tick-callback iteration (~16 ms) before the GTK overlay becomes visible.
         if offscreen {
             if let Some(view) = self.inner.borrow().as_ref() {
-                let alloc = self.container.allocation();
-                let _ = view.set_bounds(wry::Rect {
-                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        -32000.0, -32000.0,
-                    )),
-                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64,
-                        alloc.height().max(100) as f64,
-                    )),
-                });
+                #[cfg(target_os = "windows")]
+                {
+                    let alloc = self.container.allocation();
+                    let _ = view.set_bounds(wry::Rect {
+                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                            -32000.0, -32000.0,
+                        )),
+                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                            alloc.width().max(100) as f64,
+                            alloc.height().max(100) as f64,
+                        )),
+                    });
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = view.set_visible(false);
+                }
             }
         }
     }
@@ -622,18 +818,21 @@ impl PlatformWebView {
 
     /// Trigger the browser print UI for the current page content.
     ///
-    /// Mirrors Marco's approach: prefer the WebView2 native system print dialog
-    /// (`ICoreWebView2_16::ShowPrintUI(SYSTEM)`), fall back to `view.print()`,
-    /// then fall back to `window.print()` JS.
+    /// Mirrors Marco's approach: on Windows prefer the WebView2 native system
+    /// print dialog (`ICoreWebView2_16::ShowPrintUI(SYSTEM)`); on macOS call
+    /// `view.print()`. Both fall back to `window.print()` JS.
     pub fn print(&self, _parent: Option<&gtk4::Window>) {
         if let Some(view) = self.inner.borrow().as_ref() {
-            match show_system_print_ui(view) {
-                Ok(()) => return,
-                Err(e) => {
-                    log::warn!(
-                        "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
-                        e
-                    );
+            #[cfg(target_os = "windows")]
+            {
+                match show_system_print_ui(view) {
+                    Ok(()) => return,
+                    Err(e) => {
+                        log::warn!(
+                            "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                            e
+                        );
+                    }
                 }
             }
 
@@ -683,7 +882,7 @@ fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
 /// - Everything else (anchors, data URIs, about:blank) → allow.
 ///
 /// Returns `true` to allow the navigation, `false` to deny it.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn wry_navigation_handler(
     uri: &str,
     on_local_md: &std::rc::Rc<std::cell::RefCell<Option<Box<dyn Fn(String, Option<String>)>>>>,
@@ -759,14 +958,22 @@ fn wry_open_external_url(url: &str) {
     }
 }
 
-#[cfg(target_os = "windows")]
+/// Open a URL in the default system browser on macOS.
+#[cfg(target_os = "macos")]
+fn wry_open_external_url(url: &str) {
+    if let Err(e) = std::process::Command::new("open").arg(url).spawn() {
+        log::warn!("[polo] Failed to open external link '{}': {}", url, e);
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[derive(Clone)]
 struct ParentWindowHandle {
     window: raw_window_handle::WindowHandle<'static>,
     display: raw_window_handle::DisplayHandle<'static>,
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
     fn window_handle(
         &self,
@@ -775,7 +982,7 @@ impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     fn display_handle(
         &self,
@@ -784,7 +991,7 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn inject_base_href(html: &str, base: &str) -> String {
     if html.contains("<base") {
         return html.to_string();

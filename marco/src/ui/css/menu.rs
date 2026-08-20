@@ -119,7 +119,46 @@ pub fn generate_css() -> String {
     // Title label (dark theme)
     css.push_str(&generate_title_label_css("marco-theme-dark", &DARK_PALETTE));
 
+    #[cfg(target_os = "macos")]
+    css.push_str(&macos_menubar_css());
+
     css
+}
+
+/// macOS-specific menubar styling: the menu row sits directly below the
+/// native NSWindow title bar, so its background must match the system
+/// titlebar colour and its hover state should use the AppKit tint.
+#[cfg(target_os = "macos")]
+fn macos_menubar_css() -> String {
+    r#"
+/* macOS menu row (below native title bar) */
+.marco-theme-light .macos-menubar-row {
+    background: #f6f6f6;
+    min-height: 26px;
+}
+
+.marco-theme-dark .macos-menubar-row {
+    background: #2d2d30;
+    min-height: 26px;
+}
+
+.marco-theme-light .macos-menubar-row .menu-button:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.marco-theme-light .macos-menubar-row .menu-button:active {
+    background: rgba(0, 0, 0, 0.11);
+}
+
+.marco-theme-dark .macos-menubar-row .menu-button:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.marco-theme-dark .macos-menubar-row .menu-button:active {
+    background: rgba(255, 255, 255, 0.17);
+}
+"#
+    .to_string()
 }
 
 /// Generate base icon font styling (theme-independent)

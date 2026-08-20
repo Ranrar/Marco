@@ -43,6 +43,7 @@ webkit6 = "0.6.1"
 wry = { version = "0.55.0", default-features = false, features = ["os-webview", "protocol"] }
 tao = "0.35.0"
 gdk4-win32 = "0.11.0"
+gdk4-macos = { version = "0.11.0", default-features = false }
 raw-window-handle = "0.6.2"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
 
@@ -75,3 +76,6 @@ panic = 'abort'         # Smaller binaries, no unwinding
 # `dark-light` to a pinned git revision.
 [patch.crates-io]
 dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }
+# `marco-core` has no macOS support in its platform fallback paths; we vendor
+# it here and add the macOS arm (see vendor/marco-core/src/logic/logger.rs).
+marco-core = { path = "vendor/marco-core" }

@@ -29,9 +29,9 @@ use crate::components::viewer::preview_types::ViewMode;
 use crate::theme::ThemeManager;
 use crate::ui::menu_items::files::FileDialogs;
 use crate::ui::menu_items::FileOperations;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use gio::prelude::*;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use gtk4::prelude::*;
 use gtk4::{glib, Application, ApplicationWindow, Box as GtkBox, Orientation};
 use log::trace;
@@ -715,13 +715,13 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         )
     };
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
         use crate::components::viewer::wry_detached_window::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = None::<()>;
-        log::debug!("Initialized wry-based detached preview state for Windows");
+        log::debug!("Initialized wry-based detached preview state for Windows/macOS");
         (
             Some(preview_window_opt),
             Some(webview_location_tracker),
@@ -744,6 +744,16 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
             root_popover_state,
         });
     let menu_state = Rc::new(menu_state);
+    // On macOS the menus live in the global menu bar (top of the screen) and
+    // the native NSWindow title bar (traffic lights + centered title) is used;
+    // the in-window menu row is gone.
+    #[cfg(target_os = "macos")]
+    {
+        let macos_menubar = menu::build_macos_menubar(&menu_state, &translations);
+        app.set_menubar(Some(&macos_menubar));
+        let _ = &titlebar_handle;
+    }
+    #[cfg(not(target_os = "macos"))]
     window.set_titlebar(Some(&titlebar_handle));
 
     // --- Local Markdown file link handler for the preview ---
@@ -840,8 +850,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         );
     }
 
-    // --- Local Markdown file link handler for the preview (Windows) ---
-    #[cfg(target_os = "windows")]
+    // --- Local Markdown file link handler for the preview (Windows/macOS) ---
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let file_ops_for_link = file_operations_rc.clone();
         let window_for_link = window.clone();
@@ -1107,6 +1117,15 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 *dialog_translations_rc.borrow_mut() = new_translations.dialog.clone();
 
                 menu::update_menu_translations(menu_state.as_ref(), &new_translations);
+
+                // Rebuild the global macOS menu bar so top-level labels
+                // (file/edit/.../view) follow the newly loaded locale.
+                #[cfg(target_os = "macos")]
+                {
+                    let macos_menubar =
+                        menu::build_macos_menubar(menu_state.as_ref(), &new_translations);
+                    app_for_locale.set_menubar(Some(&macos_menubar));
+                }
 
                 let recent_files = file_operations_rc.borrow().get_recent_files();
                 crate::ui::menu_items::update_recent_files_menu(
@@ -1635,6 +1654,37 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         }));
     }
 
+    // On macOS the global menu bar is a snapshot of the live menu models
+    // (`build_macos_menubar` deep-copies them, because mutating a
+    // menubar-tracked model crashes the quartz backend). Whenever the window
+    // regains focus, refresh the live models and reinstall a freshly copied
+    // menubar so toolbar/menu state changes are reflected the next time the
+    // menu is opened.
+    #[cfg(target_os = "macos")]
+    {
+        let app_hook = app.clone();
+        let menu_state_hook = menu_state.clone();
+        let tools_menu_hook = menu_state.tools_menu.clone();
+        let translations_hook = translations_rc.clone();
+        let settings_hook = settings_manager.clone();
+        let editor_hook = editor_source_view.clone();
+        let window_hook = window.clone();
+        window_hook.connect_has_focus_notify(move |w| {
+            if w.has_focus() {
+                crate::ui::menu_items::tools::refresh_tools_menu(
+                    &app_hook,
+                    &tools_menu_hook,
+                    &translations_hook,
+                    &settings_hook,
+                    &editor_hook,
+                );
+                let translations = translations_hook.borrow();
+                let menubar = menu::build_macos_menubar(menu_state_hook.as_ref(), &translations);
+                app_hook.set_menubar(Some(&menubar));
+            }
+        });
+    }
+
     // Register search & replace action
     let search_action = gtk4::gio::SimpleAction::new("search", None);
     search_action.connect_activate({
@@ -1644,7 +1694,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let translations_rc = translations_rc.clone();
         #[cfg(target_os = "linux")]
         let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         let webview_win = editor_webview.clone();
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
@@ -1659,7 +1709,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     &search_translations,
                 );
             }
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             {
                 use crate::ui::dialogs::search::show_search_window_no_webview;
                 show_search_window_no_webview(
@@ -1728,8 +1778,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         app.set_accels_for_action("app.print", &["<Control>p"]);
     }
 
-    // Print action (Windows / wry): trigger WebView2 browser print UI.
-    #[cfg(target_os = "windows")]
+    // Print action (Windows/macOS / wry): trigger WebView2 / WKWebView print UI.
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let print_action = gtk4::gio::SimpleAction::new("print", None);
         print_action.connect_activate({
@@ -2164,9 +2214,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         app.add_action(&export_action);
     }
 
-    // Export action (Windows): full export dialog identical to Linux; PDF
-    // is currently exported through the Windows print driver backend.
-    #[cfg(target_os = "windows")]
+    // Export action (Windows/macOS): full export dialog identical to Linux;
+    // PDF is exported through the wry (WebView2 / WKWebView) backend.
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     {
         let export_action = gtk4::gio::SimpleAction::new("export", None);
         export_action.connect_activate({
@@ -2424,7 +2474,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                     crate::ui::menu_items::files::FileDialogs::show_error_dialog(
                                         &window,
                                         "PDF Export Failed",
-                                        "Marco could not generate this PDF on Windows.",
+                                        "Marco could not generate this PDF.",
                                         Some(&e),
                                     )
                                     .await;

@@ -263,7 +263,7 @@ thread_local! {
     static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<webkit6::WebView>> = const { RefCell::new(None) };
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 thread_local! {
     static PRIMARY_PREVIEW_WEBVIEW: RefCell<Option<crate::components::viewer::wry_platform_webview::PlatformWebView>> = const { RefCell::new(None) };
 }
@@ -322,7 +322,7 @@ pub fn set_preview_zoom(zoom: f64) {
     log::debug!("[viewer] Preview zoom set to {:.1}", clamped);
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn set_preview_zoom(zoom: f64) {
     let clamped = zoom.clamp(ZOOM_MIN, ZOOM_MAX);
     PREVIEW_ZOOM.with(|c| c.set(clamped));
@@ -359,7 +359,7 @@ pub fn set_primary_preview_webview(wv: &webkit6::WebView) {
     });
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn set_primary_preview_webview(
     wv: &crate::components::viewer::wry_platform_webview::PlatformWebView,
 ) {
@@ -378,7 +378,7 @@ pub fn with_primary_preview_webview<F: FnOnce(&webkit6::WebView)>(f: F) {
     });
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn with_primary_preview_webview<
     F: FnOnce(&crate::components::viewer::wry_platform_webview::PlatformWebView),
 >(
@@ -400,7 +400,7 @@ pub fn set_primary_editor_scrolled_window(sw: &ScrolledWindow) {
 }
 
 /// Get the primary editor ScrolledWindow if it has been registered.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn get_primary_editor_scrolled_window() -> Option<ScrolledWindow> {
     PRIMARY_EDITOR_SCROLLED_WINDOW.with(|cell| cell.borrow().clone())
 }

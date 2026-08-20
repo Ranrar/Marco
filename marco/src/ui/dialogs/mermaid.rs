@@ -21,7 +21,7 @@ use webkit6::prelude::WebViewExt;
 #[cfg(target_os = "linux")]
 type PreviewSurface = webkit6::WebView;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 type PreviewSurface = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 // ── Diagram types & templates ─────────────────────────────────────────────────
@@ -248,7 +248,7 @@ fn load_preview(surface: &PreviewSurface, html: String) {
     crate::components::viewer::backend::load_html_when_ready(surface, html, None);
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn load_preview(surface: &PreviewSurface, html: String) {
     surface.load_html_with_base(&html, None);
 }
@@ -409,7 +409,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
         Rc::new(wv)
     };
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     let preview_surface: Option<Rc<PreviewSurface>> = {
         // `PlatformWebView::new` now accepts any `IsA<gtk4::Window>`, so the
         // dialog no longer needs to downcast or fall back to a `Label` when
@@ -480,7 +480,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
         #[cfg(target_os = "linux")]
         let preview_surface = preview_surface.clone();
 
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         let preview_surface = preview_surface.clone();
 
         move || {
@@ -497,7 +497,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
                 #[cfg(target_os = "linux")]
                 load_preview(&preview_surface, empty_preview_html(&theme));
 
-                #[cfg(target_os = "windows")]
+                #[cfg(any(target_os = "windows", target_os = "macos"))]
                 if let Some(surface) = &preview_surface {
                     load_preview(surface, empty_preview_html(&theme));
                 }
@@ -519,7 +519,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
                     #[cfg(target_os = "linux")]
                     load_preview(&preview_surface, mermaid_preview_html(&svg, &theme));
 
-                    #[cfg(target_os = "windows")]
+                    #[cfg(any(target_os = "windows", target_os = "macos"))]
                     if let Some(surface) = &preview_surface {
                         load_preview(surface, mermaid_preview_html(&svg, &theme));
                     }
@@ -611,7 +611,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
         #[cfg(target_os = "linux")]
         let preview_surface = preview_surface.clone();
 
-        #[cfg(target_os = "windows")]
+        #[cfg(any(target_os = "windows", target_os = "macos"))]
         let preview_surface = preview_surface.clone();
 
         parent_widget.connect_notify_local(Some("css-classes"), move |widget, _| {
@@ -642,7 +642,7 @@ pub fn show_insert_mermaid_dialog(parent: &Window, editor_buffer: &Buffer, edito
             #[cfg(target_os = "linux")]
             preview_surface.set_background_color(&rgba);
 
-            #[cfg(target_os = "windows")]
+            #[cfg(any(target_os = "windows", target_os = "macos"))]
             if let Some(surface) = &preview_surface {
                 surface.set_background_color_rgba(&rgba);
             }

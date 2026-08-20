@@ -360,6 +360,12 @@ pub struct ToolbarButtons {
     pub strikethrough_button: Button,
 }
 
+// Icons are rasterised at `scale × 2` and GtkPicture displays them at natural
+// size, so this value renders as 2× in logical pixels. macOS gets native
+// ~16 px toolbar icons; other platforms keep the larger 24 px look.
+#[cfg(target_os = "macos")]
+const TOOLBAR_ICON_SIZE: f64 = 8.0;
+#[cfg(not(target_os = "macos"))]
 const TOOLBAR_ICON_SIZE: f64 = 12.0;
 
 fn composite_label(label: &str) -> &str {

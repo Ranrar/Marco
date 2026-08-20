@@ -120,7 +120,36 @@ pub fn generate_css() -> String {
         &DARK_PALETTE,
     ));
 
+    #[cfg(target_os = "macos")]
+    css.push_str(&macos_toolbar_css());
+
     css
+}
+
+/// macOS-specific toolbar styling: native-style rounded hover/active
+/// highlights behind the icon buttons (AppKit toolbar buttons tint the
+/// background on hover; plain SVG icons have no frame otherwise).
+#[cfg(target_os = "macos")]
+fn macos_toolbar_css() -> String {
+    r#"
+/* macOS toolbar buttons — rounded hover/active tint (AppKit-style) */
+.marco-theme-light .toolbar-icon-btn:not(.toolbar-composite-btn):hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.marco-theme-light .toolbar-icon-btn:not(.toolbar-composite-btn):active {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.marco-theme-dark .toolbar-icon-btn:not(.toolbar-composite-btn):hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.marco-theme-dark .toolbar-icon-btn:not(.toolbar-composite-btn):active {
+    background: rgba(255, 255, 255, 0.18);
+}
+"#
+    .to_string()
 }
 
 /// Generate toolbar container CSS for a specific theme

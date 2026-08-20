@@ -51,7 +51,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 
-#[cfg(target_os = "linux")]
+#[cfg(not(target_os = "windows"))]
 use gtk4::{FileChooserAction, FileChooserDialog, FileFilter, ResponseType};
 
 #[cfg(target_os = "windows")]
@@ -130,7 +130,7 @@ pub fn show_open_file_dialog(
     asset_root: &std::path::Path,
     on_file_opened: Option<Rc<dyn Fn(&str) + 'static>>,
 ) {
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     {
         use gtk4::gio;
 

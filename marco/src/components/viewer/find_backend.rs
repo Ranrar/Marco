@@ -111,7 +111,7 @@ pub trait FindBackend {
 // Windows implementation
 // -------------------------------------------------------------------------
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 mod windows_impl {
     use super::{FindBackend, FindOptions, FindReport, FindReportCallback};
     use crate::components::viewer::wry_find;
@@ -175,7 +175,7 @@ mod windows_impl {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[allow(unused_imports)] // Re-exported for the future search-window wiring.
 pub use windows_impl::WryFindBackend;
 

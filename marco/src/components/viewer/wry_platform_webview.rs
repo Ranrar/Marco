@@ -1,9 +1,11 @@
-//! Windows-specific PlatformWebView using `wry` (WebView2) embedded as a child
-//! window inside the GTK `ApplicationWindow`.
+//! Windows/macOS-specific PlatformWebView using `wry` (WebView2 on Windows,
+//! WKWebView on macOS) embedded as a child window/view inside the GTK
+//! `ApplicationWindow`.
 //!
 //! This mirrors the approach used in `polo` so Marco's preview can embed a
-//! `wry::WebView` on Windows (using Win32 HWND obtained from GDK surface) and
-//! avoid spawning a separate tao EventLoop thread.
+//! `wry::WebView` on Windows (using the Win32 HWND obtained from the GDK
+//! surface) or macOS (using the NSView obtained from the GDK macos backend)
+//! and avoid spawning a separate tao EventLoop thread.
 
 // Note: this module is conditionally compiled from `components::viewer::mod`.
 
@@ -18,8 +20,14 @@ use raw_window_handle::{
     RawDisplayHandle, RawWindowHandle, Win32WindowHandle, WindowsDisplayHandle,
 };
 
+#[cfg(target_os = "macos")]
+use raw_window_handle::{AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle};
+
 #[cfg(target_os = "windows")]
 use std::num::NonZeroIsize;
+
+#[cfg(target_os = "macos")]
+use std::ptr::NonNull;
 
 type ScrollReportCallback = Rc<dyn Fn(f64)>;
 type ScrollReportCallbackCell = Rc<RefCell<Option<ScrollReportCallback>>>;
@@ -107,6 +115,25 @@ const CONTENT_URL_BUILDER: &str = "marco-preview://localhost/";
 /// so we must use the already-transformed HTTP form directly, otherwise
 /// `Navigate("marco-preview://localhost/")` silently fails and the page never refreshes.
 const CONTENT_URL_RELOAD_BASE: &str = "http://marco-preview.localhost/";
+
+/// Resolve the NSView to hand to wry as the WKWebView's parent on macOS.
+///
+/// `gdk_macos_surface_get_native_window()` (exposed as `MacosSurface::native`)
+/// returns the surface's NSWindow, not an NSView. wry's `build_as_child`
+/// expects an NSView, which is the window's `contentView` — an implementation
+/// detail that GTK may replace, so always re-fetch it right before building.
+#[cfg(target_os = "macos")]
+fn window_content_view(window: &gtk4::Window) -> Option<NonNull<std::ffi::c_void>> {
+    use objc2::runtime::AnyObject;
+    let surface = window.surface()?;
+    let macos_surface = surface.downcast_ref::<gdk4_macos::MacosSurface>()?;
+    let ns_window = macos_surface.native() as *mut AnyObject;
+    if ns_window.is_null() {
+        return None;
+    }
+    let content_view: *mut AnyObject = unsafe { objc2::msg_send![&*ns_window, contentView] };
+    NonNull::new(content_view.cast())
+}
 
 /// Windows PlatformWebView wrapper
 #[derive(Clone)]
@@ -210,43 +237,65 @@ impl PlatformWebView {
             );
         }
 
-        // Attempt to obtain parent HWND and parent_handle; on failure, keep inner None
+        // Attempt to obtain the parent native handle; on failure, keep inner None
         let parent_handle_rc = match (|| {
-            // Get the GDK surface from the GTK window
-            let surface = window.surface()?;
+            #[cfg(target_os = "windows")]
+            {
+                // Get the GDK surface from the GTK window
+                let surface = window.surface()?;
 
-            // Use gdk4-win32 to get the native Win32 HWND
-            use gdk4_win32::Win32Surface;
-            let win32_surface: &Win32Surface = surface.downcast_ref()?;
+                // Use gdk4-win32 to get the native Win32 HWND
+                use gdk4_win32::Win32Surface;
+                let win32_surface: &Win32Surface = surface.downcast_ref()?;
 
-            let hwnd_ptr = unsafe {
-                gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _)
-            };
-            let hwnd = NonZeroIsize::new(hwnd_ptr as isize)?;
+                let hwnd_ptr = unsafe {
+                    gdk4_win32::ffi::gdk_win32_surface_get_handle(win32_surface.as_ptr() as *mut _)
+                };
+                let hwnd = NonZeroIsize::new(hwnd_ptr as isize)?;
 
-            let win_handle = Win32WindowHandle::new(hwnd);
-            let raw_window = RawWindowHandle::Win32(win_handle);
-            let raw_display = RawDisplayHandle::Windows(WindowsDisplayHandle::new());
+                let win_handle = Win32WindowHandle::new(hwnd);
+                let raw_window = RawWindowHandle::Win32(win_handle);
+                let raw_display = RawDisplayHandle::Windows(WindowsDisplayHandle::new());
 
-            let parent_handle = ParentWindowHandle {
-                window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
-                display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(raw_display) },
-            };
-            Some(std::rc::Rc::new(parent_handle))
+                let parent_handle = ParentWindowHandle {
+                    window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
+                    display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(raw_display) },
+                };
+                Some(std::rc::Rc::new(parent_handle))
+            }
+
+            #[cfg(target_os = "macos")]
+            {
+                // Get the NSView to parent the WKWebView into from the GDK
+                // macos surface. `native()` returns the surface's NSWindow;
+                // wry needs the window's contentView (see `window_content_view`).
+                let ns_view = window_content_view(window)?;
+
+                let appkit_handle = AppKitWindowHandle::new(ns_view);
+                let raw_window = RawWindowHandle::AppKit(appkit_handle);
+                let raw_display = RawDisplayHandle::AppKit(AppKitDisplayHandle::new());
+
+                let parent_handle = ParentWindowHandle {
+                    window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
+                    display: unsafe { raw_window_handle::DisplayHandle::borrow_raw(raw_display) },
+                };
+                Some(std::rc::Rc::new(parent_handle))
+            }
         })() {
             Some(ph) => {
-                log::info!("wry PlatformWebView: obtained Win32 parent handle");
+                log::info!("wry PlatformWebView: obtained native parent handle");
                 ph
             }
             None => {
-                log::warn!("wry PlatformWebView: failed to get Win32 parent handle - falling back to placeholder container");
+                log::warn!("wry PlatformWebView: failed to get native parent handle - falling back to placeholder container");
                 // Add a placeholder label into the container so UI is usable
                 let label = gtk4::Label::new(Some(
-                    "Preview not available inline on Windows (missing Win32 handle)",
+                    "Preview not available inline (missing native window handle)",
                 ));
                 label.set_wrap(true);
                 container.append(&label);
                 // Provide a dummy ParentWindowHandle so types work later if needed
+                #[cfg(target_os = "windows")]
                 let parent_handle = ParentWindowHandle {
                     window: unsafe {
                         raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::Win32(
@@ -259,13 +308,27 @@ impl PlatformWebView {
                         ))
                     },
                 };
+                #[cfg(target_os = "macos")]
+                let parent_handle = ParentWindowHandle {
+                    window: unsafe {
+                        raw_window_handle::WindowHandle::borrow_raw(RawWindowHandle::AppKit(
+                            AppKitWindowHandle::new(NonNull::dangling()),
+                        ))
+                    },
+                    display: unsafe {
+                        raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::AppKit(
+                            AppKitDisplayHandle::new(),
+                        ))
+                    },
+                };
                 std::rc::Rc::new(parent_handle)
             }
         };
 
         // Keep WebView bounds in sync with GTK container on every frame.
-        // Use `compute_point` to translate container origin into the window's
-        // coordinate system so positioning matches Win32 expectations.
+        // On Windows: use `compute_point` to translate container origin into the
+        // window's coordinate system so positioning matches Win32 expectations.
+        // On macOS: wry's `set_bounds` flips Y into AppKit coordinates itself.
         let webview_for_tick = webview.clone();
         let container_weak = container.downgrade();
         let window_weak = window.downgrade();
@@ -273,31 +336,45 @@ impl PlatformWebView {
         container.add_tick_callback(move |_, _| {
             if let (Some(container), Some(win), Some(view)) = (container_weak.upgrade(), window_weak.upgrade(), webview_for_tick.borrow().as_ref()) {
                 // When the GTK container is not mapped (e.g. the Stack switched to code_preview),
-                // or a loading operation is in progress, move the native Win32 WebView
-                // off-screen so the GTK loading-overlay frame is visible.
+                // or a loading operation is in progress, hide the native WebView so the GTK
+                // loading-overlay frame is visible: Windows moves the HWND off-screen,
+                // macOS hides the NSView via `set_visible(false)`.
                 if !container.is_mapped() || is_offscreen_tick.get() {
-                    // When offscreen for loading, use the actual container size so
-                    // WebView2 renders the page at the correct viewport dimensions
-                    // and no reflow/white-flash occurs when the HWND is restored.
-                    let (w, h) = if is_offscreen_tick.get() {
-                        let alloc = container.allocation();
-                        (alloc.width().max(100) as f64, alloc.height().max(100) as f64)
-                    } else {
-                        // Container not mapped (e.g. Stack switched to code view): use minimal size.
-                        (1.0, 1.0)
-                    };
-                    let _ = view.set_bounds(wry::Rect {
-                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                            -32000.0,
-                            -32000.0,
-                        )),
-                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
-                    });
+                    #[cfg(target_os = "windows")]
+                    {
+                        // When offscreen for loading, use the actual container size so
+                        // WebView2 renders the page at the correct viewport dimensions
+                        // and no reflow/white-flash occurs when the HWND is restored.
+                        let (w, h) = if is_offscreen_tick.get() {
+                            let alloc = container.allocation();
+                            (alloc.width().max(100) as f64, alloc.height().max(100) as f64)
+                        } else {
+                            // Container not mapped (e.g. Stack switched to code view): use minimal size.
+                            (1.0, 1.0)
+                        };
+                        let _ = view.set_bounds(wry::Rect {
+                            position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                                -32000.0,
+                                -32000.0,
+                            )),
+                            size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(w, h)),
+                        });
+                    }
+                    #[cfg(target_os = "macos")]
+                    {
+                        let _ = view.set_visible(false);
+                    }
                     return gtk4::glib::ControlFlow::Continue;
                 }
 
                 let alloc = container.allocation();
+                #[cfg(target_os = "windows")]
                 let (offset_x, offset_y) = if win.is_maximized() { (0.0, 0.0) } else { (14.0, 12.0) };
+                #[cfg(target_os = "macos")]
+                let (offset_x, offset_y) = {
+                    let _ = &win;
+                    (0.0, 0.0)
+                };
 
                 // Compute the top-left of the container in window coordinates
                 let origin_in_window = match container.translate_coordinates(&win, 0.0, 0.0) {
@@ -318,6 +395,13 @@ impl PlatformWebView {
                     origin_in_window.0 + offset_x - 1.0, origin_in_window.1 + offset_y,
                     alloc.width().max(1) + 1, alloc.height().max(1)
                 );
+
+                #[cfg(target_os = "macos")]
+                {
+                    // The WKWebView may have been hidden while the container was
+                    // unmapped or during loading; restore visibility when mapped.
+                    let _ = view.set_visible(true);
+                }
 
                 if let Err(e) = view.set_bounds(rect) {
                     log::debug!("wry set_bounds failed: {}", e);
@@ -416,28 +500,36 @@ impl PlatformWebView {
         *self.ready_callback.borrow_mut() = Some(Rc::new(callback));
     }
 
-    /// Move the wry HWND off-screen (`offscreen = true`) so the GTK loading-
-    /// overlay frame is visible during rendering, or restore it to its normal
-    /// position (`offscreen = false`) once the page has loaded.
+    /// Hide the native WebView (`offscreen = true`) so the GTK loading-overlay
+    /// frame is visible during rendering, or restore it to its normal state
+    /// (`offscreen = false`) once the page has loaded. Windows moves the HWND
+    /// off-screen; macOS hides the NSView.
     ///
     /// Called by the [`LoadingOverlay`](super::loading_overlay::LoadingOverlay)
     /// offscreen hook that is wired up in `editor/ui.rs`.
     pub fn set_offscreen_for_loading(&self, offscreen: bool) {
         self.is_offscreen_for_loading.set(offscreen);
-        // Immediately push the HWND off-screen so we don't wait for the next
+        // Immediately hide the native view so we don't wait for the next
         // tick-callback iteration (~16 ms) before the GTK overlay becomes visible.
         if offscreen {
             if let Some(view) = self.inner.borrow().as_ref() {
-                let alloc = self.container.allocation();
-                let _ = view.set_bounds(wry::Rect {
-                    position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
-                        -32000.0, -32000.0,
-                    )),
-                    size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
-                        alloc.width().max(100) as f64,
-                        alloc.height().max(100) as f64,
-                    )),
-                });
+                #[cfg(target_os = "windows")]
+                {
+                    let alloc = self.container.allocation();
+                    let _ = view.set_bounds(wry::Rect {
+                        position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                            -32000.0, -32000.0,
+                        )),
+                        size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
+                            alloc.width().max(100) as f64,
+                            alloc.height().max(100) as f64,
+                        )),
+                    });
+                }
+                #[cfg(target_os = "macos")]
+                {
+                    let _ = view.set_visible(false);
+                }
             }
         }
     }
@@ -524,7 +616,8 @@ impl PlatformWebView {
     }
 
     /// Build the wry `WebView` for the first time and install it as a child
-    /// Win32 window inside `self.container`. Must only be called when:
+    /// window (Windows) / subview (macOS) inside `self.container`. Must only
+    /// be called when:
     ///
     /// 1. `self.inner` is `None` (no existing WebView).
     /// 2. `self.container` is mapped and has `allocated_width/height > 1`.
@@ -533,14 +626,17 @@ impl PlatformWebView {
     /// [`allocation_wait::run_when_allocated`].
     fn build_initial_webview(&self) {
         let alloc = self.container.allocation();
+        #[cfg(target_os = "windows")]
         let (offset_x, offset_y) = if self.gtk_window.is_maximized() {
             (0.0, 0.0)
         } else {
             (16.0, 14.0)
         };
+        #[cfg(target_os = "macos")]
+        let (offset_x, offset_y) = (0.0, 0.0);
 
         // Translate container origin into window coordinate space so the initial
-        // creation uses correct coordinates on Windows.
+        // creation uses correct coordinates.
         let origin_in_window =
             match self
                 .container
@@ -557,8 +653,14 @@ impl PlatformWebView {
         // the HWND is restored by the tick callback after page load completes.
         let rect = if self.is_offscreen_for_loading.get() {
             wry::Rect {
+                #[cfg(target_os = "windows")]
                 position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
                     -32000.0, -32000.0,
+                )),
+                #[cfg(target_os = "macos")]
+                position: wry::dpi::Position::Logical(wry::dpi::LogicalPosition::new(
+                    origin_in_window.0 + offset_x - 1.0,
+                    origin_in_window.1 + offset_y,
                 )),
                 size: wry::dpi::Size::Logical(wry::dpi::LogicalSize::new(
                     alloc.width().max(100) as f64,
@@ -585,13 +687,43 @@ impl PlatformWebView {
             alloc.width() + 1, alloc.height()
         );
 
-        // Configure WebView2 to use data directory (portable mode friendly)
-        // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
-        let data_dir = marco_shared::paths::user_data_dir().join("webview");
-        if let Err(e) = std::fs::create_dir_all(&data_dir) {
-            log::warn!("Failed to create WebView2 data directory: {}", e);
+        #[cfg(target_os = "windows")]
+        {
+            // Configure WebView2 to use data directory (portable mode friendly)
+            // WebView2 respects WEBVIEW2_USER_DATA_FOLDER environment variable
+            let data_dir = marco_shared::paths::user_data_dir().join("webview");
+            if let Err(e) = std::fs::create_dir_all(&data_dir) {
+                log::warn!("Failed to create WebView2 data directory: {}", e);
+            }
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
         }
-        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", data_dir);
+
+        // Re-fetch the live NSView right before building: `native()` yields
+        // the NSWindow, whose contentView GTK may replace between widget
+        // construction and the first map, which would leave the pointer
+        // captured in `PlatformWebView::new` stale (see `window_content_view`).
+        #[cfg(target_os = "macos")]
+        let parent_for_build = {
+            use raw_window_handle::{
+                AppKitDisplayHandle, AppKitWindowHandle, RawDisplayHandle, RawWindowHandle,
+            };
+            let mut fresh = (*self.parent_handle).clone();
+            if let Some(ns_view) = window_content_view(&self.gtk_window) {
+                let appkit_handle = AppKitWindowHandle::new(ns_view);
+                let raw_window = RawWindowHandle::AppKit(appkit_handle);
+                fresh = ParentWindowHandle {
+                    window: unsafe { raw_window_handle::WindowHandle::borrow_raw(raw_window) },
+                    display: unsafe {
+                        raw_window_handle::DisplayHandle::borrow_raw(RawDisplayHandle::AppKit(
+                            AppKitDisplayHandle::new(),
+                        ))
+                    },
+                };
+            }
+            fresh
+        };
+        #[cfg(not(target_os = "macos"))]
+        let parent_for_build = (*self.parent_handle).clone();
 
         match wry::WebViewBuilder::new()
             .with_background_color(self.bg_color.get())
@@ -749,15 +881,27 @@ impl PlatformWebView {
                         let inner = inner_for_print.clone();
                         gtk4::glib::MainContext::default().invoke_local(move || {
                             if let Some(view) = inner.borrow().as_ref() {
-                                if let Err(e) = show_system_print_ui(view) {
-                                    log::warn!(
-                                        "[wry] marco_print: ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
-                                        e
-                                    );
-                                    if let Err(e2) = view.print() {
+                                #[cfg(target_os = "windows")]
+                                {
+                                    if let Err(e) = show_system_print_ui(view) {
                                         log::warn!(
-                                            "[wry] marco_print: wry view.print() also failed: {}",
-                                            e2
+                                            "[wry] marco_print: ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                                            e
+                                        );
+                                        if let Err(e2) = view.print() {
+                                            log::warn!(
+                                                "[wry] marco_print: wry view.print() also failed: {}",
+                                                e2
+                                            );
+                                        }
+                                    }
+                                }
+                                #[cfg(target_os = "macos")]
+                                {
+                                    if let Err(e) = view.print() {
+                                        log::warn!(
+                                            "[wry] marco_print: wry view.print() failed: {}",
+                                            e
                                         );
                                     }
                                 }
@@ -793,7 +937,7 @@ impl PlatformWebView {
                     true
                 }
             })
-            .build_as_child(&*self.parent_handle)
+            .build_as_child(&parent_for_build)
         {
             Ok(view) => {
                 *self.inner.borrow_mut() = Some(view);
@@ -902,28 +1046,45 @@ impl PlatformWebView {
     /// Trigger the browser print UI for the current page content.
     pub fn trigger_print_dialog(&self) {
         if let Some(view) = self.inner.borrow().as_ref() {
-            // Prefer the WebView2 native system print dialog (top-level Win32
-            // window owned by Marco) over wry's `view.print()`, which simply
-            // calls `window.print()` JS and renders the print preview *inside*
-            // the live preview area.
-            match show_system_print_ui(view) {
-                Ok(()) => return,
-                Err(e) => {
+            #[cfg(target_os = "windows")]
+            {
+                // Prefer the WebView2 native system print dialog (top-level Win32
+                // window owned by Marco) over wry's `view.print()`, which simply
+                // calls `window.print()` JS and renders the print preview *inside*
+                // the live preview area.
+                match show_system_print_ui(view) {
+                    Ok(()) => return,
+                    Err(e) => {
+                        log::warn!(
+                            "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                            e
+                        );
+                    }
+                }
+
+                if let Err(e) = view.print() {
                     log::warn!(
-                        "ShowPrintUI(SYSTEM) failed ({}); falling back to wry view.print()",
+                        "Failed to open native WebView print UI: {}. Falling back to window.print()",
                         e
                     );
+                    self.evaluate_script("window.print();");
                 }
+                return;
             }
 
-            if let Err(e) = view.print() {
-                log::warn!(
-                    "Failed to open native WebView print UI: {}. Falling back to window.print()",
-                    e
-                );
-                self.evaluate_script("window.print();");
+            #[cfg(target_os = "macos")]
+            {
+                // wry's `print()` uses WKWebView printOperationWithPrintInfo,
+                // which opens the native macOS print panel (with "Save as PDF").
+                if let Err(e) = view.print() {
+                    log::warn!(
+                        "Failed to open native WebView print UI: {}. Falling back to window.print()",
+                        e
+                    );
+                    self.evaluate_script("window.print();");
+                }
+                return;
             }
-            return;
         }
 
         // Fallback when the WebView is not initialized yet — nothing to do.
@@ -932,15 +1093,18 @@ impl PlatformWebView {
         );
     }
 
-    /// Export the current page contents to a PDF using WebView2's native
-    /// `ICoreWebView2_7::PrintToPdf` (no Chromium subprocess).
+    /// Export the current page contents to a PDF.
     ///
-    /// Blocks the main thread (pumping Win32 messages) until the COM async
-    /// operation completes, so the GTK main loop and any modal "Exporting…"
-    /// dialog stay responsive.
+    /// Windows: WebView2's native `ICoreWebView2_7::PrintToPdf` (no Chromium
+    /// subprocess). Blocks the main thread (pumping Win32 messages) until the
+    /// COM async operation completes.
     ///
-    /// Returns `Err` if the WebView is not initialized yet, the COM cast
-    /// fails, or the PDF write does not succeed.
+    /// macOS: starts WKWebView's asynchronous `createPDFWithConfiguration:`
+    /// capture and returns a receiver that yields the result once the PDF is
+    /// written. The caller must keep the GTK main loop pumping (poll the
+    /// receiver from an async task) — blocking the main thread would deadlock
+    /// the completion handler.
+    #[cfg(target_os = "windows")]
     pub fn print_to_pdf(
         &self,
         output_path: &std::path::Path,
@@ -960,6 +1124,23 @@ impl PlatformWebView {
             margin_mm,
         )
     }
+
+    /// Kick off a WKWebView PDF capture (macOS). Returns immediately; the
+    /// receiver yields the result when the async capture completes.
+    #[cfg(target_os = "macos")]
+    pub fn start_print_to_pdf(
+        &self,
+        output_path: &std::path::Path,
+    ) -> Result<std::sync::mpsc::Receiver<Result<(), String>>, String> {
+        let inner_borrow = self.inner.borrow();
+        let view = inner_borrow
+            .as_ref()
+            .ok_or_else(|| "WebView is not initialized yet".to_string())?;
+        crate::components::viewer::wry_print_to_pdf_macos::start_print_to_pdf(
+            view,
+            output_path,
+        )
+    }
 }
 
 /// Open the WebView2 *system* print dialog (top-level Win32 window owned by
@@ -970,6 +1151,7 @@ impl PlatformWebView {
 /// `ShowPrintUI(COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM)`.  Returns `Err` on
 /// older WebView2 runtimes that don't expose the v16 interface so the caller
 /// can fall back to the legacy path.
+#[cfg(target_os = "windows")]
 fn show_system_print_ui(view: &wry::WebView) -> Result<(), String> {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2_16, COREWEBVIEW2_PRINT_DIALOG_KIND_SYSTEM,
@@ -1014,7 +1196,32 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
     }
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(target_os = "macos")]
+#[derive(Clone)]
+struct ParentWindowHandle {
+    window: raw_window_handle::WindowHandle<'static>,
+    display: raw_window_handle::DisplayHandle<'static>,
+}
+
+#[cfg(target_os = "macos")]
+impl raw_window_handle::HasWindowHandle for ParentWindowHandle {
+    fn window_handle(
+        &self,
+    ) -> Result<raw_window_handle::WindowHandle<'_>, raw_window_handle::HandleError> {
+        Ok(self.window)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
+    fn display_handle(
+        &self,
+    ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
+        Ok(self.display)
+    }
+}
+
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn inject_base_href(html: &str, base: &str) -> String {
     if html.contains("<base") {
         return html.to_string();

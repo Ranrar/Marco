@@ -107,6 +107,7 @@ where
     W: IsA<gtk4::Widget> + Clone + 'static,
 {
     // If not mapped, defer until map then re-enter.
+    // If not mapped, defer until map then re-enter.
     if !widget.is_mapped() {
         let widget_clone = widget.clone();
         run_once_when_mapped(widget, move || {

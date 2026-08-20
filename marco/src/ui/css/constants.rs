@@ -305,9 +305,15 @@ pub const TITLE_LABEL_MARGIN: &str = "0 0px";
 // ============================================================================
 
 /// Standard UI font family
+#[cfg(target_os = "macos")]
+pub const UI_FONT_FAMILY: &str = "-apple-system, 'SF Pro Text', 'Helvetica Neue', sans-serif";
+#[cfg(not(target_os = "macos"))]
 pub const UI_FONT_FAMILY: &str = "'Segoe UI', 'Roboto', 'Arial', sans-serif";
 
 /// Cantarell UI font family (alternative)
+#[cfg(target_os = "macos")]
+pub const UI_FONT_FAMILY_ALT: &str = r#"-apple-system, "SF Pro Text", "Helvetica Neue", sans-serif"#;
+#[cfg(not(target_os = "macos"))]
 pub const UI_FONT_FAMILY_ALT: &str = r#""Segoe UI", "Cantarell", "Arial", sans-serif"#;
 
 // Note: Icon fonts (IcoMoon) are deprecated; UI now uses inline SVG icons.

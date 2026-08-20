@@ -236,7 +236,7 @@ impl TocPanelHandle {
                                 );
                             },
                         );
-                        #[cfg(target_os = "windows")]
+                        #[cfg(any(target_os = "windows", target_os = "macos"))]
                         crate::components::editor::editor_manager::with_primary_preview_webview(
                             |wv| {
                                 wv.evaluate_script(&js);

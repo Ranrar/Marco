@@ -1,10 +1,10 @@
 /// Register OS-level signal handlers for graceful shutdown.
 ///
-/// On Linux, hooks SIGINT and SIGTERM via `glib::source::unix_signal_add_local`.
-/// On Windows, hooks Ctrl-C via `ctrlc` crate and polls an `AtomicBool` on the
-/// GLib main loop.
+/// On Unix (Linux/macOS), hooks SIGINT and SIGTERM via
+/// `glib::source::unix_signal_add_local`. On Windows, hooks Ctrl-C via
+/// `ctrlc` crate and polls an `AtomicBool` on the GLib main loop.
 pub fn setup_signal_handlers(app: &gtk4::Application) {
-    #[cfg(target_os = "linux")]
+    #[cfg(not(target_os = "windows"))]
     {
         use glib::ControlFlow;
         use glib_unix::unix_signal_add_local;

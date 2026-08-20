@@ -23,7 +23,63 @@ pub fn generate_css() -> String {
     // Dark theme styles
     css.push_str(&generate_theme_css("marco-theme-dark", &DARK_PALETTE));
 
+    #[cfg(target_os = "macos")]
+    css.push_str(&macos_menu_toolbar_css());
+
     css
+}
+
+/// macOS-specific menu row + toolbar styling: the menu row sits directly
+/// below the native NSWindow title bar and both it and the toolbar use
+/// AppKit-style rounded hover tints.
+#[cfg(target_os = "macos")]
+fn macos_menu_toolbar_css() -> String {
+    r#"
+/* macOS menu row (below native title bar) */
+.marco-theme-light .macos-menubar-row {
+    background: #f6f6f6;
+    min-height: 26px;
+}
+
+.marco-theme-dark .macos-menubar-row {
+    background: #2d2d30;
+    min-height: 26px;
+}
+
+.marco-theme-light .macos-menubar-row .polo-menu-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.marco-theme-light .macos-menubar-row .polo-menu-btn:active {
+    background: rgba(0, 0, 0, 0.11);
+}
+
+.marco-theme-dark .macos-menubar-row .polo-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.marco-theme-dark .macos-menubar-row .polo-menu-btn:active {
+    background: rgba(255, 255, 255, 0.17);
+}
+
+/* macOS toolbar buttons — rounded hover/active tint (AppKit-style) */
+.marco-theme-light .polo-toolbar-btn:hover {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.marco-theme-light .polo-toolbar-btn:active {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.marco-theme-dark .polo-toolbar-btn:hover {
+    background: rgba(255, 255, 255, 0.10);
+}
+
+.marco-theme-dark .polo-toolbar-btn:active {
+    background: rgba(255, 255, 255, 0.18);
+}
+"#
+    .to_string()
 }
 
 /// Theme-independent base CSS for menu bar and toolbar

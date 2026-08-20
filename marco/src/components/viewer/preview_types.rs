@@ -35,7 +35,7 @@ impl std::fmt::Display for ViewMode {
 #[cfg(target_os = "linux")]
 pub type PlatformWebView = webkit6::WebView;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub type PlatformWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 // Keep the original type but add overlay and split controller support

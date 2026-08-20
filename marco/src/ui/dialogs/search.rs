@@ -26,10 +26,10 @@ use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use gtk4::Label;
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 use crate::components::viewer::wry_platform_webview::PlatformWebView;
 
 // Re-export public API from the search component
@@ -69,8 +69,8 @@ pub fn show_search_window(
     crate::components::search::window::focus_search_entry_in_window(&search_window);
 }
 
-/// Windows search window - provides search functionality with WebView preview sync
-#[cfg(target_os = "windows")]
+/// Windows/macOS search window - provides search functionality with WebView preview sync
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub fn show_search_window_no_webview(
     parent: &Window,
     buffer: Rc<Buffer>,
@@ -106,7 +106,7 @@ pub fn show_search_window_no_webview(
         }
 
         // Create new window
-        let win = create_windows_search_window(parent, translations);
+        let win = create_wry_search_window(parent, translations);
         let win_rc = Rc::new(win);
         *cached.borrow_mut() = Some(win_rc.clone());
         win_rc
@@ -115,9 +115,9 @@ pub fn show_search_window_no_webview(
     window.present();
 }
 
-/// Create search window for Windows (without WebView)
-#[cfg(target_os = "windows")]
-fn create_windows_search_window(parent: &Window, translations: &SearchTranslations) -> Window {
+/// Create search window for Windows/macOS (wry preview sync)
+#[cfg(any(target_os = "windows", target_os = "macos"))]
+fn create_wry_search_window(parent: &Window, translations: &SearchTranslations) -> Window {
     use crate::components::search::{ui::*, window::setup_window_behavior};
     use gtk4::{Align, Box as GtkBox, Orientation, WindowHandle};
 
@@ -268,7 +268,7 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
 }
 
 /// Window-control icon states (normal/hover/active)
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 #[derive(Clone, Copy, Debug)]
 enum WindowControlState {
     Normal,
@@ -278,7 +278,7 @@ enum WindowControlState {
 
 /// Render and apply a window-control SVG icon into a Picture, using the same palette
 /// colors as the main application window controls.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn set_window_control_icon(
     pic: &gtk4::Picture,
     icon: marco_shared::logic::loaders::icon_loader::WindowIcon,
@@ -369,7 +369,7 @@ fn set_window_control_icon(
 }
 
 /// Create a close button that matches the main app's window control styling.
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
@@ -508,10 +508,10 @@ mod tests {
         let _entry_point = show_search_window;
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     #[test]
     fn smoke_test_windows_entry_point() {
-        // Verify the Windows entry point exists and is callable
+        // Verify the Windows/macOS entry point exists and is callable
         let _entry_point = show_search_window_no_webview;
     }
 }

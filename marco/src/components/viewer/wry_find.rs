@@ -53,7 +53,7 @@
 //! wry_find::clear(&platform_webview);
 //! ```
 
-#![cfg(target_os = "windows")]
+#![cfg(any(target_os = "windows", target_os = "macos"))]
 // `install`, `search`, `next`, `prev`, `clear`, and `parse_report` are now
 // driven through the `FindBackend` trait (Step 6b — see
 // [`super::find_backend::WryFindBackend`]). `fallback_script` is still only
