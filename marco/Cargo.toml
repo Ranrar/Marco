@@ -1,6 +1,6 @@
 [package]
 name = "marco"
-version = "0.24.2"
+version = "0.25.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Marco - A Markdown Composer"
@@ -41,19 +41,21 @@ glib = { workspace = true }
 gio = { workspace = true }
 sourceview5 = { workspace = true }
 dark-light = { workspace = true }
+async-channel = { workspace = true }
 # SVG rendering and Cairo required for high-quality window control icons
 librsvg = { workspace = true }
 cairo-rs = { workspace = true }
 # Temp files for detached preview handling
 tempfile = { workspace = true }
 
+# Unified webview backend (gtk4-webkit6 wry fork on Linux, WebView2 on Windows)
+wry = { workspace = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
 glib-unix = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wry = { workspace = true }
-tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
 # Ctrl-C handler for graceful shutdown on Windows
@@ -65,7 +67,7 @@ rfd = "0.17.2"
 # `wry`, but we depend on them directly so the unsafe COM call sites in
 # `wry_platform_webview` can use the same versions wry uses (wry 0.55 → 0.38.2).
 webview2-com = "0.38.2"
-windows = { version = "0.61", features = ["Win32_Foundation"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Threading"] }
 windows-core = "0.61"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]

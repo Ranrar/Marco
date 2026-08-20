@@ -4,6 +4,7 @@
 //! `GtkSourceHoverProvider` GObject subclass that integrates with SourceView5's
 //! built-in hover infrastructure.
 
+use crate::components::editor::diagnostics::EditorDiagnostic;
 use crate::components::editor::ui::{
     diagnostic_at_offset, diagnostic_hover_markup, split_hover_content, RuntimeIntelligenceSettings,
 };
@@ -77,8 +78,7 @@ mod imp {
 
     #[derive(Default)]
     pub struct MarcoHoverProvider {
-        pub(super) diagnostics:
-            RefCell<Option<Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>>>,
+        pub(super) diagnostics: RefCell<Option<Rc<RefCell<Vec<EditorDiagnostic>>>>>,
         pub(super) settings_fn: RefCell<Option<Rc<dyn Fn() -> RuntimeIntelligenceSettings>>>,
         // ── Popover widget refs ────────────────────────────────────────────────
         pub(super) hover_popover: RefCell<Option<gtk4::Popover>>,
@@ -498,7 +498,7 @@ glib::wrapper! {
 impl MarcoHoverProvider {
     /// Create a new hover provider wired to shared diagnostic state and settings.
     pub(crate) fn new(
-        diagnostics: Rc<RefCell<Vec<marco_core::intelligence::Diagnostic>>>,
+        diagnostics: Rc<RefCell<Vec<EditorDiagnostic>>>,
         settings_fn: Rc<dyn Fn() -> RuntimeIntelligenceSettings>,
     ) -> Self {
         let obj: Self = glib::Object::new();
@@ -529,8 +529,8 @@ fn clamp_rect_to_editor(
     rect: gtk4::gdk::Rectangle,
     editor_view: &gtk4::TextView,
 ) -> gtk4::gdk::Rectangle {
-    let view_w = editor_view.allocated_width().max(1);
-    let view_h = editor_view.allocated_height().max(1);
+    let view_w = editor_view.width().max(1);
+    let view_h = editor_view.height().max(1);
     let w = rect.width().max(1);
     let h = rect.height().max(1);
 

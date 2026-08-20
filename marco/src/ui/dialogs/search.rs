@@ -5,8 +5,7 @@
 //!
 //! ## Entry Points
 //!
-//! - **Linux**: `show_search_window` - Full-featured search window with WebView integration
-//! - **Windows**: `show_search_window_no_webview` - Basic informational message
+//! - `show_search_window` - Search window with unified `PlatformWebView` preview sync
 //!
 //! ## Architecture
 //!
@@ -22,56 +21,22 @@ use crate::components::language::SearchTranslations;
 use gtk4::prelude::*;
 use gtk4::Window;
 use sourceview5::{Buffer, View};
-#[cfg(target_os = "linux")]
-use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(target_os = "windows")]
 use gtk4::Label;
 
-#[cfg(target_os = "windows")]
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
 
 // Re-export public API from the search component
 pub use crate::components::search::{
     apply_enhanced_search_highlighting, clear_enhanced_search_highlighting, SearchOptions,
 };
 
-#[cfg(target_os = "linux")]
-use webkit6::WebView;
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
 
-/// Entry point for separate search window - shows search in a standalone window (Linux only)
-///
-/// Creates or reuses a singleton search window with full WebView integration for preview
-/// synchronization. The window is non-modal and allows interaction with the main application.
-#[cfg(target_os = "linux")]
+/// Entry point for the search window — search with unified WebView preview sync.
 pub fn show_search_window(
-    parent: &Window,
-    buffer: Rc<Buffer>,
-    source_view: Rc<View>,
-    webview: Rc<RefCell<WebView>>,
-    translations: &SearchTranslations,
-) {
-    // Initialize async manager for debouncing
-    crate::components::search::window::initialize_async_manager();
-
-    // Get or create the search window (singleton pattern)
-    let search_window = crate::components::search::window::get_or_create_search_window(
-        parent,
-        buffer,
-        source_view,
-        webview,
-        translations,
-    );
-
-    // Present the window and focus the search entry
-    search_window.present();
-    crate::components::search::window::focus_search_entry_in_window(&search_window);
-}
-
-/// Windows search window - provides search functionality with WebView preview sync
-#[cfg(target_os = "windows")]
-pub fn show_search_window_no_webview(
     parent: &Window,
     buffer: Rc<Buffer>,
     source_view: Rc<View>,
@@ -115,8 +80,7 @@ pub fn show_search_window_no_webview(
     window.present();
 }
 
-/// Create search window for Windows (without WebView)
-#[cfg(target_os = "windows")]
+/// Create the search window.
 fn create_windows_search_window(parent: &Window, translations: &SearchTranslations) -> Window {
     use crate::components::search::{ui::*, window::setup_window_behavior};
     use gtk4::{Align, Box as GtkBox, Orientation, WindowHandle};
@@ -191,7 +155,7 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
             // Refresh the close icon in its normal state for the new theme
             set_window_control_icon(
                 &close_pic,
-                marco_shared::logic::loaders::icon_loader::WindowIcon::Close,
+                SVG_CLOSE,
                 parent_is_dark,
                 WindowControlState::Normal,
             );
@@ -252,10 +216,41 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
     // Handle window close
     window.connect_close_request(move |_| {
         use crate::components::search::{
-            engine::clear_enhanced_search_highlighting, state::CACHED_SEARCH_WINDOW,
+            engine::clear_enhanced_search_highlighting,
+            state::{
+                ASYNC_MANAGER, CACHED_SEARCH_WINDOW, CURRENT_PLATFORM_WEBVIEW,
+                NAVIGATION_DEBOUNCE_TIMER,
+            },
         };
+        use crate::logic::signal_manager::safe_source_remove;
+
+        // Cancel any in-flight debounce timers first: the search window is
+        // only hidden (not destroyed, see CACHED_SEARCH_WINDOW), so a pending
+        // search or navigation timer would otherwise fire after close and
+        // repaint the preview highlight we're about to clear.
+        ASYNC_MANAGER.with(|manager_ref| {
+            if let Some(manager) = manager_ref.borrow_mut().as_mut() {
+                if let Some(timer_id) = manager.current_timer_id.take() {
+                    safe_source_remove(timer_id);
+                }
+            }
+        });
+        NAVIGATION_DEBOUNCE_TIMER.with(|timer_ref| {
+            if let Some(timer_id) = timer_ref.borrow_mut().take() {
+                safe_source_remove(timer_id);
+            }
+        });
 
         clear_enhanced_search_highlighting();
+
+        // clear_enhanced_search_highlighting only strips GtkSourceView buffer
+        // tags; the preview's MarcoFind highlights are a separate JS-side
+        // state that needs its own clear, or they persist after the window closes.
+        CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
+            if let Some(wv) = wv_ref.borrow().as_ref() {
+                crate::components::viewer::find_engine::clear(wv);
+            }
+        });
 
         CACHED_SEARCH_WINDOW.with(|cached| {
             *cached.borrow_mut() = None;
@@ -268,7 +263,6 @@ fn create_windows_search_window(parent: &Window, translations: &SearchTranslatio
 }
 
 /// Window-control icon states (normal/hover/active)
-#[cfg(target_os = "windows")]
 #[derive(Clone, Copy, Debug)]
 enum WindowControlState {
     Normal,
@@ -278,17 +272,15 @@ enum WindowControlState {
 
 /// Render and apply a window-control SVG icon into a Picture, using the same palette
 /// colors as the main application window controls.
-#[cfg(target_os = "windows")]
 fn set_window_control_icon(
     pic: &gtk4::Picture,
-    icon: marco_shared::logic::loaders::icon_loader::WindowIcon,
+    icon: &str,
     is_dark: bool,
     state: WindowControlState,
 ) {
     use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
     use gio;
     use gtk4::gdk;
-    use marco_shared::logic::loaders::icon_loader::window_icon_svg;
     use rsvg::{CairoRenderer, Loader};
 
     let color = match (is_dark, state) {
@@ -301,7 +293,7 @@ fn set_window_control_icon(
     };
 
     let icon_size = 8.0;
-    let svg = window_icon_svg(icon).replace("currentColor", color);
+    let svg = icon.replace("currentColor", color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
     let handle =
@@ -313,12 +305,13 @@ fn set_window_control_icon(
             }
         };
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (icon_size * render_scale) as i32;
 
     let mut surface =
@@ -369,15 +362,13 @@ fn set_window_control_icon(
 }
 
 /// Create a close button that matches the main app's window control styling.
-#[cfg(target_os = "windows")]
 fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, gtk4::Picture) {
     use gtk4::prelude::*;
     use gtk4::{Button, Picture};
-    use marco_shared::logic::loaders::icon_loader::WindowIcon;
 
     let pic = Picture::new();
     let is_dark = window.has_css_class("marco-theme-dark");
-    set_window_control_icon(&pic, WindowIcon::Close, is_dark, WindowControlState::Normal);
+    set_window_control_icon(&pic, SVG_CLOSE, is_dark, WindowControlState::Normal);
 
     let btn = Button::new();
     btn.set_child(Some(&pic));
@@ -403,12 +394,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_hover,
-                WindowIcon::Close,
-                is_dark,
-                WindowControlState::Hover,
-            );
+            set_window_control_icon(&pic_hover, SVG_CLOSE, is_dark, WindowControlState::Hover);
         });
 
         let pic_leave = pic.clone();
@@ -418,12 +404,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_leave,
-                WindowIcon::Close,
-                is_dark,
-                WindowControlState::Normal,
-            );
+            set_window_control_icon(&pic_leave, SVG_CLOSE, is_dark, WindowControlState::Normal);
         });
         btn.add_controller(motion_controller);
 
@@ -435,12 +416,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_pressed,
-                WindowIcon::Close,
-                is_dark,
-                WindowControlState::Active,
-            );
+            set_window_control_icon(&pic_pressed, SVG_CLOSE, is_dark, WindowControlState::Active);
         });
 
         let pic_released = pic.clone();
@@ -450,12 +426,7 @@ fn create_close_button(window: &gtk4::Window, tooltip: &str) -> (gtk4::Button, g
                 return;
             };
             let is_dark = win.has_css_class("marco-theme-dark");
-            set_window_control_icon(
-                &pic_released,
-                WindowIcon::Close,
-                is_dark,
-                WindowControlState::Hover,
-            );
+            set_window_control_icon(&pic_released, SVG_CLOSE, is_dark, WindowControlState::Hover);
         });
         btn.add_controller(gesture);
     }
@@ -501,17 +472,9 @@ mod tests {
         // Test passes if this compiles - functions are properly re-exported
     }
 
-    #[cfg(target_os = "linux")]
     #[test]
-    fn smoke_test_linux_entry_point() {
-        // Verify the Linux entry point exists and is callable
+    fn smoke_test_entry_point() {
+        // Verify the unified entry point exists and is callable
         let _entry_point = show_search_window;
-    }
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn smoke_test_windows_entry_point() {
-        // Verify the Windows entry point exists and is callable
-        let _entry_point = show_search_window_no_webview;
     }
 }

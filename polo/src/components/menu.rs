@@ -22,7 +22,10 @@
 //! - **`create_custom_titlebar`**: Builds the complete titlebar
 
 use crate::components::dialog::show_open_file_dialog;
+use crate::components::file_tree_panel::FileTreePanelHandle;
+use crate::components::sidebar_coordinator::SidebarCoordinator;
 use crate::components::toc_panel::TocPanelHandle;
+use crate::components::toolbar::{SVG_MOON, SVG_SUN};
 use crate::components::utils::apply_gtk_theme_preference;
 use crate::components::viewer::platform_webview::PlatformWebView;
 use crate::components::viewer::{load_and_render_markdown, show_empty_state_with_theme};
@@ -30,7 +33,6 @@ use gtk4::{
     gdk, gio, prelude::*, Align, ApplicationWindow, Box as GtkBox, Button, EventControllerMotion,
     HeaderBar, Image, Label, Orientation, Picture, Popover, Separator, WindowHandle,
 };
-use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
 use marco_shared::logic::loaders::theme_loader::list_html_view_themes;
 use marco_shared::logic::swanson::SettingsManager;
 use rsvg::{CairoRenderer, Loader};
@@ -38,6 +40,20 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-minimize icon - Tabler Icons `icon-tabler-minus`
+const SVG_MINIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-maximize icon - Tabler Icons `icon-tabler-square`
+const SVG_MAXIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-restore icon - Tabler Icons `icon-tabler-squares` (overlapping squares)
+const SVG_RESTORE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8" vector-effect="non-scaling-stroke"/><path d="M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2" vector-effect="non-scaling-stroke"/></svg>"#;
 
 // ── Shared hover-switch state for the menu bar ────────────────────────────
 //
@@ -148,7 +164,10 @@ pub fn create_custom_titlebar(
     current_file_path: Arc<RwLock<Option<String>>>,
     asset_root: &std::path::Path,
     toc_handle: Option<TocPanelHandle>,
+    file_tree_handle: Option<FileTreePanelHandle>,
+    sidebar: SidebarCoordinator,
     open_editor_btn: gtk4::Button,
+    open_find_bar: Rc<dyn Fn()>,
 ) -> (WindowHandle, Label) {
     let handle = WindowHandle::new();
 
@@ -200,9 +219,11 @@ pub fn create_custom_titlebar(
         current_file_path.clone(),
         asset_root,
         toc_handle.clone(),
+        file_tree_handle.clone(),
         open_editor_btn,
         title_label.clone(),
         initial_theme,
+        open_find_bar,
     );
     // Parent to the button (not the container) so the arrow points at the button
     file_popover.set_parent(&file_btn);
@@ -268,6 +289,8 @@ pub fn create_custom_titlebar(
         let cfp_clone = current_file_path.clone();
         let asset_root_buf = asset_root.to_path_buf();
         let toc_for_view = toc_handle.clone();
+        let file_tree_for_view = file_tree_handle.clone();
+        let sidebar_for_view = sidebar.clone();
         let window_clone = window.clone();
 
         view_popover.connect_show(move |_| {
@@ -278,6 +301,8 @@ pub fn create_custom_titlebar(
                 cfp_clone.clone(),
                 &asset_root_buf,
                 toc_for_view.clone(),
+                file_tree_for_view.clone(),
+                sidebar_for_view.clone(),
                 &view_popover_ref,
             );
             view_popover_ref.set_child(Some(&content));
@@ -347,6 +372,8 @@ fn menu_btn(text: &str) -> Button {
 //   win.polo-open-file        — opens the file-chooser dialog
 //   win.polo-open-recent      — opens a specific recent file (string param)
 //   win.polo-clear-recent     — clears the recent files list
+//   win.polo-reload           — re-reads the current file from disk (F5)
+//   win.polo-find             — reveals/focuses the toolbar find-in-page bar (Ctrl+F)
 //   win.polo-quit             — closes the window
 
 #[allow(clippy::too_many_arguments)]
@@ -357,9 +384,11 @@ fn build_file_popover(
     current_file_path: Arc<RwLock<Option<String>>>,
     asset_root: &std::path::Path,
     toc_handle: Option<TocPanelHandle>,
+    file_tree_handle: Option<FileTreePanelHandle>,
     open_editor_btn: gtk4::Button,
     title_label: Label,
     _initial_theme: &str,
+    open_find_bar: Rc<dyn Fn()>,
 ) -> Popover {
     use gtk4::glib;
 
@@ -375,12 +404,22 @@ fn build_file_popover(
     open_section.append_item(&recent_item);
     file_menu.append_section(None, &open_section);
 
-    // Section 2: Print
+    // Section 2: Reload
+    let reload_section = gio::Menu::new();
+    reload_section.append(Some("Reload (F5)"), Some("win.polo-reload"));
+    file_menu.append_section(None, &reload_section);
+
+    // Section 3: Find in Page
+    let find_section = gio::Menu::new();
+    find_section.append(Some("Find in Page"), Some("win.polo-find"));
+    file_menu.append_section(None, &find_section);
+
+    // Section 4: Print
     let print_section = gio::Menu::new();
     print_section.append(Some("Print\u{2026}"), Some("win.polo-print"));
     file_menu.append_section(None, &print_section);
 
-    // Section 3: Quit
+    // Section 5: Quit
     let quit_section = gio::Menu::new();
     quit_section.append(Some("Quit"), Some("win.polo-quit"));
     file_menu.append_section(None, &quit_section);
@@ -402,6 +441,7 @@ fn build_file_popover(
         let asset = asset_root.to_path_buf();
         let oe_btn = open_editor_btn.clone();
         let title = title_label.clone();
+        let file_tree = file_tree_handle.clone();
         #[allow(clippy::type_complexity)]
         let on_file_opened: Option<Rc<dyn Fn(&str) + 'static>> = toc_handle.clone().map(|h| {
             Rc::new(move |path: &str| {
@@ -423,6 +463,7 @@ fn build_file_popover(
                     &title,
                     &asset,
                     on_file_opened.clone(),
+                    file_tree.clone(),
                 );
             }
         });
@@ -440,6 +481,7 @@ fn build_file_popover(
         let oe_btn = open_editor_btn.clone();
         let title = title_label.clone();
         let toc = toc_handle.clone();
+        let file_tree = file_tree_handle.clone();
         let window_weak = window.downgrade();
         open_recent_action.connect_activate(move |_, param| {
             let path_str = match param.and_then(|v| v.str().map(|s| s.to_owned())) {
@@ -471,6 +513,9 @@ fn build_file_popover(
                     h.update_from_text_async(text);
                 }
             }
+            if let Some(ref tree) = file_tree {
+                tree.set_open_path(Some(path_owned.clone()));
+            }
             let _ = sm.update_settings(|s| {
                 if s.polo.is_none() {
                     s.polo = Some(marco_shared::logic::swanson::PoloSettings::default());
@@ -492,6 +537,44 @@ fn build_file_popover(
             let _ = sm.update_settings(|s| s.clear_polo_recent_files());
         });
         window.add_action(&clear_action);
+    }
+
+    // polo-reload: re-reads the current file from disk and re-renders it.
+    // No manual cache-busting needed — `marco_shared::cache`'s file cache is
+    // mtime-checked on every read, so simply re-running the normal render
+    // pipeline against the same path already picks up on-disk changes.
+    // No-ops when no file is open (empty state).
+    if window.lookup_action("polo-reload").is_none() {
+        let reload_action = gio::SimpleAction::new("polo-reload", None);
+        let wv = webview.clone();
+        let sm = settings_manager.clone();
+        let cfp = current_file_path.clone();
+        let asset = asset_root.to_path_buf();
+        let toc = toc_handle.clone();
+        reload_action.connect_activate(move |_, _| {
+            let Some(path) = cfp.read().ok().and_then(|g| g.clone()) else {
+                return;
+            };
+            let theme = sm
+                .get_settings()
+                .appearance
+                .as_ref()
+                .and_then(|a| a.preview_theme.clone())
+                .unwrap_or_else(|| "marco.css".to_string());
+            load_and_render_markdown(&wv, &path, &theme, &sm, &asset);
+            if let Some(ref h) = toc {
+                if let Ok(text) =
+                    marco_shared::cache::cached::read_to_string(std::path::Path::new(&path))
+                {
+                    h.update_from_text_async(text);
+                }
+            }
+        });
+        window.add_action(&reload_action);
+        // Register F5 accelerator
+        if let Some(app) = window.application() {
+            app.set_accels_for_action("win.polo-reload", &["F5"]);
+        }
     }
 
     // polo-quit: closes the window
@@ -519,6 +602,17 @@ fn build_file_popover(
         // Register Ctrl+P accelerator
         if let Some(app) = window.application() {
             app.set_accels_for_action("win.polo-print", &["<Control>p"]);
+        }
+    }
+
+    // polo-find: reveals/focuses the toolbar's find-in-page bar
+    if window.lookup_action("polo-find").is_none() {
+        let find_action = gio::SimpleAction::new("polo-find", None);
+        find_action.connect_activate(move |_, _| open_find_bar());
+        window.add_action(&find_action);
+        // Register Ctrl+F accelerator
+        if let Some(app) = window.application() {
+            app.set_accels_for_action("win.polo-find", &["<Control>f"]);
         }
     }
 
@@ -569,6 +663,8 @@ fn build_view_popover_content(
     current_file_path: Arc<RwLock<Option<String>>>,
     asset_root: &std::path::Path,
     toc_handle: Option<TocPanelHandle>,
+    file_tree_handle: Option<FileTreePanelHandle>,
+    sidebar: SidebarCoordinator,
     popover: &Popover,
 ) -> GtkBox {
     let vbox = GtkBox::new(Orientation::Vertical, 0);
@@ -696,6 +792,10 @@ fn build_view_popover_content(
     vbox.append(&sep2);
 
     // ── TOC toggle ─────────────────────────────────────────────────────
+    // Mutually exclusive with the file-tree toggle below — both go through
+    // `sidebar` (`sidebar_coordinator::SidebarCoordinator`) rather than
+    // calling `toc.toggle()`/`file_tree.toggle()` directly, so this menu
+    // enforces the same rules as the toolbar buttons.
     if let Some(toc) = toc_handle {
         let toc_label = if toc.is_visible() {
             "Hide Table of Contents"
@@ -707,12 +807,34 @@ fn build_view_popover_content(
         toc_btn.set_halign(Align::Fill);
 
         let popover_clone = popover.clone();
+        let sidebar_clone = sidebar.clone();
         toc_btn.connect_clicked(move |_| {
             popover_clone.popdown();
-            toc.toggle();
+            sidebar_clone.toggle_toc();
         });
 
         vbox.append(&toc_btn);
+    }
+
+    // ── File tree toggle ──────────────────────────────────────────────
+    if let Some(file_tree) = file_tree_handle {
+        let files_label = if file_tree.is_visible() {
+            "Hide File Tree"
+        } else {
+            "Show File Tree"
+        };
+        let files_btn = menu_btn(files_label);
+        files_btn.add_css_class("polo-menu-item");
+        files_btn.set_halign(Align::Fill);
+
+        let popover_clone = popover.clone();
+        let sidebar_clone = sidebar.clone();
+        files_btn.connect_clicked(move |_| {
+            popover_clone.popdown();
+            sidebar_clone.toggle_dir();
+        });
+
+        vbox.append(&files_btn);
     }
 
     vbox
@@ -786,12 +908,8 @@ pub(crate) fn toggle_color_mode(
         } else {
             LIGHT_PALETTE.control_icon
         };
-        let icon = if is_dark {
-            WindowIcon::Sun
-        } else {
-            WindowIcon::Moon
-        };
-        let texture = render_svg_texture(window_icon_svg(icon), icon_color, icon_size);
+        let icon_svg = if is_dark { SVG_SUN } else { SVG_MOON };
+        let texture = render_svg_texture(icon_svg, icon_color, icon_size);
         pic.set_paintable(Some(&texture));
     }
 
@@ -827,13 +945,13 @@ pub(crate) fn render_svg_texture(svg: &str, color: &str, size: f64) -> gdk::Memo
         .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
         .expect("load SVG handle");
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (size * render_scale) as i32;
 
     let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
@@ -869,13 +987,13 @@ fn create_window_controls(
 
     fn make_svg_btn(
         window: &ApplicationWindow,
-        icon: WindowIcon,
+        icon: &'static str,
         tooltip: &str,
         icon_size: f64,
     ) -> Button {
         use crate::components::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
 
-        let is_dark = window.style_context().has_class("marco-theme-dark");
+        let is_dark = window.has_css_class("marco-theme-dark");
         let normal_color = if is_dark {
             DARK_PALETTE.control_icon
         } else {
@@ -893,7 +1011,7 @@ fn create_window_controls(
         };
 
         let pic = Picture::new();
-        let texture = render_svg_texture(window_icon_svg(icon), normal_color, icon_size);
+        let texture = render_svg_texture(icon, normal_color, icon_size);
         pic.set_paintable(Some(&texture));
         pic.set_size_request(icon_size as i32, icon_size as i32);
         pic.set_can_shrink(false);
@@ -919,13 +1037,13 @@ fn create_window_controls(
             let pic_enter = pic.clone();
             let hov = hover_color.to_string();
             motion.connect_enter(move |_, _, _| {
-                let t = render_svg_texture(window_icon_svg(icon), &hov, icon_size);
+                let t = render_svg_texture(icon, &hov, icon_size);
                 pic_enter.set_paintable(Some(&t));
             });
             let pic_leave = pic.clone();
             let nor = normal_color.to_string();
             motion.connect_leave(move |_| {
-                let t = render_svg_texture(window_icon_svg(icon), &nor, icon_size);
+                let t = render_svg_texture(icon, &nor, icon_size);
                 pic_leave.set_paintable(Some(&t));
             });
             btn.add_controller(motion);
@@ -934,13 +1052,13 @@ fn create_window_controls(
             let pic_press = pic.clone();
             let act = active_color.to_string();
             gesture.connect_pressed(move |_, _, _, _| {
-                let t = render_svg_texture(window_icon_svg(icon), &act, icon_size);
+                let t = render_svg_texture(icon, &act, icon_size);
                 pic_press.set_paintable(Some(&t));
             });
             let pic_rel = pic.clone();
             let hov2 = hover_color.to_string();
             gesture.connect_released(move |_, _, _, _| {
-                let t = render_svg_texture(window_icon_svg(icon), &hov2, icon_size);
+                let t = render_svg_texture(icon, &hov2, icon_size);
                 pic_rel.set_paintable(Some(&t));
             });
             btn.add_controller(gesture);
@@ -949,11 +1067,11 @@ fn create_window_controls(
         btn
     }
 
-    let btn_min = make_svg_btn(window, WindowIcon::Minimize, "Minimize", ICON_SIZE);
-    let btn_close = make_svg_btn(window, WindowIcon::Close, "Close", ICON_SIZE);
+    let btn_min = make_svg_btn(window, SVG_MINIMIZE, "Minimize", ICON_SIZE);
+    let btn_close = make_svg_btn(window, SVG_CLOSE, "Close", ICON_SIZE);
 
     // Maximize / restore toggle
-    let is_dark = window.style_context().has_class("marco-theme-dark");
+    let is_dark = window.has_css_class("marco-theme-dark");
     let normal_color: &str = if is_dark {
         crate::components::css::constants::DARK_PALETTE.control_icon
     } else {
@@ -967,11 +1085,7 @@ fn create_window_controls(
     max_pic.set_valign(Align::Center);
 
     {
-        let t = render_svg_texture(
-            window_icon_svg(WindowIcon::Maximize),
-            normal_color,
-            ICON_SIZE,
-        );
+        let t = render_svg_texture(SVG_MAXIMIZE, normal_color, ICON_SIZE);
         max_pic.set_paintable(Some(&t));
     }
 
@@ -996,11 +1110,11 @@ fn create_window_controls(
         let btn_ref = btn_max.clone();
         window.connect_maximized_notify(move |w| {
             let icon = if w.is_maximized() {
-                WindowIcon::Restore
+                SVG_RESTORE
             } else {
-                WindowIcon::Maximize
+                SVG_MAXIMIZE
             };
-            let t = render_svg_texture(window_icon_svg(icon), &color, ICON_SIZE);
+            let t = render_svg_texture(icon, &color, ICON_SIZE);
             pic_ref.set_paintable(Some(&t));
             btn_ref.set_tooltip_text(Some(if w.is_maximized() {
                 "Restore"
@@ -1029,12 +1143,12 @@ fn create_window_controls(
         let pic_e = max_pic.clone();
         let hov = hover_color.clone();
         motion.connect_enter(move |_, _, _| {
-            let t = render_svg_texture(window_icon_svg(WindowIcon::Maximize), &hov, ICON_SIZE);
+            let t = render_svg_texture(SVG_MAXIMIZE, &hov, ICON_SIZE);
             pic_e.set_paintable(Some(&t));
         });
         let pic_l = max_pic.clone();
         motion.connect_leave(move |_| {
-            let t = render_svg_texture(window_icon_svg(WindowIcon::Maximize), &nor, ICON_SIZE);
+            let t = render_svg_texture(SVG_MAXIMIZE, &nor, ICON_SIZE);
             pic_l.set_paintable(Some(&t));
         });
         btn_max.add_controller(motion);
@@ -1043,16 +1157,12 @@ fn create_window_controls(
         let pic_p = max_pic.clone();
         let act = active_color;
         gesture.connect_pressed(move |_, _, _, _| {
-            let t = render_svg_texture(window_icon_svg(WindowIcon::Maximize), &act, ICON_SIZE);
+            let t = render_svg_texture(SVG_MAXIMIZE, &act, ICON_SIZE);
             pic_p.set_paintable(Some(&t));
         });
         let pic_r = max_pic.clone();
         gesture.connect_released(move |_, _, _, _| {
-            let t = render_svg_texture(
-                window_icon_svg(WindowIcon::Maximize),
-                &hover_color,
-                ICON_SIZE,
-            );
+            let t = render_svg_texture(SVG_MAXIMIZE, &hover_color, ICON_SIZE);
             pic_r.set_paintable(Some(&t));
         });
         btn_max.add_controller(gesture);

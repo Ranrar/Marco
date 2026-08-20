@@ -66,8 +66,8 @@ externally-published [`marco-core`](https://crates.io/crates/marco-core) crate
 
 ### Workspace Structure
 - **`marco-shared/`** - Shared app logic: buffer management, settings, paths, loaders, layout state. No GTK dependencies. Also owns the centralized assets and the `build.rs` that copies them into `target/*/marco_assets/`.
-- **`marco/`** - Full-featured editor binary: GTK4 UI, SourceView5 text editing, WebKit6 preview. Depends on `marco-core` (crates.io) and `marco-shared`.
-- **`polo/`** - Lightweight viewer binary: GTK4 UI, WebKit6 preview only (no SourceView5). Depends on `marco-core` (crates.io) and `marco-shared`.
+- **`marco/`** - Full-featured editor binary: GTK4 UI, SourceView5 text editing, wry-based preview (GTK4/WebKit6 on Linux, WebView2 on Windows). Depends on `marco-core` (crates.io) and `marco-shared`.
+- **`polo/`** - Lightweight viewer binary: GTK4 UI, same wry-based preview only (no SourceView5). Depends on `marco-core` (crates.io) and `marco-shared`.
 - **`marco-shared/src/assets/`** - Centralized assets: themes, fonts, icons, settings.
 
 ### Core Components
@@ -90,7 +90,7 @@ Key modules (in the `marco-core` repo, accessible via the published crate):
 
 #### marco Binary (`marco/src/`)
 - **`components/editor/`** - GTK4 editor UI with SourceView5 integration  
-- **`components/viewer/`** - WebKit6-based preview rendering
+- **`components/viewer/`** - wry-based preview rendering (unified backend on both platforms)
 - **`components/language/`** - Localization support
 - **`logic/`** - UI-specific logic: GTK signal management, menu handlers
 - **`ui/`** - GTK widgets and split view layout
@@ -133,16 +133,18 @@ use marco_core::intelligence::{compute_highlights, compute_diagnostics, get_comp
 > **Info:** Platform-specific conditional dependencies for `Cargo.toml`
 >
 > ```txt
+> [dependencies]
+> # Both platforms: unified webview backend (gtk4-webkit6 fork of wry —
+> # GTK4/WebKit6 on Linux, WebView2 on Windows)
+> wry
 > [target.'cfg(target_os = "linux")'.dependencies]
-> # Linux: webkit6 (GTK4-native WebKit)
+> # Linux: raw WebKit APIs not exposed through wry (PrintOperation, load_html)
 > webkit6
 > [target.'cfg(target_os = "windows")'.dependencies]
-> # Windows: wry (Chromium-based native Windows webview, e.g., Edge)
-> wry
-> tao
+> # Windows: HWND embedding + WebView2 COM (print/PDF)
 > gdk4-win32
 > raw-window-handle
-> urlencoding
+> webview2-com
 > ```
 
 #### Conditional Imports
@@ -259,7 +261,7 @@ version = "2.0.0+build.123"
 #### Debian packaging (Linux)
 Debian packaging assets and scripts live in `build/linux/`.
 Primary entry point: `build/linux/build_deb.sh`
-    - Builds the workspace and produces a `.deb` (marco-suite package) using the versions from `build/version.json`.
+    - Builds the workspace and produces a `.deb` (markdown-composer-and-viewer package) using the versions from `build/version.json`.
     - Supports flags to control version bumping (for example, CI uses a no-bump mode so builds don't mutate versions).
 
 **Package naming policy:** the repo uses a fixed `amd64` suffix for produced package filenames.
@@ -272,7 +274,7 @@ Primary entry point: `build/windows/build_portable.ps1`
     - Creates a self-contained directory structure with `marco.exe`, `polo.exe`, `assets/`, and empty `config/` + `data/` folders for portable mode.
 
 **Package naming:** 
-- `marco-suite_<version>_windows_amd64.zip`
+- `markdown-composer-and-viewer_<version>_windows_amd64.zip`
 
 **Portable mode detection:** The Windows build automatically detects it's running in portable mode (writable directory next to the executable) and stores config/data locally instead of `%LOCALAPPDATA%`.
 
@@ -306,7 +308,7 @@ Release assets are published per version tag in CI.
 
 ### GTK4 + WebKit Integration
 - Editor uses `sourceview5` for syntax highlighting
-- Preview uses `webkit6` for HTML rendering
+- Preview uses `wry` (gtk4-webkit6 fork) for HTML rendering on both platforms
 - Theme synchronization between editor and preview handled in `theme.rs`
 
 ### GTK CSS System

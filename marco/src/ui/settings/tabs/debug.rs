@@ -1,6 +1,6 @@
 //! Debug settings tab
 use gtk4::prelude::*;
-use gtk4::{Box as GtkBox, CheckButton, Label, Orientation};
+use gtk4::{glib, Box as GtkBox, CheckButton, Label, Orientation};
 use log::trace;
 use std::rc::Rc;
 
@@ -261,32 +261,24 @@ pub fn build_debug_tab(
     delete_btn.connect_clicked(move |_| {
         // Confirmation dialog - use upgraded weak parent when available
         let maybe_parent = parent_weak_for_delete.upgrade();
-        let dialog = if let Some(parent_win) = maybe_parent {
-            gtk4::MessageDialog::new(
-                Some(&parent_win),
-                gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
-                gtk4::MessageType::Question,
-                gtk4::ButtonsType::YesNo,
-                &translations_for_delete.delete_logs_confirm,
-            )
-        } else {
-            // Fallback to no parent (rare)
-            gtk4::MessageDialog::new(
-                None::<&gtk4::Window>,
-                gtk4::DialogFlags::MODAL,
-                gtk4::MessageType::Question,
-                gtk4::ButtonsType::YesNo,
-                &translations_for_delete.delete_logs_confirm,
-            )
-        };
+        let delete_logs_confirm = translations_for_delete.delete_logs_confirm.clone();
 
         let size_label_clone2 = size_label_clone.clone();
         let settings_manager_clone4 = settings_manager_clone3.clone();
-        // Clone the weak parent for the response closure (avoids move issues)
         let parent_weak_for_response = parent_weak_for_delete.clone();
         let translations_for_response = translations_for_delete.clone();
-        dialog.connect_response(move |dlg, resp| {
-            if resp == gtk4::ResponseType::Yes {
+
+        glib::MainContext::default().spawn_local(async move {
+            // Button order is [No, Yes] — indices below match this order.
+            let dialog = gtk4::AlertDialog::builder()
+                .message(delete_logs_confirm)
+                .buttons(["No", "Yes"])
+                .cancel_button(0)
+                .default_button(0)
+                .build();
+            let response = dialog.choose_future(maybe_parent.as_ref()).await;
+
+            if matches!(response, Ok(1)) {
                 // Shutdown logger before deleting files
                 marco_shared::logic::file_logger::shutdown();
                 if let Err(e) = marco_shared::logic::file_logger::delete_all_logs() {
@@ -308,20 +300,14 @@ pub fn build_debug_tab(
                     {
                         // Show an attached dialog explaining why enable failed
                         if let Some(parent_win) = parent_weak_for_response.upgrade() {
-                            let dlg = gtk4::MessageDialog::new(
-                                Some(&parent_win),
-                                gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
-                                gtk4::MessageType::Warning,
-                                gtk4::ButtonsType::Ok,
-                                &translations_for_response.log_enable_failed_title,
-                            );
-                            dlg.set_secondary_text(Some(
-                                &translations_for_response.log_enable_failed_message,
-                            ));
-                            dlg.connect_response(|dlg, _resp| {
-                                dlg.close();
-                            });
-                            dlg.present();
+                            let dlg = gtk4::AlertDialog::builder()
+                                .message(translations_for_response.log_enable_failed_title.as_str())
+                                .detail(
+                                    translations_for_response.log_enable_failed_message.as_str(),
+                                )
+                                .buttons(["OK"])
+                                .build();
+                            let _ = dlg.choose_future(Some(&parent_win)).await;
                         } else {
                             log::error!("Failed to reinit logger after deletion: {}", e);
                         }
@@ -353,9 +339,7 @@ pub fn build_debug_tab(
                 };
                 size_label_clone2.set_text(&updated_text);
             }
-            dlg.close();
         });
-        dialog.present();
     });
 
     // Now connect the checkbox handler so it can update UI/shutdown/init immediately
@@ -390,18 +374,15 @@ pub fn build_debug_tab(
                 .unwrap_or_else(|| translations_for_log.log_enable_failed_message.clone());
             eprintln!("Could not enable file logging: {}", detail);
             if let Some(parent_win) = parent_weak.upgrade() {
-                let dlg = gtk4::MessageDialog::new(
-                    Some(&parent_win),
-                    gtk4::DialogFlags::MODAL | gtk4::DialogFlags::DESTROY_WITH_PARENT,
-                    gtk4::MessageType::Warning,
-                    gtk4::ButtonsType::Ok,
-                    &translations_for_log.log_enable_failed_title,
-                );
-                dlg.set_secondary_text(Some(&detail));
-                dlg.connect_response(|dlg, _resp| {
-                    dlg.close();
+                let title = translations_for_log.log_enable_failed_title.clone();
+                glib::MainContext::default().spawn_local(async move {
+                    let dlg = gtk4::AlertDialog::builder()
+                        .message(title)
+                        .detail(detail)
+                        .buttons(["OK"])
+                        .build();
+                    let _ = dlg.choose_future(Some(&parent_win)).await;
                 });
-                dlg.present();
             } else {
                 log::warn!("Could not enable file logging: {}", detail);
             }

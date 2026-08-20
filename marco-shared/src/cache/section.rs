@@ -10,6 +10,12 @@
 //! 3. If no headings exist, split every 50 non-blank lines
 //! 4. Minimum section size: 3 lines (avoids degenerate tiny sections by
 //!    merging them into the preceding section)
+//!
+//! Heading lines inside fenced code blocks or `@slidestart`/`@slideend`
+//! slide-deck blocks never start a new section — slides conventionally open
+//! with a heading, and `marco_core`'s slide-deck grammar needs the whole
+//! block in one parse, so splitting there would fragment it and it would
+//! fall back to being rendered as literal text.
 
 use crate::cache::hash_content;
 
@@ -50,6 +56,16 @@ fn is_heading_boundary(line: &str) -> bool {
     )
 }
 
+/// Returns `true` if `line` opens a `@slidestart[:tN]` slide-deck block.
+fn is_slide_deck_start(line: &str) -> bool {
+    line.trim_start().starts_with("@slidestart")
+}
+
+/// Returns `true` if `line` closes a slide-deck block (`@slideend`).
+fn is_slide_deck_end(line: &str) -> bool {
+    line.trim_start().starts_with("@slideend")
+}
+
 /// Split `text` into sections for section-level caching.
 ///
 /// Pure function: no I/O, no global state.  Safe to call from any thread.
@@ -65,12 +81,20 @@ pub fn split_into_sections(text: &str) -> Vec<DocumentSection> {
     let mut boundaries: Vec<usize> = Vec::new();
     boundaries.push(0); // document always starts a section
 
-    // Check whether the document has any H1–H3 headings outside code fences.
+    // Check whether the document has any H1–H3 headings outside code fences
+    // and outside slide-deck blocks (every slide conventionally opens with a
+    // heading, but splitting there would fragment the `@slidestart`/
+    // `@slideend` block across sections and break its parsing).
     let has_headings = {
         let mut inside = false;
         let mut fc = ' ';
+        let mut in_slides = false;
         lines.iter().any(|l| {
             let t = l.trim_start();
+            // Fence state always takes priority: a `@slideend` (or anything
+            // else) mentioned inside a fenced code sample — e.g. showcasing
+            // the slide-deck syntax itself — must not be mistaken for a real
+            // marker, matching `marco_core`'s own grammar precedence.
             if inside {
                 if (fc == '`' && t.starts_with("```")) || (fc == '~' && t.starts_with("~~~")) {
                     inside = false;
@@ -84,6 +108,14 @@ pub fn split_into_sections(text: &str) -> Vec<DocumentSection> {
                 inside = true;
                 fc = '~';
                 false
+            } else if in_slides {
+                if is_slide_deck_end(l) {
+                    in_slides = false;
+                }
+                false
+            } else if is_slide_deck_start(l) {
+                in_slides = true;
+                false
             } else {
                 is_heading_boundary(l)
             }
@@ -93,10 +125,15 @@ pub fn split_into_sections(text: &str) -> Vec<DocumentSection> {
     if has_headings {
         let mut in_fence = false;
         let mut fence_char = ' '; // '`' or '~'
+        let mut in_slides = false;
         for (i, line) in lines.iter().enumerate() {
             let t = line.trim_start();
-            // Track fenced code block open/close to avoid treating heading-like
-            // lines inside code blocks (e.g. `## comment`) as section boundaries.
+            // Fence state always takes priority over slide-deck tracking: a
+            // `@slideend` (or `---`/heading) inside a fenced code sample —
+            // e.g. showcasing the slide-deck syntax itself — must not be
+            // mistaken for a real marker, matching `marco_core`'s own
+            // grammar precedence (it only honours slide markers/separators
+            // when not inside a fence).
             if in_fence {
                 if (fence_char == '`' && t.starts_with("```"))
                     || (fence_char == '~' && t.starts_with("~~~"))
@@ -113,6 +150,20 @@ pub fn split_into_sections(text: &str) -> Vec<DocumentSection> {
             if t.starts_with("~~~") {
                 in_fence = true;
                 fence_char = '~';
+                continue;
+            }
+            // Track slide-deck blocks so heading lines inside them (every
+            // slide conventionally starts with one) don't fragment the block
+            // across section boundaries — `marco_core`'s slide-deck grammar
+            // needs the whole `@slidestart`..`@slideend` span in one parse.
+            if in_slides {
+                if is_slide_deck_end(line) {
+                    in_slides = false;
+                }
+                continue;
+            }
+            if is_slide_deck_start(line) {
+                in_slides = true;
                 continue;
             }
             if i > 0 && is_heading_boundary(line) {
@@ -218,6 +269,71 @@ mod tests {
                 pair[1].index
             );
         }
+    }
+
+    #[test]
+    fn smoke_slide_deck_headings_do_not_fragment_the_block() {
+        // Every slide opens with a heading; none of them should split the
+        // `@slidestart`/`@slideend` block into separate sections.
+        let doc = "# Intro\n\nParagraph.\n\n@slidestart\n\n## Slide 1\n\nBody.\n\n---\n\n## Slide 2\n\nBody.\n\n@slideend\n\n## After\n\nParagraph.";
+        let sections = split_into_sections(doc);
+        for section in &sections {
+            let has_open = section.content.contains("@slidestart");
+            let has_close = section.content.contains("@slideend");
+            assert_eq!(
+                has_open, has_close,
+                "section {} split the slide deck: {:?}",
+                section.index, section.content
+            );
+        }
+        // Only "# Intro" and "## After" are real boundaries — the slide
+        // deck's internal headings don't split it, so it stays attached to
+        // the "# Intro" section.
+        assert_eq!(sections.len(), 2);
+        assert!(sections[0].content.contains("@slidestart"));
+        assert!(sections[0].content.trim_end().ends_with("@slideend"));
+        assert!(sections[1].content.starts_with("## After"));
+    }
+
+    #[test]
+    fn smoke_fenced_code_inside_slide_deck_does_not_end_tracking_early() {
+        // A fenced code sample showcasing the slide-deck syntax (containing
+        // a fake `@slideend`) appears *inside* a real deck. The fake marker
+        // must not be mistaken for the real one, or a heading between the
+        // fake and real `@slideend` would incorrectly split the block.
+        let doc = "\
+@slidestart
+
+## Slide with a code sample
+
+```text
+@slidestart:t3
+---
+--
+@slideend
+```
+
+## This heading is still inside the deck
+
+@slideend
+
+## After
+
+Paragraph.
+";
+        let sections = split_into_sections(doc);
+        for section in &sections {
+            let has_open = section.content.contains("@slidestart");
+            let has_close = section.content.contains("@slideend");
+            assert_eq!(
+                has_open, has_close,
+                "section {} split the slide deck: {:?}",
+                section.index, section.content
+            );
+        }
+        assert_eq!(sections.len(), 2);
+        assert!(sections[0].content.trim_end().ends_with("@slideend"));
+        assert!(sections[1].content.starts_with("## After"));
     }
 
     #[test]

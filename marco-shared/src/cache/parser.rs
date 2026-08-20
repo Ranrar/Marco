@@ -35,6 +35,32 @@ fn hash_options(opts: &RenderOptions) -> u64 {
     hasher.finish()
 }
 
+/// Rewrite `id="marco-sliders-N"` to `id="marco-sliders-{salt:x}-N"` so a
+/// slide deck's id stays unique when combined with decks rendered by other
+/// (independent) render passes — see the call site in
+/// `render_sections_with_cache` for why this is needed.
+fn rewrite_slider_deck_ids(html: &str, salt: u64) -> String {
+    const NEEDLE: &str = "id=\"marco-sliders-";
+    if !html.contains(NEEDLE) {
+        return html.to_string();
+    }
+
+    let mut out = String::with_capacity(html.len() + 32);
+    let mut rest = html;
+    while let Some(pos) = rest.find(NEEDLE) {
+        let (before, at_needle) = rest.split_at(pos);
+        out.push_str(before);
+        let after_needle = &at_needle[NEEDLE.len()..];
+        let digits_len = after_needle.bytes().take_while(u8::is_ascii_digit).count();
+        let (digits, tail) = after_needle.split_at(digits_len);
+        out.push_str(NEEDLE);
+        out.push_str(&format!("{:x}-{}", salt, digits));
+        rest = tail;
+    }
+    out.push_str(rest);
+    out
+}
+
 // ---------------------------------------------------------------------------
 
 /// Five-layer AST + HTML + intelligence cache.
@@ -138,9 +164,24 @@ impl ParserCache {
                 cached
             } else {
                 batch_misses += 1;
-                // Miss: parse + render this section as a standalone fragment
+                // Miss: parse + render this section as a standalone fragment.
+                // Each section gets its own fresh render context, so a
+                // `marco-sliders-N` slide-deck id from `marco_core` is only
+                // unique *within this section* — decks in other sections can
+                // (and reliably do, for any doc with more than one) end up
+                // with the same id. Since the client JS keys per-deck
+                // play/pause + autoplay state off that id
+                // (`sliderDeckState[deck.id]`), colliding ids silently
+                // overwrite each other's state, breaking those controls.
+                // Salt the id with the section's content hash — already part
+                // of the cache key — so it's globally unique without tying
+                // the cached HTML to this section's *position* in the
+                // document (see `section_html_cache`'s doc comment).
                 let html = match marco_core::parse(&section.content) {
-                    Ok(doc) => marco_core::render(&doc, options)?,
+                    Ok(doc) => {
+                        let rendered = marco_core::render(&doc, options)?;
+                        rewrite_slider_deck_ids(&rendered, section.content_hash)
+                    }
                     Err(e) => {
                         log::warn!(
                             "[section_cache] parse error for section {}: {}",
@@ -411,5 +452,71 @@ mod tests {
             Arc::ptr_eq(&first_a[2], &results[2]),
             "section C should be a cache hit (same Arc)"
         );
+    }
+
+    #[test]
+    fn smoke_rewrite_slider_deck_ids_is_a_noop_without_sliders() {
+        let html = "<p>no sliders here</p>";
+        assert_eq!(rewrite_slider_deck_ids(html, 42), html);
+    }
+
+    #[test]
+    fn smoke_rewrite_slider_deck_ids_salts_every_occurrence() {
+        let html = r#"<div class="marco-sliders" id="marco-sliders-0">A</div><div class="marco-sliders" id="marco-sliders-1">B</div>"#;
+        let out = rewrite_slider_deck_ids(html, 0xABCD);
+        assert_eq!(
+            out,
+            r#"<div class="marco-sliders" id="marco-sliders-abcd-0">A</div><div class="marco-sliders" id="marco-sliders-abcd-1">B</div>"#
+        );
+    }
+
+    #[test]
+    fn smoke_slide_decks_in_different_sections_get_distinct_ids() {
+        // Two independent decks, each the only deck in its own section
+        // (separated by a heading) — before the fix both would render with
+        // the same locally-scoped id ("marco-sliders-0"), colliding in the
+        // client-side `sliderDeckState` map and breaking play/pause/autoplay
+        // for one of them.
+        let cache = ParserCache::new();
+        let opts = RenderOptions::default();
+        let doc = "\
+## Deck One
+
+@slidestart
+
+## Slide
+
+Body.
+
+@slideend
+
+## Deck Two
+
+@slidestart
+
+## Slide
+
+Body.
+
+@slideend
+";
+        let sections = split_into_sections(doc);
+        let results = cache
+            .render_sections_with_cache(&sections, &opts)
+            .expect("render failed");
+
+        let mut ids = Vec::new();
+        for html in &results {
+            let mut rest = html.as_str();
+            while let Some(pos) = rest.find("id=\"marco-sliders-") {
+                rest = &rest[pos + "id=\"".len()..];
+                let end = rest.find('"').unwrap();
+                ids.push(rest[..end].to_string());
+                rest = &rest[end..];
+            }
+        }
+
+        assert_eq!(ids.len(), 2, "expected exactly 2 slide decks, got {ids:?}");
+        assert_ne!(ids[0], ids[1], "deck ids collided: {ids:?}");
     }
 }

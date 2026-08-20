@@ -161,7 +161,7 @@ fn resolve_log_root() -> PathBuf {
                     .map(|h| PathBuf::from(h).join(".cache"))
             });
         if let Some(cache) = base {
-            return cache.join("marco").join("logs");
+            return cache.join(crate::paths::APP_DIR_NAME).join("logs");
         }
     }
     #[cfg(target_os = "windows")]

@@ -62,15 +62,15 @@
 // - If you prefer to remove the feature entirely, delete these files and update
 //   references in `menu.rs`, `main.rs`, and tests:
 //     - `marco/src/components/viewer/reparenting.rs`
-//     - `marco/src/components/viewer/webkit6_detached_window.rs`
+//     - `marco/src/components/viewer/detached_window_linux.rs`
 //     - related menu wiring in `marco/src/menu.rs`
 
-use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+use crate::components::viewer::detached_window_linux::PreviewWindow;
+use crate::components::viewer::preview_types::PlatformWebView;
 use gtk4::prelude::*;
 use gtk4::{Paned, Stack};
 use std::cell::Cell;
 use std::rc::Rc;
-use webkit6::WebView;
 
 /// Guard to prevent concurrent reparenting operations
 ///
@@ -180,11 +180,16 @@ impl Clone for ReparentGuard {
 /// move_webview_to_preview_window(&webview, &paned, &preview_window)?;
 /// ```
 pub fn move_webview_to_preview_window(
-    webview: &WebView,
+    pv: &PlatformWebView,
     paned: &Paned,
     preview_window: &PreviewWindow,
 ) -> Result<(), String> {
     log::debug!("Starting WebView reparent to preview window");
+
+    // Reparent the unified wrapper's container widget; the webview travels
+    // with it as a GTK child.
+    let webview = pv.widget();
+    let webview = &webview;
 
     // Check WebView's current parent
     let webview_parent = webview.parent();
@@ -219,7 +224,7 @@ pub fn move_webview_to_preview_window(
 
             // Attach to PreviewWindow - if this fails, try to restore
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                preview_window.attach_webview(webview);
+                preview_window.attach_webview(pv);
             })) {
                 Ok(_) => {
                     log::info!("WebView successfully reparented to preview window");
@@ -277,12 +282,17 @@ pub fn move_webview_to_preview_window(
 /// move_webview_to_main_window(&webview, &paned, &preview_window, true)?;
 /// ```
 pub fn move_webview_to_main_window(
-    webview: &WebView,
+    pv: &PlatformWebView,
     paned: &Paned,
     preview_window: &PreviewWindow,
     _restore_to_end: bool, // Reserved for future use
 ) -> Result<(), String> {
     log::debug!("Starting WebView reparent to main window");
+
+    // Reparent the unified wrapper's container widget; the webview travels
+    // with it as a GTK child.
+    let webview = pv.widget();
+    let webview = &webview;
 
     // Check if WebView is actually in the preview window
     let webview_parent = webview.parent();
@@ -302,7 +312,7 @@ pub fn move_webview_to_main_window(
         if let Some(stack_widget) = paned.end_child() {
             if let Some(stack) = stack_widget.downcast_ref::<Stack>() {
                 if let Some(child) = stack.child_by_name("html_preview") {
-                    if child.downcast_ref::<WebView>().is_some() {
+                    if child == *webview {
                         log::info!("WebView is already in main window Stack");
                         stack.set_visible_child_name("html_preview");
                         return Ok(());
@@ -319,8 +329,22 @@ pub fn move_webview_to_main_window(
             // Save state in case we need to rollback
             let existing_child = stack.child_by_name("html_preview");
 
-            // Remove existing child if present
+            // The "html_preview" page is normally the `LoadingOverlay`'s
+            // `gtk4::Overlay` wrapper (spinner chrome), not the bare webview.
+            // Put the webview back as *its* child instead of replacing the
+            // Stack page outright, or the loading-spinner handle (still
+            // pointing at this exact Overlay) would be left dangling outside
+            // the widget tree, silently breaking the spinner on every future
+            // preview refresh.
             if let Some(ref child) = existing_child {
+                if let Some(overlay) = child.downcast_ref::<gtk4::Overlay>() {
+                    overlay.set_child(Some(webview));
+                    stack.set_visible_child_name("html_preview");
+                    log::info!(
+                        "WebView successfully reparented back into main window's LoadingOverlay"
+                    );
+                    return Ok(());
+                }
                 log::warn!("Stack already has child named 'html_preview', removing it first");
                 stack.remove(child);
             }
@@ -340,7 +364,7 @@ pub fn move_webview_to_main_window(
                         e
                     );
                     // Try to restore the preview window state
-                    preview_window.attach_webview(webview);
+                    preview_window.attach_webview(pv);
                     Err(
                         "Failed to add WebView to main window Stack (restored to preview)"
                             .to_string(),
@@ -349,7 +373,7 @@ pub fn move_webview_to_main_window(
             }
         } else {
             // Failed to find Stack - try to restore WebView to preview window
-            preview_window.attach_webview(webview);
+            preview_window.attach_webview(pv);
             Err(format!(
                 "Expected Stack as Paned end child, found: {:?} (restored to preview)",
                 stack_widget.type_()
@@ -357,7 +381,7 @@ pub fn move_webview_to_main_window(
         }
     } else {
         // No end child - try to restore WebView to preview window
-        preview_window.attach_webview(webview);
+        preview_window.attach_webview(pv);
         Err("No end child found in Paned (restored to preview)".to_string())
     }
 }

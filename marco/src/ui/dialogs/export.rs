@@ -4,13 +4,13 @@
 //! by a native file-save dialog.  Also exposes a standalone
 //! `show_export_save_dialog` for callers that only need to pick a PDF path.
 
+#[cfg(not(target_os = "windows"))]
+use gtk4::FileFilter;
 use gtk4::{
     glib, prelude::*, Adjustment, Align, Box as GtkBox, Button, CheckButton, DropDown, Entry,
     Expression, Label, Orientation, PropertyExpression, SpinButton, StringList, StringObject,
     Window,
 };
-#[cfg(not(target_os = "windows"))]
-use gtk4::{FileChooserAction, FileChooserNative, FileFilter, ResponseType};
 use std::{
     cell::RefCell,
     future::Future,
@@ -637,7 +637,7 @@ async fn show_save_dialog_for_format(
         {
             p.set_extension(ext);
         }
-        return Some(p);
+        Some(p)
     }
 
     #[cfg(not(target_os = "windows"))]
@@ -646,15 +646,6 @@ async fn show_save_dialog_for_format(
             ExportFormat::Pdf => t.save_pdf_title.as_str(),
             ExportFormat::Html => t.save_html_title.as_str(),
         };
-        let native = FileChooserNative::new(
-            Some(title),
-            Some(_parent),
-            FileChooserAction::Save,
-            Some(translations.dialog.save_button.as_str()),
-            Some(t.cancel_button.as_str()),
-        );
-        native.set_current_name(suggested);
-
         let main_filter = FileFilter::new();
         match format {
             ExportFormat::Pdf => {
@@ -667,15 +658,25 @@ async fn show_save_dialog_for_format(
                 main_filter.add_pattern("*.htm");
             }
         }
-        native.add_filter(&main_filter);
 
         let all = FileFilter::new();
         all.set_name(Some("All Files"));
         all.add_pattern("*");
-        native.add_filter(&all);
 
-        if native.run_future().await == ResponseType::Accept {
-            native.file().and_then(|f| f.path()).map(|mut p| {
+        let filters = gtk4::gio::ListStore::new::<FileFilter>();
+        filters.append(&main_filter);
+        filters.append(&all);
+
+        let dialog = gtk4::FileDialog::builder()
+            .title(title)
+            .accept_label(translations.dialog.save_button.as_str())
+            .filters(&filters)
+            .default_filter(&main_filter)
+            .initial_name(suggested)
+            .build();
+
+        match dialog.save_future(Some(_parent)).await {
+            Ok(file) => file.path().map(|mut p| {
                 let ext = match format {
                     ExportFormat::Pdf => "pdf",
                     ExportFormat::Html => "html",
@@ -689,9 +690,8 @@ async fn show_save_dialog_for_format(
                     p.set_file_name(format!("{}.{}", stem, ext));
                 }
                 p
-            })
-        } else {
-            None
+            }),
+            Err(_) => None,
         }
     }
 }

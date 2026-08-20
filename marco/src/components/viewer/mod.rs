@@ -1,64 +1,57 @@
-// For ApplicationWindow::application()
-#[cfg(target_os = "linux")]
-use gtk4::prelude::GtkWindowExt;
 // Viewer Component Module
 //
 // This module provides the preview rendering system for Marco's markdown editor.
 // It handles HTML rendering, WebView management, and window layout control.
 //
-// # Platform Support
-//
-// - **Linux**: Full support using WebKit6 (GTK4-native WebKit)
-// - **Windows**: Not yet implemented (future: wry/WebView2)
-//
 // # Architecture
 //
-// - **webkit6**: Linux-specific WebView implementation (HTML rendering, JS injection)
-// - **preview**: Markdown-to-HTML rendering coordinator
-// - **previewwindow**: Separate window for split-view mode
-// - **switcher**: WebView reparenting utilities
-// - **controller**: Split pane and WebView location tracking
-// - **syntax_highlighter**: Code block syntax highlighting
-// - **webview_js**: JavaScript utilities for scroll and interactivity
-// - **webview_utils**: CSS utilities for scrollbars and formatting
+// The preview runs on a single wry-based webview on all platforms (the
+// gtk4-webkit6 fork of wry: GTK4/WebKit6 on Linux, WebView2 on Windows).
 //
-// # Future Windows Support
+// - **platform_webview**: the cross-platform embedded WebView wrapper
+// - **backend**: thin API veneer used by the renderer and dialogs
+// - **renderer**: Markdown-to-HTML rendering coordinator
+// - **find_engine**: JS-based find-in-preview engine (MarcoFind)
+// - **layout_controller**: split pane and WebView location tracking
+// - **javascript / css_utils**: JS + CSS utilities for the preview page
 //
-// When Windows support is added, it will use the wry crate (Chromium-based WebView2)
-// instead of WebKit6. The interface will remain similar but with platform-specific
-// implementations using `#[cfg(target_os = "linux")]` and `#[cfg(target_os = "windows")]`.
+// The remaining `#[cfg(target_os = ...)]` splits below select the detached
+// preview *window strategy* (Linux reparents the live webview; Windows
+// rebuilds one from the recorded preview HTML) and Windows print/PDF COM
+// plumbing — not a webview backend.
+
+// For ApplicationWindow::application()
+#[cfg(target_os = "linux")]
+use gtk4::prelude::GtkWindowExt;
 
 pub mod allocation_wait; // Cross-platform widget allocation/map polling helper
-pub mod backend; // Cross-platform preview backend helpers (Linux: WebKit6, Windows: wry)
+pub mod backend; // Cross-platform preview backend helpers (unified wry wrapper)
 pub mod code_view_html; // Cross-platform HTML / JS builders for the code-view preview
-pub mod export_pipeline; // Unified Export & Print Pipeline (skeleton — Phase 1, no callers)
+#[cfg(target_os = "linux")]
+pub mod detached_window_linux;
+pub mod export_pipeline; // Unified Export & Print Pipeline (driven from main.rs export actions)
 pub mod layout_controller; // Split controller + webview location tracking
 pub mod loading_overlay; // Centered indeterminate loading bar overlayed on the preview
 pub mod pagedjs; // Embedded paged.js polyfill for page view simulation
 pub mod preview_state; // Cross-platform preview state snapshot/restore primitive (§14.3)
 #[cfg(target_os = "linux")]
-pub mod print_driver; // Print dialog and PDF export driver (Linux: WebKit6)
+pub mod print_driver_linux; // Print dialog + PDF export driver (WebKit PrintOperation via escape hatch)
 pub mod renderer; // Markdown rendering coordinator (cross-platform via `backend`)
 #[cfg(target_os = "linux")]
-pub mod reparenting;
-#[cfg(target_os = "linux")]
-pub mod webkit6_detached_window; // Separate preview window (Linux: WebKit6) // WebView reparenting utilities (Linux: GTK4/WebKit6)
+pub mod reparenting; // WebView reparenting utilities (detached-window flow) // Detached preview window (reparents the live webview)
 
-// Windows: wry-based detached preview and helpers
-#[cfg(target_os = "windows")]
-pub mod print_driver_windows;
-#[cfg(target_os = "windows")]
-pub mod wry; // Windows (wry/WebView2) minimal parity helpers
-#[cfg(target_os = "windows")]
-pub mod wry_detached_window; // Detached preview window using wry
-#[cfg(target_os = "windows")]
-pub mod wry_find; // Windows: JS-based find-in-preview engine (parity for webkit6 FindController)
-#[cfg(target_os = "windows")]
-pub mod wry_platform_webview; // Windows: embedded child WebView // Windows print driver (wry/WebView2)
-#[cfg(target_os = "windows")]
-pub mod wry_print_to_pdf; // Native WebView2 PrintToPdf (replaces headless Chromium)
+// Unified wry-based preview webview (Linux: GTK4/WebKit6 via the gtk4-webkit6
+// fork; Windows: WebView2 child window) and helpers.
+pub mod find_engine; // JS-based find-in-preview engine (MarcoFind)
+pub mod platform_webview;
+pub mod preview_helpers; // Shared preview helpers (latest-HTML cache, external URI opener, code viewer) // Cross-platform embedded WebView wrapper
 
-pub mod find_backend; // Cross-platform find-in-preview trait (§14.1, Step 6b)
+// Windows-only: wry/WebView2 specifics
+#[cfg(target_os = "windows")]
+pub mod detached_window_windows;
+#[cfg(target_os = "windows")]
+pub mod print_driver_windows; // Print dialog + native PrintToPdf export (WebView2 COM) // Detached preview window using wry
+
 pub mod preview_types; // View mode enum (cross-platform)
 
 /// Open the preview in a new detached window. Implemented per-platform below.
@@ -72,9 +65,9 @@ use std::option::Option;
 
 // Platform-specific preview window type alias
 #[cfg(target_os = "linux")]
-pub type PreviewWindowType = crate::components::viewer::webkit6_detached_window::PreviewWindow;
+pub type PreviewWindowType = crate::components::viewer::detached_window_linux::PreviewWindow;
 #[cfg(target_os = "windows")]
-pub type PreviewWindowType = crate::components::viewer::wry_detached_window::PreviewWindow;
+pub type PreviewWindowType = crate::components::viewer::detached_window_windows::PreviewWindow;
 
 pub fn open_preview_in_separate_window(
     parent_window: &gtk4::ApplicationWindow,
@@ -82,12 +75,11 @@ pub fn open_preview_in_separate_window(
 ) -> Option<PreviewWindowType> {
     #[cfg(target_os = "linux")]
     {
-        use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+        use crate::components::viewer::detached_window_linux::PreviewWindow;
         if let Some(app) = parent_window.application() {
             let pw = PreviewWindow::new(parent_window, &app);
             if let Some(webview) = webview_opt {
-                // On Linux the webview is a webkit6::WebView widget
-                // We need to attach the actual widget to the preview window
+                // Reparent the unified wrapper's widget into the new window.
                 pw.attach_webview(webview);
             }
             pw.show();
@@ -100,7 +92,7 @@ pub fn open_preview_in_separate_window(
 
     #[cfg(target_os = "windows")]
     {
-        use crate::components::viewer::wry_detached_window::PreviewWindow;
+        use crate::components::viewer::detached_window_windows::PreviewWindow;
         let pw = PreviewWindow::new(parent_window);
         if let Some(webview) = webview_opt {
             // Snapshot user-visible state from the editor's live WebView
@@ -121,7 +113,5 @@ pub fn open_preview_in_separate_window(
     None
 }
 
-pub mod css_utils;
+pub mod css_utils; // CSS and HTML formatting utilities (cross-platform)
 pub mod javascript; // JavaScript utilities (cross-platform)
-#[cfg(target_os = "linux")]
-pub mod webkit6; // WebKit6 WebView implementation (Linux-only) // CSS and HTML formatting utilities (cross-platform)

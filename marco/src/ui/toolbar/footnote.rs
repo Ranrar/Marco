@@ -21,10 +21,11 @@ pub fn connect_inline_footnote_toolbar_action(
         let editor_view = editor_view.clone();
         let root_popover_state = root_popover_state.clone();
 
-        button.connect_clicked(move |_| {
+        button.connect_clicked(move |btn| {
             if root_popover_state.is_root_open() {
                 return;
             }
+            crate::ui::popover_state::close_ancestor_popover(btn);
             show_insert_footnote_popover(
                 editor_buffer.upcast_ref::<gtk4::TextBuffer>(),
                 editor_view.upcast_ref::<gtk4::TextView>(),
@@ -46,10 +47,11 @@ pub fn connect_block_footnote_toolbar_action(
         let editor_view = editor_view.clone();
         let root_popover_state = root_popover_state.clone();
 
-        button.connect_clicked(move |_| {
+        button.connect_clicked(move |btn| {
             if root_popover_state.is_root_open() {
                 return;
             }
+            crate::ui::popover_state::close_ancestor_popover(btn);
             show_insert_footnote_popover(
                 editor_buffer.upcast_ref::<gtk4::TextBuffer>(),
                 editor_view.upcast_ref::<gtk4::TextView>(),
@@ -444,8 +446,8 @@ fn clamp_rect_to_editor(
     rect: gtk4::gdk::Rectangle,
     editor_view: &gtk4::TextView,
 ) -> gtk4::gdk::Rectangle {
-    let view_w = editor_view.allocated_width().max(1);
-    let view_h = editor_view.allocated_height().max(1);
+    let view_w = editor_view.width().max(1);
+    let view_h = editor_view.height().max(1);
     let w = rect.width().max(1);
     let h = rect.height().max(1);
 

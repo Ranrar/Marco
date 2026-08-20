@@ -6,7 +6,7 @@ members = ["marco", "polo", "marco-shared"]
 # and lives in its own repository. Pull it from crates.io with a single shared
 # version so all workspace members stay in sync.
 [workspace.dependencies.marco-core]
-version = "1.2.0"
+version = "1.3.2"
 
 # Shared workspace dependencies
 [workspace.dependencies]
@@ -21,27 +21,33 @@ tempfile = "3.25.0"
 emojis = "0.8.0"
 fontconfig = "0.10.0"
 dirs = "6.0.0"
-htmlescape = "0.3.1"                              # HTML entity encoding/decoding
+htmlescape = "0.3.1"                 # HTML entity encoding/decoding
 syntect = "5.3.0"                    # Syntax highlighting (used by marco for theme CSS export)
 katex-rs = "0.2.3"                   # Pure Rust KaTeX math rendering (used by marco math dialog)
 
-# UI dependencies (GTK4 ecosystem)
-gtk4 = "0.11.2"
+# UI dependencies
+gtk4 = { version = "=0.11.4", features = ["v4_12"] }
 glib = "0.22.5"
 glib-unix = "0.22.0"
 gio = "0.22.5"
-sourceview5 = "0.11.0"
-dark-light = "2.0.0"
+sourceview5 = "0.11.1"
+dark-light = "3.0.0"
+# Awaitable channel for handing background-thread events to the GTK main loop.
+async-channel = "2.5.0"
 librsvg = "2"
 cairo-rs = "0.22.0"
 gdk-pixbuf = "0.22.0"
 
-# Platform-specific WebView dependencies
-# Linux: webkit6 (GTK4-native WebKit)
+# Unified WebView
+# Tracks the fork's `gtk4-webkit6` branch (Linux backend is GTK4 + WebKit6;
+# Windows is WebView2), pinned to an exact commit for reproducible builds
+# because that branch moves. Bump by updating `rev` to the new branch head.
+# `protocol` is gone as of 0.56 — custom protocols are always available now, so
+# the feature no longer exists. `os-webview` still pulls in webkit6/gtk4/soup3.
+wry = { git = "https://github.com/Ranrar/wry", rev = "6328003336cb1b93bde710f73a4572c01f509f2d", default-features = false, features = ["os-webview"] }
+# Direct webkit6 dep (Linux): raw WebKit APIs not exposed through wry —
+# `PrintOperation` (print/PDF) and `load_html(html, base_uri)`.
 webkit6 = "0.6.1"
-# Windows: wry (cross-platform WebView wrapper)
-wry = { version = "0.55.0", default-features = false, features = ["os-webview", "protocol"] }
-tao = "0.35.0"
 gdk4-win32 = "0.11.0"
 raw-window-handle = "0.6.2"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
@@ -65,13 +71,3 @@ lto = "thin"            # Thin LTO - faster than "fat" LTO with good optimizatio
 codegen-units = 16      # Parallel codegen - much faster than 1
 strip = true            # Strip symbols to reduce binary size
 panic = 'abort'         # Smaller binaries, no unwinding
-
-# CI on Ubuntu 24.04 can fail to compile `ashpd 0.10.x` (pulled in by
-# `dark-light 2.0.0`) due to stricter trait bounds in newer `zbus`/`zvariant`.
-# Upstream `dark-light` has already removed the `ashpd` dependency on its main
-# branch, but hasn't published a new crates.io release yet.
-#
-# To keep CI reproducible while we wait for an upstream release, we patch
-# `dark-light` to a pinned git revision.
-[patch.crates-io]
-dark-light = { git = "https://github.com/rust-dark-light/dark-light", rev = "0f18d2fbcaa5d1c175db8aae7d53428988d7e961" }

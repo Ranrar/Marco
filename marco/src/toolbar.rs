@@ -3,6 +3,63 @@ pub fn set_toolbar_height(toolbar_box: &gtk4::Box, height: i32) {
     toolbar_box.set_height_request(height);
 }
 
+/// Depth-first search for a descendant `Button` carrying `css_class`.
+///
+/// Lifted to module scope so both the tooltip refresh and the undo/redo focus
+/// wiring can share one implementation.
+fn find_button_by_css_class(root: &gtk4::Widget, css_class: &str) -> Option<gtk4::Button> {
+    use gtk4::prelude::*;
+
+    if let Ok(button) = root.clone().downcast::<gtk4::Button>() {
+        if button.has_css_class(css_class) {
+            return Some(button);
+        }
+    }
+
+    let mut child = root.first_child();
+    while let Some(widget) = child {
+        if let Some(found) = find_button_by_css_class(&widget, css_class) {
+            return Some(found);
+        }
+        child = widget.next_sibling();
+    }
+
+    None
+}
+
+/// Keep the caret in the editor when the undo/redo toolbar buttons are used.
+///
+/// The buttons are bound to `app.undo` / `app.redo` through `action-name`, so
+/// GTK's default click handling would move keyboard focus onto the button
+/// itself. Undo and redo are mid-typing operations — landing focus on a
+/// toolbar button means the user's next keystroke goes nowhere, and they have
+/// to click back into the text to carry on.
+///
+/// `set_focus_on_click(false)` stops the click from taking focus in the first
+/// place (so no focus ring flashes on the button), and the explicit
+/// `grab_focus` covers the case where focus was somewhere other than the
+/// editor when the button was pressed. The caret's position is held by the
+/// buffer, so returning focus alone puts the user back where they were.
+pub fn wire_undo_redo_focus(toolbar: &gtk4::Box, editor_view: &sourceview5::View) {
+    use gtk4::prelude::*;
+
+    for css_class in ["toolbar-btn-undo", "toolbar-btn-redo"] {
+        let Some(button) =
+            find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), css_class)
+        else {
+            log::debug!("[toolbar] {css_class} not found; skipping focus wiring");
+            continue;
+        };
+
+        button.set_focus_on_click(false);
+
+        let editor_view = editor_view.clone();
+        button.connect_clicked(move |_| {
+            editor_view.grab_focus();
+        });
+    }
+}
+
 /// Wire the gutter on/off toggle buttons (binary state for line numbers).
 ///
 /// The toolbar's first two children are expected to be the gutter-on and gutter-off
@@ -90,24 +147,6 @@ pub fn wire_gutter_toggle(
 pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translations) {
     use gtk4::prelude::*;
 
-    fn find_button_by_css_class(root: &gtk4::Widget, css_class: &str) -> Option<Button> {
-        if let Ok(button) = root.clone().downcast::<Button>() {
-            if button.has_css_class(css_class) {
-                return Some(button);
-            }
-        }
-
-        let mut child = root.first_child();
-        while let Some(widget) = child {
-            if let Some(found) = find_button_by_css_class(&widget, css_class) {
-                return Some(found);
-            }
-            child = widget.next_sibling();
-        }
-
-        None
-    }
-
     fn set_tooltip(toolbar: &gtk4::Box, css_class: &str, tooltip: &str) {
         if let Some(button) =
             find_button_by_css_class(toolbar.upcast_ref::<gtk4::Widget>(), css_class)
@@ -148,6 +187,8 @@ pub fn update_toolbar_translations(toolbar: &gtk4::Box, translations: &Translati
         "toolbar-headings-btn",
         &translations.toolbar.block_type,
     );
+    set_tooltip(toolbar, "toolbar-btn-undo", &translations.menu.undo);
+    set_tooltip(toolbar, "toolbar-btn-redo", &translations.menu.redo);
     set_tooltip(toolbar, "toolbar-btn-bold", &translations.toolbar.bold);
     set_tooltip(toolbar, "toolbar-btn-italic", &translations.toolbar.italic);
     set_tooltip(
@@ -345,7 +386,7 @@ use rsvg::{CairoRenderer, Loader};
 
 use crate::components::language::Translations;
 use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -391,7 +432,17 @@ fn is_dark_theme(widget: &gtk4::Widget) -> bool {
 
 fn toolbar_icon_color_for_flags(widget: &gtk4::Widget, flags: gtk4::StateFlags) -> &'static str {
     let dark = is_dark_theme(widget);
-    if flags.contains(gtk4::StateFlags::ACTIVE) {
+    // Unavailable is conveyed by the icon's own stroke colour, not by a
+    // background fill or a blanket opacity — see
+    // `generate_toolbar_buttons_disabled_css`. Checked first: an insensitive
+    // button can still carry PRELIGHT, and "greyed out" must win over "hovered".
+    if flags.contains(gtk4::StateFlags::INSENSITIVE) {
+        if dark {
+            DARK_PALETTE.toolbar_button_disabled
+        } else {
+            LIGHT_PALETTE.toolbar_button_disabled
+        }
+    } else if flags.contains(gtk4::StateFlags::ACTIVE) {
         if dark {
             DARK_PALETTE.control_icon_active
         } else {
@@ -429,13 +480,13 @@ fn render_toolbar_svg_icon(icon: ToolbarIcon, color: &str, icon_size: f64) -> gd
             }
         };
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (icon_size * render_scale) as i32;
 
     let mut surface =
@@ -527,13 +578,13 @@ fn render_toolbar_rect_svg(
             }
         };
 
-    let display_scale = gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_w = (display_w * render_scale) as i32;
     let render_h = (display_h * render_scale) as i32;
 
@@ -733,9 +784,67 @@ fn render_composite_button_content(button: &Button, icon_paths: &str, label: &st
     }
 }
 
-fn connect_hover_popover(button: &Button, popover: &gtk4::Popover, audit_label: &'static str) {
+/// Coordinates the toolbar's dropdown popovers so hovering a different
+/// button closes whichever one is currently open immediately, instead of
+/// leaving it to its own independent delayed close.
+///
+/// Without this, hovering directly from one dropdown button to another can
+/// leave two popovers "grabbing" at once for the ~120ms of the old one's
+/// delayed close, which GDK rejects (`Tried to map a grabbing popup with a
+/// non-top most parent`) and leaves the new popover unclickable until it's
+/// re-triggered by another hover.
+#[derive(Clone, Default)]
+struct ToolbarDropdownGroup {
+    current: Rc<RefCell<Option<gtk4::Popover>>>,
+}
+
+impl ToolbarDropdownGroup {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    /// Close whichever dropdown is currently open (if it isn't `popover`
+    /// itself) and record `popover` as the active one.
+    fn activate(&self, popover: &gtk4::Popover) {
+        // Must not hold the RefCell borrow across `popdown()`: GTK fires the
+        // popover's `closed` signal synchronously, which re-enters here via
+        // `on_closed` and would panic on a reentrant borrow.
+        let existing = self.current.borrow_mut().take();
+        if let Some(existing) = existing {
+            if &existing == popover {
+                *self.current.borrow_mut() = Some(existing);
+                return;
+            }
+            existing.popdown();
+        }
+        *self.current.borrow_mut() = Some(popover.clone());
+    }
+
+    /// Clear the tracked popover once it's actually closed (whether via
+    /// hover, autohide, or Escape), so a stale reference doesn't linger.
+    fn on_closed(&self, popover: &gtk4::Popover) {
+        let mut current = self.current.borrow_mut();
+        if current.as_ref() == Some(popover) {
+            *current = None;
+        }
+    }
+}
+
+fn connect_hover_popover(
+    button: &Button,
+    popover: &gtk4::Popover,
+    audit_label: &'static str,
+    group: &ToolbarDropdownGroup,
+) {
     let over_button = Rc::new(Cell::new(false));
     let over_popover = Rc::new(Cell::new(false));
+
+    {
+        let group = group.clone();
+        popover.connect_closed(move |p| {
+            group.on_closed(p);
+        });
+    }
 
     let schedule_close = {
         let over_button = over_button.clone();
@@ -758,6 +867,7 @@ fn connect_hover_popover(button: &Button, popover: &gtk4::Popover, audit_label: 
         let over_button = over_button.clone();
         let button = button.clone();
         let popover = popover.clone();
+        let group = group.clone();
         button_motion.connect_enter(move |_, _, _| {
             if crate::ui::popover_state::is_toolbar_interaction_blocked() {
                 return;
@@ -765,20 +875,21 @@ fn connect_hover_popover(button: &Button, popover: &gtk4::Popover, audit_label: 
 
             over_button.set(true);
 
+            // Close whichever sibling dropdown is open right away, before this
+            // one maps, so we never have two grabbing popups open at once.
+            group.activate(&popover);
+
             // Avoid GTK warnings such as:
             // "Trying to snapshot GtkGizmo ... without a current allocation".
             // Popover opening is deferred until both anchor button and popover parent
             // have a real allocation.
-            if !button.is_mapped()
-                || button.allocated_width() <= 1
-                || button.allocated_height() <= 1
-            {
+            if !button.is_mapped() || button.width() <= 1 || button.height() <= 1 {
                 let button_retry = button.clone();
                 let popover_retry = popover.clone();
                 glib::timeout_add_local_once(Duration::from_millis(16), move || {
                     if button_retry.is_mapped()
-                        && button_retry.allocated_width() > 1
-                        && button_retry.allocated_height() > 1
+                        && button_retry.width() > 1
+                        && button_retry.height() > 1
                     {
                         popover_retry.popup();
                     }
@@ -853,6 +964,9 @@ fn create_toolbar_popover_row_button_with_helper(
 }
 
 pub fn create_toolbar_structure(translations: &Translations) -> Box {
+    // Coordinates hover hand-off between this toolbar's dropdown popovers.
+    let dropdown_group = ToolbarDropdownGroup::new();
+
     // Create basic toolbar structure with spacing between buttons
     let toolbar = Box::new(Orientation::Horizontal, 0); // tighter spacing inside groups
     toolbar.add_css_class("toolbar");
@@ -882,6 +996,38 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
     let sep0 = Separator::new(Orientation::Vertical);
     sep0.add_css_class("toolbar-separator");
     toolbar.append(&sep0);
+
+    // Undo / redo.
+    //
+    // Wired through `action-name` rather than `connect_clicked`: the
+    // `app.undo` / `app.redo` actions already exist (see
+    // `menu_items::edit::setup_undo_redo_actions`) and their enabled state is
+    // kept in sync with the buffer's history by `update_edit_action_states`.
+    // Binding the buttons to those actions makes GTK grey them out
+    // automatically when there is nothing to undo or redo, with no extra
+    // wiring to keep in step.
+    let undo_button = create_toolbar_icon_button(
+        ToolbarIcon::Undo,
+        &translations.menu.undo,
+        "toolbar-btn-undo",
+        TOOLBAR_ICON_SIZE,
+    );
+    undo_button.set_action_name(Some("app.undo"));
+    toolbar.append(&undo_button);
+
+    let redo_button = create_toolbar_icon_button(
+        ToolbarIcon::Redo,
+        &translations.menu.redo,
+        "toolbar-btn-redo",
+        TOOLBAR_ICON_SIZE,
+    );
+    redo_button.set_action_name(Some("app.redo"));
+    toolbar.append(&redo_button);
+
+    // Separator
+    let sep_history = Separator::new(Orientation::Vertical);
+    sep_history.add_css_class("toolbar-separator");
+    toolbar.append(&sep_history);
 
     // Block-type dropdown (Paragraph, Quote, Heading 1-6) — composite SVG button
     let text_paragraph_poover_button = create_toolbar_composite_dropdown_button(
@@ -954,12 +1100,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &text_paragraph_poover_button,
         &block_type_popover,
         "block type dropdown",
+        &dropdown_group,
     );
     let popover_ref = block_type_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     text_paragraph_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&popover_ref);
         popover_ref.popup();
         trace!("audit: block type dropdown opened");
     });
@@ -1046,12 +1195,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &text_inline_poover_button,
         &text_inline_popover,
         "text inline dropdown",
+        &dropdown_group,
     );
     let text_inline_popover_ref = text_inline_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     text_inline_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&text_inline_popover_ref);
         text_inline_popover_ref.popup();
         trace!("audit: text inline dropdown opened");
     });
@@ -1128,12 +1280,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &inline_items_poover_button,
         &inline_items_popover,
         "inline items dropdown",
+        &dropdown_group,
     );
     let inline_items_popover_ref = inline_items_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     inline_items_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&inline_items_popover_ref);
         inline_items_popover_ref.popup();
         trace!("audit: inline items dropdown opened");
     });
@@ -1191,12 +1346,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &block_items_poover_button,
         &block_items_popover,
         "block items dropdown",
+        &dropdown_group,
     );
     let block_items_popover_ref = block_items_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     block_items_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&block_items_popover_ref);
         block_items_popover_ref.popup();
         trace!("audit: block items dropdown opened");
     });
@@ -1260,12 +1418,15 @@ pub fn create_toolbar_structure(translations: &Translations) -> Box {
         &container_items_poover_button,
         &container_items_popover,
         "modules items dropdown",
+        &dropdown_group,
     );
     let container_items_popover_ref = container_items_popover.clone();
+    let dropdown_group_ref = dropdown_group.clone();
     container_items_poover_button.connect_clicked(move |_| {
         if crate::ui::popover_state::is_toolbar_interaction_blocked() {
             return;
         }
+        dropdown_group_ref.activate(&container_items_popover_ref);
         container_items_popover_ref.popup();
         trace!("audit: modules items dropdown opened");
     });

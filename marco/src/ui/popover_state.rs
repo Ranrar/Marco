@@ -1,4 +1,4 @@
-use gtk4::prelude::{PopoverExt, WidgetExt};
+use gtk4::prelude::{Cast, IsA, PopoverExt, WidgetExt};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -60,6 +60,43 @@ pub fn is_toolbar_interaction_blocked() -> bool {
             .map(|s| s.is_root_open())
             .unwrap_or(false)
     })
+}
+
+/// Close the active root-level popover tree (an open menu, or a toolbar
+/// dropdown), if any.
+///
+/// The `GAction`-driven menu items have no widget to walk up from, so they
+/// cannot use [`close_ancestor_popover`] — but they hit the same GTK
+/// restriction described there: the menu popover that activated the action is
+/// still mapped and holding the pointer grab when the action opens its own
+/// popover. GTK rejects the second popover's grab, and the menu's grab is left
+/// behind with nothing visible owning it, so clicks land nowhere and the
+/// window appears half-frozen.
+pub fn close_global_root_tree() {
+    // Clone the state out before closing: `popdown()` synchronously runs the
+    // popover's `closed` handlers, which write back into this same state.
+    let state = GLOBAL_ROOT_POPOVER_STATE.with(|slot| slot.borrow().clone());
+    if let Some(state) = state {
+        state.close_root_tree();
+    }
+}
+
+/// Close the nearest ancestor `Popover` of `widget`, if any.
+///
+/// Toolbar dropdown rows (e.g. Code/Footnote/Link/Image/Emoji) live inside a
+/// composite dropdown `Popover` (Blocks, Insert). Opening a second, unrelated
+/// `Popover` while that ancestor is still open and holding the pointer grab
+/// gets rejected by GTK ("Tried to map a grabbing popup with a non-top most
+/// parent"), so the ancestor must be closed first.
+pub fn close_ancestor_popover(widget: &impl IsA<gtk4::Widget>) {
+    let mut current = widget.clone().upcast::<gtk4::Widget>().parent();
+    while let Some(w) = current {
+        if let Ok(popover) = w.clone().downcast::<gtk4::Popover>() {
+            popover.popdown();
+            return;
+        }
+        current = w.parent();
+    }
 }
 
 /// Ensure popovers close with Escape and outside clicks consistently.

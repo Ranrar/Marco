@@ -21,7 +21,6 @@
 //! ```
 //!
 #[cfg(target_os = "linux")]
-use gtk4::gio;
 use gtk4::glib;
 use gtk4::prelude::*;
 /// The `toc_paned` position (= panel width) is auto-sized to fit the widest
@@ -223,20 +222,6 @@ impl TocPanelHandle {
                             }})();"#,
                             slug = slug,
                         );
-                        #[cfg(target_os = "linux")]
-                        crate::components::editor::editor_manager::with_primary_preview_webview(
-                            |wv| {
-                                use webkit6::prelude::WebViewExt as _;
-                                wv.evaluate_javascript(
-                                    &js,
-                                    None,
-                                    None,
-                                    None::<&gio::Cancellable>,
-                                    |_| {},
-                                );
-                            },
-                        );
-                        #[cfg(target_os = "windows")]
                         crate::components::editor::editor_manager::with_primary_preview_webview(
                             |wv| {
                                 wv.evaluate_script(&js);
@@ -456,7 +441,7 @@ scrolledwindow.toc-panel-scroll scrollbar slider {
 "#;
 
     let provider = gtk4::CssProvider::new();
-    provider.load_from_data(css);
+    provider.load_from_string(css);
     if let Some(display) = gtk4::gdk::Display::default() {
         gtk4::style_context_add_provider_for_display(
             &display,

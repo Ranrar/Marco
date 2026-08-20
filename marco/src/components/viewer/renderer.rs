@@ -15,8 +15,8 @@
 //! # Cross-platform note
 //!
 //! The renderer is fully platform-agnostic — it dispatches all WebView I/O
-//! through [`crate::components::viewer::backend`], whose Linux/Windows
-//! implementations live in `webkit6`/`wry_platform_webview` respectively.
+//! through [`crate::components::viewer::backend`], which wraps the single
+//! cross-platform `platform_webview` module.
 //!
 //! Until the Windows refresh closure in `editor::ui` adopts this module
 //! (planned Step 4b of the webkit6→wry parity work), several public items
@@ -171,11 +171,13 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                 None,
                 &page_opts,
             );
+            backend::record_latest_preview(&html, base_uri.as_deref());
             backend::load_html_when_ready(&webview, html, base_uri);
         } else {
             let html_body_with_js = generate_test_html(wheel_js_str);
             let html =
                 backend::wrap_html_document(&html_body_with_js, &combined_css, &theme_mode, None);
+            backend::record_latest_preview(&html, base_uri.as_deref());
             backend::load_html_when_ready(&webview, html, base_uri);
         }
 
@@ -227,6 +229,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                         None,
                         &page_opts,
                     );
+                    backend::record_latest_preview(&html, base_uri.as_deref());
                     backend::load_html_when_ready(&webview, html, base_uri);
                 } else {
                     // Normal mode: wrap with wheel JS for scroll sync, then load.
@@ -238,6 +241,7 @@ pub fn refresh_preview_into_webview_with_base_uri_and_doc_buffer(params: Preview
                         &theme_mode,
                         None,
                     );
+                    backend::record_latest_preview(&html, base_uri.as_deref());
                     backend::load_html_when_ready(&webview, html, base_uri);
                 }
             }
@@ -341,6 +345,16 @@ fn compute_section_payload(
         }
     };
 
+    // Section HTML reaches the preview as a DOM patch rather than a page load,
+    // so it bypasses the equivalent pass in `load_html_with_base` and has to
+    // make its own image srcs URL-safe. Borrows on every platform but Windows.
+    let html_arcs: Vec<std::borrow::Cow<'_, str>> = html_arcs
+        .iter()
+        .map(|arc| {
+            crate::components::viewer::platform_webview::make_local_srcs_url_safe(arc.as_str())
+        })
+        .collect();
+
     // Full rebuild on first render (no DOM to patch yet).
     if prev_hashes.is_empty() {
         let cap = html_arcs.iter().map(|a| a.len()).sum::<usize>()
@@ -352,7 +366,7 @@ fn compute_section_payload(
             body.push_str("<div id=\"mc-s-");
             body.push_str(&i.to_string());
             body.push_str("\">");
-            body.push_str(arc.as_str());
+            body.push_str(arc.as_ref());
             body.push_str("</div>\n");
         }
         body.push_str(wheel_js);
@@ -433,7 +447,7 @@ fn compute_section_payload(
         // of the first suffix section, or is null if no suffix).
         for (new_idx, html_arc) in html_arcs[prefix_len..new_suffix_start].iter().enumerate() {
             let new_idx = prefix_len + new_idx;
-            let html = escape_for_js_string(html_arc.as_str());
+            let html = escape_for_js_string(html_arc.as_ref());
             js.push_str("var _n=document.createElement('div');");
             js.push_str(&format!("_n.id='mc-s-{}';", new_idx));
             js.push_str(&format!("_n.innerHTML='{}';", html));
@@ -469,7 +483,7 @@ fn compute_section_payload(
             js.push_str("[\"mc-s-");
             js.push_str(&i.to_string());
             js.push_str("\",\'");
-            js.push_str(&escape_for_js_string(html_arcs[i].as_str()));
+            js.push_str(&escape_for_js_string(html_arcs[i].as_ref()));
             js.push_str("\']");
         }
         js.push_str("];for(var i=0;i<us.length;i++){");
@@ -551,6 +565,13 @@ pub fn refresh_preview_content_sections(
     if text.trim().is_empty() {
         let html_body_with_js = generate_test_html(&wheel_js);
         backend::update_html_content_smooth(&webview, &html_body_with_js);
+        // This is an in-place DOM patch, not a page navigation, so
+        // `marco_zoom:ready` (which normally hides the overlay after a full
+        // reload) will never fire for it — hide explicitly or the loading
+        // overlay shown by `file_operations::load_file_into_editor` hangs
+        // forever (and on Windows, parks the WebView2 HWND off-screen
+        // forever with it; see `PlatformWebView::set_offscreen_for_loading`).
+        crate::components::viewer::loading_overlay::hide();
         on_complete(Vec::new());
         return;
     }
@@ -585,6 +606,7 @@ pub fn refresh_preview_content_sections(
                             "try{sessionStorage.setItem('marco-scroll',String(Math.round(window.scrollY)));}catch(e){}",
                         );
                         let full_html = backend::wrap_html_document(&body, &css, &theme_mode, None);
+                        backend::record_latest_preview(&full_html, base_uri.as_deref());
                         backend::load_html_when_ready(&webview, full_html, base_uri);
                         on_complete(new_hashes);
                     }
@@ -592,6 +614,11 @@ pub fn refresh_preview_content_sections(
                         // Apply the cursor section immediately so the user sees
                         // their own edit reflected in the same frame.
                         backend::evaluate_javascript(&webview, &cursor_js);
+                        // A DOM patch, not a page navigation — no `marco_zoom:ready`
+                        // will follow, so hide any overlay left over from a prior
+                        // `loading_overlay::show()` (e.g. file open) now rather
+                        // than waiting for a signal that will never come.
+                        crate::components::viewer::loading_overlay::hide();
                         if let Some(rest) = rest_js {
                             // Defer on_complete until rest_js fires so in_flight
                             // stays true through both frames.  Without this, the
@@ -613,9 +640,13 @@ pub fn refresh_preview_content_sections(
                         // preserved and there is no white-flash.
                         log::debug!("[viewer] Section morph → {} sections", new_hashes.len());
                         backend::evaluate_javascript(&webview, &js);
+                        // Same as PrioritizedPatch above: in-place patch, no
+                        // navigation, so hide explicitly.
+                        crate::components::viewer::loading_overlay::hide();
                         on_complete(new_hashes);
                     }
                     SectionPayload::NoChange => {
+                        crate::components::viewer::loading_overlay::hide();
                         on_complete(new_hashes);
                     }
                 }
@@ -625,6 +656,10 @@ pub fn refresh_preview_content_sections(
                 // Always call on_complete so the in-flight guard is reset and
                 // prev_section_hashes is cleared, forcing a full rebuild on the
                 // next render instead of leaving the preview permanently frozen.
+                // Also hide any overlay left over from `loading_overlay::show()`
+                // (e.g. file open) — no navigation will occur to fire
+                // `marco_zoom:ready` and clear it otherwise.
+                crate::components::viewer::loading_overlay::hide();
                 on_complete(Vec::new());
             }
         });

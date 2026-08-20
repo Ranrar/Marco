@@ -28,14 +28,19 @@ pub enum OpenLocalFileChoice {
 /// * `filename` — Display name of the target file (shown in the dialog title).
 /// * `has_unsaved` — Whether the current document has unsaved changes.
 /// * `current_doc` — Display name of the current document (used only when `has_unsaved`).
+/// * `missing_target` — Full path of the target when there is no file at it.
+///   The dialog then reports the dead link and offers nothing to confirm,
+///   rather than an Open button whose only possible outcome is failure.
 ///
 /// # Returns
 /// An [`OpenLocalFileChoice`] describing what the user decided.
+/// Always [`OpenLocalFileChoice::Cancel`] when `missing_target` is set.
 pub async fn show_open_local_file_dialog<W: IsA<Window>>(
     parent: &W,
     filename: &str,
     has_unsaved: bool,
     current_doc: &str,
+    missing_target: Option<&str>,
 ) -> OpenLocalFileChoice {
     let translations = crate::ui::dialogs::current_translations();
     let t_root = &translations.dialog;
@@ -108,10 +113,13 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
     vbox.add_css_class("marco-dialog-content");
 
     // Primary message
-    let primary_text = translations
-        .messages
-        .open_in_editor_prompt
-        .replace("{filename}", filename);
+    let primary_text = match missing_target {
+        Some(_) => t.missing_target_message.replace("{filename}", filename),
+        None => translations
+            .messages
+            .open_in_editor_prompt
+            .replace("{filename}", filename),
+    };
     let primary = Label::new(Some(&primary_text));
     primary.add_css_class("marco-dialog-title");
     primary.set_halign(Align::Start);
@@ -120,8 +128,20 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
     primary.set_max_width_chars(45);
     vbox.append(&primary);
 
-    // Secondary message — only when there are unsaved changes
-    if has_unsaved {
+    // Secondary message — the path that was looked for, when the target is
+    // missing; otherwise the unsaved-changes warning. A dead link makes the
+    // unsaved-changes question moot: nothing is going to be opened.
+    if let Some(path) = missing_target {
+        let detail = Label::new(Some(&t.missing_target_detail.replace("{path}", path)));
+        detail.add_css_class("marco-dialog-message");
+        detail.set_halign(Align::Start);
+        detail.set_wrap(true);
+        detail.set_wrap_mode(gtk4::pango::WrapMode::WordChar);
+        detail.set_selectable(true);
+        detail.set_xalign(0.0);
+        detail.set_max_width_chars(45);
+        vbox.append(&detail);
+    } else if has_unsaved {
         let secondary_text = t.unsaved_changes_message.replace("{document}", current_doc);
         let secondary = Label::new(Some(&secondary_text));
         secondary.add_css_class("marco-dialog-message");
@@ -143,7 +163,21 @@ pub async fn show_open_local_file_dialog<W: IsA<Window>>(
 
     let dialog_weak = dialog.downgrade();
 
-    if has_unsaved {
+    if missing_target.is_some() {
+        // Nothing to confirm — the only useful action is to dismiss.
+        let btn_close = Button::with_label(&t.close_button);
+        btn_close.add_css_class("marco-btn");
+        btn_close.add_css_class("marco-btn-blue");
+        btn_close.set_tooltip_text(Some(&t.tooltip_close));
+        button_box.append(&btn_close);
+
+        let dw_close = dialog_weak.clone();
+        btn_close.connect_clicked(move |_| {
+            if let Some(d) = dw_close.upgrade() {
+                d.close();
+            }
+        });
+    } else if has_unsaved {
         // Discard & Open (destructive — red)
         let btn_discard = Button::with_label(&t.discard_open);
         btn_discard.add_css_class("marco-btn");

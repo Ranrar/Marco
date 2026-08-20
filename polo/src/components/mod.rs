@@ -31,7 +31,10 @@
 
 pub mod css;
 pub mod dialog;
+pub mod file_tree_panel;
+pub mod file_tree_search;
 pub mod menu;
+pub mod sidebar_coordinator;
 pub mod toc_panel;
 pub mod toolbar;
 pub mod utils;

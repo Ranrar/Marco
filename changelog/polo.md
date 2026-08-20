@@ -7,6 +7,61 @@ This project follows **Semantic Versioning** and uses the **Keep a Changelog** f
 
 Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history using date-based release groupings starting at the first point where Core, Marco, and Polo co-exist in the repository (2025-10-18).
 
+## [Unreleased]
+
+## [0.25.0] - 2026-08-20
+
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 2d34df7 (2026-08-18), plus the fixes dated 2026-08-20 below._
+
+**Uses:** Core 1.3.2
+
+> **Breaking change (Linux only).** Every installed path and per-user
+> directory has been renamed to resolve the long-standing collision with the
+> unrelated MATE window manager package also called `marco`
+> ([#41](https://github.com/Ranrar/Marco/issues/41)). dpkg detects conflicts by
+> file path rather than package name, so the previous layout made the `.deb`
+> impossible to install on any MATE system. **There is no migration:** existing
+> settings under the old directories are not read. Copy anything you want to
+> keep across by hand.
+>
+> | | Before | After |
+> |---|---|---|
+> | Editor binary | `/usr/bin/marco` | `/usr/bin/markdowncomposer` |
+> | Viewer binary | `/usr/bin/polo` | `/usr/bin/markdownviewer` |
+> | Editor config / data / cache | `~/.config/marco/` etc. | `~/.config/markdowncomposer/` etc. |
+> | Viewer config / data / cache | `~/.config/polo/` etc. | `~/.config/markdownviewer/` etc. |
+> | Shared assets | `/usr/share/marco/` | `/usr/share/markdowncomposer/` |
+> | Download | `marco-suite_<version>_…` | `markdown-composer-and-viewer_<version>_…` |
+>
+> Desktop entries, man pages and icons are renamed to match. The applications
+> are still called Marco and Polo everywhere they are shown to you; only the
+> file and directory names change. Windows paths are unaffected.
+
+
+### Added
+- **Windows installer.** The new `_setup.exe` installs Polo along with Marco, adds a Start Menu entry for each, offers optional desktop shortcuts, and registers an uninstaller. It installs per user by default and needs no administrator rights. The portable zip still ships too, unchanged. _(2026-08-18)_
+- **Find in page.** A find bar drops down from the toolbar (search icon, or Ctrl+F) with Highlight All, Match Case, Match Diacritics and Whole Word options, previous/next buttons and a live match count. It is implemented in JavaScript (`find_engine`) against the rendered document and shared with Marco, so both apps search the preview the same way. _(2026-07-30)_
+- **Drag and drop.** Dropping a Markdown file onto the window opens it, with a themed drop target shown while you drag — over the empty "no file loaded" state and over an already-rendered document alike. The handler sits on the webview itself rather than a GTK `DropTarget`, because the native webview would otherwise swallow the event before GTK ever saw it. _(2026-07-30)_
+- Hovered links now show their full address in an in-page HTML/CSS tooltip instead of a native one. Native tooltips are suppressed by moving `title` attributes onto data attributes, which also avoids a crash this triggered on Windows, where the tooltip window collided with the WebView2 child HWND. _(2026-07-30)_
+- File tree side panel: browse the directory containing the open document, expand folders inline, and click any Markdown file to open it. Includes an incremental search field that filters the tree as you type. _(2026-07-30)_
+- Sidebar coordinator so the Table of Contents and the new file tree behave as one sidebar: opening either closes the other, and each toggle works independently, so the two panels can no longer fight over the same space. _(2026-07-30)_
+
+### Changed
+- Updated to `marco-core` 1.3.2. _(2026-08-17)_
+- Updated to `marco-core` 1.3.1, and to the `gtk4-webkit6` fork of `wry` 0.56.1 (from 0.55.1). _(2026-08-16)_
+- **Unified webview backend**, shared with Marco. Polo's preview is now the same `PlatformWebView` on both platforms — WebKitGTK as a native GTK4 widget on Linux, WebView2 as a child window on Windows — replacing the previous platform-specific implementations. _(2026-07-16 – 2026-07-18)_
+- Rendered HTML and local assets are served over a `polo-preview://` custom protocol on both platforms, so relative image paths in a document resolve the same way everywhere without a base-URI call. _(2026-07-16)_
+- Window-control, menu and toolbar SVG icons are now inline string constants rendered through the shared icon entry point, matching Marco's handling and rasterising at a fixed supersample factor for consistent output across display backends. _(2026-07-18)_
+- Menu and toolbar styling moved into a dedicated `menu_and_toolbar` CSS module. _(2026-07-30)_
+- Updated to `marco-core` 1.3.0. _(2026-07-18)_
+
+### Fixed
+- **Linux: a packaged install shows Polo's own icon again.** Shared with Marco: the window asked GTK for an icon named `polo`, while the rename above installs it as `markdownviewer`, so the window, taskbar and alt-tab entry fell back to a generic icon on an installed system. Both names now match what the package installs, confirmed at all eleven packaged sizes. Wayland sessions were unaffected, since the shell reads the icon from the `.desktop` file. _(2026-08-20)_
+- A rendered document could get stuck on screen after an unrelated error. The HTML handed to the webview lives in a shared buffer behind a mutex; if a panic elsewhere poisoned that lock, an update was dropped with only a log line and the protocol handler answered later loads with a bare "Content unavailable" page, so the window kept showing the previous document with no way back short of a restart. Both sides now recover from a poisoned lock. _(2026-08-20)_
+- **Windows: an installed copy no longer keeps its settings inside the install directory.** Shared with Marco: a per-user install lives somewhere writable by the installing user, which the portable-mode check mistook for a portable copy, so Polo's settings and recent files were written into the install folder and removed on uninstall. An installed copy is now recognised as such and stores its settings in `%APPDATA%\marco`, the directory both apps share on Windows. _(2026-08-18)_
+- **The window title now names the file you are viewing** ([#37](https://github.com/Ranrar/Marco/issues/37)), as `Polo - filename.md`, and updates when you open a different one. Polo draws its own titlebar, so the native `set_title` the open handler was calling is never the text on screen — the visible label was built afterwards and never told. Both are now updated together. With no file open the title is just `Polo`. _(2026-07-30)_
+- **Open in Marco** looked for an executable named `marco` next to Polo and then on `PATH`. Neither exists once installed under the new Linux names, so the button would have failed on a packaged install. It now tries the installed name and the development name, alongside the binary first and then on `PATH`. _(2026-08-16)_
+
 ## [0.24.1] - 2026-07-08
 
 **Uses:** Core 1.2.0

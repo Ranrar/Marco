@@ -4,8 +4,8 @@ Type=Application
 Name=Polo
 GenericName=Markdown Viewer
 Comment=Polo is a fast and lightweight markdown viewer
-Exec=polo %F
-Icon=polo
+Exec=markdownviewer %F
+Icon=markdownviewer
 Terminal=false
 StartupNotify=true
 StartupWMClass=io.github.ranrar.Polo
@@ -16,4 +16,4 @@ Actions=new-window;
 
 [Desktop Action new-window]
 Name=New Window
-Exec=polo
+Exec=markdownviewer

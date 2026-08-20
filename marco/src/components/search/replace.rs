@@ -12,8 +12,7 @@ fn scroll_to_match(match_iter: &gtk4::TextIter) {
     CURRENT_SOURCE_VIEW.with(|view_ref| {
         if let Some(source_view) = view_ref.borrow().as_ref() {
             // Check if the source view has proper allocation before scrolling
-            let allocation = source_view.allocation();
-            if allocation.width() <= 0 || allocation.height() <= 0 {
+            if source_view.width() <= 0 || source_view.height() <= 0 {
                 debug!("Skipping scroll operation - SourceView has no allocation");
                 return;
             }

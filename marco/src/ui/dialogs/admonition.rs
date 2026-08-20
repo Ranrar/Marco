@@ -3,8 +3,8 @@
 //! Provides a list-style dialog for inserting GFM/Marco admonitions.
 
 use gtk4::{
-    glib, prelude::*, Align, Box, Button, CheckButton, Entry, EntryCompletion, Label, ListStore,
-    Orientation, PolicyType, ScrolledWindow, TextView, Window,
+    glib, prelude::*, Align, Box, Button, CheckButton, Entry, Label, Orientation, PolicyType,
+    ScrolledWindow, TextView, Window,
 };
 use sourceview5::{Buffer, View};
 
@@ -125,8 +125,14 @@ fn extract_embedded_shortcode(raw: &str) -> Option<String> {
     None
 }
 
+// No drop-in replacement exists for EntryCompletion's inline+popup
+// autocomplete UX (GTK4's list-model direction points at DropDown +
+// Expression-based matching, a different interaction model entirely) —
+// kept deliberately, scoped to this function.
 #[allow(deprecated)]
 fn attach_emoji_completion(entry: &Entry) {
+    use gtk4::{EntryCompletion, ListStore};
+
     let completion = EntryCompletion::new();
     completion.set_inline_completion(true);
     completion.set_inline_selection(true);

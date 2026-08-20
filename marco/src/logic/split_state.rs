@@ -23,7 +23,7 @@ pub fn apply_saved_split_ratio(split: &gtk4::Paned, settings_manager: &Arc<Setti
                 return glib::ControlFlow::Break;
             }
 
-            let paned_width = paned_clone.allocated_width();
+            let paned_width = paned_clone.width();
 
             if paned_width > 0 {
                 *applied_clone.borrow_mut() = true;
@@ -75,7 +75,7 @@ pub fn connect_split_ratio_save(
     let save_timeout: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
     split.connect_notify_local(Some("position"), move |paned, _| {
-        let paned_width = paned.allocated_width();
+        let paned_width = paned.width();
         if paned_width <= 0 {
             return;
         }

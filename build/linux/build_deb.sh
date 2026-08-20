@@ -39,7 +39,27 @@ ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$ROOT_DIR"
 
 # Configuration
-PACKAGE_NAME="marco-suite"
+PACKAGE_NAME="markdown-composer-and-viewer"
+
+# Installed artifact names.
+#
+# Upstream the editor binary is `marco`, but /usr/bin/marco,
+# /usr/share/applications/marco.desktop, /usr/share/man/man1/marco.1,
+# /usr/share/icons/hicolor/*/apps/marco.png and /usr/share/marco/ are all
+# already owned by the unrelated MATE window manager package `marco` in the
+# Debian/Ubuntu archives. dpkg detects conflicts by file path, not package
+# name, so `marco-suite` collides with it regardless of the package name and
+# installation fails outright (issue #41).
+#
+# Conflicts/Replaces would be the wrong tool here: a window manager and a
+# markdown editor are unrelated software, and installing this must not force
+# a user's window manager off their system. So the editor's *installed*
+# artifacts are renamed instead. Polo has no such clash and keeps its name.
+MARCO_INSTALL_NAME="markdowncomposer"
+POLO_INSTALL_NAME="markdownviewer"
+# Must match `marco_shared::paths::APP_DIR_NAME` -- the application resolves its
+# assets from /usr/share/<this name>/ at runtime.
+SHARE_DIR_NAME="$MARCO_INSTALL_NAME"
 MAINTAINER="Kim Skov Rasmussen <kim@skovrasmussen.com>"
 INSTALL_PREFIX="/usr"
 
@@ -82,7 +102,7 @@ OPTIONS:
     To bump the marco-core dependency version, edit the workspace Cargo.toml.
 
 OUTPUT:
-    Creates: build/installer/marco-suite_VERSION_linux_amd64.deb
+    Creates: build/installer/markdown-composer-and-viewer_VERSION_linux_amd64.deb
 EOF
 }
 
@@ -350,12 +370,12 @@ check_dependencies() {
             print_success "GtkSourceView5 found ($(pkg-config --modversion gtksourceview-5))"
         fi
 
+        # The unified wry backend (gtk4-webkit6 fork) links webkitgtk-6.0 only;
+        # webkit2gtk-4.x (GTK3) does not satisfy it.
         if pkg-config --exists webkitgtk-6.0; then
             print_success "WebKitGTK 6.0 found ($(pkg-config --modversion webkitgtk-6.0))"
-        elif pkg-config --exists webkit2gtk-4.1; then
-            print_success "WebKit2GTK 4.1 found ($(pkg-config --modversion webkit2gtk-4.1))"
         else
-            print_error "WebKitGTK development files not found"
+            print_error "WebKitGTK 6.0 development files not found"
             missing_dev_deps+=("libwebkitgtk-6.0-dev")
         fi
 
@@ -457,7 +477,7 @@ install -d -m 0755 "$BUILD_DIR/DEBIAN"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/bin"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/applications"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/icons/hicolor"
-install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/marco/doc"
+install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/doc"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1"
 install -d -m 0755 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}"
 
@@ -479,19 +499,19 @@ if [ ! -f "$MARCO_BIN" ] || [ ! -f "$POLO_BIN" ]; then
     exit 1
 fi
 
-install -m 0755 "$MARCO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/marco"
-install -m 0755 "$POLO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/polo"
+install -m 0755 "$MARCO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/${MARCO_INSTALL_NAME}"
+install -m 0755 "$POLO_BIN" "$BUILD_DIR${INSTALL_PREFIX}/bin/${POLO_INSTALL_NAME}"
 
 # Strip binaries inside the package payload (avoid changing your local build artifacts)
 if command -v strip &>/dev/null; then
-    strip --strip-unneeded "$BUILD_DIR${INSTALL_PREFIX}/bin/marco" 2>/dev/null || true
-    strip --strip-unneeded "$BUILD_DIR${INSTALL_PREFIX}/bin/polo" 2>/dev/null || true
+    strip --strip-unneeded "$BUILD_DIR${INSTALL_PREFIX}/bin/${MARCO_INSTALL_NAME}" 2>/dev/null || true
+    strip --strip-unneeded "$BUILD_DIR${INSTALL_PREFIX}/bin/${POLO_INSTALL_NAME}" 2>/dev/null || true
 fi
 print_success "Binaries copied"
 
 print_info "Copying desktop entries..."
-install -m 0644 build/linux/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/marco.desktop"
-install -m 0644 build/linux/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/polo.desktop"
+install -m 0644 build/linux/marco.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/${MARCO_INSTALL_NAME}.desktop"
+install -m 0644 build/linux/polo.desktop "$BUILD_DIR${INSTALL_PREFIX}/share/applications/${POLO_INSTALL_NAME}.desktop"
 print_success "Desktop entries copied"
 
 print_info "Installing system icons..."
@@ -545,19 +565,19 @@ install_icon_set() {
     done
 }
 
-install_icon_set "marco" "$MARCO_ICON_64" "$MARCO_ICON_662"
-install_icon_set "polo" "$POLO_ICON_64" "$POLO_ICON_662"
+install_icon_set "$MARCO_INSTALL_NAME" "$MARCO_ICON_64" "$MARCO_ICON_662"
+install_icon_set "$POLO_INSTALL_NAME" "$POLO_ICON_64" "$POLO_ICON_662"
 print_success "Icons installed"
 
 print_info "Copying shared assets..."
-# cp -r marco-shared/src/assets/fonts "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
-cp -r marco-shared/src/assets/icons "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
-cp -r marco-shared/src/assets/themes "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
-cp -r marco-shared/src/assets/language "$BUILD_DIR${INSTALL_PREFIX}/share/marco/"
+# cp -r marco-shared/src/assets/fonts "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/"
+cp -r marco-shared/src/assets/icons "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/"
+cp -r marco-shared/src/assets/themes "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/"
+cp -r marco-shared/src/assets/language "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/"
 
 # Normalize permissions on copied trees (cp -r preserves working tree perms)
-find "$BUILD_DIR${INSTALL_PREFIX}/share/marco" -type d -exec chmod 0755 {} +
-find "$BUILD_DIR${INSTALL_PREFIX}/share/marco" -type f -exec chmod 0644 {} +
+find "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}" -type d -exec chmod 0755 {} +
+find "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}" -type f -exec chmod 0644 {} +
 # Do not bundle a pre-made settings.ron in the package.
 # Settings are generated on first run by marco_shared::logic::swanson::SettingsManager
 # (Settings::create_default_for_system) into the user's config directory.
@@ -566,12 +586,12 @@ print_success "Assets copied"
 print_info "Creating man pages..."
 MANPAGE_DATE="$(date "+%B %Y")"
 
-cat > "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/marco.1" << MANEOF
-.TH MARCO 1 "${MANPAGE_DATE}" "marco ${MARCO_VERSION}" "User Commands"
+cat > "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/${MARCO_INSTALL_NAME}.1" << MANEOF
+.TH MARCO-EDITOR 1 "${MANPAGE_DATE}" "${MARCO_INSTALL_NAME} ${MARCO_VERSION}" "User Commands"
 .SH NAME
-marco \- A GTK4-based Markdown editor with live preview and custom syntax extensions
+${MARCO_INSTALL_NAME} \- A GTK4-based Markdown editor with live preview and custom syntax extensions
 .SH SYNOPSIS
-.B marco
+.B ${MARCO_INSTALL_NAME}
 [\fIOPTIONS\fR] [\fIFILE\fR]
 .SH DESCRIPTION
 Marco is a fast, native Markdown editor built in Rust with live preview, syntax extensions, and a custom parser for technical documentation.
@@ -582,24 +602,24 @@ Open the specified Markdown file
 .SH EXAMPLES
 .TP
 Start Marco editor
-.B marco
+.B ${MARCO_INSTALL_NAME}
 .TP
 Open a specific Markdown file
-.B marco ~/Documents/readme.md
+.B ${MARCO_INSTALL_NAME} ~/Documents/readme.md
 .SH SEE ALSO
-.B polo(1)
+.B ${POLO_INSTALL_NAME}(1)
 .SH AUTHOR
 Kim Skov Rasmussen
 .SH WEBSITE
 https://github.com/Ranrar/marco
 MANEOF
 
-cat > "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/polo.1" << MANEOF
-.TH POLO 1 "${MANPAGE_DATE}" "polo ${POLO_VERSION}" "User Commands"
+cat > "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/${POLO_INSTALL_NAME}.1" << MANEOF
+.TH MARKDOWNVIEWER 1 "${MANPAGE_DATE}" "${POLO_INSTALL_NAME} ${POLO_VERSION}" "User Commands"
 .SH NAME
-polo \- A lightweight GTK4-based Markdown viewer with WebKit6 rendering
+${POLO_INSTALL_NAME} \- A lightweight GTK4-based Markdown viewer with WebKit6 rendering
 .SH SYNOPSIS
-.B polo
+.B ${POLO_INSTALL_NAME}
 [\fIOPTIONS\fR] [\fIFILE\fR]
 .SH DESCRIPTION
 Polo is a lightweight Markdown viewer that displays rendered Markdown documents using the same engine as Marco.
@@ -610,23 +630,23 @@ Open the specified Markdown file for viewing
 .SH EXAMPLES
 .TP
 Start Polo viewer
-.B polo
+.B ${POLO_INSTALL_NAME}
 .TP
 Open and view a Markdown file
-.B polo ~/Documents/readme.md
+.B ${POLO_INSTALL_NAME} ~/Documents/readme.md
 .SH SEE ALSO
-.B marco(1)
+.B ${MARCO_INSTALL_NAME}(1)
 .SH AUTHOR
 Kim Skov Rasmussen
 .SH WEBSITE
 https://github.com/Ranrar/marco
 MANEOF
 
-chmod 644 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/marco.1" "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/polo.1"
+chmod 644 "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/${MARCO_INSTALL_NAME}.1" "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/${POLO_INSTALL_NAME}.1"
 
 # Compress man pages (lintian: uncompressed-manual-page)
-gzip -9n "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/marco.1"
-gzip -9n "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/polo.1"
+gzip -9n "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/${MARCO_INSTALL_NAME}.1"
+gzip -9n "$BUILD_DIR${INSTALL_PREFIX}/share/man/man1/${POLO_INSTALL_NAME}.1"
 print_success "Man pages created"
 
 print_info "Creating package metadata..."
@@ -672,10 +692,10 @@ chmod 0644 "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}/changelog"
 gzip -9n "$BUILD_DIR${INSTALL_PREFIX}/share/doc/${PACKAGE_NAME}/changelog"
 
 if [ -d "documentation" ]; then
-    cp -r documentation/* "$BUILD_DIR${INSTALL_PREFIX}/share/marco/doc/" 2>/dev/null || true
+    cp -r documentation/* "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/doc/" 2>/dev/null || true
 fi
-cp README.md "$BUILD_DIR${INSTALL_PREFIX}/share/marco/doc/README.md" 2>/dev/null || true
-cp LICENSE "$BUILD_DIR${INSTALL_PREFIX}/share/marco/doc/LICENSE" 2>/dev/null || true
+cp README.md "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/doc/README.md" 2>/dev/null || true
+cp LICENSE "$BUILD_DIR${INSTALL_PREFIX}/share/${SHARE_DIR_NAME}/doc/LICENSE" 2>/dev/null || true
 print_success "Metadata created"
 
 print_info "Generating control file..."
@@ -702,8 +722,8 @@ Description: Marco & Polo - A Markdown Composer and Viewer
  tables, task lists, footnotes, and callouts.
  .
  This package includes:
-    - marco: Markdown editor with live preview
-    - polo: Markdown viewer
+    - markdowncomposer: Markdown editor with live preview
+    - markdownviewer: Markdown viewer
     - Built-in themes, fonts, and documentation
 Homepage: https://github.com/Ranrar/marco
 EOF
@@ -737,7 +757,7 @@ install_user_icons() {
     fi
 
     local base="$home/.local/share/icons/hicolor"
-    local marker_dir="$home/.local/share/marco-suite"
+    local marker_dir="$home/.local/share/markdowncomposer"
     local marker_file="$marker_dir/user-icons-installed"
 
     # Keep in sync with the system icon sizes installed by the package.
@@ -750,15 +770,17 @@ install_user_icons() {
         install -d -m 0755 -o "$user" -g "$user" "$base/${sz}x${sz}/apps"
 
         # Copy icons from the system-installed hicolor theme. These exist because they are dpkg-managed.
-        if [ -f "/usr/share/icons/hicolor/${sz}x${sz}/apps/marco.png" ]; then
-            install -m 0644 -o "$user" -g "$user" "/usr/share/icons/hicolor/${sz}x${sz}/apps/marco.png" "$base/${sz}x${sz}/apps/marco.png" || true
+        # NOTE: keep these names in sync with $MARCO_INSTALL_NAME above --
+        # this heredoc is quoted, so nothing expands here.
+        if [ -f "/usr/share/icons/hicolor/${sz}x${sz}/apps/markdowncomposer.png" ]; then
+            install -m 0644 -o "$user" -g "$user" "/usr/share/icons/hicolor/${sz}x${sz}/apps/markdowncomposer.png" "$base/${sz}x${sz}/apps/markdowncomposer.png" || true
         fi
-        if [ -f "/usr/share/icons/hicolor/${sz}x${sz}/apps/polo.png" ]; then
-            install -m 0644 -o "$user" -g "$user" "/usr/share/icons/hicolor/${sz}x${sz}/apps/polo.png" "$base/${sz}x${sz}/apps/polo.png" || true
+        if [ -f "/usr/share/icons/hicolor/${sz}x${sz}/apps/markdownviewer.png" ]; then
+            install -m 0644 -o "$user" -g "$user" "/usr/share/icons/hicolor/${sz}x${sz}/apps/markdownviewer.png" "$base/${sz}x${sz}/apps/markdownviewer.png" || true
         fi
     done
 
-    echo "installed-by=marco-suite" > "$marker_file" || true
+    echo "installed-by=markdown-composer-and-viewer" > "$marker_file" || true
     chown "$user:$user" "$marker_file" 2>/dev/null || true
     chmod 0644 "$marker_file" 2>/dev/null || true
 
@@ -793,7 +815,7 @@ for libdir in /usr/lib/x86_64-linux-gnu /usr/lib/aarch64-linux-gnu /usr/lib; do
 done
 
 echo "Marco and Polo installed successfully!"
-echo "Launch with: marco or polo"
+echo "Launch with: markdowncomposer or markdownviewer"
 EOF
 chmod 755 "$BUILD_DIR/DEBIAN/postinst"
 
@@ -821,7 +843,7 @@ remove_user_icons() {
     fi
 
     local base="$home/.local/share/icons/hicolor"
-    local marker_file="$home/.local/share/marco-suite/user-icons-installed"
+    local marker_file="$home/.local/share/markdowncomposer/user-icons-installed"
 
     # Only remove if we previously installed them.
     if [ ! -f "$marker_file" ]; then
@@ -830,7 +852,7 @@ remove_user_icons() {
 
     local icon_sizes="16 24 32 48 64 96 128 160 192 256 512"
     for sz in $icon_sizes; do
-        rm -f "$base/${sz}x${sz}/apps/marco.png" "$base/${sz}x${sz}/apps/polo.png" 2>/dev/null || true
+        rm -f "$base/${sz}x${sz}/apps/markdowncomposer.png" "$base/${sz}x${sz}/apps/markdownviewer.png" 2>/dev/null || true
     done
     rm -f "$marker_file" 2>/dev/null || true
 
@@ -854,12 +876,12 @@ case "$1" in
 
         # Only on purge: remove empty directories if dpkg has already removed payload files.
         if [ "$1" = "purge" ]; then
-            rmdir --ignore-fail-on-non-empty /usr/share/marco/icons 2>/dev/null || true
-            rmdir --ignore-fail-on-non-empty /usr/share/marco/fonts 2>/dev/null || true
-            rmdir --ignore-fail-on-non-empty /usr/share/marco/language 2>/dev/null || true
-            rmdir --ignore-fail-on-non-empty /usr/share/marco/themes 2>/dev/null || true
-            rmdir --ignore-fail-on-non-empty /usr/share/marco/doc 2>/dev/null || true
-            rmdir --ignore-fail-on-non-empty /usr/share/marco 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/markdowncomposer/icons 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/markdowncomposer/fonts 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/markdowncomposer/language 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/markdowncomposer/themes 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/markdowncomposer/doc 2>/dev/null || true
+            rmdir --ignore-fail-on-non-empty /usr/share/markdowncomposer 2>/dev/null || true
         fi
         ;;
 esac

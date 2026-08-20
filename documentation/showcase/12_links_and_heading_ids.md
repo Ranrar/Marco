@@ -193,3 +193,51 @@ These link to files on disk relative to this document.
 [Linked document (files/)](files/linked_doc.md)
 
 [Linked document — specific section](files/linked_doc.md#linked-section)
+
+### Awkward Filenames
+
+Clicking any of these opens the file in the editor after a confirmation
+dialog. They exist to prove the path survives the round trip through the
+preview's URL layer — a non-ASCII character arrives percent-encoded as
+several bytes and has to be decoded back as UTF-8, not one byte at a time.
+
+[Unicode in the filename](files/unicode-✓.md)
+
+[Space in the filename](files/space%20name.md)
+
+[Nested one directory deeper](files/subdir/nested.md)
+
+---
+
+## Dead Link Detection (`MD206` / `MD404`)
+
+Marco resolves every local link and image path against the document's own
+directory and checks whether anything is actually there. A destination with
+no file at it is reported as a **warning** — underlined in the editor, listed
+in the footer issues panel, and explained on hover.
+
+A broken link is reported as `MD206`, a broken image as `MD404`. The two
+references below are broken on purpose, so this document always carries one
+of each.
+
+[This document does not exist](files/no-such-document.md)
+
+![This image does not exist](files/no-such-image.png)
+
+Neighbouring references that do resolve must stay unreported:
+
+[This one is real](files/linked_doc.md)
+
+![This image is real](files/img/test.png)
+
+What is **not** checked, and why:
+
+- **Remote URLs** — [example.com](https://example.com/missing) is never
+  fetched; checking it would mean a network request per keystroke.
+- **`#fragments`** — [an anchor](#inline-links) points inside the rendered
+  document, not at a file.
+- **Anything in an unsaved document** — a relative path has no directory to
+  resolve against until the document is saved, so nothing is judged.
+
+Clicking a dead link says so, naming the path it looked for, instead of
+opening a blank page.

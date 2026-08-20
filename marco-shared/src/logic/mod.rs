@@ -2,6 +2,7 @@ pub mod buffer;
 pub mod crossplatforms;
 pub mod file_logger;
 pub mod layoutstate;
+pub mod link_path;
 pub mod loaders;
 pub mod print_css;
 pub mod swanson;

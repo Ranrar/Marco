@@ -4,8 +4,8 @@ Type=Application
 Name=Marco
 GenericName=Markdown Editor
 Comment=Marco is a fast and lightweight markdown editor
-Exec=marco %F
-Icon=marco
+Exec=markdowncomposer %F
+Icon=markdowncomposer
 Terminal=false
 StartupNotify=true
 StartupWMClass=io.github.ranrar.Marco
@@ -16,4 +16,4 @@ Actions=new-window;
 
 [Desktop Action new-window]
 Name=New Window
-Exec=marco
+Exec=markdowncomposer

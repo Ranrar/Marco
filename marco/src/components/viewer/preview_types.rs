@@ -31,12 +31,8 @@ impl std::fmt::Display for ViewMode {
     }
 }
 
-// Abstract the platform-specific WebView type into `PlatformWebView`
-#[cfg(target_os = "linux")]
-pub type PlatformWebView = webkit6::WebView;
-
-#[cfg(target_os = "windows")]
-pub type PlatformWebView = crate::components::viewer::wry_platform_webview::PlatformWebView;
+// The preview webview: one wry-based wrapper on all platforms.
+pub type PlatformWebView = crate::components::viewer::platform_webview::PlatformWebView;
 
 // Keep the original type but add overlay and split controller support
 // WebView is now wrapped in Rc<RefCell<>> for shared ownership during reparenting

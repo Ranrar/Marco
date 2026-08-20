@@ -188,7 +188,6 @@ pub const SCROLL_RESTORE_JS: &str = r#"<script>
 /// hit-test signal (Linux uses `webkit6::WebView::connect_mouse_target_changed`).
 /// Posts `marco_hover:<url>` when the cursor enters an `<a>` element with an
 /// href, and `marco_hover:` (empty payload) when it leaves.
-#[cfg(target_os = "windows")]
 pub const HOVER_REPORT_JS: &str = r#"<script>
 (function(){
     var current = null;
@@ -221,45 +220,78 @@ pub const HOVER_REPORT_JS: &str = r#"<script>
 })();
 </script>"#;
 
-/// HTML + JS overlay that renders a small zoom toolbar in the bottom-right
-/// corner of the preview page on Windows. Required because the wry/WebView2
-/// child window draws *over* the GTK overlay used for the Linux zoom bar,
-/// hiding it. Buttons post `marco_zoom:in|out|reset` via IPC.
+/// HTML + JS overlay that renders the zoom toolbar in the bottom-right corner
+/// of the preview page, on both platforms. This is the single zoom control —
+/// there is no native GTK overlay counterpart (see `documentation/` history:
+/// a GTK `Overlay` cannot draw above an embedded WebView2 child window on
+/// Windows, so the control has to live inside the page itself; using the same
+/// in-page control on Linux avoids running two independent zoom UIs at once).
+/// Buttons post `marco_zoom:in|out|reset` via IPC.
+///
+/// Visually mirrors the GTK `zoom-bar` CSS classes (`marco/src/ui/css/zoom_bar.rs`,
+/// now removed) — same colors, spacing, and hover-reveal feel — via
+/// `.marco-zoom-light`/`.marco-zoom-visible` classes toggled in JS below.
+/// Reveal-on-hover is shown from in-page `mousemove` but *hidden* from
+/// native GTK motion tracking (`editor/ui.rs`) via the exposed
+/// `window.__marcoZoomBarShow`/`__marcoZoomBarHide` hooks — see the comment
+/// on those hooks below for why.
 ///
 /// The toolbar is relocated out of `<body>` and onto `documentElement` on
 /// load so paged.js (used in page/print preview mode) cannot hide it when it
-/// re-parents body content into its own pagination containers.
-///
-/// Because the host applies zoom by setting `documentElement.style.zoom`, the
-/// toolbar would normally scale together with the content. We counter-scale
-/// it via `transform: scale(1 / zoom)` from `window.__marcoApplyZoom` so the
-/// buttons remain a constant visual size at any zoom level.
-#[cfg(target_os = "windows")]
-pub const WIN_ZOOM_BAR_HTML: &str = r#"<style>
-#marco-win-zoom{position:fixed;right:14px;bottom:14px;z-index:2147483647;
-    display:flex;gap:4px;padding:4px 6px;border-radius:8px;
-    background:rgba(40,40,40,0.78);box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    font-family:system-ui,-apple-system,Segoe UI,sans-serif;font-size:13px;
-    color:#fff;opacity:0.15;transition:opacity 120ms ease;
-    user-select:none;-webkit-user-select:none;
-    transform-origin:bottom right;}
-#marco-win-zoom:hover{opacity:1;}
-#marco-win-zoom button{background:transparent;border:0;color:inherit;
-    cursor:pointer;padding:2px 8px;border-radius:4px;font:inherit;line-height:1;}
+/// re-parents body content into its own pagination containers. This
+/// relocation is also why the toolbar never scales with content zoom: the
+/// host applies zoom to `<body>` only (see `window.__marcoApplyZoom` below),
+/// and the toolbar — a *sibling* of `<body>` under `<html>`, not a
+/// descendant — is structurally outside that subtree, so it can't inherit
+/// the zoom no matter how the `zoom` property cascades. No counter-scaling
+/// CSS trick needed on the toolbar itself.
+pub const ZOOM_BAR_HTML: &str = r#"<style>
+#marco-win-zoom{position:fixed;right:10px;bottom:10px;z-index:2147483647;
+    display:flex;align-items:center;gap:0;padding:2px 4px;border-radius:10px;
+    background:rgba(30,30,30,0.72);border:1px solid rgba(255,255,255,0.12);
+    box-shadow:0 2px 8px rgba(0,0,0,0.30);
+    font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+    opacity:0;pointer-events:none;transition:opacity 150ms ease;
+    user-select:none;-webkit-user-select:none;}
+#marco-win-zoom.marco-zoom-visible{opacity:1;pointer-events:auto;}
+#marco-win-zoom.marco-zoom-light{background:rgba(245,245,245,0.88);
+    border-color:rgba(0,0,0,0.14);box-shadow:0 2px 8px rgba(0,0,0,0.14);}
+#marco-win-zoom button{background:transparent;border:0;border-radius:6px;
+    min-width:30px;min-height:30px;padding:2px 6px;
+    color:rgba(220,220,220,0.92);font-size:14px;font-weight:500;
+    cursor:pointer;line-height:1;transition:background 120ms ease;}
+#marco-win-zoom.marco-zoom-light button{color:rgba(40,40,40,0.90);}
 #marco-win-zoom button:hover{background:rgba(255,255,255,0.18);}
-#marco-win-zoom .marco-zoom-label{padding:2px 6px;min-width:42px;text-align:center;
-    font-variant-numeric:tabular-nums;}
+#marco-win-zoom.marco-zoom-light button:hover{background:rgba(0,0,0,0.10);}
+#marco-win-zoom button:active{background:rgba(255,255,255,0.28);}
+#marco-win-zoom.marco-zoom-light button:active{background:rgba(0,0,0,0.18);}
+#marco-win-zoom .marco-zoom-label{color:rgba(200,200,200,0.85);font-size:12px;
+    min-width:36px;padding:0 2px;text-align:center;font-variant-numeric:tabular-nums;}
+#marco-win-zoom.marco-zoom-light .marco-zoom-label{color:rgba(60,60,60,0.85);}
+#marco-win-zoom .marco-zoom-sep{width:1px;align-self:stretch;margin:4px 2px;
+    background:rgba(255,255,255,0.14);}
+#marco-win-zoom.marco-zoom-light .marco-zoom-sep{background:rgba(0,0,0,0.12);}
 </style>
 <div id="marco-win-zoom" aria-hidden="true">
-    <button type="button" data-marco-zoom="out" title="Zoom out">&minus;</button>
-    <span class="marco-zoom-label" id="marco-win-zoom-label">100%</span>
-    <button type="button" data-marco-zoom="reset" title="Reset zoom">&#x2922;</button>
     <button type="button" data-marco-zoom="in" title="Zoom in">+</button>
+    <span class="marco-zoom-sep"></span>
+    <button type="button" data-marco-zoom="out" title="Zoom out">&minus;</button>
+    <span class="marco-zoom-sep"></span>
+    <button type="button" data-marco-zoom="reset" title="Reset zoom">&#x2922;</button>
+    <span class="marco-zoom-sep"></span>
+    <span class="marco-zoom-label" id="marco-win-zoom-label">100%</span>
 </div>
 <script>
 (function(){
     var bar = document.getElementById('marco-win-zoom');
     if (!bar) return;
+    // Match the page's dark/light mode — same "contains dark" heuristic the
+    // Rust side uses (`theme_mode.contains("dark")` / `eq_ignore_ascii_case`).
+    function applyThemeClass(){
+        var isLight = document.documentElement.className.toLowerCase().indexOf('dark') === -1;
+        bar.classList.toggle('marco-zoom-light', isLight);
+    }
+    applyThemeClass();
     // Move the toolbar out of <body> so paged.js (which re-parents body
     // content into its own pagination containers) cannot hide it.
     function relocate(){
@@ -268,6 +300,23 @@ pub const WIN_ZOOM_BAR_HTML: &str = r#"<style>
         }
     }
     relocate();
+    // Reveal on hover: hidden until the pointer moves anywhere over the
+    // page — the whole document *is* the preview pane here.
+    //
+    // Showing on in-page `mousemove` works fine. Hiding does not: DOM-level
+    // `mouseleave`/`mouseout` do not reliably fire when the pointer moves
+    // onto a *sibling native widget* (the editor pane) rather than crossing
+    // a normal browser-window boundary — the embedded webview surface
+    // (WebKitGTK / WebView2 HWND) handles its own input once the pointer is
+    // over a different native widget, without a clean DOM "leave" event.
+    // So hiding is driven from GTK's own motion tracking instead (the same
+    // technique the removed `marco/src/ui/zoom_overlay.rs` used for its
+    // native bar's hover-reveal), which calls these via `evaluate_script`.
+    function show(){ bar.classList.add('marco-zoom-visible'); }
+    function hide(){ bar.classList.remove('marco-zoom-visible'); }
+    window.__marcoZoomBarShow = show;
+    window.__marcoZoomBarHide = hide;
+    document.addEventListener('mousemove', show, {passive:true});
     function send(action){
         try {
             if (window.ipc && typeof window.ipc.postMessage === 'function') {
@@ -282,15 +331,17 @@ pub const WIN_ZOOM_BAR_HTML: &str = r#"<style>
         e.stopPropagation();
         send(btn.getAttribute('data-marco-zoom'));
     }, true);
-    // Apply a zoom level: scale the document, counter-scale the toolbar so
-    // its visual size stays constant, and update the percent label.
+    // Apply a zoom level: scale <body> only, never <html>. The toolbar is
+    // relocated onto documentElement (a *sibling* of <body>, not a
+    // descendant) precisely so it structurally cannot be affected by zoom
+    // applied here, regardless of how the `zoom` property's cascade to
+    // descendants behaves — no CSS trick on the toolbar needs to fight it.
     window.__marcoApplyZoom = function(z){
         try {
             var n = parseFloat(z);
             if (!isFinite(n) || n <= 0) return;
-            document.documentElement.style.zoom = n;
+            document.body.style.zoom = n;
             relocate();
-            bar.style.transform = 'scale(' + (1 / n) + ')';
             var lbl = document.getElementById('marco-win-zoom-label');
             if (lbl) lbl.textContent = Math.round(n * 100) + '%';
         } catch (e) {}
@@ -302,7 +353,7 @@ pub const WIN_ZOOM_BAR_HTML: &str = r#"<style>
     };
     // Notify the host so it can re-apply the persisted zoom each time the
     // document is (re)loaded — `style.zoom` is reset on every navigation.
-    function notifyReady(){ relocate(); send('ready'); }
+    function notifyReady(){ relocate(); applyThemeClass(); send('ready'); }
     if (document.readyState === 'complete' || document.readyState === 'interactive') {
         setTimeout(notifyReady, 0);
     } else {

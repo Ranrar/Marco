@@ -19,7 +19,7 @@
 //!   [`snapshot_script`]. The script gathers `scrollX`, `scrollY`, open
 //!   `<details>` ids and the body content hash, then posts back
 //!   `marco_state:{...json...}` IPC.
-//! - **Snapshot delivery:** the IPC handler in `wry_platform_webview.rs`
+//! - **Snapshot delivery:** the IPC handler in `platform_webview.rs`
 //!   parses the payload via [`parse_snapshot_payload`] and invokes the
 //!   callback installed by `set_state_snapshot_callback`.
 //! - **Restore:** host calls [`PlatformWebView::evaluate_script`] with the

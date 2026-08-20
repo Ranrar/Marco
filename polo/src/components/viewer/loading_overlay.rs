@@ -18,6 +18,11 @@ use std::time::Duration;
 /// Pulse update interval for the indeterminate animation.
 const PULSE_INTERVAL: Duration = Duration::from_millis(80);
 
+/// Callback invoked with `true`/`false` to move the Windows WebView HWND
+/// off-screen or restore it; see [`LoadingOverlay::offscreen_hook`].
+#[cfg(target_os = "windows")]
+type OffscreenHook = RefCell<Option<Box<dyn Fn(bool)>>>;
+
 /// CSS for the framed container around the progress bar.
 ///
 /// Scoped under the same `.marco-theme-light` / `.marco-theme-dark` classes
@@ -90,7 +95,7 @@ fn ensure_frame_css() {
         }
         if let Some(display) = gtk4::gdk::Display::default() {
             let provider = gtk4::CssProvider::new();
-            provider.load_from_data(FRAME_CSS);
+            provider.load_from_string(FRAME_CSS);
             gtk4::style_context_add_provider_for_display(
                 &display,
                 &provider,
@@ -114,7 +119,7 @@ pub struct LoadingOverlay {
     /// (move the HWND off-screen so the GTK frame is visible) and with
     /// `false` when [`hide`] runs (restore the HWND to its normal position).
     #[cfg(target_os = "windows")]
-    offscreen_hook: RefCell<Option<Box<dyn Fn(bool)>>>,
+    offscreen_hook: OffscreenHook,
 }
 
 impl LoadingOverlay {

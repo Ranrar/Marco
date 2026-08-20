@@ -4,6 +4,7 @@
 //! intelligence features. It applies highlight tags to the GTK SourceView
 //! buffer using chunked processing to avoid blocking the main thread.
 
+use crate::components::editor::diagnostics::EditorDiagnostic;
 use gtk4::pango;
 use gtk4::prelude::*;
 use std::cell::{Cell, RefCell};
@@ -64,7 +65,7 @@ pub fn apply_intelligence_highlights_chunked<F>(
 /// Apply diagnostics markers in small chunks scheduled on the main loop.
 pub fn apply_diagnostics_markers_chunked<F>(
     buffer: &sourceview5::Buffer,
-    diagnostics: Vec<marco_core::intelligence::Diagnostic>,
+    diagnostics: Vec<EditorDiagnostic>,
     on_done: F,
 ) where
     F: FnOnce() + 'static,
@@ -315,10 +316,8 @@ fn severity_rank(severity: &marco_core::intelligence::DiagnosticSeverity) -> u8 
 
 /// Deduplicate diagnostics by span, keeping the highest-severity entry per
 /// unique (start_offset, end_offset) pair.
-fn deduplicate_diagnostics_by_span(
-    diagnostics: Vec<marco_core::intelligence::Diagnostic>,
-) -> Vec<marco_core::intelligence::Diagnostic> {
-    let mut map: std::collections::HashMap<(usize, usize), marco_core::intelligence::Diagnostic> =
+fn deduplicate_diagnostics_by_span(diagnostics: Vec<EditorDiagnostic>) -> Vec<EditorDiagnostic> {
+    let mut map: std::collections::HashMap<(usize, usize), EditorDiagnostic> =
         std::collections::HashMap::new();
     for d in diagnostics {
         let key = (d.span.start.offset, d.span.end.offset);

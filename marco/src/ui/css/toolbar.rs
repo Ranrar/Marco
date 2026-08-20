@@ -287,21 +287,24 @@ fn generate_toolbar_buttons_disabled_css(theme_class: &str, palette: &ColorPalet
         .collect::<Vec<_>>()
         .join(",\n");
 
+    // The background deliberately stays transparent and no blanket `opacity`
+    // is applied: an unavailable button is signalled by its icon turning grey,
+    // not by a filled-in plate behind it. The icons are rasterised SVGs whose
+    // stroke colour is chosen in `toolbar_icon_color_for_flags`, which returns
+    // `toolbar_button_disabled` for INSENSITIVE — the same colour set here for
+    // any text content, so the two paths stay consistent.
     format!(
         r#"
 /* Unified disabled state for all toolbar buttons - {theme} */
 {selectors} {{
-    background: {bg_disabled};
+    background: transparent;
     color: {color_disabled};
     border: none;
-    opacity: {opacity};
 }}
 "#,
         theme = theme_class,
         selectors = selectors,
-        bg_disabled = palette.toolbar_button_disabled_bg,
         color_disabled = palette.toolbar_button_disabled,
-        opacity = DISABLED_OPACITY,
     )
 }
 

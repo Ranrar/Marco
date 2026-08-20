@@ -120,17 +120,13 @@ pub fn build_application_tab(
     );
     container.append(&preview_theme_row);
 
-    // Color Mode (Light / Dark)
-    let app_settings = theme_manager.borrow().get_settings();
-    let current_mode = app_settings
-        .appearance
-        .as_ref()
-        .and_then(|a| a.editor_mode.clone())
-        .unwrap_or_else(|| "marco-light".to_string());
+    // Color Mode (Light / Dark / System default)
+    let current_color_mode = theme_manager.borrow().current_color_mode();
 
     let color_mode_options = [
         appearance_translations.color_mode_light.as_str(),
         appearance_translations.color_mode_dark.as_str(),
+        appearance_translations.color_mode_system.as_str(),
     ];
     let color_mode_string_list = StringList::new(&color_mode_options);
     i18n.bind_string_list_item(
@@ -143,12 +139,18 @@ pub fn build_application_tab(
         1,
         Rc::new(|t: &Translations| t.settings.appearance.color_mode_dark.clone()),
     );
+    i18n.bind_string_list_item(
+        &color_mode_string_list,
+        2,
+        Rc::new(|t: &Translations| t.settings.appearance.color_mode_system.clone()),
+    );
     let color_mode_expression =
         PropertyExpression::new(StringObject::static_type(), None::<Expression>, "string");
     let color_mode_combo = DropDown::new(Some(color_mode_string_list), Some(color_mode_expression));
     color_mode_combo.add_css_class("marco-dropdown");
-    color_mode_combo.set_selected(match current_mode.as_str() {
-        "marco-dark" | "dark" => 1,
+    color_mode_combo.set_selected(match current_color_mode.as_str() {
+        crate::theme::COLOR_MODE_DARK => 1,
+        crate::theme::COLOR_MODE_SYSTEM => 2,
         _ => 0,
     });
 
@@ -160,15 +162,20 @@ pub fn build_application_tab(
         let sm_clone = signal_manager.clone();
 
         let handler_id = color_mode_combo.connect_selected_notify(move |combo| {
-            let scheme_id = if combo.selected() == 1 {
-                "marco-dark"
-            } else {
-                "marco-light"
+            let color_mode = match combo.selected() {
+                1 => crate::theme::COLOR_MODE_DARK,
+                2 => crate::theme::COLOR_MODE_SYSTEM,
+                _ => crate::theme::COLOR_MODE_LIGHT,
             };
-            {
+            // Store the preference and apply whatever it resolves to now.
+            // Picking "system default" therefore switches the theme
+            // immediately, not only at the next OS change.
+            let scheme_id = {
                 let mut mgr = theme_manager_clone.borrow_mut();
+                let scheme_id = mgr.set_color_mode(color_mode);
                 mgr.set_editor_scheme(scheme_id, &settings_path_clone);
-            }
+                scheme_id
+            };
             if let Some(ref cb) = on_editor_theme_changed_clone {
                 cb(scheme_id.to_string());
             }

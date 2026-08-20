@@ -32,20 +32,31 @@ Reference to undefined footnote [^missing-def].
 
 ## Duplicate ID Heading Again {#dup-id}
 
+5. Link and image targets that do not exist (`MD206` / `MD404`, checked
+   against the filesystem — only in a saved document):
+
+[Link to a file that is not there](files/no-such-document.md)
+
+![Image that is not there](files/no-such-image.png)
+
+The existing target beside them must **not** be reported:
+
+[Linked document](files/linked_doc.md)
+
 ### Info / Hint
 
-5. Insecure link protocol info:
+6. Insecure link protocol info:
 
 [HTTP link](http://example.com)
 
-6. Code block without language hint:
+7. Code block without language hint:
 
 ```
 let x = 42;
 println!("no language fence");
 ```
 
-7. Unused footnote definition hint:
+8. Unused footnote definition hint:
 
 [^unused-def]: This definition is intentionally unused.
 

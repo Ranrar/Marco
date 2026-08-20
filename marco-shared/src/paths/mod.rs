@@ -34,6 +34,67 @@ pub(crate) mod platform;
 
 // Re-export main types and functions
 pub use core::{find_asset_root, get_binary_name, is_dev_mode, AssetError};
+
+/// Directory name used for this application's per-user config, data, cache and
+/// installed assets.
+///
+/// Linux uses `markdowncomposer`. The obvious name, `marco`, is already taken
+/// across the filesystem by the unrelated MATE window manager of that name, so
+/// `/usr/bin/marco`, `/usr/share/marco/` and friends collide with a package
+/// shipped in the Debian/Ubuntu archives — dpkg matches on file path, not
+/// package name, which made the .deb impossible to install on any MATE system
+/// (<https://github.com/Ranrar/Marco/issues/41>). `marco-suite` was an interim
+/// name that only moved the problem.
+///
+/// **This is a deliberate breaking change.** No legacy directory names are
+/// consulted: an upgrade starts from a fresh `markdowncomposer` directory and
+/// existing settings under `~/.config/marco/` are not read or migrated. Users
+/// who want their old configuration back must copy it across by hand.
+///
+/// Other platforms keep `marco` — no such collision exists there, and renaming
+/// would strand existing users' settings for no benefit.
+#[cfg(target_os = "linux")]
+pub const APP_DIR_NAME: &str = "markdowncomposer";
+
+/// Directory name used for this application's per-user config, data and cache.
+/// See the Linux variant for why the two differ.
+#[cfg(not(target_os = "linux"))]
+pub const APP_DIR_NAME: &str = "marco";
+
+/// Directory name used for the viewer's per-user config, data and cache.
+///
+/// Linux uses `markdownviewer`, for the same reason the composer uses
+/// `markdowncomposer` — see [`APP_DIR_NAME`]. Naming the directories after
+/// what the programs are, rather than after the Marco/Polo pair, keeps them
+/// clear of names owned by unrelated packages in the distro archives.
+///
+/// Like the composer's, this is a breaking change with no migration.
+#[cfg(target_os = "linux")]
+pub const VIEWER_DIR_NAME: &str = "markdownviewer";
+
+/// Directory name used for the viewer's per-user config, data and cache.
+#[cfg(not(target_os = "linux"))]
+pub const VIEWER_DIR_NAME: &str = "polo";
+
+/// File name of the composer executable as installed.
+///
+/// Matches the binary the .deb ships to `/usr/bin`. Kept separate from
+/// [`APP_DIR_NAME`] even though the two currently agree on Linux — one names a
+/// directory, the other an executable, and conflating them would silently
+/// break whichever changed first.
+#[cfg(target_os = "linux")]
+pub const COMPOSER_EXE_NAME: &str = "markdowncomposer";
+
+/// File name of the composer executable as installed.
+#[cfg(not(target_os = "linux"))]
+pub const COMPOSER_EXE_NAME: &str = "marco";
+
+/// File name the composer's binary has in a development build.
+///
+/// Cargo names the artifact after the crate, so `cargo build` always produces
+/// `marco` regardless of what the package installs it as.
+pub const COMPOSER_DEV_EXE_NAME: &str = "marco";
+
 pub use marco::MarcoPaths;
 pub use polo::PoloPaths;
 pub use shared::SharedPaths;
@@ -45,11 +106,11 @@ use std::path::PathBuf;
 /// Note: this reflects where the *asset bundle* is loaded from (not where config is stored).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallLocation {
-    /// User local installation (e.g. Linux: `~/.local/share/marco/`)
+    /// User local installation (e.g. Linux: `~/.local/share/markdowncomposer/`)
     UserLocal,
-    /// System local installation (e.g. Linux: `/usr/local/share/marco/`)
+    /// System local installation (e.g. Linux: `/usr/local/share/markdowncomposer/`)
     SystemLocal,
-    /// System global installation (e.g. Linux: `/usr/share/marco/`)
+    /// System global installation (e.g. Linux: `/usr/share/markdowncomposer/`)
     SystemGlobal,
     /// Development mode (not installed)
     Development,

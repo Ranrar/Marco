@@ -360,6 +360,10 @@ pub(crate) fn load_default_translations() -> Translations {
                 tooltip_open: "Open the file in the editor".to_string(),
                 unsaved_changes_message: "\"{document}\" has unsaved changes. Choose how to proceed:"
                     .to_string(),
+                close_button: "Close".to_string(),
+                missing_target_message: "\"{filename}\" was not found.".to_string(),
+                missing_target_detail: "The link points at:\n{path}".to_string(),
+                tooltip_close: "Close and stay in the current document".to_string(),
             },
             export: ExportDialogTranslations {
                 title: "Export Document".to_string(),
@@ -443,9 +447,12 @@ pub(crate) fn load_default_translations() -> Translations {
                 toolbar_svg_text_label: "Toolbar SVG Button Text".to_string(),
                 toolbar_svg_text_description: "Show or hide labels in composite toolbar SVG buttons (off = icon only).".to_string(),
                 color_mode_label: "Light/Dark Mode".to_string(),
-                color_mode_description: "Choose between light or dark user interface.".to_string(),
+                color_mode_description:
+                    "Choose a light or dark user interface, or follow the operating system."
+                        .to_string(),
                 color_mode_light: "light".to_string(),
                 color_mode_dark: "dark".to_string(),
+                color_mode_system: "system default".to_string(),
                 custom_css_label: "Custom CSS for Preview".to_string(),
                 custom_css_description: "Add your own custom CSS to override the preview style.".to_string(),
                 custom_css_button: "Open CSS Themes Folder".to_string(),
@@ -513,7 +520,7 @@ pub(crate) fn load_default_translations() -> Translations {
                 log_label: "Program Log".to_string(),
                 log_description: "Write program logs to file for troubleshooting. Log files are stored in the application data directory.".to_string(),
                 log_checkbox: "Enable file logging".to_string(),
-                log_paths_template: "Resolved log directory: {resolved}\n\nDefault locations:\n• Windows: %LOCALAPPDATA%\\Marco\\logs\\<YYYYMM>\\<YYMMDD.log>\n• Linux: ~/.cache/marco/logs/<YYYYMM>/<YYMMDD.log>\n\nFallback (development): ./log/<YYYYMM>/<YYMMDD.log> (used when system cache dir is unavailable).\n\nNote: File logging can be enabled/disabled immediately from this dialog without restarting the app.".to_string(),
+                log_paths_template: "Resolved log directory: {resolved}\n\nDefault locations:\n• Windows: %LOCALAPPDATA%\\Marco\\logs\\<YYYYMM>\\<YYMMDD.log>\n• Linux: ~/.cache/markdowncomposer/logs/<YYYYMM>/<YYMMDD.log>\n\nFallback (development): ./log/<YYYYMM>/<YYMMDD.log> (used when system cache dir is unavailable).\n\nNote: File logging can be enabled/disabled immediately from this dialog without restarting the app.".to_string(),
                 log_size_template: "Total logs size: {size_mb:.2} MB".to_string(),
                 open_logs_button: "Open logs folder".to_string(),
                 delete_logs_button: "Delete logs".to_string(),

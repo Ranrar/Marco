@@ -3,9 +3,6 @@
     windows_subsystem = "windows"
 )]
 
-#[cfg(target_os = "linux")]
-use webkit6::prelude::*;
-
 mod components;
 mod footer;
 mod logic;
@@ -177,8 +174,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .build();
     window.add_css_class("main-window");
 
-    // Set window icon (GTK will look for icon named "marco" in the system icon theme)
-    window.set_icon_name(Some("marco"));
+    // Set window icon (GTK will look for icon named "markdowncomposer" — matches build/linux/build_deb.sh and marco.desktop)
+    window.set_icon_name(Some("markdowncomposer"));
 
     // --- Create window first, but defer titlebar creation until after editor ---
     window.add_css_class("main-window");
@@ -273,6 +270,27 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         editor_theme_dir,
     )));
     // Pass settings struct to modules as needed
+
+    // When the colour mode is "system", ask the OS now and store the answer in
+    // `editor_mode` before anything reads it. Every consumer below — the CSS
+    // class, the editor scheme, the preview, and Polo on its next launch —
+    // then sees a concrete scheme and needs to know nothing about the OS.
+    {
+        let color_mode = theme_manager.borrow().current_color_mode();
+        if color_mode == crate::theme::COLOR_MODE_SYSTEM {
+            let current_is_dark = theme_manager.borrow().current_is_dark();
+            let scheme_id = crate::theme::scheme_id_for_color_mode(&color_mode, current_is_dark);
+            if scheme_id.contains("dark") != current_is_dark {
+                log::info!("[main] following OS colour scheme at startup: {scheme_id}");
+                theme_manager
+                    .borrow_mut()
+                    .set_editor_scheme(scheme_id, &settings_path);
+            }
+        }
+        // Unconditional: GTK starts every process light regardless of what we
+        // saved last time, so this has to run even when nothing changed.
+        theme_manager.borrow().sync_platform_theme_preference();
+    }
 
     // Add theme-specific CSS class based on current mode (for runtime GTK UI switching)
     let current_theme_mode = {
@@ -461,6 +479,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 .map(|path| path.to_path_buf())
         })
     };
+
+    crate::toolbar::wire_undo_redo_focus(&toolbar_ref.borrow(), &editor_source_view);
 
     crate::ui::toolbar::connect_link_toolbar_action(
         &toolbar_ref.borrow(),
@@ -703,7 +723,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // objects; on non-Linux we pass `None` so titlebar/menu code uses safe fallbacks.
     #[cfg(target_os = "linux")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
-        use crate::components::viewer::webkit6_detached_window::PreviewWindow;
+        use crate::components::viewer::detached_window_linux::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = crate::components::viewer::reparenting::ReparentGuard::new();
@@ -717,17 +737,44 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
     #[cfg(target_os = "windows")]
     let (preview_window_opt, webview_location_tracker, reparent_guard) = {
-        use crate::components::viewer::wry_detached_window::PreviewWindow;
+        use crate::components::viewer::detached_window_windows::PreviewWindow;
         let webview_location_tracker = WebViewLocationTracker::new();
         let preview_window_opt: Rc<RefCell<Option<PreviewWindow>>> = Rc::new(RefCell::new(None));
         let reparent_guard = None::<()>;
         log::debug!("Initialized wry-based detached preview state for Windows");
+
+        // Keep an already-open detached preview window's content (and thus
+        // its theme) in sync with the main preview. Unlike Linux — which
+        // reparents the *same live* webview into the detached window, so it
+        // updates for free — Windows rebuilds the detached window's content
+        // from the `LATEST_PREVIEW_HTML`/`LATEST_PREVIEW_BASE_URI` cache in
+        // its own separate `PlatformWebView` (see
+        // `detached_window_windows`'s module doc, §14.3). Without this, a
+        // theme switch (or any other change that only reaches the main
+        // preview) never propagated to an already-open detached window.
+        {
+            let preview_window_opt_for_refresh = preview_window_opt.clone();
+            crate::components::viewer::preview_helpers::set_preview_refreshed_listener(move || {
+                if let Some(pw) = preview_window_opt_for_refresh.borrow().as_ref() {
+                    if pw.is_visible() {
+                        pw.load_preview_content();
+                    }
+                }
+            });
+        }
+
         (
             Some(preview_window_opt),
             Some(webview_location_tracker),
             reparent_guard,
         )
     };
+
+    // Kept for the theme-change callbacks below (registered after
+    // `preview_window_opt` is moved into `TitlebarConfig`) so a live theme
+    // switch can also sync the detached preview window's titlebar, not just
+    // the main window's.
+    let preview_window_opt_for_theme = preview_window_opt.clone();
 
     // --- Create custom titlebar now that we have webview and reparenting state ---
     let (titlebar_handle, title_label, menu_state) =
@@ -750,98 +797,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     // When the user clicks a `file://...md` link in the preview (e.g. a relative link
     // to another document), intercept it, show a styled confirmation dialog that is
     // also aware of unsaved changes, then open the file in the editor.
-    #[cfg(target_os = "linux")]
-    {
-        let file_ops_for_link = file_operations_rc.clone();
-        let window_for_link = window.clone();
-        let editor_buffer_for_link = editor_buffer.clone();
-        let dialog_translations_for_link = dialog_translations_rc.clone();
-        let title_label_for_link = title_label.clone();
-        let refresh_bookmarks_for_link = refresh_bookmark_marks.clone();
-
-        crate::components::viewer::webkit6::setup_local_file_link_handler(
-            &editor_webview.borrow(),
-            move |path, _fragment| {
-                let target_path = std::path::PathBuf::from(&path);
-                let filename = target_path
-                    .file_name()
-                    .map(|n| n.to_string_lossy().into_owned())
-                    .unwrap_or_else(|| path.clone());
-
-                let file_ops = file_ops_for_link.clone();
-                let window = window_for_link.clone();
-                let editor_buffer = editor_buffer_for_link.clone();
-                let dialog_translations_rc = dialog_translations_for_link.clone();
-                let title_label = title_label_for_link.clone();
-                let refresh_bookmark_marks = refresh_bookmarks_for_link.clone();
-
-                glib::MainContext::default().spawn_local(async move {
-                    // Check unsaved state before asking the user anything.
-                    let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
-                    let current_doc = file_ops.borrow().get_document_title();
-
-                    // Single styled dialog — handles both "open?" and "save first?" in one step.
-                    let gtk_window: &gtk4::Window = window.upcast_ref();
-                    let choice =
-                        crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
-                            gtk_window,
-                            &filename,
-                            has_unsaved,
-                            &current_doc,
-                        )
-                        .await;
-
-                    use crate::ui::dialogs::open_local_file::OpenLocalFileChoice;
-                    let save_decision = match choice {
-                        OpenLocalFileChoice::Cancel => return,
-                        OpenLocalFileChoice::Open | OpenLocalFileChoice::DiscardAndOpen => {
-                            crate::ui::menu_items::SaveChangesResult::Discard
-                        }
-                        OpenLocalFileChoice::SaveAndOpen => {
-                            crate::ui::menu_items::SaveChangesResult::Save
-                        }
-                    };
-
-                    let _ = crate::components::editor::editor_manager::suppress_preview_to_editor_sync_globally();
-                    let text_buffer: &gtk4::TextBuffer = editor_buffer.upcast_ref();
-                    let dialog_translations = dialog_translations_rc.borrow().clone();
-
-                    // Use an auto-decision callback so the internal save-changes prompt
-                    // inside open_file_by_path_from_rc_async is bypassed — the user has
-                    // already made their choice in the dialog above.
-                    let auto_cb = FileDialogs::auto_save_decision_callback(save_decision);
-                    let result = FileOperations::open_file_by_path_from_rc_async(
-                        &file_ops,
-                        &target_path,
-                        gtk_window,
-                        text_buffer,
-                        &dialog_translations,
-                        |w, doc_name, action| auto_cb(w, doc_name, action),
-                        |w, title, suggested| {
-                            FileDialogs::save_dialog_callback(dialog_translations.clone())(
-                                w, title, suggested,
-                            )
-                        },
-                    )
-                    .await;
-
-                    match result {
-                        Ok(_) => {
-                            title_label.set_text(&file_ops.borrow().get_document_title());
-                            refresh_bookmark_marks();
-                        }
-                        Err(e) => {
-                            log::warn!("[main] Failed to open linked file: {}", e);
-                        }
-                    }
-                    let _ = crate::components::editor::editor_manager::resume_preview_to_editor_sync_globally();
-                });
-            },
-        );
-    }
-
-    // --- Local Markdown file link handler for the preview (Windows) ---
-    #[cfg(target_os = "windows")]
     {
         let file_ops_for_link = file_operations_rc.clone();
         let window_for_link = window.clone();
@@ -868,6 +823,18 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     let has_unsaved = file_ops.borrow().buffer.borrow().has_unsaved_changes();
                     let current_doc = file_ops.borrow().get_document_title();
 
+                    // A link can outlive the file it points at. Check before
+                    // asking anything: the dialog then reports the dead link
+                    // rather than offering an Open that could only fail.
+                    let missing_target = (!target_path.exists())
+                        .then(|| target_path.display().to_string());
+                    if missing_target.is_some() {
+                        log::info!(
+                            "[main] linked file does not exist: {}",
+                            target_path.display()
+                        );
+                    }
+
                     let gtk_window: &gtk4::Window = window.upcast_ref();
                     let choice =
                         crate::ui::dialogs::open_local_file::show_open_local_file_dialog(
@@ -875,6 +842,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                             &filename,
                             has_unsaved,
                             &current_doc,
+                            missing_target.as_deref(),
                         )
                         .await;
 
@@ -1014,6 +982,84 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     let settings_action = gtk4::gio::SimpleAction::new("settings", None);
     let update_editor_theme_rc = Rc::new(update_editor_theme);
     let update_preview_theme_rc = Rc::new(update_preview_theme);
+
+    // Everything that has to change when the theme changes, in one place.
+    //
+    // Three callers need the identical sequence — the Settings dialog, the
+    // welcome screen, and the OS-change watcher — and a theme switch that
+    // updates only some of these is immediately visible as a half-themed
+    // window, so they share this rather than each repeating it.
+    let apply_theme_scheme: Rc<dyn Fn(&str)> = {
+        let update_editor = update_editor_theme_rc.clone();
+        let update_preview = update_preview_theme_rc.clone();
+        let window_for_theme = window.clone();
+        let preview_window_opt_for_theme = preview_window_opt_for_theme.clone();
+        Rc::new(move |scheme_id: &str| {
+            update_editor(scheme_id);
+            update_preview(scheme_id);
+
+            let is_dark = scheme_id.contains("dark");
+            // Toggle the window CSS class for runtime GTK UI theme switching;
+            // this cascades to all descendants (toolbar, footer, menu, …).
+            let (new_class, old_class) = if is_dark {
+                ("marco-theme-dark", "marco-theme-light")
+            } else {
+                ("marco-theme-light", "marco-theme-dark")
+            };
+            window_for_theme.remove_css_class(old_class);
+            window_for_theme.add_css_class(new_class);
+
+            // The detached preview window is a separate top-level window, not
+            // a descendant of `window_for_theme`, so the cascade above never
+            // reaches its titlebar — sync it explicitly if it exists.
+            if let Some(ref pw_opt) = preview_window_opt_for_theme {
+                if let Some(ref pw) = *pw_opt.borrow() {
+                    pw.sync_theme_class(is_dark);
+                }
+            }
+
+            log::debug!("[main] applied theme scheme '{scheme_id}' ({new_class})");
+        })
+    };
+
+    // Follow the OS light/dark setting while "system default" is selected.
+    //
+    // The watcher runs regardless of the current preference so that switching
+    // to "system default" starts tracking without a restart; it checks the
+    // preference on each change and does nothing unless it is still "system".
+    // Kept alive for the lifetime of the window — dropping it stops the
+    // watcher — and `None` on a platform that cannot report changes.
+    let system_theme_watcher = {
+        let theme_manager = theme_manager.clone();
+        let settings_path = settings_path.clone();
+        let apply_theme_scheme = apply_theme_scheme.clone();
+        let refresh_preview_rc = refresh_preview_rc.clone();
+        crate::theme::watch_system_color_mode(move |is_dark| {
+            if theme_manager.borrow().current_color_mode() != crate::theme::COLOR_MODE_SYSTEM {
+                return;
+            }
+            let scheme_id = crate::theme::scheme_id_for_dark(is_dark);
+            if theme_manager.borrow().current_is_dark() == is_dark {
+                return;
+            }
+            theme_manager
+                .borrow_mut()
+                .set_editor_scheme(scheme_id, &settings_path);
+            apply_theme_scheme(scheme_id);
+            (refresh_preview_rc.borrow())();
+        })
+    };
+
+    // `build_ui` returns while the window lives on, so an ordinary local would
+    // drop the watcher immediately. Hand it to a handler on the window instead,
+    // which ties its lifetime to the window's.
+    if let Some(watcher) = system_theme_watcher {
+        window.connect_destroy(move |_| {
+            // The closure owning `watcher` is what keeps it alive; this only
+            // makes the capture explicit.
+            let _ = &watcher;
+        });
+    }
 
     // Helper to persist view mode in settings.ron without blocking the UI
     // Uses the dedicated settings thread pool to avoid orphaned threads
@@ -1346,8 +1392,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let available_locale_infos_rc = available_locale_infos_rc.clone();
         let preview_css_rc = preview_css_rc.clone();
         let refresh_preview_rc = refresh_preview_rc.clone();
-        let update_editor_theme_rc = update_editor_theme_rc.clone();
-        let update_preview_theme_rc = update_preview_theme_rc.clone();
+        let apply_theme_scheme = apply_theme_scheme.clone();
         let set_view_mode_rc = set_view_mode_rc.clone();
         let save_view_mode = save_view_mode.clone();
         let language_changed_handler = language_changed_handler.clone();
@@ -1358,24 +1403,9 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
 
             // Create editor theme callback that updates both editor and preview
             let editor_callback = {
-                let update_editor = update_editor_theme_rc.clone();
-                let update_preview = update_preview_theme_rc.clone();
-                let window_for_theme = window.clone();
+                let apply_theme_scheme = apply_theme_scheme.clone();
                 Box::new(move |scheme_id: String| {
-                    update_editor(&scheme_id);
-                    update_preview(&scheme_id);
-
-                    // Toggle window CSS class for runtime GTK UI theme switching
-                    // This cascades to all descendants (toolbar, footer, menu, etc.)
-                    let new_mode = if scheme_id.contains("dark") { "dark" } else { "light" };
-                    let old_class = if new_mode == "dark" { "marco-theme-light" } else { "marco-theme-dark" };
-                    let new_class = format!("marco-theme-{}", new_mode);
-
-                    // Update window - this automatically affects all child widgets via CSS cascade
-                    window_for_theme.remove_css_class(old_class);
-                    window_for_theme.add_css_class(&new_class);
-
-                    log::debug!("Switched CSS class from {} to {} (window and all descendants)", old_class, new_class);
+                    apply_theme_scheme(&scheme_id);
                 }) as Box<dyn Fn(String) + 'static>
             };
 
@@ -1460,7 +1490,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                         // Check if widget is still valid before using
                         if let Some(split_paned) = split_paned_weak.upgrade() {
                             // Calculate the pixel position based on the current paned width
-                            let paned_width = split_paned.allocated_width();
+                            let paned_width = split_paned.width();
                             let new_position = if paned_width > 0 {
                                 (paned_width as f64 * ratio as f64 / 100.0) as i32
                             } else {
@@ -1642,34 +1672,17 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         let buffer = Rc::new(editor_buffer.clone());
         let source_view = Rc::new(editor_source_view.clone());
         let translations_rc = translations_rc.clone();
-        #[cfg(target_os = "linux")]
-        let webview = editor_webview.clone(); // Already Rc<RefCell<WebView>>
-        #[cfg(target_os = "windows")]
-        let webview_win = editor_webview.clone();
+        let webview = editor_webview.clone();
         move |_, _| {
             let search_translations = translations_rc.borrow().search.clone();
-            #[cfg(target_os = "linux")]
-            {
-                use crate::ui::dialogs::search::show_search_window;
-                show_search_window(
-                    window.upcast_ref(),
-                    Rc::clone(&buffer),
-                    Rc::clone(&source_view),
-                    webview.clone(),
-                    &search_translations,
-                );
-            }
-            #[cfg(target_os = "windows")]
-            {
-                use crate::ui::dialogs::search::show_search_window_no_webview;
-                show_search_window_no_webview(
-                    window.upcast_ref(),
-                    Rc::clone(&buffer),
-                    Rc::clone(&source_view),
-                    webview_win.borrow().clone(),
-                    &search_translations,
-                );
-            }
+            use crate::ui::dialogs::search::show_search_window;
+            show_search_window(
+                window.upcast_ref(),
+                Rc::clone(&buffer),
+                Rc::clone(&source_view),
+                webview.borrow().clone(),
+                &search_translations,
+            );
         }
     });
     app.add_action(&search_action);
@@ -1689,7 +1702,6 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
     );
 
     // Print action: opens the native GTK print dialog (Linux / WebKit6 only).
-    #[cfg(target_os = "linux")]
     {
         let print_action = gtk4::gio::SimpleAction::new("print", None);
         print_action.connect_activate({
@@ -1715,51 +1727,27 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                     .unwrap_or("portrait")
                     .to_string();
                 let dark_mode = theme_mode.borrow().contains("dark");
-                crate::components::viewer::print_driver::trigger_print_dialog(
+                // Same unified webview; only the print backend differs:
+                // WebKit PrintOperation dialog on Linux, WebView2 system
+                // print UI on Windows.
+                #[cfg(target_os = "linux")]
+                crate::components::viewer::print_driver_linux::trigger_print_dialog(
                     &wv,
                     Some(window.upcast_ref()),
                     &paper,
                     &orientation,
                     dark_mode,
                 );
-            }
-        });
-        app.add_action(&print_action);
-        app.set_accels_for_action("app.print", &["<Control>p"]);
-    }
-
-    // Print action (Windows / wry): trigger WebView2 browser print UI.
-    #[cfg(target_os = "windows")]
-    {
-        let print_action = gtk4::gio::SimpleAction::new("print", None);
-        print_action.connect_activate({
-            let webview = editor_webview.clone();
-            let settings_manager = settings_manager.clone();
-            let theme_mode = theme_mode.clone();
-            move |_, _| {
-                let wv = webview.borrow();
-                // Read current page-view settings so the injected pre-print
-                // CSS matches the paged.js layout, mirroring the Linux path.
-                let s = settings_manager.get_settings();
-                let paper = s
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.page_view_paper.as_deref())
-                    .unwrap_or("A4")
-                    .to_string();
-                let orientation = s
-                    .layout
-                    .as_ref()
-                    .and_then(|l| l.page_view_orientation.as_deref())
-                    .unwrap_or("portrait")
-                    .to_string();
-                let dark_mode = theme_mode.borrow().contains("dark");
-                crate::components::viewer::print_driver_windows::trigger_print_dialog(
-                    &wv,
-                    &paper,
-                    &orientation,
-                    dark_mode,
-                );
+                #[cfg(target_os = "windows")]
+                {
+                    let _ = &window;
+                    crate::components::viewer::print_driver_windows::trigger_print_dialog(
+                        &wv,
+                        &paper,
+                        &orientation,
+                        dark_mode,
+                    );
+                }
             }
         });
         app.add_action(&print_action);
@@ -2334,7 +2322,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                 use std::cell::RefCell;
                                 let slot: RefCell<
                                     Option<
-                                        crate::components::viewer::wry_platform_webview::PlatformWebView,
+                                        crate::components::viewer::platform_webview::PlatformWebView,
                                     >,
                                 > = RefCell::new(None);
                                 crate::components::editor::editor_manager::with_primary_preview_webview(
@@ -2351,7 +2339,7 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                                     // the export document so restore_live_html can
                                     // reload it at the end of the pipeline.
                                     let saved_live_html =
-                                        crate::components::viewer::wry::get_latest_live_html();
+                                        crate::components::viewer::preview_helpers::get_latest_preview_html();
                                     let backend = WindowsExportBackend::new(wv, saved_live_html);
                                     let request = ExportRequest {
                                         format: ExportFormat::Pdf,
@@ -2873,26 +2861,31 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
                 }
             })),
             Some(Box::new({
-                let update_editor = update_editor_theme_rc.clone();
-                let update_preview = update_preview_theme_rc.clone();
-                let window_for_theme = window.clone();
+                let apply_theme_scheme = apply_theme_scheme.clone();
+                let theme_manager = theme_manager.clone();
+                let settings_path = settings_path.clone();
                 move |editor_mode: String| {
-                    update_editor(&editor_mode);
-                    update_preview(&editor_mode);
+                    // The welcome screen offers an explicit light/dark choice,
+                    // so record it as the colour-mode preference too — leaving
+                    // it on "system" would let the OS override the pick moments
+                    // later.
+                    let color_mode = if editor_mode.contains("dark") {
+                        crate::theme::COLOR_MODE_DARK
+                    } else {
+                        crate::theme::COLOR_MODE_LIGHT
+                    };
+                    {
+                        // Set the GTK-global dark-theme preference (Linux) the
+                        // same way the Settings dialog's Application tab does —
+                        // without this, only this window's own CSS class flips;
+                        // anything relying on GTK's native light/dark rendering
+                        // elsewhere in the application stays on the old theme.
+                        let mut mgr = theme_manager.borrow_mut();
+                        mgr.set_color_mode(color_mode);
+                        mgr.set_editor_scheme(&editor_mode, &settings_path);
+                    }
 
-                    let new_mode = if editor_mode.contains("dark") {
-                        "dark"
-                    } else {
-                        "light"
-                    };
-                    let old_class = if new_mode == "dark" {
-                        "marco-theme-light"
-                    } else {
-                        "marco-theme-dark"
-                    };
-                    let new_class = format!("marco-theme-{}", new_mode);
-                    window_for_theme.remove_css_class(old_class);
-                    window_for_theme.add_css_class(&new_class);
+                    apply_theme_scheme(&editor_mode);
                 }
             })),
         );

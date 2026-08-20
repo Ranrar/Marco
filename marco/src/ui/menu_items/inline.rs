@@ -74,6 +74,20 @@ pub fn populate_inline_menu(inline_menu: &gio::Menu, translations: &Translations
     inline_menu.append_section(None, &inserts);
 }
 
+/// Open a popover from a menu action.
+///
+/// The menu popover that activated the action is still mapped and holding the
+/// pointer grab at this point, so it is closed first and the new popover is
+/// deferred to the next main-loop iteration — otherwise GTK rejects the new
+/// popover's grab and the menu's is left behind with nothing visible owning
+/// it. See [`crate::ui::popover_state::close_global_root_tree`]. The toolbar
+/// buttons that open these same popovers do the widget-based equivalent via
+/// `close_ancestor_popover`.
+fn open_popover_from_menu(show: impl FnOnce() + 'static) {
+    crate::ui::popover_state::close_global_root_tree();
+    gtk4::glib::idle_add_local_once(show);
+}
+
 pub fn setup_inline_actions(
     app: &gtk4::Application,
     editor_buffer: &sourceview5::Buffer,
@@ -200,12 +214,16 @@ pub fn setup_inline_actions(
         let win = window.clone();
         let provider = current_file_provider.clone();
         super::add_format_action(app, "format_inline_link", move || {
-            crate::ui::toolbar::show_insert_link_popover(
-                buf.upcast_ref::<gtk4::TextBuffer>(),
-                view.upcast_ref::<gtk4::TextView>(),
-                win.upcast_ref::<gtk4::Window>(),
-                provider.clone(),
-            );
+            let (buf, view, win, provider) =
+                (buf.clone(), view.clone(), win.clone(), provider.clone());
+            open_popover_from_menu(move || {
+                crate::ui::toolbar::show_insert_link_popover(
+                    buf.upcast_ref::<gtk4::TextBuffer>(),
+                    view.upcast_ref::<gtk4::TextView>(),
+                    win.upcast_ref::<gtk4::Window>(),
+                    provider,
+                );
+            });
         });
     }
     app.set_accels_for_action("app.format_inline_link", &["<Control>k"]);
@@ -217,12 +235,16 @@ pub fn setup_inline_actions(
         let win = window.clone();
         let provider = current_file_provider.clone();
         super::add_format_action(app, "format_inline_link_reference", move || {
-            crate::ui::toolbar::show_insert_reference_link_popover(
-                buf.upcast_ref::<gtk4::TextBuffer>(),
-                view.upcast_ref::<gtk4::TextView>(),
-                win.upcast_ref::<gtk4::Window>(),
-                provider.clone(),
-            );
+            let (buf, view, win, provider) =
+                (buf.clone(), view.clone(), win.clone(), provider.clone());
+            open_popover_from_menu(move || {
+                crate::ui::toolbar::show_insert_reference_link_popover(
+                    buf.upcast_ref::<gtk4::TextBuffer>(),
+                    view.upcast_ref::<gtk4::TextView>(),
+                    win.upcast_ref::<gtk4::Window>(),
+                    provider,
+                );
+            });
         });
     }
 
@@ -233,12 +255,16 @@ pub fn setup_inline_actions(
         let win = window.clone();
         let provider = current_file_provider.clone();
         super::add_format_action(app, "format_inline_image", move || {
-            crate::ui::toolbar::show_insert_image_popover(
-                buf.upcast_ref::<gtk4::TextBuffer>(),
-                view.upcast_ref::<gtk4::TextView>(),
-                win.upcast_ref::<gtk4::Window>(),
-                provider.clone(),
-            );
+            let (buf, view, win, provider) =
+                (buf.clone(), view.clone(), win.clone(), provider.clone());
+            open_popover_from_menu(move || {
+                crate::ui::toolbar::show_insert_image_popover(
+                    buf.upcast_ref::<gtk4::TextBuffer>(),
+                    view.upcast_ref::<gtk4::TextView>(),
+                    win.upcast_ref::<gtk4::Window>(),
+                    provider,
+                );
+            });
         });
     }
 
@@ -247,10 +273,13 @@ pub fn setup_inline_actions(
         let buf = editor_buffer.clone();
         let view = editor_view.clone();
         super::add_format_action(app, "format_inline_footnote", move || {
-            crate::ui::toolbar::show_insert_footnote_popover(
-                buf.upcast_ref::<gtk4::TextBuffer>(),
-                view.upcast_ref::<gtk4::TextView>(),
-            );
+            let (buf, view) = (buf.clone(), view.clone());
+            open_popover_from_menu(move || {
+                crate::ui::toolbar::show_insert_footnote_popover(
+                    buf.upcast_ref::<gtk4::TextBuffer>(),
+                    view.upcast_ref::<gtk4::TextView>(),
+                );
+            });
         });
     }
 
@@ -261,12 +290,15 @@ pub fn setup_inline_actions(
         let win = window.clone();
         let sm = settings_manager.clone();
         super::add_format_action(app, "format_inline_emoji", move || {
-            crate::ui::toolbar::show_insert_emoji_popover(
-                buf.upcast_ref::<gtk4::TextBuffer>(),
-                view.upcast_ref::<gtk4::TextView>(),
-                win.upcast_ref::<gtk4::Window>(),
-                sm.clone(),
-            );
+            let (buf, view, win, sm) = (buf.clone(), view.clone(), win.clone(), sm.clone());
+            open_popover_from_menu(move || {
+                crate::ui::toolbar::show_insert_emoji_popover(
+                    buf.upcast_ref::<gtk4::TextBuffer>(),
+                    view.upcast_ref::<gtk4::TextView>(),
+                    win.upcast_ref::<gtk4::Window>(),
+                    sm,
+                );
+            });
         });
     }
 

@@ -2,4 +2,4 @@
 
 Filename contains a unicode check mark.
 
-- [Back to link showcase](../17_links_and_navigation.md)
+- [Back to link showcase](../12_links_and_heading_ids.md)

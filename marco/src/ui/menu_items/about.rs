@@ -1,16 +1,28 @@
 //! About dialog for Marco application
 
-use marco_shared::logic::loaders::icon_loader::{about_icon_svg, AboutIcon};
-
 use gtk4::prelude::*;
 use gtk4::{gio, glib, Align, Box, Button, Label, Orientation, ScrolledWindow, Window};
 use rsvg::{CairoRenderer, Loader};
 
 use crate::components::language::DialogTranslations;
 
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// GitHub repository icon - Tabler Icons `icon-tabler-brand-github`
+const SVG_GITHUB: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5"/></svg>"#;
+
+/// External link icon - Tabler Icons `icon-tabler-external-link`
+const SVG_LINK: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M19 12v7a1.78 1.78 0 0 1 -3.1 1.4a1.65 1.65 0 0 0 -2.6 0a1.65 1.65 0 0 1 -2.6 0a1.65 1.65 0 0 0 -2.6 0a1.78 1.78 0 0 1 -3.1 -1.4v-14a2 2 0 0 1 2 -2h7l5 5v4.25"/></svg>"#;
+
+/// Bug-report icon - Tabler Icons `icon-tabler-bug`
+const SVG_BUG: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 9v-1a3 3 0 0 1 6 0v1"/><path d="M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3"/><path d="M3 13l4 0"/><path d="M17 13l4 0"/><path d="M12 20l0 -6"/><path d="M4 19l3.35 -2"/><path d="M20 19l-3.35 -2"/><path d="M4 7l3.75 2.4"/><path d="M20 7l-3.75 2.4"/></svg>"#;
+
+/// Help/question-mark icon - Tabler Icons `icon-tabler-help-hexagon` (filled)
+const SVG_HELP: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14.757 16.172l3.571 3.571a10.004 10.004 0 0 1 -12.656 0l3.57 -3.571a5 5 0 0 0 2.758 .828c1.02 0 1.967 -.305 2.757 -.828m-10.5 -10.5l3.571 3.57a5 5 0 0 0 -.828 2.758c0 1.02 .305 1.967 .828 2.757l-3.57 3.572a10 10 0 0 1 -2.258 -6.329l.005 -.324a10 10 0 0 1 2.252 -6.005m17.743 6.329c0 2.343 -.82 4.57 -2.257 6.328l-3.571 -3.57a5 5 0 0 0 .828 -2.758c0 -1.02 -.305 -1.967 -.828 -2.757l3.571 -3.57a10 10 0 0 1 2.257 6.327m-5 -8.66q .707 .41 1.33 .918l-3.573 3.57a5 5 0 0 0 -2.757 -.828c-1.02 0 -1.967 .305 -2.757 .828l-3.573 -3.57a10 10 0 0 1 11.33 -.918"/></svg>"#;
+
 /// Render an SVG icon to a GdkMemoryTexture
-fn render_about_icon(icon: AboutIcon, color: &str, icon_size: f64) -> gtk4::gdk::MemoryTexture {
-    let svg = about_icon_svg(icon).replace("currentColor", color);
+fn render_about_icon(svg: &str, color: &str, icon_size: f64) -> gtk4::gdk::MemoryTexture {
+    let svg = svg.replace("currentColor", color);
     let bytes = glib::Bytes::from_owned(svg.into_bytes());
     let stream = gio::MemoryInputStream::from_bytes(&bytes);
 
@@ -31,13 +43,13 @@ fn render_about_icon(icon: AboutIcon, color: &str, icon_size: f64) -> gtk4::gdk:
             }
         };
 
-    let display_scale = gtk4::gdk::Display::default()
-        .and_then(|d| d.monitors().item(0))
-        .and_then(|m| m.downcast::<gtk4::gdk::Monitor>().ok())
-        .map(|m| m.scale_factor() as f64)
-        .unwrap_or(1.0);
-
-    let render_scale = display_scale * 2.0;
+    // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+    // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+    // render scale from it makes icons render at inconsistent sizes across
+    // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+    // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+    // on both backends.
+    let render_scale = 2.0;
     let render_size = (icon_size * render_scale) as i32;
 
     let mut surface = cairo::ImageSurface::create(cairo::Format::ARgb32, render_size, render_size)
@@ -67,7 +79,7 @@ fn render_about_icon(icon: AboutIcon, color: &str, icon_size: f64) -> gtk4::gdk:
 /// Create a clickable link button with icon and label
 fn create_link_button(
     dialog: &Window,
-    icon: AboutIcon,
+    icon_svg: &str,
     label_text: &str,
     url: &str,
     is_dark: bool,
@@ -80,7 +92,7 @@ fn create_link_button(
     // Icon
     let icon_color = if is_dark { "#E1E1E1" } else { "#2E2E2E" };
     let pic = gtk4::Picture::new();
-    let texture = render_about_icon(icon, icon_color, 24.0);
+    let texture = render_about_icon(icon_svg, icon_color, 24.0);
     pic.set_paintable(Some(&texture));
     pic.set_size_request(24, 24);
     pic.set_can_shrink(false);
@@ -104,7 +116,13 @@ fn create_link_button(
         let dialog_clone = dialog.clone();
         let url_owned = url.to_string();
         gesture.connect_released(move |_gesture, _n, _x, _y| {
-            gtk4::show_uri(Some(&dialog_clone), &url_owned, gtk4::gdk::CURRENT_TIME);
+            let dialog_clone = dialog_clone.clone();
+            let url_owned = url_owned.clone();
+            glib::MainContext::default().spawn_local(async move {
+                let _ = gtk4::UriLauncher::new(&url_owned)
+                    .launch_future(Some(&dialog_clone))
+                    .await;
+            });
         });
     }
     link_box.add_controller(gesture);
@@ -250,7 +268,7 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     // GitHub repository link
     let github_link = create_link_button(
         &dialog,
-        AboutIcon::GitHub,
+        SVG_GITHUB,
         &translations.about_link_github,
         "https://github.com/Ranrar/Marco",
         is_dark,
@@ -261,7 +279,7 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     // Bug reports link
     let bug_link = create_link_button(
         &dialog,
-        AboutIcon::Bug,
+        SVG_BUG,
         &translations.about_link_issues,
         "https://github.com/Ranrar/Marco/issues",
         is_dark,
@@ -272,7 +290,7 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     // Help/discussions link
     let help_link = create_link_button(
         &dialog,
-        AboutIcon::Help,
+        SVG_HELP,
         &translations.about_link_discuss,
         "https://github.com/Ranrar/Marco/discussions",
         is_dark,
@@ -283,7 +301,7 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     // Changelog link
     let changelog_link = create_link_button(
         &dialog,
-        AboutIcon::Link,
+        SVG_LINK,
         &translations.about_link_changelog,
         "https://github.com/Ranrar/Marco/blob/main/changelog/marco.md",
         is_dark,
@@ -302,7 +320,7 @@ pub fn show_about_dialog(parent: &impl IsA<gtk4::Window>, translations: &DialogT
     // Website link
     //    let website_link = create_link_button(
     //        &dialog,
-    //        AboutIcon::Link,
+    //        SVG_LINK,
     //        &translations.about_link_website,
     //        "https://www.skovrasmussen.com",
     //        is_dark,
@@ -372,8 +390,9 @@ mod tests {
 
     #[test]
     fn smoke_test_about_dialog_creation() {
-        // GTK initialization required for dialog creation
-        if gtk4::is_initialized() {
+        // GTK objects may only be created on the thread that initialized GTK
+        // (another test may have initialized it on a different worker thread).
+        if gtk4::is_initialized_main_thread() {
             let window = gtk4::Window::new();
 
             // Should not panic

@@ -8,11 +8,7 @@ use sourceview5::{Buffer, SearchContext, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[cfg(target_os = "linux")]
-use webkit6::WebView;
-
-#[cfg(target_os = "windows")]
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
 
 /// Search options for controlling search behavior
 #[derive(Debug, Clone, Default)]
@@ -46,10 +42,7 @@ thread_local! {
     pub static CACHED_SEARCH_WINDOW: RefCell<Option<Rc<Window>>> = const { RefCell::new(None) };
     pub static CURRENT_BUFFER: RefCell<Option<Rc<Buffer>>> = const { RefCell::new(None) };
     pub static CURRENT_SOURCE_VIEW: RefCell<Option<Rc<View>>> = const { RefCell::new(None) };
-    #[cfg(target_os = "linux")]
-    pub static CURRENT_WEBVIEW: RefCell<Option<Rc<RefCell<WebView>>>> = const { RefCell::new(None) };
-        #[cfg(target_os = "windows")]
-        pub static CURRENT_PLATFORM_WEBVIEW: RefCell<Option<PlatformWebView>> = const { RefCell::new(None) };
+    pub static CURRENT_PLATFORM_WEBVIEW: RefCell<Option<PlatformWebView>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_STATE: RefCell<Option<SearchState>> = const { RefCell::new(None) };
     pub static CURRENT_MATCH_LABEL: RefCell<Option<Label>> = const { RefCell::new(None) };
     pub static CURRENT_SEARCH_ENTRY: RefCell<Option<Entry>> = const { RefCell::new(None) };
@@ -83,11 +76,10 @@ pub fn clear_search_highlighting() {
         *pos.borrow_mut() = None;
     });
 
-    // Windows: clear find highlights in the WebView preview.
-    #[cfg(target_os = "windows")]
+    // Clear find highlights in the WebView preview.
     CURRENT_PLATFORM_WEBVIEW.with(|wv_ref| {
         if let Some(wv) = wv_ref.borrow().as_ref() {
-            crate::components::viewer::wry_find::clear(wv);
+            crate::components::viewer::find_engine::clear(wv);
         }
     });
 

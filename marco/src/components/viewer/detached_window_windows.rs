@@ -1,4 +1,5 @@
-//! Detached preview window implementation that uses `wry` on Windows.
+//! Detached preview window — Windows strategy: rebuild from the recorded
+//! preview HTML rather than reparenting the live webview (§14.3).
 // Note: this module is conditionally compiled from `components::viewer::mod`.
 
 use gtk4::prelude::*;
@@ -6,8 +7,22 @@ use gtk4::{ApplicationWindow, Label, Orientation, ScrolledWindow};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
-use crate::components::viewer::wry;
-use crate::components::viewer::wry_platform_webview::PlatformWebView;
+use crate::components::viewer::platform_webview::PlatformWebView;
+use crate::components::viewer::preview_helpers;
+
+// ── Inline SVG icons ──────────────────────────────────────────────────────
+
+/// Window-close icon - Tabler Icons `icon-tabler-x`
+const SVG_CLOSE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" vector-effect="non-scaling-stroke"/><path d="M6 6l12 12" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-minimize icon - Tabler Icons `icon-tabler-minus`
+const SVG_MINIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12h14" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-maximize icon - Tabler Icons `icon-tabler-square`
+const SVG_MAXIMIZE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 7a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v10a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2l0 -10" vector-effect="non-scaling-stroke"/></svg>"#;
+
+/// Window-restore icon - Tabler Icons `icon-tabler-squares` (overlapping squares)
+const SVG_RESTORE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M8 6a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2l0 -8" vector-effect="non-scaling-stroke"/><path d="M16 16v2a2 2 0 0 1 -2 2h-8a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h2" vector-effect="non-scaling-stroke"/></svg>"#;
 
 /// Type alias for a shared, mutable callback function
 type CloseCallback = Rc<RefCell<Option<Box<dyn Fn()>>>>;
@@ -41,7 +56,7 @@ impl PreviewWindow {
         window.set_hide_on_close(true);
 
         // Apply theme class for consistent styling
-        if parent_window.style_context().has_class("marco-theme-dark") {
+        if parent_window.has_css_class("marco-theme-dark") {
             window.add_css_class("marco-theme-dark");
         } else {
             window.add_css_class("marco-theme-light");
@@ -125,23 +140,23 @@ impl PreviewWindow {
         use crate::ui::css::constants::{DARK_PALETTE, LIGHT_PALETTE};
         use gio;
         use gtk4::gdk;
-        use marco_shared::logic::loaders::icon_loader::{window_icon_svg, WindowIcon};
         use rsvg::{CairoRenderer, Loader};
 
-        fn render_window_svg(icon: WindowIcon, color: &str, icon_size: f64) -> gdk::MemoryTexture {
-            let svg = window_icon_svg(icon).replace("currentColor", color);
+        fn render_window_svg(icon: &str, color: &str, icon_size: f64) -> gdk::MemoryTexture {
+            let svg = icon.replace("currentColor", color);
             let bytes = glib::Bytes::from_owned(svg.into_bytes());
             let stream = gio::MemoryInputStream::from_bytes(&bytes);
             let handle = Loader::new()
                 .read_stream(&stream, None::<&gio::File>, gio::Cancellable::NONE)
                 .expect("load SVG handle");
 
-            let display_scale = gdk::Display::default()
-                .and_then(|d| d.monitors().item(0))
-                .and_then(|m| m.downcast::<gdk::Monitor>().ok())
-                .map(|m| m.scale_factor() as f64)
-                .unwrap_or(1.0);
-            let render_scale = display_scale * 2.0;
+            // Fixed supersample factor: gdk::Monitor::scale_factor() is unreliable on X11
+            // (usually reports 1 even on HiDPI) but correct on Wayland, so deriving the
+            // render scale from it makes icons render at inconsistent sizes across
+            // backends. Rendering at a constant 2x keeps texture pixel size (and thus
+            // the GtkPicture layout size, since can_shrink(false) pins to it) identical
+            // on both backends.
+            let render_scale = 2.0;
             let render_size = (icon_size * render_scale) as i32;
 
             let mut surface =
@@ -169,7 +184,7 @@ impl PreviewWindow {
         }
 
         // Helper to create a SVG-backed icon button with hover/press interactions
-        let svg_icon_button = |icon: WindowIcon, tooltip: &str| {
+        let svg_icon_button = |icon: &'static str, tooltip: &str| {
             use gtk4::Picture;
             let pic = Picture::new();
             let is_dark = window.has_css_class("marco-theme-dark");
@@ -251,8 +266,8 @@ impl PreviewWindow {
         };
 
         // Window control icons (SVG)
-        let btn_min = svg_icon_button(WindowIcon::Minimize, "Minimize");
-        let btn_close = svg_icon_button(WindowIcon::Close, "Close");
+        let btn_min = svg_icon_button(SVG_MINIMIZE, "Minimize");
+        let btn_close = svg_icon_button(SVG_CLOSE, "Close");
 
         // Create a single toggle button for maximize/restore using SVG
         let max_pic = gtk4::Picture::new();
@@ -269,9 +284,9 @@ impl PreviewWindow {
             };
             move |is_maximized: bool, pic: &gtk4::Picture| {
                 let icon = if is_maximized {
-                    WindowIcon::Restore
+                    SVG_RESTORE
                 } else {
-                    WindowIcon::Maximize
+                    SVG_MAXIMIZE
                 };
                 let tex = render_window_svg(icon, color, 8.0);
                 pic.set_paintable(Some(&tex));
@@ -354,11 +369,11 @@ impl PreviewWindow {
     pub fn load_preview_content(&self) {
         // If we already have a platform webview, refresh content
         if let Some(ref pv) = *self.platform_webview.borrow() {
-            if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+            if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
                 .get_or_init(|| std::sync::Mutex::new(String::new()))
                 .lock()
             {
-                let base_uri = wry::get_latest_preview_base_uri();
+                let base_uri = preview_helpers::get_latest_preview_base_uri();
                 pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
             }
             return;
@@ -388,11 +403,11 @@ impl PreviewWindow {
             }
         }
 
-        if let Ok(guard) = wry::LATEST_PREVIEW_HTML
+        if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
             .get_or_init(|| std::sync::Mutex::new(String::new()))
             .lock()
         {
-            let base_uri = wry::get_latest_preview_base_uri();
+            let base_uri = preview_helpers::get_latest_preview_base_uri();
             pv.load_html_with_base(&guard.clone(), base_uri.as_deref());
         }
 
@@ -414,14 +429,14 @@ impl PreviewWindow {
                 crate::components::viewer::preview_state::take_latest_state()
             else {
                 log::debug!(
-                    "[wry_detached_window] no preview snapshot to restore on ready"
+                    "[detached_window_windows] no preview snapshot to restore on ready"
                 );
                 return;
             };
             match crate::components::viewer::preview_state::restore_script(&state) {
                 Ok(js) => {
                     log::debug!(
-                        "[wry_detached_window] restoring preview state (scroll_y={}, open_details={})",
+                        "[detached_window_windows] restoring preview state (scroll_y={}, open_details={})",
                         state.scroll_y,
                         state.open_details.len()
                     );
@@ -429,7 +444,7 @@ impl PreviewWindow {
                 }
                 Err(e) => {
                     log::warn!(
-                        "[wry_detached_window] failed to build restore script: {}",
+                        "[detached_window_windows] failed to build restore script: {}",
                         e
                     );
                 }
@@ -439,87 +454,101 @@ impl PreviewWindow {
         *self.platform_webview.borrow_mut() = Some(pv);
         log::info!("Created embedded PlatformWebView in preview window (attempted load)");
 
-        // If the embedded WebView failed to create (no WebView2 runtime), fall back
-        // to opening the persisted HTML in the system browser and notify the user.
-        if let Some(ref pv_ref) = *self.platform_webview.borrow() {
-            if pv_ref.inner.borrow().is_none() {
-                log::warn!("Embedded wry WebView not available; falling back to system browser");
-                // Persist the HTML to a temp file and open it
-                if let Ok(guard) = wry::LATEST_PREVIEW_HTML
-                    .get_or_init(|| std::sync::Mutex::new(String::new()))
-                    .lock()
-                {
-                    // Show the HTML source inside the preview window as a fallback, plus a button
-                    // to open it in the system browser. This keeps the user inside the app
-                    // while still providing a usable rendered experience via the browser.
-                    let vbox = gtk4::Box::new(Orientation::Vertical, 8);
-                    vbox.set_margin_top(8);
-                    vbox.set_margin_bottom(8);
-                    vbox.set_margin_start(8);
-                    vbox.set_margin_end(8);
-
-                    let label = Label::new(Some(
-                        "Embedded preview is not available (missing WebView2 runtime).",
-                    ));
-                    label.set_wrap(true);
-                    vbox.append(&label);
-
-                    // Text view with the generated HTML source for inspection
-                    let sw = ScrolledWindow::new();
-                    sw.set_hexpand(true);
-                    sw.set_vexpand(true);
-                    let tv = gtk4::TextView::new();
-                    tv.set_editable(false);
-                    tv.set_monospace(true);
-                    tv.buffer().set_text(&guard);
-                    sw.set_child(Some(&tv));
-                    vbox.append(&sw);
-
-                    // Add a button to open in system browser
-                    let ts = std::time::SystemTime::now()
-                        .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                        .unwrap()
-                        .as_millis();
-                    let file_name = format!("marco_preview_{}.html", ts);
-                    let mut file_path = std::env::temp_dir();
-                    file_path.push(&file_name);
-                    let file_url = if std::fs::write(&file_path, guard.as_bytes()).is_ok() {
-                        let s =
-                            format!("file:///{}", file_path.to_string_lossy().replace('\\', "/"));
-                        log::info!(
-                            "Persisted fallback preview HTML to: {}",
-                            file_path.display()
-                        );
-                        s
-                    } else {
-                        String::new()
-                    };
-
-                    let open_btn = gtk4::Button::with_label("Open in system browser");
-                    if !file_url.is_empty() {
-                        let file_url_clone = file_url.clone();
-                        open_btn.connect_clicked(move |_| {
-                            if let Err(e) = gio::AppInfo::launch_default_for_uri(
-                                &file_url_clone,
-                                None::<&gio::AppLaunchContext>,
-                            ) {
-                                log::error!(
-                                    "Failed to open fallback preview in system browser: {}",
-                                    e
-                                );
-                            }
-                        });
-                    } else {
-                        open_btn.set_sensitive(false);
-                    }
-                    vbox.append(&open_btn);
-
-                    self.container.set_child(Some(&vbox));
-                }
-            } else {
+        // Whether the embedded WebView actually failed to create (no WebView2
+        // runtime) can't be determined synchronously here: `load_html_with_base`
+        // defers the real construction until `self.container` is mapped *and*
+        // allocated (see `allocation_wait::run_when_allocated`), and at this
+        // point in `load_preview_content` the window hasn't even been
+        // `present()`ed yet (see `show()`, which calls this method first) —
+        // so `pv.inner` is unconditionally still `None` here regardless of
+        // whether WebView2 is actually available. Checking immediately made
+        // every detached-preview open show the "not available" fallback UI
+        // even though the embedded WebView works fine once given a chance to
+        // build. Defer the check instead, giving the deferred build a
+        // generous window to complete after the window is shown.
+        let container_for_check = self.container.clone();
+        let pw_for_check = Rc::clone(&self.platform_webview);
+        gtk4::glib::timeout_add_local_once(std::time::Duration::from_millis(500), move || {
+            let available = pw_for_check
+                .borrow()
+                .as_ref()
+                .map(|pv| pv.inner.borrow().is_some())
+                .unwrap_or(false);
+            if available {
                 log::info!("Embedded wry WebView available in preview window (rendering inline)");
+                return;
             }
-        }
+
+            log::warn!("Embedded wry WebView not available; falling back to system browser");
+            // Persist the HTML to a temp file and open it
+            if let Ok(guard) = preview_helpers::LATEST_PREVIEW_HTML
+                .get_or_init(|| std::sync::Mutex::new(String::new()))
+                .lock()
+            {
+                // Show the HTML source inside the preview window as a fallback, plus a button
+                // to open it in the system browser. This keeps the user inside the app
+                // while still providing a usable rendered experience via the browser.
+                let vbox = gtk4::Box::new(Orientation::Vertical, 8);
+                vbox.set_margin_top(8);
+                vbox.set_margin_bottom(8);
+                vbox.set_margin_start(8);
+                vbox.set_margin_end(8);
+
+                let label = Label::new(Some(
+                    "Embedded preview is not available (missing WebView2 runtime).",
+                ));
+                label.set_wrap(true);
+                vbox.append(&label);
+
+                // Text view with the generated HTML source for inspection
+                let sw = ScrolledWindow::new();
+                sw.set_hexpand(true);
+                sw.set_vexpand(true);
+                let tv = gtk4::TextView::new();
+                tv.set_editable(false);
+                tv.set_monospace(true);
+                tv.buffer().set_text(&guard);
+                sw.set_child(Some(&tv));
+                vbox.append(&sw);
+
+                // Add a button to open in system browser
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis();
+                let file_name = format!("marco_preview_{}.html", ts);
+                let mut file_path = std::env::temp_dir();
+                file_path.push(&file_name);
+                let file_url = if std::fs::write(&file_path, guard.as_bytes()).is_ok() {
+                    let s = format!("file:///{}", file_path.to_string_lossy().replace('\\', "/"));
+                    log::info!(
+                        "Persisted fallback preview HTML to: {}",
+                        file_path.display()
+                    );
+                    s
+                } else {
+                    String::new()
+                };
+
+                let open_btn = gtk4::Button::with_label("Open in system browser");
+                if !file_url.is_empty() {
+                    let file_url_clone = file_url.clone();
+                    open_btn.connect_clicked(move |_| {
+                        if let Err(e) = gio::AppInfo::launch_default_for_uri(
+                            &file_url_clone,
+                            None::<&gio::AppLaunchContext>,
+                        ) {
+                            log::error!("Failed to open fallback preview in system browser: {}", e);
+                        }
+                    });
+                } else {
+                    open_btn.set_sensitive(false);
+                }
+                vbox.append(&open_btn);
+
+                container_for_check.set_child(Some(&vbox));
+            }
+        });
     }
 
     /// Show the preview window. If no embedded webview exists, create it and
@@ -537,7 +566,7 @@ impl PreviewWindow {
     }
 
     pub fn hide(&self) {
-        self.window.hide();
+        self.window.set_visible(false);
         *self.is_visible.borrow_mut() = false;
         log::info!("Preview window hidden via hide() method");
 
@@ -561,5 +590,21 @@ impl PreviewWindow {
 
     pub fn is_visible(&self) -> bool {
         *self.is_visible.borrow()
+    }
+
+    /// Sync this window's light/dark theme CSS class with the main window's.
+    ///
+    /// The theme class is otherwise only ever set once, at construction
+    /// time (see [`Self::new`]) — since this window is created lazily and
+    /// then reused across show/hide cycles, changing the app theme while it
+    /// already exists would otherwise leave its titlebar on the old theme.
+    pub fn sync_theme_class(&self, is_dark: bool) {
+        if is_dark {
+            self.window.remove_css_class("marco-theme-light");
+            self.window.add_css_class("marco-theme-dark");
+        } else {
+            self.window.remove_css_class("marco-theme-dark");
+            self.window.add_css_class("marco-theme-light");
+        }
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "polo"
-version = "0.24.2"
+version = "0.25.0"
 edition = "2021"
 authors = ["Kim Skov Rasmussen"]
 description = "Polo - Markdown Viewer"
@@ -14,6 +14,8 @@ marco-shared = { path = "../marco-shared" }
 
 # Utilities
 log = { workspace = true }
+dirs = { workspace = true }
+serde_json = { workspace = true }
 
 # UI dependencies (common)
 gtk4 = { workspace = true }
@@ -23,19 +25,20 @@ librsvg = { workspace = true }
 cairo-rs = { workspace = true }
 gdk-pixbuf = { workspace = true }
 
+# Unified webview backend (gtk4-webkit6 wry fork on Linux, WebView2 on Windows)
+wry = { workspace = true }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 webkit6 = { workspace = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
-wry = { workspace = true }
-tao = { workspace = true }
 gdk4-win32 = { workspace = true }
 raw-window-handle = { workspace = true }
 rfd = "0.17.2"
 # Native WebView2 system print dialog (ICoreWebView2_16::ShowPrintUI).
 # Same versions as marco; transitively pulled in by wry already.
 webview2-com = "0.38.2"
-windows = { version = "0.61", features = ["Win32_Foundation"] }
+windows = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Input_KeyboardAndMouse", "Win32_Storage_FileSystem"] }
 windows-core = "0.61"
 
 [target.'cfg(target_os = "windows")'.build-dependencies]

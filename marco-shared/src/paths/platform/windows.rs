@@ -52,6 +52,30 @@ pub(crate) fn detect_portable_mode() -> Option<PathBuf> {
     let exe_path = env::current_exe().ok()?;
     let exe_dir = exe_path.parent()?;
 
+    detect_portable_mode_from_exe_dir(exe_dir)
+}
+
+/// An Inno Setup install always drops its uninstaller (`unins000.exe` /
+/// `unins000.dat`) directly into `{app}`. A per-user install
+/// (`PrivilegesRequired=lowest`) lands under the user's own profile (e.g.
+/// `%LOCALAPPDATA%\Programs\Marco`), which is writable by that user by
+/// definition -- without this check, the writable-exe-dir fallback below
+/// would treat every such install as portable and store config/data inside
+/// the install directory instead of `%APPDATA%\marco`.
+fn has_inno_setup_uninstaller(exe_dir: &Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(exe_dir) else {
+        return false;
+    };
+
+    entries.filter_map(|e| e.ok()).any(|entry| {
+        entry.file_name().to_str().is_some_and(|name| {
+            let lower = name.to_ascii_lowercase();
+            lower.starts_with("unins") && lower.ends_with(".exe")
+        })
+    })
+}
+
+fn detect_portable_mode_from_exe_dir(exe_dir: &Path) -> Option<PathBuf> {
     // Prefer the explicit portable layout created by our packaging scripts:
     //   <exe_dir>\config\
     //   <exe_dir>\data\
@@ -66,6 +90,14 @@ pub(crate) fn detect_portable_mode() -> Option<PathBuf> {
             portable_config.display()
         );
         return Some(exe_dir.to_path_buf());
+    }
+
+    if has_inno_setup_uninstaller(exe_dir) {
+        log::debug!(
+            "Not portable: Inno Setup uninstaller found next to the executable at {}",
+            exe_dir.display()
+        );
+        return None;
     }
 
     if is_directory_writable(exe_dir) {
@@ -165,4 +197,46 @@ pub(crate) fn detect_locale_from_platform() -> Option<String> {
 #[link(name = "Kernel32")]
 extern "system" {
     fn GetUserDefaultLocaleName(lpLocaleName: *mut u16, cchLocaleName: i32) -> i32;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn smoke_test_detect_portable_mode_from_exe_dir_prefers_config_dir() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::create_dir_all(dir.path().join("config")).expect("create config dir");
+
+        let detected = detect_portable_mode_from_exe_dir(dir.path());
+        assert_eq!(detected, Some(dir.path().to_path_buf()));
+    }
+
+    #[test]
+    fn smoke_test_detect_portable_mode_from_exe_dir_falls_back_to_exe_dir() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let detected = detect_portable_mode_from_exe_dir(dir.path());
+        assert_eq!(detected, Some(dir.path().to_path_buf()));
+    }
+
+    #[test]
+    fn smoke_test_inno_setup_uninstaller_blocks_portable_fallback() {
+        // Reproduces a per-user Inno Setup install: no config/ dir, exe dir is
+        // writable (it's under the installing user's own profile), but
+        // unins000.exe is present -- this must NOT be detected as portable.
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("unins000.exe"), b"stub").expect("write uninstaller stub");
+
+        assert!(has_inno_setup_uninstaller(dir.path()));
+        assert_eq!(detect_portable_mode_from_exe_dir(dir.path()), None);
+    }
+
+    #[test]
+    fn smoke_test_has_inno_setup_uninstaller_ignores_unrelated_files() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        std::fs::write(dir.path().join("marco.exe"), b"stub").expect("write");
+        std::fs::write(dir.path().join("uninstall_notes.txt"), b"stub").expect("write");
+
+        assert!(!has_inno_setup_uninstaller(dir.path()));
+    }
 }

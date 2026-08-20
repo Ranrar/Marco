@@ -95,7 +95,7 @@ pub fn load_css_from_path(_asset_root: &std::path::Path) {
 
     // Generate all Polo CSS from modular components
     let polo_css = generate_polo_css();
-    css_provider.load_from_data(&polo_css);
+    css_provider.load_from_string(&polo_css);
 
     if let Some(display) = Display::default() {
         gtk4::style_context_add_provider_for_display(

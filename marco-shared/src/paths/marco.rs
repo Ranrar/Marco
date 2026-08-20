@@ -96,7 +96,7 @@ impl MarcoPaths {
     /// Get Marco's config directory
     ///
     /// - Dev mode: workspace_root/tests/settings/
-    /// - Install mode: ~/.config/marco/
+    /// - Install mode: ~/.config/markdowncomposer/ (Linux)
     pub fn config_dir(&self) -> PathBuf {
         if self.dev_mode {
             if let Some(workspace) = super::workspace_root() {
@@ -136,13 +136,17 @@ impl MarcoPaths {
     /// Get Marco's cache directory
     pub fn cache_dir(&self) -> PathBuf {
         dirs::cache_dir()
-            .map(|c| c.join("marco"))
-            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join("marco")))
+            .map(|c| c.join(super::APP_DIR_NAME))
+            .or_else(|| dirs::home_dir().map(|h| h.join(".cache").join(super::APP_DIR_NAME)))
             .unwrap_or_else(|| {
                 if cfg!(target_os = "windows") {
-                    PathBuf::from("C:\\Temp\\marco\\cache")
+                    PathBuf::from("C:\\Temp")
+                        .join(super::APP_DIR_NAME)
+                        .join("cache")
                 } else {
-                    PathBuf::from("/tmp/marco/cache")
+                    PathBuf::from("/tmp")
+                        .join(super::APP_DIR_NAME)
+                        .join("cache")
                 }
             })
     }

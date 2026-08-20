@@ -1,12 +1,7 @@
 use crate::components::language::DialogTranslations;
 use crate::components::language::Translations;
 use crate::ui::menu_items::file_operations::SaveChangesResult;
-use gtk4::{
-    gio, prelude::*, ButtonsType, DialogFlags, MessageDialog, MessageType, ResponseType, Window,
-};
-
-#[cfg(target_os = "linux")]
-use gtk4::{FileChooserAction, FileChooserNative};
+use gtk4::{gio, prelude::*, Window};
 
 use std::future::Future;
 use std::path::{Path, PathBuf};
@@ -52,7 +47,7 @@ type SaveChangesCallback = Arc<
 /// UI dialogs for file operations
 ///
 /// This module provides GTK4-based dialog implementations for:
-/// - File open/save dialogs using FileChooserNative
+/// - File open/save dialogs using FileDialog
 /// - Confirmation dialogs for unsaved changes
 /// - Error message dialogs
 /// - File overwrite confirmations
@@ -176,49 +171,44 @@ impl FileDialogs {
     /// }
     /// ```no_run
     #[cfg(target_os = "linux")]
-    pub async fn show_open_dialog<W: IsA<Window>>(
+    pub async fn show_open_dialog<W: IsA<Window> + Clone + 'static>(
         parent: &W,
         title: &str,
         translations: &DialogTranslations,
     ) -> FileDialogResult {
         let open_label = format!("_{}", translations.open_button);
-        let cancel_label = format!("_{}", translations.cancel_button);
-        let dialog = FileChooserNative::new(
-            Some(title),
-            Some(parent),
-            FileChooserAction::Open,
-            Some(&open_label),
-            Some(&cancel_label),
-        );
 
         // Set up file filters for markdown files
+        let filters = gio::ListStore::new::<gtk4::FileFilter>();
         let filter = gtk4::FileFilter::new();
         filter.set_name(Some(&translations.filter_markdown));
         filter.add_pattern("*.md");
         filter.add_pattern("*.markdown");
         filter.add_pattern("*.mdown");
         filter.add_pattern("*.mkd");
-        dialog.add_filter(&filter);
+        filters.append(&filter);
 
         let filter_all = gtk4::FileFilter::new();
         filter_all.set_name(Some(&translations.filter_all));
         filter_all.add_pattern("*");
-        dialog.add_filter(&filter_all);
+        filters.append(&filter_all);
 
-        // Show dialog and wait for response
-        let response = dialog.run_future().await;
+        let dialog = gtk4::FileDialog::builder()
+            .title(title)
+            .accept_label(open_label)
+            .filters(&filters)
+            .default_filter(&filter)
+            .build();
 
-        match response {
-            ResponseType::Accept => {
-                if let Some(file) = dialog.file() {
-                    if let Some(path) = file.path() {
-                        log::info!("[FileDialogs] User selected file: {}", path.display());
-                        return Ok(Some(path));
-                    }
+        match dialog.open_future(Some(parent)).await {
+            Ok(file) => {
+                if let Some(path) = file.path() {
+                    log::info!("[FileDialogs] User selected file: {}", path.display());
+                    return Ok(Some(path));
                 }
                 Err("No file selected".into())
             }
-            _ => {
+            Err(_) => {
                 log::debug!("[FileDialogs] Open dialog cancelled");
                 Ok(None)
             }
@@ -284,53 +274,48 @@ impl FileDialogs {
     /// }
     /// ```no_run
     #[cfg(target_os = "linux")]
-    pub async fn show_save_dialog<W: IsA<Window>>(
+    pub async fn show_save_dialog<W: IsA<Window> + Clone + 'static>(
         parent: &W,
         title: &str,
         suggested_name: Option<&str>,
         translations: &DialogTranslations,
     ) -> FileDialogResult {
         let save_label = format!("_{}", translations.save_button);
-        let cancel_label = format!("_{}", translations.cancel_button);
-        let dialog = FileChooserNative::new(
-            Some(title),
-            Some(parent),
-            FileChooserAction::Save,
-            Some(&save_label),
-            Some(&cancel_label),
-        );
 
         // Set up file filters
+        let filters = gio::ListStore::new::<gtk4::FileFilter>();
         let filter = gtk4::FileFilter::new();
         filter.set_name(Some(&translations.filter_markdown));
         filter.add_pattern("*.md");
         filter.add_pattern("*.markdown");
-        dialog.add_filter(&filter);
+        filters.append(&filter);
 
         let filter_all = gtk4::FileFilter::new();
         filter_all.set_name(Some(&translations.filter_all));
         filter_all.add_pattern("*");
-        dialog.add_filter(&filter_all);
+        filters.append(&filter_all);
+
+        let dialog = gtk4::FileDialog::builder()
+            .title(title)
+            .accept_label(save_label)
+            .filters(&filters)
+            .default_filter(&filter)
+            .build();
 
         // Set suggested filename
         if let Some(name) = suggested_name {
-            dialog.set_current_name(name);
+            dialog.set_initial_name(Some(name));
         }
 
-        // Show dialog and wait for response
-        let response = dialog.run_future().await;
-
-        match response {
-            ResponseType::Accept => {
-                if let Some(file) = dialog.file() {
-                    if let Some(path) = file.path() {
-                        log::info!("[FileDialogs] User chose save location: {}", path.display());
-                        return Ok(Some(path));
-                    }
+        match dialog.save_future(Some(parent)).await {
+            Ok(file) => {
+                if let Some(path) = file.path() {
+                    log::info!("[FileDialogs] User chose save location: {}", path.display());
+                    return Ok(Some(path));
                 }
                 Err("No save location selected".into())
             }
-            _ => {
+            Err(_) => {
                 log::debug!("[FileDialogs] Save dialog cancelled");
                 Ok(None)
             }
@@ -428,7 +413,7 @@ impl FileDialogs {
     ///     // Show save dialog again
     /// }
     /// ```
-    pub async fn show_overwrite_dialog<W: IsA<Window>>(
+    pub async fn show_overwrite_dialog<W: IsA<Window> + Clone + 'static>(
         parent: &W,
         file_path: &Path,
         translations: &DialogTranslations,
@@ -440,29 +425,21 @@ impl FileDialogs {
 
         let primary_text = translations.overwrite_title.replace("{filename}", filename);
 
-        let dialog = MessageDialog::new(
-            Some(parent),
-            DialogFlags::MODAL | DialogFlags::DESTROY_WITH_PARENT,
-            MessageType::Question,
-            ButtonsType::None,
-            primary_text,
-        );
+        // Button order is [cancel, replace] — indices below match this order.
+        let dialog = gtk4::AlertDialog::builder()
+            .message(primary_text)
+            .detail(translations.overwrite_secondary.as_str())
+            .buttons([
+                translations.overwrite_cancel.as_str(),
+                translations.overwrite_replace.as_str(),
+            ])
+            .cancel_button(0)
+            .default_button(0)
+            .build();
 
-        dialog.set_secondary_text(Some(&translations.overwrite_secondary));
+        let response = dialog.choose_future(Some(parent)).await;
 
-        // Add custom buttons
-        dialog.add_button(&translations.overwrite_replace, ResponseType::Yes);
-        dialog.add_button(&translations.overwrite_cancel, ResponseType::Cancel);
-
-        // Set default response
-        dialog.set_default_response(ResponseType::Cancel);
-
-        let response = dialog.run_future().await;
-
-        // Explicitly close the dialog to ensure it disappears
-        dialog.close();
-
-        let result = matches!(response, ResponseType::Yes);
+        let result = matches!(response, Ok(1));
         log::info!("[FileDialogs] Overwrite dialog result: {}", result);
         Ok(result)
     }
@@ -485,30 +462,24 @@ impl FileDialogs {
     ///     None,
     /// ).await;
     /// ```
-    pub async fn show_error_dialog<W: IsA<Window>>(
+    pub async fn show_error_dialog<W: IsA<Window> + Clone + 'static>(
         parent: &W,
         title: &str,
         message: &str,
         detail: Option<&str>,
     ) {
-        let dialog = MessageDialog::new(
-            Some(parent),
-            DialogFlags::MODAL | DialogFlags::DESTROY_WITH_PARENT,
-            MessageType::Error,
-            ButtonsType::Ok,
-            message,
-        );
+        let body = match detail {
+            Some(detail) => format!("{}\n\n{}", message, detail),
+            None => message.to_string(),
+        };
 
-        dialog.set_title(Some(title));
+        let dialog = gtk4::AlertDialog::builder()
+            .message(title)
+            .detail(body)
+            .buttons(["OK"])
+            .build();
 
-        if let Some(detail) = detail {
-            dialog.set_secondary_text(Some(detail));
-        }
-
-        dialog.run_future().await;
-
-        // Explicitly close the dialog to ensure it disappears
-        dialog.close();
+        let _ = dialog.choose_future(Some(parent)).await;
 
         log::info!("[FileDialogs] Showed error dialog: {}", title);
     }
@@ -529,20 +500,18 @@ impl FileDialogs {
     ///     None,
     /// ).await;
     /// ```
-    pub async fn show_info_dialog<W: IsA<Window>>(parent: &W, title: &str, message: &str) {
-        let dialog = MessageDialog::new(
-            Some(parent),
-            DialogFlags::MODAL | DialogFlags::DESTROY_WITH_PARENT,
-            MessageType::Info,
-            ButtonsType::Ok,
-            message,
-        );
+    pub async fn show_info_dialog<W: IsA<Window> + Clone + 'static>(
+        parent: &W,
+        title: &str,
+        message: &str,
+    ) {
+        let dialog = gtk4::AlertDialog::builder()
+            .message(title)
+            .detail(message)
+            .buttons(["OK"])
+            .build();
 
-        dialog.set_title(Some(title));
-        dialog.run_future().await;
-
-        // Explicitly close the dialog to ensure it disappears
-        dialog.close();
+        let _ = dialog.choose_future(Some(parent)).await;
 
         log::info!("[FileDialogs] Showed info dialog: {}", title);
     }
