@@ -9,9 +9,9 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
-## [0.25.0] - 2026-08-18
+## [0.25.0] - 2026-08-20
 
-_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099769a (2026-07-30), plus unreleased work through 2026-08-18._
+_Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 2d34df7 (2026-08-18), plus the fixes dated 2026-08-20 below._
 
 **Uses:** Core 1.3.2
 
@@ -56,6 +56,7 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 - Link and image path handling — classification, relative/absolute conversion, percent-encoding, `#fragment` splitting and Windows drive-path detection — now lives in one shared module (`marco-shared::logic::link_path`) used by the toolbar popovers, Save As and the new diagnostics, replacing three separate partial implementations that disagreed on edge cases. _(2026-08-17)_
 - Toolbar buttons now signal that they are unavailable by greying the icon itself, instead of filling in a background plate and dimming the whole button. _(2026-08-16)_
 - The Link, Reference link and Image popovers no longer close when you click outside them; use Escape, Cancel or Ok. They are no longer autohide popovers, because an autohide popover holds an input grab that blocks the modal file chooser behind **Browse** — the old workaround hid the popover and re-showed it afterwards, which is what lost it. A side benefit is that a stray click can no longer discard a half-filled form. _(2026-08-16)_
+- Updated to `marco-core` 1.3.2. _(2026-08-17)_
 - Updated to `marco-core` 1.3.1, and to the `gtk4-webkit6` fork of `wry` 0.56.1 (from 0.55.1). _(2026-08-16)_
 - **Unified webview backend.** Linux and Windows now share a single `PlatformWebView` built on the gtk4-webkit6 fork of `wry` — WebKitGTK as a native GTK4 widget on Linux, WebView2 as a child window on Windows. The separate Linux/Windows implementations of the preview, search window, detached preview window and print path have been collapsed into one code path, so behaviour no longer diverges between platforms. _(2026-07-16 – 2026-07-18)_
 - Preview HTML and its local assets are now served over a `marco-preview://` custom protocol on both platforms. Relative image references (`![alt](./pic.png)`) resolve through ordinary URL resolution against the document's own URL, so no `<base>` tag or backend-specific base-URI call is involved. _(2026-07-16)_
@@ -66,6 +67,8 @@ _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 099
 - Viewer modules renamed to say what they are rather than which backend they came from: `wry_platform_webview` → `platform_webview`, `wry_find` → `find_engine`, `wry.rs` → `preview_helpers`, `print_driver` → `print_driver_linux`, and the two detached-window modules to `detached_window_linux` / `detached_window_windows`. _(2026-07-16)_
 
 ### Fixed
+- **Linux: a packaged install shows Marco's own icon again.** The window asked GTK for an icon named `marco`, but the rename above installs it as `markdowncomposer`, so the lookup failed — silently, as icon-theme lookups do — and the window, taskbar and alt-tab entry fell back to a generic icon. Verified against the built `.deb`: the new name resolves at all eleven packaged sizes, each to its own size directory. Wayland sessions never saw this, because the shell takes the icon from the `.desktop` file, which was already correct. _(2026-08-20)_
+- The preview no longer risks a hard crash after an unrelated error. The rendered HTML is handed to the webview through a shared buffer behind a mutex, and both the write on every preview update and the read inside the custom-protocol handler unwrapped that lock. One panic while the lock was held poisoned it, so every later preview update panicked too — the second time from inside the protocol handler, unwinding through native WebKit/WebView2 frames. Both sides now recover from a poisoned lock and carry on. _(2026-08-20)_
 - **Windows: an installed copy no longer keeps its settings inside the install directory.** Portable mode is detected by looking for a `config/` folder next to the executable, and failing that, by checking whether that directory is writable at all. A per-user install lands under your own profile, which is writable by definition, so every installed copy was being mistaken for a portable one — settings, themes and recent files went into the install folder and were deleted on uninstall. The check now recognises the uninstaller that an installed copy always has next to it, and treats such a copy as installed, storing settings in `%APPDATA%\marco` as intended. _(2026-08-18)_
 - On Linux, starting Marco in dark mode left GTK's own rendering — file choosers, native menus, anything not covered by Marco's CSS — in light theme until you changed the theme once. The GTK dark preference was only ever set on a theme *change*, never at startup. _(2026-08-17)_
 - Clicking a relative link in the preview loaded the raw Markdown as a blank page instead of opening the file in the editor. Preview documents are served over the `marco-preview://` protocol, so a relative link resolves against *that* origin, but only `file://` links were being recognised as local. _(2026-08-17)_

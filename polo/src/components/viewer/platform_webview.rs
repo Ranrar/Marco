@@ -385,12 +385,12 @@ impl PlatformWebView {
         // `load_html` / `NavigateToString` also bypasses WebView2's ~2 MB
         // content limit that would otherwise silently drop large markdown
         // files.
-        if let Ok(mut guard) = polo_html().lock() {
-            *guard = html.as_bytes().to_vec();
-        } else {
-            log::error!("[polo] polo_html mutex poisoned — cannot update HTML");
-            return;
-        }
+        // Recover from a poisoned lock rather than bailing out: the mutex
+        // guards a plain byte buffer with no invariant a panicking holder
+        // could break, and poison never clears by itself — returning early
+        // here would leave the preview stuck on stale content for the rest
+        // of the session.
+        *polo_html().lock().unwrap_or_else(|e| e.into_inner()) = html.as_bytes().to_vec();
 
         let v = self.load_version.get().wrapping_add(1);
         self.load_version.set(v);
@@ -836,10 +836,12 @@ fn polo_protocol_handler(
         .unwrap_or(false);
 
     if is_doc {
-        let body = match polo_html().lock() {
-            Ok(guard) => guard.clone(),
-            Err(_) => b"<html><body>Content unavailable</body></html>".to_vec(),
-        };
+        // Same poison recovery as the write side in `load_html_with_base`:
+        // serve the content that is actually there rather than an error page.
+        let body = polo_html()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone();
         return wry::http::Response::builder()
             .header("Content-Type", "text/html; charset=utf-8")
             .header("Access-Control-Allow-Origin", "*")
@@ -894,50 +896,6 @@ static POLO_HTML: std::sync::OnceLock<std::sync::Mutex<Vec<u8>>> = std::sync::On
 
 fn polo_html() -> &'static std::sync::Mutex<Vec<u8>> {
     POLO_HTML.get_or_init(|| std::sync::Mutex::new(Vec::new()))
-}
-
-#[cfg(test)]
-mod protocol_tests {
-    use super::*;
-
-    #[test]
-    fn smoke_build_document_url_no_base() {
-        let url = build_document_url(None, 3);
-        assert_eq!(url, "polo-preview://localhost?marco_doc=1&v=3");
-    }
-
-    #[test]
-    fn smoke_build_document_url_with_base() {
-        let url = build_document_url(Some("file:///home/user/docs/"), 1);
-        assert_eq!(
-            url,
-            "polo-preview://localhost/home/user/docs/?marco_doc=1&v=1"
-        );
-    }
-
-    #[test]
-    fn smoke_percent_encode_decode_roundtrip_ascii() {
-        let original = "/home/user/my docs/a-b_c.d~e/img.png";
-        let encoded = percent_encode_path(original);
-        assert_eq!(percent_decode_path(&encoded), original);
-    }
-
-    #[test]
-    fn smoke_percent_encode_decode_roundtrip_unicode() {
-        let original = "/home/user/dossiers/résumé 日本語/img.png";
-        let encoded = percent_encode_path(original);
-        assert!(!encoded.contains(' '));
-        assert_eq!(percent_decode_path(&encoded), original);
-    }
-
-    #[test]
-    fn smoke_mime_type_for_path_known_and_unknown() {
-        assert_eq!(mime_type_for_path("/x/img.PNG"), "image/png");
-        assert_eq!(
-            mime_type_for_path("/x/data.bin"),
-            "application/octet-stream"
-        );
-    }
 }
 
 /// Open the WebView2 *system* print dialog.
@@ -1283,5 +1241,49 @@ impl raw_window_handle::HasDisplayHandle for ParentWindowHandle {
         &self,
     ) -> Result<raw_window_handle::DisplayHandle<'_>, raw_window_handle::HandleError> {
         Ok(self.display)
+    }
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use super::*;
+
+    #[test]
+    fn smoke_build_document_url_no_base() {
+        let url = build_document_url(None, 3);
+        assert_eq!(url, "polo-preview://localhost?marco_doc=1&v=3");
+    }
+
+    #[test]
+    fn smoke_build_document_url_with_base() {
+        let url = build_document_url(Some("file:///home/user/docs/"), 1);
+        assert_eq!(
+            url,
+            "polo-preview://localhost/home/user/docs/?marco_doc=1&v=1"
+        );
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_ascii() {
+        let original = "/home/user/my docs/a-b_c.d~e/img.png";
+        let encoded = percent_encode_path(original);
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_unicode() {
+        let original = "/home/user/dossiers/résumé 日本語/img.png";
+        let encoded = percent_encode_path(original);
+        assert!(!encoded.contains(' '));
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_mime_type_for_path_known_and_unknown() {
+        assert_eq!(mime_type_for_path("/x/img.PNG"), "image/png");
+        assert_eq!(
+            mime_type_for_path("/x/data.bin"),
+            "application/octet-stream"
+        );
     }
 }

@@ -41,9 +41,11 @@ Ready to try Marco? Installation is simple and takes less than a minute:
 
 | Linux | Windows |
 |-------|---------|
-| Download the latest `.deb` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest | Download the latest `.zip` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest |
-| **Asset:** `markdown-composer-and-viewer_<version>_linux_amd64.deb` | **Asset:** `markdown-composer-and-viewer_<version>_windows_amd64.zip` |
-| **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `.zip` asset<br>2. Extract to any location (e.g., `C:\Program Files\Marco`)<br>3. Run `marco.exe` or `polo.exe`<br>4. Settings are stored in the extracted folder (portable mode) |
+| Download the latest `.deb` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest | Download the latest `_setup.exe` from the **Releases** page:<br>https://github.com/Ranrar/Marco/releases/latest |
+| **Asset:** `markdown-composer-and-viewer_<version>_linux_amd64.deb` | **Asset:** `markdown-composer-and-viewer_<version>_windows_amd64_setup.exe` |
+| **Install (Debian/Ubuntu):**<br>1. Download the `*.deb` asset for your architecture (typically `amd64`)<br>2. Install with your package manager (e.g. `dpkg`), then resolve any missing dependencies if prompted | **Install:**<br>1. Download the `*_setup.exe` asset and run it<br>2. It installs for your user account only, so no administrator rights are needed — run it elevated instead to install for all users<br>3. Start **Marco** or **Polo** from the Start menu; desktop shortcuts are optional during setup<br>4. Settings live in `%APPDATA%\marco`, and the installer registers an uninstaller |
+
+> **Windows: portable instead?** The `markdown-composer-and-viewer_<version>_windows_amd64.zip` asset still ships. Extract it anywhere and run `marco.exe` or `polo.exe` — a portable copy keeps its settings in the extracted folder, so the whole thing travels on a USB stick and leaves nothing behind.
 
 ## Use the parser as a library
 
@@ -218,8 +220,8 @@ Whether you're writing technical docs, tutorials, or long-form text, Marco turns
 ### Distribution & Platform
 - [x] Cross-platform support: Linux and Windows builds
 - [x] Linux packaging: .deb packages
-- [x] Windows packaging: Portable .zip packages
-- [ ] Additional packaging: Snap, .MSI installer
+- [x] Windows packaging: Inno Setup installer (`_setup.exe`) and portable .zip packages
+- [ ] Additional packaging: Snap
 
 ### Opt-in Telemetry
 - [ ] Privacy-first telemetry (opt-in, disabled by default)

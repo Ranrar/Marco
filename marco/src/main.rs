@@ -174,8 +174,8 @@ fn build_ui(app: &Application, initial_file: Option<String>, marco_paths: Rc<Mar
         .build();
     window.add_css_class("main-window");
 
-    // Set window icon (GTK will look for icon named "marco" in the system icon theme)
-    window.set_icon_name(Some("marco"));
+    // Set window icon (GTK will look for icon named "markdowncomposer" — matches build/linux/build_deb.sh and marco.desktop)
+    window.set_icon_name(Some("markdowncomposer"));
 
     // --- Create window first, but defer titlebar creation until after editor ---
     window.add_css_class("main-window");

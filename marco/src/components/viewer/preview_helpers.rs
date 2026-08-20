@@ -218,8 +218,9 @@ pub fn update_code_view_smooth(
 
 /// Start autoplay timers for all `marco_sliders` decks in the current preview (if any).
 ///
-/// Mirrors `webkit6::sliders_play_all` so `MarcoCorePreview.sliders.playAll()`
-/// can be invoked uniformly across both backends (Gap #9 / §14.9).
+/// Currently has no caller: it was the unified-backend counterpart of the
+/// since-deleted `webkit6::sliders_play_all`, and nothing in the UI drives
+/// deck autoplay yet. Kept as the entry point for when it does.
 #[allow(dead_code)]
 pub fn sliders_play_all(webview: &super::platform_webview::PlatformWebView) {
     let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.playAll==='function'){window.MarcoCorePreview.sliders.playAll();}}catch(e){console.error('sliders_play_all error',e);}})();"#;
@@ -228,7 +229,7 @@ pub fn sliders_play_all(webview: &super::platform_webview::PlatformWebView) {
 
 /// Stop autoplay timers for all `marco_sliders` decks in the current preview (if any).
 ///
-/// Mirrors `webkit6::sliders_pause_all` (Gap #9 / §14.9).
+/// Uncalled for the same reason as [`sliders_play_all`].
 #[allow(dead_code)]
 pub fn sliders_pause_all(webview: &super::platform_webview::PlatformWebView) {
     let js = r#"(function(){try{if(window.MarcoCorePreview&&window.MarcoCorePreview.sliders&&typeof window.MarcoCorePreview.sliders.pauseAll==='function'){window.MarcoCorePreview.sliders.pauseAll();}}catch(e){console.error('sliders_pause_all error',e);}})();"#;

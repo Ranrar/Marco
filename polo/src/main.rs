@@ -353,8 +353,8 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     window.add_css_class(&format!("marco-theme-{}", current_theme_mode));
     log::debug!("Applied theme class: marco-theme-{}", current_theme_mode);
 
-    // Set window icon (GTK will look for icon named "polo" in the system icon theme)
-    window.set_icon_name(Some("polo"));
+    // Set window icon (GTK will look for icon named "markdownviewer" — matches build/linux/build_deb.sh and polo.desktop)
+    window.set_icon_name(Some("markdownviewer"));
 
     // Create platform WebView for markdown preview
     let webview = PlatformWebView::new(&window)

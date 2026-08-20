@@ -514,7 +514,7 @@ impl PreviewWindow {
                 // Add a button to open in system browser
                 let ts = std::time::SystemTime::now()
                     .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_millis();
                 let file_name = format!("marco_preview_{}.html", ts);
                 let mut file_path = std::env::temp_dir();

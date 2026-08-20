@@ -342,140 +342,13 @@ pub(crate) fn make_local_srcs_url_safe(html: &str) -> std::borrow::Cow<'_, str> 
     }
 }
 
-#[cfg(test)]
-mod protocol_tests {
-    use super::*;
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn smoke_drive_absolute_src_gets_a_leading_slash() {
-        let html = r#"<img src="C:/Users/Kim/a.png"><img src="./b.png">"#;
-        assert_eq!(
-            make_local_srcs_url_safe(html),
-            r#"<img src="/C:/Users/Kim/a.png"><img src="./b.png">"#
-        );
-    }
-
-    #[test]
-    fn smoke_html_without_drive_paths_is_not_copied() {
-        let html = r#"<img src="./a.png"><img src="https://example.com/b.png">"#;
-        assert!(matches!(
-            make_local_srcs_url_safe(html),
-            std::borrow::Cow::Borrowed(_)
-        ));
-    }
-
-    #[test]
-    fn smoke_build_document_url_no_base() {
-        let url = build_document_url(None, 3);
-        assert_eq!(url, "marco-preview://localhost?marco_doc=1&v=3");
-    }
-
-    #[test]
-    fn smoke_build_document_url_with_base() {
-        let url = build_document_url(Some("file:///home/user/docs/"), 1);
-        assert_eq!(
-            url,
-            "marco-preview://localhost/home/user/docs/?marco_doc=1&v=1"
-        );
-    }
-
-    #[test]
-    fn smoke_percent_encode_decode_roundtrip_ascii() {
-        let original = "/home/user/my docs/a-b_c.d~e/img.png";
-        let encoded = percent_encode_path(original);
-        assert_eq!(percent_decode_path(&encoded), original);
-    }
-
-    #[test]
-    fn smoke_percent_encode_decode_roundtrip_unicode() {
-        let original = "/home/user/dossiers/résumé 日本語/img.png";
-        let encoded = percent_encode_path(original);
-        assert!(!encoded.contains(' '));
-        assert_eq!(percent_decode_path(&encoded), original);
-    }
-
-    #[test]
-    fn smoke_percent_encode_preserves_slash() {
-        let encoded = percent_encode_path("/a/b/c");
-        assert_eq!(encoded, "/a/b/c");
-    }
-
-    #[test]
-    fn smoke_mime_type_for_path_known_and_unknown() {
-        assert_eq!(mime_type_for_path("/x/img.PNG"), "image/png");
-        assert_eq!(mime_type_for_path("/x/img.jpeg"), "image/jpeg");
-        assert_eq!(
-            mime_type_for_path("/x/data.bin"),
-            "application/octet-stream"
-        );
-        assert_eq!(mime_type_for_path("/x/noext"), "application/octet-stream");
-    }
-
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn smoke_url_path_to_fs_path_linux_passthrough() {
-        assert_eq!(
-            url_path_to_fs_path("/home/user/img.png"),
-            "/home/user/img.png"
-        );
-    }
-
-    #[test]
-    fn smoke_md_links_are_local_on_every_document_origin() {
-        // A relative link resolves against the custom-protocol document URL,
-        // not against `file://`.
-        assert!(is_local_md_uri("marco-preview://localhost/docs/a.md"));
-        assert!(is_local_md_uri("http://marco-preview.localhost/docs/a.md"));
-        assert!(is_local_md_uri("file:///docs/a.md"));
-        assert!(is_local_md_uri("file:///docs/a.MD#heading"));
-        assert!(is_local_md_uri("marco-preview://localhost/d/a.md?x=1"));
-    }
-
-    #[test]
-    fn smoke_non_md_and_remote_uris_are_not_local_md() {
-        assert!(!is_local_md_uri("https://example.com/docs/a.md"));
-        assert!(!is_local_md_uri("marco-preview://localhost/docs/a.png"));
-        // Shares a prefix with the origin without being one.
-        assert!(!is_local_md_uri("marco-preview://localhostile/a.md"));
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    #[test]
-    fn smoke_unicode_filename_decodes_to_the_real_path() {
-        // `✓` is three UTF-8 bytes, so it arrives as three escapes that only
-        // together form one codepoint.
-        let (path, fragment) = extract_path_and_fragment_from_file_uri(
-            "marco-preview://localhost/docs/files/unicode-%E2%9C%93.md",
-        );
-        assert_eq!(path, "/docs/files/unicode-✓.md");
-        assert_eq!(fragment, None);
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    #[test]
-    fn smoke_path_extraction_keeps_fragment_and_drops_query() {
-        let (path, fragment) =
-            extract_path_and_fragment_from_file_uri("file:///docs/a%20b.md?v=2#sec");
-        assert_eq!(path, "/docs/a b.md");
-        assert_eq!(fragment.as_deref(), Some("sec"));
-    }
-
-    #[cfg(target_os = "windows")]
-    #[test]
-    fn smoke_windows_drive_path_loses_the_url_leading_slash() {
-        let (path, _) = extract_path_and_fragment_from_file_uri("file:///C:/docs/a.md");
-        assert_eq!(path, "C:/docs/a.md");
-    }
-}
-
 /// Cross-platform PlatformWebView wrapper
 #[derive(Clone)]
 pub struct PlatformWebView {
     /// Reference-counted RAII guard for this instance's `WEBVIEW_HTML_MAP`
     /// slot. The map entry is removed when the last clone is dropped — see
-    /// [`IdGuard::drop`]. Only the Windows custom-protocol path reads the id.
-    #[allow(dead_code)]
+    /// [`IdGuard::drop`]. The id itself keys every custom-protocol read and
+    /// write, on both platforms.
     id_guard: Rc<IdGuard>,
     /// Monotonically increasing counter appended to the document URL as
     /// `&v=N`. Each increment produces a unique URL so neither backend can
@@ -892,9 +765,12 @@ impl PlatformWebView {
         // handler can serve it.
         let html = &*make_local_srcs_url_safe(html);
 
+        // Recover from a poisoned lock rather than panicking: the mutex guards
+        // a plain id -> bytes map with no invariant a panicking holder could
+        // break, and this runs on the UI path for every preview update.
         html_map()
             .lock()
-            .unwrap()
+            .unwrap_or_else(|e| e.into_inner())
             .insert(self.id_guard.0, html.as_bytes().to_vec());
 
         let doc_url = build_document_url(base_uri, v);
@@ -1096,9 +972,14 @@ impl PlatformWebView {
                         .unwrap_or(false);
 
                     if is_doc {
+                        // Same poison recovery as the write side in
+                        // `load_html_with_base` — and doubly so here, because
+                        // this closure runs inside the WebView's protocol
+                        // handler, where a panic unwinds through native
+                        // WebKit/WebView2 frames.
                         let html_bytes = html_map()
                             .lock()
-                            .unwrap()
+                            .unwrap_or_else(|e| e.into_inner())
                             .get(&id)
                             .cloned()
                             .unwrap_or_default();
@@ -1717,4 +1598,131 @@ fn should_open_externally(uri: &str) -> bool {
         || lower.starts_with("tel:")
         || lower.starts_with("ftp://")
         || lower.starts_with("www.")
+}
+
+#[cfg(test)]
+mod protocol_tests {
+    use super::*;
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn smoke_drive_absolute_src_gets_a_leading_slash() {
+        let html = r#"<img src="C:/Users/Kim/a.png"><img src="./b.png">"#;
+        assert_eq!(
+            make_local_srcs_url_safe(html),
+            r#"<img src="/C:/Users/Kim/a.png"><img src="./b.png">"#
+        );
+    }
+
+    #[test]
+    fn smoke_html_without_drive_paths_is_not_copied() {
+        let html = r#"<img src="./a.png"><img src="https://example.com/b.png">"#;
+        assert!(matches!(
+            make_local_srcs_url_safe(html),
+            std::borrow::Cow::Borrowed(_)
+        ));
+    }
+
+    #[test]
+    fn smoke_build_document_url_no_base() {
+        let url = build_document_url(None, 3);
+        assert_eq!(url, "marco-preview://localhost?marco_doc=1&v=3");
+    }
+
+    #[test]
+    fn smoke_build_document_url_with_base() {
+        let url = build_document_url(Some("file:///home/user/docs/"), 1);
+        assert_eq!(
+            url,
+            "marco-preview://localhost/home/user/docs/?marco_doc=1&v=1"
+        );
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_ascii() {
+        let original = "/home/user/my docs/a-b_c.d~e/img.png";
+        let encoded = percent_encode_path(original);
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_percent_encode_decode_roundtrip_unicode() {
+        let original = "/home/user/dossiers/résumé 日本語/img.png";
+        let encoded = percent_encode_path(original);
+        assert!(!encoded.contains(' '));
+        assert_eq!(percent_decode_path(&encoded), original);
+    }
+
+    #[test]
+    fn smoke_percent_encode_preserves_slash() {
+        let encoded = percent_encode_path("/a/b/c");
+        assert_eq!(encoded, "/a/b/c");
+    }
+
+    #[test]
+    fn smoke_mime_type_for_path_known_and_unknown() {
+        assert_eq!(mime_type_for_path("/x/img.PNG"), "image/png");
+        assert_eq!(mime_type_for_path("/x/img.jpeg"), "image/jpeg");
+        assert_eq!(
+            mime_type_for_path("/x/data.bin"),
+            "application/octet-stream"
+        );
+        assert_eq!(mime_type_for_path("/x/noext"), "application/octet-stream");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn smoke_url_path_to_fs_path_linux_passthrough() {
+        assert_eq!(
+            url_path_to_fs_path("/home/user/img.png"),
+            "/home/user/img.png"
+        );
+    }
+
+    #[test]
+    fn smoke_md_links_are_local_on_every_document_origin() {
+        // A relative link resolves against the custom-protocol document URL,
+        // not against `file://`.
+        assert!(is_local_md_uri("marco-preview://localhost/docs/a.md"));
+        assert!(is_local_md_uri("http://marco-preview.localhost/docs/a.md"));
+        assert!(is_local_md_uri("file:///docs/a.md"));
+        assert!(is_local_md_uri("file:///docs/a.MD#heading"));
+        assert!(is_local_md_uri("marco-preview://localhost/d/a.md?x=1"));
+    }
+
+    #[test]
+    fn smoke_non_md_and_remote_uris_are_not_local_md() {
+        assert!(!is_local_md_uri("https://example.com/docs/a.md"));
+        assert!(!is_local_md_uri("marco-preview://localhost/docs/a.png"));
+        // Shares a prefix with the origin without being one.
+        assert!(!is_local_md_uri("marco-preview://localhostile/a.md"));
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn smoke_unicode_filename_decodes_to_the_real_path() {
+        // `✓` is three UTF-8 bytes, so it arrives as three escapes that only
+        // together form one codepoint.
+        let (path, fragment) = extract_path_and_fragment_from_file_uri(
+            "marco-preview://localhost/docs/files/unicode-%E2%9C%93.md",
+        );
+        assert_eq!(path, "/docs/files/unicode-✓.md");
+        assert_eq!(fragment, None);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    #[test]
+    fn smoke_path_extraction_keeps_fragment_and_drops_query() {
+        let (path, fragment) =
+            extract_path_and_fragment_from_file_uri("file:///docs/a%20b.md?v=2#sec");
+        assert_eq!(path, "/docs/a b.md");
+        assert_eq!(fragment.as_deref(), Some("sec"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn smoke_windows_drive_path_loses_the_url_leading_slash() {
+        let (path, _) = extract_path_and_fragment_from_file_uri("file:///C:/docs/a.md");
+        assert_eq!(path, "C:/docs/a.md");
+    }
 }
