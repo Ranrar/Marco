@@ -374,6 +374,9 @@ fn menu_btn(text: &str) -> Button {
 //   win.polo-clear-recent     — clears the recent files list
 //   win.polo-reload           — re-reads the current file from disk (F5)
 //   win.polo-find             — reveals/focuses the toolbar find-in-page bar (Ctrl+F)
+//   win.polo-zoom-in          — increases preview zoom (Ctrl+=/Ctrl+Plus)
+//   win.polo-zoom-out         — decreases preview zoom (Ctrl+-)
+//   win.polo-zoom-reset       — resets preview zoom to 100% (Ctrl+0)
 //   win.polo-quit             — closes the window
 
 #[allow(clippy::too_many_arguments)]
@@ -613,6 +616,51 @@ fn build_file_popover(
         // Register Ctrl+F accelerator
         if let Some(app) = window.application() {
             app.set_accels_for_action("win.polo-find", &["<Control>f"]);
+        }
+    }
+
+    // Preview zoom shortcuts — same in/out/reset delta logic the in-page zoom
+    // toolbar's buttons and Ctrl+wheel drive via `polo_zoom:` IPC (see
+    // `viewer::zoom::step`, `viewer::zoom_bar`). Session-only, not persisted.
+    if window.lookup_action("polo-zoom-in").is_none() {
+        let zoom_in_action = gio::SimpleAction::new("polo-zoom-in", None);
+        let wv = webview.clone();
+        zoom_in_action.connect_activate(move |_, _| {
+            crate::components::viewer::zoom::step("in", &wv);
+        });
+        window.add_action(&zoom_in_action);
+        if let Some(app) = window.application() {
+            app.set_accels_for_action(
+                "win.polo-zoom-in",
+                &["<Control>plus", "<Control>equal", "<Control>KP_Add"],
+            );
+        }
+    }
+
+    if window.lookup_action("polo-zoom-out").is_none() {
+        let zoom_out_action = gio::SimpleAction::new("polo-zoom-out", None);
+        let wv = webview.clone();
+        zoom_out_action.connect_activate(move |_, _| {
+            crate::components::viewer::zoom::step("out", &wv);
+        });
+        window.add_action(&zoom_out_action);
+        if let Some(app) = window.application() {
+            app.set_accels_for_action(
+                "win.polo-zoom-out",
+                &["<Control>minus", "<Control>KP_Subtract"],
+            );
+        }
+    }
+
+    if window.lookup_action("polo-zoom-reset").is_none() {
+        let zoom_reset_action = gio::SimpleAction::new("polo-zoom-reset", None);
+        let wv = webview.clone();
+        zoom_reset_action.connect_activate(move |_, _| {
+            crate::components::viewer::zoom::step("reset", &wv);
+        });
+        window.add_action(&zoom_reset_action);
+        if let Some(app) = window.application() {
+            app.set_accels_for_action("win.polo-zoom-reset", &["<Control>0", "<Control>KP_0"]);
         }
     }
 

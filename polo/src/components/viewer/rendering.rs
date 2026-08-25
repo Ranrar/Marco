@@ -195,6 +195,9 @@ fn build_html_from_content(
             // why this replaced a native GTK Popover.
             combined_css.push_str("\n\n/* Link-hover tooltip */\n");
             combined_css.push_str(crate::components::viewer::link_hover::CSS);
+            // In-page zoom toolbar CSS — see `viewer::zoom_bar`.
+            combined_css.push_str("\n\n/* Zoom toolbar */\n");
+            combined_css.push_str(crate::components::viewer::zoom_bar::CSS);
 
             // Append the link-hover tooltip markup (see `viewer::link_hover`)
             // and the shared drag-and-drop overlay markup (see
@@ -205,11 +208,12 @@ fn build_html_from_content(
             // reason it already runs after `html` so every link in the
             // document exists first.
             let html_with_js = format!(
-                "{}{}{}{}",
+                "{}{}{}{}{}",
                 html,
                 crate::components::viewer::link_hover::html(),
                 crate::components::viewer::drop_overlay::html(),
-                crate::components::viewer::javascript::HOVER_REPORT_JS
+                crate::components::viewer::javascript::HOVER_REPORT_JS,
+                crate::components::viewer::zoom_bar::html()
             );
 
             let theme_class = format!("theme-{}", theme_mode);

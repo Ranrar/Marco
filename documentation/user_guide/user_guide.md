@@ -527,6 +527,14 @@ Apply different styling to your preview:
 - Themes affect how your Markdown renders in preview mode
 - Automatic theme integration with light/dark mode detection
 
+### Preview Zoom
+Zoom the rendered preview independently of your editor font size:
+- **Keyboard**: `Ctrl+=`/`Ctrl+-` to zoom in/out, `Ctrl+0` to reset
+- **Mouse**: `Ctrl+scroll wheel` over the preview
+- **On-screen controls**: hover over the preview to reveal a small +/−/reset toolbar in its bottom-right corner, showing the current zoom percentage
+- Zoom range is 50%–300%, in 10% steps
+- Polo (the standalone viewer) has the same controls, except there the zoom level resets to 100% on every restart rather than being remembered
+
 ## Settings & Preferences
 
 Access preferences through **View → Preferences** (`Ctrl+,`).
@@ -589,6 +597,11 @@ The settings dialog is organized into tabs. Labels and tooltips update live when
 
 ### Headings
 - `Ctrl+1` through `Ctrl+6` - Insert heading levels
+
+### Preview
+- `Ctrl+=` / `Ctrl+-` - Zoom preview in/out
+- `Ctrl+0` - Reset preview zoom
+- `Ctrl+scroll wheel` (over the preview) - Zoom preview in/out
 
 ### Help
 - `Ctrl+?` - Show keyboard shortcuts

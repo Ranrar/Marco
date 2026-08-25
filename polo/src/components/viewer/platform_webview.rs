@@ -47,6 +47,10 @@ type FindReportCallbackCell = std::rc::Rc<
         Option<std::rc::Rc<dyn Fn(crate::components::viewer::find_engine::FindReport)>>,
     >,
 >;
+/// Listener for the in-page zoom toolbar's `polo_zoom:in|out|reset` IPC
+/// messages (see [`crate::components::viewer::zoom_bar`]), also used by
+/// Ctrl+wheel (posted from the same in-page script).
+type ZoomActionCallbackCell = std::rc::Rc<std::cell::RefCell<Option<std::rc::Rc<dyn Fn(&str)>>>>;
 
 /// Unified WebView wrapper exposed to the rest of the codebase.
 #[derive(Clone)]
@@ -76,6 +80,10 @@ pub struct PlatformWebView {
     /// Listener for `polo_find:count=N,index=K` IPC messages emitted by the
     /// `PoloFind` JS engine. See [`Self::set_find_report_callback`].
     find_report_callback: FindReportCallbackCell,
+    /// Listener for `polo_zoom:in|out|reset` IPC messages emitted by the
+    /// in-page zoom toolbar (buttons and Ctrl+wheel). See
+    /// [`Self::set_zoom_action_handler`].
+    zoom_action_callback: ZoomActionCallbackCell,
     /// When `true` the tick callback keeps the wry HWND at −32000,−32000 so
     /// the GTK loading-overlay frame is visible above it (Windows-only effect;
     /// on Linux the overlay stacks above the webview widget natively).
@@ -115,6 +123,8 @@ impl PlatformWebView {
         let open_file_click_callback: OpenFileClickCallbackCell =
             std::rc::Rc::new(std::cell::RefCell::new(None));
         let find_report_callback: FindReportCallbackCell =
+            std::rc::Rc::new(std::cell::RefCell::new(None));
+        let zoom_action_callback: ZoomActionCallbackCell =
             std::rc::Rc::new(std::cell::RefCell::new(None));
         let is_offscreen_for_loading = std::rc::Rc::new(std::cell::Cell::new(false));
 
@@ -257,6 +267,7 @@ impl PlatformWebView {
             drag_hover_callback,
             open_file_click_callback,
             find_report_callback,
+            zoom_action_callback,
             is_offscreen_for_loading,
             load_version: std::rc::Rc::new(std::cell::Cell::new(0u64)),
             bg_css_provider,
@@ -301,13 +312,9 @@ impl PlatformWebView {
             .with_ipc_handler({
                 let open_file_cb = self.open_file_click_callback.clone();
                 let find_cb = self.find_report_callback.clone();
+                let zoom_cb = self.zoom_action_callback.clone();
                 move |req: wry::http::Request<String>| {
-                    let msg = req.body().as_str();
-                    if msg == "polo_open_file:" {
-                        handle_open_file_click_ipc(&open_file_cb);
-                    } else if let Some(payload) = msg.strip_prefix("polo_find:") {
-                        handle_find_report_ipc(payload, &find_cb);
-                    }
+                    dispatch_polo_ipc(req.body().as_str(), &open_file_cb, &find_cb, &zoom_cb);
                 }
             })
             .with_drag_drop_handler(make_drag_drop_handler(
@@ -505,13 +512,9 @@ impl PlatformWebView {
                 .with_ipc_handler({
                     let open_file_cb = self.open_file_click_callback.clone();
                     let find_cb = self.find_report_callback.clone();
+                    let zoom_cb = self.zoom_action_callback.clone();
                     move |req: wry::http::Request<String>| {
-                        let msg = req.body().as_str();
-                        if msg == "polo_open_file:" {
-                            handle_open_file_click_ipc(&open_file_cb);
-                        } else if let Some(payload) = msg.strip_prefix("polo_find:") {
-                            handle_find_report_ipc(payload, &find_cb);
-                        }
+                        dispatch_polo_ipc(req.body().as_str(), &open_file_cb, &find_cb, &zoom_cb);
                     }
                 })
                 .with_drag_drop_handler(make_drag_drop_handler(
@@ -581,6 +584,14 @@ impl PlatformWebView {
         F: Fn(crate::components::viewer::find_engine::FindReport) + 'static,
     {
         *self.find_report_callback.borrow_mut() = Some(std::rc::Rc::new(callback));
+    }
+
+    /// Install a callback invoked when the in-page zoom toolbar posts a
+    /// `polo_zoom:in|out|reset` IPC message (button click or Ctrl+wheel — see
+    /// [`crate::components::viewer::zoom_bar`]). The callback receives the
+    /// bare action string (`"in"`, `"out"`, or `"reset"`).
+    pub fn set_zoom_action_handler<F: Fn(&str) + 'static>(&self, callback: F) {
+        *self.zoom_action_callback.borrow_mut() = Some(std::rc::Rc::new(callback));
     }
 
     /// Move the wry HWND off-screen (`offscreen = true`) so the GTK loading-
@@ -1027,6 +1038,25 @@ fn make_drag_drop_handler(
     }
 }
 
+/// Shared IPC-message branching for both platforms' `.with_ipc_handler`
+/// builder sites (`build_webview_gtk` on Linux, the first-build path in
+/// `load_html_with_base` on Windows) — factored out here rather than left
+/// duplicated inline in each closure, since both need identical branches.
+fn dispatch_polo_ipc(
+    msg: &str,
+    open_file_cb: &OpenFileClickCallbackCell,
+    find_cb: &FindReportCallbackCell,
+    zoom_cb: &ZoomActionCallbackCell,
+) {
+    if msg == "polo_open_file:" {
+        handle_open_file_click_ipc(open_file_cb);
+    } else if let Some(payload) = msg.strip_prefix("polo_find:") {
+        handle_find_report_ipc(payload, find_cb);
+    } else if let Some(action) = msg.strip_prefix("polo_zoom:") {
+        handle_zoom_action_ipc(action, zoom_cb);
+    }
+}
+
 /// Dispatch a `polo_open_file:` IPC message (the empty-state's "Open File"
 /// button) to the installed [`PlatformWebView::set_open_file_click_handler`]
 /// callback on the GTK main context — `with_ipc_handler` closures run on
@@ -1052,6 +1082,18 @@ fn handle_find_report_ipc(payload: &str, find_cb: &FindReportCallbackCell) {
     let cb_opt = find_cb.borrow().clone();
     if let Some(cb) = cb_opt {
         gtk4::glib::MainContext::default().invoke_local(move || cb(report));
+    }
+}
+
+/// Dispatch a `polo_zoom:` IPC payload (posted by the in-page zoom toolbar's
+/// buttons and its Ctrl+wheel listener — see `viewer::zoom_bar`) to the
+/// installed [`PlatformWebView::set_zoom_action_handler`] callback, same
+/// `invoke_local` marshalling as [`handle_open_file_click_ipc`].
+fn handle_zoom_action_ipc(action: &str, zoom_cb: &ZoomActionCallbackCell) {
+    let cb_opt = zoom_cb.borrow().clone();
+    if let Some(cb) = cb_opt {
+        let action = action.to_string();
+        gtk4::glib::MainContext::default().invoke_local(move || cb(&action));
     }
 }
 

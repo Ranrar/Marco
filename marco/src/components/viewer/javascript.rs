@@ -50,6 +50,16 @@ pub fn wheel_js(scale: f64) -> String {
         }}
 
         window.addEventListener('wheel', function(e){{
+            if (e.ctrlKey) {{
+                e.preventDefault();
+                try {{
+                    if (window.ipc && typeof window.ipc.postMessage === 'function') {{
+                        window.ipc.postMessage('marco_zoom:' + (e.deltaY < 0 ? 'in' : 'out'));
+                    }}
+                }} catch (_) {{}}
+                return;
+            }}
+
             if (Math.abs(e.deltaY) < 0.0001 && Math.abs(e.deltaX) < 0.0001) return;
 
             const sc = findScroll(e.target);
