@@ -44,6 +44,8 @@ pub mod link_hover;
 pub mod loading_overlay;
 pub mod platform_webview;
 pub mod rendering;
+pub mod zoom;
+pub mod zoom_bar;
 
 pub use empty_state::show_empty_state_with_theme;
 pub use rendering::load_and_render_markdown;

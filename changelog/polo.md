@@ -9,6 +9,9 @@ Version scheme note: versions are reconstructed as `0.YY.ZZ` from git history us
 
 ## [Unreleased]
 
+### Added
+- **Preview zoom**, ported over from Marco's editor: an in-page toolbar (`+`/`−`/reset, bottom-right corner of the preview, revealed on hover), `Ctrl+=`/`Ctrl+-`/`Ctrl+0` keyboard shortcuts, and `Ctrl+scroll wheel`. Deliberately session-only — the zoom level is not written to settings, since Polo opens a different document on every launch rather than one long-lived editing session. _(2026-08-25)_
+
 ## [0.25.0] - 2026-08-20
 
 _Covers the `unified-webviewer` branch: commits 31a6aac (2026-07-14) through 2d34df7 (2026-08-18), plus the fixes dated 2026-08-20 below._

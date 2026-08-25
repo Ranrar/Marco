@@ -506,8 +506,25 @@ fn build_ui(app: &Application, file_path: Option<String>, polo_paths: std::rc::R
     // the new page — not when we merely queued it for load.  Without this the
     // bar disappears seconds before the new HTML replaces the old welcome
     // content on screen.
-    webview.connect_load_finished(|| {
-        components::viewer::loading_overlay::hide();
+    webview.connect_load_finished({
+        let webview_for_zoom = webview.clone();
+        move || {
+            components::viewer::loading_overlay::hide();
+            // `style.zoom` lives in the DOM of the page that was just
+            // replaced, so it resets on every navigation — re-apply the
+            // in-session zoom level unconditionally after every load.
+            components::viewer::zoom::reapply(&webview_for_zoom);
+        }
+    });
+
+    // Zoom toolbar buttons and Ctrl+wheel (see `viewer::zoom_bar`) post
+    // `polo_zoom:in|out|reset` over IPC; keyboard shortcuts (`components::menu`)
+    // call `zoom::step` directly — both funnel through the same delta logic.
+    webview.set_zoom_action_handler({
+        let webview_for_zoom = webview.clone();
+        move |action: &str| {
+            components::viewer::zoom::step(action, &webview_for_zoom);
+        }
     });
 
     // Load and render the markdown file
